@@ -7,15 +7,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @Composable
-//fun OrdersScreen() {
-fun OrdersScreen(
-    viewModel: OrdersViewModel = viewModel(
-        factory = OrdersViewModelFactory(LocalContext.current)
-    )
-) {
+fun OrdersScreen() {
     var figi by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
 
@@ -26,36 +22,90 @@ fun OrdersScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Выставление заявки",
-            style = MaterialTheme.typography.headlineSmall
-        )
-
-        OutlinedTextField(
-            value = figi,
-            onValueChange = { figi = it },
-            label = { Text("FIGI инструмента") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        OutlinedTextField(
-            value = quantity,
-            onValueChange = { quantity = it },
-            label = { Text("Количество лотов") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Button(
-            onClick = { /* Пока ничего */ },
-            modifier = Modifier.fillMaxWidth()
+        // Заголовок
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
         ) {
-            Text("Выставить заявку")
+            Text(
+                text = "Выставление заявки",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(16.dp),
+                textAlign = TextAlign.Center
+            )
         }
 
-        Text(
-            text = "API не подключен. Перейдите в Настройки",
-            color = MaterialTheme.colorScheme.error
+        // Предупреждение о необходимости подключения API
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "⚠️ API не подключен",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "Перейдите в Настройки и введите токен доступа",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        // Поле ввода FIGI
+        OutlinedTextField(
+            value = figi,
+            onValueChange = { figi = it.uppercase() },
+            label = { Text("FIGI инструмента") },
+            placeholder = { Text("Например: BBG004730N88") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
+
+        // Поле ввода количества
+        OutlinedTextField(
+            value = quantity,
+            onValueChange = { quantity = it.filter { c -> c.isDigit() } },
+            label = { Text("Количество лотов") },
+            placeholder = { Text("Введите целое число") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Кнопки (неактивные, пока API не подключен)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Button(
+                onClick = { },
+                modifier = Modifier.weight(1f),
+                enabled = false
+            ) {
+                Text("КУПИТЬ")
+            }
+
+            Button(
+                onClick = { },
+                modifier = Modifier.weight(1f),
+                enabled = false,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("ПРОДАТЬ")
+            }
+        }
     }
 }
