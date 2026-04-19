@@ -18,27 +18,27 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.tscalp.presentation.navigation.NavGraph
-import com.example.tscalp.presentation.navigation.NavRoute
+import com.example.tscalp.presentation.navigation.NavRoutes
 
 data class BottomNavItem(
-    val route: NavRoute,
+    val route: String,
     val title: String,
     val icon: ImageVector
 )
 
 val bottomNavItems = listOf(
     BottomNavItem(
-        route = NavRoute.Orders,
+        route = NavRoutes.ORDERS,  // Строка "orders"
         title = "Заявки",
         icon = Icons.Default.List
     ),
     BottomNavItem(
-        route = NavRoute.Portfolio,
+        route = NavRoutes.PORTFOLIO,  // Строка "portfolio"
         title = "Портфель",
         icon = Icons.Default.ShowChart
     ),
     BottomNavItem(
-        route = NavRoute.Settings,
+        route = NavRoutes.SETTINGS,  // Строка "settings"
         title = "Настройки",
         icon = Icons.Default.Settings
     )
