@@ -10,7 +10,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun OrdersScreen() {
+//fun OrdersScreen() {
+fun OrdersScreen(
+    viewModel: OrdersViewModel = viewModel(
+        factory = OrdersViewModelFactory(LocalContext.current)
+    )
+) {
     var figi by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
 
