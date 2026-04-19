@@ -5,8 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun OrdersScreen(
-    viewModel: OrdersViewModel = viewModel()
-) {
-    Text("Экран заявок (в разработке)")
+fun OrdersScreen() {
+    Text("Orders Screen")
 }
+
+//fun OrdersScreen(
+//    viewModel: OrdersViewModel = viewModel()
+//) {
+//    Text("Экран заявок (в разработке)")
+//}
