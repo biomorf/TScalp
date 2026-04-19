@@ -39,7 +39,7 @@ fun NavGraph(
         composable<NavRoute.Portfolio> {
             PortfolioScreen()
         }
-        composable<NavRoute.Settings> {
+        composable(NavRoute.Settings) {
             SettingsScreen()
         }
     }
