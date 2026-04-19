@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Исключаем зашифрованные настройки из бэкапа -->
+    <exclude domain="sharedpref" path="tinvest_secure_prefs.xml"/>
+</full-backup-content>
