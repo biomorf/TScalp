@@ -7,6 +7,6 @@ import com.example.tscalp.presentation.navigation.NavGraph
 @Composable
 fun MainScreen() {
     // Временно используем только навигацию
-    Text("TScalp Main Screen")
-    //NavGraph()
+    //Text("TScalp Main Screennnnn")
+    NavGraph()
 }
