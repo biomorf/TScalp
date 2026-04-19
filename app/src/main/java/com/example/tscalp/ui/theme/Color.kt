@@ -1,4 +1,4 @@
-package com.example.tscalp.ui.theme  // или presentation.ui.theme
+package com.example.tscalp.ui.theme  // presentation.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

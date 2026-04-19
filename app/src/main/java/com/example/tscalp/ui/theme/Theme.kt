@@ -1,4 +1,4 @@
-package com.example.tscalp.ui.theme  // ��� presentation.ui.theme � ����������� �� ������
+package com.example.tscalp.ui.theme  //  presentation.ui.theme
 
 import android.app.Activity
 import android.os.Build
