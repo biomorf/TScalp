@@ -5,5 +5,5 @@ import androidx.compose.runtime.Composable
 
 @Composable
 fun PortfolioScreen() {
-    Text("Портфель (в разработке)")
+    Text("РџРѕСЂС‚С„РµР»СЊ ()")
 }

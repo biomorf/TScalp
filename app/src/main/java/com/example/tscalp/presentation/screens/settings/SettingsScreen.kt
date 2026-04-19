@@ -5,5 +5,5 @@ import androidx.compose.runtime.Composable
 
 @Composable
 fun SettingsScreen() {
-    Text("Настройки (в разработке)")
+    Text("РќР°СЃС‚СЂРѕР№РєРё ()")
 }
