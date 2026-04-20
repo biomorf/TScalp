@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
+import com.example.tscalp.data.api.TinkoffInvestService
 
 @Composable
 fun SettingsScreen(
@@ -17,11 +18,17 @@ fun SettingsScreen(
         factory = OrdersViewModelFactory(LocalContext.current)
     )
 ) {
+    val context = LocalContext.current
+    val apiService = remember { TinkoffInvestService(context) }
+
+    var isConnected by remember { mutableStateOf(apiService.isInitialized) }
     val uiState by ordersViewModel.uiState.collectAsState()
 
     var token by remember { mutableStateOf("") }
     var sandboxMode by remember { mutableStateOf(true) }
     var showToken by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
