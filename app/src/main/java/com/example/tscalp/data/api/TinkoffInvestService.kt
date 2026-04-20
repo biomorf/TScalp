@@ -74,19 +74,57 @@ class TinkoffInvestService(private val context: Context) {
     suspend fun getAccounts(): List<Account> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         try {
-            Log.d(TAG, "Запрос списка счетов")
+            Log.d(TAG, "Запрос списка счетов, sandbox: $sandboxMode")
 
-            val accounts = if (sandboxMode) {
-                // В песочнице пробуем получить счета через sandboxService
-                currentApi.sandboxService.getAccountsSync()
+            if (sandboxMode) {
+                // 1. Пытаемся получить существующие счета
+                var sandboxAccounts = try {
+                    currentApi.sandboxService.getAccountsSync()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Не удалось получить счета: ${e.message}")
+                    emptyList()
+                }
+
+                Log.d(TAG, "Получено ${sandboxAccounts.size} песочных счетов")
+
+                // 2. Если счетов нет - создаем новый
+                if (sandboxAccounts.isEmpty()) {
+                    Log.d(TAG, "Создаем новый счет в песочнице...")
+
+                    val newAccountId = try {
+                        currentApi.sandboxService.openAccountSync()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Ошибка создания счета", e)
+                        throw Exception("Не удалось создать счет в песочнице: ${e.message}")
+                    }
+
+                    Log.d(TAG, "Создан новый счет с ID: $newAccountId")
+
+                    // 3. Пополняем счет (обязательно!)
+                    try {
+                        val moneyValue = MoneyValue.newBuilder()
+                            .setUnits(100000)
+                            .setNano(0)
+                            .setCurrency("RUB")
+                            .build()
+
+                        currentApi.sandboxService.payInSync(newAccountId, moneyValue)
+                        Log.d(TAG, "Счет пополнен на 100 000 RUB")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Не удалось пополнить счет: ${e.message}")
+                    }
+
+                    // 4. Повторно получаем список счетов
+                    sandboxAccounts = currentApi.sandboxService.getAccountsSync()
+                }
+
+                return@withContext sandboxAccounts
             } else {
+                // Боевой режим
                 currentApi.userService.getAccountsSync()
             }
-
-            Log.d(TAG, "Получено ${accounts.size} счетов")
-            accounts
         } catch (e: Exception) {
-            Log.e(TAG, "Ошибка получения счетов", e)
+            Log.e(TAG, "Ошибка получения/создания счетов", e)
             throw Exception("Не удалось получить счета: ${e.message}")
         }
     }
