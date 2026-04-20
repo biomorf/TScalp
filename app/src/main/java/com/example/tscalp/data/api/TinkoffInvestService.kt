@@ -51,20 +51,23 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    fun initialize(token: String, sandbox: Boolean = true) {
+    fun initialize(token: String, sandboxMode: Boolean = true) {
         try {
-            Log.d(TAG, "Инициализация API, sandbox: $sandbox")
-            sandboxMode = sandbox
+            Log.d(TAG, "Инициализация API, sandbox: $sandboxMode")
+            this.sandboxMode = sandboxMode
 
-            api = if (sandbox) {
+            // Закрываем старый канал, если он есть
+            api?.destroy(3) // 3 секунды на завершение
+
+            api = if (sandboxMode) {
                 InvestApi.createSandbox(token)
             } else {
                 InvestApi.create(token)
             }
 
             securePrefs.edit().putString("api_token", token).apply()
-            securePrefs.edit().putBoolean("sandbox_mode", sandbox).apply()
-            Log.d(TAG, "API успешно инициализирован, sandbox_mode сохранён: $sandboxMode")
+            securePrefs.edit().putBoolean("sandbox_mode", sandboxMode).apply()
+            Log.d(TAG, "API успешно инициализирован")
 
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка инициализации API", e)
@@ -78,11 +81,12 @@ class TinkoffInvestService(private val context: Context) {
             Log.d(TAG, "Запрос списка счетов, sandbox: $sandboxMode")
 
             if (sandboxMode) {
-                // 1. Пытаемся получить существующие счета
+                // 1. Пытаемся получить существующие счета песочницы
                 var sandboxAccounts = try {
+                    // Правильный метод для получения счетов песочницы
                     currentApi.sandboxService.getAccountsSync()
                 } catch (e: Exception) {
-                    Log.w(TAG, "Не удалось получить счета: ${e.message}")
+                    Log.w(TAG, "Не удалось получить счета песочницы: ${e.message}")
                     emptyList()
                 }
 
@@ -93,22 +97,24 @@ class TinkoffInvestService(private val context: Context) {
                     Log.d(TAG, "Создаем новый счет в песочнице...")
 
                     val newAccountId = try {
+                        // Правильный метод для создания счета в песочнице
                         currentApi.sandboxService.openAccountSync()
                     } catch (e: Exception) {
                         Log.e(TAG, "Ошибка создания счета", e)
-                        throw Exception("Не удалось создать счет в песочнице: ${e.message}")
+                        throw Exception("Не удалось создать счет в песочнице: ${e.message}. Убедитесь, что используете свежий токен.")
                     }
 
                     Log.d(TAG, "Создан новый счет с ID: $newAccountId")
 
-                    // 3. Пополняем счет (обязательно!)
+                    // 3. Пополняем счет
                     try {
                         val moneyValue = MoneyValue.newBuilder()
-                            .setUnits(100000)
+                            .setUnits(100000) // 100 000 рублей
                             .setNano(0)
                             .setCurrency("RUB")
                             .build()
 
+                        // Правильный метод для пополнения счета в песочнице
                         currentApi.sandboxService.payInSync(newAccountId, moneyValue)
                         Log.d(TAG, "Счет пополнен на 100 000 RUB")
                     } catch (e: Exception) {
