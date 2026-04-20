@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.*
 import ru.tinkoff.piapi.core.InvestApi
+import ru.tinkoff.piapi.contract.v1.MoneyValue
 
 class TinkoffInvestService(private val context: Context) {
 
