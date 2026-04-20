@@ -55,7 +55,6 @@ class PortfolioViewModel(
             try {
                 Log.d(TAG, "Загрузка портфеля")
 
-                // Получаем список счетов
                 val accounts = repository.getAccounts()
                 if (accounts.isEmpty()) {
                     _uiState.update {
@@ -68,30 +67,25 @@ class PortfolioViewModel(
                     return@launch
                 }
 
-                // Берём первый счёт
                 val accountId = accounts.first().id
                 Log.d(TAG, "Используем счёт: $accountId")
 
-                // Получаем портфель
                 val portfolio = apiService.getPortfolio(accountId)
                 Log.d(TAG, "Получено позиций: ${portfolio.positions.size}")
 
-                // Преобразуем позиции
                 val positions = portfolio.positions.mapNotNull { position ->
                     try {
                         val instrument = apiService.getInstrumentByFigi(position.figi)
-                        val currentPrice = position.currentPrice?.let {
-                            it.units + it.nano / 1_000_000_000.0
-                        } ?: 0.0
-                        val quantity = position.quantity?.units ?: 0
 
                         PortfolioPosition(
                             figi = position.figi,
                             name = instrument.name,
                             ticker = instrument.ticker,
-                            quantity = quantity,
-                            currentPrice = currentPrice,
-                            totalValue = currentPrice * quantity
+                            quantity = 0L,
+                            currentPrice = 0.0,
+                            totalValue = 0.0,
+                            profit = 0.0,
+                            profitPercent = 0.0
                         )
                     } catch (e: Exception) {
                         Log.e(TAG, "Ошибка получения инструмента ${position.figi}", e)
@@ -99,19 +93,12 @@ class PortfolioViewModel(
                     }
                 }
 
-                val totalValue = positions.sumOf { it.totalValue }
-                Log.d(TAG, "Общая стоимость: $totalValue")
-
                 _uiState.update {
                     it.copy(
                         positions = positions,
-                        totalValue = totalValue,
+                        totalValue = 0.0,
                         isLoading = false,
-                        statusMessage = if (positions.isEmpty()) {
-                            "Портфель пуст"
-                        } else {
-                            "Загружено ${positions.size} позиций"
-                        },
+                        statusMessage = "Загружено ${positions.size} позиций (без цен)",
                         isError = false
                     )
                 }
@@ -120,7 +107,7 @@ class PortfolioViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Ошибка загрузки портфеля: ${e.message}",
+                        statusMessage = "Ошибка: ${e.message}",
                         isError = true
                     )
                 }
@@ -129,7 +116,6 @@ class PortfolioViewModel(
     }
 
     fun refresh() {
-        Log.d(TAG, "Обновление портфеля")
         if (apiService.isInitialized) {
             loadPortfolio()
         } else {

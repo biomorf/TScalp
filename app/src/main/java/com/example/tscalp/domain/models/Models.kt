@@ -17,8 +17,8 @@ data class PortfolioPosition(
     val quantity: Long,
     val currentPrice: Double,
     val totalValue: Double,
-    val profit: Double,
-    val profitPercent: Double
+    val profit: Double = 0.0,
+    val profitPercent: Double =0.0
 )
 
 data class OrderResult(
