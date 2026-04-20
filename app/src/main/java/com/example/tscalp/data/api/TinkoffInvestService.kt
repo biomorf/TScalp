@@ -11,17 +11,17 @@ import org.conscrypt.Conscrypt
 import ru.tinkoff.piapi.contract.v1.*
 import ru.tinkoff.piapi.core.InvestApi
 import ru.tinkoff.piapi.core.models.Portfolio
+import java.security.Security
 
 class TinkoffInvestService(private val context: Context) {
 
     companion object {
         private const val TAG = "TinkoffInvestService"
-    }
 
-    //init {
-        // Регистрируем Conscrypt как провайдера безопасности
-    //    Security.insertProviderAt(Conscrypt.newProvider(), 1)
-    //}
+        init {
+            Security.insertProviderAt(Conscrypt.newProvider(), 1)
+        }
+    }
 
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -36,6 +36,7 @@ class TinkoffInvestService(private val context: Context) {
     )
 
     private var api: InvestApi? = null
+    private var sandboxMode: Boolean = true
 
     val isInitialized: Boolean
         get() = api != null
@@ -43,12 +44,14 @@ class TinkoffInvestService(private val context: Context) {
     fun initialize(token: String, sandboxMode: Boolean = true) {
         try {
             Log.d(TAG, "Инициализация API, sandbox: $sandboxMode")
+            this.sandboxMode = sandboxMode
             api = if (sandboxMode) {
                 InvestApi.createSandbox(token)
             } else {
                 InvestApi.create(token)
             }
             securePrefs.edit().putString("api_token", token).apply()
+            securePrefs.edit().putBoolean("sandbox_mode", sandboxMode).apply()
             Log.d(TAG, "API успешно инициализирован")
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка инициализации API", e)
@@ -58,9 +61,10 @@ class TinkoffInvestService(private val context: Context) {
 
     fun tryInitializeFromStorage(): Boolean {
         val token = securePrefs.getString("api_token", null)
+        val savedSandboxMode = securePrefs.getBoolean("sandbox_mode", true)
         return if (token != null) {
             try {
-                initialize(token)
+                initialize(token, savedSandboxMode)
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Ошибка инициализации из хранилища", e)
@@ -74,9 +78,30 @@ class TinkoffInvestService(private val context: Context) {
     suspend fun getAccounts(): List<Account> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         try {
-            Log.d(TAG, "Запрос списка счетов")
-            val accounts = currentApi.userService.getAccountsSync()
-            Log.d(TAG, "Получено ${accounts.size} счетов")
+            Log.d(TAG, "Запрос списка счетов, sandbox: $sandboxMode")
+
+            val accounts = if (sandboxMode) {
+                // Верный способ получить счета в песочнице — через sandboxService
+                val sandboxAccounts = currentApi.sandboxService.getAccountsSync()
+                Log.d(TAG, "Получено ${sandboxAccounts.size} песочных счетов")
+
+                // Если счетов нет - создаем тестовый счет
+                if (sandboxAccounts.isEmpty()) {
+                    Log.d(TAG, "Создаем тестовый счет в песочнице")
+                    val newAccountId = currentApi.sandboxService.openAccountSync()
+                    Log.d(TAG, "Создан счет: $newAccountId")
+
+                    // Повторно запрашиваем список после создания
+                    currentApi.sandboxService.getAccountsSync()
+                } else {
+                    sandboxAccounts
+                }
+            } else {
+                // В боевом режиме — обычный вызов
+                currentApi.userService.getAccountsSync()
+            }
+
+            Log.d(TAG, "Итоговый список счетов: ${accounts.size}")
             accounts
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка получения счетов", e)
@@ -99,15 +124,29 @@ class TinkoffInvestService(private val context: Context) {
                 .setNano(0)
                 .build()
 
-            val response = currentApi.ordersService.postOrderSync(
-                figi,
-                quantity,
-                zeroQuotation,
-                direction,
-                accountId,
-                OrderType.ORDER_TYPE_MARKET,
-                ""
-            )
+            val response = if (sandboxMode) {
+                // В песочнице используем sandbox сервис
+                currentApi.sandboxService.postOrderSync(
+                    figi,
+                    quantity,
+                    zeroQuotation,
+                    direction,
+                    accountId,
+                    OrderType.ORDER_TYPE_MARKET,
+                    ""
+                )
+            } else {
+                // В боевом режиме - обычный сервис
+                currentApi.ordersService.postOrderSync(
+                    figi,
+                    quantity,
+                    zeroQuotation,
+                    direction,
+                    accountId,
+                    OrderType.ORDER_TYPE_MARKET,
+                    ""
+                )
+            }
             Log.d(TAG, "Заявка отправлена, orderId=${response.orderId}")
             response
         } catch (e: Exception) {
@@ -119,8 +158,14 @@ class TinkoffInvestService(private val context: Context) {
     suspend fun getPortfolio(accountId: String): Portfolio = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         try {
-            Log.d(TAG, "Запрос портфеля для счета: $accountId")
-            val portfolio = currentApi.operationsService.getPortfolioSync(accountId)
+            Log.d(TAG, "Запрос портфеля для счета: $accountId, sandbox: $sandboxMode")
+
+            val portfolio = if (sandboxMode) {
+                currentApi.sandboxService.getPortfolioSync(accountId)
+            } else {
+                currentApi.operationsService.getPortfolioSync(accountId)
+            }
+
             Log.d(TAG, "Портфель получен, позиций: ${portfolio.positions.size}")
             portfolio
         } catch (e: Exception) {
@@ -139,6 +184,25 @@ class TinkoffInvestService(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка получения инструмента", e)
             throw Exception("Не удалось получить информацию об инструменте: ${e.message}")
+        }
+    }
+
+    // Метод для пополнения песочного счета (для тестирования)
+    suspend fun payInSandbox(accountId: String, amount: Long) = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        if (sandboxMode) {
+            try {
+                val moneyValue = MoneyValue.newBuilder()
+                    .setUnits(amount)
+                    .setNano(0)
+                    .setCurrency("RUB")
+                    .build()
+                currentApi.sandboxService.payInSync(accountId, moneyValue)
+                Log.d(TAG, "Счет $accountId пополнен на $amount RUB")
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка пополнения счета", e)
+                throw e
+            }
         }
     }
 

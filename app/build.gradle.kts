@@ -63,7 +63,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
     
     // Т-Инвестиции SDK
-    implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
+    //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
+    implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
     implementation("org.conscrypt:conscrypt-android:2.5.2")
     
     // Coroutines

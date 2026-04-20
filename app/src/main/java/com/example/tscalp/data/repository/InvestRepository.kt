@@ -22,7 +22,10 @@ class InvestRepository(
         try {
             Log.d(TAG, "Получение списка счетов")
             val accounts = apiService.getAccounts()
+            Log.d(TAG, "Получено ${accounts.size} счетов от API")
+
             val uiAccounts = accounts.map { account ->
+                Log.d(TAG, "Счет: id=${account.id}, name=${account.name}, type=${account.type}")
                 AccountUi(
                     id = account.id,
                     name = account.name,
