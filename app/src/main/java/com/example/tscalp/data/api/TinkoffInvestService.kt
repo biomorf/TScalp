@@ -34,6 +34,22 @@ class TinkoffInvestService(private val context: Context) {
     val isInitialized: Boolean
         get() = api != null
 
+    fun tryInitializeFromStorage(): Boolean {
+        val token = securePrefs.getString("api_token", null)
+        val savedSandboxMode = securePrefs.getBoolean("sandbox_mode", true)
+        return if (token != null) {
+            try {
+                initialize(token, savedSandboxMode)
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка инициализации из хранилища", e)
+                false
+            }
+        } else {
+            false
+        }
+    }
+
     fun initialize(token: String, sandbox: Boolean = true) {
         try {
             Log.d(TAG, "Инициализация API, sandbox: $sandbox")
