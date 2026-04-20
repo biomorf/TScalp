@@ -2,19 +2,20 @@ package com.example.tscalp.data.api
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import ru.tinkoff.piapi.contract.v1.Account
-import ru.tinkoff.piapi.contract.v1.OrderDirection
-import ru.tinkoff.piapi.contract.v1.OrderType
-import ru.tinkoff.piapi.contract.v1.PostOrderResponse
-import ru.tinkoff.piapi.contract.v1.Quotation
+import ru.tinkoff.piapi.contract.v1.*
 import ru.tinkoff.piapi.core.InvestApi
-import java.math.BigDecimal
+import ru.tinkoff.piapi.core.models.Portfolio
 
 class TinkoffInvestService(private val context: Context) {
+
+    companion object {
+        private const val TAG = "TinkoffInvestService"
+    }
 
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -34,19 +35,31 @@ class TinkoffInvestService(private val context: Context) {
         get() = api != null
 
     fun initialize(token: String, sandboxMode: Boolean = true) {
-        api = if (sandboxMode) {
-            InvestApi.createSandbox(token)
-        } else {
-            InvestApi.create(token)
+        try {
+            Log.d(TAG, "Инициализация API, sandbox: $sandboxMode")
+            api = if (sandboxMode) {
+                InvestApi.createSandbox(token)
+            } else {
+                InvestApi.create(token)
+            }
+            securePrefs.edit().putString("api_token", token).apply()
+            Log.d(TAG, "API успешно инициализирован")
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка инициализации API", e)
+            throw e
         }
-        securePrefs.edit().putString("api_token", token).apply()
     }
 
     fun tryInitializeFromStorage(): Boolean {
         val token = securePrefs.getString("api_token", null)
         return if (token != null) {
-            initialize(token)
-            true
+            try {
+                initialize(token)
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка инициализации из хранилища", e)
+                false
+            }
         } else {
             false
         }
@@ -54,7 +67,15 @@ class TinkoffInvestService(private val context: Context) {
 
     suspend fun getAccounts(): List<Account> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        currentApi.userService.getAccountsSync()
+        try {
+            Log.d(TAG, "Запрос списка счетов")
+            val accounts = currentApi.userService.getAccountsSync()
+            Log.d(TAG, "Получено ${accounts.size} счетов")
+            accounts
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения счетов", e)
+            throw Exception("Не удалось получить счета: ${e.message}")
+        }
     }
 
     suspend fun postMarketOrder(
@@ -64,72 +85,61 @@ class TinkoffInvestService(private val context: Context) {
         accountId: String
     ): PostOrderResponse = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        try {
+            Log.d(TAG, "Отправка заявки: FIGI=$figi, кол-во=$quantity, направление=$direction")
 
-        // Создаём Quotation с нулевой ценой для рыночной заявки
-        val zeroQuotation = Quotation.newBuilder()
-            .setUnits(0)
-            .setNano(0)
-            .build()
+            val zeroQuotation = Quotation.newBuilder()
+                .setUnits(0)
+                .setNano(0)
+                .build()
 
-        currentApi.ordersService.postOrderSync(
-            figi,
-            quantity,
-            zeroQuotation,  // цена для рыночной заявки (0)
-            direction,
-            accountId,
-            OrderType.ORDER_TYPE_MARKET,
-            ""  // пустая строка для новой заявки
-        )
+            val response = currentApi.ordersService.postOrderSync(
+                figi,
+                quantity,
+                zeroQuotation,
+                direction,
+                accountId,
+                OrderType.ORDER_TYPE_MARKET,
+                ""
+            )
+            Log.d(TAG, "Заявка отправлена, orderId=${response.orderId}")
+            response
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка отправки заявки", e)
+            throw Exception("Не удалось выставить заявку: ${e.message}")
+        }
     }
 
-    suspend fun postLimitOrder(
-        figi: String,
-        quantity: Long,
-        price: BigDecimal,
-        direction: OrderDirection,
-        accountId: String
-    ): PostOrderResponse = withContext(Dispatchers.IO) {
+    suspend fun getPortfolio(accountId: String): Portfolio = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-
-        // Конвертируем BigDecimal в Quotation
-        val priceQuotation = bigDecimalToQuotation(price)
-
-        currentApi.ordersService.postOrderSync(
-            figi,
-            quantity,
-            priceQuotation,
-            direction,
-            accountId,
-            OrderType.ORDER_TYPE_LIMIT,
-            ""
-        )
+        try {
+            Log.d(TAG, "Запрос портфеля для счета: $accountId")
+            val portfolio = currentApi.operationsService.getPortfolioSync(accountId)
+            Log.d(TAG, "Портфель получен, позиций: ${portfolio.positions.size}")
+            portfolio
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения портфеля", e)
+            throw Exception("Не удалось получить портфель: ${e.message}")
+        }
     }
 
-    // Вспомогательная функция для конвертации BigDecimal в Quotation
-    private fun bigDecimalToQuotation(value: BigDecimal): Quotation {
-        val units = value.toLong()
-        val nano = value.subtract(BigDecimal(units))
-            .multiply(BigDecimal(1_000_000_000))
-            .toInt()
-        return Quotation.newBuilder()
-            .setUnits(units)
-            .setNano(nano)
-            .build()
-    }
-
-    suspend fun getPortfolio(accountId: String) = withContext(Dispatchers.IO) {
+    suspend fun getInstrumentByFigi(figi: String): Instrument = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        currentApi.operationsService.getPortfolioSync(accountId)
-    }
-
-    suspend fun getInstrumentByFigi(figi: String) = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        currentApi.instrumentsService.getInstrumentByFigiSync(figi)
+        try {
+            Log.d(TAG, "Запрос инструмента по FIGI: $figi")
+            val instrument = currentApi.instrumentsService.getInstrumentByFigiSync(figi)
+            Log.d(TAG, "Инструмент получен: ${instrument.ticker} - ${instrument.name}")
+            instrument
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения инструмента", e)
+            throw Exception("Не удалось получить информацию об инструменте: ${e.message}")
+        }
     }
 
     fun clearToken() {
         api?.destroy(3)
         api = null
         securePrefs.edit().remove("api_token").apply()
+        Log.d(TAG, "Токен очищен")
     }
 }

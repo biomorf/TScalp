@@ -1,5 +1,6 @@
 package com.example.tscalp.data.repository
 
+import android.util.Log
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.domain.models.AccountType
 import com.example.tscalp.domain.models.AccountUi
@@ -13,13 +14,26 @@ class InvestRepository(
     private val apiService: TinkoffInvestService
 ) {
 
+    companion object {
+        private const val TAG = "InvestRepository"
+    }
+
     suspend fun getAccounts(): List<AccountUi> = withContext(Dispatchers.IO) {
-        apiService.getAccounts().map { account ->
-            AccountUi(
-                id = account.id,
-                name = account.name,
-                type = AccountType.BROKER  // Упрощаем для начала
-            )
+        try {
+            Log.d(TAG, "Получение списка счетов")
+            val accounts = apiService.getAccounts()
+            val uiAccounts = accounts.map { account ->
+                AccountUi(
+                    id = account.id,
+                    name = account.name,
+                    type = AccountType.BROKER
+                )
+            }
+            Log.d(TAG, "Преобразовано ${uiAccounts.size} счетов")
+            uiAccounts
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения счетов", e)
+            throw e
         }
     }
 
@@ -29,12 +43,18 @@ class InvestRepository(
         direction: OrderDirection,
         accountId: String
     ): OrderResult = withContext(Dispatchers.IO) {
-        val response = apiService.postMarketOrder(figi, quantity, direction, accountId)
-        OrderResult(
-            orderId = response.orderId,
-            executedLots = response.lotsExecuted,  // ✅ Правильное название поля
-            totalLots = response.lotsRequested,     // ✅ Правильное название поля
-            status = OrderStatus.NEW  // Упрощаем для начала
-        )
+        try {
+            Log.d(TAG, "Отправка рыночной заявки: $figi, $quantity")
+            val response = apiService.postMarketOrder(figi, quantity, direction, accountId)
+            OrderResult(
+                orderId = response.orderId,
+                executedLots = 0L,
+                totalLots = quantity,
+                status = OrderStatus.NEW
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка отправки заявки", e)
+            throw e
+        }
     }
 }
