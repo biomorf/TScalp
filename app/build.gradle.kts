@@ -78,16 +78,12 @@ dependencies {
     implementation("ru.tinkoff.piapi:java-sdk-core:1.7") {
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.grpc", module = "grpc-netty")
-        exclude(group = "io.grpc", module = "grpc-stub")
-        exclude(group = "io.grpc", module = "grpc-protobuf")
-        exclude(group = "io.grpc", module = "grpc-core")
     }
     // Правильные gRPC зависимости для Android
     implementation("io.grpc:grpc-okhttp:1.57.2")      // Транспорт для Android
     implementation("io.grpc:grpc-stub:1.57.2")        // Stub для клиентов
-    implementation("io.grpc:grpc-protobuf-lite:1.57.2") // Lite-версия protobuf
+    implementation("io.grpc:grpc-protobuf:1.57.2") // Lite-версия protobuf
     implementation("io.grpc:grpc-android:1.57.2")     // Поддержка Android
-    implementation("com.google.protobuf:protobuf-javalite:3.21.12") // Protobuf Lite
 
      // Conscrypt для решения проблем с SSL/TLS
     implementation("org.conscrypt:conscrypt-android:2.5.2")
