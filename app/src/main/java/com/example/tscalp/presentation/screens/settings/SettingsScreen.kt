@@ -125,6 +125,7 @@ fun SettingsScreen(
             onClick = {
                 if (token.isNotBlank()) {
                     ordersViewModel.initializeApi(token, sandboxMode)
+                    ordersViewModel.checkApiInitialization()
                     token = ""
                 }
             },

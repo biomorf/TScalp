@@ -47,7 +47,7 @@ class TinkoffInvestService(private val context: Context) {
 
             securePrefs.edit().putString("api_token", token).apply()
             securePrefs.edit().putBoolean("sandbox_mode", sandbox).apply()
-            Log.d(TAG, "API успешно инициализирован")
+            Log.d(TAG, "API успешно инициализирован, sandbox_mode сохранён: $sandboxMode"
 
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка инициализации API", e)
