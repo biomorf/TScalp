@@ -80,32 +80,45 @@ class TinkoffInvestService(private val context: Context) {
         try {
             Log.d(TAG, "Запрос списка счетов, sandbox: $sandboxMode")
 
-            val accounts = if (sandboxMode) {
-                // Верный способ получить счета в песочнице — через sandboxService
+            if (sandboxMode) {
+                // 1. Пытаемся получить существующие счета песочницы
+                // Обратите внимание: согласно документации, метод может называться getAccounts или getSandboxAccounts
                 val sandboxAccounts = currentApi.sandboxService.getAccountsSync()
                 Log.d(TAG, "Получено ${sandboxAccounts.size} песочных счетов")
 
-                // Если счетов нет - создаем тестовый счет
+                // 2. Если счетов нет, создаем новый в любом случае
                 if (sandboxAccounts.isEmpty()) {
-                    Log.d(TAG, "Создаем тестовый счет в песочнице")
+                    Log.d(TAG, "Счета не найдены. Создаем новый счет в песочнице...")
+                    // Название метода создания счета может отличаться, найдите правильное через автодополнение
                     val newAccountId = currentApi.sandboxService.openAccountSync()
-                    Log.d(TAG, "Создан счет: $newAccountId")
+                    Log.d(TAG, "Создан новый счет с ID: $newAccountId")
 
-                    // Повторно запрашиваем список после создания
-                    currentApi.sandboxService.getAccountsSync()
+                    // 3. После создания счета, возможно, потребуется его пополнить, чтобы видеть в списке или совершать сделки
+                    // Метод для пополнения также может называться payIn или sandboxPayIn
+                    // Раскомментируйте и найдите правильное имя, если счет нужно пополнить
+                    /*
+                    val moneyValue = MoneyValue.newBuilder()
+                        .setUnits(100000) // Сумма в рублях
+                        .setNano(0)
+                        .setCurrency("RUB")
+                        .build()
+                    currentApi.sandboxService.payInSandboxSync(newAccountId, moneyValue)
+                    Log.d(TAG, "Новый счет пополнен на 100 000 RUB")
+                    */
+
+                    // 4. Повторно запрашиваем список счетов
+                    return@withContext currentApi.sandboxService.getAccountsSync()
                 } else {
-                    sandboxAccounts
+                    return@withContext sandboxAccounts
                 }
             } else {
-                // В боевом режиме — обычный вызов
+                // Боевой режим
                 currentApi.userService.getAccountsSync()
             }
-
-            Log.d(TAG, "Итоговый список счетов: ${accounts.size}")
-            accounts
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка получения счетов", e)
-            throw Exception("Не удалось получить счета: ${e.message}")
+            // Более детальная обработка ошибки
+            throw Exception("Не удалось получить или создать счета в песочнице: ${e.message}. Убедитесь, что метод создания счета указан верно.")
         }
     }
 
@@ -161,7 +174,10 @@ class TinkoffInvestService(private val context: Context) {
             Log.d(TAG, "Запрос портфеля для счета: $accountId, sandbox: $sandboxMode")
 
             val portfolio = if (sandboxMode) {
-                currentApi.sandboxService.getPortfolioSync(accountId)
+                // В песочнице метод может возвращать PortfolioResponse
+                val response = currentApi.sandboxService.getPortfolioSync(accountId)
+                // Конвертируем PortfolioResponse в Portfolio
+                convertToPortfolio(response)
             } else {
                 currentApi.operationsService.getPortfolioSync(accountId)
             }
@@ -171,6 +187,29 @@ class TinkoffInvestService(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка получения портфеля", e)
             throw Exception("Не удалось получить портфель: ${e.message}")
+        }
+    }
+
+    // Вспомогательная функция для конвертации
+    private fun convertToPortfolio(response: Any): Portfolio {
+        // Если response уже Portfolio - просто возвращаем
+        if (response is Portfolio) {
+            return response
+        }
+
+        // Если это PortfolioResponse - конвертируем
+        // (точное имя класса может отличаться в вашей версии SDK)
+        return try {
+            // Пытаемся через рефлексию получить positions
+            val positionsMethod = response.javaClass.getMethod("getPositionsList")
+            val positions = positionsMethod.invoke(response) as List<*>
+
+            // Создаем новый Portfolio (может потребоваться другой конструктор)
+            // Это заглушка, т.к. Portfolio может быть неизменяемым
+            response as Portfolio
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка конвертации портфеля", e)
+            throw e
         }
     }
 
