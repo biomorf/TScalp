@@ -1,19 +1,24 @@
 package com.example.tscalp.presentation.screens.orders
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.domain.models.AccountUi
+import ru.tinkoff.piapi.contract.v1.Instrument
 
 @Composable
 fun OrdersScreen(
@@ -58,26 +63,23 @@ fun OrdersScreen(
             return@Column
         }
 
-        // Поле ввода FIGI
-        OutlinedTextField(
-            value = uiState.figi,
-            onValueChange = viewModel::onFigiChanged,
-            label = { Text("FIGI инструмента") },
-            placeholder = { Text("Например: BBG004730N88") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            isError = uiState.figi.isNotBlank() && uiState.figi.length < 3,
-            supportingText = {
-                if (uiState.figi.isNotBlank() && uiState.figi.length < 3) {
-                    Text("FIGI должен содержать минимум 3 символа")
-                }
-            }
+        // Умный поиск инструмента
+        InstrumentSearchField(
+            query = uiState.searchQuery,
+            onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
+            isSearching = uiState.isSearching,
+            searchResults = uiState.searchResults,
+            onInstrumentSelected = { instrument: Instrument ->
+                viewModel.onInstrumentSelected(instrument)
+            },
+            onClear = { viewModel.clearSearch() },
+            modifier = Modifier.fillMaxWidth()
         )
 
         // Поле ввода количества
         OutlinedTextField(
             value = uiState.quantity,
-            onValueChange = viewModel::onQuantityChanged,
+            onValueChange = { quantity: String -> viewModel.onQuantityChanged(quantity) },
             label = { Text("Количество лотов") },
             placeholder = { Text("Введите целое число") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -88,15 +90,16 @@ fun OrdersScreen(
                 if (uiState.quantity.isNotBlank() && uiState.quantityAsLong == null) {
                     Text("Введите корректное число")
                 }
-            }
+            },
+            enabled = uiState.selectedInstrument != null
         )
 
         // Выбор счёта
         AccountSelector(
             accounts = uiState.accounts,
             selectedAccountId = uiState.selectedAccountId,
-            onAccountSelected = viewModel::onAccountSelected,
-            onRefresh = viewModel::retryLoadAccounts,
+            onAccountSelected = { accountId: String -> viewModel.onAccountSelected(accountId) },
+            onRefresh = { viewModel.retryLoadAccounts() },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -113,7 +116,7 @@ fun OrdersScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Button(
-                onClick = viewModel::onBuyClick,
+                onClick = { viewModel.onBuyClick() },
                 modifier = Modifier.weight(1f),
                 enabled = uiState.isFormValid && !uiState.isLoading
             ) {
@@ -128,7 +131,7 @@ fun OrdersScreen(
             }
 
             Button(
-                onClick = viewModel::onSellClick,
+                onClick = { viewModel.onSellClick() },
                 modifier = Modifier.weight(1f),
                 enabled = uiState.isFormValid && !uiState.isLoading,
                 colors = ButtonDefaults.buttonColors(
@@ -151,7 +154,7 @@ fun OrdersScreen(
             StatusCard(
                 message = message,
                 isError = uiState.isError,
-                onDismiss = viewModel::clearStatus
+                onDismiss = { viewModel.clearStatus() }
             )
         }
     }
@@ -178,6 +181,139 @@ fun ApiNotInitializedCard() {
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InstrumentSearchField(
+    query: String,
+    onQueryChanged: (String) -> Unit,
+    isSearching: Boolean,
+    searchResults: List<Instrument>,
+    onInstrumentSelected: (Instrument) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier) {
+        ExposedDropdownMenuBox(
+            expanded = expanded && searchResults.isNotEmpty(),
+            onExpandedChange = {
+                expanded = if (searchResults.isNotEmpty()) it else false
+            }
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChanged,
+                label = { Text("Поиск инструмента") },
+                placeholder = { Text("Введите тикер или название") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+                trailingIcon = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isSearching) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        } else if (query.isNotEmpty()) {
+                            IconButton(onClick = onClear) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Очистить"
+                                )
+                            }
+                        }
+                    }
+                },
+                supportingText = {
+                    if (query.length == 1) {
+                        Text("Введите минимум 2 символа для поиска")
+                    }
+                }
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded && searchResults.isNotEmpty(),
+                onDismissRequest = { expanded = false }
+            ) {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 300.dp)
+                ) {
+                    items(items = searchResults) { instrument: Instrument ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "${instrument.ticker} - ${instrument.name}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = instrument.figi,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onInstrumentSelected(instrument)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InstrumentInfoCard(instrument: Instrument) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = instrument.ticker,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = instrument.currency,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = instrument.name,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "FIGI: ${instrument.figi}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (instrument.lot > 1) {
+                Text(
+                    text = "Лот: ${instrument.lot} шт.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -232,7 +368,7 @@ fun AccountSelector(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                accounts.forEach { account ->
+                accounts.forEach { account: AccountUi ->
                     DropdownMenuItem(
                         text = {
                             Column {
@@ -259,7 +395,7 @@ fun AccountInfoCard(account: AccountUi) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
         )
     ) {
         Column(

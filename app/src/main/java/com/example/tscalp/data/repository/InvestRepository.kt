@@ -8,6 +8,7 @@ import com.example.tscalp.domain.models.OrderResult
 import com.example.tscalp.domain.models.OrderStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.OrderDirection
 
 class InvestRepository(
@@ -57,6 +58,18 @@ class InvestRepository(
             )
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка отправки заявки", e)
+            throw e
+        }
+    }
+
+
+
+    suspend fun searchInstruments(query: String): List<Instrument> = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Поиск инструментов: $query")
+            apiService.findInstrument(query)
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка поиска инструментов", e)
             throw e
         }
     }

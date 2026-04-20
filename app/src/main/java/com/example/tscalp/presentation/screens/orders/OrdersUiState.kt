@@ -1,6 +1,7 @@
 package com.example.tscalp.presentation.screens.orders
 
 import com.example.tscalp.domain.models.AccountUi
+import ru.tinkoff.piapi.contract.v1.Instrument
 
 data class OrdersUiState(
     val figi: String = "",
@@ -10,11 +11,15 @@ data class OrdersUiState(
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
     val isError: Boolean = false,
-    val isApiInitialized: Boolean = false
+    val isApiInitialized: Boolean = false,
+    // Новые поля для поиска
+    val searchQuery: String = "",
+    val searchResults: List<Instrument> = emptyList(),
+    val isSearching: Boolean = false,
+    val selectedInstrument: Instrument? = null
 ) {
     val isFormValid: Boolean
-        get() = figi.isNotBlank() &&
-                figi.length >= 3 &&
+        get() = selectedInstrument != null &&
                 quantity.toLongOrNull()?.let { it > 0 } == true &&
                 selectedAccountId != null &&
                 isApiInitialized

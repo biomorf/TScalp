@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.tinkoff.piapi.contract.v1.OrderDirection
+import ru.tinkoff.piapi.contract.v1.Instrument
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 class OrdersViewModel(
     private val apiService: TinkoffInvestService
@@ -24,7 +27,7 @@ class OrdersViewModel(
         checkApiInitialization()
     }
 
-    private fun checkApiInitialization() {
+    fun checkApiInitialization() {
         _uiState.update {
             it.copy(isApiInitialized = apiService.isInitialized)
         }
@@ -104,6 +107,80 @@ class OrdersViewModel(
     fun onSellClick() {
         postOrder(OrderDirection.ORDER_DIRECTION_SELL)
     }
+
+
+    //FIGI to ticker
+    private var searchJob: Job? = null
+
+    fun onSearchQueryChanged(query: String) {
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                selectedInstrument = null,
+                figi = ""
+            )
+        }
+
+        // Отменяем предыдущий поиск
+        searchJob?.cancel()
+
+        if (query.length >= 2) {
+            searchJob = viewModelScope.launch {
+                // Debounce — ждем 500мс перед поиском
+                delay(500)
+
+                _uiState.update { it.copy(isSearching = true) }
+                try {
+                    val results = repository.searchInstruments(query)
+                    _uiState.update {
+                        it.copy(
+                            searchResults = results,
+                            isSearching = false
+                        )
+                    }
+                } catch (e: Exception) {
+                    _uiState.update {
+                        it.copy(
+                            searchResults = emptyList(),
+                            isSearching = false,
+                            statusMessage = "Ошибка поиска: ${e.message}",
+                            isError = true
+                        )
+                    }
+                }
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    searchResults = emptyList(),
+                    isSearching = false
+                )
+            }
+        }
+    }
+
+    fun onInstrumentSelected(instrument: Instrument) {
+        _uiState.update {
+            it.copy(
+                selectedInstrument = instrument,
+                figi = instrument.figi,
+                searchQuery = "${instrument.ticker} - ${instrument.name}",
+                searchResults = emptyList()
+            )
+        }
+    }
+
+    fun clearSearch() {
+        _uiState.update {
+            it.copy(
+                searchQuery = "",
+                searchResults = emptyList(),
+                selectedInstrument = null,
+                figi = ""
+            )
+        }
+    }
+
 
     private fun postOrder(direction: OrderDirection) {
         val state = _uiState.value

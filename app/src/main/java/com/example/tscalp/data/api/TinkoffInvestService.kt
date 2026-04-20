@@ -134,4 +134,73 @@ class TinkoffInvestService(private val context: Context) {
         api = null
         securePrefs.edit().remove("api_token").apply()
     }
+
+    suspend fun findInstrument(query: String): List<Instrument> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        try {
+            Log.d(TAG, "Поиск инструмента по запросу: $query")
+
+            // Выполняем поиск
+            val response = currentApi.instrumentsService.findInstrumentSync(query)
+
+            // Пробуем разные способы получить список инструментов
+            val instrumentsList: List<*> = try {
+                // Способ 1: через getInstrumentsList()
+                response.javaClass.getMethod("getInstrumentsList").invoke(response) as List<*>
+            } catch (e: Exception) {
+                try {
+                    // Способ 2: через поле instrumentsList
+                    val field = response.javaClass.getDeclaredField("instrumentsList")
+                    field.isAccessible = true
+                    field.get(response) as List<*>
+                } catch (e2: Exception) {
+                    try {
+                        // Способ 3: через поле instruments
+                        val field = response.javaClass.getDeclaredField("instruments")
+                        field.isAccessible = true
+                        field.get(response) as List<*>
+                    } catch (e3: Exception) {
+                        // Способ 4: если response сам является списком
+                        response as? List<*> ?: emptyList<Any>()
+                    }
+                }
+            }
+
+            Log.d(TAG, "Найдено элементов в ответе: ${instrumentsList.size}")
+
+            // Преобразуем каждый элемент в полноценный Instrument
+            val instruments = instrumentsList.mapNotNull { item ->
+                item?.let {
+                    try {
+                        // Пробуем получить FIGI из элемента
+                        val figi: String = try {
+                            it.javaClass.getMethod("getFigi").invoke(it) as String
+                        } catch (e: Exception) {
+                            val field = it.javaClass.getDeclaredField("figi")
+                            field.isAccessible = true
+                            field.get(it) as String
+                        }
+
+                        // Получаем полную информацию об инструменте
+                        try {
+                            currentApi.instrumentsService.getInstrumentByFigiSync(figi)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Не удалось получить инструмент по FIGI: $figi")
+                            null
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Не удалось извлечь FIGI из элемента")
+                        null
+                    }
+                }
+            }
+
+            Log.d(TAG, "Найдено ${instruments.size} инструментов")
+            instruments
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка поиска инструментов", e)
+            throw Exception("Не удалось выполнить поиск: ${e.message}")
+        }
+    }
+
 }
