@@ -20,7 +20,11 @@ class TScalpApplication : Application() {
         //    Log.d("TScalpApplication", "API не был восстановлен (токен не найден)")
         //}
 
-        // Регистрируем Conscrypt при старте приложения
-        Security.insertProviderAt(Conscrypt.newProvider(), 1)
+        // Устанавливаем Conscrypt как провайдера безопасности на старте
+        try {
+            Security.insertProviderAt(Conscrypt.newProvider(), 1)
+        } catch (e: Exception) {
+            // Уже добавлен
+        }
     }
 }
