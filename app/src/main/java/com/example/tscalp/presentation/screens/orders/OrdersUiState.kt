@@ -12,19 +12,16 @@ data class OrdersUiState(
     val isError: Boolean = false,
     val isApiInitialized: Boolean = false
 ) {
-    // Проверка валидности формы
     val isFormValid: Boolean
         get() = figi.isNotBlank() &&
-                figi.length >= 3 &&  // Минимальная длина FIGI
+                figi.length >= 3 &&
                 quantity.toLongOrNull()?.let { it > 0 } == true &&
                 selectedAccountId != null &&
                 isApiInitialized
 
-    // Преобразование количества в Long
     val quantityAsLong: Long?
         get() = quantity.toLongOrNull()
 
-    // Очистка статуса
     fun clearStatus(): OrdersUiState = copy(
         statusMessage = null,
         isError = false

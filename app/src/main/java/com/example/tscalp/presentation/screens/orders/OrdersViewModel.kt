@@ -1,12 +1,9 @@
 package com.example.tscalp.presentation.screens.orders
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.data.repository.InvestRepository
-import com.example.tscalp.domain.models.AccountUi
-import com.example.tscalp.domain.models.AccountType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -88,12 +85,10 @@ class OrdersViewModel(
     }
 
     fun onFigiChanged(figi: String) {
-        // Автоматически приводим к верхнему регистру
         _uiState.update { it.copy(figi = figi.uppercase()) }
     }
 
     fun onQuantityChanged(quantity: String) {
-        // Оставляем только цифры
         val filtered = quantity.filter { it.isDigit() }
         _uiState.update { it.copy(quantity = filtered) }
     }
@@ -139,7 +134,6 @@ class OrdersViewModel(
                                 "ID: ${result.orderId}\n" +
                                 "Исполнено: ${result.executedLots}/${result.totalLots} лотов",
                         isError = false,
-                        // Очищаем поля после успешной заявки
                         figi = "",
                         quantity = ""
                     )

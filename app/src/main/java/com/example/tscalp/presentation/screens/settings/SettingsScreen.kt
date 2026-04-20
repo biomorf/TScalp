@@ -4,15 +4,24 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tscalp.presentation.screens.orders.OrdersViewModel
+import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    ordersViewModel: OrdersViewModel = viewModel(
+        factory = OrdersViewModelFactory(LocalContext.current)
+    )
+) {
+    val uiState by ordersViewModel.uiState.collectAsState()
+
     var token by remember { mutableStateOf("") }
     var sandboxMode by remember { mutableStateOf(true) }
     var showToken by remember { mutableStateOf(false) }
-    var isConnected by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -38,7 +47,7 @@ fun SettingsScreen() {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = if (isConnected)
+                containerColor = if (uiState.isApiInitialized)
                     MaterialTheme.colorScheme.tertiaryContainer
                 else
                     MaterialTheme.colorScheme.errorContainer
@@ -57,19 +66,12 @@ fun SettingsScreen() {
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = if (isConnected) "✅ Подключено" else "❌ Не подключено",
+                        text = if (uiState.isApiInitialized)
+                            "✅ Подключено (режим: ${if (sandboxMode) "песочница" else "боевой"})"
+                        else
+                            "❌ Не подключено",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                }
-                if (isConnected) {
-                    Button(
-                        onClick = { isConnected = false },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("Отключить")
-                    }
                 }
             }
         }
@@ -91,7 +93,7 @@ fun SettingsScreen() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !isConnected
+            enabled = !uiState.isApiInitialized
         )
 
         // Переключатель режима песочницы
@@ -114,7 +116,7 @@ fun SettingsScreen() {
             Switch(
                 checked = sandboxMode,
                 onCheckedChange = { sandboxMode = it },
-                enabled = !isConnected
+                enabled = !uiState.isApiInitialized
             )
         }
 
@@ -122,14 +124,32 @@ fun SettingsScreen() {
         Button(
             onClick = {
                 if (token.isNotBlank()) {
-                    isConnected = true
+                    ordersViewModel.initializeApi(token, sandboxMode)
                     token = ""
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = token.isNotBlank() && !isConnected
+            enabled = token.isNotBlank() && !uiState.isApiInitialized
         ) {
             Text("Подключиться к API")
+        }
+
+        // Статусное сообщение
+        uiState.statusMessage?.let { message ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (uiState.isError)
+                        MaterialTheme.colorScheme.errorContainer
+                    else
+                        MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Text(
+                    text = message,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
         }
 
         Divider(modifier = Modifier.padding(vertical = 8.dp))
