@@ -170,17 +170,3 @@ class PortfolioViewModel(
         _uiState.update { it.copy(statusMessage = null, isError = false) }
     }
 }
-
-class PortfolioViewModelFactory(
-    private val context: Context
-) : ViewModelProvider.Factory {
-
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(PortfolioViewModel::class.java)) {
-            val apiService = TinkoffInvestService(context)
-            @Suppress("UNCHECKED_CAST")
-            return PortfolioViewModel(apiService) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}
