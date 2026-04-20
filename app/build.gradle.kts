@@ -57,7 +57,7 @@ dependencies {
     //implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.navigation:navigation-compose:2.8.0")    //for navigation using sealed classes
     //implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")    //for navigation using sealed classes
-    
+
     // Core
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
@@ -74,7 +74,20 @@ dependencies {
 
     // T-Invest API SDK
     //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
-    implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
+    //implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
+    implementation("ru.tinkoff.piapi:java-sdk-core:1.7") {
+        exclude(group = "io.grpc", module = "grpc-netty-shaded")
+        exclude(group = "io.grpc", module = "grpc-netty")
+        exclude(group = "io.grpc", module = "grpc-stub")
+        exclude(group = "io.grpc", module = "grpc-protobuf")
+        exclude(group = "io.grpc", module = "grpc-core")
+    }
+    // Правильные gRPC зависимости для Android
+    implementation("io.grpc:grpc-okhttp:1.57.2")      // Транспорт для Android
+    implementation("io.grpc:grpc-stub:1.57.2")        // Stub для клиентов
+    implementation("io.grpc:grpc-protobuf-lite:1.57.2") // Lite-версия protobuf
+    implementation("io.grpc:grpc-android:1.57.2")     // Поддержка Android
+    implementation("com.google.protobuf:protobuf-javalite:3.21.12") // Protobuf Lite
 
      // Conscrypt для решения проблем с SSL/TLS
     implementation("org.conscrypt:conscrypt-android:2.5.2")

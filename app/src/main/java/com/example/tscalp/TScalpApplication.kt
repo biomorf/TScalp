@@ -2,8 +2,8 @@ package com.example.tscalp
 
 import android.app.Application
 import android.util.Log
-//import org.conscrypt.Conscrypt
-//import java.security.Security
+import org.conscrypt.Conscrypt
+import java.security.Security
 import com.example.tscalp.data.api.TinkoffInvestService
 
 class TScalpApplication : Application() {
@@ -21,6 +21,6 @@ class TScalpApplication : Application() {
         //}
 
         // Регистрируем Conscrypt при старте приложения
-        //Security.insertProviderAt(Conscrypt.newProvider(), 1)
+        Security.insertProviderAt(Conscrypt.newProvider(), 1)
     }
 }
