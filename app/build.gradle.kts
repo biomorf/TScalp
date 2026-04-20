@@ -49,24 +49,19 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.0")
     //implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     //implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.navigation:navigation-compose:2.8.0")    //for navigation using sealed classes
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")    //for navigation using sealed classes
+    //implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")    //for navigation using sealed classes
     
     // Core
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
-    
-    // Т-Инвестиции SDK
-    //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
-    implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
-    implementation("org.conscrypt:conscrypt-android:2.5.2")
-    
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
@@ -76,4 +71,11 @@ dependencies {
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // T-Invest API SDK
+    //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
+    implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
+
+     // Conscrypt для решения проблем с SSL/TLS
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
 }

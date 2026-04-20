@@ -71,25 +71,64 @@ class PortfolioViewModel(
                 Log.d(TAG, "Используем счёт: $accountId")
 
                 val portfolio = apiService.getPortfolio(accountId)
-                Log.d(TAG, "Получено позиций: ${portfolio.positions.size}")
 
-                val positions = portfolio.positions.mapNotNull { position ->
+                // Пробуем разные способы получения позиций
+                val positionsList: List<*> = try {
+                    portfolio.javaClass.getMethod("getPositionsList").invoke(portfolio) as List<*>
+                } catch (e: Exception) {
                     try {
-                        val instrument = apiService.getInstrumentByFigi(position.figi)
+                        val field = portfolio.javaClass.getDeclaredField("positionsList")
+                        field.isAccessible = true
+                        field.get(portfolio) as List<*>
+                    } catch (e2: Exception) {
+                        try {
+                            val field = portfolio.javaClass.getDeclaredField("positions")
+                            field.isAccessible = true
+                            field.get(portfolio) as List<*>
+                        } catch (e3: Exception) {
+                            emptyList<Any>()
+                        }
+                    }
+                }
 
-                        PortfolioPosition(
-                            figi = position.figi,
-                            name = instrument.name,
-                            ticker = instrument.ticker,
-                            quantity = 0L,
-                            currentPrice = 0.0,
-                            totalValue = 0.0,
-                            profit = 0.0,
-                            profitPercent = 0.0
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Ошибка получения инструмента ${position.figi}", e)
-                        null
+                Log.d(TAG, "Получено позиций: ${positionsList.size}")
+
+                val positions = positionsList.mapNotNull { position ->
+                    position?.let {
+                        try {
+                            // Пробуем получить FIGI
+                            val figi: String = try {
+                                it.javaClass.getMethod("getFigi").invoke(it) as String
+                            } catch (e: Exception) {
+                                val field = it.javaClass.getDeclaredField("figi")
+                                field.isAccessible = true
+                                field.get(it) as String
+                            }
+
+                            // Получаем инструмент
+                            val instrument = try {
+                                apiService.getInstrumentByFigi(figi)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Не удалось получить инструмент для FIGI: $figi")
+                                null
+                            }
+
+                            if (instrument != null) {
+                                PortfolioPosition(
+                                    figi = figi,
+                                    name = instrument.name,
+                                    ticker = instrument.ticker,
+                                    quantity = 0L,
+                                    currentPrice = 0.0,
+                                    totalValue = 0.0
+                                )
+                            } else {
+                                null
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Ошибка обработки позиции", e)
+                            null
+                        }
                     }
                 }
 
@@ -98,7 +137,11 @@ class PortfolioViewModel(
                         positions = positions,
                         totalValue = 0.0,
                         isLoading = false,
-                        statusMessage = "Загружено ${positions.size} позиций (без цен)",
+                        statusMessage = if (positions.isEmpty()) {
+                            "Портфель пуст или не удалось загрузить позиции"
+                        } else {
+                            "Загружено ${positions.size} позиций"
+                        },
                         isError = false
                     )
                 }
@@ -107,7 +150,7 @@ class PortfolioViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Ошибка: ${e.message}",
+                        statusMessage = "Ошибка загрузки портфеля: ${e.message}",
                         isError = true
                     )
                 }
