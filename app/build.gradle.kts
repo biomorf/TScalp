@@ -36,12 +36,28 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/INDEX.LIST",
+                "META-INF/io.netty.versions.properties",
+                "META-INF/AL2.0",
+                "META-INF/LGPL2.1"
+            )
+            merges += setOf(
+                "META-INF/services/javax.annotation.processing.Processor"
+            )
+        }
+    }
 }
 
 // Блок для опциональной конфигурации компилятора Compose
 composeCompiler {
     enableStrongSkippingMode = true
 }
+
+
 
 dependencies {
     // Jetpack Compose
@@ -74,16 +90,12 @@ dependencies {
 
     // T-Invest API SDK
     //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
-    //implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
-    implementation("ru.tinkoff.piapi:java-sdk-core:1.7") {
-        exclude(group = "io.grpc", module = "grpc-netty-shaded")
-        exclude(group = "io.grpc", module = "grpc-netty")
-    }
-    // Правильные gRPC зависимости для Android
-    implementation("io.grpc:grpc-okhttp:1.57.2")      // Транспорт для Android
-    implementation("io.grpc:grpc-stub:1.57.2")        // Stub для клиентов
-    implementation("io.grpc:grpc-protobuf:1.57.2") // Lite-версия protobuf
-    implementation("io.grpc:grpc-android:1.57.2")     // Поддержка Android
+    implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
+
+    // Нативные библиотеки для Netty на Android
+    implementation("io.netty:netty-tcnative-boringssl-static:2.0.62.Final")
+    implementation("io.netty:netty-transport-native-epoll:4.1.100.Final")
+    implementation("io.netty:netty-transport-native-kqueue:4.1.100.Final")
 
      // Conscrypt для решения проблем с SSL/TLS
     implementation("org.conscrypt:conscrypt-android:2.5.2")

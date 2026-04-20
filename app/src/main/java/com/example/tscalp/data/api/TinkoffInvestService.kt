@@ -56,9 +56,10 @@ class TinkoffInvestService(private val context: Context) {
             Log.d(TAG, "Инициализация API, sandbox: $sandboxMode")
             this.sandboxMode = sandboxMode
 
-            // Закрываем старый канал, если он есть
-            api?.destroy(3) // 3 секунды на завершение
+            // Закрываем старый канал
+            api?.destroy(3)
 
+            // Создаем новое API
             api = if (sandboxMode) {
                 InvestApi.createSandbox(token)
             } else {
@@ -81,28 +82,22 @@ class TinkoffInvestService(private val context: Context) {
             Log.d(TAG, "Запрос списка счетов, sandbox: $sandboxMode")
 
             if (sandboxMode) {
-                // Пробуем получить счета песочницы
                 val accounts = try {
                     currentApi.sandboxService.getAccountsSync()
                 } catch (e: Exception) {
                     Log.w(TAG, "Ошибка получения счетов: ${e.message}")
-
-                    // Пробуем создать новый счет
-                    try {
-                        Log.d(TAG, "Создаем новый счет...")
-                        val newAccountId = currentApi.sandboxService.openAccountSync()
-                        Log.d(TAG, "Счет создан: $newAccountId")
-
-                        // Получаем счета снова
-                        currentApi.sandboxService.getAccountsSync()
-                    } catch (e2: Exception) {
-                        Log.e(TAG, "Не удалось создать счет: ${e2.message}")
-                        emptyList()
-                    }
+                    emptyList()
                 }
 
                 Log.d(TAG, "Получено ${accounts.size} счетов")
-                accounts
+
+                if (accounts.isEmpty()) {
+                    // Возвращаем фиктивный счет для тестирования UI
+                    Log.w(TAG, "Счета не найдены. Для тестирования используйте боевой режим или создайте счет через официальное приложение.")
+                    emptyList()
+                } else {
+                    accounts
+                }
             } else {
                 currentApi.userService.getAccountsSync()
             }

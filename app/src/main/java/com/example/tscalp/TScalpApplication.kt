@@ -23,8 +23,13 @@ class TScalpApplication : Application() {
         // Устанавливаем Conscrypt как провайдера безопасности на старте
         try {
             Security.insertProviderAt(Conscrypt.newProvider(), 1)
+            Log.d("TScalpApplication", "Conscrypt установлен")
         } catch (e: Exception) {
-            // Уже добавлен
+            Log.w("TScalpApplication", "Conscrypt уже установлен или не поддерживается")
         }
+
+        // Устанавливаем системные свойства для Netty
+        System.setProperty("io.netty.handler.ssl.noOpenSsl", "false")
+        System.setProperty("io.netty.tryReflectionSetAccessible", "true")
     }
 }
