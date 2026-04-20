@@ -64,6 +64,7 @@ dependencies {
     
     // Т-Инвестиции SDK
     implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
     
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

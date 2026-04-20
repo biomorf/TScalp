@@ -7,6 +7,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.conscrypt.Conscrypt
 import ru.tinkoff.piapi.contract.v1.*
 import ru.tinkoff.piapi.core.InvestApi
 import ru.tinkoff.piapi.core.models.Portfolio
@@ -16,6 +17,11 @@ class TinkoffInvestService(private val context: Context) {
     companion object {
         private const val TAG = "TinkoffInvestService"
     }
+
+    //init {
+        // Регистрируем Conscrypt как провайдера безопасности
+    //    Security.insertProviderAt(Conscrypt.newProvider(), 1)
+    //}
 
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
