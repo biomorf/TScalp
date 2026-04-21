@@ -9,7 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.*
-//import ru.tinkoff.piapi.contract.v1.MoneyValue
+import ru.tinkoff.piapi.contract.v1.MoneyValue
 import io.grpc.*
 import io.grpc.ManagedChannel
 import io.grpc.android.AndroidChannelBuilder
@@ -113,6 +113,7 @@ class TinkoffInvestService(private val context: Context) {
             Log.d(TAG, "Запрос списка счетов, sandbox: $sandboxMode")
 
             if (sandboxMode) {
+                // 1. Пытаемся получить существующие счета
                 val accounts = try {
                     currentApi.sandboxService.getAccountsSync()
                 } catch (e: Exception) {
@@ -120,21 +121,47 @@ class TinkoffInvestService(private val context: Context) {
                     emptyList()
                 }
 
-                Log.d(TAG, "Получено ${accounts.size} счетов")
-
-                if (accounts.isEmpty()) {
-                    // Возвращаем фиктивный счет для тестирования UI
-                    Log.w(TAG, "Счета не найдены. Для тестирования используйте боевой режим или создайте счет через официальное приложение.")
-                    emptyList()
-                } else {
-                    accounts
+                if (accounts.isNotEmpty()) {
+                    Log.d(TAG, "Получено ${accounts.size} счетов")
+                    return@withContext accounts
                 }
+
+                // 2. Счетов нет — создаём новый
+                Log.d(TAG, "Счета не найдены, создаём новый счёт в песочнице...")
+                val newAccountId = try {
+                    currentApi.sandboxService.openAccountSync()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Ошибка создания счета: ${e.message}")
+                    throw Exception("Не удалось создать счёт в песочнице. Проверьте токен.")
+                }
+                Log.d(TAG, "Создан новый счёт с ID: $newAccountId")
+
+                // 3. Пополняем счёт для возможности торговли
+                try {
+                    val moneyValue = MoneyValue.newBuilder()
+                        .setUnits(100000)
+                        .setNano(0)
+                        .setCurrency("RUB")
+                        .build()
+                    currentApi.sandboxService.payInSync(newAccountId, moneyValue)
+                    Log.d(TAG, "Счёт пополнен на 100 000 RUB")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Не удалось пополнить счёт: ${e.message}")
+                }
+
+                // 4. Возвращаем свежий список счетов
+                val newAccounts = currentApi.sandboxService.getAccountsSync()
+                Log.d(TAG, "Теперь доступно ${newAccounts.size} счетов")
+                return@withContext newAccounts
             } else {
-                currentApi.userService.getAccountsSync()
+                // Боевой режим
+                val accounts = currentApi.userService.getAccountsSync()
+                Log.d(TAG, "Получено ${accounts.size} боевых счетов")
+                return@withContext accounts
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Ошибка получения счетов", e)
-            throw Exception("Не удалось получить счета: ${e.message}")
+            Log.e(TAG, "Критическая ошибка получения/создания счетов", e)
+            throw e
         }
     }
 
