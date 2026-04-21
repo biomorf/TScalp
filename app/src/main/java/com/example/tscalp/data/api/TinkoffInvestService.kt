@@ -12,12 +12,14 @@ import ru.tinkoff.piapi.contract.v1.*
 import ru.tinkoff.piapi.contract.v1.MoneyValue
 import io.grpc.*
 import io.grpc.ManagedChannel
-import io.grpc.android.AndroidChannelBuilder
+import io.grpc.okhttp.OkHttpChannelBuilder
 import java.util.concurrent.TimeUnit
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
 class TinkoffInvestService(private val context: Context) {
     private var api: InvestApi? = null
     private var channel: ManagedChannel? = null
@@ -25,6 +27,9 @@ class TinkoffInvestService(private val context: Context) {
 
     companion object {
         private const val TAG = "TinkoffInvestService"
+        // Включите true только для отладки в эмуляторе!
+        //private const val DEBUG_IGNORE_SSL = false
+        private const val DEBUG_IGNORE_SSL = true
     }
 
     private val masterKey = MasterKey.Builder(context)
@@ -58,44 +63,61 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    fun initialize(token: String, sandboxMode: Boolean = true) {
+    fun initialize(token: String, sandbox: Boolean = true) {
         try {
-            Log.d(TAG, "Инициализация API, sandbox: $sandboxMode")
-            this.sandboxMode = sandboxMode
+            Log.d(TAG, "Инициализация API, sandbox: $sandbox")
+            this.sandboxMode = sandbox
 
             channel?.shutdown()
             api?.destroy(3)
 
-            val target = if (sandboxMode) {
+            val target = if (sandbox) {
                 "sandbox-invest-public-api.tbank.ru:443"
             } else {
                 "invest-public-api.tbank.ru:443"
             }
 
-            // Создаём SSL-контекст, доверяющий системным сертификатам
-            val sslContext = SSLContext.getInstance("TLS")
-            val trustManagerFactory = TrustManagerFactory.getInstance(
-                TrustManagerFactory.getDefaultAlgorithm()
-            )
-            trustManagerFactory.init(null as KeyStore?)
-            sslContext.init(null, trustManagerFactory.trustManagers, null)
+            // 1. Создаём SSL‑фабрику в зависимости от флага отладки
+            val sslSocketFactory = if (DEBUG_IGNORE_SSL) {
+                // Только для отладки в эмуляторе – принимать любые сертификаты
+                val trustAllCerts = arrayOf<X509TrustManager>(object : X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                })
+                val sslContext = SSLContext.getInstance("TLS")
+                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+                sslContext.socketFactory
+            } else {
+                // Безопасный вариант – системные доверенные сертификаты
+                val trustManagerFactory = TrustManagerFactory.getInstance(
+                    TrustManagerFactory.getDefaultAlgorithm()
+                )
+                trustManagerFactory.init(null as KeyStore?)
+                val sslContext = SSLContext.getInstance("TLS")
+                sslContext.init(null, trustManagerFactory.trustManagers, null)
+                sslContext.socketFactory
+            }
 
-            channel = AndroidChannelBuilder
+            // 2. Строим канал с выбранной фабрикой
+            channel = OkHttpChannelBuilder
                 .forTarget(target)
                 .useTransportSecurity()
-                .sslSocketFactory(sslContext.socketFactory)
+                .sslSocketFactory(sslSocketFactory)   // <-- используем уже готовую фабрику
                 .keepAliveTime(30, TimeUnit.SECONDS)
                 .keepAliveTimeout(10, TimeUnit.SECONDS)
                 .intercept(TokenInterceptor(token))
                 .build()
 
-            api = if (sandboxMode) {
+            api = if (sandbox) {
                 InvestApi.createSandbox(channel!!)
             } else {
                 InvestApi.create(channel!!)
             }
 
-            // ... сохранение токена ...
+            securePrefs.edit().putString("api_token", token).apply()
+            securePrefs.edit().putBoolean("sandbox_mode", sandbox).apply()
+            Log.d(TAG, "API успешно инициализирован")
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка инициализации API", e)
             throw e
