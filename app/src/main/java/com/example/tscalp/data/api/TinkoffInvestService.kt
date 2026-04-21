@@ -192,12 +192,6 @@ class TinkoffInvestService(private val context: Context) {
         currentApi.instrumentsService.getInstrumentByFigiSync(figi)
     }
 
-    fun clearToken() {
-        api?.destroy(3)
-        api = null
-        securePrefs.edit().remove("api_token").apply()
-    }
-
     suspend fun findInstrument(query: String): List<Instrument> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         try {
