@@ -7,10 +7,12 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import ru.tinkoff.piapi.contract.v1.*
 import ru.tinkoff.piapi.core.InvestApi
+import ru.tinkoff.piapi.contract.v1.*
 //import ru.tinkoff.piapi.contract.v1.MoneyValue
-
+import io.grpc.ManagedChannel
+import io.grpc.android.AndroidChannelBuilder
+import java.util.concurrent.TimeUnit
 class TinkoffInvestService(private val context: Context) {
 
     companion object {
@@ -54,17 +56,23 @@ class TinkoffInvestService(private val context: Context) {
     fun initialize(token: String, sandboxMode: Boolean = true) {
         try {
             Log.d(TAG, "Инициализация API, sandbox: $sandboxMode")
-            this.sandboxMode = sandboxMode
-
-            // Закрываем старый канал
-            api?.destroy(3)
-
-            // Создаем новое API
-            api = if (sandboxMode) {
-                InvestApi.createSandbox(token)
+            // 1. Определяем адрес сервера
+            val target = if (sandboxMode) {
+                "sandbox-invest-public-api.tbank.ru:443" // Адрес песочницы
             } else {
-                InvestApi.create(token)
+                "invest-public-api.tbank.ru:443"        // Боевой адрес
             }
+
+            // 2. Создаем канал для Android по всем правилам
+            val channel: ManagedChannel = AndroidChannelBuilder
+                .forTarget(target)       // Передаем контекст приложения
+                .useTransportSecurity()           // Требуется для HTTPS
+                .keepAliveTime(30, TimeUnit.SECONDS) // Поддерживаем соединение
+                .keepAliveTimeout(10, TimeUnit.SECONDS)
+                .build()
+
+            // 3. Создаем API, используя наш кастомный канал и токен
+            api = InvestApi.create(channel, token)
 
             securePrefs.edit().putString("api_token", token).apply()
             securePrefs.edit().putBoolean("sandbox_mode", sandboxMode).apply()

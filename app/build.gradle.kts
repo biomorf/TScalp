@@ -90,12 +90,18 @@ dependencies {
 
     // T-Invest API SDK
     //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
-    implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
+    // implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
+    // T-Invest API SDK. Исключаем стандартный Netty, который не работает на Android
+    implementation("ru.tinkoff.piapi:java-sdk-core:1.7") {
+        exclude(group = "io.grpc", module = "grpc-netty-shaded")
+        exclude(group = "io.grpc", module = "grpc-netty")
+    }
 
-    // Нативные библиотеки для Netty на Android
-    implementation("io.netty:netty-tcnative-boringssl-static:2.0.62.Final")
-    implementation("io.netty:netty-transport-native-epoll:4.1.100.Final")
-    implementation("io.netty:netty-transport-native-kqueue:4.1.100.Final")
+    // Замена для gRPC: OkHttp + AndroidChannelBuilder
+    implementation("io.grpc:grpc-okhttp:1.57.2")
+    implementation("io.grpc:grpc-stub:1.57.2")
+    implementation("io.grpc:grpc-protobuf:1.57.2")
+    implementation("io.grpc:grpc-android:1.57.2") // <-- Вот он, AndroidChannelBuilder
 
      // Conscrypt для решения проблем с SSL/TLS
     implementation("org.conscrypt:conscrypt-android:2.5.2")
