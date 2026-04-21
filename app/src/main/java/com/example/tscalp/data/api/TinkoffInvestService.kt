@@ -15,11 +15,9 @@ import io.grpc.ManagedChannel
 import io.grpc.okhttp.OkHttpChannelBuilder
 import java.util.concurrent.TimeUnit
 import java.security.KeyStore
-import java.security.cert.CertificateFactory
+
 import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
-import java.security.cert.X509Certificate
+
 class TinkoffInvestService(private val context: Context) {
     private var api: InvestApi? = null
     private var channel: ManagedChannel? = null
@@ -27,9 +25,6 @@ class TinkoffInvestService(private val context: Context) {
 
     companion object {
         private const val TAG = "TinkoffInvestService"
-        // Включите true только для отладки в эмуляторе!
-        private const val DEBUG_IGNORE_SSL = false
-        //private const val DEBUG_IGNORE_SSL = true
     }
 
     private val masterKey = MasterKey.Builder(context)
@@ -77,33 +72,14 @@ class TinkoffInvestService(private val context: Context) {
                 "invest-public-api.tbank.ru:443"
             }
 
-            // 1. Создаём SSL‑фабрику в зависимости от флага отладки
-            val sslSocketFactory = if (DEBUG_IGNORE_SSL) {
-                // Только для отладки в эмуляторе – принимать любые сертификаты
-                val trustAllCerts = arrayOf<X509TrustManager>(object : X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-                    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-                })
-                val sslContext = SSLContext.getInstance("TLS")
-                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-                sslContext.socketFactory
-            } else {
-                // Безопасный вариант – системные доверенные сертификаты
-                val trustManagerFactory = TrustManagerFactory.getInstance(
-                    TrustManagerFactory.getDefaultAlgorithm()
-                )
-                trustManagerFactory.init(null as KeyStore?)
-                val sslContext = SSLContext.getInstance("TLS")
-                sslContext.init(null, trustManagerFactory.trustManagers, null)
-                sslContext.socketFactory
-            }
+            // Создаём SSL‑контекст с нашим кастомным TrustManager
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, arrayOf(CustomTrustManager(context)), java.security.SecureRandom())
 
-            // 2. Строим канал с выбранной фабрикой
             channel = OkHttpChannelBuilder
                 .forTarget(target)
                 .useTransportSecurity()
-                .sslSocketFactory(sslSocketFactory)   // <-- используем уже готовую фабрику
+                .sslSocketFactory(sslContext.socketFactory)
                 .keepAliveTime(30, TimeUnit.SECONDS)
                 .keepAliveTimeout(10, TimeUnit.SECONDS)
                 .intercept(TokenInterceptor(token))
@@ -117,7 +93,7 @@ class TinkoffInvestService(private val context: Context) {
 
             securePrefs.edit().putString("api_token", token).apply()
             securePrefs.edit().putBoolean("sandbox_mode", sandbox).apply()
-            Log.d(TAG, "API успешно инициализирован")
+            Log.d(TAG, "API инициализирован с CustomTrustManager")
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка инициализации API", e)
             throw e
