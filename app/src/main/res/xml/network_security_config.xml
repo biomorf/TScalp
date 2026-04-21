@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">tbank.ru</domain>
+        <trust-anchors>
+            <!-- Доверяем системным сертификатам -->
+            <certificates src="system" />
+            <!-- И нашему добавленному корневому сертификату -->
+            <certificates src="@raw/russian_trusted_root_ca" />
+            <certificates src="@raw/russian_trusted_root_ca_gost_2025" />
+            <certificates src="@raw/russian_trusted_sub_ca" />
+            <certificates src="@raw/russian_trusted_sub_ca_2024" />
+            <certificates src="@raw/russian_trusted_sub_ca_gost_2025" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -28,8 +28,8 @@ class TinkoffInvestService(private val context: Context) {
     companion object {
         private const val TAG = "TinkoffInvestService"
         // Включите true только для отладки в эмуляторе!
-        //private const val DEBUG_IGNORE_SSL = false
-        private const val DEBUG_IGNORE_SSL = true
+        private const val DEBUG_IGNORE_SSL = false
+        //private const val DEBUG_IGNORE_SSL = true
     }
 
     private val masterKey = MasterKey.Builder(context)
