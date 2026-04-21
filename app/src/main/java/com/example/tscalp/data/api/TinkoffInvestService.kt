@@ -114,7 +114,7 @@ class TinkoffInvestService(private val context: Context) {
 
             if (sandboxMode) {
                 // 1. Пытаемся получить существующие счета
-                val accounts = try {
+                var accounts = try {
                     currentApi.sandboxService.getAccountsSync()
                 } catch (e: Exception) {
                     Log.w(TAG, "Ошибка получения счетов: ${e.message}")
@@ -126,33 +126,55 @@ class TinkoffInvestService(private val context: Context) {
                     return@withContext accounts
                 }
 
-                // 2. Счетов нет — создаём новый
+                // 2. Счетов нет — пробуем создать новый
                 Log.d(TAG, "Счета не найдены, создаём новый счёт в песочнице...")
-                val newAccountId = try {
-                    currentApi.sandboxService.openAccountSync()
+                val accountCreated = try {
+                    val newAccountId = currentApi.sandboxService.openAccountSync()
+                    Log.d(TAG, "Создан новый счёт с ID: $newAccountId")
+                    true
                 } catch (e: Exception) {
-                    Log.e(TAG, "Ошибка создания счета: ${e.message}")
-                    throw Exception("Не удалось создать счёт в песочнице. Проверьте токен.")
-                }
-                Log.d(TAG, "Создан новый счёт с ID: $newAccountId")
-
-                // 3. Пополняем счёт для возможности торговли
-                try {
-                    val moneyValue = MoneyValue.newBuilder()
-                        .setUnits(100000)
-                        .setNano(0)
-                        .setCurrency("RUB")
-                        .build()
-                    currentApi.sandboxService.payInSync(newAccountId, moneyValue)
-                    Log.d(TAG, "Счёт пополнен на 100 000 RUB")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Не удалось пополнить счёт: ${e.message}")
+                    Log.e(TAG, "Не удалось создать счёт автоматически: ${e.message}")
+                    false
                 }
 
-                // 4. Возвращаем свежий список счетов
-                val newAccounts = currentApi.sandboxService.getAccountsSync()
-                Log.d(TAG, "Теперь доступно ${newAccounts.size} счетов")
-                return@withContext newAccounts
+                // 3. Даже если создание вернуло ошибку, пробуем снова получить счета
+                accounts = try {
+                    currentApi.sandboxService.getAccountsSync()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Повторная ошибка получения счетов: ${e.message}")
+                    emptyList()
+                }
+
+                if (accounts.isNotEmpty()) {
+                    Log.d(TAG, "После попытки создания доступно ${accounts.size} счетов")
+
+                    // Пополняем первый найденный счёт для удобства
+                    if (accountCreated) {
+                        try {
+                            val moneyValue = MoneyValue.newBuilder()
+                                .setUnits(100000)
+                                .setNano(0)
+                                .setCurrency("RUB")
+                                .build()
+                            currentApi.sandboxService.payInSync(accounts[0].id, moneyValue)
+                            Log.d(TAG, "Счёт пополнен на 100 000 RUB")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Не удалось пополнить счёт: ${e.message}")
+                        }
+                    }
+
+                    return@withContext accounts
+                }
+
+                // 4. Счёт так и не появился — даём понятную ошибку
+                throw Exception(
+                    "Не удалось получить или создать счёт в песочнице.\n\n" +
+                            "Возможные причины:\n" +
+                            "• Токен не имеет доступа к песочнице\n" +
+                            "• Счёт уже существует, но не отображается\n\n" +
+                            "Рекомендация: создайте счёт вручную через официальное приложение Т‑Инвестиций " +
+                            "(раздел «Песочница» → «Открыть счёт»)."
+                )
             } else {
                 // Боевой режим
                 val accounts = currentApi.userService.getAccountsSync()
