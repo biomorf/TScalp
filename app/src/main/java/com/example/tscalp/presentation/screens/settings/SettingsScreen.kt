@@ -3,6 +3,7 @@ package com.example.tscalp.presentation.screens.settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -21,7 +22,7 @@ fun SettingsScreen() {
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
 
-    // При возврате на экран проверяем актуальное состояние
+    // Синхронизируем состояние при возврате на экран
     LaunchedEffect(Unit) {
         isConnected = apiService.isInitialized
     }
@@ -61,7 +62,7 @@ fun SettingsScreen() {
                     .fillMaxWidth()
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
@@ -103,7 +104,7 @@ fun SettingsScreen() {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(
@@ -123,26 +124,44 @@ fun SettingsScreen() {
             )
         }
 
-        // Кнопка подключения
-        Button(
-            onClick = {
-                if (token.isNotBlank()) {
-                    try {
-                        apiService.initialize(token, sandboxMode)
-                        isConnected = true
-                        statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})"
-                        isError = false
-                        token = ""
-                    } catch (e: Exception) {
-                        statusMessage = "Ошибка подключения: ${e.message}"
-                        isError = true
+        // Кнопка подключения / отключения
+        if (isConnected) {
+            Button(
+                onClick = {
+                    apiService.clearToken()
+                    isConnected = false
+                    statusMessage = "API отключен"
+                    isError = false
+                    token = ""
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Отключить API")
+            }
+        } else {
+            Button(
+                onClick = {
+                    if (token.isNotBlank()) {
+                        try {
+                            apiService.initialize(token, sandboxMode)
+                            isConnected = true
+                            statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})"
+                            isError = false
+                            token = ""
+                        } catch (e: Exception) {
+                            statusMessage = "Ошибка подключения: ${e.message}"
+                            isError = true
+                        }
                     }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = token.isNotBlank() && !isConnected
-        ) {
-            Text("Подключиться к API")
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = token.isNotBlank()
+            ) {
+                Text("Подключиться к API")
+            }
         }
 
         // Статусное сообщение
