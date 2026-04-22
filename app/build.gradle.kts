@@ -92,7 +92,7 @@ dependencies {
     //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
     // implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
     // T-Invest API SDK. Исключаем стандартный Netty, который не работает на Android
-    implementation("ru.tinkoff.piapi:java-sdk-core:1.7") {
+    implementation("ru.tinkoff.piapi:java-sdk-core:1.48") {
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
         exclude(group = "io.grpc", module = "grpc-netty")
     }
