@@ -58,6 +58,21 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
+    fun tryRestoreConnection(): Boolean {
+        val token = securePrefs.getString("api_token", null) ?: return false
+        val sandbox = securePrefs.getBoolean("sandbox_mode", true)
+        return try {
+            initialize(token, sandbox)
+            Log.d(TAG, "Соединение восстановлено из хранилища")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Не удалось восстановить соединение: ${e.message}")
+            // Если токен нерабочий, удаляем его
+            clearToken()
+            false
+        }
+    }
+
     fun initialize(token: String, sandbox: Boolean = true) {
         try {
             Log.d(TAG, "Инициализация API, sandbox: $sandbox")

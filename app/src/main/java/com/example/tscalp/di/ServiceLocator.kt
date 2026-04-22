@@ -10,8 +10,18 @@ object ServiceLocator {
 
     fun getTinkoffInvestService(context: Context): TinkoffInvestService {
         return apiService ?: synchronized(this) {
-            apiService ?: TinkoffInvestService(context.applicationContext).also {
-                apiService = it
+//            apiService ?: TinkoffInvestService(context.applicationContext).also {
+//                //apiService = it
+//                it.tryRestoreConnection()  // ← автоматическое восстановление
+//                apiService = it
+//            }
+
+            // same more explicit
+            apiService ?: run {
+                val service = TinkoffInvestService(context.applicationContext)
+                service.tryRestoreConnection()
+                apiService = service
+                service
             }
         }
     }
