@@ -1,9 +1,9 @@
 package com.example.tscalp.presentation.screens.orders
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.data.repository.InvestRepository
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job                         // <-- ДОБАВЛЕН ИМПОРТ
 import kotlinx.coroutines.delay                      // <-- ДОБАВЛЕН ИМПОРТ
 import kotlinx.coroutines.flow.MutableStateFlow

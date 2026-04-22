@@ -5,24 +5,21 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import ru.tinkoff.piapi.core.InvestApi
-import ru.tinkoff.piapi.contract.v1.*
-import ru.tinkoff.piapi.contract.v1.MoneyValue
-import io.grpc.*
-import io.grpc.ManagedChannel
-import io.grpc.okhttp.OkHttpChannelBuilder
-import java.util.concurrent.TimeUnit
-import java.security.KeyStore
-import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
+import ru.ttech.piapi.core.InvestApi
+import ru.tinkoff.piapi.contract.v1.Account
+import ru.tinkoff.piapi.contract.v1.Instrument
+import ru.tinkoff.piapi.contract.v1.OrderDirection
+import ru.tinkoff.piapi.contract.v1.OrderType
+import ru.tinkoff.piapi.contract.v1.PostOrderRequest
+import ru.tinkoff.piapi.contract.v1.PostOrderResponse
+import ru.tinkoff.piapi.contract.v1.Quotation
+import ru.ttech.piapi.core.models.Portfolio
 
-import javax.net.ssl.SSLContext
-
+/**
+ * Сервис для работы с T-Invest API через Kotlin SDK.
+ * Хранит токен в зашифрованном виде и управляет клиентом API.
+ */
 class TinkoffInvestService(private val context: Context) {
-    private var api: InvestApi? = null
-    private var channel: ManagedChannel? = null
-    private var sandboxMode: Boolean = true
 
     companion object {
         private const val TAG = "TinkoffInvestService"
@@ -40,312 +37,161 @@ class TinkoffInvestService(private val context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
+    private var api: InvestApi? = null
+    private var sandboxMode: Boolean = true
+
     val isInitialized: Boolean
         get() = api != null
 
-    fun tryInitializeFromStorage(): Boolean {
-        val token = securePrefs.getString("api_token", null)
-        val savedSandboxMode = securePrefs.getBoolean("sandbox_mode", true)
-        return if (token != null) {
-            try {
-                initialize(token, savedSandboxMode)
-                true
-            } catch (e: Exception) {
-                Log.e(TAG, "Ошибка инициализации из хранилища", e)
-                false
-            }
-        } else {
-            false
-        }
-    }
-
-    fun tryRestoreConnection(): Boolean {
-        val token = securePrefs.getString("api_token", null) ?: return false
-        val sandbox = securePrefs.getBoolean("sandbox_mode", true)
-        return try {
-            initialize(token, sandbox)
-            Log.d(TAG, "Соединение восстановлено из хранилища")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Не удалось восстановить соединение: ${e.message}")
-            // Если токен нерабочий, удаляем его
-            clearToken()
-            false
-        }
-    }
-
-    fun initialize(token: String, sandbox: Boolean = true) {
+    /**
+     * Инициализирует клиент API с токеном и режимом (боевой/песочница).
+     */
+    fun initialize(token: String, sandboxMode: Boolean = true) {
         try {
-            Log.d(TAG, "Инициализация API, sandbox: $sandbox")
-            this.sandboxMode = sandbox
+            Log.d(TAG, "Инициализация Kotlin SDK, sandbox: $sandboxMode")
+            this.sandboxMode = sandboxMode
 
-            channel?.shutdown()
-            api?.destroy(3)
+            // Закрываем старый клиент, если был
+            api?.close()
 
-            val target = if (sandbox) {
-                "sandbox-invest-public-api.tbank.ru:443"
+            // Создаём нового клиента через DSL-билдер
+            api = if (sandboxMode) {
+                InvestApi.newSandboxClient(token) {
+                    // Здесь можно настроить таймауты, перехватчики и т.д.
+                }
             } else {
-                "invest-public-api.tbank.ru:443"
-            }
-
-            // Создаём SSL‑контекст с нашим кастомным TrustManager
-            val sslContext = SSLContext.getInstance("TLS")
-            sslContext.init(null, arrayOf(CustomTrustManager(context)), java.security.SecureRandom())
-
-            channel = OkHttpChannelBuilder
-                .forTarget(target)
-                .useTransportSecurity()
-                .sslSocketFactory(sslContext.socketFactory)
-                .keepAliveTime(30, TimeUnit.SECONDS)
-                .keepAliveTimeout(10, TimeUnit.SECONDS)
-                .intercept(TokenInterceptor(token))
-                .build()
-
-            api = if (sandbox) {
-                InvestApi.createSandbox(channel!!)
-            } else {
-                InvestApi.create(channel!!)
+                InvestApi.newClient(token) {
+                    // Настройки для боевого режима
+                }
             }
 
             securePrefs.edit().putString("api_token", token).apply()
-            securePrefs.edit().putBoolean("sandbox_mode", sandbox).apply()
-            Log.d(TAG, "API инициализирован с CustomTrustManager")
+            securePrefs.edit().putBoolean("sandbox_mode", sandboxMode).apply()
+            Log.d(TAG, "API успешно инициализирован")
+
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка инициализации API", e)
             throw e
         }
     }
 
-    fun clearToken() {
-        api?.destroy(3)
-        channel?.shutdown()
-        api = null
-        channel = null
-        securePrefs.edit().remove("api_token").apply()
-        Log.d(TAG, "Токен и канал очищены")
-    }
-
-    suspend fun getAccounts(): List<Account> = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        try {
-            Log.d(TAG, "Запрос списка счетов, sandbox: $sandboxMode")
-
-            if (sandboxMode) {
-                // 1. Пытаемся получить существующие счета
-                var accounts = try {
-                    currentApi.sandboxService.getAccountsSync()
-                } catch (e: Exception) {
-                    Log.w(TAG, "Ошибка получения счетов: ${e.message}")
-                    emptyList()
-                }
-
-                if (accounts.isNotEmpty()) {
-                    Log.d(TAG, "Получено ${accounts.size} счетов")
-                    return@withContext accounts
-                }
-
-                // 2. Счетов нет — пробуем создать новый
-                Log.d(TAG, "Счета не найдены, создаём новый счёт в песочнице...")
-                val accountCreated = try {
-                    val newAccountId = currentApi.sandboxService.openAccountSync()
-                    Log.d(TAG, "Создан новый счёт с ID: $newAccountId")
-                    true
-                } catch (e: Exception) {
-                    Log.e(TAG, "Не удалось создать счёт автоматически: ${e.message}")
-                    false
-                }
-
-                // 3. Даже если создание вернуло ошибку, пробуем снова получить счета
-                accounts = try {
-                    currentApi.sandboxService.getAccountsSync()
-                } catch (e: Exception) {
-                    Log.w(TAG, "Повторная ошибка получения счетов: ${e.message}")
-                    emptyList()
-                }
-
-                if (accounts.isNotEmpty()) {
-                    Log.d(TAG, "После попытки создания доступно ${accounts.size} счетов")
-
-                    // Пополняем первый найденный счёт для удобства
-                    if (accountCreated) {
-                        try {
-                            val moneyValue = MoneyValue.newBuilder()
-                                .setUnits(100000)
-                                .setNano(0)
-                                .setCurrency("RUB")
-                                .build()
-                            currentApi.sandboxService.payInSync(accounts[0].id, moneyValue)
-                            Log.d(TAG, "Счёт пополнен на 100 000 RUB")
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Не удалось пополнить счёт: ${e.message}")
-                        }
-                    }
-
-                    return@withContext accounts
-                }
-
-                // 4. Счёт так и не появился — даём понятную ошибку
-                throw Exception(
-                    "Не удалось получить или создать счёт в песочнице.\n\n" +
-                            "Возможные причины:\n" +
-                            "• Токен не имеет доступа к песочнице\n" +
-                            "• Счёт уже существует, но не отображается\n\n" +
-                            "Рекомендация: создайте счёт вручную через официальное приложение Т‑Инвестиций " +
-                            "(раздел «Песочница» → «Открыть счёт»)."
-                )
-            } else {
-                // Боевой режим
-                val accounts = currentApi.userService.getAccountsSync()
-                Log.d(TAG, "Получено ${accounts.size} боевых счетов")
-                return@withContext accounts
-            }
+    /**
+     * Пытается восстановить подключение из сохранённого токена.
+     * @return true, если восстановление успешно
+     */
+    fun tryRestoreConnection(): Boolean {
+        val token = securePrefs.getString("api_token", null) ?: return false
+        val savedSandbox = securePrefs.getBoolean("sandbox_mode", true)
+        return try {
+            initialize(token, savedSandbox)
+            Log.d(TAG, "Соединение восстановлено")
+            true
         } catch (e: Exception) {
-            Log.e(TAG, "Критическая ошибка получения/создания счетов", e)
-            throw e
+            Log.e(TAG, "Не удалось восстановить соединение", e)
+            clearToken()
+            false
         }
     }
 
+    /**
+     * Получает список счетов пользователя.
+     */
+    suspend fun getAccounts(): List<Account> {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        return try {
+            val response = if (sandboxMode) {
+                currentApi.sandboxService.getSandboxAccounts()
+            } else {
+                currentApi.userService.getAccounts()
+            }
+            response.accountsList
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения счетов", e)
+            throw Exception("Не удалось получить счета: ${e.message}")
+        }
+    }
+
+    /**
+     * Отправляет рыночную заявку.
+     */
     suspend fun postMarketOrder(
         figi: String,
         quantity: Long,
         direction: OrderDirection,
         accountId: String
-    ): PostOrderResponse = withContext(Dispatchers.IO) {
+    ): PostOrderResponse {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-
-        val zeroQuotation = Quotation.newBuilder()
-            .setUnits(0)
-            .setNano(0)
-            .build()
-
-        val response = if (sandboxMode) {
-            currentApi.sandboxService.postOrderSync(
-                figi,
-                quantity,
-                zeroQuotation,
-                direction,
-                accountId,
-                OrderType.ORDER_TYPE_MARKET,
-                ""
-            )
-        } else {
-            currentApi.ordersService.postOrderSync(
-                figi,
-                quantity,
-                zeroQuotation,
-                direction,
-                accountId,
-                OrderType.ORDER_TYPE_MARKET,
-                ""
-            )
-        }
-
-        Log.d(TAG, "Заявка отправлена, orderId=${response.orderId}")
-        response
-    }
-
-    suspend fun getPortfolio(accountId: String) = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-
-        if (sandboxMode) {
-            currentApi.sandboxService.getPortfolioSync(accountId)
-        } else {
-            currentApi.operationsService.getPortfolioSync(accountId)
+        return try {
+            val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
+            val request = PostOrderRequest.newBuilder()
+                .setFigi(figi)
+                .setQuantity(quantity)
+                .setPrice(price)
+                .setDirection(direction)
+                .setAccountId(accountId)
+                .setOrderType(OrderType.ORDER_TYPE_MARKET)
+                .build()
+            if (sandboxMode) {
+                currentApi.sandboxService.postSandboxOrder(request)
+            } else {
+                currentApi.ordersService.postOrder(request)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка отправки заявки", e)
+            throw Exception("Не удалось выставить заявку: ${e.message}")
         }
     }
 
-    suspend fun getInstrumentByFigi(figi: String): Instrument = withContext(Dispatchers.IO) {
+    /**
+     * Получает портфель по счёту.
+     */
+    suspend fun getPortfolio(accountId: String): Portfolio {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        currentApi.instrumentsService.getInstrumentByFigiSync(figi)
+        return try {
+            if (sandboxMode) {
+                currentApi.sandboxService.getSandboxPortfolio(accountId)
+            } else {
+                currentApi.portfolioService.getPortfolio(accountId)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения портфеля", e)
+            throw Exception("Не удалось получить портфель: ${e.message}")
+        }
     }
 
-    suspend fun findInstrument(query: String): List<Instrument> = withContext(Dispatchers.IO) {
+    /**
+     * Получает полную информацию об инструменте по FIGI.
+     */
+    suspend fun getInstrumentByFigi(figi: String): Instrument {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        try {
-            Log.d(TAG, "Поиск инструмента по запросу: $query")
+        return try {
+            currentApi.instrumentsService.getInstrumentByFigi(figi)
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения инструмента по FIGI", e)
+            throw Exception("Не удалось получить инструмент: ${e.message}")
+        }
+    }
 
-            // Выполняем поиск
-            val response = currentApi.instrumentsService.findInstrumentSync(query)
-
-            // Пробуем разные способы получить список инструментов
-            val instrumentsList: List<*> = try {
-                // Способ 1: через getInstrumentsList()
-                response.javaClass.getMethod("getInstrumentsList").invoke(response) as List<*>
-            } catch (e: Exception) {
-                try {
-                    // Способ 2: через поле instrumentsList
-                    val field = response.javaClass.getDeclaredField("instrumentsList")
-                    field.isAccessible = true
-                    field.get(response) as List<*>
-                } catch (e2: Exception) {
-                    try {
-                        // Способ 3: через поле instruments
-                        val field = response.javaClass.getDeclaredField("instruments")
-                        field.isAccessible = true
-                        field.get(response) as List<*>
-                    } catch (e3: Exception) {
-                        // Способ 4: если response сам является списком
-                        response as? List<*> ?: emptyList<Any>()
-                    }
-                }
-            }
-
-            Log.d(TAG, "Найдено элементов в ответе: ${instrumentsList.size}")
-
-            // Преобразуем каждый элемент в полноценный Instrument
-            val instruments = instrumentsList.mapNotNull { item ->
-                item?.let {
-                    try {
-                        // Пробуем получить FIGI из элемента
-                        val figi: String = try {
-                            it.javaClass.getMethod("getFigi").invoke(it) as String
-                        } catch (e: Exception) {
-                            val field = it.javaClass.getDeclaredField("figi")
-                            field.isAccessible = true
-                            field.get(it) as String
-                        }
-
-                        // Получаем полную информацию об инструменте
-                        try {
-                            currentApi.instrumentsService.getInstrumentByFigiSync(figi)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Не удалось получить инструмент по FIGI: $figi")
-                            null
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Не удалось извлечь FIGI из элемента")
-                        null
-                    }
-                }
-            }
-
-            Log.d(TAG, "Найдено ${instruments.size} инструментов")
-            instruments
+    /**
+     * Ищет инструменты по строковому запросу (тикер, название, FIGI).
+     */
+    suspend fun findInstruments(query: String): List<Instrument> {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        return try {
+            currentApi.instrumentsService.findInstrument(query).instrumentsList
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка поиска инструментов", e)
             throw Exception("Не удалось выполнить поиск: ${e.message}")
         }
     }
 
-}
-
-class TokenInterceptor(private val token: String) : ClientInterceptor {
-    override fun <ReqT, RespT> interceptCall(
-        method: MethodDescriptor<ReqT, RespT>,
-        callOptions: CallOptions,
-        next: Channel
-    ): ClientCall<ReqT, RespT> {
-        return object : ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(
-            next.newCall(method, callOptions)
-        ) {
-            override fun start(responseListener: Listener<RespT>, headers: Metadata) {
-                // Добавляем токен в формате "Bearer <token>"[reference:2]
-                headers.put(
-                    Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER),
-                    "Bearer $token"
-                )
-                super.start(responseListener, headers)
-            }
-        }
+    /**
+     * Очищает токен и закрывает клиент API.
+     */
+    fun clearToken() {
+        api?.close()
+        api = null
+        securePrefs.edit().remove("api_token").apply()
+        Log.d(TAG, "Токен очищен")
     }
 }

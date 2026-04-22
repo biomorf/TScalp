@@ -36,20 +36,6 @@ android {
     buildFeatures {
         compose = true
     }
-
-    packaging {
-        resources {
-            excludes += setOf(
-                "META-INF/INDEX.LIST",
-                "META-INF/io.netty.versions.properties",
-                "META-INF/AL2.0",
-                "META-INF/LGPL2.1"
-            )
-            merges += setOf(
-                "META-INF/services/javax.annotation.processing.Processor"
-            )
-        }
-    }
 }
 
 // Блок для опциональной конфигурации компилятора Compose
@@ -89,20 +75,5 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // T-Invest API SDK
-    //implementation("ru.tinkoff.piapi:java-sdk-core:1.23")
-    // implementation("ru.tinkoff.piapi:java-sdk-core:1.7")
-    // T-Invest API SDK. Исключаем стандартный Netty, который не работает на Android
-    implementation("ru.tinkoff.piapi:java-sdk-core:1.5") {
-        exclude(group = "io.grpc", module = "grpc-netty-shaded")
-        exclude(group = "io.grpc", module = "grpc-netty")
-    }
-
-    // Замена для gRPC: OkHttp + AndroidChannelBuilder
-    implementation("io.grpc:grpc-okhttp:1.57.2")
-    implementation("io.grpc:grpc-stub:1.57.2")
-    implementation("io.grpc:grpc-protobuf:1.57.2")
-    implementation("io.grpc:grpc-android:1.57.2") // <-- Вот он, AndroidChannelBuilder
-
-     // Conscrypt для решения проблем с SSL/TLS
-    implementation("org.conscrypt:conscrypt-android:2.5.2")
+    implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.40.0")
 }

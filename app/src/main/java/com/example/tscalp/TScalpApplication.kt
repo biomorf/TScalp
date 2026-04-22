@@ -2,7 +2,6 @@ package com.example.tscalp
 
 import android.app.Application
 import android.util.Log
-import org.conscrypt.Conscrypt
 import java.security.Security
 import com.example.tscalp.data.api.TinkoffInvestService
 
