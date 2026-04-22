@@ -106,18 +106,17 @@ class PortfolioViewModel(
                             val figi = it.javaClass.getMethod("getFigi").invoke(it) as String
                             val instrument = apiService.getInstrumentByFigi(figi)
 
-                            // Количество (BigDecimal или Money)
                             val quantity: Long = try {
                                 val qtyObj = it.javaClass.getMethod("getQuantity").invoke(it)
                                 when (qtyObj) {
                                     is BigDecimal -> qtyObj.toLong()
                                     else -> {
-                                        // Пробуем getValue() (для Money)
                                         try {
+                                            // Боевой режим: Money.getValue() -> BigDecimal
                                             val bd = qtyObj.javaClass.getMethod("getValue").invoke(qtyObj) as? BigDecimal
                                             bd?.toLong() ?: 0L
-                                        } catch (e: Exception) {
-                                            // Fallback на units/nano (для Quotation)
+                                        } catch (e: NoSuchMethodException) {
+                                            // Песочница: MoneyValue.getUnits() и getNano()
                                             val units = qtyObj.javaClass.getMethod("getUnits").invoke(qtyObj) as Long
                                             val nano = qtyObj.javaClass.getMethod("getNano").invoke(qtyObj) as Int
                                             units + nano / 1_000_000_000
@@ -131,11 +130,18 @@ class PortfolioViewModel(
 
                             if (quantity == 0L) return@mapNotNull null
 
-                            // Текущая цена (Money -> BigDecimal через getValue())
                             val currentPrice: Double = try {
                                 val priceObj = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-                                val bd = priceObj.javaClass.getMethod("getValue").invoke(priceObj) as? BigDecimal
-                                bd?.toDouble() ?: 0.0
+                                try {
+                                    // Боевой режим: Money.getValue() -> BigDecimal
+                                    val bd = priceObj.javaClass.getMethod("getValue").invoke(priceObj) as? BigDecimal
+                                    bd?.toDouble() ?: 0.0
+                                } catch (e: NoSuchMethodException) {
+                                    // Песочница: MoneyValue.getUnits() и getNano()
+                                    val units = priceObj.javaClass.getMethod("getUnits").invoke(priceObj) as Long
+                                    val nano = priceObj.javaClass.getMethod("getNano").invoke(priceObj) as Int
+                                    units + nano / 1_000_000_000.0
+                                }
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
                                 0.0
