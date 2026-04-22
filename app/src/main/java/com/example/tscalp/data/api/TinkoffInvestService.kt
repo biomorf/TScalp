@@ -15,6 +15,7 @@ import io.grpc.ManagedChannel
 import io.grpc.okhttp.OkHttpChannelBuilder
 import java.util.concurrent.TimeUnit
 import java.security.KeyStore
+import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
 
 import javax.net.ssl.SSLContext
 
