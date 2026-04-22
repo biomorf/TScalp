@@ -74,15 +74,18 @@ class PortfolioViewModel(
 
                 val portfolio = apiService.getPortfolio(accountId)
 
-                // Получаем список позиций (через getPositionsList, как в песочнице)
+                // Универсальное получение списка позиций
                 val positionsList: List<*> = try {
                     when {
-                        portfolio.javaClass.methods.any { it.name == "getPositions" } -> {
-                            portfolio.javaClass.getMethod("getPositions").invoke(portfolio) as List<*>
-                        }
+                        // Песочница: PortfolioResponse.getPositionsList()
                         portfolio.javaClass.methods.any { it.name == "getPositionsList" } -> {
                             portfolio.javaClass.getMethod("getPositionsList").invoke(portfolio) as List<*>
                         }
+                        // Боевой режим: Portfolio.getPositions()
+                        portfolio.javaClass.methods.any { it.name == "getPositions" } -> {
+                            portfolio.javaClass.getMethod("getPositions").invoke(portfolio) as List<*>
+                        }
+                        // Fallback на поле positions
                         else -> {
                             val field = portfolio.javaClass.getDeclaredField("positions")
                             field.isAccessible = true
@@ -103,21 +106,21 @@ class PortfolioViewModel(
                             val figi = it.javaClass.getMethod("getFigi").invoke(it) as String
                             val instrument = apiService.getInstrumentByFigi(figi)
 
-                            // Количество (может быть BigDecimal или Quotation)
+                            // Количество (BigDecimal или Quotation)
                             val quantity: Long = try {
                                 val qtyObj = it.javaClass.getMethod("getQuantity").invoke(it)
-                                when {
-                                    // Если это BigDecimal
-                                    qtyObj is BigDecimal -> qtyObj.toLong()
-                                    // Если это Quotation (MoneyValue) – извлекаем units и nano
+                                when (qtyObj) {
+                                    is BigDecimal -> qtyObj.toLong()
                                     else -> {
+                                        // Quotation: пробуем units/nano
                                         try {
                                             val units = qtyObj.javaClass.getMethod("getUnits").invoke(qtyObj) as Long
                                             val nano = qtyObj.javaClass.getMethod("getNano").invoke(qtyObj) as Int
                                             units + nano / 1_000_000_000
                                         } catch (e: Exception) {
-                                            // Fallback: пытаемся через toBigDecimal, если есть
-                                            qtyObj.javaClass.getMethod("toBigDecimal").invoke(qtyObj)?.let { it as BigDecimal }?.toLong() ?: 0L
+                                            // Fallback: toBigDecimal()
+                                            val bd = qtyObj.javaClass.getMethod("toBigDecimal").invoke(qtyObj) as? BigDecimal
+                                            bd?.toLong() ?: 0L
                                         }
                                     }
                                 }
@@ -131,10 +134,16 @@ class PortfolioViewModel(
                             // Текущая цена (Money -> Double)
                             val currentPrice: Double = try {
                                 val priceObj = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-                                // MoneyValue имеет units/nano в SDK 1.5
-                                val units = priceObj.javaClass.getMethod("getUnits").invoke(priceObj) as Long
-                                val nano = priceObj.javaClass.getMethod("getNano").invoke(priceObj) as Int
-                                units + nano / 1_000_000_000.0
+                                // Пробуем toBigDecimal (основной способ для Money)
+                                try {
+                                    val bd = priceObj.javaClass.getMethod("toBigDecimal").invoke(priceObj) as? BigDecimal
+                                    bd?.toDouble() ?: 0.0
+                                } catch (e: Exception) {
+                                    // Fallback на units/nano
+                                    val units = priceObj.javaClass.getMethod("getUnits").invoke(priceObj) as Long
+                                    val nano = priceObj.javaClass.getMethod("getNano").invoke(priceObj) as Int
+                                    units + nano / 1_000_000_000.0
+                                }
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
                                 0.0
@@ -147,9 +156,11 @@ class PortfolioViewModel(
                             var profitPercent = 0.0
                             try {
                                 val yieldObj = it.javaClass.getMethod("getExpectedYield").invoke(it)
-                                val bigDecimal = yieldObj as? BigDecimal
-                                    ?: yieldObj.javaClass.getMethod("toBigDecimal").invoke(yieldObj) as BigDecimal
-                                profit = bigDecimal.toDouble()
+                                val bd = when (yieldObj) {
+                                    is BigDecimal -> yieldObj
+                                    else -> yieldObj.javaClass.getMethod("toBigDecimal").invoke(yieldObj) as? BigDecimal
+                                }
+                                profit = bd?.toDouble() ?: 0.0
                                 if (totalValue > 0) {
                                     profitPercent = (profit / totalValue) * 100
                                 }
@@ -181,11 +192,7 @@ class PortfolioViewModel(
                         positions = positions,
                         totalValue = totalValue,
                         isLoading = false,
-                        statusMessage = if (positions.isEmpty()) {
-                            "Портфель пуст"
-                        } else {
-                            "Загружено ${positions.size} позиций"
-                        },
+                        statusMessage = if (positions.isEmpty()) "Портфель пуст" else "Загружено ${positions.size} позиций",
                         isError = false
                     )
                 }
