@@ -74,27 +74,24 @@ class PortfolioViewModel(
 
                 val portfolio = apiService.getPortfolio(accountId)
 
-                // Универсальное получение списка позиций
+                // Получаем список позиций (через getPositionsList, как в песочнице)
                 val positionsList: List<*> = try {
-                    // Способ 1: через getPositionsList()
-                    portfolio.javaClass.getMethod("getPositionsList").invoke(portfolio) as List<*>
-                } catch (e: Exception) {
-                    try {
-                        // Способ 2: через поле positionsList
-                        val field = portfolio.javaClass.getDeclaredField("positionsList")
-                        field.isAccessible = true
-                        field.get(portfolio) as List<*>
-                    } catch (e2: Exception) {
-                        try {
-                            // Способ 3: через поле positions
+                    when {
+                        portfolio.javaClass.methods.any { it.name == "getPositions" } -> {
+                            portfolio.javaClass.getMethod("getPositions").invoke(portfolio) as List<*>
+                        }
+                        portfolio.javaClass.methods.any { it.name == "getPositionsList" } -> {
+                            portfolio.javaClass.getMethod("getPositionsList").invoke(portfolio) as List<*>
+                        }
+                        else -> {
                             val field = portfolio.javaClass.getDeclaredField("positions")
                             field.isAccessible = true
                             field.get(portfolio) as List<*>
-                        } catch (e3: Exception) {
-                            Log.e(TAG, "Не удалось получить список позиций", e3)
-                            emptyList<Any>()
                         }
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Не удалось получить список позиций", e)
+                    emptyList<Any?>()
                 }
 
                 Log.d(TAG, "Получено позиций: ${positionsList.size}")
@@ -106,28 +103,38 @@ class PortfolioViewModel(
                             val figi = it.javaClass.getMethod("getFigi").invoke(it) as String
                             val instrument = apiService.getInstrumentByFigi(figi)
 
-                            // Количество (BigDecimal -> Long)
+                            // Количество (может быть BigDecimal или Quotation)
                             val quantity: Long = try {
-                                val qtyMoneyValue = it.javaClass.getMethod("getQuantity").invoke(it)
-                                val units = qtyMoneyValue.javaClass.getMethod("getUnits").invoke(qtyMoneyValue) as Long
-                                val nano = qtyMoneyValue.javaClass.getMethod("getNano").invoke(qtyMoneyValue) as Int
-                                // Преобразуем в Long, отбрасывая дробную часть (для количества это нормально)
-                                units + (nano / 1_000_000_000)
+                                val qtyObj = it.javaClass.getMethod("getQuantity").invoke(it)
+                                when {
+                                    // Если это BigDecimal
+                                    qtyObj is BigDecimal -> qtyObj.toLong()
+                                    // Если это Quotation (MoneyValue) – извлекаем units и nano
+                                    else -> {
+                                        try {
+                                            val units = qtyObj.javaClass.getMethod("getUnits").invoke(qtyObj) as Long
+                                            val nano = qtyObj.javaClass.getMethod("getNano").invoke(qtyObj) as Int
+                                            units + nano / 1_000_000_000
+                                        } catch (e: Exception) {
+                                            // Fallback: пытаемся через toBigDecimal, если есть
+                                            qtyObj.javaClass.getMethod("toBigDecimal").invoke(qtyObj)?.let { it as BigDecimal }?.toLong() ?: 0L
+                                        }
+                                    }
+                                }
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь количество для $figi: ${e.message}")
                                 0L
                             }
 
-// 2. Получаем текущую цену (здесь важна точность!)
-                            val currentPrice: Double = try {
-                                val priceMoneyValue = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-                                val units = priceMoneyValue.javaClass.getMethod("getUnits").invoke(priceMoneyValue) as Long
-                                val nano = priceMoneyValue.javaClass.getMethod("getNano").invoke(priceMoneyValue) as Int
+                            if (quantity == 0L) return@mapNotNull null
 
-                                // Создаем BigDecimal для точного вычисления
-                                BigDecimal(units)
-                                    .add(BigDecimal(nano).divide(BigDecimal(1_000_000_000), 9, RoundingMode.HALF_UP))
-                                    .toDouble()
+                            // Текущая цена (Money -> Double)
+                            val currentPrice: Double = try {
+                                val priceObj = it.javaClass.getMethod("getCurrentPrice").invoke(it)
+                                // MoneyValue имеет units/nano в SDK 1.5
+                                val units = priceObj.javaClass.getMethod("getUnits").invoke(priceObj) as Long
+                                val nano = priceObj.javaClass.getMethod("getNano").invoke(priceObj) as Int
+                                units + nano / 1_000_000_000.0
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
                                 0.0
@@ -135,13 +142,14 @@ class PortfolioViewModel(
 
                             val totalValue = currentPrice * quantity
 
-                            // Прибыль (BigDecimal -> Double)
+                            // Прибыль
                             var profit = 0.0
                             var profitPercent = 0.0
                             try {
-                                val yieldMethod = it.javaClass.getMethod("getExpectedYield")
-                                val yieldValue = yieldMethod.invoke(it) as? BigDecimal
-                                profit = yieldValue?.toDouble() ?: 0.0
+                                val yieldObj = it.javaClass.getMethod("getExpectedYield").invoke(it)
+                                val bigDecimal = yieldObj as? BigDecimal
+                                    ?: yieldObj.javaClass.getMethod("toBigDecimal").invoke(yieldObj) as BigDecimal
+                                profit = bigDecimal.toDouble()
                                 if (totalValue > 0) {
                                     profitPercent = (profit / totalValue) * 100
                                 }
