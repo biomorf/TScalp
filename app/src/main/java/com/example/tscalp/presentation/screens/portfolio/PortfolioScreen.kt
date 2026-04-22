@@ -6,10 +6,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.*
+
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -20,12 +23,11 @@ import java.util.*
 
 @Composable
 fun PortfolioScreen(
-    viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory()
-    )
+    viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory())
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    // Правильный импорт для делегата by: используйте getValue
+    val uiState by viewModel.uiState.collectAsState().value
 
-    // Автоматическая загрузка при первом отображении
     LaunchedEffect(Unit) {
         viewModel.refresh()
     }
@@ -46,7 +48,6 @@ fun PortfolioScreen(
                 text = "Портфель",
                 style = MaterialTheme.typography.headlineMedium
             )
-
             IconButton(
                 onClick = { viewModel.refresh() },
                 enabled = !uiState.isLoading && uiState.isApiInitialized
@@ -198,7 +199,6 @@ fun PortfolioPositionCard(position: PortfolioPosition) {
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Тикер и название
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -217,7 +217,6 @@ fun PortfolioPositionCard(position: PortfolioPosition) {
                         maxLines = 1
                     )
                 }
-
                 if (position.totalValue > 0) {
                     Text(
                         text = formatCurrency(position.totalValue),
@@ -226,10 +225,7 @@ fun PortfolioPositionCard(position: PortfolioPosition) {
                     )
                 }
             }
-
             Divider(modifier = Modifier.padding(vertical = 4.dp))
-
-            // Количество и цена
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -245,7 +241,6 @@ fun PortfolioPositionCard(position: PortfolioPosition) {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "Текущая цена",
@@ -261,8 +256,6 @@ fun PortfolioPositionCard(position: PortfolioPosition) {
                     )
                 }
             }
-
-            // Прибыль/убыток (если есть)
             if (position.profit != 0.0) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -297,7 +290,6 @@ fun PortfolioPositionCard(position: PortfolioPosition) {
     }
 }
 
-// Вспомогательная функция для форматирования валюты
 fun formatCurrency(value: Double): String {
     val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
     format.currency = Currency.getInstance("RUB")
