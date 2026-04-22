@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 
 data class PortfolioUiState(
     val positions: List<PortfolioPosition> = emptyList(),
@@ -100,62 +101,15 @@ class PortfolioViewModel(
                 val positions = positionsList.mapNotNull { position ->
                     position?.let {
                         try {
-                            // Извлечение FIGI
-                            val figi: String = try {
-                                it.javaClass.getMethod("getFigi").invoke(it) as String
-                            } catch (e: Exception) {
-                                val field = it.javaClass.getDeclaredField("figi")
-                                field.isAccessible = true
-                                field.get(it) as String
-                            }
-
+                            // 1. FIGI
+                            val figi = it.javaClass.getMethod("getFigi").invoke(it) as String
                             val instrument = apiService.getInstrumentByFigi(figi)
 
-                            // Вспомогательные функции (можно вынести за пределы метода)
-                            fun Any?.toDouble(): Double {
-                                if (this == null) return 0.0
-                                return try {
-                                    val units = this.javaClass.getMethod("getUnits").invoke(this) as Long
-                                    val nano = this.javaClass.getMethod("getNano").invoke(this) as Int
-                                    units + nano / 1_000_000_000.0
-                                } catch (e: Exception) {
-                                    try {
-                                        val unitsField = this.javaClass.getDeclaredField("units")
-                                        unitsField.isAccessible = true
-                                        val nanoField = this.javaClass.getDeclaredField("nano")
-                                        nanoField.isAccessible = true
-                                        (unitsField.get(this) as Long) + (nanoField.get(this) as Int) / 1_000_000_000.0
-                                    } catch (e2: Exception) {
-                                        0.0
-                                    }
-                                }
-                            }
-
-                            fun Any?.toLong(): Long = this?.toDouble()?.toLong() ?: 0L
-
-                            // Извлечение количества
+                            // 2. Количество (BigDecimal -> Long)
                             val quantity: Long = try {
-                                when {
-                                    it.javaClass.methods.any { m -> m.name == "getQuantity" } -> {
-                                        val qty = it.javaClass.getMethod("getQuantity").invoke(it)
-                                        qty.toLong()
-                                    }
-                                    it.javaClass.methods.any { m -> m.name == "getBalance" } -> {
-                                        val bal = it.javaClass.getMethod("getBalance").invoke(it)
-                                        bal.toLong()
-                                    }
-                                    it.javaClass.declaredFields.any { f -> f.name == "quantity" } -> {
-                                        val f = it.javaClass.getDeclaredField("quantity")
-                                        f.isAccessible = true
-                                        f.get(it).toLong()
-                                    }
-                                    it.javaClass.declaredFields.any { f -> f.name == "balance" } -> {
-                                        val f = it.javaClass.getDeclaredField("balance")
-                                        f.isAccessible = true
-                                        f.get(it).toLong()
-                                    }
-                                    else -> 0L
-                                }
+                                val qtyMethod = it.javaClass.getMethod("getQuantity")
+                                val qtyValue = qtyMethod.invoke(it) as? BigDecimal
+                                qtyValue?.toLong() ?: 0L
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь количество для $figi: ${e.message}")
                                 0L
@@ -163,24 +117,13 @@ class PortfolioViewModel(
 
                             if (quantity == 0L) return@mapNotNull null
 
-                            // Извлечение текущей цены
+                            // 3. Текущая цена (Money -> Double)
                             val currentPrice: Double = try {
-                                when {
-                                    it.javaClass.methods.any { m -> m.name == "getCurrentPrice" } -> {
-                                        val price = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-                                        price.toDouble()
-                                    }
-                                    it.javaClass.methods.any { m -> m.name == "getAveragePositionPrice" } -> {
-                                        val price = it.javaClass.getMethod("getAveragePositionPrice").invoke(it)
-                                        price.toDouble()
-                                    }
-                                    it.javaClass.declaredFields.any { f -> f.name == "currentPrice" } -> {
-                                        val f = it.javaClass.getDeclaredField("currentPrice")
-                                        f.isAccessible = true
-                                        f.get(it).toDouble()
-                                    }
-                                    else -> 0.0
-                                }
+                                val priceMethod = it.javaClass.getMethod("getCurrentPrice")
+                                val moneyObj = priceMethod.invoke(it)
+                                val units = moneyObj.javaClass.getMethod("getUnits").invoke(moneyObj) as Long
+                                val nano = moneyObj.javaClass.getMethod("getNano").invoke(moneyObj) as Int
+                                units + nano / 1_000_000_000.0
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
                                 0.0
@@ -188,17 +131,18 @@ class PortfolioViewModel(
 
                             val totalValue = currentPrice * quantity
 
-                            // Прибыль (опционально)
+                            // 4. Прибыль (BigDecimal -> Double)
                             var profit = 0.0
                             var profitPercent = 0.0
                             try {
-                                val profitObj = it.javaClass.getMethod("getExpectedYield").invoke(it)
-                                profit = profitObj.toDouble()
+                                val yieldMethod = it.javaClass.getMethod("getExpectedYield")
+                                val yieldValue = yieldMethod.invoke(it) as? BigDecimal
+                                profit = yieldValue?.toDouble() ?: 0.0
                                 if (totalValue > 0) {
                                     profitPercent = (profit / totalValue) * 100
                                 }
                             } catch (e: Exception) {
-                                // не критично
+                                // прибыль может отсутствовать
                             }
 
                             PortfolioPosition(
