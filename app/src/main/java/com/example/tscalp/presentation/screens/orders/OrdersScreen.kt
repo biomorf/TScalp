@@ -11,23 +11,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
-import ru.tinkoff.piapi.contract.v1.Instrument
 
 @Composable
 fun OrdersScreen(
-    viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory()
-    )
+    viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Автоматически скрываем статусное сообщение через 5 секунд (если не ошибка)
     LaunchedEffect(uiState.statusMessage) {
         if (uiState.statusMessage != null && !uiState.isError) {
             kotlinx.coroutines.delay(5000)
@@ -35,12 +32,10 @@ fun OrdersScreen(
         }
     }
 
-    // !!! НОВЫЙ БЛОК: проверяем актуальное состояние API при каждом отображении экрана
+    // Проверяем актуальное состояние API при каждом открытии вкладки
     LaunchedEffect(Unit) {
         viewModel.checkApiInitialization()
     }
-
-
 
     Column(
         modifier = Modifier
@@ -76,12 +71,17 @@ fun OrdersScreen(
             onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
             isSearching = uiState.isSearching,
             searchResults = uiState.searchResults,
-            onInstrumentSelected = { instrument: Instrument ->
+            onInstrumentSelected = { instrument: InstrumentUi ->
                 viewModel.onInstrumentSelected(instrument)
             },
             onClear = { viewModel.clearSearch() },
             modifier = Modifier.fillMaxWidth()
         )
+
+        // Информация о выбранном инструменте
+        uiState.selectedInstrument?.let { instrument ->
+            InstrumentInfoCard(instrument = instrument)
+        }
 
         // Поле ввода количества
         OutlinedTextField(
@@ -198,8 +198,8 @@ fun InstrumentSearchField(
     query: String,
     onQueryChanged: (String) -> Unit,
     isSearching: Boolean,
-    searchResults: List<Instrument>,
-    onInstrumentSelected: (Instrument) -> Unit,
+    searchResults: List<InstrumentUi>,
+    onInstrumentSelected: (InstrumentUi) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -208,9 +208,7 @@ fun InstrumentSearchField(
     Column(modifier = modifier) {
         ExposedDropdownMenuBox(
             expanded = expanded && searchResults.isNotEmpty(),
-            onExpandedChange = {
-                expanded = if (searchResults.isNotEmpty()) it else false
-            }
+            onExpandedChange = { expanded = if (searchResults.isNotEmpty()) it else false }
         ) {
             OutlinedTextField(
                 value = query,
@@ -222,17 +220,12 @@ fun InstrumentSearchField(
                     .fillMaxWidth()
                     .menuAnchor(),
                 trailingIcon = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isSearching) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else if (query.isNotEmpty()) {
                             IconButton(onClick = onClear) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Очистить"
-                                )
+                                Icon(Icons.Default.Clear, contentDescription = "Очистить")
                             }
                         }
                     }
@@ -248,17 +241,12 @@ fun InstrumentSearchField(
                 expanded = expanded && searchResults.isNotEmpty(),
                 onDismissRequest = { expanded = false }
             ) {
-                LazyColumn(
-                    modifier = Modifier.heightIn(max = 300.dp)
-                ) {
-                    items(items = searchResults) { instrument: Instrument ->
+                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                    items(items = searchResults) { instrument: InstrumentUi ->
                         DropdownMenuItem(
                             text = {
                                 Column {
-                                    Text(
-                                        text = "${instrument.ticker} - ${instrument.name}",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
+                                    Text("${instrument.ticker} - ${instrument.name}")
                                     Text(
                                         text = instrument.figi,
                                         style = MaterialTheme.typography.bodySmall,
@@ -279,7 +267,7 @@ fun InstrumentSearchField(
 }
 
 @Composable
-fun InstrumentInfoCard(instrument: Instrument) {
+fun InstrumentInfoCard(instrument: InstrumentUi) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -346,7 +334,6 @@ fun AccountSelector(
                 text = "Торговый счёт",
                 style = MaterialTheme.typography.titleSmall
             )
-
             IconButton(onClick = onRefresh) {
                 Icon(
                     imageVector = Icons.Default.Refresh,

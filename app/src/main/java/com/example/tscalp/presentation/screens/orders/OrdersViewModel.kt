@@ -40,7 +40,7 @@ class OrdersViewModel(
     /**
      * Проверяет, инициализирован ли API (через репозиторий).
      */
-    private fun checkApiInitialization() {
+    fun checkApiInitialization() {
         // Репозиторий не хранит состояние API напрямую, поэтому проверяем через сервис
         val service = TinkoffInvestService()
         _uiState.update {
