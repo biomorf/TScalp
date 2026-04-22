@@ -5,10 +5,10 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import io.grpc.ManagedChannel
+import kotlinx.coroutines.runBlocking
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.*
-import ru.ttech.piapi.core.api.Portfolio
-import kotlinx.coroutines.runBlocking
 
 class TinkoffInvestService(private val context: Context) {
 
@@ -29,6 +29,7 @@ class TinkoffInvestService(private val context: Context) {
     )
 
     private var api: InvestApi? = null
+    private var channel: ManagedChannel? = null
     private var sandboxMode: Boolean = true
 
     val isInitialized: Boolean
@@ -39,11 +40,17 @@ class TinkoffInvestService(private val context: Context) {
             Log.d(TAG, "Инициализация Kotlin SDK, sandbox: $sandbox")
             this.sandboxMode = sandbox
 
-            api?.close()
+            // Закрываем старый канал и API
+            clearToken()
 
-            val target = if (sandbox) "sandbox-invest-public-api.tbank.ru:443" else "invest-public-api.tbank.ru:443"
-            val channel = InvestApi.defaultChannel(token = token, target = target)
-            api = InvestApi.createApi(channel)
+            val target = if (sandbox) {
+                "sandbox-invest-public-api.tbank.ru:443"
+            } else {
+                "invest-public-api.tbank.ru:443"
+            }
+
+            channel = InvestApi.defaultChannel(token = token, target = target)
+            api = InvestApi.createApi(channel!!)
 
             securePrefs.edit().putString("api_token", token).apply()
             securePrefs.edit().putBoolean("sandbox_mode", sandbox).apply()
@@ -68,23 +75,32 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
+    /**
+     * Гибридный метод для совместимости с существующим синхронным кодом.
+     * Использует runBlocking внутри, поэтому вызывать его нужно из фонового потока.
+     */
     fun getAccountsSync(): List<Account> = runBlocking {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        if (sandboxMode) {
-            currentApi.sandboxService.getSandboxAccounts().accountsList
-        } else {
-            currentApi.userService.getAccounts().accountsList
+        try {
+            if (sandboxMode) {
+                currentApi.sandboxService.getSandboxAccounts().accountsList
+            } else {
+                currentApi.userService.getAccounts().accountsList
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения счетов", e)
+            throw Exception("Не удалось получить счета: ${e.message}")
         }
     }
 
-    suspend fun postMarketOrder(
+    fun postMarketOrderSync(
         figi: String,
         quantity: Long,
         direction: OrderDirection,
         accountId: String
-    ): PostOrderResponse {
+    ): PostOrderResponse = runBlocking {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        return try {
+        try {
             val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
             val request = PostOrderRequest.newBuilder()
                 .setFigi(figi)
@@ -105,9 +121,31 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    suspend fun getPortfolio(accountId: String): Portfolio {
+    fun getInstrumentByFigiSync(figi: String): Instrument = runBlocking {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        return try {
+        try {
+            currentApi.instrumentsService.getInstrumentByFigi(figi)
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения инструмента по FIGI", e)
+            throw Exception("Не удалось получить инструмент: ${e.message}")
+        }
+    }
+
+    fun findInstrumentsSync(query: String): List<Instrument> = runBlocking {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        try {
+            currentApi.instrumentsService.findInstrument(query).instrumentsList
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка поиска инструментов", e)
+            throw Exception("Не удалось выполнить поиск: ${e.message}")
+        }
+    }
+
+    // Метод getPortfolio временно закомментирован до выяснения правильного пакета Portfolio
+    /*
+    fun getPortfolioSync(accountId: String): Portfolio = runBlocking {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        try {
             if (sandboxMode) {
                 currentApi.sandboxService.getSandboxPortfolio(accountId)
             } else {
@@ -118,31 +156,13 @@ class TinkoffInvestService(private val context: Context) {
             throw Exception("Не удалось получить портфель: ${e.message}")
         }
     }
-
-    suspend fun getInstrumentByFigi(figi: String): Instrument {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        return try {
-            currentApi.instrumentsService.getInstrumentByFigi(figi)
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка получения инструмента по FIGI", e)
-            throw Exception("Не удалось получить инструмент: ${e.message}")
-        }
-    }
-
-    suspend fun findInstruments(query: String): List<Instrument> {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        return try {
-            currentApi.instrumentsService.findInstrument(query).instrumentsList
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка поиска инструментов", e)
-            throw Exception("Не удалось выполнить поиск: ${e.message}")
-        }
-    }
+    */
 
     fun clearToken() {
-        api?.close()
+        channel?.shutdown()
+        channel = null
         api = null
         securePrefs.edit().remove("api_token").apply()
-        Log.d(TAG, "Токен очищен")
+        Log.d(TAG, "Токен и канал очищены")
     }
 }
