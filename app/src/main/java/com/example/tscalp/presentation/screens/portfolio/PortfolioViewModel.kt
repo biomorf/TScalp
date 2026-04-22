@@ -111,8 +111,7 @@ class PortfolioViewModel(
 
                             val instrument = apiService.getInstrumentByFigi(figi)
 
-                            // Извлечение количества
-                            // Вспомогательная функция для извлечения числового значения из MoneyValue/Quotation
+                            // Вспомогательные функции (можно вынести за пределы метода)
                             fun Any?.toDouble(): Double {
                                 if (this == null) return 0.0
                                 return try {
@@ -134,31 +133,22 @@ class PortfolioViewModel(
 
                             fun Any?.toLong(): Long = this?.toDouble()?.toLong() ?: 0L
 
-                            Log.d(TAG, "Доступные методы позиции: ${it.javaClass.methods.map { it.name }}")
-                            Log.d(TAG, "Доступные поля позиции: ${it.javaClass.declaredFields.map { it.name }}")
-
-                            // Внутри mapNotNull для каждой позиции:
+                            // Извлечение количества
                             val quantity: Long = try {
-                                // Пробуем разные варианты получения количества
                                 when {
-                                    // 1. Метод getQuantity()
                                     it.javaClass.methods.any { m -> m.name == "getQuantity" } -> {
                                         val qty = it.javaClass.getMethod("getQuantity").invoke(it)
                                         qty.toLong()
                                     }
-                                    // 2. Метод getBalance()
                                     it.javaClass.methods.any { m -> m.name == "getBalance" } -> {
                                         val bal = it.javaClass.getMethod("getBalance").invoke(it)
                                         bal.toLong()
                                     }
-                                    // 3. Поле quantity
                                     it.javaClass.declaredFields.any { f -> f.name == "quantity" } -> {
                                         val f = it.javaClass.getDeclaredField("quantity")
                                         f.isAccessible = true
-                                        val q = f.get(it)
-                                        q.toLong()
+                                        f.get(it).toLong()
                                     }
-                                    // 4. Поле balance
                                     it.javaClass.declaredFields.any { f -> f.name == "balance" } -> {
                                         val f = it.javaClass.getDeclaredField("balance")
                                         f.isAccessible = true
@@ -167,10 +157,13 @@ class PortfolioViewModel(
                                     else -> 0L
                                 }
                             } catch (e: Exception) {
-                                Log.w(TAG, "Не удалось извлечь количество для ${position.figi}: ${e.message}")
+                                Log.w(TAG, "Не удалось извлечь количество для $figi: ${e.message}")
                                 0L
                             }
 
+                            if (quantity == 0L) return@mapNotNull null
+
+                            // Извлечение текущей цены
                             val currentPrice: Double = try {
                                 when {
                                     it.javaClass.methods.any { m -> m.name == "getCurrentPrice" } -> {
@@ -189,25 +182,23 @@ class PortfolioViewModel(
                                     else -> 0.0
                                 }
                             } catch (e: Exception) {
-                                Log.w(TAG, "Не удалось извлечь цену для ${position.figi}: ${e.message}")
+                                Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
                                 0.0
                             }
 
                             val totalValue = currentPrice * quantity
 
-                            // Прибыль (если есть)
+                            // Прибыль (опционально)
                             var profit = 0.0
                             var profitPercent = 0.0
                             try {
                                 val profitObj = it.javaClass.getMethod("getExpectedYield").invoke(it)
-                                val units = profitObj.javaClass.getMethod("getUnits").invoke(profitObj) as Long
-                                val nano = profitObj.javaClass.getMethod("getNano").invoke(profitObj) as Int
-                                profit = units + nano / 1_000_000_000.0
+                                profit = profitObj.toDouble()
                                 if (totalValue > 0) {
                                     profitPercent = (profit / totalValue) * 100
                                 }
                             } catch (e: Exception) {
-                                // Прибыль не всегда доступна
+                                // не критично
                             }
 
                             PortfolioPosition(
