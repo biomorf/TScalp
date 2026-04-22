@@ -112,26 +112,84 @@ class PortfolioViewModel(
                             val instrument = apiService.getInstrumentByFigi(figi)
 
                             // Извлечение количества
+                            // Вспомогательная функция для извлечения числового значения из MoneyValue/Quotation
+                            fun Any?.toDouble(): Double {
+                                if (this == null) return 0.0
+                                return try {
+                                    val units = this.javaClass.getMethod("getUnits").invoke(this) as Long
+                                    val nano = this.javaClass.getMethod("getNano").invoke(this) as Int
+                                    units + nano / 1_000_000_000.0
+                                } catch (e: Exception) {
+                                    try {
+                                        val unitsField = this.javaClass.getDeclaredField("units")
+                                        unitsField.isAccessible = true
+                                        val nanoField = this.javaClass.getDeclaredField("nano")
+                                        nanoField.isAccessible = true
+                                        (unitsField.get(this) as Long) + (nanoField.get(this) as Int) / 1_000_000_000.0
+                                    } catch (e2: Exception) {
+                                        0.0
+                                    }
+                                }
+                            }
+
+                            fun Any?.toLong(): Long = this?.toDouble()?.toLong() ?: 0L
+
+                            Log.d(TAG, "Доступные методы позиции: ${it.javaClass.methods.map { it.name }}")
+                            Log.d(TAG, "Доступные поля позиции: ${it.javaClass.declaredFields.map { it.name }}")
+
+                            // Внутри mapNotNull для каждой позиции:
                             val quantity: Long = try {
-                                val qtyObj = it.javaClass.getMethod("getQuantity").invoke(it)
-                                val units = qtyObj.javaClass.getMethod("getUnits").invoke(qtyObj) as Long
-                                val nano = qtyObj.javaClass.getMethod("getNano").invoke(qtyObj) as Int
-                                units + nano / 1_000_000_000
+                                // Пробуем разные варианты получения количества
+                                when {
+                                    // 1. Метод getQuantity()
+                                    it.javaClass.methods.any { m -> m.name == "getQuantity" } -> {
+                                        val qty = it.javaClass.getMethod("getQuantity").invoke(it)
+                                        qty.toLong()
+                                    }
+                                    // 2. Метод getBalance()
+                                    it.javaClass.methods.any { m -> m.name == "getBalance" } -> {
+                                        val bal = it.javaClass.getMethod("getBalance").invoke(it)
+                                        bal.toLong()
+                                    }
+                                    // 3. Поле quantity
+                                    it.javaClass.declaredFields.any { f -> f.name == "quantity" } -> {
+                                        val f = it.javaClass.getDeclaredField("quantity")
+                                        f.isAccessible = true
+                                        val q = f.get(it)
+                                        q.toLong()
+                                    }
+                                    // 4. Поле balance
+                                    it.javaClass.declaredFields.any { f -> f.name == "balance" } -> {
+                                        val f = it.javaClass.getDeclaredField("balance")
+                                        f.isAccessible = true
+                                        f.get(it).toLong()
+                                    }
+                                    else -> 0L
+                                }
                             } catch (e: Exception) {
-                                Log.w(TAG, "Не удалось извлечь количество для $figi, используется 0")
+                                Log.w(TAG, "Не удалось извлечь количество для ${position.figi}: ${e.message}")
                                 0L
                             }
 
-                            if (quantity == 0L) return@mapNotNull null
-
-                            // Извлечение текущей цены
                             val currentPrice: Double = try {
-                                val priceObj = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-                                val units = priceObj.javaClass.getMethod("getUnits").invoke(priceObj) as Long
-                                val nano = priceObj.javaClass.getMethod("getNano").invoke(priceObj) as Int
-                                units + nano / 1_000_000_000.0
+                                when {
+                                    it.javaClass.methods.any { m -> m.name == "getCurrentPrice" } -> {
+                                        val price = it.javaClass.getMethod("getCurrentPrice").invoke(it)
+                                        price.toDouble()
+                                    }
+                                    it.javaClass.methods.any { m -> m.name == "getAveragePositionPrice" } -> {
+                                        val price = it.javaClass.getMethod("getAveragePositionPrice").invoke(it)
+                                        price.toDouble()
+                                    }
+                                    it.javaClass.declaredFields.any { f -> f.name == "currentPrice" } -> {
+                                        val f = it.javaClass.getDeclaredField("currentPrice")
+                                        f.isAccessible = true
+                                        f.get(it).toDouble()
+                                    }
+                                    else -> 0.0
+                                }
                             } catch (e: Exception) {
-                                Log.w(TAG, "Не удалось извлечь цену для $figi, используется 0.0")
+                                Log.w(TAG, "Не удалось извлечь цену для ${position.figi}: ${e.message}")
                                 0.0
                             }
 
