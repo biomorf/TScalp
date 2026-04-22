@@ -22,8 +22,7 @@ import ru.tinkoff.piapi.contract.v1.Instrument
 
 @Composable
 fun OrdersScreen(
-    viewModel: OrdersViewModel = viewModel(
-        factory = OrdersViewModelFactory(LocalContext.current)
+    viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory()
     )
 ) {
     val uiState by viewModel.uiState.collectAsState()

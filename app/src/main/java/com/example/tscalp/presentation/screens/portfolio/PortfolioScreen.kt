@@ -20,8 +20,7 @@ import java.util.*
 
 @Composable
 fun PortfolioScreen(
-    viewModel: PortfolioViewModel = viewModel(
-        factory = PortfolioViewModelFactory(LocalContext.current)
+    viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory()
     )
 ) {
     val uiState by viewModel.uiState.collectAsState()

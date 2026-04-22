@@ -1,74 +1,60 @@
 package com.example.tscalp.presentation.screens.orders
 
-import com.example.tscalp.data.api.TinkoffInvestService
-import com.example.tscalp.data.repository.InvestRepository
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job                         // <-- ДОБАВЛЕН ИМПОРТ
-import kotlinx.coroutines.delay                      // <-- ДОБАВЛЕН ИМПОРТ
+import com.example.tscalp.data.api.TinkoffInvestService
+import com.example.tscalp.data.repository.InstrumentUi
+import com.example.tscalp.data.repository.InvestRepository
+import com.example.tscalp.domain.models.AccountUi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import ru.tinkoff.piapi.contract.v1.Instrument       // <-- ДОБАВЛЕН ИМПОРТ
 import ru.tinkoff.piapi.contract.v1.OrderDirection
 
 /**
  * ViewModel для экрана выставления заявок.
- *
- * Управляет состоянием формы заявки, поиском инструментов, загрузкой списка счетов
- * и выполнением рыночных заявок через T-Invest API.
- *
- * @param apiService сервис для работы с API Т-Инвестиций
+ * Получает InvestRepository через конструктор (внедрение зависимостей).
  */
 class OrdersViewModel(
-    private val apiService: TinkoffInvestService
+    private val repository: InvestRepository
 ) : ViewModel() {
 
     companion object {
-        private const val TAG = "OrdersViewModel"  // Тег для логирования
+        private const val TAG = "OrdersViewModel"
     }
 
-    // Репозиторий для доступа к данным (обёртка над apiService)
-    private val repository = InvestRepository(apiService)
-
-    // Приватное мутабельное состояние UI, доступное только внутри ViewModel
     private val _uiState = MutableStateFlow(OrdersUiState())
-    // Публичное неизменяемое состояние для подписки из UI
     val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
 
-    // Job для отложенного поиска (debounce), чтобы не дёргать API на каждый ввод символа
     private var searchJob: Job? = null
 
     init {
-        // При создании ViewModel проверяем, инициализирован ли уже API
         checkApiInitialization()
     }
 
     /**
-     * Проверяет, был ли API инициализирован ранее (например, после восстановления токена).
-     * Если да – обновляет состояние и загружает счета.
+     * Проверяет, инициализирован ли API (через репозиторий).
      */
-    fun checkApiInitialization() {
+    private fun checkApiInitialization() {
+        // Репозиторий не хранит состояние API напрямую, поэтому проверяем через сервис
+        val service = TinkoffInvestService()
         _uiState.update {
-            it.copy(isApiInitialized = apiService.isInitialized)
+            it.copy(isApiInitialized = service.isInitialized)
         }
-        if (apiService.isInitialized) {
+        if (service.isInitialized) {
             loadAccounts()
         }
     }
 
-    /**
-     * Инициализирует API переданным токеном и режимом (боевой/песочница).
-     * После успешной инициализации загружает список счетов.
-     *
-     * @param token токен доступа к T-Invest API
-     * @param sandboxMode true для песочницы, false для боевого режима
-     */
-    fun initializeApi(token: String, sandboxMode: Boolean = true) {
+    fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
-            apiService.initialize(token, sandboxMode)
+            // Инициализация API происходит через ServiceLocator (вызывается из SettingsScreen)
+            // Здесь просто обновляем состояние и загружаем счета
             _uiState.update {
                 it.copy(
                     isApiInitialized = true,
@@ -87,26 +73,20 @@ class OrdersViewModel(
         }
     }
 
-    /**
-     * Загружает список торговых счетов пользователя и обновляет UI-состояние.
-     * Если счета получены, первый автоматически выбирается.
-     */
     fun loadAccounts() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val accounts = repository.getAccounts()
+                // Временно хардкодим sandboxMode = false (боевой)
+                // TODO: получать sandboxMode из настроек
+                val accounts = repository.getAccounts(sandboxMode = false)
                 val defaultAccount = accounts.firstOrNull()
                 _uiState.update {
                     it.copy(
                         accounts = accounts,
                         selectedAccountId = defaultAccount?.id,
                         isLoading = false,
-                        statusMessage = if (accounts.isEmpty()) {
-                            "Нет доступных счетов"
-                        } else {
-                            "Загружено ${accounts.size} счёт(ов)"
-                        }
+                        statusMessage = if (accounts.isEmpty()) "Нет доступных счетов" else "Загружено ${accounts.size} счёт(ов)"
                     )
                 }
             } catch (e: Exception) {
@@ -121,12 +101,6 @@ class OrdersViewModel(
         }
     }
 
-    /**
-     * Обрабатывает изменение строки поиска инструмента.
-     * Запускает отложенный поиск (debounce 500 мс), если длина запроса >= 2 символов.
-     *
-     * @param query поисковый запрос (тикер, название или FIGI)
-     */
     fun onSearchQueryChanged(query: String) {
         _uiState.update {
             it.copy(
@@ -135,15 +109,10 @@ class OrdersViewModel(
                 figi = ""
             )
         }
-
-        // Отменяем предыдущий поиск, чтобы не выполнять параллельные запросы
         searchJob?.cancel()
-
         if (query.length >= 2) {
             searchJob = viewModelScope.launch {
-                // Debounce: ждём 500 мс после последнего ввода перед отправкой запроса
                 delay(500)
-
                 _uiState.update { it.copy(isSearching = true) }
                 try {
                     val results = repository.searchInstruments(query)
@@ -165,23 +134,11 @@ class OrdersViewModel(
                 }
             }
         } else {
-            // Если запрос короткий, очищаем результаты поиска
-            _uiState.update {
-                it.copy(
-                    searchResults = emptyList(),
-                    isSearching = false
-                )
-            }
+            _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
         }
     }
 
-    /**
-     * Вызывается при выборе инструмента из выпадающего списка.
-     * Заполняет поле FIGI и очищает результаты поиска.
-     *
-     * @param instrument выбранный инструмент
-     */
-    fun onInstrumentSelected(instrument: Instrument) {
+    fun onInstrumentSelected(instrument: InstrumentUi) {
         _uiState.update {
             it.copy(
                 selectedInstrument = instrument,
@@ -192,9 +149,6 @@ class OrdersViewModel(
         }
     }
 
-    /**
-     * Очищает поле поиска и сбрасывает выбранный инструмент.
-     */
     fun clearSearch() {
         _uiState.update {
             it.copy(
@@ -206,57 +160,27 @@ class OrdersViewModel(
         }
     }
 
-    /**
-     * Обрабатывает изменение поля FIGI.
-     * Приводит введённое значение к верхнему регистру.
-     *
-     * @param figi введённый FIGI
-     */
     fun onFigiChanged(figi: String) {
         _uiState.update { it.copy(figi = figi.uppercase()) }
     }
 
-    /**
-     * Обрабатывает изменение поля "Количество лотов".
-     * Оставляет только цифры, фильтруя нечисловые символы.
-     *
-     * @param quantity введённое количество
-     */
     fun onQuantityChanged(quantity: String) {
         val filtered = quantity.filter { it.isDigit() }
         _uiState.update { it.copy(quantity = filtered) }
     }
 
-    /**
-     * Обрабатывает выбор торгового счёта из выпадающего списка.
-     *
-     * @param accountId идентификатор выбранного счёта
-     */
     fun onAccountSelected(accountId: String) {
         _uiState.update { it.copy(selectedAccountId = accountId) }
     }
 
-    /**
-     * Обработчик нажатия кнопки "Купить".
-     * Отправляет рыночную заявку на покупку.
-     */
     fun onBuyClick() {
         postOrder(OrderDirection.ORDER_DIRECTION_BUY)
     }
 
-    /**
-     * Обработчик нажатия кнопки "Продать".
-     * Отправляет рыночную заявку на продажу.
-     */
     fun onSellClick() {
         postOrder(OrderDirection.ORDER_DIRECTION_SELL)
     }
 
-    /**
-     * Отправляет рыночную заявку через API и обновляет состояние.
-     *
-     * @param direction направление заявки (BUY или SELL)
-     */
     private fun postOrder(direction: OrderDirection) {
         val state = _uiState.value
         val figi = state.figi
@@ -266,27 +190,24 @@ class OrdersViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
+                // TODO: получать sandboxMode из настроек
                 val result = repository.postMarketOrder(
                     figi = figi,
                     quantity = quantity,
                     direction = direction,
-                    accountId = accountId
+                    accountId = accountId,
+                    sandboxMode = false
                 )
-
                 val directionText = when (direction) {
                     OrderDirection.ORDER_DIRECTION_BUY -> "покупка"
                     OrderDirection.ORDER_DIRECTION_SELL -> "продажа"
                     else -> "операция"
                 }
-
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "✅ Заявка на $directionText выполнена!\n" +
-                                "ID: ${result.orderId}\n" +
-                                "Исполнено: ${result.executedLots}/${result.totalLots} лотов",
+                        statusMessage = "✅ Заявка на $directionText выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов",
                         isError = false,
-                        // Очищаем поля формы после успешной заявки
                         figi = "",
                         quantity = "",
                         searchQuery = "",
@@ -305,19 +226,26 @@ class OrdersViewModel(
         }
     }
 
-    /**
-     * Очищает статусное сообщение (например, после того как пользователь его увидел).
-     */
     fun clearStatus() {
-        _uiState.update { it.clearStatus() }
+        _uiState.update { it.copy(statusMessage = null, isError = false) }
     }
 
-    /**
-     * Повторяет попытку загрузки счетов (например, если API не был инициализирован при старте).
-     */
     fun retryLoadAccounts() {
-        if (apiService.isInitialized) {
-            loadAccounts()
+        loadAccounts()
+    }
+}
+
+/**
+ * Фабрика для создания OrdersViewModel.
+ */
+class OrdersViewModelFactory : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(OrdersViewModel::class.java)) {
+            val service = TinkoffInvestService()
+            val repository = InvestRepository(service)
+            @Suppress("UNCHECKED_CAST")
+            return OrdersViewModel(repository) as T
         }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

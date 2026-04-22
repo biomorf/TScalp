@@ -76,4 +76,20 @@ dependencies {
 
     // T-Invest API SDK
     implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.40.0")
+
+    // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
+    implementation("com.google.protobuf:protobuf-java:3.25.3")
+
+    // Исключаем все lite-версии из всех конфигураций
+    configurations.all {
+        exclude(group = "com.google.protobuf", module = "protobuf-lite")
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+    }
+
+    implementation("io.grpc:grpc-okhttp:1.68.1")
+    implementation("io.grpc:grpc-stub:1.68.1")
+    implementation("io.grpc:grpc-protobuf-lite:1.68.1")
+
+    // Обязательная зависимость для ManagedChannel
+    implementation("io.grpc:grpc-stub:1.57.2")
 }

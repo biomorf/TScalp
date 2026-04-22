@@ -1,7 +1,5 @@
 package com.example.tscalp.presentation.screens.portfolio
 
-import android.content.Context
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,27 +11,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
-import java.math.RoundingMode
 
-data class PortfolioUiState(
-    val positions: List<PortfolioPosition> = emptyList(),
-    val totalValue: Double = 0.0,
-    val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false,
-    val isApiInitialized: Boolean = false
-)
-
+/**
+ * ViewModel для экрана портфеля.
+ */
 class PortfolioViewModel(
-    private val apiService: TinkoffInvestService
+    private val repository: InvestRepository
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "PortfolioViewModel"
     }
-
-    private val repository = InvestRepository(apiService)
 
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
@@ -43,10 +31,11 @@ class PortfolioViewModel(
     }
 
     private fun checkApiInitialization() {
+        val service = TinkoffInvestService()
         _uiState.update {
-            it.copy(isApiInitialized = apiService.isInitialized)
+            it.copy(isApiInitialized = service.isInitialized)
         }
-        if (apiService.isInitialized) {
+        if (service.isInitialized) {
             loadPortfolio()
         }
     }
@@ -55,9 +44,9 @@ class PortfolioViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                Log.d(TAG, "Загрузка портфеля")
-
-                val accounts = repository.getAccounts()
+                // TODO: получать sandboxMode из настроек
+                val sandboxMode = false
+                val accounts = repository.getAccounts(sandboxMode)
                 if (accounts.isEmpty()) {
                     _uiState.update {
                         it.copy(
@@ -70,119 +59,7 @@ class PortfolioViewModel(
                 }
 
                 val accountId = accounts.first().id
-                Log.d(TAG, "Используем счёт: $accountId")
-
-                val portfolio = apiService.getPortfolio(accountId)
-
-                // Универсальное получение списка позиций
-                val positionsList: List<*> = try {
-                    when {
-                        // Песочница: PortfolioResponse.getPositionsList()
-                        portfolio.javaClass.methods.any { it.name == "getPositionsList" } -> {
-                            portfolio.javaClass.getMethod("getPositionsList").invoke(portfolio) as List<*>
-                        }
-                        // Боевой режим: Portfolio.getPositions()
-                        portfolio.javaClass.methods.any { it.name == "getPositions" } -> {
-                            portfolio.javaClass.getMethod("getPositions").invoke(portfolio) as List<*>
-                        }
-                        // Fallback на поле positions
-                        else -> {
-                            val field = portfolio.javaClass.getDeclaredField("positions")
-                            field.isAccessible = true
-                            field.get(portfolio) as List<*>
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Не удалось получить список позиций", e)
-                    emptyList<Any?>()
-                }
-
-                Log.d(TAG, "Получено позиций: ${positionsList.size}")
-
-                val positions = positionsList.mapNotNull { position ->
-                    position?.let {
-                        try {
-                            // FIGI
-                            val figi = it.javaClass.getMethod("getFigi").invoke(it) as String
-                            val instrument = apiService.getInstrumentByFigi(figi)
-
-                            val quantity: Long = try {
-                                val qtyObj = it.javaClass.getMethod("getQuantity").invoke(it)
-                                when (qtyObj) {
-                                    is BigDecimal -> qtyObj.toLong()
-                                    else -> {
-                                        try {
-                                            // Боевой режим: Money.getValue() -> BigDecimal
-                                            val bd = qtyObj.javaClass.getMethod("getValue").invoke(qtyObj) as? BigDecimal
-                                            bd?.toLong() ?: 0L
-                                        } catch (e: NoSuchMethodException) {
-                                            // Песочница: MoneyValue.getUnits() и getNano()
-                                            val units = qtyObj.javaClass.getMethod("getUnits").invoke(qtyObj) as Long
-                                            val nano = qtyObj.javaClass.getMethod("getNano").invoke(qtyObj) as Int
-                                            units + nano / 1_000_000_000
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Не удалось извлечь количество для $figi: ${e.message}")
-                                0L
-                            }
-
-                            if (quantity == 0L) return@mapNotNull null
-
-                            val currentPrice: Double = try {
-                                val priceObj = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-                                try {
-                                    // Боевой режим: Money.getValue() -> BigDecimal
-                                    val bd = priceObj.javaClass.getMethod("getValue").invoke(priceObj) as? BigDecimal
-                                    bd?.toDouble() ?: 0.0
-                                } catch (e: NoSuchMethodException) {
-                                    // Песочница: MoneyValue.getUnits() и getNano()
-                                    val units = priceObj.javaClass.getMethod("getUnits").invoke(priceObj) as Long
-                                    val nano = priceObj.javaClass.getMethod("getNano").invoke(priceObj) as Int
-                                    units + nano / 1_000_000_000.0
-                                }
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
-                                0.0
-                            }
-
-                            val totalValue = currentPrice * quantity
-
-                            // Прибыль
-                            var profit = 0.0
-                            var profitPercent = 0.0
-                            try {
-                                val yieldObj = it.javaClass.getMethod("getExpectedYield").invoke(it)
-                                val bd = when (yieldObj) {
-                                    is BigDecimal -> yieldObj
-                                    else -> yieldObj.javaClass.getMethod("getValue").invoke(yieldObj) as? BigDecimal
-                                }
-                                profit = bd?.toDouble() ?: 0.0
-                                if (totalValue > 0) {
-                                    profitPercent = (profit / totalValue) * 100
-                                }
-                            } catch (e: Exception) {
-                                // не критично
-                            }
-
-                            PortfolioPosition(
-                                figi = figi,
-                                name = instrument.name,
-                                ticker = instrument.ticker,
-                                quantity = quantity,
-                                currentPrice = currentPrice,
-                                totalValue = totalValue,
-                                profit = profit,
-                                profitPercent = profitPercent
-                            )
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Ошибка обработки позиции", e)
-                            null
-                        }
-                    }
-                }
-
+                val positions = repository.getPortfolio(accountId, sandboxMode)
                 val totalValue = positions.sumOf { it.totalValue }
 
                 _uiState.update {
@@ -195,7 +72,6 @@ class PortfolioViewModel(
                     )
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Ошибка загрузки портфеля", e)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -208,14 +84,25 @@ class PortfolioViewModel(
     }
 
     fun refresh() {
-        if (apiService.isInitialized) {
-            loadPortfolio()
-        } else {
-            checkApiInitialization()
-        }
+        loadPortfolio()
     }
 
     fun clearStatus() {
         _uiState.update { it.copy(statusMessage = null, isError = false) }
+    }
+}
+
+/**
+ * Фабрика для создания PortfolioViewModel.
+ */
+class PortfolioViewModelFactory : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(PortfolioViewModel::class.java)) {
+            val service = TinkoffInvestService()
+            val repository = InvestRepository(service)
+            @Suppress("UNCHECKED_CAST")
+            return PortfolioViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
