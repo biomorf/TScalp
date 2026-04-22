@@ -106,21 +106,21 @@ class PortfolioViewModel(
                             val figi = it.javaClass.getMethod("getFigi").invoke(it) as String
                             val instrument = apiService.getInstrumentByFigi(figi)
 
-                            // Количество (BigDecimal или Quotation)
+                            // Количество (BigDecimal или Money)
                             val quantity: Long = try {
                                 val qtyObj = it.javaClass.getMethod("getQuantity").invoke(it)
                                 when (qtyObj) {
                                     is BigDecimal -> qtyObj.toLong()
                                     else -> {
-                                        // Quotation: пробуем units/nano
+                                        // Пробуем getValue() (для Money)
                                         try {
+                                            val bd = qtyObj.javaClass.getMethod("getValue").invoke(qtyObj) as? BigDecimal
+                                            bd?.toLong() ?: 0L
+                                        } catch (e: Exception) {
+                                            // Fallback на units/nano (для Quotation)
                                             val units = qtyObj.javaClass.getMethod("getUnits").invoke(qtyObj) as Long
                                             val nano = qtyObj.javaClass.getMethod("getNano").invoke(qtyObj) as Int
                                             units + nano / 1_000_000_000
-                                        } catch (e: Exception) {
-                                            // Fallback: toBigDecimal()
-                                            val bd = qtyObj.javaClass.getMethod("toBigDecimal").invoke(qtyObj) as? BigDecimal
-                                            bd?.toLong() ?: 0L
                                         }
                                     }
                                 }
@@ -131,24 +131,11 @@ class PortfolioViewModel(
 
                             if (quantity == 0L) return@mapNotNull null
 
-                            // Текущая цена (диагностика)
+                            // Текущая цена (Money -> BigDecimal через getValue())
                             val currentPrice: Double = try {
                                 val priceObj = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-
-                                // Выводим все методы объекта priceObj
-                                Log.d(TAG, "=== Методы объекта цены (${priceObj.javaClass.simpleName}) ===")
-                                priceObj.javaClass.methods.forEach { method ->
-                                    Log.d(TAG, "  ${method.name}() -> ${method.returnType.simpleName}")
-                                }
-                                Log.d(TAG, "==========================================")
-
-                                // Пробуем toBigDecimal (как раньше)
-                                try {
-                                    val bd = priceObj.javaClass.getMethod("toBigDecimal").invoke(priceObj) as? BigDecimal
-                                    bd?.toDouble() ?: 0.0
-                                } catch (e: Exception) {
-                                    0.0
-                                }
+                                val bd = priceObj.javaClass.getMethod("getValue").invoke(priceObj) as? BigDecimal
+                                bd?.toDouble() ?: 0.0
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
                                 0.0
@@ -163,7 +150,7 @@ class PortfolioViewModel(
                                 val yieldObj = it.javaClass.getMethod("getExpectedYield").invoke(it)
                                 val bd = when (yieldObj) {
                                     is BigDecimal -> yieldObj
-                                    else -> yieldObj.javaClass.getMethod("toBigDecimal").invoke(yieldObj) as? BigDecimal
+                                    else -> yieldObj.javaClass.getMethod("getValue").invoke(yieldObj) as? BigDecimal
                                 }
                                 profit = bd?.toDouble() ?: 0.0
                                 if (totalValue > 0) {
