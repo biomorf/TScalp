@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
+import java.math.RoundingMode
 
 data class PortfolioUiState(
     val positions: List<PortfolioPosition> = emptyList(),
@@ -101,29 +102,32 @@ class PortfolioViewModel(
                 val positions = positionsList.mapNotNull { position ->
                     position?.let {
                         try {
-                            // 1. FIGI
+                            // FIGI
                             val figi = it.javaClass.getMethod("getFigi").invoke(it) as String
                             val instrument = apiService.getInstrumentByFigi(figi)
 
-                            // 2. Количество (BigDecimal -> Long)
+                            // Количество (BigDecimal -> Long)
                             val quantity: Long = try {
-                                val qtyMethod = it.javaClass.getMethod("getQuantity")
-                                val qtyValue = qtyMethod.invoke(it) as? BigDecimal
-                                qtyValue?.toLong() ?: 0L
+                                val qtyMoneyValue = it.javaClass.getMethod("getQuantity").invoke(it)
+                                val units = qtyMoneyValue.javaClass.getMethod("getUnits").invoke(qtyMoneyValue) as Long
+                                val nano = qtyMoneyValue.javaClass.getMethod("getNano").invoke(qtyMoneyValue) as Int
+                                // Преобразуем в Long, отбрасывая дробную часть (для количества это нормально)
+                                units + (nano / 1_000_000_000)
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь количество для $figi: ${e.message}")
                                 0L
                             }
 
-                            if (quantity == 0L) return@mapNotNull null
-
-                            // 3. Текущая цена (Money -> Double)
+// 2. Получаем текущую цену (здесь важна точность!)
                             val currentPrice: Double = try {
-                                val priceMethod = it.javaClass.getMethod("getCurrentPrice")
-                                val moneyObj = priceMethod.invoke(it)
-                                val units = moneyObj.javaClass.getMethod("getUnits").invoke(moneyObj) as Long
-                                val nano = moneyObj.javaClass.getMethod("getNano").invoke(moneyObj) as Int
-                                units + nano / 1_000_000_000.0
+                                val priceMoneyValue = it.javaClass.getMethod("getCurrentPrice").invoke(it)
+                                val units = priceMoneyValue.javaClass.getMethod("getUnits").invoke(priceMoneyValue) as Long
+                                val nano = priceMoneyValue.javaClass.getMethod("getNano").invoke(priceMoneyValue) as Int
+
+                                // Создаем BigDecimal для точного вычисления
+                                BigDecimal(units)
+                                    .add(BigDecimal(nano).divide(BigDecimal(1_000_000_000), 9, RoundingMode.HALF_UP))
+                                    .toDouble()
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
                                 0.0
@@ -131,7 +135,7 @@ class PortfolioViewModel(
 
                             val totalValue = currentPrice * quantity
 
-                            // 4. Прибыль (BigDecimal -> Double)
+                            // Прибыль (BigDecimal -> Double)
                             var profit = 0.0
                             var profitPercent = 0.0
                             try {
@@ -142,7 +146,7 @@ class PortfolioViewModel(
                                     profitPercent = (profit / totalValue) * 100
                                 }
                             } catch (e: Exception) {
-                                // прибыль может отсутствовать
+                                // не критично
                             }
 
                             PortfolioPosition(
