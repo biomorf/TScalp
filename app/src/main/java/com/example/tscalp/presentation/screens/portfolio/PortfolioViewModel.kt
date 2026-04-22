@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.presentation.screens.orders.OrdersUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,7 @@ class PortfolioViewModel(
 
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
+
 
     init {
         checkApiInitialization()
