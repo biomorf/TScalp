@@ -131,18 +131,23 @@ class PortfolioViewModel(
 
                             if (quantity == 0L) return@mapNotNull null
 
-                            // Текущая цена (Money -> Double)
+                            // Текущая цена (диагностика)
                             val currentPrice: Double = try {
                                 val priceObj = it.javaClass.getMethod("getCurrentPrice").invoke(it)
-                                // Пробуем toBigDecimal (основной способ для Money)
+
+                                // Выводим все методы объекта priceObj
+                                Log.d(TAG, "=== Методы объекта цены (${priceObj.javaClass.simpleName}) ===")
+                                priceObj.javaClass.methods.forEach { method ->
+                                    Log.d(TAG, "  ${method.name}() -> ${method.returnType.simpleName}")
+                                }
+                                Log.d(TAG, "==========================================")
+
+                                // Пробуем toBigDecimal (как раньше)
                                 try {
                                     val bd = priceObj.javaClass.getMethod("toBigDecimal").invoke(priceObj) as? BigDecimal
                                     bd?.toDouble() ?: 0.0
                                 } catch (e: Exception) {
-                                    // Fallback на units/nano
-                                    val units = priceObj.javaClass.getMethod("getUnits").invoke(priceObj) as Long
-                                    val nano = priceObj.javaClass.getMethod("getNano").invoke(priceObj) as Int
-                                    units + nano / 1_000_000_000.0
+                                    0.0
                                 }
                             } catch (e: Exception) {
                                 Log.w(TAG, "Не удалось извлечь цену для $figi: ${e.message}")
