@@ -26,7 +26,7 @@ fun PortfolioScreen(
     viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory())
 ) {
     // Правильный импорт для делегата by: используйте getValue
-    val uiState by viewModel.uiState.collectAsState().value
+    val uiState: PortfolioUiState = viewModel.uiState.collectAsState().value
 
     LaunchedEffect(Unit) {
         viewModel.refresh()
