@@ -28,12 +28,20 @@ fun OrdersScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Автоматически скрываем статусное сообщение через 5 секунд (если не ошибка)
     LaunchedEffect(uiState.statusMessage) {
         if (uiState.statusMessage != null && !uiState.isError) {
             kotlinx.coroutines.delay(5000)
             viewModel.clearStatus()
         }
     }
+
+    // !!! НОВЫЙ БЛОК: проверяем актуальное состояние API при каждом отображении экрана
+    LaunchedEffect(Unit) {
+        viewModel.checkApiInitialization()
+    }
+
+
 
     Column(
         modifier = Modifier
