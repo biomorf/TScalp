@@ -6,19 +6,10 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import ru.ttech.piapi.core.InvestApi
-import ru.tinkoff.piapi.contract.v1.Account
-import ru.tinkoff.piapi.contract.v1.Instrument
-import ru.tinkoff.piapi.contract.v1.OrderDirection
-import ru.tinkoff.piapi.contract.v1.OrderType
-import ru.tinkoff.piapi.contract.v1.PostOrderRequest
-import ru.tinkoff.piapi.contract.v1.PostOrderResponse
-import ru.tinkoff.piapi.contract.v1.Quotation
-import ru.ttech.piapi.core.models.Portfolio
+import ru.tinkoff.piapi.contract.v1.*
+import ru.ttech.piapi.core.api.Portfolio
+import kotlinx.coroutines.runBlocking
 
-/**
- * Сервис для работы с T-Invest API через Kotlin SDK.
- * Хранит токен в зашифрованном виде и управляет клиентом API.
- */
 class TinkoffInvestService(private val context: Context) {
 
     companion object {
@@ -43,30 +34,19 @@ class TinkoffInvestService(private val context: Context) {
     val isInitialized: Boolean
         get() = api != null
 
-    /**
-     * Инициализирует клиент API с токеном и режимом (боевой/песочница).
-     */
-    fun initialize(token: String, sandboxMode: Boolean = true) {
+    fun initialize(token: String, sandbox: Boolean = true) {
         try {
-            Log.d(TAG, "Инициализация Kotlin SDK, sandbox: $sandboxMode")
-            this.sandboxMode = sandboxMode
+            Log.d(TAG, "Инициализация Kotlin SDK, sandbox: $sandbox")
+            this.sandboxMode = sandbox
 
-            // Закрываем старый клиент, если был
             api?.close()
 
-            // Создаём нового клиента через DSL-билдер
-            api = if (sandboxMode) {
-                InvestApi.newSandboxClient(token) {
-                    // Здесь можно настроить таймауты, перехватчики и т.д.
-                }
-            } else {
-                InvestApi.newClient(token) {
-                    // Настройки для боевого режима
-                }
-            }
+            val target = if (sandbox) "sandbox-invest-public-api.tbank.ru:443" else "invest-public-api.tbank.ru:443"
+            val channel = InvestApi.defaultChannel(token = token, target = target)
+            api = InvestApi.createApi(channel)
 
             securePrefs.edit().putString("api_token", token).apply()
-            securePrefs.edit().putBoolean("sandbox_mode", sandboxMode).apply()
+            securePrefs.edit().putBoolean("sandbox_mode", sandbox).apply()
             Log.d(TAG, "API успешно инициализирован")
 
         } catch (e: Exception) {
@@ -75,16 +55,11 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    /**
-     * Пытается восстановить подключение из сохранённого токена.
-     * @return true, если восстановление успешно
-     */
     fun tryRestoreConnection(): Boolean {
         val token = securePrefs.getString("api_token", null) ?: return false
         val savedSandbox = securePrefs.getBoolean("sandbox_mode", true)
         return try {
             initialize(token, savedSandbox)
-            Log.d(TAG, "Соединение восстановлено")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Не удалось восстановить соединение", e)
@@ -93,27 +68,15 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    /**
-     * Получает список счетов пользователя.
-     */
-    suspend fun getAccounts(): List<Account> {
+    fun getAccountsSync(): List<Account> = runBlocking {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        return try {
-            val response = if (sandboxMode) {
-                currentApi.sandboxService.getSandboxAccounts()
-            } else {
-                currentApi.userService.getAccounts()
-            }
-            response.accountsList
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка получения счетов", e)
-            throw Exception("Не удалось получить счета: ${e.message}")
+        if (sandboxMode) {
+            currentApi.sandboxService.getSandboxAccounts().accountsList
+        } else {
+            currentApi.userService.getAccounts().accountsList
         }
     }
 
-    /**
-     * Отправляет рыночную заявку.
-     */
     suspend fun postMarketOrder(
         figi: String,
         quantity: Long,
@@ -142,9 +105,6 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    /**
-     * Получает портфель по счёту.
-     */
     suspend fun getPortfolio(accountId: String): Portfolio {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         return try {
@@ -159,9 +119,6 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    /**
-     * Получает полную информацию об инструменте по FIGI.
-     */
     suspend fun getInstrumentByFigi(figi: String): Instrument {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         return try {
@@ -172,9 +129,6 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    /**
-     * Ищет инструменты по строковому запросу (тикер, название, FIGI).
-     */
     suspend fun findInstruments(query: String): List<Instrument> {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         return try {
@@ -185,9 +139,6 @@ class TinkoffInvestService(private val context: Context) {
         }
     }
 
-    /**
-     * Очищает токен и закрывает клиент API.
-     */
     fun clearToken() {
         api?.close()
         api = null
