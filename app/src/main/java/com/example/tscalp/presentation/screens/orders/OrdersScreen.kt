@@ -286,14 +286,23 @@ fun InstrumentSearchField(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
+    // Автоматически открываем список при появлении результатов поиска
+    LaunchedEffect(searchResults) {
+        expanded = searchResults.isNotEmpty()
+    }
+
     Column(modifier = modifier) {
         ExposedDropdownMenuBox(
             expanded = expanded && searchResults.isNotEmpty(),
-            onExpandedChange = { expanded = if (searchResults.isNotEmpty()) it else false }
+            onExpandedChange = { expanded = it }
         ) {
             OutlinedTextField(
                 value = query,
-                onValueChange = onQueryChanged,
+                onValueChange = {
+                    onQueryChanged(it)
+                    // Пока пользователь вводит текст, держим список открытым
+                    expanded = it.isNotEmpty()
+                },
                 label = { Text("Поиск инструмента") },
                 placeholder = { Text("Введите тикер или название") },
                 singleLine = true,
@@ -305,7 +314,10 @@ fun InstrumentSearchField(
                         if (isSearching) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else if (query.isNotEmpty()) {
-                            IconButton(onClick = onClear) {
+                            IconButton(onClick = {
+                                onClear()
+                                expanded = false  // Закрываем список при очистке
+                            }) {
                                 Icon(Icons.Default.Clear, contentDescription = "Очистить")
                             }
                         }
@@ -325,9 +337,8 @@ fun InstrumentSearchField(
                 Column(
                     modifier = Modifier
                         .heightIn(max = 300.dp)
-                        .verticalScroll(rememberScrollState())  // ← добавляем вертикальную прокрутку
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    // Перебираем результаты поиска обычным forEach
                     searchResults.forEach { instrument: InstrumentUi ->
                         DropdownMenuItem(
                             text = {
