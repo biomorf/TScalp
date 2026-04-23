@@ -5,27 +5,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.tscalp.di.ServiceLocator
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tscalp.presentation.screens.orders.OrdersViewModel
+import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 
 @Composable
 fun SettingsScreen() {
-    val context = LocalContext.current
-    val apiService = remember { ServiceLocator.getTinkoffInvestService(context) }
+    // Временно используем OrdersViewModel для инициализации API
+    val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
+    val uiState by ordersViewModel.uiState.collectAsState()
 
-    var isConnected by remember { mutableStateOf(apiService.isInitialized) }
     var token by remember { mutableStateOf("") }
     var sandboxMode by remember { mutableStateOf(true) }
     var showToken by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var isError by remember { mutableStateOf(false) }
-
-    // Синхронизируем состояние при возврате на экран
-    LaunchedEffect(Unit) {
-        isConnected = apiService.isInitialized
-    }
 
     Column(
         modifier = Modifier
@@ -33,7 +27,6 @@ fun SettingsScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Заголовок
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -47,11 +40,10 @@ fun SettingsScreen() {
             )
         }
 
-        // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = if (isConnected)
+                containerColor = if (uiState.isApiInitialized)
                     MaterialTheme.colorScheme.tertiaryContainer
                 else
                     MaterialTheme.colorScheme.errorContainer
@@ -70,17 +62,26 @@ fun SettingsScreen() {
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = if (isConnected)
+                        text = if (uiState.isApiInitialized)
                             "✅ Подключено"
                         else
                             "❌ Не подключено",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+                if (uiState.isApiInitialized) {
+                    Button(
+                        onClick = { /* TODO: добавить отключение */ },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Отключить")
+                    }
+                }
             }
         }
 
-        // Поле ввода токена
         OutlinedTextField(
             value = token,
             onValueChange = { token = it },
@@ -97,10 +98,9 @@ fun SettingsScreen() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !isConnected
+            enabled = !uiState.isApiInitialized
         )
 
-        // Переключатель режима песочницы
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -120,56 +120,29 @@ fun SettingsScreen() {
             Switch(
                 checked = sandboxMode,
                 onCheckedChange = { sandboxMode = it },
-                enabled = !isConnected
+                enabled = !uiState.isApiInitialized
             )
         }
 
-        // Кнопка подключения / отключения
-        if (isConnected) {
-            Button(
-                onClick = {
-                    apiService.clearToken()
-                    isConnected = false
-                    statusMessage = "API отключен"
-                    isError = false
+        // Исправлено: лямбда вместо ссылки на метод с параметрами
+        Button(
+            onClick = {
+                if (token.isNotBlank()) {
+                    ordersViewModel.initializeApi(token, sandboxMode)
                     token = ""
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Text("Отключить API")
-            }
-        } else {
-            Button(
-                onClick = {
-                    if (token.isNotBlank()) {
-                        try {
-                            apiService.initialize(token, sandboxMode)
-                            isConnected = true
-                            statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})"
-                            isError = false
-                            token = ""
-                        } catch (e: Exception) {
-                            statusMessage = "Ошибка подключения: ${e.message}"
-                            isError = true
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = token.isNotBlank()
-            ) {
-                Text("Подключиться к API")
-            }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = token.isNotBlank() && !uiState.isApiInitialized
+        ) {
+            Text("Подключиться к API")
         }
 
-        // Статусное сообщение
-        statusMessage?.let { message ->
+        uiState.statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isError)
+                    containerColor = if (uiState.isError)
                         MaterialTheme.colorScheme.errorContainer
                     else
                         MaterialTheme.colorScheme.tertiaryContainer
@@ -184,7 +157,6 @@ fun SettingsScreen() {
 
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-        // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(

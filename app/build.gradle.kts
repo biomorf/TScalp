@@ -80,6 +80,11 @@ dependencies {
     // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
     implementation("com.google.protobuf:protobuf-java:3.25.3")
 
+    // Исключаем конфликтующий модуль из всех конфигураций
+    configurations.all {
+        exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
+    }
+
     // Исключаем все lite-версии из всех конфигураций
     configurations.all {
         exclude(group = "com.google.protobuf", module = "protobuf-lite")

@@ -6,11 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.*
-
-
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -25,8 +21,7 @@ import java.util.*
 fun PortfolioScreen(
     viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory())
 ) {
-    // Правильный импорт для делегата by: используйте getValue
-    val uiState: PortfolioUiState = viewModel.uiState.collectAsState().value
+    val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.refresh()

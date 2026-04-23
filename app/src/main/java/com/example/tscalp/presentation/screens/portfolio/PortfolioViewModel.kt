@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.domain.models.PortfolioPosition
-import com.example.tscalp.presentation.screens.orders.OrdersUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +13,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
+ * UI-состояние экрана портфеля.
+ */
+data class PortfolioUiState(
+    val positions: List<PortfolioPosition> = emptyList(),
+    val totalValue: Double = 0.0,
+    val isLoading: Boolean = false,
+    val statusMessage: String? = null,
+    val isError: Boolean = false,
+    val isApiInitialized: Boolean = false
+)
+
+/**
  * ViewModel для экрана портфеля.
+ * Получает InvestRepository через конструктор.
  */
 class PortfolioViewModel(
     private val repository: InvestRepository
@@ -27,11 +39,13 @@ class PortfolioViewModel(
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
 
-
     init {
         checkApiInitialization()
     }
 
+    /**
+     * Проверяет, инициализирован ли API, и если да – загружает портфель.
+     */
     private fun checkApiInitialization() {
         val service = TinkoffInvestService()
         _uiState.update {
@@ -42,6 +56,10 @@ class PortfolioViewModel(
         }
     }
 
+    /**
+     * Загружает портфель по первому доступному счёту.
+     * Параметр sandboxMode временно захардкожен (false = боевой режим).
+     */
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
@@ -85,17 +103,27 @@ class PortfolioViewModel(
         }
     }
 
+    /**
+     * Публичный метод для обновления портфеля (вызывается из UI).
+     */
     fun refresh() {
-        loadPortfolio()
+        if (_uiState.value.isApiInitialized) {
+            loadPortfolio()
+        } else {
+            checkApiInitialization()
+        }
     }
 
+    /**
+     * Очищает статусное сообщение.
+     */
     fun clearStatus() {
         _uiState.update { it.copy(statusMessage = null, isError = false) }
     }
 }
 
 /**
- * Фабрика для создания PortfolioViewModel.
+ * Фабрика для создания PortfolioViewModel с внедрением InvestRepository.
  */
 class PortfolioViewModelFactory : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
