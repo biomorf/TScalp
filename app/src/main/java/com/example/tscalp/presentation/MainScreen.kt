@@ -19,6 +19,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.tscalp.presentation.navigation.NavGraph
 import com.example.tscalp.presentation.navigation.NavRoutes
+import com.example.tscalp.presentation.screens.orders.OrdersViewModel
+import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 
 data class BottomNavItem(
     val route: String,
