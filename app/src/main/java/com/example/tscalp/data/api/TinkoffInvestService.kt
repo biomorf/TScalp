@@ -6,6 +6,8 @@ import kotlinx.coroutines.withContext
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.*
 import com.example.tscalp.di.ServiceLocator
+import ru.tinkoff.piapi.contract.v1.InstrumentIdType
+import ru.tinkoff.piapi.contract.v1.InstrumentRequest
 
 /**
  * Сервис для низкоуровневых вызовов T-Invest API.
@@ -66,13 +68,16 @@ class TinkoffInvestService {
     }
 
     /**
-     * Получение полного инструмента по FIGI.
-     * SDK предоставляет только getInstrumentBy, возвращающий InstrumentResponse.
-     * Этот метод извлекает из ответа объект Instrument.
+     * Получает полную информацию об инструменте по его FIGI.
+     * В запросе обязательно указывает тип идентификатора — FIGI.
      */
     suspend fun getInstrumentByFigi(figi: String): Instrument = withContext(Dispatchers.IO) {
         try {
-            val request = InstrumentRequest.newBuilder().setId(figi).build()
+            // Создаём запрос с указанием типа идентификатора и самого FIGI
+            val request = InstrumentRequest.newBuilder()
+                .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI) // <-- ключевое изменение
+                .setId(figi)
+                .build()
             val response = api.instrumentsServiceSync.getInstrumentBy(request)
             response.instrument
         } catch (e: Exception) {
@@ -81,9 +86,13 @@ class TinkoffInvestService {
         }
     }
 
-    suspend fun findInstruments(query: String): List<Instrument> = withContext(Dispatchers.IO) {
-        val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
-        val shortList = api.instrumentsServiceSync.findInstrument(request).instrumentsList
+    suspend fun findInstruments(figi: String): List<Instrument> = withContext(Dispatchers.IO) {
+        // Создаём запрос с указанием типа идентификатора и самого FIGI
+        val request = InstrumentRequest.newBuilder()
+            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI) // <-- ключевое изменение
+            .setId(figi)
+            .build()
+        val shortList = api.instrumentsServiceSync.getInstrumentBy(request)
         shortList.mapNotNull { short ->
             try {
                 // Запрашиваем полный инструмент по FIGI
