@@ -65,9 +65,20 @@ class TinkoffInvestService {
         }
     }
 
+    /**
+     * Получение полного инструмента по FIGI.
+     * SDK предоставляет только getInstrumentBy, возвращающий InstrumentResponse.
+     * Этот метод извлекает из ответа объект Instrument.
+     */
     suspend fun getInstrumentByFigi(figi: String): Instrument = withContext(Dispatchers.IO) {
-        val request = InstrumentRequest.newBuilder().setId(figi).build()
-        api.instrumentsServiceSync.getInstrumentBy(request).instrument
+        try {
+            val request = InstrumentRequest.newBuilder().setId(figi).build()
+            val response = api.instrumentsServiceSync.getInstrumentBy(request)
+            response.instrument
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения инструмента по FIGI $figi", e)
+            throw Exception("Не удалось получить инструмент: ${e.message}")
+        }
     }
 
     suspend fun findInstruments(query: String): List<Instrument> = withContext(Dispatchers.IO) {
