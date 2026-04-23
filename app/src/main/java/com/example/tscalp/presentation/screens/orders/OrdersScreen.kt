@@ -25,7 +25,7 @@ import java.util.*
 
 @Composable
 fun OrdersScreen(
-    viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
+    viewModel: OrdersViewModel   // получаем извне, без factory
 ) {
     val uiState by viewModel.uiState.collectAsState()
 

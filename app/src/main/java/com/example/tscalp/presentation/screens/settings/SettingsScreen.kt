@@ -18,9 +18,11 @@ import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
  * подключиться к API или отключиться от него.
  */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    ordersViewModel: OrdersViewModel   // получаем извне
+) {
     // Получаем OrdersViewModel для доступа к общему состоянию API
-    val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
+    //val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
     val uiState by ordersViewModel.uiState.collectAsState()
 
     // Локальное состояние для ввода токена и режима

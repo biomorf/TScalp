@@ -47,21 +47,21 @@ val bottomNavItems = listOf(
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
+    // Общая ViewModel для вкладок «Заявки» и «Настройки»
+    val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
 
     Scaffold(
-        bottomBar = {
-            TScalpBottomNavigation(navController = navController)
-        }
+        bottomBar = { TScalpBottomNavigation(navController = navController) }
     ) { paddingValues ->
         NavGraph(
             navController = navController,
+            ordersViewModel = ordersViewModel,   // передаём общую ViewModel
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         )
     }
 }
-
 @Composable
 fun TScalpBottomNavigation(navController: NavHostController) {
     NavigationBar {

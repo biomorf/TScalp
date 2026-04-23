@@ -19,6 +19,7 @@ object NavRoutes {
 @Composable
 fun NavGraph(
     navController: NavHostController,
+    ordersViewModel: OrdersViewModel,   // новый параметр
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -27,13 +28,13 @@ fun NavGraph(
         modifier = modifier
     ) {
         composable(NavRoutes.ORDERS) {
-            OrdersScreen()
+            OrdersScreen(viewModel = ordersViewModel)   // используем общую ViewModel
         }
         composable(NavRoutes.PORTFOLIO) {
-            PortfolioScreen()
+            PortfolioScreen()   // пока без изменений
         }
         composable(NavRoutes.SETTINGS) {
-            SettingsScreen()
+            SettingsScreen(ordersViewModel = ordersViewModel)  // передаём общую ViewModel
         }
     }
 }
