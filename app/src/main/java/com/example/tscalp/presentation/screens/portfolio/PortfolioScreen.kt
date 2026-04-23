@@ -24,7 +24,7 @@ fun PortfolioScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.refresh()
+        viewModel.checkApiInitialization()
     }
 
     Column(

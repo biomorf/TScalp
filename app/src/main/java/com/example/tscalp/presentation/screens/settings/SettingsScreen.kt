@@ -32,6 +32,10 @@ fun SettingsScreen() {
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        ordersViewModel.checkApiInitialization()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
