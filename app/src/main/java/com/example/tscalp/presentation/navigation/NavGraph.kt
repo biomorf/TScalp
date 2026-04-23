@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import com.example.tscalp.presentation.screens.orders.OrdersScreen
 import com.example.tscalp.presentation.screens.portfolio.PortfolioScreen
 import com.example.tscalp.presentation.screens.settings.SettingsScreen
+import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 
 // Константы маршрутов как строки
 object NavRoutes {

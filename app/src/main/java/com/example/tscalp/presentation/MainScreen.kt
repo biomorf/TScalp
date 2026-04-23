@@ -21,6 +21,7 @@ import com.example.tscalp.presentation.navigation.NavGraph
 import com.example.tscalp.presentation.navigation.NavRoutes
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 data class BottomNavItem(
     val route: String,
