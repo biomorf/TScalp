@@ -86,21 +86,28 @@ class TinkoffInvestService {
         }
     }
 
-    suspend fun findInstruments(figi: String): List<Instrument> = withContext(Dispatchers.IO) {
-        // Создаём запрос с указанием типа идентификатора и самого FIGI
-        val request = InstrumentRequest.newBuilder()
-            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI) // <-- ключевое изменение
-            .setId(figi)
-            .build()
-        val shortList = api.instrumentsServiceSync.getInstrumentBy(request)
-        shortList.mapNotNull { short ->
-            try {
-                // Запрашиваем полный инструмент по FIGI
-                getInstrumentByFigi(short.figi)
-            } catch (e: Exception) {
-                Log.w(TAG, "Не удалось получить полный инструмент для FIGI ${short.figi}: ${e.message}")
-                null
+    /**
+     * Поиск инструментов по строковому запросу (тикер, название, FIGI).
+     * Возвращает список полных инструментов (Instrument).
+     */
+    suspend fun findInstruments(query: String): List<Instrument> = withContext(Dispatchers.IO) {
+        try {
+            val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
+            val shortList = api.instrumentsServiceSync.findInstrument(request).instrumentsList
+            // Преобразуем краткие результаты в полные объекты Instrument
+            val result = mutableListOf<Instrument>()
+            for (short in shortList) {
+                try {
+                    result.add(getInstrumentByFigi(short.figi))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Не удалось получить полный инструмент для FIGI ${short.figi}: ${e.message}")
+                    // Пропускаем битые инструменты
+                }
             }
+            return@withContext result
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка поиска инструментов", e)
+            throw Exception("Не удалось выполнить поиск: ${e.message}")
         }
     }
 }
