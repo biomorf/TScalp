@@ -7,6 +7,7 @@ import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.di.ServiceLocator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.tinkoff.piapi.contract.v1.OrderDirection
+
 
 /**
  * ViewModel для экрана выставления заявок.
@@ -198,7 +200,7 @@ class OrdersViewModel(
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
-                    sandboxMode = false
+                    sandboxMode = sandboxMode
                 )
                 val directionText = when (direction) {
                     OrderDirection.ORDER_DIRECTION_BUY -> "покупка"
