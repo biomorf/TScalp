@@ -86,7 +86,9 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // T-Invest API SDK
-    implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.40.0")
+    implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.40.0") {
+        exclude(group = "io.grpc", module = "grpc-netty-shaded")
+    }
 
     // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
     implementation("com.google.protobuf:protobuf-java:3.25.3")
@@ -105,6 +107,10 @@ dependencies {
     implementation("io.grpc:grpc-okhttp:1.68.1")
     implementation("io.grpc:grpc-stub:1.68.1")
     implementation("io.grpc:grpc-protobuf-lite:1.68.1")
+    implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
+
+    // Обязательно для SSL на Android
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
 
     // Обязательная зависимость для ManagedChannel
     implementation("io.grpc:grpc-stub:1.57.2")
