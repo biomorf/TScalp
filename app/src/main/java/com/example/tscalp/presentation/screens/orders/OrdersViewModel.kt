@@ -219,10 +219,10 @@ class OrdersViewModel(
                         isLoading = false,
                         statusMessage = "✅ Заявка на $directionText выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов",
                         isError = false,
-                        figi = "",
-                        quantity = "",
-                        searchQuery = "",
-                        selectedInstrument = null
+                        // figi = "",             // ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
+                        quantity = "",           // Количество сбрасываем, чтобы избежать повторов
+                        // searchQuery = "",       // ← ЗАКОММЕНТИРОВАНО (сохраняем поисковый запрос)
+                        // selectedInstrument = null // ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
                     )
                 }
             } catch (e: Exception) {
