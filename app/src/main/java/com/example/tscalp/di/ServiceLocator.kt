@@ -1,5 +1,6 @@
 package com.example.tscalp.di
 
+import com.example.tscalp.BuildConfig
 import android.content.Context
 import android.content.SharedPreferences
 import ru.ttech.piapi.core.InvestApi
@@ -27,21 +28,29 @@ object ServiceLocator {
     fun getApiOrNull(): InvestApi? = api
 
     /**
-     * Создаёт новый клиент API с указанным токеном и режимом.
-     * Сохраняет настройки и заменяет старый экземпляр.
+     * Создаёт новый клиент InvestApi с указанным токеном и режимом.
+     * В релизных сборках принудительно сбрасывает режим песочницы.
+     * Сохраняет токен и режим в SharedPreferences.
      */
     fun createApi(token: String, sandbox: Boolean): InvestApi {
-        val target = if (sandbox) {
+        // В релизе всегда используем боевой режим, игнорируя переданный флаг
+        val effectiveSandbox = if (BuildConfig.DEBUG) sandbox else false
+
+        val target = if (effectiveSandbox) {
             "sandbox-invest-public-api.tbank.ru:443"
         } else {
             "invest-public-api.tbank.ru:443"
         }
+
         val newApi = InvestApi.createApi(InvestApi.defaultChannel(token = token, target = target))
         api = newApi
+
+        // Сохраняем токен и фактический режим в настройках
         prefs.edit()
             .putString("api_token", token)
-            .putBoolean("sandbox_mode", sandbox)
+            .putBoolean("sandbox_mode", effectiveSandbox)
             .apply()
+
         return newApi
     }
 
@@ -51,11 +60,15 @@ object ServiceLocator {
      */
     fun tryRestoreApi(): InvestApi? {
         val token = prefs.getString("api_token", null) ?: return null
-        val sandbox = prefs.getBoolean("sandbox_mode", true)
+        // Для релизных сборок всегда используем боевой режим
+        val sandbox = if (BuildConfig.DEBUG) {
+            prefs.getBoolean("sandbox_mode", true)
+        } else {
+            false
+        }
         return try {
             createApi(token, sandbox)
         } catch (e: Exception) {
-            // Токен невалиден – очищаем
             clear()
             null
         }

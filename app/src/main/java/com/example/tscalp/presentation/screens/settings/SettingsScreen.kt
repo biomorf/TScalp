@@ -1,5 +1,6 @@
 package com.example.tscalp.presentation.screens.settings
 
+import com.example.tscalp.BuildConfig
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -136,27 +137,29 @@ fun SettingsScreen(
         )
 
         // Переключатель режима песочницы
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Режим песочницы",
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    text = "Используйте для тестирования без реальных денег",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (BuildConfig.DEBUG) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Режим песочницы",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = "Используйте для тестирования без реальных денег",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = sandboxMode,
+                    onCheckedChange = { sandboxMode = it },
+                    enabled = !uiState.isApiInitialized
                 )
             }
-            Switch(
-                checked = sandboxMode,
-                onCheckedChange = { sandboxMode = it },
-                enabled = !uiState.isApiInitialized
-            )
         }
 
         // Переключатель подтверждения заявок
