@@ -93,15 +93,32 @@ class InvestRepository(
         return apiService.getInstrumentByFigi(figi)
     }
 
+    /**
+     * Поиск инструментов – возвращает список InstrumentUi, готовых для UI.
+     * Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
+     */
     suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
-        apiService.findInstruments(query).map {
-            InstrumentUi(
-                figi = it.figi,
-                ticker = it.ticker,
-                name = it.name,
-                currency = it.currency,
-                lot = it.lot
-            )
+        val shorts = apiService.findInstrumentShorts(query)
+        shorts.map { short ->
+            try {
+                val full = apiService.getInstrumentByFigi(short.figi)
+                InstrumentUi(
+                    figi = full.figi,
+                    ticker = full.ticker,
+                    name = full.name,
+                    currency = full.currency,
+                    lot = full.lot
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Не удалось получить полный инструмент для ${short.figi}, используем краткие данные")
+                InstrumentUi(
+                    figi = short.figi,
+                    ticker = short.ticker,
+                    name = short.name,
+                    currency = "—",
+                    lot = 1
+                )
+            }
         }
     }
 }

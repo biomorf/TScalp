@@ -87,24 +87,15 @@ class TinkoffInvestService {
     }
 
     /**
-     * Поиск инструментов по строковому запросу (тикер, название, FIGI).
-     * Возвращает список полных инструментов (Instrument).
+     * Поиск инструментов по строковому запросу.
+     * Возвращает список кратких данных (InstrumentShort), без попытки получить полный Instrument.
+     * Полные данные (валюта, лот) будут загружены позже при необходимости.
      */
-    suspend fun findInstruments(query: String): List<Instrument> = withContext(Dispatchers.IO) {
+    suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
         try {
             val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
-            val shortList = api.instrumentsServiceSync.findInstrument(request).instrumentsList
-            // Преобразуем краткие результаты в полные объекты Instrument
-            val result = mutableListOf<Instrument>()
-            for (short in shortList) {
-                try {
-                    result.add(getInstrumentByFigi(short.figi))
-                } catch (e: Exception) {
-                    Log.w(TAG, "Не удалось получить полный инструмент для FIGI ${short.figi}: ${e.message}")
-                    // Пропускаем битые инструменты
-                }
-            }
-            return@withContext result
+            val response = api.instrumentsServiceSync.findInstrument(request)
+            response.instrumentsList
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка поиска инструментов", e)
             throw Exception("Не удалось выполнить поиск: ${e.message}")
