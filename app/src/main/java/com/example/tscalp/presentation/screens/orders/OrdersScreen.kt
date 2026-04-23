@@ -325,9 +325,10 @@ fun InstrumentSearchField(
                 Column(
                     modifier = Modifier
                         .heightIn(max = 300.dp)
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(rememberScrollState())  // ← добавляем вертикальную прокрутку
                 ) {
-                    items(searchResults) { instrument: InstrumentUi ->
+                    // Перебираем результаты поиска обычным forEach
+                    searchResults.forEach { instrument: InstrumentUi ->
                         DropdownMenuItem(
                             text = {
                                 Column {
