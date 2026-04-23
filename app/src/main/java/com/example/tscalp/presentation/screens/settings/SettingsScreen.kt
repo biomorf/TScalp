@@ -8,19 +8,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
-import com.example.tscalp.di.ServiceLocator
 
+/**
+ * Экран настроек приложения.
+ * Позволяет ввести токен доступа, выбрать режим (боевой/песочница),
+ * подключиться к API или отключиться от него.
+ */
 @Composable
 fun SettingsScreen() {
-    // Временно используем OrdersViewModel для инициализации API
+    // Получаем OrdersViewModel для доступа к общему состоянию API
     val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
     val uiState by ordersViewModel.uiState.collectAsState()
 
+    // Локальное состояние для ввода токена и режима
     var token by remember { mutableStateOf("") }
     var sandboxMode by remember { mutableStateOf(true) }
     var showToken by remember { mutableStateOf(false) }
+
+    // Локальное состояние для статусных сообщений (ошибки/успех)
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -28,6 +38,7 @@ fun SettingsScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Заголовок
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -41,6 +52,7 @@ fun SettingsScreen() {
             )
         }
 
+        // Текущий статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -70,26 +82,31 @@ fun SettingsScreen() {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+                // Кнопка отключения (появляется только при активном соединении)
                 if (uiState.isApiInitialized) {
                     Button(
                         onClick = {
+                            // Очищаем глобальное состояние API
                             ServiceLocator.clear()
-                            // Сбрасываем UI-состояние
+                            // Обновляем состояние ViewModel
                             ordersViewModel.checkApiInitialization()
+                            // Показываем сообщение об успехе
                             statusMessage = "API отключён"
                             isError = false
+                            // Сбрасываем поле ввода токена
+                            token = ""
                         },
-                        modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Text("Отключить API")
+                        Text("Отключить")
                     }
                 }
             }
         }
 
+        // Поле ввода токена
         OutlinedTextField(
             value = token,
             onValueChange = { token = it },
@@ -106,9 +123,10 @@ fun SettingsScreen() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !uiState.isApiInitialized
+            enabled = !uiState.isApiInitialized  // блокируем при активном подключении
         )
 
+        // Переключатель режима песочницы
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -132,25 +150,37 @@ fun SettingsScreen() {
             )
         }
 
-        // Исправлено: лямбда вместо ссылки на метод с параметрами
-        Button(
-            onClick = {
-                if (token.isNotBlank()) {
-                    ordersViewModel.initializeApi(token, sandboxMode)
-                    token = ""
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = token.isNotBlank() && !uiState.isApiInitialized
-        ) {
-            Text("Подключиться к API")
+        // Кнопка подключения (видна только при отсутствии соединения)
+        if (!uiState.isApiInitialized) {
+            Button(
+                onClick = {
+                    if (token.isNotBlank()) {
+                        try {
+                            // Вызываем инициализацию API через ViewModel
+                            ordersViewModel.initializeApi(token, sandboxMode)
+                            // После успеха очищаем поле токена и показываем сообщение
+                            token = ""
+                            statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})"
+                            isError = false
+                        } catch (e: Exception) {
+                            statusMessage = "Ошибка подключения: ${e.message}"
+                            isError = true
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = token.isNotBlank()
+            ) {
+                Text("Подключиться к API")
+            }
         }
 
-        uiState.statusMessage?.let { message ->
+        // Отображение статусных сообщений (ошибки/успех)
+        statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (uiState.isError)
+                    containerColor = if (isError)
                         MaterialTheme.colorScheme.errorContainer
                     else
                         MaterialTheme.colorScheme.tertiaryContainer
@@ -165,6 +195,7 @@ fun SettingsScreen() {
 
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
+        // Инструкция по получению токена
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
