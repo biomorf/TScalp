@@ -180,7 +180,6 @@ class OrdersViewModel(
                 _uiState.update { it.copy(isPriceLoading = false) }
             }
         }
-        }
     }
 
     fun clearSearch() {

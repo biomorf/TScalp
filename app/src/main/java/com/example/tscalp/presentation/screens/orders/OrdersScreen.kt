@@ -373,88 +373,48 @@ fun InstrumentSearchField(
 }
 
 @Composable
-fun InstrumentInfoCard(instrument: InstrumentUi) {
-    // Информация о выбранном инструменте
-    uiState.selectedInstrument?.let { instrument ->
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+fun InstrumentInfoCard(instrument: InstrumentUi) {   // <-- InstrumentUi, не Instrument
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                // Тикер и название
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = instrument.ticker,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = instrument.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-                    // Валюта
-                    Text(
-                        text = instrument.currency,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Текущая цена и изменение
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    if (uiState.isPriceLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                    } else if (uiState.currentPrice != null) {
-                        Column {
-                            Text(
-                                text = formatCurrency(uiState.currentPrice!!),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            // Здесь можно добавить изменение цены, когда будет реализовано
-                        }
-                    } else {
-                        Text(
-                            text = "Цена не загружена",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    // FIGI
-                    Text(
-                        text = "FIGI: ${instrument.figi.take(12)}...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = instrument.ticker,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = instrument.currency,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        }
-
-        // Ориентировочная стоимость заявки
-        val quantity = uiState.quantityAsLong ?: 0L
-        val price = uiState.currentPrice ?: 0.0
-        if (quantity > 0 && price > 0) {
             Text(
-                "Ориентировочная стоимость: ${formatCurrency(price * quantity)}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp)
+                text = instrument.name,
+                style = MaterialTheme.typography.bodyMedium
             )
+            Text(
+                text = "FIGI: ${instrument.figi}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (instrument.lot > 1) {
+                Text(
+                    text = "Лот: ${instrument.lot} шт.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
