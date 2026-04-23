@@ -121,6 +121,10 @@ class InvestRepository(
             }
         }
     }
+
+    suspend fun getLastPrice(figi: String): Double? {
+        return apiService.getLastPrice(figi)
+    }
 }
 
 data class InstrumentUi(

@@ -101,4 +101,16 @@ class TinkoffInvestService {
             throw Exception("Не удалось выполнить поиск: ${e.message}")
         }
     }
+
+    suspend fun getLastPrice(figi: String): Double? = withContext(Dispatchers.IO) {
+        try {
+            val request = GetLastPricesRequest.newBuilder().addFigi(figi).build()
+            val response = api.marketDataServiceSync.getLastPrices(request)
+            response.lastPricesList.firstOrNull()?.price?.let {
+                it.units + it.nano / 1_000_000_000.0
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

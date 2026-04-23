@@ -163,13 +163,24 @@ class OrdersViewModel(
                 searchResults = emptyList()
             )
         }
-        // TODO: Запрос текущей цены через MarketDataService
-        // viewModelScope.launch {
-        //     try {
-        //         val price = repository.getLastPrice(instrument.figi)
-        //         _uiState.update { it.copy(currentPrice = price) }
-        //     } catch (e: Exception) { ... }
-        // }
+        //  Запрос текущей цены через MarketDataService
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPriceLoading = true) }
+            try {
+                val price = repository.getLastPrice(instrument.figi)
+                _uiState.update {
+                    it.copy(
+                        currentPrice = price,
+                        priceChange = null,        // пока не запрашиваем изменение
+                        priceChangePercent = null,
+                        isPriceLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isPriceLoading = false) }
+            }
+        }
+        }
     }
 
     fun clearSearch() {
