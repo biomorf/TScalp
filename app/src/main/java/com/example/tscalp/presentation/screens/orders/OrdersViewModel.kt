@@ -112,20 +112,28 @@ class OrdersViewModel(
                 figi = ""
             )
         }
+
         searchJob?.cancel()
+
         if (query.length >= 2) {
             searchJob = viewModelScope.launch {
-                delay(500)
-                _uiState.update { it.copy(isSearching = true) }
                 try {
+                    delay(500) // Debounce
+                    _uiState.update { it.copy(isSearching = true) }
+
                     val results = repository.searchInstruments(query)
+
                     _uiState.update {
                         it.copy(
                             searchResults = results,
                             isSearching = false
                         )
                     }
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    // Отмена корутины — это нормально, не показываем ошибку
+                    _uiState.update { it.copy(isSearching = false) }
                 } catch (e: Exception) {
+                    // Реальная ошибка поиска
                     _uiState.update {
                         it.copy(
                             searchResults = emptyList(),
@@ -137,7 +145,12 @@ class OrdersViewModel(
                 }
             }
         } else {
-            _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            _uiState.update {
+                it.copy(
+                    searchResults = emptyList(),
+                    isSearching = false
+                )
+            }
         }
     }
 
