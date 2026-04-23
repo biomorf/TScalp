@@ -156,6 +156,30 @@ fun SettingsScreen(
             )
         }
 
+        // Переключатель подтверждения заявок
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Подтверждение заявок",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Text(
+                    text = "Показывать диалог перед отправкой",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = ServiceLocator.isConfirmOrdersEnabled(),
+                onCheckedChange = { ServiceLocator.setConfirmOrdersEnabled(it) },
+                // доступен всегда, даже при неподключенном API
+            )
+        }
+
         // Кнопка подключения (видна только при отсутствии соединения)
         if (!uiState.isApiInitialized) {
             Button(

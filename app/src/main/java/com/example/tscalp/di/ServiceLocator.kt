@@ -78,4 +78,18 @@ object ServiceLocator {
     fun isSandboxMode(): Boolean = prefs.getBoolean("sandbox_mode", true)
 
     fun getToken(): String? = prefs.getString("api_token", null)
+
+    /**
+     * Возвращает true, если подтверждение заявок включено (по умолчанию – включено).
+     */
+    fun isConfirmOrdersEnabled(): Boolean {
+        return prefs.getBoolean("confirm_orders_enabled", true)
+    }
+
+    /**
+     * Сохраняет флаг подтверждения заявок.
+     */
+    fun setConfirmOrdersEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("confirm_orders_enabled", enabled).apply()
+    }
 }

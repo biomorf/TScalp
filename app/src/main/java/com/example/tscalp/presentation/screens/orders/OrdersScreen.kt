@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.di.ServiceLocator
 import java.text.NumberFormat
 import java.util.*
 
@@ -157,8 +158,12 @@ fun OrdersScreen(
         ) {
             Button(
                 onClick = {
-                    pendingDirection = "Покупка"
-                    showConfirmDialog = true
+                    if (ServiceLocator.isConfirmOrdersEnabled()) {
+                        pendingDirection = "Покупка"
+                        showConfirmDialog = true
+                    } else {
+                        viewModel.onBuyClick()
+                    }
                 },
                 modifier = Modifier.weight(1f),
                 enabled = uiState.isFormValid && !uiState.isLoading
@@ -175,8 +180,12 @@ fun OrdersScreen(
 
             Button(
                 onClick = {
-                    pendingDirection = "Продажа"
-                    showConfirmDialog = true
+                    if (ServiceLocator.isConfirmOrdersEnabled()) {
+                        pendingDirection = "Продажа"
+                        showConfirmDialog = true
+                    } else {
+                        viewModel.onSellClick()
+                    }
                 },
                 modifier = Modifier.weight(1f),
                 enabled = uiState.isFormValid && !uiState.isLoading,
