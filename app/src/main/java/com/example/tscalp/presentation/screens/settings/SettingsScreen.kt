@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
+import com.example.tscalp.di.ServiceLocator
 
 @Composable
 fun SettingsScreen() {
@@ -71,12 +72,19 @@ fun SettingsScreen() {
                 }
                 if (uiState.isApiInitialized) {
                     Button(
-                        onClick = { /* TODO: добавить отключение */ },
+                        onClick = {
+                            ServiceLocator.clear()
+                            // Сбрасываем UI-состояние
+                            ordersViewModel.checkApiInitialization()
+                            statusMessage = "API отключён"
+                            isError = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Text("Отключить")
+                        Text("Отключить API")
                     }
                 }
             }

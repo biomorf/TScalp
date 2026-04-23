@@ -64,8 +64,8 @@ class PortfolioViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                // TODO: получать sandboxMode из настроек
-                val sandboxMode = false
+                // получать sandboxMode из настроек
+                val sandboxMode = ServiceLocator.isSandboxMode()
                 val accounts = repository.getAccounts(sandboxMode)
                 if (accounts.isEmpty()) {
                     _uiState.update {

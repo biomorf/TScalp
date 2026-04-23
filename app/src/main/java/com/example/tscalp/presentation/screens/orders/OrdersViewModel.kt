@@ -53,6 +53,7 @@ class OrdersViewModel(
 
     fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
+            ServiceLocator.createApi(token, sandboxMode)
             // Инициализация API происходит через ServiceLocator (вызывается из SettingsScreen)
             // Здесь просто обновляем состояние и загружаем счета
             _uiState.update {
@@ -77,9 +78,9 @@ class OrdersViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                // Временно хардкодим sandboxMode = false (боевой)
                 // TODO: получать sandboxMode из настроек
-                val accounts = repository.getAccounts(sandboxMode = false)
+                val sandboxMode = ServiceLocator.isSandboxMode()
+                val accounts = repository.getAccounts(sandboxMode)
                 val defaultAccount = accounts.firstOrNull()
                 _uiState.update {
                     it.copy(
@@ -190,7 +191,8 @@ class OrdersViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                // TODO: получать sandboxMode из настроек
+                // получать sandboxMode из настроек
+                val sandboxMode = ServiceLocator.isSandboxMode()
                 val result = repository.postMarketOrder(
                     figi = figi,
                     quantity = quantity,

@@ -38,7 +38,10 @@ object ServiceLocator {
         }
         val newApi = InvestApi.createApi(InvestApi.defaultChannel(token = token, target = target))
         api = newApi
-        prefs.edit().putString("api_token", token).putBoolean("sandbox_mode", sandbox).apply()
+        prefs.edit()
+            .putString("api_token", token)
+            .putBoolean("sandbox_mode", sandbox)
+            .apply()
         return newApi
     }
 
@@ -70,4 +73,9 @@ object ServiceLocator {
      * Проверяет, сохранён ли токен в настройках.
      */
     fun hasSavedToken(): Boolean = prefs.contains("api_token")
+
+    // Новые методы для работы с режимом
+    fun isSandboxMode(): Boolean = prefs.getBoolean("sandbox_mode", true)
+
+    fun getToken(): String? = prefs.getString("api_token", null)
 }
