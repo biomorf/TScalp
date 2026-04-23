@@ -1,6 +1,8 @@
 package com.example.tscalp.presentation.screens.orders
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -320,8 +322,12 @@ fun InstrumentSearchField(
                 expanded = expanded && searchResults.isNotEmpty(),
                 onDismissRequest = { expanded = false }
             ) {
-                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                    items(items = searchResults) { instrument: InstrumentUi ->
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    items(searchResults) { instrument: InstrumentUi ->
                         DropdownMenuItem(
                             text = {
                                 Column {
