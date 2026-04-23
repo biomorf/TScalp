@@ -85,6 +85,10 @@ class InvestRepository(
         }
     }
 
+    suspend fun getInstrumentByFigi(figi: String): Instrument {
+        return apiService.getInstrumentByFigi(figi)
+    }
+
     suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
         apiService.findInstruments(query).map {
             InstrumentUi(

@@ -150,6 +150,16 @@ class OrdersViewModel(
                 searchResults = emptyList()
             )
         }
+        // Загружаем текущую цену (асинхронно)
+        viewModelScope.launch {
+            try {
+                val instrumentFull = repository.getInstrumentByFigi(instrument.figi)
+                val price = instrumentFull.currentPrice?.toBigDecimal()?.toDouble()
+                _uiState.update { it.copy(currentPrice = price) }
+            } catch (e: Exception) {
+                // Игнорируем, цена не критична
+            }
+        }
     }
 
     fun clearSearch() {

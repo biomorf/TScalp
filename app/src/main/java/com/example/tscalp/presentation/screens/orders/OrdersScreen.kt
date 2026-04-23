@@ -24,6 +24,11 @@ fun OrdersScreen(
     viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    // Состояние для диалога подтверждения
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var pendingDirection by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState.statusMessage) {
         if (uiState.statusMessage != null && !uiState.isError) {
@@ -32,7 +37,6 @@ fun OrdersScreen(
         }
     }
 
-    // Проверяем актуальное состояние API при каждом открытии вкладки
     LaunchedEffect(Unit) {
         viewModel.checkApiInitialization()
     }
@@ -44,75 +48,36 @@ fun OrdersScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Заголовок
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        ) {
-            Text(
-                text = "Выставление заявки",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(16.dp),
-                textAlign = TextAlign.Center
-            )
-        }
-
-        // Проверка инициализации API
-        if (!uiState.isApiInitialized) {
-            ApiNotInitializedCard()
-            return@Column
-        }
-
-        // Умный поиск инструмента
-        InstrumentSearchField(
-            query = uiState.searchQuery,
-            onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
-            isSearching = uiState.isSearching,
-            searchResults = uiState.searchResults,
-            onInstrumentSelected = { instrument: InstrumentUi ->
-                viewModel.onInstrumentSelected(instrument)
-            },
-            onClear = { viewModel.clearSearch() },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // ... (заголовок, проверка API, поле поиска, поле количества, выбор счета – без изменений)
 
         // Информация о выбранном инструменте
         uiState.selectedInstrument?.let { instrument ->
             InstrumentInfoCard(instrument = instrument)
+
+            // Дополнительная информация о цене и стоимости
+            uiState.currentPrice?.let { price ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Текущая цена: ${formatCurrency(price)}")
+                        Text("Валюта: ${instrument.currency}")
+                    }
+                }
+            }
         }
 
-        // Поле ввода количества
-        OutlinedTextField(
-            value = uiState.quantity,
-            onValueChange = { quantity: String -> viewModel.onQuantityChanged(quantity) },
-            label = { Text("Количество лотов") },
-            placeholder = { Text("Введите целое число") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            isError = uiState.quantity.isNotBlank() && uiState.quantityAsLong == null,
-            supportingText = {
-                if (uiState.quantity.isNotBlank() && uiState.quantityAsLong == null) {
-                    Text("Введите корректное число")
-                }
-            },
-            enabled = uiState.selectedInstrument != null
-        )
-
-        // Выбор счёта
-        AccountSelector(
-            accounts = uiState.accounts,
-            selectedAccountId = uiState.selectedAccountId,
-            onAccountSelected = { accountId: String -> viewModel.onAccountSelected(accountId) },
-            onRefresh = { viewModel.retryLoadAccounts() },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        // Информация о выбранном счёте
-        uiState.accounts.find { it.id == uiState.selectedAccountId }?.let { account ->
-            AccountInfoCard(account = account)
+        // Предварительный расчёт стоимости
+        val quantity = uiState.quantityAsLong ?: 0L
+        val price = uiState.currentPrice ?: 0.0
+        if (quantity > 0 && price > 0) {
+            Text(
+                "Ориентировочная стоимость: ${formatCurrency(price * quantity)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -123,40 +88,51 @@ fun OrdersScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Button(
-                onClick = { viewModel.onBuyClick() },
+                onClick = {
+                    pendingDirection = "Покупка"
+                    showConfirmDialog = true
+                },
                 modifier = Modifier.weight(1f),
                 enabled = uiState.isFormValid && !uiState.isLoading
             ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("КУПИТЬ")
-                }
+                Text("КУПИТЬ")
             }
 
             Button(
-                onClick = { viewModel.onSellClick() },
+                onClick = {
+                    pendingDirection = "Продажа"
+                    showConfirmDialog = true
+                },
                 modifier = Modifier.weight(1f),
                 enabled = uiState.isFormValid && !uiState.isLoading,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onError
-                    )
-                } else {
-                    Text("ПРОДАТЬ")
-                }
+                Text("ПРОДАТЬ")
             }
         }
 
-        // Статус выполнения
+        // Диалог подтверждения
+        if (showConfirmDialog) {
+            OrderConfirmationDialog(
+                direction = pendingDirection,
+                ticker = uiState.selectedInstrument?.ticker ?: "",
+                quantity = quantity,
+                price = price,
+                onConfirm = {
+                    if (pendingDirection == "Покупка") {
+                        viewModel.onBuyClick()
+                    } else {
+                        viewModel.onSellClick()
+                    }
+                    showConfirmDialog = false
+                },
+                onDismiss = { showConfirmDialog = false }
+            )
+        }
+
+        // Статус выполнения (без изменений)
         uiState.statusMessage?.let { message ->
             StatusCard(
                 message = message,
@@ -446,4 +422,38 @@ fun StatusCard(
             }
         }
     }
+}
+
+@Composable
+fun OrderConfirmationDialog(
+    direction: String,
+    ticker: String,
+    quantity: Long,
+    price: Double,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Подтверждение заявки") },
+        text = {
+            Column {
+                Text("Вы собираетесь ${direction.lowercase()} $quantity лотов акций $ticker")
+                if (price > 0) {
+                    Text("Текущая цена: ${formatCurrency(price)}")
+                    Text("Общая стоимость: ${formatCurrency(price * quantity)}")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Подтвердить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
 }

@@ -6,6 +6,7 @@ import com.example.tscalp.data.repository.InstrumentUi
 
 data class OrdersUiState(
     val figi: String = "",
+    val currentPrice: Double? = null,
     val quantity: String = "",
     val accounts: List<AccountUi> = emptyList(),
     val selectedAccountId: String? = null,
