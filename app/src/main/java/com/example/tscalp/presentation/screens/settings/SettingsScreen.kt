@@ -9,6 +9,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.di.ServiceLocator
+import androidx.compose.runtime.mutableStateOf
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 
@@ -33,6 +34,8 @@ fun SettingsScreen(
     // Локальное состояние для статусных сообщений (ошибки/успех)
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
+    // Локальное состояние, синхронизированное с ServiceLocator
+    var confirmOrdersEnabled by remember { mutableStateOf(ServiceLocator.isConfirmOrdersEnabled()) }
 
     LaunchedEffect(Unit) {
         ordersViewModel.checkApiInitialization()
@@ -174,8 +177,11 @@ fun SettingsScreen(
                 )
             }
             Switch(
-                checked = ServiceLocator.isConfirmOrdersEnabled(),
-                onCheckedChange = { ServiceLocator.setConfirmOrdersEnabled(it) },
+                checked = confirmOrdersEnabled,
+                onCheckedChange = { enabled ->
+                    confirmOrdersEnabled = enabled
+                    ServiceLocator.setConfirmOrdersEnabled(enabled)
+                }
                 // доступен всегда, даже при неподключенном API
             )
         }
