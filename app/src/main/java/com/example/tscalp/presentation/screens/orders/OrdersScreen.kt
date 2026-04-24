@@ -1,5 +1,7 @@
 package com.example.tscalp.presentation.screens.orders
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SearchBar
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,8 +10,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +30,7 @@ import com.example.tscalp.di.ServiceLocator
 import java.text.NumberFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(
     viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
@@ -69,16 +74,47 @@ fun OrdersScreen(
             return@Column
         }
 
-        // Поиск инструмента
-        InstrumentSearchField(
-            query = uiState.searchQuery,
-            onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
-            isSearching = uiState.isSearching,
-            searchResults = uiState.searchResults,
-            onInstrumentSelected = { instrument: InstrumentUi -> viewModel.onInstrumentSelected(instrument) },
-            onClear = { viewModel.clearSearch() },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Поиск инструментов (Expandable SearchBar)
+        if (uiState.isSearchActive) {
+            SearchBar(
+                query = uiState.searchQuery,
+                onQueryChange = { query: String -> viewModel.onSearchQueryChanged(query) },
+                onSearch = { viewModel.onSearchQueryChanged(uiState.searchQuery) },
+                active = uiState.isSearchActive,
+                onActiveChange = { active -> viewModel.setSearchActive(active) },
+                placeholder = { Text("Поиск инструментов...") },
+                leadingIcon = {
+                    IconButton(onClick = { viewModel.setSearchActive(false) }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Закрыть")
+                    }
+                }
+            ) {
+                if (uiState.searchResults.isNotEmpty()) {
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                        items(uiState.searchResults) { instrument: InstrumentUi ->
+                            ResultItemCard(
+                                instrument = instrument,
+                                onClick = {
+                                    viewModel.onInstrumentSelected(instrument)
+                                    viewModel.setSearchActive(false)
+                                }
+                            )
+                        }
+                    }
+                } else if (uiState.isSearching) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                }
+            }
+        } else {
+            // Кнопка открытия поиска
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                IconButton(onClick = { viewModel.setSearchActive(true) }) {
+                    Icon(Icons.Default.Search, contentDescription = "Поиск")
+                }
+            }
+        }
 
         // Информация о выбранном инструменте
         uiState.selectedInstrument?.let { instrument ->
@@ -204,7 +240,9 @@ fun OrdersScreen(
                         showConfirmDialog = false
                     }) { Text("Подтвердить") }
                 },
-                dismissButton = { TextButton(onClick = { showConfirmDialog = false }) { Text("Отмена") } }
+                dismissButton = {
+                    TextButton(onClick = { showConfirmDialog = false }) { Text("Отмена") }
+                }
             )
         }
 
@@ -215,6 +253,8 @@ fun OrdersScreen(
     }
 }
 
+// ------ Вспомогательные Composable-функции ------
+
 @Composable
 fun ApiNotInitializedCard() {
     Card(
@@ -224,72 +264,6 @@ fun ApiNotInitializedCard() {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("⚠️ API не подключен", style = MaterialTheme.typography.titleMedium)
             Text("Перейдите в Настройки и введите токен доступа", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun InstrumentSearchField(
-    query: String,
-    onQueryChanged: (String) -> Unit,
-    isSearching: Boolean,
-    searchResults: List<InstrumentUi>,
-    onInstrumentSelected: (InstrumentUi) -> Unit,
-    onClear: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    LaunchedEffect(searchResults) { expanded = searchResults.isNotEmpty() }
-
-    Column(modifier = modifier) {
-        ExposedDropdownMenuBox(
-            expanded = expanded && searchResults.isNotEmpty(),
-            onExpandedChange = { expanded = it }
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = {
-                    onQueryChanged(it)
-                    expanded = it.isNotEmpty()
-                },
-                label = { Text("Поиск инструмента") },
-                placeholder = { Text("Введите тикер или название") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                trailingIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                        else if (query.isNotEmpty()) IconButton(onClick = {
-                            onClear()
-                            expanded = false
-                        }) { Icon(Icons.Default.Clear, "Очистить") }
-                    }
-                },
-                supportingText = { if (query.length == 1) Text("Введите минимум 2 символа для поиска") }
-            )
-
-            ExposedDropdownMenu(
-                expanded = expanded && searchResults.isNotEmpty(),
-                onDismissRequest = { expanded = false }
-            ) {
-                Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                    searchResults.forEach { instrument: InstrumentUi ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text("${instrument.ticker} - ${instrument.name}")
-                                    Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            },
-                            onClick = {
-                                onInstrumentSelected(instrument)
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -324,8 +298,6 @@ fun SelectedInstrumentCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-
-            // Верхний ряд: тикер, название и текущая цена (если есть)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -338,8 +310,6 @@ fun SelectedInstrumentCard(
                     Text(formatCurrency(card.currentPrice!!), fontWeight = FontWeight.Bold)
                 }
             }
-
-            // Нижний ряд: количество, прибыль/убыток (если позиция есть и цена известна)
             if (card.quantity > 0 && card.averagePrice != null && card.currentPrice != null) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${card.quantity} шт.")
@@ -356,6 +326,25 @@ fun SelectedInstrumentCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ResultItemCard(instrument: InstrumentUi, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("${instrument.ticker} – ${instrument.name}", fontWeight = FontWeight.Bold)
+                Text(instrument.figi, style = MaterialTheme.typography.bodySmall)
+                if (instrument.lot > 1) Text("Лот: ${instrument.lot} шт.", style = MaterialTheme.typography.bodySmall)
+            }
+            Text(instrument.currency, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
