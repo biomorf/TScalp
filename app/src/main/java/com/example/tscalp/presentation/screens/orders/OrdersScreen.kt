@@ -8,6 +8,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,30 +100,6 @@ fun OrdersScreen(
             }
         }
 
-        // Поле количества
-        OutlinedTextField(
-            value = uiState.quantity,
-            onValueChange = { quantity: String -> viewModel.onQuantityChanged(quantity) },
-            label = { Text("Количество лотов") },
-            placeholder = { Text("Введите целое число") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            isError = uiState.quantity.isNotBlank() && uiState.quantityAsLong == null,
-            supportingText = {
-                if (uiState.quantity.isNotBlank() && uiState.quantityAsLong == null) {
-                    Text("Введите корректное число")
-                }
-            },
-            enabled = uiState.selectedInstrument != null
-        )
-
-        val quantity = uiState.quantityAsLong ?: 0L
-        val price = uiState.currentPrice ?: 0.0
-        if (quantity > 0 && price > 0) {
-            Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
-        }
-
         // Последние просмотренные инструменты
         if (uiState.lastSelectedInstruments.isNotEmpty()) {
             Text("Последние просмотренные", style = MaterialTheme.typography.titleSmall)
@@ -149,6 +127,59 @@ fun OrdersScreen(
                     )
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Количество лотов с кнопками +/-
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconButton(
+                onClick = {
+                    val currentQty = uiState.quantityAsLong ?: 0L
+                    if (currentQty > 0) {
+                        viewModel.onQuantityChanged((currentQty - 1).toString())
+                    }
+                },
+                enabled = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null
+            ) {
+                Icon(imageVector = Icons.Default.Remove, contentDescription = "Уменьшить")
+            }
+
+            OutlinedTextField(
+                value = uiState.quantity,
+                onValueChange = { newValue -> viewModel.onQuantityChanged(newValue) },
+                label = { Text("Количество лотов") },
+                placeholder = { Text("0") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                isError = uiState.quantity.isNotBlank() && uiState.quantityAsLong == null,
+                enabled = uiState.selectedInstrument != null
+            )
+
+            IconButton(
+                onClick = {
+                    val currentQty = uiState.quantityAsLong ?: 0L
+                    viewModel.onQuantityChanged((currentQty + 1).toString())
+                },
+                enabled = uiState.selectedInstrument != null
+            ) {
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Увеличить")
+            }
+        }
+
+        // Ориентировочная стоимость
+        val quantity = uiState.quantityAsLong ?: 0L
+        val price = uiState.currentPrice ?: 0.0
+        if (quantity > 0 && price > 0) {
+            Text(
+                "Ориентировочная стоимость: ${formatCurrency(price * quantity)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
 
         Spacer(modifier = Modifier.weight(1f))
