@@ -60,20 +60,30 @@ class TinkoffInvestService : BrokerApi {
         accountId: String,
         sandboxMode: Boolean
     ): PostOrderResponse = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
-        val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
-        val request = PostOrderRequest.newBuilder()
-            .setFigi(figi)
-            .setQuantity(quantity)
-            .setPrice(price)
-            .setDirection(direction)
-            .setAccountId(accountId)
-            .setOrderType(OrderType.ORDER_TYPE_MARKET)
-            .build()
-        return@withContext if (sandboxMode) {
-            currentApi.sandboxServiceSync.postSandboxOrder(request)
-        } else {
-            currentApi.ordersServiceSync.postOrder(request)
+        try {
+            val currentApi = requireApi()
+            val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
+            val request = PostOrderRequest.newBuilder()
+                .setFigi(figi)
+                .setQuantity(quantity)
+                .setPrice(price)
+                .setDirection(direction)
+                .setAccountId(accountId)
+                .setOrderType(OrderType.ORDER_TYPE_MARKET)
+                .build()
+            return@withContext if (sandboxMode) {
+                currentApi.sandboxServiceSync.postSandboxOrder(request)
+            } else {
+                currentApi.ordersServiceSync.postOrder(request)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка отправки заявки", e)
+            // Пытаемся извлечь gRPC-статус для деталей
+            val status = io.grpc.Status.fromThrowable(e)
+            if (status != null) {
+                Log.e(TAG, "gRPC статус: ${status.code}, описание: ${status.description}")
+            }
+            throw Exception("Не удалось выставить заявку: ${e.message}")
         }
     }
 
@@ -134,6 +144,7 @@ class TinkoffInvestService : BrokerApi {
                 .setAmount(amount)
                 .build()
             currentApi.sandboxServiceSync.sandboxPayIn(request)
+            Log.d(TAG, "Пополнение выполнено успешно")
             // Ничего не возвращаем, Unit
         }
     }
