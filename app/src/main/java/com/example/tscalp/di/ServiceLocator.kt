@@ -4,6 +4,7 @@ import com.example.tscalp.BuildConfig
 import android.content.Context
 import android.content.SharedPreferences
 import ru.ttech.piapi.core.InvestApi
+import com.example.tscalp.data.api.TinkoffInvestService
 
 /**
  * Глобальный синглтон для хранения клиента InvestApi.
@@ -25,6 +26,9 @@ object ServiceLocator {
         }
     }
 
+    /**
+     * Удаляет сохранённый токен и сбрасывает клиент и BrokerManager
+     */
     fun clear() {
         api = null
         brokerManager = null
@@ -88,14 +92,6 @@ object ServiceLocator {
             clear()
             null
         }
-    }
-
-    /**
-     * Удаляет сохранённый токен и сбрасывает клиент.
-     */
-    fun clear() {
-        api = null
-        prefs.edit().remove("api_token").remove("sandbox_mode").apply()
     }
 
     /**

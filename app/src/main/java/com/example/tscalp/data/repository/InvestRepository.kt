@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.OrderDirection
 import ru.tinkoff.piapi.contract.v1.AccountType as TinkoffAccountType
 import ru.tinkoff.piapi.contract.v1.Instrument
+import ru.tinkoff.piapi.contract.v1.InstrumentResponse
 
 /**
  * Репозиторий – преобразует контракты API в доменные модели приложения.
@@ -91,7 +92,7 @@ class InvestRepository(
     /**
      * Получение полного инструмента по FIGI (обёртка над TinkoffInvestService).
      */
-    suspend fun getInstrumentByFigi(figi: String): Instrument {
+    suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
         return brokerManager.getDefaultBroker().getInstrumentByFigi(figi)
     }
 
