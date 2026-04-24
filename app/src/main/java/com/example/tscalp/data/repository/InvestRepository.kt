@@ -102,7 +102,7 @@ class InvestRepository(
         val shorts = brokerManager.getDefaultBroker().findInstrumentShorts(query)
         shorts.map { short ->
             try {
-                val full = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi)
+                val full = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi).instrument
                 InstrumentUi(
                     figi = full.figi,
                     ticker = full.ticker,
