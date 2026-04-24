@@ -64,7 +64,8 @@ class InvestRepository(
         val response = brokerManager.getDefaultBroker().getPortfolio(accountId, sandboxMode)
         response.positionsList.mapNotNull { pos ->
             val instrument = try {
-                brokerManager.getDefaultBroker().getInstrumentByFigi(pos.figi)
+                val instrumentResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(pos.figi)
+                instrumentResponse.instrument  // извлекаем Instrument из InstrumentResponse
             } catch (e: Exception) {
                 Log.w(TAG, "Не удалось получить инструмент ${pos.figi}")
                 return@mapNotNull null
@@ -102,9 +103,8 @@ class InvestRepository(
         val shorts = brokerManager.getDefaultBroker().findInstrumentShorts(query)
         shorts.map { short ->
             try {
-                // Получаем InstrumentResponse и сразу извлекаем Instrument
-                val instrumentResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi)
-                val instrument = instrumentResponse.instrument  // ← ключевая строка
+                val fullResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi) // InstrumentResponse
+                val instrument = fullResponse.instrument // Извлекаем Instrument
                 InstrumentUi(
                     figi = instrument.figi,
                     ticker = instrument.ticker,
