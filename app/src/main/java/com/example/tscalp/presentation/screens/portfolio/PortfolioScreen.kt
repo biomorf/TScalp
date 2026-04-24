@@ -186,7 +186,11 @@ fun EmptyPortfolioCard() {
 }
 
 @Composable
-fun PortfolioPositionCard(position: PortfolioPosition) {
+fun PortfolioPositionCard(
+    position: PortfolioPosition,
+    modifier: Modifier = Modifier,      // <-- новый параметр
+    onClick: (() -> Unit)? = null       // <-- опциональный клик
+) {
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {

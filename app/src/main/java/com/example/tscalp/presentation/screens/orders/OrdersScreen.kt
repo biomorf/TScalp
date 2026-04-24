@@ -22,6 +22,8 @@ import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.di.ServiceLocator
 import java.text.NumberFormat
 import java.util.*
+import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard // если компонент будет вынесен
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,14 +122,26 @@ fun OrdersScreen(
             Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
         }
 
-        // Последние просмотренные инструменты
         if (uiState.lastSelectedInstruments.isNotEmpty()) {
             Text("Последние просмотренные", style = MaterialTheme.typography.titleSmall)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(uiState.lastSelectedInstruments) { card ->
-                    SelectedInstrumentCard(
-                        card = card,
-                        onSelect = { viewModel.onInstrumentSelected(card.instrument) }
+                    // Преобразуем SelectedInstrumentInfo в PortfolioPosition
+                    val position = PortfolioPosition(
+                        figi = card.instrument.figi,
+                        name = card.instrument.name,
+                        ticker = card.instrument.ticker,
+                        quantity = card.quantity,
+                        currentPrice = card.currentPrice ?: card.averagePrice ?: 0.0,
+                        totalValue = (card.currentPrice ?: 0.0) * card.quantity,
+                        profit = card.profit ?: 0.0,
+                        profitPercent = card.profitPercent ?: 0.0
+                    )
+                    PortfolioPositionCard(
+                        position = position,
+                        // Добавляем возможность клика для выбора инструмента
+                        modifier = Modifier.clickable { viewModel.onInstrumentSelected(card.instrument)},
+                        onClick = { viewModel.onInstrumentSelected(card.instrument) }
                     )
                 }
             }
