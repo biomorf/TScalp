@@ -1,5 +1,6 @@
 package com.example.tscalp.presentation.screens.orders
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import ru.tinkoff.piapi.contract.v1.OrderDirection
 
 class OrdersViewModel(
@@ -22,13 +24,22 @@ class OrdersViewModel(
     private val _uiState = MutableStateFlow(OrdersUiState())
     val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
     private var searchJob: Job? = null
+    private var priceUpdateJob: Job? = null
+
+    companion object {
+        private const val TAG = "OrdersViewModel"
+    }
 
     init { checkApiInitialization() }
 
     fun checkApiInitialization() {
         val isApiInit = ServiceLocator.getApiOrNull() != null
         _uiState.update { it.copy(isApiInitialized = isApiInit) }
-        if (isApiInit) { loadAccounts(); loadPortfolio() }
+        if (isApiInit) {
+            loadAccounts();
+            loadPortfolio();
+            startPriceUpdates()
+        }
     }
 
     fun initializeApi(token: String, sandboxMode: Boolean) {
@@ -65,7 +76,9 @@ class OrdersViewModel(
                     val positions = repository.getPortfolio(accountId, sandboxMode)
                     _uiState.update { it.copy(portfolioPositions = positions) }
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка в loadPortfolio", e)
+            }
         }
     }
 
@@ -104,7 +117,9 @@ class OrdersViewModel(
         // Загружаем цену и обновляем список последних просмотренных
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
-            val price = repository.getLastPrice(instrument.figi)
+            // Используем пакетный метод с одним FIGI
+            val prices = repository.getLastPrices(listOf(instrument.figi))
+            val price = prices[instrument.figi]
             val portfolioPos = _uiState.value.portfolioPositions.find { it.figi == instrument.figi }
 
             val newCard = SelectedInstrumentInfo(
@@ -118,17 +133,12 @@ class OrdersViewModel(
                 profitPercent = portfolioPos?.profitPercent
             )
 
-            // Удаляем старую карточку с таким же FIGI (если есть) и добавляем новую в начало
-            val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
-            currentList.removeAll { it.instrument.figi == instrument.figi }
-            currentList.add(0, newCard)
-
-            // Ограничиваем двумя элементами
+            val updatedList = listOf(newCard) + _uiState.value.lastSelectedInstruments
             _uiState.update {
                 it.copy(
                     currentPrice = price,
                     isPriceLoading = false,
-                    lastSelectedInstruments = currentList.take(2)
+                    lastSelectedInstruments = updatedList.take(2)
                 )
             }
         }
@@ -166,6 +176,45 @@ class OrdersViewModel(
 
     fun clearStatus() { _uiState.update { it.clearStatus() } }
     fun retryLoadAccounts() { loadAccounts() }
+
+    private fun startPriceUpdates() {
+        priceUpdateJob?.cancel()
+        priceUpdateJob = viewModelScope.launch {
+            while (isActive) {
+                delay(5_000) // каждые 5 секунд
+                updatePrices()
+            }
+        }
+    }
+
+    private suspend fun updatePrices() {
+        val state = _uiState.value
+        // Собираем FIGI из последних просмотренных и выбранного инструмента
+        val figisToUpdate = state.lastSelectedInstruments.map { it.instrument.figi }.toMutableSet()
+        state.selectedInstrument?.let { figisToUpdate.add(it.figi) }
+        if (figisToUpdate.isEmpty()) return
+
+        try {
+            val prices = repository.getLastPrices(figisToUpdate.toList())
+            // Обновляем lastSelectedInstruments
+            val updatedLastSelected = state.lastSelectedInstruments.map { card ->
+                val newPrice = prices[card.instrument.figi] ?: card.currentPrice
+                card.copy(currentPrice = newPrice)
+            }
+            // Обновляем currentPrice, если выбранный инструмент совпадает
+            val newCurrentPrice = state.selectedInstrument?.let { sel ->
+                prices[sel.figi] ?: state.currentPrice
+            }
+            _uiState.update {
+                it.copy(
+                    lastSelectedInstruments = updatedLastSelected,
+                    currentPrice = newCurrentPrice
+                )
+            }
+        } catch (e: Exception) {
+            // тихо игнорируем, чтобы не спамить ошибками
+        }
+    }
 }
 
 class OrdersViewModelFactory : ViewModelProvider.Factory {

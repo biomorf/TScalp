@@ -111,17 +111,12 @@ class TinkoffInvestService : BrokerApi {
         currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
     }
 
-    override suspend fun getLastPrice(figi: String): Double? = withContext(Dispatchers.IO) {
+    override suspend fun getLastPrices(figis: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
+        if (figis.isEmpty()) return@withContext emptyMap()
         val currentApi = requireApi()
-        try {
-            val request = GetLastPricesRequest.newBuilder().addFigi(figi).build()
-            val response = currentApi.marketDataServiceSync.getLastPrices(request)
-            response.lastPricesList.firstOrNull()?.price?.let {
-                it.units + it.nano / 1_000_000_000.0
-            }
-        } catch (e: Exception) {
-            null
-        }
+        val request = GetLastPricesRequest.newBuilder().addAllFigi(figis).build()
+        val response = currentApi.marketDataServiceSync.getLastPrices(request)
+        response.lastPricesList.associate { it.figi to it.price?.let { p -> p.units + p.nano / 1_000_000_000.0 } }
     }
 
     override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
@@ -139,6 +134,7 @@ class TinkoffInvestService : BrokerApi {
                 .setAmount(amount)
                 .build()
             currentApi.sandboxServiceSync.sandboxPayIn(request)
+            // Ничего не возвращаем, Unit
         }
     }
 }

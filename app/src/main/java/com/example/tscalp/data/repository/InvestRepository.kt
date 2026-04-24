@@ -129,8 +129,8 @@ class InvestRepository(
         }
     }
 
-    suspend fun getLastPrice(figi: String): Double? {
-        return brokerManager.getDefaultBroker().getLastPrice(figi)
+    suspend fun getLastPrices(figis: List<String>): Map<String, Double?> {
+        return brokerManager.getDefaultBroker().getLastPrices(figis)
     }
 
     suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {

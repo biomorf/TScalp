@@ -1,3 +1,5 @@
+package com.example.tscalp.presentation.screens.portfolio
+
 import com.example.tscalp.domain.models.PortfolioPosition
 
 /**

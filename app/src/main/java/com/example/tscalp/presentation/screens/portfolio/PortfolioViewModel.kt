@@ -6,26 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.repository.InvestRepository
-import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.presentation.screens.portfolio.PortfolioUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-/**
- * UI-состояние экрана портфеля.
- */
-data class PortfolioUiState(
-    val positions: List<PortfolioPosition> = emptyList(),
-    val totalValue: Double = 0.0,
-    val balance: Double = 0.0,          // 👈 новое поле
-    val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false,
-    val isApiInitialized: Boolean = false,
-    val sandboxMode: Boolean = false
-)
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 /**
  * ViewModel для экрана портфеля.
@@ -37,6 +26,7 @@ class PortfolioViewModel(
 
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
+    private var priceUpdateJob: Job? = null
 
     init {
         checkApiInitialization()
@@ -49,6 +39,7 @@ class PortfolioViewModel(
         }
         if (isApiInit) {
             loadPortfolio()
+            startPriceUpdates()
         }
     }
 
@@ -117,6 +108,39 @@ class PortfolioViewModel(
                 }
             }
         }
+    }
+
+    private fun startPriceUpdates() {
+        priceUpdateJob?.cancel()
+        priceUpdateJob = viewModelScope.launch {
+            while (isActive) {
+                delay(5_000)
+                updatePrices()
+            }
+        }
+    }
+
+    private suspend fun updatePrices() {
+        val positions = _uiState.value.positions
+        if (positions.isEmpty()) return
+        val figis = positions.map { it.figi }
+        try {
+            val prices = repository.getLastPrices(figis)
+            val updatedPositions = positions.map { pos ->
+                val newPrice = prices[pos.figi] ?: pos.currentPrice
+                pos.copy(
+                    currentPrice = newPrice,
+                    totalValue = newPrice * pos.quantity
+                )
+            }
+            val newTotalValue = updatedPositions.sumOf { it.totalValue }
+            _uiState.update {
+                it.copy(
+                    positions = updatedPositions,
+                    totalValue = newTotalValue
+                )
+            }
+        } catch (_: Exception) { }
     }
 
     fun refresh() { loadPortfolio() }
