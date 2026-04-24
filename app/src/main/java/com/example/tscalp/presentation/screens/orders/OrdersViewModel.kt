@@ -125,6 +125,50 @@ class OrdersViewModel(
 
     // ... (методы onSearchQueryChanged, onInstrumentSelected, postOrder и т.д. – полностью сохранены из предыдущей версии)
 
+    fun onSearchQueryChanged(query: String) {
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                selectedInstrument = null,
+                figi = ""
+            )
+        }
+        searchJob?.cancel()
+        if (query.length >= 2) {
+            searchJob = viewModelScope.launch {
+                try {
+                    delay(500) // debounce
+                    _uiState.update { it.copy(isSearching = true) }
+                    val results = repository.searchInstruments(query)
+                    _uiState.update {
+                        it.copy(
+                            searchResults = results,
+                            isSearching = false
+                        )
+                    }
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    _uiState.update { it.copy(isSearching = false) }
+                } catch (e: Exception) {
+                    _uiState.update {
+                        it.copy(
+                            searchResults = emptyList(),
+                            isSearching = false,
+                            statusMessage = "Ошибка поиска: ${e.message}",
+                            isError = true
+                        )
+                    }
+                }
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    searchResults = emptyList(),
+                    isSearching = false
+                )
+            }
+        }
+    }
+
     fun onInstrumentSelected(instrument: InstrumentUi) {
         _uiState.update {
             it.copy(
@@ -162,14 +206,80 @@ class OrdersViewModel(
         }
     }
 
-    fun clearSearch() { /* ... */ }
-    fun onFigiChanged(figi: String) { _uiState.update { it.copy(figi = figi.uppercase()) } }
-    fun onQuantityChanged(quantity: String) { _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) } }
-    fun onAccountSelected(accountId: String) { _uiState.update { it.copy(selectedAccountId = accountId) } }
+    fun clearSearch() {
+        _uiState.update {
+            it.copy(
+                searchQuery = "",
+                searchResults = emptyList(),
+                selectedInstrument = null,
+                figi = "",
+                currentPrice = null,
+                isPriceLoading = false
+            )
+        }
+    }
+
+    fun onFigiChanged(figi: String) {
+        _uiState.update { it.copy(figi = figi.uppercase()) }
+    }
+
+    fun onQuantityChanged(quantity: String) {
+        val filtered = quantity.filter { it.isDigit() }
+        _uiState.update { it.copy(quantity = filtered) }
+    }
+
+    fun onAccountSelected(accountId: String) {
+        _uiState.update { it.copy(selectedAccountId = accountId) }
+    }
+
     fun onBuyClick() = postOrder(OrderDirection.ORDER_DIRECTION_BUY)
     fun onSellClick() = postOrder(OrderDirection.ORDER_DIRECTION_SELL)
 
-    private fun postOrder(direction: OrderDirection) { /* ... реализация с обновлением портфеля после сделки */ }
+    private fun postOrder(direction: OrderDirection) {
+        val state = _uiState.value
+        val figi = state.figi
+        val quantity = state.quantityAsLong ?: return
+        val accountId = state.selectedAccountId ?: return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, statusMessage = null) }
+            try {
+                val sandboxMode = ServiceLocator.isSandboxMode()
+                val result = repository.postMarketOrder(
+                    figi = figi,
+                    quantity = quantity,
+                    direction = direction,
+                    accountId = accountId,
+                    sandboxMode = sandboxMode
+                )
+
+                val directionText = when (direction) {
+                    OrderDirection.ORDER_DIRECTION_BUY -> "покупка"
+                    OrderDirection.ORDER_DIRECTION_SELL -> "продажа"
+                    else -> "операция"
+                }
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "✅ Заявка на $directionText выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов",
+                        isError = false,
+                        quantity = "" // сбрасываем количество, чтобы не повторить случайно
+                    )
+                }
+                // Обновляем портфель после сделки
+                loadPortfolio()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "❌ Ошибка: ${e.message}",
+                        isError = true
+                    )
+                }
+            }
+        }
+    }
 
     fun clearStatus() { _uiState.update { it.clearStatus() } }
     fun retryLoadAccounts() { loadAccounts() }
