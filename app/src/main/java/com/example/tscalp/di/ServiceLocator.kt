@@ -1,120 +1,103 @@
-package com.example.tscalp.di
+package com.example.tscalp.data.api
 
-import com.example.tscalp.BuildConfig
-import android.content.Context
-import android.content.SharedPreferences
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.example.tscalp.di.ServiceLocator
+import ru.tinkoff.piapi.contract.v1.*
 import ru.ttech.piapi.core.InvestApi
-import com.example.tscalp.data.api.TinkoffInvestService
+import ru.ttech.piapi.core.sandbox.SandboxServiceSync
+import ru.ttech.piapi.core.user.UsersServiceSync
+import ru.ttech.piapi.core.order.OrdersServiceSync
+import ru.ttech.piapi.core.instrument.InstrumentsServiceSync
+import ru.ttech.piapi.core.marketdata.MarketDataServiceSync
+import com.example.tscalp.domain.api.BrokerApi
 
-/**
- * Глобальный синглтон для хранения клиента InvestApi.
- * Отвечает за создание, восстановление и очистку подключения.
- */
-object ServiceLocator {
+class TinkoffInvestService : BrokerApi {
 
-    @Volatile
-    private var api: InvestApi? = null
-    private lateinit var prefs: SharedPreferences
-
-    private var brokerManager: BrokerManager? = null
-
-    fun getBrokerManager(): BrokerManager {
-        return brokerManager ?: synchronized(this) {
-            brokerManager ?: BrokerManager(
-                mapOf("tinkoff" to TinkoffInvestService())
-            ).also { brokerManager = it }
-        }
+    companion object {
+        private const val TAG = "TinkoffInvestService"
     }
 
-    /**
-     * Удаляет сохранённый токен и сбрасывает клиент и BrokerManager
-     */
-    fun clear() {
-        api = null
-        brokerManager = null
-        prefs.edit().remove("api_token").remove("sandbox_mode").apply()
-    }
+    // Вместо собственного поля api, используем глобальный объект из ServiceLocator
+    private val api: InvestApi?
+        get() = ServiceLocator.getApiOrNull()
 
-    /**
-     * Инициализирует хранилище настроек. Вызвать один раз из Application.
-     */
-    fun init(context: Context) {
-        prefs = context.getSharedPreferences("tinvest_prefs", Context.MODE_PRIVATE)
-    }
+    override val isInitialized: Boolean
+        get() = api != null
 
-    /**
-     * Возвращает текущий клиент API, если он уже создан.
-     */
-    fun getApiOrNull(): InvestApi? = api
+    // Удобная функция для получения api с проверкой
+    private fun getApi(): InvestApi = api ?: throw IllegalStateException("API не инициализирован")
 
-    /**
-     * Создаёт новый клиент InvestApi с указанным токеном и режимом.
-     * В релизных сборках принудительно сбрасывает режим песочницы.
-     * Сохраняет токен и режим в SharedPreferences.
-     */
-    fun createApi(token: String, sandbox: Boolean): InvestApi {
-        // В релизе всегда используем боевой режим, игнорируя переданный флаг
-        val effectiveSandbox = if (BuildConfig.DEBUG) sandbox else false
-
-        val target = if (effectiveSandbox) {
-            "sandbox-invest-public-api.tbank.ru:443"
+    override suspend fun getAccounts(sandboxMode: Boolean): List<Account> = withContext(Dispatchers.IO) {
+        val currentApi = getApi()
+        val request = GetAccountsRequest.getDefaultInstance()
+        return@withContext if (sandboxMode) {
+            SandboxServiceSync(currentApi).getSandboxAccounts(request).accountsList
         } else {
-            "invest-public-api.tbank.ru:443"
+            UsersServiceSync(currentApi).getAccounts(request).accountsList
         }
-
-        val newApi = InvestApi.createApi(InvestApi.defaultChannel(token = token, target = target))
-        api = newApi
-
-        // Сохраняем токен и фактический режим в настройках
-        prefs.edit()
-            .putString("api_token", token)
-            .putBoolean("sandbox_mode", effectiveSandbox)
-            .apply()
-
-        return newApi
     }
 
-    /**
-     * Пытается восстановить подключение из сохранённого токена.
-     * @return клиент API или null, если токен не найден
-     */
-    fun tryRestoreApi(): InvestApi? {
-        val token = prefs.getString("api_token", null) ?: return null
-        // Для релизных сборок всегда используем боевой режим
-        val sandbox = if (BuildConfig.DEBUG) {
-            prefs.getBoolean("sandbox_mode", true)
+    override suspend fun postMarketOrder(
+        figi: String,
+        quantity: Long,
+        direction: OrderDirection,
+        accountId: String,
+        sandboxMode: Boolean
+    ): PostOrderResponse = withContext(Dispatchers.IO) {
+        val currentApi = getApi()
+        val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
+        val request = PostOrderRequest.newBuilder()
+            .setFigi(figi)
+            .setQuantity(quantity)
+            .setPrice(price)
+            .setDirection(direction)
+            .setAccountId(accountId)
+            .setOrderType(OrderType.ORDER_TYPE_MARKET)
+            .build()
+        return@withContext if (sandboxMode) {
+            SandboxServiceSync(currentApi).postSandboxOrder(request)
         } else {
-            false
+            OrdersServiceSync(currentApi).postOrder(request)
         }
-        return try {
-            createApi(token, sandbox)
+    }
+
+    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
+        val currentApi = getApi()
+        val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
+        return@withContext if (sandboxMode) {
+            SandboxServiceSync(currentApi).getSandboxPortfolio(request)
+        } else {
+            OperationsServiceSync(currentApi).getPortfolio(request)
+        }
+    }
+
+    override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
+        val currentApi = getApi()
+        val request = InstrumentRequest.newBuilder()
+            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
+            .setId(figi)
+            .build()
+        InstrumentsServiceSync(currentApi).getInstrumentBy(request)
+    }
+
+    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
+        val currentApi = getApi()
+        val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
+        InstrumentsServiceSync(currentApi).findInstrument(request).instrumentsList
+    }
+
+    override suspend fun getLastPrice(figi: String): Double? = withContext(Dispatchers.IO) {
+        val currentApi = getApi()
+        try {
+            val request = GetLastPricesRequest.newBuilder().addFigi(figi).build()
+            val response = MarketDataServiceSync(currentApi).getLastPrices(request)
+            response.lastPricesList.firstOrNull()?.price?.let {
+                it.units + it.nano / 1_000_000_000.0
+            }
         } catch (e: Exception) {
-            clear()
             null
         }
-    }
-
-    /**
-     * Проверяет, сохранён ли токен в настройках.
-     */
-    fun hasSavedToken(): Boolean = prefs.contains("api_token")
-
-    // Новые методы для работы с режимом
-    fun isSandboxMode(): Boolean = prefs.getBoolean("sandbox_mode", true)
-
-    fun getToken(): String? = prefs.getString("api_token", null)
-
-    /**
-     * Возвращает true, если подтверждение заявок включено (по умолчанию – включено).
-     */
-    fun isConfirmOrdersEnabled(): Boolean {
-        return prefs.getBoolean("confirm_orders_enabled", true)
-    }
-
-    /**
-     * Сохраняет флаг подтверждения заявок.
-     */
-    fun setConfirmOrdersEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("confirm_orders_enabled", enabled).apply()
     }
 }
