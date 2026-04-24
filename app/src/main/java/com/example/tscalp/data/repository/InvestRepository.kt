@@ -1,7 +1,8 @@
 package com.example.tscalp.data.repository
 
 import android.util.Log
-import com.example.tscalp.data.api.TinkoffInvestService
+//import com.example.tscalp.data.api.TinkoffInvestService
+import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,7 +22,7 @@ class InvestRepository(
     }
 
     suspend fun getAccounts(sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
-        val accounts = brokerManager.getAccounts(sandboxMode)
+        val accounts = brokerManager.getDefaultBroker().getAccounts(sandboxMode)
         accounts.map { account ->
             AccountUi(
                 id = account.id,
@@ -43,7 +44,7 @@ class InvestRepository(
         accountId: String,
         sandboxMode: Boolean
     ): OrderResult = withContext(Dispatchers.IO) {
-        val response = brokerManager.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
+        val response = brokerManager.getDefaultBroker().postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
         OrderResult(
             orderId = response.orderId,
             executedLots = response.lotsExecuted,
@@ -60,10 +61,10 @@ class InvestRepository(
     }
 
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
-        val response = brokerManager.getPortfolio(accountId, sandboxMode)
+        val response = brokerManager.getDefaultBroker().getPortfolio(accountId, sandboxMode)
         response.positionsList.mapNotNull { pos ->
             val instrument = try {
-                brokerManager.getInstrumentByFigi(pos.figi)
+                brokerManager.getDefaultBroker().getInstrumentByFigi(pos.figi)
             } catch (e: Exception) {
                 Log.w(TAG, "Не удалось получить инструмент ${pos.figi}")
                 return@mapNotNull null
@@ -90,7 +91,7 @@ class InvestRepository(
      * Получение полного инструмента по FIGI (обёртка над TinkoffInvestService).
      */
     suspend fun getInstrumentByFigi(figi: String): Instrument {
-        return brokerManager.getInstrumentByFigi(figi)
+        return brokerManager.getDefaultBroker().getInstrumentByFigi(figi)
     }
 
     /**
@@ -98,10 +99,10 @@ class InvestRepository(
      * Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
      */
     suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
-        val shorts = brokerManager.findInstrumentShorts(query)
+        val shorts = brokerManager.getDefaultBroker().findInstrumentShorts(query)
         shorts.map { short ->
             try {
-                val full = brokerManager.getInstrumentByFigi(short.figi)
+                val full = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi)
                 InstrumentUi(
                     figi = full.figi,
                     ticker = full.ticker,
@@ -123,7 +124,7 @@ class InvestRepository(
     }
 
     suspend fun getLastPrice(figi: String): Double? {
-        return brokerManager.getLastPrice(figi)
+        return brokerManager.getDefaultBroker().getLastPrice(figi)
     }
 }
 

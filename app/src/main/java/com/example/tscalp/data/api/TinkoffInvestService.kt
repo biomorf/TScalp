@@ -72,15 +72,14 @@ class TinkoffInvestService : BrokerApi {
      * Получает полную информацию об инструменте по его FIGI.
      * В запросе обязательно указывает тип идентификатора — FIGI.
      */
-    override suspend fun getInstrumentByFigi(figi: String): Instrument = withContext(Dispatchers.IO) {
+    override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
         try {
-            // Создаём запрос с указанием типа идентификатора и самого FIGI
             val request = InstrumentRequest.newBuilder()
-                .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI) // <-- ключевое изменение
+                .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
                 .setId(figi)
                 .build()
-            val response = api.instrumentsServiceSync.getInstrumentBy(request)
-            response.instrument
+            // возвращаем весь ответ, а не только instrument
+            api.instrumentsServiceSync.getInstrumentBy(request)
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка получения инструмента по FIGI $figi", e)
             throw Exception("Не удалось получить инструмент: ${e.message}")
