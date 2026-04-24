@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import ru.tinkoff.piapi.contract.v1.OrderDirection
+import com.example.tscalp.domain.models.PortfolioPosition
 
 class OrdersViewModel(
     private val repository: InvestRepository
@@ -36,8 +37,10 @@ class OrdersViewModel(
         val isApiInit = ServiceLocator.getApiOrNull() != null
         _uiState.update { it.copy(isApiInitialized = isApiInit) }
         if (isApiInit) {
-            loadAccounts();
-            loadPortfolio();
+            loadAccounts()
+            viewModelScope.launch {
+                loadPortfolio()
+            }
             startPriceUpdates()
         }
     }
@@ -46,7 +49,10 @@ class OrdersViewModel(
         try {
             ServiceLocator.createApi(token, sandboxMode)
             _uiState.update { it.copy(isApiInitialized = true, statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})", isError = false) }
-            loadAccounts(); loadPortfolio()
+            loadAccounts()
+            viewModelScope.launch {
+                loadPortfolio()
+            }
         } catch (e: Exception) {
             _uiState.update { it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true) }
         }
@@ -66,19 +72,25 @@ class OrdersViewModel(
         }
     }
 
-    private fun loadPortfolio() {
-        viewModelScope.launch {
-            try {
-                val sandboxMode = ServiceLocator.isSandboxMode()
-                val accounts = repository.getAccounts(sandboxMode)
-                if (accounts.isNotEmpty()) {
-                    val accountId = accounts.first().id
-                    val positions = repository.getPortfolio(accountId, sandboxMode)
-                    _uiState.update { it.copy(portfolioPositions = positions) }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Ошибка в loadPortfolio", e)
+    /**
+     * Загружает портфель для первого счета и возвращает список позиций.
+     * Теперь это suspend-функция, которую можно await'ить.
+     */
+    private suspend fun loadPortfolio(): List<PortfolioPosition> {
+        return try {
+            val sandboxMode = ServiceLocator.isSandboxMode()
+            val accounts = repository.getAccounts(sandboxMode)
+            if (accounts.isNotEmpty()) {
+                val accountId = accounts.first().id
+                val positions = repository.getPortfolio(accountId, sandboxMode)
+                _uiState.update { it.copy(portfolioPositions = positions) }
+                positions
+            } else {
+                emptyList()
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка загрузки портфеля", e)
+            emptyList()
         }
     }
 
@@ -170,8 +182,29 @@ class OrdersViewModel(
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val result = repository.postMarketOrder(figi = figi, quantity = quantity, direction = direction, accountId = accountId, sandboxMode = sandboxMode)
-                _uiState.update { it.copy(isLoading = false, statusMessage = "✅ Заявка выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов", isError = false, quantity = "") }
-                loadPortfolio()
+                // Дожидаемся актуального портфеля
+                val updatedPositions = loadPortfolio()
+
+// Обновляем карточки последних просмотренных
+                val updatedLastSelected = _uiState.value.lastSelectedInstruments.map { card ->
+                    val pos = updatedPositions.find { it.figi == card.instrument.figi }
+                    card.copy(
+                        quantity = pos?.quantity ?: 0L,
+                        averagePrice = pos?.currentPrice ?: card.averagePrice,
+                        profit = pos?.profit ?: 0.0,
+                        profitPercent = pos?.profitPercent ?: 0.0
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "✅ Заявка выполнена!...",
+                        isError = false,
+                        quantity = "",
+                        lastSelectedInstruments = updatedLastSelected
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "❌ Ошибка: ${e.message}", isError = true) }
             }

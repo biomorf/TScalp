@@ -38,12 +38,16 @@ class PortfolioViewModel(
             it.copy(isApiInitialized = isApiInit, sandboxMode = ServiceLocator.isSandboxMode())
         }
         if (isApiInit) {
-            loadPortfolio()
+            viewModelScope.launch {
+                viewModelScope.launch {
+                    loadPortfolio()
+                }
+            }
             startPriceUpdates()
         }
     }
 
-    fun loadPortfolio() {
+    suspend fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
@@ -143,7 +147,7 @@ class PortfolioViewModel(
         } catch (_: Exception) { }
     }
 
-    fun refresh() { loadPortfolio() }
+    fun refresh() { viewModelScope.launch { loadPortfolio() } }
     fun clearStatus() { _uiState.update { it.copy(statusMessage = null, isError = false) } }
 }
 
