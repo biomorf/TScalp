@@ -194,9 +194,8 @@ fun PortfolioPositionCard(
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false
 ) {
-    // Определяем цвет фона в зависимости от выделения
     val backgroundColor = if (isSelected) {
-        MaterialTheme.colorScheme.secondaryContainer  // стандартный токен темы
+        MaterialTheme.colorScheme.secondaryContainer
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
@@ -204,6 +203,7 @@ fun PortfolioPositionCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(max = 200.dp)   // ← ограничение высоты
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
@@ -211,6 +211,7 @@ fun PortfolioPositionCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Верхний ряд: тикер, название, текущая цена
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -229,89 +230,79 @@ fun PortfolioPositionCard(
                         maxLines = 1
                     )
                 }
-                if (position.totalValue > 0) {
-                    Text(
-                        text = formatCurrency(position.totalValue),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            Divider(modifier = Modifier.padding(vertical = 4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    if (position.quantity > 0) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text("Количество", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${position.quantity} шт.", style = MaterialTheme.typography.bodyMedium)
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Текущая цена", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(if (position.currentPrice > 0) formatCurrency(position.currentPrice) else "—", style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                        if (position.profit != 0.0) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("P&L", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(
-                                        text = formatCurrency(position.profit),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                                    )
-                                    Text(
-                                        text = "(${"%.2f".format(position.profitPercent)}%)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                                    )
-                                }
-                            }
-                        }
+                // Текущая рыночная цена (отображается всегда, если известна)
+                if (position.currentPrice > 0) {
+                    val priceColor = if (position.quantity != 0L && position.profit != 0.0) {
+                        if (position.currentPrice >= (position.totalValue / position.quantity)) Color(0xFF4CAF50) else Color(0xFFF44336)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
                     }
-                }
-                Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "Текущая цена",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = formatCurrency(position.currentPrice),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = priceColor
                     )
-                    Text(
-                        text = if (position.currentPrice > 0) formatCurrency(position.currentPrice) else "—",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                } else {
+                    Text("—", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 }
             }
-            if (position.profit != 0.0) {
+
+            Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+            // Количество, средняя цена, P&L – показываем только если позиция есть (quantity != 0)
+            if (position.quantity != 0L) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "P&L",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column {
                         Text(
-                            text = formatCurrency(position.profit),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                        )
-                        Text(
-                            text = "(${"%.2f".format(position.profitPercent)}%)",
+                            text = "Количество",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Text(
+                            text = "${position.quantity} шт.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "Текущая цена",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = formatCurrency(position.currentPrice),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
+                // Прибыль/убыток
+                if (position.profit != 0.0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "P&L",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = formatCurrency(position.profit),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            )
+                            Text(
+                                text = "(${"%.2f".format(position.profitPercent)}%)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            )
+                        }
                     }
                 }
             }
