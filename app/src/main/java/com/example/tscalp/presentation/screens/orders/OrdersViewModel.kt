@@ -3,10 +3,8 @@ package com.example.tscalp.presentation.screens.orders
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.data.repository.InvestRepository
-import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.di.ServiceLocator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -40,17 +38,23 @@ class OrdersViewModel(
     }
 
     /**
-     * ///Проверяет, инициализирован ли API (через репозиторий).
+     * ///Проверяет, инициализирован ли API (через репозиторий),
+     * ///обновляет состояние и загружает счета/портфель.
      */
     fun checkApiInitialization() {
+        val isApiInit = ServiceLocator.getApiOrNull() != null
         _uiState.update {
-            it.copy(isApiInitialized = ServiceLocator.getApiOrNull() != null)
+            it.copy(isApiInitialized = isApiInit)
         }
-        if (ServiceLocator.getApiOrNull() != null) {
+        if (isApiInit) {
             loadAccounts()
+            loadPortfolio()
         }
     }
 
+    /**
+     * ///Инициализирует API (вызывается из SettingsScreen) и обновляет состояние.
+     */
     fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
             ServiceLocator.createApi(token, sandboxMode)
@@ -64,6 +68,7 @@ class OrdersViewModel(
                 )
             }
             loadAccounts()
+            loadPortfolio()
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
@@ -74,6 +79,9 @@ class OrdersViewModel(
         }
     }
 
+    /**
+     * ///Загружает список торговых счетов.
+     */
     fun loadAccounts() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
@@ -102,6 +110,29 @@ class OrdersViewModel(
         }
     }
 
+    /**
+     * Загружает портфель для первого счета и обновляет portfolioPositions.
+     */
+    private fun loadPortfolio() {
+        viewModelScope.launch {
+            try {
+                val sandboxMode = ServiceLocator.isSandboxMode()
+                val accounts = repository.getAccounts(sandboxMode)
+                if (accounts.isNotEmpty()) {
+                    val accountId = accounts.first().id
+                    val positions = repository.getPortfolio(accountId, sandboxMode)
+                    _uiState.update { it.copy(portfolioPositions = positions) }
+                }
+            } catch (e: Exception) {
+                // не критично: портфель может быть недоступен, работаем без него
+            }
+        }
+    }
+
+
+    /**
+     * Поиск инструментов с debounce.
+     */
     fun onSearchQueryChanged(query: String) {
         _uiState.update {
             it.copy(
@@ -110,17 +141,13 @@ class OrdersViewModel(
                 figi = ""
             )
         }
-
         searchJob?.cancel()
-
         if (query.length >= 2) {
             searchJob = viewModelScope.launch {
                 try {
-                    delay(500) /// Debounce
+                    delay(500)
                     _uiState.update { it.copy(isSearching = true) }
-
                     val results = repository.searchInstruments(query)
-
                     _uiState.update {
                         it.copy(
                             searchResults = results,
@@ -128,10 +155,8 @@ class OrdersViewModel(
                         )
                     }
                 } catch (ce: kotlinx.coroutines.CancellationException) {
-                    /// Отмена корутины — это нормально, не показываем ошибку
                     _uiState.update { it.copy(isSearching = false) }
                 } catch (e: Exception) {
-                    /// Реальная ошибка поиска
                     _uiState.update {
                         it.copy(
                             searchResults = emptyList(),
@@ -143,15 +168,14 @@ class OrdersViewModel(
                 }
             }
         } else {
-            _uiState.update {
-                it.copy(
-                    searchResults = emptyList(),
-                    isSearching = false
-                )
-            }
+            _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
         }
     }
 
+    /**
+     * Выбор инструмента из списка поиска.
+     * Загружает цену, находит позицию в портфеле и формирует карточку.
+     */
     fun onInstrumentSelected(instrument: InstrumentUi) {
         _uiState.update {
             it.copy(
@@ -161,21 +185,30 @@ class OrdersViewModel(
                 searchResults = emptyList()
             )
         }
-        ///  Запрос текущей цены через MarketDataService
+
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
-            try {
-                val price = repository.getLastPrice(instrument.figi)
-                _uiState.update {
-                    it.copy(
-                        currentPrice = price,
-                        priceChange = null,        /// пока не запрашиваем изменение
-                        priceChangePercent = null,
-                        isPriceLoading = false
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isPriceLoading = false) }
+            val price = repository.getLastPrice(instrument.figi)
+            val portfolioPos = _uiState.value.portfolioPositions.find { it.figi == instrument.figi }
+
+            val newCard = SelectedInstrumentInfo(
+                instrument = instrument,
+                currentPrice = price,
+                priceChange = null,
+                priceChangePercent = null,
+                quantity = portfolioPos?.quantity ?: 0L,
+                averagePrice = portfolioPos?.currentPrice,
+                profit = portfolioPos?.profit,
+                profitPercent = portfolioPos?.profitPercent
+            )
+
+            val updatedList = listOf(newCard) + _uiState.value.lastSelectedInstruments
+            _uiState.update {
+                it.copy(
+                    currentPrice = price,
+                    isPriceLoading = false,
+                    lastSelectedInstruments = updatedList.take(2)
+                )
             }
         }
     }
@@ -186,7 +219,9 @@ class OrdersViewModel(
                 searchQuery = "",
                 searchResults = emptyList(),
                 selectedInstrument = null,
-                figi = ""
+                figi = "",
+                currentPrice = null,
+                isPriceLoading = false
             )
         }
     }
@@ -221,7 +256,6 @@ class OrdersViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                /// получать sandboxMode из настроек
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val result = repository.postMarketOrder(
                     figi = figi,
@@ -230,22 +264,23 @@ class OrdersViewModel(
                     accountId = accountId,
                     sandboxMode = sandboxMode
                 )
+
                 val directionText = when (direction) {
                     OrderDirection.ORDER_DIRECTION_BUY -> "покупка"
                     OrderDirection.ORDER_DIRECTION_SELL -> "продажа"
                     else -> "операция"
                 }
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         statusMessage = "✅ Заявка на $directionText выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов",
                         isError = false,
-                        // figi = "",             /// ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
-                        quantity = "",           /// Количество сбрасываем, чтобы избежать повторов
-                        // searchQuery = "",       /// ← ЗАКОММЕНТИРОВАНО (сохраняем поисковый запрос)
-                        // selectedInstrument = null /// ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
+                        quantity = "" // сбрасываем количество, чтобы не повторить случайно
                     )
                 }
+                // Обновляем портфель после сделки
+                loadPortfolio()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -259,7 +294,7 @@ class OrdersViewModel(
     }
 
     fun clearStatus() {
-        _uiState.update { it.copy(statusMessage = null, isError = false) }
+        _uiState.update { it.clearStatus() }
     }
 
     fun retryLoadAccounts() {

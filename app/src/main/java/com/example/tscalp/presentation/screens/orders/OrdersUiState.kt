@@ -1,27 +1,32 @@
 package com.example.tscalp.presentation.screens.orders
 
-import com.example.tscalp.domain.models.AccountUi
 import ru.tinkoff.piapi.contract.v1.Instrument
 import com.example.tscalp.data.repository.InstrumentUi
+import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.domain.models.PortfolioPosition
 
+/**
+ * ///Информация о выбранном инструменте для карточки последних просмотренных.
+ */
+data class SelectedInstrumentInfo(
+    val instrument: InstrumentUi,
+    val currentPrice: Double?,          // рыночная цена
+    val priceChange: Double?,           // изменение цены (пока не реализовано)
+    val priceChangePercent: Double?,    // изменение цены в процентах
+    val quantity: Long,                 // количество в портфеле (0, если нет)
+    val averagePrice: Double?,          // средняя цена покупки
+    val profit: Double?,                // прибыль/убыток
+    val profitPercent: Double?          // прибыль/убыток в процентах
+)
 data class OrdersUiState(
-    val figi: String = "",
-    val quantity: String = "",
-    val accounts: List<AccountUi> = emptyList(),
-    val selectedAccountId: String? = null,
-    val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false,
-    val isApiInitialized: Boolean = false,
-    // Новые поля для поиска
-    val searchQuery: String = "",
-    val searchResults: List<InstrumentUi> = emptyList(),
-    val selectedInstrument: InstrumentUi? = null,
-    val isSearching: Boolean = false,
-    val currentPrice: Double? = null,          /// Текущая рыночная цена
     val priceChange: Double? = null,           /// Изменение цены с открытия (в валюте)
     val priceChangePercent: Double? = null,    /// Изменение цены в процентах
-    val isPriceLoading: Boolean = false        /// Индикатор загрузки цены
+    val isPriceLoading: Boolean = false,        /// Индикатор загрузки цены
+
+    // Позиции портфеля (загружаются при инициализации)
+    val portfolioPositions: List<PortfolioPosition> = emptyList(),
+    // Две последние просмотренные карточки
+    val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList()
 ) {
     val isFormValid: Boolean
         get() = selectedInstrument != null &&
