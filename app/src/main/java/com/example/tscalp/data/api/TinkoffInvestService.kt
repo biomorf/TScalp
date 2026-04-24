@@ -3,13 +3,22 @@ package com.example.tscalp.data.api
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import ru.ttech.piapi.core.InvestApi
-import ru.tinkoff.piapi.contract.v1.*
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
-import ru.tinkoff.piapi.contract.v1.InstrumentIdType
-import ru.tinkoff.piapi.contract.v1.InstrumentRequest
+import ru.tinkoff.piapi.contract.v1.*
+import ru.ttech.piapi.core.InvestApi
+import ru.ttech.piapi.core.SandboxServiceSync
+import ru.ttech.piapi.core.UsersServiceSync
+import ru.ttech.piapi.core.OrdersServiceSync
+import ru.ttech.piapi.core.InstrumentsServiceSync
+import ru.ttech.piapi.core.MarketDataServiceSync
 
+
+/**
+ * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
+ * Не хранит собственный экземпляр API, а получает его через ServiceLocator.
+ * Таким образом, состояние разделяется между всеми экранами.
+ */
 /**
  * Сервис для низкоуровневых вызовов T-Invest API.
  * Использует глобальный клиент из ServiceLocator.
@@ -21,18 +30,27 @@ class TinkoffInvestService : BrokerApi {
         private const val TAG = "TinkoffInvestService"
     }
 
+    // Глобальный объект API из синглтона
     private val api: InvestApi
         get() = ServiceLocator.getApiOrNull() ?: throw IllegalStateException("API не инициализирован")
 
     override val isInitialized: Boolean
         get() = api != null
 
+    /**
+     * Вспомогательный метод, который либо возвращает api, либо выбрасывает исключение.
+     */
+    private fun requireApi(): InvestApi = api ?: throw IllegalStateException("API не инициализирован")
+
+    // ------------------- Реализация методов BrokerApi -------------------
+
     override suspend fun getAccounts(sandboxMode: Boolean): List<Account> = withContext(Dispatchers.IO) {
+        val currentApi = requireApi()
         val request = GetAccountsRequest.getDefaultInstance()
         return@withContext if (sandboxMode) {
-            api.sandboxServiceSync.getSandboxAccounts(request).accountsList
+            SandboxServiceSync(currentApi).getSandboxAccounts(request).accountsList
         } else {
-            api.usersServiceSync.getAccounts(request).accountsList
+            UsersServiceSync(currentApi).getAccounts(request).accountsList
         }
     }
 
@@ -43,6 +61,7 @@ class TinkoffInvestService : BrokerApi {
         accountId: String,
         sandboxMode: Boolean
     ): PostOrderResponse = withContext(Dispatchers.IO) {
+        val currentApi = requireApi()
         val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
         val request = PostOrderRequest.newBuilder()
             .setFigi(figi)
@@ -53,18 +72,19 @@ class TinkoffInvestService : BrokerApi {
             .setOrderType(OrderType.ORDER_TYPE_MARKET)
             .build()
         return@withContext if (sandboxMode) {
-            api.sandboxServiceSync.postSandboxOrder(request)
+            SandboxServiceSync(currentApi).postSandboxOrder(request)
         } else {
-            api.ordersServiceSync.postOrder(request)
+            OrdersServiceSync(currentApi).postOrder(request)
         }
     }
 
     override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
+        val currentApi = requireApi()
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
         return@withContext if (sandboxMode) {
-            api.sandboxServiceSync.getSandboxPortfolio(request)
+            SandboxServiceSync(currentApi).getSandboxPortfolio(request)
         } else {
-            api.operationsServiceSync.getPortfolio(request)
+            OperationsServiceSync(currentApi).getPortfolio(request)
         }
     }
 
@@ -73,17 +93,12 @@ class TinkoffInvestService : BrokerApi {
      * В запросе обязательно указывает тип идентификатора — FIGI.
      */
     override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
-        try {
-            val request = InstrumentRequest.newBuilder()
-                .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
-                .setId(figi)
-                .build()
-            // возвращаем весь ответ, а не только instrument
-            api.instrumentsServiceSync.getInstrumentBy(request)
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка получения инструмента по FIGI $figi", e)
-            throw Exception("Не удалось получить инструмент: ${e.message}")
-        }
+        val currentApi = requireApi()
+        val request = InstrumentRequest.newBuilder()
+            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
+            .setId(figi)
+            .build()
+        InstrumentsServiceSync(currentApi).getInstrumentBy(request)
     }
 
     /**
@@ -92,20 +107,16 @@ class TinkoffInvestService : BrokerApi {
      * Полные данные (валюта, лот) будут загружены позже при необходимости.
      */
     override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
-        try {
-            val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
-            val response = api.instrumentsServiceSync.findInstrument(request)
-            response.instrumentsList
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка поиска инструментов", e)
-            throw Exception("Не удалось выполнить поиск: ${e.message}")
-        }
+        val currentApi = requireApi()
+        val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
+        InstrumentsServiceSync(currentApi).findInstrument(request).instrumentsList
     }
 
     override suspend fun getLastPrice(figi: String): Double? = withContext(Dispatchers.IO) {
+        val currentApi = requireApi()
         try {
             val request = GetLastPricesRequest.newBuilder().addFigi(figi).build()
-            val response = api.marketDataServiceSync.getLastPrices(request)
+            val response = MarketDataServiceSync(currentApi).getLastPrices(request)
             response.lastPricesList.firstOrNull()?.price?.let {
                 it.units + it.nano / 1_000_000_000.0
             }
