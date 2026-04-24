@@ -79,6 +79,33 @@ fun PortfolioScreen(
             return@Column
         }
 
+        // Свободные средства и кнопка пополнения
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Свободные средства", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        formatCurrency(uiState.balance),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                // Кнопка пополнения только в песочнице
+                if (uiState.sandboxMode) {
+                    Button(onClick = { viewModel.payInSandbox() }) {
+                        Text("Пополнить")
+                    }
+                }
+            }
+        }
+
         /// Общая стоимость портфеля
         if (uiState.totalValue > 0) {
             Card(

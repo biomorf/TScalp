@@ -33,10 +33,6 @@ class PortfolioViewModel(
     private val repository: InvestRepository
 ) : ViewModel() {
 
-    companion object {
-        private const val TAG = "PortfolioViewModel"
-    }
-
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
 
@@ -44,27 +40,20 @@ class PortfolioViewModel(
         checkApiInitialization()
     }
 
-    /**
-     * ///Проверяет, инициализирован ли API, и если да – загружает портфель.
-     */
     fun checkApiInitialization() {
+        val isApiInit = ServiceLocator.getApiOrNull() != null
         _uiState.update {
-            it.copy(isApiInitialized = ServiceLocator.getApiOrNull() != null)
+            it.copy(isApiInitialized = isApiInit, sandboxMode = ServiceLocator.isSandboxMode())
         }
-        if (ServiceLocator.getApiOrNull() != null) {
+        if (isApiInit) {
             loadPortfolio()
         }
     }
 
-    /**
-     * ///Загружает портфель по первому доступному счёту.
-     * ///Параметр sandboxMode временно захардкожен (false = боевой режим).
-     */
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                // получать sandboxMode из настроек
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val accounts = repository.getAccounts(sandboxMode)
                 if (accounts.isEmpty()) {
@@ -77,15 +66,21 @@ class PortfolioViewModel(
                     }
                     return@launch
                 }
-
                 val accountId = accounts.first().id
-                val positions = repository.getPortfolio(accountId, sandboxMode)
+
+                // Загружаем портфель и баланс параллельно
+                val positionsDeferred = async { repository.getPortfolio(accountId, sandboxMode) }
+                val balanceDeferred = async { repository.getBalance(accountId) }
+
+                val positions = positionsDeferred.await()
+                val balance = balanceDeferred.await()
                 val totalValue = positions.sumOf { it.totalValue }
 
                 _uiState.update {
                     it.copy(
                         positions = positions,
                         totalValue = totalValue,
+                        balance = balance,
                         isLoading = false,
                         statusMessage = if (positions.isEmpty()) "Портфель пуст" else "Загружено ${positions.size} позиций",
                         isError = false
@@ -103,23 +98,31 @@ class PortfolioViewModel(
         }
     }
 
-    /**
-     * ///Публичный метод для обновления портфеля (вызывается из UI).
-     */
-    fun refresh() {
-        if (_uiState.value.isApiInitialized) {
-            loadPortfolio()
-        } else {
-            checkApiInitialization()
+    fun payInSandbox() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val sandboxMode = ServiceLocator.isSandboxMode()
+                val accounts = repository.getAccounts(sandboxMode)
+                if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
+                val accountId = accounts.first().id
+                repository.sandboxPayIn(accountId, 100_000L) // пополняем на 100 000 рублей
+                // после пополнения перезагружаем портфель (и баланс обновится)
+                loadPortfolio()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "Ошибка пополнения: ${e.message}",
+                        isError = true
+                    )
+                }
+            }
         }
     }
 
-    /**
-     * ///Очищает статусное сообщение.
-     */
-    fun clearStatus() {
-        _uiState.update { it.copy(statusMessage = null, isError = false) }
-    }
+    fun refresh() { loadPortfolio() }
+    fun clearStatus() { _uiState.update { it.copy(statusMessage = null, isError = false) } }
 }
 
 /**

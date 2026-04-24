@@ -131,6 +131,21 @@ class InvestRepository(
     suspend fun getLastPrice(figi: String): Double? {
         return brokerManager.getDefaultBroker().getLastPrice(figi)
     }
+
+    suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
+        val response = brokerManager.getDefaultBroker().getMarginAttributes(accountId)
+        val money = response.liquidPortfolio
+        (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+    }
+
+    suspend fun sandboxPayIn(accountId: String, amount: Long) {
+        val money = MoneyValue.newBuilder()
+            .setUnits(amount)
+            .setNano(0)
+            .setCurrency("RUB")
+            .build()
+        brokerManager.getDefaultBroker().sandboxPayIn(accountId, money)
+    }
 }
 
 data class InstrumentUi(

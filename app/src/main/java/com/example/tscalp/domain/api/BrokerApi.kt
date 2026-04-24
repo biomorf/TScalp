@@ -17,4 +17,6 @@ interface BrokerApi {
     suspend fun getInstrumentByFigi(figi: String): InstrumentResponse
     suspend fun findInstrumentShorts(query: String): List<InstrumentShort>
     suspend fun getLastPrice(figi: String): Double?
+    suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse
+    suspend fun sandboxPayIn(accountId: String, amount: MoneyValue)
 }

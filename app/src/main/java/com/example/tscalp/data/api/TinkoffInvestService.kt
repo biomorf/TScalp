@@ -124,4 +124,21 @@ class TinkoffInvestService : BrokerApi {
             null
         }
     }
+
+    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
+        val currentApi = requireApi()
+        val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
+        currentApi.operationsServiceSync.getMarginAttributes(request)
+    }
+
+    override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
+        withContext(Dispatchers.IO) {
+            val currentApi = requireApi()
+            val request = SandboxPayInRequest.newBuilder()
+                .setAccountId(accountId)
+                .setAmount(amount)
+                .build()
+            currentApi.sandboxServiceSync.sandboxPayIn(request)
+        }
+    }
 }
