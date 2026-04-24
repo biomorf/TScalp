@@ -10,6 +10,7 @@ import ru.tinkoff.piapi.contract.v1.OrderDirection
 import ru.tinkoff.piapi.contract.v1.AccountType as TinkoffAccountType
 import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.InstrumentResponse
+import ru.tinkoff.piapi.contract.v1.MoneyValue
 
 /**
  * ///Репозиторий – преобразует контракты API в доменные модели приложения.

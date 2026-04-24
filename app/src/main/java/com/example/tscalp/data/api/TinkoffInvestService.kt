@@ -7,11 +7,10 @@ import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import ru.tinkoff.piapi.contract.v1.*
 import ru.ttech.piapi.core.InvestApi
-import ru.ttech.piapi.core.SandboxServiceSync
-import ru.ttech.piapi.core.UsersServiceSync
-import ru.ttech.piapi.core.OrdersServiceSync
-import ru.ttech.piapi.core.InstrumentsServiceSync
-import ru.ttech.piapi.core.MarketDataServiceSync
+import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
+import ru.tinkoff.piapi.contract.v1.GetMarginAttributesResponse
+import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
+import ru.tinkoff.piapi.contract.v1.MoneyValue
 
 
 /**
@@ -131,6 +130,25 @@ class TinkoffInvestService : BrokerApi {
         currentApi.operationsServiceSync.getMarginAttributes(request)
     }
 
+    override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
+        withContext(Dispatchers.IO) {
+            val currentApi = requireApi()
+            val request = SandboxPayInRequest.newBuilder()
+                .setAccountId(accountId)
+                .setAmount(amount)
+                .build()
+            currentApi.sandboxServiceSync.sandboxPayIn(request)
+        }
+    }
+
+    // Получение информации о маржинальных показателях счёта (свободные средства)
+    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
+        val currentApi = requireApi()
+        val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
+        currentApi.operationsServiceSync.getMarginAttributes(request)
+    }
+
+    // Пополнение песочного счёта (только для песочницы)
     override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
         withContext(Dispatchers.IO) {
             val currentApi = requireApi()
