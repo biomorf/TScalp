@@ -33,7 +33,7 @@ fun PortfolioScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Заголовок с кнопкой обновления
+        /// Заголовок с кнопкой обновления
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -54,13 +54,13 @@ fun PortfolioScreen(
             }
         }
 
-        // Проверка инициализации API
+        /// Проверка инициализации API
         if (!uiState.isApiInitialized) {
             ApiNotInitializedCard()
             return@Column
         }
 
-        // Индикатор загрузки
+        /// Индикатор загрузки
         if (uiState.isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -77,7 +77,7 @@ fun PortfolioScreen(
             return@Column
         }
 
-        // Общая стоимость портфеля
+        /// Общая стоимость портфеля
         if (uiState.totalValue > 0) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -102,7 +102,7 @@ fun PortfolioScreen(
             }
         }
 
-        // Статусное сообщение
+        /// Статусное сообщение
         uiState.statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -120,7 +120,7 @@ fun PortfolioScreen(
             }
         }
 
-        // Список позиций
+        /// Список позиций
         if (uiState.positions.isEmpty() && !uiState.isLoading) {
             EmptyPortfolioCard()
         } else {

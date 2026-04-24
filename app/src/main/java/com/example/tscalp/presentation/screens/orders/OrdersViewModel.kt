@@ -19,8 +19,8 @@ import ru.tinkoff.piapi.contract.v1.OrderDirection
 
 
 /**
- * ViewModel для экрана выставления заявок.
- * Получает InvestRepository через конструктор (внедрение зависимостей).
+ * ///ViewModel для экрана выставления заявок.
+ * ///Получает InvestRepository через конструктор (внедрение зависимостей).
  */
 class OrdersViewModel(
     private val repository: InvestRepository
@@ -40,7 +40,7 @@ class OrdersViewModel(
     }
 
     /**
-     * Проверяет, инициализирован ли API (через репозиторий).
+     * ///Проверяет, инициализирован ли API (через репозиторий).
      */
     fun checkApiInitialization() {
         _uiState.update {
@@ -54,8 +54,8 @@ class OrdersViewModel(
     fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
             ServiceLocator.createApi(token, sandboxMode)
-            // Инициализация API происходит через ServiceLocator (вызывается из SettingsScreen)
-            // Здесь просто обновляем состояние и загружаем счета
+            /// Инициализация API происходит через ServiceLocator (вызывается из SettingsScreen)
+            /// Здесь просто обновляем состояние и загружаем счета
             _uiState.update {
                 it.copy(
                     isApiInitialized = true,
@@ -116,7 +116,7 @@ class OrdersViewModel(
         if (query.length >= 2) {
             searchJob = viewModelScope.launch {
                 try {
-                    delay(500) // Debounce
+                    delay(500) /// Debounce
                     _uiState.update { it.copy(isSearching = true) }
 
                     val results = repository.searchInstruments(query)
@@ -128,10 +128,10 @@ class OrdersViewModel(
                         )
                     }
                 } catch (ce: kotlinx.coroutines.CancellationException) {
-                    // Отмена корутины — это нормально, не показываем ошибку
+                    /// Отмена корутины — это нормально, не показываем ошибку
                     _uiState.update { it.copy(isSearching = false) }
                 } catch (e: Exception) {
-                    // Реальная ошибка поиска
+                    /// Реальная ошибка поиска
                     _uiState.update {
                         it.copy(
                             searchResults = emptyList(),
@@ -161,7 +161,7 @@ class OrdersViewModel(
                 searchResults = emptyList()
             )
         }
-        //  Запрос текущей цены через MarketDataService
+        ///  Запрос текущей цены через MarketDataService
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
             try {
@@ -169,7 +169,7 @@ class OrdersViewModel(
                 _uiState.update {
                     it.copy(
                         currentPrice = price,
-                        priceChange = null,        // пока не запрашиваем изменение
+                        priceChange = null,        /// пока не запрашиваем изменение
                         priceChangePercent = null,
                         isPriceLoading = false
                     )
@@ -221,7 +221,7 @@ class OrdersViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                // получать sandboxMode из настроек
+                /// получать sandboxMode из настроек
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val result = repository.postMarketOrder(
                     figi = figi,
@@ -240,10 +240,10 @@ class OrdersViewModel(
                         isLoading = false,
                         statusMessage = "✅ Заявка на $directionText выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов",
                         isError = false,
-                        // figi = "",             // ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
-                        quantity = "",           // Количество сбрасываем, чтобы избежать повторов
-                        // searchQuery = "",       // ← ЗАКОММЕНТИРОВАНО (сохраняем поисковый запрос)
-                        // selectedInstrument = null // ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
+                        // figi = "",             /// ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
+                        quantity = "",           /// Количество сбрасываем, чтобы избежать повторов
+                        // searchQuery = "",       /// ← ЗАКОММЕНТИРОВАНО (сохраняем поисковый запрос)
+                        // selectedInstrument = null /// ← ЗАКОММЕНТИРОВАНО (оставляем выбранный инструмент)
                     )
                 }
             } catch (e: Exception) {

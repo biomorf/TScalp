@@ -18,10 +18,10 @@ data class OrdersUiState(
     val searchResults: List<InstrumentUi> = emptyList(),
     val selectedInstrument: InstrumentUi? = null,
     val isSearching: Boolean = false,
-    val currentPrice: Double? = null,          // Текущая рыночная цена
-    val priceChange: Double? = null,           // Изменение цены с открытия (в валюте)
-    val priceChangePercent: Double? = null,    // Изменение цены в процентах
-    val isPriceLoading: Boolean = false        // Индикатор загрузки цены
+    val currentPrice: Double? = null,          /// Текущая рыночная цена
+    val priceChange: Double? = null,           /// Изменение цены с открытия (в валюте)
+    val priceChangePercent: Double? = null,    /// Изменение цены в процентах
+    val isPriceLoading: Boolean = false        /// Индикатор загрузки цены
 ) {
     val isFormValid: Boolean
         get() = selectedInstrument != null &&

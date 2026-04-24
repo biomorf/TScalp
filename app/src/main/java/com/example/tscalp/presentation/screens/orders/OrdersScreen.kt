@@ -6,6 +6,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
@@ -17,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
@@ -26,7 +29,7 @@ import java.util.*
 
 @Composable
 fun OrdersScreen(
-    viewModel: OrdersViewModel   // получаем извне, без factory
+    viewModel: OrdersViewModel   /// получаем извне, без factory
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -41,7 +44,7 @@ fun OrdersScreen(
         }
     }
 
-    // Проверяем актуальное состояние API при каждом открытии вкладки
+    /// Проверяем актуальное состояние API при каждом открытии вкладки
     LaunchedEffect(Unit) {
         viewModel.checkApiInitialization()
     }
@@ -53,7 +56,7 @@ fun OrdersScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Заголовок
+        /// Заголовок
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -68,13 +71,13 @@ fun OrdersScreen(
             )
         }
 
-        // Проверка инициализации API
+        /// Проверка инициализации API
         if (!uiState.isApiInitialized) {
             ApiNotInitializedCard()
             return@Column
         }
 
-        // Умный поиск инструмента
+        /// Умный поиск инструмента
         InstrumentSearchField(
             query = uiState.searchQuery,
             onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
@@ -87,11 +90,11 @@ fun OrdersScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Информация о выбранном инструменте
+        /// Информация о выбранном инструменте
         uiState.selectedInstrument?.let { instrument ->
             InstrumentInfoCard(instrument = instrument)
 
-            // Дополнительная информация о цене и стоимости (если цена получена)
+            /// Дополнительная информация о цене и стоимости (если цена получена)
             uiState.currentPrice?.let { price ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -107,7 +110,7 @@ fun OrdersScreen(
             }
         }
 
-        // Поле ввода количества
+        /// Поле ввода количества
         OutlinedTextField(
             value = uiState.quantity,
             onValueChange = { quantity: String -> viewModel.onQuantityChanged(quantity) },
@@ -125,7 +128,7 @@ fun OrdersScreen(
             enabled = uiState.selectedInstrument != null
         )
 
-        // Предварительный расчёт стоимости
+        /// Предварительный расчёт стоимости
         val quantity = uiState.quantityAsLong ?: 0L
         val price = uiState.currentPrice ?: 0.0
         if (quantity > 0 && price > 0) {
@@ -135,7 +138,7 @@ fun OrdersScreen(
             )
         }
 
-        // Выбор счёта
+        /// Выбор счёта
         AccountSelector(
             accounts = uiState.accounts,
             selectedAccountId = uiState.selectedAccountId,
@@ -144,14 +147,14 @@ fun OrdersScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Информация о выбранном счёте
+        /// Информация о выбранном счёте
         uiState.accounts.find { it.id == uiState.selectedAccountId }?.let { account ->
             AccountInfoCard(account = account)
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Кнопки Купить / Продать
+        /// Кнопки Купить / Продать
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -204,7 +207,7 @@ fun OrdersScreen(
             }
         }
 
-        // Диалог подтверждения
+        /// Диалог подтверждения
         if (showConfirmDialog) {
             val ticker = uiState.selectedInstrument?.ticker ?: ""
             AlertDialog(
@@ -239,7 +242,7 @@ fun OrdersScreen(
             )
         }
 
-        // Статус выполнения
+        /// Статус выполнения
         uiState.statusMessage?.let { message ->
             StatusCard(
                 message = message,
@@ -250,11 +253,24 @@ fun OrdersScreen(
     }
 }
 
-// Вспомогательная функция для форматирования валюты (аналогична PortfolioScreen)
+/// Вспомогательная функция для форматирования валюты (аналогична PortfolioScreen)
 fun formatCurrency(value: Double): String {
     val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
     format.currency = Currency.getInstance("RUB")
     return format.format(value)
+}
+
+/**
+ * ///Возвращает цвет, соответствующий типу инструмента.
+ */
+fun instrumentTypeColor(type: String): Color {
+    return when (type.lowercase()) {
+        "share" -> Color(0xFF1565C0)     // синий
+        "bond" -> Color(0xFF2E7D32)      // зелёный
+        "etf" -> Color(0xFFE65100)       // оранжевый
+        "currency" -> Color(0xFF6A1B9A)  // фиолетовый
+        else -> Color.Gray
+    }
 }
 
 @Composable
@@ -295,7 +311,7 @@ fun InstrumentSearchField(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    // Автоматически открываем список при появлении результатов поиска
+    /// Автоматически открываем список при появлении результатов поиска
     LaunchedEffect(searchResults) {
         expanded = searchResults.isNotEmpty()
     }
@@ -309,7 +325,7 @@ fun InstrumentSearchField(
                 value = query,
                 onValueChange = {
                     onQueryChanged(it)
-                    // Пока пользователь вводит текст, держим список открытым
+                    /// Пока пользователь вводит текст, держим список открытым
                     expanded = it.isNotEmpty()
                 },
                 label = { Text("Поиск инструмента") },
@@ -325,7 +341,7 @@ fun InstrumentSearchField(
                         } else if (query.isNotEmpty()) {
                             IconButton(onClick = {
                                 onClear()
-                                expanded = false  // Закрываем список при очистке
+                                expanded = false  /// Закрываем список при очистке
                             }) {
                                 Icon(Icons.Default.Clear, contentDescription = "Очистить")
                             }
@@ -351,13 +367,22 @@ fun InstrumentSearchField(
                     searchResults.forEach { instrument: InstrumentUi ->
                         DropdownMenuItem(
                             text = {
-                                Column {
-                                    Text("${instrument.ticker} - ${instrument.name}")
-                                    Text(
-                                        text = instrument.figi,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // Цветной индикатор типа
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .background(instrumentTypeColor(instrument.instrumentType), RoundedCornerShape(2.dp))
                                     )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text("${instrument.ticker} - ${instrument.name}")
+                                        Text(
+                                            text = instrument.figi,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             },
                             onClick = {
@@ -373,7 +398,7 @@ fun InstrumentSearchField(
 }
 
 @Composable
-fun InstrumentInfoCard(instrument: InstrumentUi) {   // <-- InstrumentUi, не Instrument
+fun InstrumentInfoCard(instrument: InstrumentUi) {   /// <-- InstrumentUi, не Instrument
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

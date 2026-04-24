@@ -12,7 +12,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            //MaterialTheme {  // Используем стандартную тему вместо TScalpTheme
+            ///MaterialTheme {  // Используем стандартную тему вместо TScalpTheme
             TScalpTheme {
                 MainScreen()
             }

@@ -14,19 +14,19 @@ class CustomTrustManager(context: Context) : X509TrustManager {
     private val trustedCerts: MutableSet<X509Certificate> = mutableSetOf()
 
     init {
-        // 1. Стандартный системный TrustManager
+        /// 1. Стандартный системный TrustManager
         val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
         tmf.init(null as KeyStore?)
         defaultTrustManager = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
 
-        // 2. Загружаем все резервные корневые сертификаты из raw
+        /// 2. Загружаем все резервные корневые сертификаты из raw
         loadCertificate(context, R.raw.russian_trusted_root_ca)
         loadCertificate(context, R.raw.russian_trusted_root_ca_gost_2025)
         loadCertificate(context, R.raw.russian_trusted_sub_ca)
         loadCertificate(context, R.raw.russian_trusted_sub_ca_2024)
         loadCertificate(context, R.raw.russian_trusted_sub_ca_gost_2025)
-        // пример второго сертификата
-        // Добавьте сюда другие сертификаты по мере необходимости
+        /// пример второго сертификата
+        /// Добавьте сюда другие сертификаты по мере необходимости
     }
 
     private fun loadCertificate(context: Context, resId: Int) {
@@ -37,7 +37,7 @@ class CustomTrustManager(context: Context) : X509TrustManager {
                 trustedCerts.add(cert)
             }
         } catch (e: Exception) {
-            // Логируем, но не прерываем инициализацию
+            /// Логируем, но не прерываем инициализацию
             e.printStackTrace()
         }
     }
@@ -50,16 +50,16 @@ class CustomTrustManager(context: Context) : X509TrustManager {
         try {
             defaultTrustManager.checkServerTrusted(chain, authType)
         } catch (e: Exception) {
-            // Пробуем проверить через любой из наших резервных сертификатов
+            /// Пробуем проверить через любой из наших резервных сертификатов
             if (chain != null && chain.isNotEmpty()) {
                 val serverCert = chain[0]
                 for (trustedCert in trustedCerts) {
                     try {
                         serverCert.verify(trustedCert.publicKey)
-                        // Если верификация прошла – доверяем
+                        /// Если верификация прошла – доверяем
                         return
                     } catch (verifyException: Exception) {
-                        // Пробуем следующий сертификат
+                        /// Пробуем следующий сертификат
                     }
                 }
             }

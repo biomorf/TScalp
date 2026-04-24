@@ -12,7 +12,7 @@ import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.InstrumentResponse
 
 /**
- * Репозиторий – преобразует контракты API в доменные модели приложения.
+ * ///Репозиторий – преобразует контракты API в доменные модели приложения.
  */
 class InvestRepository(
     private val brokerManager: BrokerManager
@@ -66,7 +66,7 @@ class InvestRepository(
         response.positionsList.mapNotNull { pos ->
             val instrument = try {
                 val instrumentResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(pos.figi)
-                instrumentResponse.instrument  // извлекаем Instrument из InstrumentResponse
+                instrumentResponse.instrument  /// извлекаем Instrument из InstrumentResponse
             } catch (e: Exception) {
                 Log.w(TAG, "Не удалось получить инструмент ${pos.figi}")
                 return@mapNotNull null
@@ -90,28 +90,29 @@ class InvestRepository(
     }
 
     /**
-     * Получение полного инструмента по FIGI (обёртка над TinkoffInvestService).
+     * ///Получение полного инструмента по FIGI (обёртка над TinkoffInvestService).
      */
     suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
         return brokerManager.getDefaultBroker().getInstrumentByFigi(figi)
     }
 
     /**
-     * Поиск инструментов – возвращает список InstrumentUi, готовых для UI.
-     * Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
+     * ///Поиск инструментов – возвращает список InstrumentUi, готовых для UI.
+     * ///Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
      */
     suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
         val shorts = brokerManager.getDefaultBroker().findInstrumentShorts(query)
         shorts.map { short ->
             try {
-                val fullResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi) // InstrumentResponse
-                val instrument = fullResponse.instrument // Извлекаем Instrument
+                val fullResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi) /// InstrumentResponse
+                val instrument = fullResponse.instrument /// Извлекаем Instrument
                 InstrumentUi(
                     figi = instrument.figi,
                     ticker = instrument.ticker,
                     name = instrument.name,
                     currency = instrument.currency,
-                    lot = instrument.lot
+                    lot = instrument.lot,
+                    instrumentType = short.instrumentType
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "Не удалось получить полный инструмент для ${short.figi}, используем краткие данные")
@@ -120,7 +121,8 @@ class InvestRepository(
                     ticker = short.ticker,
                     name = short.name,
                     currency = "—",
-                    lot = 1
+                    lot = 1,
+                    instrumentType = short.instrumentType
                 )
             }
         }
@@ -136,5 +138,6 @@ data class InstrumentUi(
     val ticker: String,
     val name: String,
     val currency: String,
-    val lot: Int
+    val lot: Int,
+    val instrumentType: String = ""   /// тип инструмента: share, bond, etf, currency
 )

@@ -15,14 +15,14 @@ import ru.ttech.piapi.core.MarketDataServiceSync
 
 
 /**
- * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
- * Не хранит собственный экземпляр API, а получает его через ServiceLocator.
- * Таким образом, состояние разделяется между всеми экранами.
+ * ///Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
+ * ///Не хранит собственный экземпляр API, а получает его через ServiceLocator.
+ * ///Таким образом, состояние разделяется между всеми экранами.
  */
 /**
- * Сервис для низкоуровневых вызовов T-Invest API.
- * Использует глобальный клиент из ServiceLocator.
- * Все методы – suspend, выполняются на IO-потоке.
+ * ///Сервис для низкоуровневых вызовов T-Invest API.
+ * ///Использует глобальный клиент из ServiceLocator.
+ * ///Все методы – suspend, выполняются на IO-потоке.
  */
 class TinkoffInvestService : BrokerApi {
 
@@ -30,7 +30,7 @@ class TinkoffInvestService : BrokerApi {
         private const val TAG = "TinkoffInvestService"
     }
 
-    // Глобальный объект API из синглтона
+    /// Глобальный объект API из синглтона
     private val api: InvestApi
         get() = ServiceLocator.getApiOrNull() ?: throw IllegalStateException("API не инициализирован")
 
@@ -38,11 +38,11 @@ class TinkoffInvestService : BrokerApi {
         get() = api != null
 
     /**
-     * Вспомогательный метод, который либо возвращает api, либо выбрасывает исключение.
+     * ///Вспомогательный метод, который либо возвращает api, либо выбрасывает исключение.
      */
     private fun requireApi(): InvestApi = api ?: throw IllegalStateException("API не инициализирован")
 
-    // ------------------- Реализация методов BrokerApi -------------------
+    /// ------------------- Реализация методов BrokerApi -------------------
 
     override suspend fun getAccounts(sandboxMode: Boolean): List<Account> = withContext(Dispatchers.IO) {
         val currentApi = requireApi()
@@ -89,8 +89,8 @@ class TinkoffInvestService : BrokerApi {
     }
 
     /**
-     * Получает полную информацию об инструменте по его FIGI.
-     * В запросе обязательно указывает тип идентификатора — FIGI.
+     * ///Получает полную информацию об инструменте по его FIGI.
+     * ///В запросе обязательно указывает тип идентификатора — FIGI.
      */
     override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
         val currentApi = requireApi()
@@ -102,9 +102,9 @@ class TinkoffInvestService : BrokerApi {
     }
 
     /**
-     * Поиск инструментов по строковому запросу.
-     * Возвращает список кратких данных (InstrumentShort), без попытки получить полный Instrument.
-     * Полные данные (валюта, лот) будут загружены позже при необходимости.
+     * ///Поиск инструментов по строковому запросу.
+     * ///Возвращает список кратких данных (InstrumentShort), без попытки получить полный Instrument.
+     * ///Полные данные (валюта, лот) будут загружены позже при необходимости.
      */
     override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
         val currentApi = requireApi()

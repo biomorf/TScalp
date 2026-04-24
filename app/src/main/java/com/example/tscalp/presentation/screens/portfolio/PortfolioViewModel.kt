@@ -45,7 +45,7 @@ class PortfolioViewModel(
     }
 
     /**
-     * Проверяет, инициализирован ли API, и если да – загружает портфель.
+     * ///Проверяет, инициализирован ли API, и если да – загружает портфель.
      */
     fun checkApiInitialization() {
         _uiState.update {
@@ -57,8 +57,8 @@ class PortfolioViewModel(
     }
 
     /**
-     * Загружает портфель по первому доступному счёту.
-     * Параметр sandboxMode временно захардкожен (false = боевой режим).
+     * ///Загружает портфель по первому доступному счёту.
+     * ///Параметр sandboxMode временно захардкожен (false = боевой режим).
      */
     fun loadPortfolio() {
         viewModelScope.launch {
@@ -104,7 +104,7 @@ class PortfolioViewModel(
     }
 
     /**
-     * Публичный метод для обновления портфеля (вызывается из UI).
+     * ///Публичный метод для обновления портфеля (вызывается из UI).
      */
     fun refresh() {
         if (_uiState.value.isApiInitialized) {
@@ -115,7 +115,7 @@ class PortfolioViewModel(
     }
 
     /**
-     * Очищает статусное сообщение.
+     * ///Очищает статусное сообщение.
      */
     fun clearStatus() {
         _uiState.update { it.copy(statusMessage = null, isError = false) }
@@ -123,7 +123,7 @@ class PortfolioViewModel(
 }
 
 /**
- * Фабрика для создания PortfolioViewModel с внедрением InvestRepository.
+ * ///Фабрика для создания PortfolioViewModel с внедрением InvestRepository.
  */
 class PortfolioViewModelFactory : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

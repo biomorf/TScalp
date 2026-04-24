@@ -33,17 +33,17 @@ data class BottomNavItem(
 
 val bottomNavItems = listOf(
     BottomNavItem(
-        route = NavRoutes.ORDERS,  // Строка "orders"
+        route = NavRoutes.ORDERS,  /// Строка "orders"
         title = "Заявки",
         icon = Icons.Default.List
     ),
     BottomNavItem(
-        route = NavRoutes.PORTFOLIO,  // Строка "portfolio"
+        route = NavRoutes.PORTFOLIO,  /// Строка "portfolio"
         title = "Портфель",
         icon = Icons.Default.ShowChart
     ),
     BottomNavItem(
-        route = NavRoutes.SETTINGS,  // Строка "settings"
+        route = NavRoutes.SETTINGS,  /// Строка "settings"
         title = "Настройки",
         icon = Icons.Default.Settings
     )
@@ -52,7 +52,7 @@ val bottomNavItems = listOf(
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    // Общая ViewModel для вкладок «Заявки» и «Настройки»
+    /// Общая ViewModel для вкладок «Заявки» и «Настройки»
     val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
 
     Scaffold(
@@ -60,7 +60,7 @@ fun MainScreen() {
     ) { paddingValues ->
         NavGraph(
             navController = navController,
-            ordersViewModel = ordersViewModel,   // передаём общую ViewModel
+            ordersViewModel = ordersViewModel,   /// передаём общую ViewModel
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)

@@ -10,7 +10,7 @@ import com.example.tscalp.presentation.screens.portfolio.PortfolioScreen
 import com.example.tscalp.presentation.screens.settings.SettingsScreen
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 
-// Константы маршрутов как строки
+/// Константы маршрутов как строки
 object NavRoutes {
     const val ORDERS = "orders"
     const val PORTFOLIO = "portfolio"
@@ -29,13 +29,13 @@ fun NavGraph(
         modifier = modifier
     ) {
         composable(NavRoutes.ORDERS) {
-            OrdersScreen(viewModel = ordersViewModel)   // используем общую ViewModel
+            OrdersScreen(viewModel = ordersViewModel)   /// используем общую ViewModel
         }
         composable(NavRoutes.PORTFOLIO) {
             PortfolioScreen()   // пока без изменений
         }
         composable(NavRoutes.SETTINGS) {
-            SettingsScreen(ordersViewModel = ordersViewModel)  // передаём общую ViewModel
+            SettingsScreen(ordersViewModel = ordersViewModel)  /// передаём общую ViewModel
         }
     }
 }

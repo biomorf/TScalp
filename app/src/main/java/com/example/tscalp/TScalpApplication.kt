@@ -9,10 +9,10 @@ class TScalpApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Регистрируем Conscrypt для работы SSL на Android
+        /// Регистрируем Conscrypt для работы SSL на Android
         Security.insertProviderAt(Conscrypt.newProvider(), 1)
         ServiceLocator.init(this)
-        // Пытаемся восстановить подключение при старте
+        /// Пытаемся восстановить подключение при старте
         ServiceLocator.tryRestoreApi()
     }
 }
