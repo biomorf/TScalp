@@ -91,18 +91,46 @@ class OrdersViewModel(
     }
 
     fun onInstrumentSelected(instrument: InstrumentUi) {
-        _uiState.update { it.copy(selectedInstrument = instrument, figi = instrument.figi, searchQuery = "${instrument.ticker} - ${instrument.name}", searchResults = emptyList()) }
+        // Обновляем состояние формы (очищаем поисковый запрос, чтобы не было повторного поиска)
+        _uiState.update {
+            it.copy(
+                selectedInstrument = instrument,
+                figi = instrument.figi,
+                searchQuery = "",          // очищаем, чтобы не триггерить поиск при открытии SearchBar
+                searchResults = emptyList()
+            )
+        }
+
+        // Загружаем цену и обновляем список последних просмотренных
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
             val price = repository.getLastPrice(instrument.figi)
             val portfolioPos = _uiState.value.portfolioPositions.find { it.figi == instrument.figi }
+
             val newCard = SelectedInstrumentInfo(
-                instrument = instrument, currentPrice = price, priceChange = null, priceChangePercent = null,
-                quantity = portfolioPos?.quantity ?: 0L, averagePrice = portfolioPos?.currentPrice,
-                profit = portfolioPos?.profit, profitPercent = portfolioPos?.profitPercent
+                instrument = instrument,
+                currentPrice = price,
+                priceChange = null,
+                priceChangePercent = null,
+                quantity = portfolioPos?.quantity ?: 0L,
+                averagePrice = portfolioPos?.currentPrice,
+                profit = portfolioPos?.profit,
+                profitPercent = portfolioPos?.profitPercent
             )
-            val updatedList = listOf(newCard) + _uiState.value.lastSelectedInstruments
-            _uiState.update { it.copy(currentPrice = price, isPriceLoading = false, lastSelectedInstruments = updatedList.take(2)) }
+
+            // Удаляем старую карточку с таким же FIGI (если есть) и добавляем новую в начало
+            val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
+            currentList.removeAll { it.instrument.figi == instrument.figi }
+            currentList.add(0, newCard)
+
+            // Ограничиваем двумя элементами
+            _uiState.update {
+                it.copy(
+                    currentPrice = price,
+                    isPriceLoading = false,
+                    lastSelectedInstruments = currentList.take(2)
+                )
+            }
         }
     }
 

@@ -243,15 +243,41 @@ fun PortfolioPositionCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text(
-                        text = "Количество",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "${position.quantity} шт.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    if (position.quantity > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Количество", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${position.quantity} шт.", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Текущая цена", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(if (position.currentPrice > 0) formatCurrency(position.currentPrice) else "—", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        if (position.profit != 0.0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("P&L", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = formatCurrency(position.profit),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                    )
+                                    Text(
+                                        text = "(${"%.2f".format(position.profitPercent)}%)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
