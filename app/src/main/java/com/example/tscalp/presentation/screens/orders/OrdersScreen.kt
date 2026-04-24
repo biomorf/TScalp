@@ -1,18 +1,12 @@
 package com.example.tscalp.presentation.screens.orders
 
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SearchBar
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,7 +19,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.data.repository.InstrumentUi
-import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.di.ServiceLocator
 import java.text.NumberFormat
 import java.util.*
@@ -54,21 +47,8 @@ fun OrdersScreen(
             .fillMaxSize()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Заголовок
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Text(
-                text = "Выставление заявки",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(16.dp),
-                textAlign = TextAlign.Center
-            )
-        }
-
         if (!uiState.isApiInitialized) {
             ApiNotInitializedCard()
             return@Column
@@ -116,22 +96,6 @@ fun OrdersScreen(
             }
         }
 
-        // Информация о выбранном инструменте
-        uiState.selectedInstrument?.let { instrument ->
-            InstrumentInfoCard(instrument = instrument)
-            uiState.currentPrice?.let { price ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Текущая цена: ${formatCurrency(price)}")
-                        Text("Валюта: ${instrument.currency}")
-                    }
-                }
-            }
-        }
-
         // Поле количества
         OutlinedTextField(
             value = uiState.quantity,
@@ -154,18 +118,6 @@ fun OrdersScreen(
         val price = uiState.currentPrice ?: 0.0
         if (quantity > 0 && price > 0) {
             Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
-        }
-
-        // Выбор счета
-        AccountSelector(
-            accounts = uiState.accounts,
-            selectedAccountId = uiState.selectedAccountId,
-            onAccountSelected = { accountId: String -> viewModel.onAccountSelected(accountId) },
-            onRefresh = { viewModel.retryLoadAccounts() },
-            modifier = Modifier.fillMaxWidth()
-        )
-        uiState.accounts.find { it.id == uiState.selectedAccountId }?.let { account ->
-            AccountInfoCard(account = account)
         }
 
         // Последние просмотренные инструменты
@@ -269,24 +221,6 @@ fun ApiNotInitializedCard() {
 }
 
 @Composable
-fun InstrumentInfoCard(instrument: InstrumentUi) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(instrument.ticker, fontWeight = FontWeight.Bold)
-                Text(instrument.currency, style = MaterialTheme.typography.bodySmall)
-            }
-            Text(instrument.name)
-            Text("FIGI: ${instrument.figi}", style = MaterialTheme.typography.bodySmall)
-            if (instrument.lot > 1) Text("Лот: ${instrument.lot} шт.", style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
 fun SelectedInstrumentCard(
     card: SelectedInstrumentInfo,
     onSelect: () -> Unit
@@ -345,55 +279,6 @@ fun ResultItemCard(instrument: InstrumentUi, onClick: () -> Unit) {
                 if (instrument.lot > 1) Text("Лот: ${instrument.lot} шт.", style = MaterialTheme.typography.bodySmall)
             }
             Text(instrument.currency, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AccountSelector(
-    accounts: List<AccountUi>,
-    selectedAccountId: String?,
-    onAccountSelected: (String) -> Unit,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Column(modifier = modifier) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Торговый счёт", style = MaterialTheme.typography.titleSmall)
-            IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Обновить") }
-        }
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-            TextField(
-                value = accounts.find { it.id == selectedAccountId }?.let { "${it.name} (${it.type})" } ?: "Выберите счёт",
-                onValueChange = {},
-                readOnly = true,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
-            )
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                accounts.forEach { account: AccountUi ->
-                    DropdownMenuItem(
-                        text = { Column { Text(account.name); Text(account.type.toString(), style = MaterialTheme.typography.bodySmall) } },
-                        onClick = { onAccountSelected(account.id); expanded = false }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AccountInfoCard(account: AccountUi) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("📊 ${account.name}", style = MaterialTheme.typography.titleSmall)
-            Text("Тип: ${account.type}", style = MaterialTheme.typography.bodySmall)
-            Text("ID: ${account.id.take(8)}...", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
