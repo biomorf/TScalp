@@ -127,28 +127,10 @@ class TinkoffInvestService : BrokerApi {
     override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
         val currentApi = requireApi()
         val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-        currentApi.operationsServiceSync.getMarginAttributes(request)
+        // Метод есть только в UsersServiceSync (боевой режим)
+        currentApi.usersServiceSync.getMarginAttributes(request)
     }
 
-    override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
-        withContext(Dispatchers.IO) {
-            val currentApi = requireApi()
-            val request = SandboxPayInRequest.newBuilder()
-                .setAccountId(accountId)
-                .setAmount(amount)
-                .build()
-            currentApi.sandboxServiceSync.sandboxPayIn(request)
-        }
-    }
-
-    // Получение информации о маржинальных показателях счёта (свободные средства)
-    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
-        val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-        currentApi.operationsServiceSync.getMarginAttributes(request)
-    }
-
-    // Пополнение песочного счёта (только для песочницы)
     override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
         withContext(Dispatchers.IO) {
             val currentApi = requireApi()

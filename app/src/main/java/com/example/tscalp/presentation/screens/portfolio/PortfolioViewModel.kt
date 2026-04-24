@@ -19,10 +19,12 @@ import kotlinx.coroutines.launch
 data class PortfolioUiState(
     val positions: List<PortfolioPosition> = emptyList(),
     val totalValue: Double = 0.0,
+    val balance: Double = 0.0,          // 👈 новое поле
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
     val isError: Boolean = false,
-    val isApiInitialized: Boolean = false
+    val isApiInitialized: Boolean = false,
+    val sandboxMode: Boolean = false
 )
 
 /**
@@ -68,12 +70,9 @@ class PortfolioViewModel(
                 }
                 val accountId = accounts.first().id
 
-                // Загружаем портфель и баланс параллельно
-                val positionsDeferred = async { repository.getPortfolio(accountId, sandboxMode) }
-                val balanceDeferred = async { repository.getBalance(accountId) }
-
-                val positions = positionsDeferred.await()
-                val balance = balanceDeferred.await()
+                // Загружаем портфель и баланс параллельно (или последовательно – не важно)
+                val positions = repository.getPortfolio(accountId, sandboxMode)
+                val balance = repository.getBalance(accountId)
                 val totalValue = positions.sumOf { it.totalValue }
 
                 _uiState.update {
@@ -107,7 +106,6 @@ class PortfolioViewModel(
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
                 val accountId = accounts.first().id
                 repository.sandboxPayIn(accountId, 100_000L) // пополняем на 100 000 рублей
-                // после пополнения перезагружаем портфель (и баланс обновится)
                 loadPortfolio()
             } catch (e: Exception) {
                 _uiState.update {
