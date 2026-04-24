@@ -48,11 +48,10 @@ class PortfolioViewModel(
      * Проверяет, инициализирован ли API, и если да – загружает портфель.
      */
     fun checkApiInitialization() {
-        val service = TinkoffInvestService()
         _uiState.update {
-            it.copy(isApiInitialized = service.isInitialized)
+            it.copy(isApiInitialized = ServiceLocator.getApiOrNull() != null)
         }
-        if (service.isInitialized) {
+        if (ServiceLocator.getApiOrNull() != null) {
             loadPortfolio()
         }
     }
