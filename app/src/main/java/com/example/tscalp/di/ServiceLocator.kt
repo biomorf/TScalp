@@ -15,6 +15,22 @@ object ServiceLocator {
     private var api: InvestApi? = null
     private lateinit var prefs: SharedPreferences
 
+    private var brokerManager: BrokerManager? = null
+
+    fun getBrokerManager(): BrokerManager {
+        return brokerManager ?: synchronized(this) {
+            brokerManager ?: BrokerManager(
+                mapOf("tinkoff" to TinkoffInvestService())
+            ).also { brokerManager = it }
+        }
+    }
+
+    fun clear() {
+        api = null
+        brokerManager = null
+        prefs.edit().remove("api_token").remove("sandbox_mode").apply()
+    }
+
     /**
      * Инициализирует хранилище настроек. Вызвать один раз из Application.
      */

@@ -275,8 +275,8 @@ class OrdersViewModel(
 class OrdersViewModelFactory : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(OrdersViewModel::class.java)) {
-            val service = TinkoffInvestService()
-            val repository = InvestRepository(service)
+            val brokerManager = ServiceLocator.getBrokerManager()
+            val repository = InvestRepository(brokerManager)
             @Suppress("UNCHECKED_CAST")
             return OrdersViewModel(repository) as T
         }

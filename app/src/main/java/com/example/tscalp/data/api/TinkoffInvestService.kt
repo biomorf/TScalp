@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.*
 import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.domain.api.BrokerApi
 import ru.tinkoff.piapi.contract.v1.InstrumentIdType
 import ru.tinkoff.piapi.contract.v1.InstrumentRequest
 
@@ -14,7 +15,7 @@ import ru.tinkoff.piapi.contract.v1.InstrumentRequest
  * Использует глобальный клиент из ServiceLocator.
  * Все методы – suspend, выполняются на IO-потоке.
  */
-class TinkoffInvestService {
+class TinkoffInvestService : BrokerApi {
 
     companion object {
         private const val TAG = "TinkoffInvestService"
@@ -23,10 +24,10 @@ class TinkoffInvestService {
     private val api: InvestApi
         get() = ServiceLocator.getApiOrNull() ?: throw IllegalStateException("API не инициализирован")
 
-    val isInitialized: Boolean
-        get() = ServiceLocator.getApiOrNull() != null
+    override val isInitialized: Boolean
+        get() = api != null
 
-    suspend fun getAccounts(sandboxMode: Boolean): List<Account> = withContext(Dispatchers.IO) {
+    override suspend fun getAccounts(sandboxMode: Boolean): List<Account> = withContext(Dispatchers.IO) {
         val request = GetAccountsRequest.getDefaultInstance()
         return@withContext if (sandboxMode) {
             api.sandboxServiceSync.getSandboxAccounts(request).accountsList
@@ -35,7 +36,7 @@ class TinkoffInvestService {
         }
     }
 
-    suspend fun postMarketOrder(
+    override suspend fun postMarketOrder(
         figi: String,
         quantity: Long,
         direction: OrderDirection,
@@ -58,7 +59,7 @@ class TinkoffInvestService {
         }
     }
 
-    suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
+    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
         return@withContext if (sandboxMode) {
             api.sandboxServiceSync.getSandboxPortfolio(request)
@@ -71,7 +72,7 @@ class TinkoffInvestService {
      * Получает полную информацию об инструменте по его FIGI.
      * В запросе обязательно указывает тип идентификатора — FIGI.
      */
-    suspend fun getInstrumentByFigi(figi: String): Instrument = withContext(Dispatchers.IO) {
+    override suspend fun getInstrumentByFigi(figi: String): Instrument = withContext(Dispatchers.IO) {
         try {
             // Создаём запрос с указанием типа идентификатора и самого FIGI
             val request = InstrumentRequest.newBuilder()
@@ -91,7 +92,7 @@ class TinkoffInvestService {
      * Возвращает список кратких данных (InstrumentShort), без попытки получить полный Instrument.
      * Полные данные (валюта, лот) будут загружены позже при необходимости.
      */
-    suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
+    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
         try {
             val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
             val response = api.instrumentsServiceSync.findInstrument(request)
@@ -102,7 +103,7 @@ class TinkoffInvestService {
         }
     }
 
-    suspend fun getLastPrice(figi: String): Double? = withContext(Dispatchers.IO) {
+    override suspend fun getLastPrice(figi: String): Double? = withContext(Dispatchers.IO) {
         try {
             val request = GetLastPricesRequest.newBuilder().addFigi(figi).build()
             val response = api.marketDataServiceSync.getLastPrices(request)

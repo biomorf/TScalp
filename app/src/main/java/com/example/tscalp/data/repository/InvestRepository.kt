@@ -13,7 +13,7 @@ import ru.tinkoff.piapi.contract.v1.Instrument
  * Репозиторий – преобразует контракты API в доменные модели приложения.
  */
 class InvestRepository(
-    private val apiService: TinkoffInvestService
+    private val brokerManager: BrokerManager
 ) {
 
     companion object {
@@ -21,7 +21,7 @@ class InvestRepository(
     }
 
     suspend fun getAccounts(sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
-        val accounts = apiService.getAccounts(sandboxMode)
+        val accounts = brokerManager.getAccounts(sandboxMode)
         accounts.map { account ->
             AccountUi(
                 id = account.id,
@@ -43,7 +43,7 @@ class InvestRepository(
         accountId: String,
         sandboxMode: Boolean
     ): OrderResult = withContext(Dispatchers.IO) {
-        val response = apiService.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
+        val response = brokerManager.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
         OrderResult(
             orderId = response.orderId,
             executedLots = response.lotsExecuted,
@@ -60,10 +60,10 @@ class InvestRepository(
     }
 
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
-        val response = apiService.getPortfolio(accountId, sandboxMode)
+        val response = brokerManager.getPortfolio(accountId, sandboxMode)
         response.positionsList.mapNotNull { pos ->
             val instrument = try {
-                apiService.getInstrumentByFigi(pos.figi)
+                brokerManager.getInstrumentByFigi(pos.figi)
             } catch (e: Exception) {
                 Log.w(TAG, "Не удалось получить инструмент ${pos.figi}")
                 return@mapNotNull null
@@ -90,7 +90,7 @@ class InvestRepository(
      * Получение полного инструмента по FIGI (обёртка над TinkoffInvestService).
      */
     suspend fun getInstrumentByFigi(figi: String): Instrument {
-        return apiService.getInstrumentByFigi(figi)
+        return brokerManager.getInstrumentByFigi(figi)
     }
 
     /**
@@ -98,10 +98,10 @@ class InvestRepository(
      * Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
      */
     suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
-        val shorts = apiService.findInstrumentShorts(query)
+        val shorts = brokerManager.findInstrumentShorts(query)
         shorts.map { short ->
             try {
-                val full = apiService.getInstrumentByFigi(short.figi)
+                val full = brokerManager.getInstrumentByFigi(short.figi)
                 InstrumentUi(
                     figi = full.figi,
                     ticker = full.ticker,
@@ -123,7 +123,7 @@ class InvestRepository(
     }
 
     suspend fun getLastPrice(figi: String): Double? {
-        return apiService.getLastPrice(figi)
+        return brokerManager.getLastPrice(figi)
     }
 }
 

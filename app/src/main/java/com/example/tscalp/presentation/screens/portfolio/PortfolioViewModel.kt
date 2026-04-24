@@ -129,8 +129,8 @@ class PortfolioViewModel(
 class PortfolioViewModelFactory : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PortfolioViewModel::class.java)) {
-            val service = TinkoffInvestService()
-            val repository = InvestRepository(service)
+            val brokerManager = ServiceLocator.getBrokerManager()
+            val repository = InvestRepository(brokerManager)
             @Suppress("UNCHECKED_CAST")
             return PortfolioViewModel(repository) as T
         }
