@@ -122,11 +122,12 @@ fun OrdersScreen(
             Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
         }
 
+        // Последние просмотренные инструменты
         if (uiState.lastSelectedInstruments.isNotEmpty()) {
             Text("Последние просмотренные", style = MaterialTheme.typography.titleSmall)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(uiState.lastSelectedInstruments) { card ->
-                    // Преобразуем SelectedInstrumentInfo в PortfolioPosition
+                    // Создаём PortfolioPosition из данных карточки
                     val position = PortfolioPosition(
                         figi = card.instrument.figi,
                         name = card.instrument.name,
@@ -137,11 +138,14 @@ fun OrdersScreen(
                         profit = card.profit ?: 0.0,
                         profitPercent = card.profitPercent ?: 0.0
                     )
+
+                    // Определяем, активна ли эта карточка
+                    val isActive = uiState.selectedInstrument?.figi == card.instrument.figi
+
                     PortfolioPositionCard(
                         position = position,
-                        // Добавляем возможность клика для выбора инструмента
-                        modifier = Modifier.clickable { viewModel.onInstrumentSelected(card.instrument)},
-                        onClick = { viewModel.onInstrumentSelected(card.instrument) }
+                        onClick = { viewModel.onInstrumentSelected(card.instrument) },
+                        isSelected = isActive
                     )
                 }
             }
@@ -234,49 +238,7 @@ fun ApiNotInitializedCard() {
     }
 }
 
-@Composable
-fun SelectedInstrumentCard(
-    card: SelectedInstrumentInfo,
-    onSelect: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onSelect() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(card.instrument.ticker, fontWeight = FontWeight.Bold)
-                    Text(card.instrument.name, style = MaterialTheme.typography.bodySmall)
-                }
-                if (card.currentPrice != null) {
-                    Text(formatCurrency(card.currentPrice!!), fontWeight = FontWeight.Bold)
-                }
-            }
-            if (card.quantity > 0 && card.averagePrice != null && card.currentPrice != null) {
-                Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${card.quantity} шт.")
-                    val profit = card.profit
-                        ?: (card.currentPrice - card.averagePrice) * card.quantity
-                    val profitPercent = card.profitPercent
-                        ?: ((card.currentPrice / card.averagePrice - 1) * 100)
-                    Row {
-                        Text(
-                            "${if (profit >= 0) "+" else ""}${formatCurrency(profit)}",
-                            color = if (profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                        )
-                        Text(" (${"%.2f".format(profitPercent)}%)")
-                    }
-                }
-            }
-        }
-    }
-}
+
 
 @Composable
 fun ResultItemCard(instrument: InstrumentUi, onClick: () -> Unit) {

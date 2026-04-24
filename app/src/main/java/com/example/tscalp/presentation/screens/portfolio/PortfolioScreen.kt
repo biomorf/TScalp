@@ -1,5 +1,7 @@
 package com.example.tscalp.presentation.screens.portfolio
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -188,11 +190,22 @@ fun EmptyPortfolioCard() {
 @Composable
 fun PortfolioPositionCard(
     position: PortfolioPosition,
-    modifier: Modifier = Modifier,      // <-- новый параметр
-    onClick: (() -> Unit)? = null       // <-- опциональный клик
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    isSelected: Boolean = false
 ) {
+    // Определяем цвет фона в зависимости от выделения
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.secondaryContainer  // стандартный токен темы
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -247,10 +260,7 @@ fun PortfolioPositionCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = if (position.currentPrice > 0)
-                            formatCurrency(position.currentPrice)
-                        else
-                            "—",
+                        text = if (position.currentPrice > 0) formatCurrency(position.currentPrice) else "—",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -269,18 +279,12 @@ fun PortfolioPositionCard(
                         Text(
                             text = formatCurrency(position.profit),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (position.profit >= 0)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.error
+                            color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
                         )
                         Text(
-                            text = "(${String.format("%.2f", position.profitPercent)}%)",
+                            text = "(${"%.2f".format(position.profitPercent)}%)",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (position.profit >= 0)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.error
+                            color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
                         )
                     }
                 }
