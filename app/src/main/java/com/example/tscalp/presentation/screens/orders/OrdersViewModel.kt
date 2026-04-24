@@ -104,20 +104,18 @@ class OrdersViewModel(
     }
 
     fun onInstrumentSelected(instrument: InstrumentUi) {
-        // Обновляем состояние формы (очищаем поисковый запрос, чтобы не было повторного поиска)
+        // Очищаем поисковый запрос, чтобы не было повторного поиска при открытии SearchBar
         _uiState.update {
             it.copy(
                 selectedInstrument = instrument,
                 figi = instrument.figi,
-                searchQuery = "",          // очищаем, чтобы не триггерить поиск при открытии SearchBar
+                searchQuery = "",                     // <-- очищаем, а не заполняем
                 searchResults = emptyList()
             )
         }
 
-        // Загружаем цену и обновляем список последних просмотренных
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
-            // Используем пакетный метод с одним FIGI
             val prices = repository.getLastPrices(listOf(instrument.figi))
             val price = prices[instrument.figi]
             val portfolioPos = _uiState.value.portfolioPositions.find { it.figi == instrument.figi }
@@ -133,12 +131,18 @@ class OrdersViewModel(
                 profitPercent = portfolioPos?.profitPercent
             )
 
-            val updatedList = listOf(newCard) + _uiState.value.lastSelectedInstruments
+            // Удаляем старую карточку с таким же FIGI (если была) и добавляем новую в начало
+            val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
+            currentList.removeAll { it.instrument.figi == instrument.figi }
+            currentList.add(0, newCard)
+
+            val updatedList = currentList.take(2)   // ограничиваем двумя элементами
+
             _uiState.update {
                 it.copy(
                     currentPrice = price,
                     isPriceLoading = false,
-                    lastSelectedInstruments = updatedList.take(2)
+                    lastSelectedInstruments = updatedList
                 )
             }
         }
