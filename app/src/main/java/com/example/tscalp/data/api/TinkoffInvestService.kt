@@ -48,9 +48,9 @@ class TinkoffInvestService : BrokerApi {
         val currentApi = requireApi()
         val request = GetAccountsRequest.getDefaultInstance()
         return@withContext if (sandboxMode) {
-            SandboxServiceSync(currentApi).getSandboxAccounts(request).accountsList
+            currentApi.sandboxServiceSync.getSandboxAccounts(request).accountsList
         } else {
-            UsersServiceSync(currentApi).getAccounts(request).accountsList
+            currentApi.usersServiceSync.getAccounts(request).accountsList
         }
     }
 
@@ -72,9 +72,9 @@ class TinkoffInvestService : BrokerApi {
             .setOrderType(OrderType.ORDER_TYPE_MARKET)
             .build()
         return@withContext if (sandboxMode) {
-            SandboxServiceSync(currentApi).postSandboxOrder(request)
+            currentApi.sandboxServiceSync.postSandboxOrder(request)
         } else {
-            OrdersServiceSync(currentApi).postOrder(request)
+            currentApi.ordersServiceSync.postOrder(request)
         }
     }
 
@@ -82,9 +82,9 @@ class TinkoffInvestService : BrokerApi {
         val currentApi = requireApi()
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
         return@withContext if (sandboxMode) {
-            SandboxServiceSync(currentApi).getSandboxPortfolio(request)
+            currentApi.sandboxServiceSync.getSandboxPortfolio(request)
         } else {
-            OperationsServiceSync(currentApi).getPortfolio(request)
+            currentApi.operationsServiceSync.getPortfolio(request)
         }
     }
 
@@ -98,7 +98,7 @@ class TinkoffInvestService : BrokerApi {
             .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
             .setId(figi)
             .build()
-        InstrumentsServiceSync(currentApi).getInstrumentBy(request)
+        currentApi.instrumentsServiceSync.getInstrumentBy(request)
     }
 
     /**
@@ -109,14 +109,14 @@ class TinkoffInvestService : BrokerApi {
     override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
         val currentApi = requireApi()
         val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
-        InstrumentsServiceSync(currentApi).findInstrument(request).instrumentsList
+        currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
     }
 
     override suspend fun getLastPrice(figi: String): Double? = withContext(Dispatchers.IO) {
         val currentApi = requireApi()
         try {
             val request = GetLastPricesRequest.newBuilder().addFigi(figi).build()
-            val response = MarketDataServiceSync(currentApi).getLastPrices(request)
+            val response = currentApi.marketDataServiceSync.getLastPrices(request)
             response.lastPricesList.firstOrNull()?.price?.let {
                 it.units + it.nano / 1_000_000_000.0
             }
