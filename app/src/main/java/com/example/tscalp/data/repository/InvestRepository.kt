@@ -102,13 +102,15 @@ class InvestRepository(
         val shorts = brokerManager.getDefaultBroker().findInstrumentShorts(query)
         shorts.map { short ->
             try {
-                val full = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi).instrument
+                // Получаем InstrumentResponse и сразу извлекаем Instrument
+                val instrumentResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi)
+                val instrument = instrumentResponse.instrument  // ← ключевая строка
                 InstrumentUi(
-                    figi = full.figi,
-                    ticker = full.ticker,
-                    name = full.name,
-                    currency = full.currency,
-                    lot = full.lot
+                    figi = instrument.figi,
+                    ticker = instrument.ticker,
+                    name = instrument.name,
+                    currency = instrument.currency,
+                    lot = instrument.lot
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "Не удалось получить полный инструмент для ${short.figi}, используем краткие данные")
