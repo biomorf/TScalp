@@ -54,8 +54,8 @@ object ServiceLocator {
             .putBoolean("sandbox_mode", effectiveSandbox)
             .apply()
 
-        /// После создания API пересоздаём брокер‑менеджер (чтобы использовал новый api)
-        brokerManager = BrokerManager(mapOf("tinkoff" to TinkoffInvestService()))
+        // После успешного создания api пересоздаём брокер‑менеджер (чтобы использовать новый api)
+        brokerManager = createBrokerManager()
 
         return newApi
     }
@@ -106,18 +106,22 @@ object ServiceLocator {
      */
     fun getToken(): String? = prefs.getString("api_token", null)
 
+    private fun createBrokerManager(): BrokerManager {
+        return BrokerManager(
+            mapOf(
+                "tinkoff" to TinkoffInvestService(),
+                "mock" to MockBrokerApi()
+            )
+        )
+    }
+
     /**
      * ///Возвращает глобальный брокер‑менеджер.
      * ///При первом вызове создаёт его с брокером по умолчанию (Tinkoff).
      */
     fun getBrokerManager(): BrokerManager {
         return brokerManager ?: synchronized(this) {
-            brokerManager ?: BrokerManager(
-                mapOf(
-                    "tinkoff" to TinkoffInvestService(),
-                    "mock" to MockBrokerApi()   // <-- тестовый брокер
-                )
-            ).also { brokerManager = it }
+            brokerManager ?: createBrokerManager().also { brokerManager = it }
         }
     }
 
