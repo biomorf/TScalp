@@ -39,6 +39,24 @@ class MockBrokerApi : BrokerApi {
         .setExecutionReportStatus(OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW)
         .build()
 
+    override suspend fun postOrder(
+        figi: String,
+        quantity: Long,
+        direction: OrderDirection,
+        accountId: String,
+        sandboxMode: Boolean,
+        orderType: OrderType,
+        price: Quotation
+    ): PostOrderResponse {
+        // Заглушка – возвращаем успешный ответ с фиктивным orderId
+        return PostOrderResponse.newBuilder()
+            .setOrderId("mock-order-${System.currentTimeMillis()}")
+            .setLotsRequested(quantity)
+            .setLotsExecuted(quantity)
+            .setExecutionReportStatus(OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW)
+            .build()
+    }
+
     override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {
         // Возвращаем пустой портфель
         return PortfolioResponse.newBuilder().build()

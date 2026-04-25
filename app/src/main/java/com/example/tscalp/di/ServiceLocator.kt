@@ -110,7 +110,8 @@ object ServiceLocator {
         return BrokerManager(
             mapOf(
                 "tinkoff" to TinkoffInvestService(),
-                "mock" to MockBrokerApi()
+                "mock" to MockBrokerApi()),
+                "bcs" to BcsBrokerApi()
             )
         )
     }

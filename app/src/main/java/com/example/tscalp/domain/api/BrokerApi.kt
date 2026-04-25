@@ -13,6 +13,20 @@ interface BrokerApi {
         accountId: String,
         sandboxMode: Boolean
     ): PostOrderResponse
+    /**
+     * Выставляет заявку (рыночную или лимитную) через брокера.
+     * @param orderType тип заявки (ORDER_TYPE_MARKET или ORDER_TYPE_LIMIT)
+     * @param price цена (для рыночной игнорируется, можно передать Quotation.getDefaultInstance())
+     */
+    suspend fun postOrder(
+        figi: String,
+        quantity: Long,
+        direction: OrderDirection,
+        accountId: String,
+        sandboxMode: Boolean,
+        orderType: OrderType,
+        price: Quotation
+    ): PostOrderResponse
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse
     suspend fun getInstrumentByFigi(figi: String): InstrumentResponse
     suspend fun findInstrumentShorts(query: String): List<InstrumentShort>

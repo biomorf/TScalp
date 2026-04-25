@@ -87,6 +87,35 @@ class TinkoffInvestService : BrokerApi {
         }
     }
 
+    /**
+     * Выставляет заявку (рыночную или лимитную) через Т‑Инвестиции.
+     * Реализует требований интерфейса BrokerApi.
+     */
+    override suspend fun postOrder(
+        figi: String,
+        quantity: Long,
+        direction: OrderDirection,
+        accountId: String,
+        sandboxMode: Boolean,
+        orderType: OrderType,
+        price: Quotation
+    ): PostOrderResponse = withContext(Dispatchers.IO) {
+        val currentApi = requireApi()
+        val request = PostOrderRequest.newBuilder()
+            .setFigi(figi)
+            .setQuantity(quantity)
+            .setPrice(price)
+            .setDirection(direction)
+            .setAccountId(accountId)
+            .setOrderType(orderType)
+            .build()
+        return@withContext if (sandboxMode) {
+            currentApi.sandboxServiceSync.postSandboxOrder(request)
+        } else {
+            currentApi.ordersServiceSync.postOrder(request)
+        }
+    }
+
     override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
         val currentApi = requireApi()
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()

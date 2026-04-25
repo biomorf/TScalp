@@ -277,6 +277,53 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 }
             }
 
+            "bcs" -> {
+                var refreshToken by remember { mutableStateOf("") }
+                var sandbox by remember { mutableStateOf(true) }
+
+                LaunchedEffect(Unit) {
+                    val creds = ServiceLocator.loadBrokerCredentials("bcs")
+                    if (creds != null) {
+                        refreshToken = creds.first
+                        sandbox = creds.second
+                    }
+                }
+
+                Column {
+                    Text("Refresh-токен (из личного кабинета БКС)")
+                    OutlinedTextField(
+                        value = refreshToken,
+                        onValueChange = { refreshToken = it },
+                        label = { Text("Refresh Token") },
+                        singleLine = true
+                    )
+                    Row {
+                        Text("Режим песочницы")
+                        Switch(
+                            checked = sandbox,
+                            onCheckedChange = { sandbox = it }
+                        )
+                    }
+                    Button(onClick = {
+                        if (refreshToken.isNotBlank()) {
+                            ServiceLocator.saveBrokerCredentials("bcs", refreshToken, sandbox)
+                            // Можно сразу инициализировать API
+                            try {
+                                val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
+                                bcsApi?.initialize(refreshToken, sandbox)
+                                statusMessage = "Подключено к БКС (${if (sandbox) "песочница" else "боевой"})"
+                                isError = false
+                            } catch (e: Exception) {
+                                statusMessage = "Ошибка подключения: ${e.message}"
+                                isError = true
+                            }
+                        }
+                    }) {
+                        Text("Подключиться")
+                    }
+                }
+            }
+
             else -> {
                 Text("Настройки для брокера $selectedBroker пока не реализованы.")
             }

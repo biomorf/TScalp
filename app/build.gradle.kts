@@ -115,4 +115,8 @@ dependencies {
 
     // Обязательная зависимость для ManagedChannel
     implementation("io.grpc:grpc-stub:1.57.2")
+
+    // BCS Broker
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
 }
