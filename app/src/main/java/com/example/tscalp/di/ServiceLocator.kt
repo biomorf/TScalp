@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import ru.ttech.piapi.core.InvestApi
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.BuildConfig
+import com.example.tscalp.data.api.MockBrokerApi
 
 /**
  * ///Глобальный синглтон для хранения клиента InvestApi, брокер‑менеджера и настроек.
@@ -111,9 +112,12 @@ object ServiceLocator {
      */
     fun getBrokerManager(): BrokerManager {
         return brokerManager ?: synchronized(this) {
-            brokerManager ?: BrokerManager(mapOf("tinkoff" to TinkoffInvestService())).also {
-                brokerManager = it
-            }
+            brokerManager ?: BrokerManager(
+                mapOf(
+                    "tinkoff" to TinkoffInvestService(),
+                    "mock" to MockBrokerApi()   // <-- тестовый брокер
+                )
+            ).also { brokerManager = it }
         }
     }
 
