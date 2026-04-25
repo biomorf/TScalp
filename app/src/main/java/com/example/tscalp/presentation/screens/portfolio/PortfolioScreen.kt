@@ -205,17 +205,21 @@ fun PortfolioPositionCard(
     instrumentType: String = "",
     priceChangePercent: Double? = null
 ) {
+    // Обновлённая палитра для цветовой полосы под Material 3
     val typeColor = when (instrumentType) {
-        "share" -> Color(0xFF1976D2)
-        "bond" -> Color(0xFFFFA000)
-        "etf" -> Color(0xFF388E3C)
-        "currency" -> Color(0xFF7B1FA2)
-        else -> Color.Gray
+        "share" -> Color(0xFF1565C0)      // Глубокий синий для акций
+        "bond" -> Color(0xFFE65100)      // Приглушённый оранжевый для облигаций
+        "etf" -> Color(0xFF2E7D32)       // Насыщенный зелёный для фондов
+        "currency" -> Color(0xFF6A1B9A)  // Фиолетовый для валют
+        else -> Color(0xFF757575)        // Серый для неизвестных типов
     }
 
-    val priceColor = if (priceChangePercent != null) {
-        if (priceChangePercent >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-    } else MaterialTheme.colorScheme.onSurface
+    // Определяем цвет цены в зависимости от направления изменения
+    val priceColor = when {
+        priceChangePercent == null -> MaterialTheme.colorScheme.onSurface
+        priceChangePercent >= 0 -> Color(0xFF2E7D32)   // Зелёный при росте
+        else -> Color(0xFFC62828)                      // Красный при падении
+    }
 
     val backgroundColor = if (isSelected) {
         MaterialTheme.colorScheme.secondaryContainer
@@ -229,17 +233,18 @@ fun PortfolioPositionCard(
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
-        Row(modifier = Modifier.padding(start = 4.dp)) {
+        Row(modifier = Modifier.padding(start = 3.dp)) { // Полоса стала тоньше (3dp)
             // Цветовая полоса слева
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(30.dp) // <-- 3dp вместо 4dp
                     .height(IntrinsicSize.Max)
                     .background(typeColor)
             )
 
+            // Основной контент карточки
             Column(modifier = Modifier.padding(12.dp)) {
-                // Верхний ряд: тикер, название, текущая цена (за единицу)
+                // Верхний ряд: тикер, название и текущая цена
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -247,8 +252,14 @@ fun PortfolioPositionCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(position.ticker, fontWeight = FontWeight.Bold)
-                        Text(position.name, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        Text(
+                            position.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
+                    // Правая часть: только цена за штуку и процент изменения
                     if (position.currentPrice > 0) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
@@ -270,7 +281,7 @@ fun PortfolioPositionCard(
                     }
                 }
 
-                // Количество и общая стоимость (только если позиция есть)
+                // Блок с количеством и общей стоимостью (только если позиция есть)
                 if (position.quantity != 0L) {
                     Divider(modifier = Modifier.padding(vertical = 4.dp))
                     Row(
@@ -281,6 +292,7 @@ fun PortfolioPositionCard(
                             Text("Количество", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("${position.quantity} шт.", style = MaterialTheme.typography.bodyMedium)
                         }
+                        // Показываем общую стоимость с правильной подписью
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Стоимость", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(formatCurrency(position.totalValue), style = MaterialTheme.typography.bodyMedium)
@@ -288,7 +300,7 @@ fun PortfolioPositionCard(
                     }
                 }
 
-                // Прибыль/убыток (P&L) показываем отдельно, если позиция есть
+                // Прибыль/убыток (P&L) – отдельно, если есть
                 if (position.quantity != 0L && position.profit != 0.0) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -299,12 +311,12 @@ fun PortfolioPositionCard(
                             Text(
                                 formatCurrency(position.profit),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                color = if (position.profit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
                             )
                             Text(
                                 "(${"%.2f".format(position.profitPercent)}%)",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                color = if (position.profit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
                             )
                         }
                     }
