@@ -23,6 +23,15 @@ import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
 import java.util.*
+import kotlinx.coroutines.delay
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.draw.scale
 
 @Composable
 fun PortfolioScreen(
@@ -206,23 +215,36 @@ fun PortfolioPositionCard(
     isSelected: Boolean = false,
     instrumentType: String = "",
     priceChangePercent: Double? = null,
-    brokerName: String? = null,        // <-- новый параметр
+    brokerName: String? = null,
     accountName: String? = null
 ) {
-    // Обновлённая палитра для цветовой полосы под Material 3
-    val typeColor = when (instrumentType) {
-        "share" -> Color(0xFF1565C0)      // Глубокий синий для акций
-        "bond" -> Color(0xFFE65100)      // Приглушённый оранжевый для облигаций
-        "etf" -> Color(0xFF2E7D32)       // Насыщенный зелёный для фондов
-        "currency" -> Color(0xFF6A1B9A)  // Фиолетовый для валют
-        else -> Color(0xFF757575)        // Серый для неизвестных типов
-    }
-
-    // Определяем цвет цены в зависимости от направления изменения
-    val priceColor = when {
+    // --- Анимация цвета цены ---
+    val targetPriceColor = when {
         priceChangePercent == null -> MaterialTheme.colorScheme.onSurface
-        priceChangePercent >= 0 -> Color(0xFF2E7D32)   // Зелёный при росте
-        else -> Color(0xFFC62828)                      // Красный при падении
+        priceChangePercent >= 0 -> Color(0xFF2E7D32)   // зелёный
+        else -> Color(0xFFC62828)                      // красный
+    }
+    val priceColor by animateColorAsState(targetPriceColor, animationSpec = tween(600))
+
+    // --- Анимация масштаба при изменении цены ---
+    var priceChanged by remember { mutableStateOf(false) }
+    LaunchedEffect(position.currentPrice) {
+        priceChanged = true
+        delay(500)
+        priceChanged = false
+    }
+    val textScale by animateFloatAsState(
+        targetValue = if (priceChanged) 1.05f else 1f,
+        animationSpec = spring()
+    )
+
+    // --- Остальной код карточки ---
+    val typeColor = when (instrumentType) {
+        "share" -> Color(0xFF1565C0)
+        "bond" -> Color(0xFFE65100)
+        "etf" -> Color(0xFF2E7D32)
+        "currency" -> Color(0xFF6A1B9A)
+        else -> Color(0xFF757575)
     }
 
     val backgroundColor = if (isSelected) {
@@ -237,18 +259,17 @@ fun PortfolioPositionCard(
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
-        Row(modifier = Modifier.height(IntrinsicSize.Max).padding(start = 3.dp)) {
+        Row(modifier = Modifier.padding(start = 3.dp)) { // Полоса тоньше
             // Цветовая полоса слева
             Box(
                 modifier = Modifier
                     .width(3.dp)
-                    .fillMaxHeight()
+                    .height(IntrinsicSize.Max)
                     .background(typeColor)
             )
 
-            // Основной контент карточки
             Column(modifier = Modifier.padding(12.dp)) {
-                // Верхний ряд: тикер, название и текущая цена
+                // Верхний ряд: тикер, название, текущая цена
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -263,14 +284,14 @@ fun PortfolioPositionCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    // Правая часть: только цена за штуку и процент изменения
                     if (position.currentPrice > 0) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 formatCurrency(position.currentPrice),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = priceColor
+                                color = priceColor,
+                                modifier = Modifier.scale(textScale)  // <-- вместо textScale
                             )
                             if (priceChangePercent != null) {
                                 Text(
@@ -285,9 +306,7 @@ fun PortfolioPositionCard(
                     }
                 }
 
-
-
-                // Блок с количеством и общей стоимостью (только если позиция есть)
+                // Блок с количеством и общей стоимостью (если позиция есть)
                 if (position.quantity != 0L) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
@@ -301,11 +320,21 @@ fun PortfolioPositionCard(
                             Text("Количество", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("${position.quantity} шт.", style = MaterialTheme.typography.bodyMedium)
                         }
-                        // Показываем общую стоимость с правильной подписью
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Стоимость", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(formatCurrency(position.totalValue), style = MaterialTheme.typography.bodyMedium)
                         }
+                    }
+                }
+
+                // Показываем брокера и счёт, если заданы
+                if (!brokerName.isNullOrBlank() && !accountName.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Брокер/Счёт", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$brokerName / $accountName", style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
@@ -328,17 +357,6 @@ fun PortfolioPositionCard(
                                 color = if (position.profit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
                             )
                         }
-                    }
-                }
-
-                // Показываем брокера и счёт, если заданы
-                if (!brokerName.isNullOrBlank() && !accountName.isNullOrBlank()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Брокер/Счёт", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$brokerName / $accountName", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
