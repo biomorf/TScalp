@@ -1,6 +1,7 @@
 package com.example.tscalp.di
 
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.data.api.MockBrokerApi
 
 class BrokerManager(private val brokers: Map<String, BrokerApi>) {
 

@@ -205,7 +205,9 @@ fun PortfolioPositionCard(
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
     instrumentType: String = "",
-    priceChangePercent: Double? = null
+    priceChangePercent: Double? = null,
+    brokerName: String? = null,        // <-- новый параметр
+    accountName: String? = null
 ) {
     // Обновлённая палитра для цветовой полосы под Material 3
     val typeColor = when (instrumentType) {
@@ -326,6 +328,17 @@ fun PortfolioPositionCard(
                                 color = if (position.profit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
                             )
                         }
+                    }
+                }
+
+                // Показываем брокера и счёт, если заданы
+                if (!brokerName.isNullOrBlank() && !accountName.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Брокер/Счёт", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$brokerName / $accountName", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

@@ -31,7 +31,9 @@ fun SwipeablePositionCard(
     onSettings: () -> Unit,
     onClick: () -> Unit,
     isSelected: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    brokerName: String? = null,      // <-- новый параметр
+    accountName: String? = null
 ) {
     val density = LocalDensity.current
     var offsetX by remember { mutableFloatStateOf(0f) }
@@ -83,7 +85,9 @@ fun SwipeablePositionCard(
                 onClick = onClick,
                 isSelected = isSelected,
                 instrumentType = instrumentType,
-                priceChangePercent = priceChangePercent
+                priceChangePercent = priceChangePercent,
+                brokerName = brokerName,          // <-- пробрасываем
+                accountName = accountName
             )
         }
     }

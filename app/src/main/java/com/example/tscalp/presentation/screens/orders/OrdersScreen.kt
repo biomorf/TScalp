@@ -36,6 +36,10 @@ fun OrdersScreen(
     viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    fun getAccountName(accountId: String?, accounts: List<AccountUi>): String {
+        if (accountId.isNullOrBlank()) return "Не выбран"
+        return accounts.find { it.id == accountId }?.name ?: accountId.take(8) + "…"
+    }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }
 
@@ -129,7 +133,9 @@ fun OrdersScreen(
                         onDelete = { viewModel.removeLastSelectedInstrument(card.instrument.figi) },
                         onSettings = { viewModel.openBrokerDialog(card.instrument.figi) },
                         onClick = { viewModel.onInstrumentSelected(card.instrument) },
-                        isSelected = isActive
+                        isSelected = isActive,
+                        brokerName = card.brokerName,      // <-- строка из карточки
+                        accountName = getAccountName(card.accountId, uiState.accounts) // <-- преобразуем ID в имя
                     )
                 }
             }
@@ -329,8 +335,17 @@ fun StatusCard(message: String, isError: Boolean, onDismiss: () -> Unit) {
     }
 }
 
+
 fun formatCurrency(value: Double): String {
     val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
     format.currency = Currency.getInstance("RUB")
     return format.format(value)
+}
+
+/**
+ * Возвращает название счёта по его ID или "Не выбран".
+ */
+fun getAccountName(accountId: String?, accounts: List<AccountUi>): String {
+    if (accountId == null) return "Не выбран"
+    return accounts.find { it.id == accountId }?.name ?: accountId.take(8)
 }
