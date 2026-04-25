@@ -17,6 +17,9 @@ import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tscalp.data.api.BcsBrokerApi
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun SettingsScreen() {
@@ -79,6 +82,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
     var showToken by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(selectedBroker) {
         val creds = ServiceLocator.loadBrokerCredentials(selectedBroker)
@@ -306,16 +310,16 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                     }
                     Button(onClick = {
                         if (refreshToken.isNotBlank()) {
-                            ServiceLocator.saveBrokerCredentials("bcs", refreshToken, sandbox)
-                            // Можно сразу инициализировать API
-                            try {
-                                val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
-                                bcsApi?.initialize(refreshToken, sandbox)
-                                statusMessage = "Подключено к БКС (${if (sandbox) "песочница" else "боевой"})"
-                                isError = false
-                            } catch (e: Exception) {
-                                statusMessage = "Ошибка подключения: ${e.message}"
-                                isError = true
+                            scope.launch {
+                                try {
+                                    val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
+                                    bcsApi?.initialize(refreshToken, sandbox)
+                                    statusMessage = "Подключено к БКС (${if (sandbox) "песочница" else "боевой"})"
+                                    isError = false
+                                } catch (e: Exception) {
+                                    statusMessage = "Ошибка подключения: ${e.message}"
+                                    isError = true
+                                }
                             }
                         }
                     }) {

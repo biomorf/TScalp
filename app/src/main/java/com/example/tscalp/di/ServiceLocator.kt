@@ -6,6 +6,8 @@ import ru.ttech.piapi.core.InvestApi
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.BuildConfig
 import com.example.tscalp.data.api.MockBrokerApi
+import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.data.api.BcsBrokerApi
 
 /**
  * ///Глобальный синглтон для хранения клиента InvestApi, брокер‑менеджера и настроек.
@@ -107,13 +109,12 @@ object ServiceLocator {
     fun getToken(): String? = prefs.getString("api_token", null)
 
     private fun createBrokerManager(): BrokerManager {
-        return BrokerManager(
-            mapOf(
-                "tinkoff" to TinkoffInvestService(),
-                "mock" to MockBrokerApi()),
-                "bcs" to BcsBrokerApi()
-            )
+        val brokers: Map<String, BrokerApi> = mapOf(
+            "tinkoff" to TinkoffInvestService(),
+            "mock" to MockBrokerApi(),
+            "bcs" to BcsBrokerApi()
         )
+        return BrokerManager(brokers)
     }
 
     /**
