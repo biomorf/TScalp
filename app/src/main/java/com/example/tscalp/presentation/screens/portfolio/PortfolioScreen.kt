@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -233,12 +234,12 @@ fun PortfolioPositionCard(
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
-        Row(modifier = Modifier.padding(start = 3.dp)) { // Полоса стала тоньше (3dp)
+        Row(modifier = Modifier.height(IntrinsicSize.Max).padding(start = 3.dp)) {
             // Цветовая полоса слева
             Box(
                 modifier = Modifier
-                    .width(30.dp) // <-- 3dp вместо 4dp
-                    .height(IntrinsicSize.Max)
+                    .width(3.dp)
+                    .fillMaxHeight()
                     .background(typeColor)
             )
 
