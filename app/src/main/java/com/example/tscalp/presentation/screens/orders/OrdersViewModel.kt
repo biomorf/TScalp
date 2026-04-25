@@ -268,6 +268,85 @@ class OrdersViewModel(
             // тихо игнорируем, чтобы не спамить ошибками
         }
     }
+
+    /**
+     * Открывает диалог настроек для указанного инструмента.
+     */
+    fun openBrokerDialog(instrumentFigi: String) {
+        _uiState.update {
+            it.copy(
+                showBrokerDialog = true,
+                dialogInstrumentFigi = instrumentFigi,
+                selectedBroker = "tinkoff",                // по умолчанию Т‑Инвестиции
+                selectedAccountIdDialog = null              // счёт будет выбран позже
+            )
+        }
+        // Загружаем счета для брокера по умолчанию (можно сделать асинхронно, но пока синхронно через launch)
+        viewModelScope.launch {
+            loadDialogAccounts("tinkoff")
+        }
+    }
+
+    /**
+     * Закрывает диалог без сохранения.
+     */
+    fun closeBrokerDialog() {
+        _uiState.update { it.copy(showBrokerDialog = false, dialogInstrumentFigi = null) }
+    }
+
+    /**
+     * Обрабатывает выбор брокера в диалоге – загружает его счета.
+     */
+    fun onBrokerSelected(brokerName: String) {
+        _uiState.update { it.copy(selectedBroker = brokerName, selectedAccountIdDialog = null) }
+        viewModelScope.launch {
+            loadDialogAccounts(brokerName)
+        }
+    }
+
+    /**
+     * Обрабатывает выбор счёта в диалоге.
+     */
+    fun onAccountSelectedDialog(accountId: String) {
+        _uiState.update { it.copy(selectedAccountIdDialog = accountId) }
+    }
+
+    /**
+     * Сохраняет выбранные настройки для инструмента и закрывает диалог.
+     */
+    fun saveBrokerSettings() {
+        val figi = _uiState.value.dialogInstrumentFigi ?: return
+        val broker = _uiState.value.selectedBroker
+        val accountId = _uiState.value.selectedAccountIdDialog
+
+        // Обновляем соответствующую карточку в lastSelectedInstruments
+        _uiState.update { state ->
+            state.copy(
+                lastSelectedInstruments = state.lastSelectedInstruments.map { card ->
+                    if (card.instrument.figi == figi) {
+                        card.copy(brokerName = broker, accountId = accountId)
+                    } else card
+                },
+                showBrokerDialog = false,
+                dialogInstrumentFigi = null
+            )
+        }
+    }
+
+    /**
+     * Загружает счета для указанного брокера и сохраняет их во временный список (можно добавить поле в UIState).
+     * Пока для простоты будем хранить список счетов в локальной переменной диалога.
+     */
+    private suspend fun loadDialogAccounts(brokerName: String) {
+        try {
+            val sandboxMode = ServiceLocator.isSandboxMode()
+            val accounts = repository.getAccounts(brokerName, sandboxMode)
+            // Сохраним счета в состоянии для диалога (можно добавить поле dialogAccounts: List<AccountUi>)
+            _uiState.update { it.copy(dialogAccounts = accounts) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Не удалось загрузить счета для $brokerName", e)
+        }
+    }
 }
 
 class OrdersViewModelFactory : ViewModelProvider.Factory {

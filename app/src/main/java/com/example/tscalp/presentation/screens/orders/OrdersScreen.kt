@@ -27,6 +27,8 @@ import java.util.*
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard // если компонент будет вынесен
 import com.example.tscalp.ui.components.SwipeablePositionCard
+import com.example.tscalp.ui.components.BrokerAccountDialog
+import com.example.tscalp.domain.models.AccountUi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,10 +127,7 @@ fun OrdersScreen(
                         instrumentType = card.instrument.instrumentType,
                         priceChangePercent = card.priceChangePercent,
                         onDelete = { viewModel.removeLastSelectedInstrument(card.instrument.figi) },
-                        onSettings = {
-                            // Пока заглушка, в будущем откроем диалог выбора брокера/счета
-                            // Можно показать Toast, но пока просто ничего
-                        },
+                        onSettings = { viewModel.openBrokerDialog(card.instrument.figi) },
                         onClick = { viewModel.onInstrumentSelected(card.instrument) },
                         isSelected = isActive
                     )
@@ -257,6 +256,24 @@ fun OrdersScreen(
         // Статус выполнения
         uiState.statusMessage?.let { message ->
             StatusCard(message = message, isError = uiState.isError, onDismiss = { viewModel.clearStatus() })
+        }
+
+        // Диалог настроек брокера/счёта
+        if (uiState.showBrokerDialog) {
+            val availableBrokers = remember { ServiceLocator.getBrokerManager().getAvailableBrokers() }
+            // Счета для диалога пока загружаем в ViewModel (можно добавить поле dialogAccounts)
+            // Для простоты будем передавать пустой список, а загрузку сделаем позже.
+            // В реальном коде нужно хранить счета в состоянии (dialogAccounts) и передавать сюда.
+            BrokerAccountDialog(
+                availableBrokers = availableBrokers,
+                selectedBroker = uiState.selectedBroker,
+                onBrokerSelected = { viewModel.onBrokerSelected(it) },
+                accounts = uiState.dialogAccounts, // TODO: заменить на uiState.dialogAccounts
+                selectedAccountId = uiState.selectedAccountIdDialog,
+                onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
+                onDismiss = { viewModel.closeBrokerDialog() },
+                onSave = { viewModel.saveBrokerSettings() }
+            )
         }
     }
 }

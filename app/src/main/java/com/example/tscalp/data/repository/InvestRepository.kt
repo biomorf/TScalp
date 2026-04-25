@@ -12,6 +12,15 @@ import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.InstrumentResponse
 import ru.tinkoff.piapi.contract.v1.MoneyValue
 
+data class InstrumentUi(
+    val figi: String,
+    val ticker: String,
+    val name: String,
+    val currency: String,
+    val lot: Int,
+    val instrumentType: String = ""   /// тип инструмента: share, bond, etf, currency
+)
+
 /**
  * ///Репозиторий – преобразует контракты API в доменные модели приложения.
  */
@@ -23,8 +32,35 @@ class InvestRepository(
         private const val TAG = "InvestRepository"
     }
 
+    /**
+     * Получает счета для брокера по умолчанию (Tinkoff).
+     * Оставлен для совместимости с существующим кодом.
+     */
     suspend fun getAccounts(sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
         val accounts = brokerManager.getDefaultBroker().getAccounts(sandboxMode)
+        accounts.map { account ->
+            AccountUi(
+                id = account.id,
+                name = account.name,
+                type = when (account.typeValue) {
+                    1 -> AccountType.BROKER
+                    2 -> AccountType.IIS
+                    3 -> AccountType.INVEST_BOX
+                    else -> AccountType.BROKER
+                }
+            )
+        }
+    }
+
+    /**
+     * Получает список счетов для указанного брокера.
+     * @param brokerName имя брокера (например, "tinkoff")
+     * @param sandboxMode режим песочницы
+     */
+    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+        val accounts = broker.getAccounts(sandboxMode)
         accounts.map { account ->
             AccountUi(
                 id = account.id,
@@ -149,12 +185,3 @@ class InvestRepository(
         brokerManager.getDefaultBroker().sandboxPayIn(accountId, money)
     }
 }
-
-data class InstrumentUi(
-    val figi: String,
-    val ticker: String,
-    val name: String,
-    val currency: String,
-    val lot: Int,
-    val instrumentType: String = ""   /// тип инструмента: share, bond, etf, currency
-)
