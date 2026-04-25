@@ -26,6 +26,7 @@ import java.text.NumberFormat
 import java.util.*
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard // если компонент будет вынесен
+import com.example.tscalp.ui.components.SwipeablePositionCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,7 +106,6 @@ fun OrdersScreen(
             Text("Последние просмотренные", style = MaterialTheme.typography.titleSmall)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(uiState.lastSelectedInstruments) { card ->
-                    // Создаём PortfolioPosition из данных карточки
                     val position = PortfolioPosition(
                         figi = card.instrument.figi,
                         name = card.instrument.name,
@@ -115,18 +115,22 @@ fun OrdersScreen(
                         totalValue = (card.currentPrice ?: 0.0) * card.quantity,
                         profit = card.profit ?: 0.0,
                         profitPercent = card.profitPercent ?: 0.0,
-                        instrumentType = card.instrument.instrumentType
+                        instrumentType = card.instrument.instrumentType,
+                        priceChangePercent = card.priceChangePercent
                     )
-
-                    // Определяем, активна ли эта карточка
                     val isActive = uiState.selectedInstrument?.figi == card.instrument.figi
 
-                    PortfolioPositionCard(
+                    SwipeablePositionCard(
                         position = position,
+                        instrumentType = card.instrument.instrumentType,
+                        priceChangePercent = card.priceChangePercent,
+                        onDelete = { viewModel.removeLastSelectedInstrument(card.instrument.figi) },
+                        onSettings = {
+                            // Пока заглушка, в будущем откроем диалог выбора брокера/счета
+                            // Можно показать Toast, но пока просто ничего
+                        },
                         onClick = { viewModel.onInstrumentSelected(card.instrument) },
-                        isSelected = isActive,
-                        instrumentType = position.instrumentType,
-                        priceChangePercent = position.priceChangePercent
+                        isSelected = isActive
                     )
                 }
             }

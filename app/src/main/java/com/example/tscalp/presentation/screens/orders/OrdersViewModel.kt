@@ -160,6 +160,12 @@ class OrdersViewModel(
         }
     }
 
+    fun removeLastSelectedInstrument(figi: String) {
+        _uiState.update { state ->
+            state.copy(lastSelectedInstruments = state.lastSelectedInstruments.filter { it.instrument.figi != figi })
+        }
+    }
+
     fun setSearchActive(active: Boolean) {
         _uiState.update { it.copy(isSearchActive = active) }
         if (active) { _uiState.update { it.copy(searchResults = emptyList(), searchQuery = "") } }

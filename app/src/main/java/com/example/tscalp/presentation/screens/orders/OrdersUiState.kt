@@ -16,7 +16,9 @@ data class SelectedInstrumentInfo(
     val quantity: Long,
     val averagePrice: Double?,
     val profit: Double?,
-    val profitPercent: Double?
+    val profitPercent: Double?,
+    val brokerName: String = "tinkoff",   // брокер по умолчанию
+    val accountId: String? = null
 )
 
 data class OrdersUiState(
