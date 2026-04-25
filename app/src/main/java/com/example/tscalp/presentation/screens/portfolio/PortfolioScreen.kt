@@ -312,6 +312,31 @@ fun PortfolioPositionCard(
     }
 }
 
+@Composable
+fun EmptyPortfolioCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "📊 Портфель пуст",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = "У вас нет активных позиций",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
 fun formatCurrency(value: Double): String {
     val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
     format.currency = Currency.getInstance("RUB")
