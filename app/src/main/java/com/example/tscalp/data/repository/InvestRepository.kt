@@ -85,7 +85,8 @@ class InvestRepository(
                 currentPrice = currentPrice,
                 totalValue = totalValue,
                 profit = 0.0,
-                profitPercent = 0.0
+                profitPercent = 0.0,
+                instrumentType = instrument.instrumentType
             )
         }
     }
@@ -113,7 +114,7 @@ class InvestRepository(
                     name = instrument.name,
                     currency = instrument.currency,
                     lot = instrument.lot,
-                    instrumentType = short.instrumentType
+                    instrumentType = instrument.instrumentType
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "Не удалось получить полный инструмент для ${short.figi}, используем краткие данные")
@@ -123,7 +124,7 @@ class InvestRepository(
                     name = short.name,
                     currency = "—",
                     lot = 1,
-                    instrumentType = short.instrumentType
+                    instrumentType = instrument.instrumentType
                 )
             }
         }

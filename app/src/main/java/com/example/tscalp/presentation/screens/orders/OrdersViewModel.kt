@@ -236,7 +236,17 @@ class OrdersViewModel(
             // Обновляем lastSelectedInstruments
             val updatedLastSelected = state.lastSelectedInstruments.map { card ->
                 val newPrice = prices[card.instrument.figi] ?: card.currentPrice
-                card.copy(currentPrice = newPrice)
+                // Сравниваем с предыдущей ценой (если есть)
+                val previousPrice = card.currentPrice ?: newPrice
+                val changePercent = if (previousPrice != null && previousPrice != 0.0 && newPrice != null) {
+                    ((newPrice - previousPrice) / previousPrice) * 100.0
+                } else null
+
+                card.copy(
+                    currentPrice = newPrice,
+                    previousPrice = previousPrice,
+                    priceChangePercent = changePercent
+                )
             }
             // Обновляем currentPrice, если выбранный инструмент совпадает
             val newCurrentPrice = state.selectedInstrument?.let { sel ->

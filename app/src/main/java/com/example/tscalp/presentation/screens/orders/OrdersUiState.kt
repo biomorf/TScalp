@@ -10,6 +10,7 @@ import com.example.tscalp.domain.models.PortfolioPosition
 data class SelectedInstrumentInfo(
     val instrument: InstrumentUi,
     val currentPrice: Double?,
+    val previousPrice: Double? = null,
     val priceChange: Double?,
     val priceChangePercent: Double?,
     val quantity: Long,

@@ -1,10 +1,11 @@
 package com.example.tscalp.presentation.screens.portfolio
 
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -219,62 +220,71 @@ fun PortfolioPositionCard(
     position: PortfolioPosition,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    isSelected: Boolean = false
+    isSelected: Boolean = false,
+    instrumentType: String = ""
 ) {
-    val backgroundColor = if (isSelected) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
+
+    // Цвет полосы в зависимости от типа инструмента
+    val typeColor = when (instrumentType) {
+        "share" -> Color(0xFF1976D2)      // синий для акций
+        "bond" -> Color(0xFFFFA000)       // оранжевый для облигаций
+        "etf" -> Color(0xFF388E3C)        // зелёный для фондов
+        "currency" -> Color(0xFF7B1FA2)   // фиолетовый для валют
+        else -> Color.Gray
     }
+
+    // Цвет цены в зависимости от изменения
+    val priceColor = if (position.priceChangePercent != null) {
+        if (position.priceChangePercent >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+    } else MaterialTheme.colorScheme.onSurface
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = 200.dp)   // ← ограничение высоты
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+        colors = CardDefaults.cardColors(containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Верхний ряд: тикер, название, текущая цена
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = position.ticker,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = position.name,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-                // Текущая рыночная цена (отображается всегда, если известна)
-                if (position.currentPrice > 0) {
-                    val priceColor = if (position.quantity != 0L && position.profit != 0.0) {
-                        if (position.currentPrice >= (position.totalValue / position.quantity)) Color(0xFF4CAF50) else Color(0xFFF44336)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    }
-                    Text(
-                        text = formatCurrency(position.currentPrice),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = priceColor
-                    )
-                } else {
-                    Text("—", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                }
-            }
+        Row(modifier = Modifier.padding(start = 4.dp)) {
+            // Цветовая полоса слева
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(IntrinsicSize.Max)
+                    .background(typeColor)
+            )
 
+            Column(modifier = Modifier.padding(12.dp)) {
+                // Верхний ряд: тикер, название, текущая цена
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(position.ticker, fontWeight = FontWeight.Bold)
+                        Text(position.name, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    }
+                    if (position.currentPrice > 0) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                formatCurrency(position.currentPrice),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = priceColor
+                            )
+                            // Процент изменения
+                            if (position.priceChangePercent != null) {
+                                Text(
+                                    "${if (position.priceChangePercent >= 0) "+" else ""}${"%.2f".format(position.priceChangePercent)}%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = priceColor
+                                )
+                            }
+                        }
+                    } else {
+                        Text("—", fontWeight = FontWeight.Bold)
+                    }
+                }
             Divider(modifier = Modifier.padding(vertical = 4.dp))
 
             // Количество, средняя цена, P&L – показываем только если позиция есть (quantity != 0)
