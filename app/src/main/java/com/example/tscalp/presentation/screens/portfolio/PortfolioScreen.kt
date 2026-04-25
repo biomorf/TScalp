@@ -162,7 +162,8 @@ fun PortfolioScreen(
                 items(uiState.positions) { position ->
                     PortfolioPositionCard(
                         position = position,
-                        instrumentType = position.instrumentType
+                        instrumentType = position.instrumentType,
+                        priceChangePercent = position.priceChangePercent
                     )
                 }
             }
@@ -201,7 +202,8 @@ fun PortfolioPositionCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
-    instrumentType: String = ""
+    instrumentType: String = "",
+    priceChangePercent: Double? = null
 ) {
     val typeColor = when (instrumentType) {
         "share" -> Color(0xFF1976D2)
@@ -211,8 +213,8 @@ fun PortfolioPositionCard(
         else -> Color.Gray
     }
 
-    val priceColor = if (position.priceChangePercent != null) {
-        if (position.priceChangePercent >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+    val priceColor = if (priceChangePercent != null) {
+        if (priceChangePercent >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
     } else MaterialTheme.colorScheme.onSurface
 
     val backgroundColor = if (isSelected) {
@@ -255,9 +257,9 @@ fun PortfolioPositionCard(
                                 fontWeight = FontWeight.Bold,
                                 color = priceColor
                             )
-                            if (position.priceChangePercent != null) {
+                            if (priceChangePercent != null) {
                                 Text(
-                                    "${if (position.priceChangePercent >= 0) "+" else ""}${"%.2f".format(position.priceChangePercent)}%",
+                                    "${if (priceChangePercent >= 0) "+" else ""}${"%.2f".format(priceChangePercent)}%",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = priceColor
                                 )

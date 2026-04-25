@@ -39,11 +39,13 @@ class PortfolioViewModel(
         }
         if (isApiInit) {
             viewModelScope.launch {
+                /// ??????
                 viewModelScope.launch {
                     loadPortfolio()
+                    startPriceUpdates()
                 }
             }
-            startPriceUpdates()
+
         }
     }
 
@@ -132,9 +134,15 @@ class PortfolioViewModel(
             val prices = repository.getLastPrices(figis)
             val updatedPositions = positions.map { pos ->
                 val newPrice = prices[pos.figi] ?: pos.currentPrice
+                val previousPrice = pos.currentPrice  // сохраняем старую цену как предыдущую
+                val changePercent = if (previousPrice != 0.0 && newPrice != null) {
+                    ((newPrice - previousPrice) / previousPrice) * 100.0
+                } else null
+
                 pos.copy(
                     currentPrice = newPrice,
-                    totalValue = newPrice * pos.quantity
+                    totalValue = newPrice * pos.quantity,
+                    priceChangePercent = changePercent
                 )
             }
             val newTotalValue = updatedPositions.sumOf { it.totalValue }
