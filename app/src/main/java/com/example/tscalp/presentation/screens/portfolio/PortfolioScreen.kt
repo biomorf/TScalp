@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.domain.models.PortfolioPosition
 import java.text.NumberFormat
+import java.util.Currency
+import java.util.Locale
 import java.util.*
 
 @Composable
@@ -158,7 +160,10 @@ fun PortfolioScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(uiState.positions) { position ->
-                    PortfolioPositionCard(position = position)
+                    PortfolioPositionCard(
+                        position = position,
+                        instrumentType = position.instrumentType
+                    )
                 }
             }
         }
@@ -262,7 +267,11 @@ fun PortfolioPositionCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(position.ticker, fontWeight = FontWeight.Bold)
-                        Text(position.name, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        Text(
+                            position.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1
+                        )
                     }
                     if (position.currentPrice > 0) {
                         Column(horizontalAlignment = Alignment.End) {
@@ -275,7 +284,11 @@ fun PortfolioPositionCard(
                             // Процент изменения
                             if (position.priceChangePercent != null) {
                                 Text(
-                                    "${if (position.priceChangePercent >= 0) "+" else ""}${"%.2f".format(position.priceChangePercent)}%",
+                                    "${if (position.priceChangePercent >= 0) "+" else ""}${
+                                        "%.2f".format(
+                                            position.priceChangePercent
+                                        )
+                                    }%",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = priceColor
                                 )
@@ -285,66 +298,44 @@ fun PortfolioPositionCard(
                         Text("—", fontWeight = FontWeight.Bold)
                     }
                 }
-            Divider(modifier = Modifier.padding(vertical = 4.dp))
+                Divider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // Количество, средняя цена, P&L – показываем только если позиция есть (quantity != 0)
-            if (position.quantity != 0L) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "Количество",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "${position.quantity} шт.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "Текущая цена",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formatCurrency(position.currentPrice),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-
-                // Прибыль/убыток
-                if (position.profit != 0.0) {
+                // Количество, средняя цена, P&L – показываем только если позиция есть (quantity != 0)
+                if (position.quantity != 0L) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "P&L",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column {
                             Text(
-                                text = formatCurrency(position.profit),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                text = "Количество",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "(${"%.2f".format(position.profitPercent)}%)",
+                                text = "${position.quantity} шт.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Текущая цена",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = formatCurrency(position.currentPrice),
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
                     }
+
                 }
             }
         }
+
     }
+
 }
 
 fun formatCurrency(value: Double): String {
