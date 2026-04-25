@@ -125,7 +125,8 @@ fun OrdersScreen(
                         position = position,
                         onClick = { viewModel.onInstrumentSelected(card.instrument) },
                         isSelected = isActive,
-                        instrumentType = position.instrumentType
+                        instrumentType = position.instrumentType,
+                        priceChangePercent = position.priceChangePercent
                     )
                 }
             }

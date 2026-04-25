@@ -239,7 +239,7 @@ fun PortfolioPositionCard(
             )
 
             Column(modifier = Modifier.padding(12.dp)) {
-                // Верхний ряд: тикер, название, текущая цена
+                // Верхний ряд: тикер, название, текущая цена (за единицу)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -270,7 +270,7 @@ fun PortfolioPositionCard(
                     }
                 }
 
-                // Количество, цена и P&L (только если позиция есть)
+                // Количество и общая стоимость (только если позиция есть)
                 if (position.quantity != 0L) {
                     Divider(modifier = Modifier.padding(vertical = 4.dp))
                     Row(
@@ -282,30 +282,30 @@ fun PortfolioPositionCard(
                             Text("${position.quantity} шт.", style = MaterialTheme.typography.bodyMedium)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Текущая цена", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatCurrency(position.currentPrice), style = MaterialTheme.typography.bodyMedium)
+                            Text("Стоимость", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(formatCurrency(position.totalValue), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
+                }
 
-                    // P&L
-                    if (position.profit != 0.0) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("P&L", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    formatCurrency(position.profit),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                                )
-                                Text(
-                                    "(${"%.2f".format(position.profitPercent)}%)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                                )
-                            }
+                // Прибыль/убыток (P&L) показываем отдельно, если позиция есть
+                if (position.quantity != 0L && position.profit != 0.0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("P&L", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                formatCurrency(position.profit),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            )
+                            Text(
+                                "(${"%.2f".format(position.profitPercent)}%)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            )
                         }
                     }
                 }
