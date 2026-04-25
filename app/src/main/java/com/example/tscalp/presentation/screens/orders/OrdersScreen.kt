@@ -114,7 +114,8 @@ fun OrdersScreen(
                         currentPrice = card.currentPrice ?: card.averagePrice ?: 0.0,
                         totalValue = (card.currentPrice ?: 0.0) * card.quantity,
                         profit = card.profit ?: 0.0,
-                        profitPercent = card.profitPercent ?: 0.0
+                        profitPercent = card.profitPercent ?: 0.0,
+                        instrumentType = card.instrument.instrumentType
                     )
 
                     // Определяем, активна ли эта карточка
@@ -123,7 +124,8 @@ fun OrdersScreen(
                     PortfolioPositionCard(
                         position = position,
                         onClick = { viewModel.onInstrumentSelected(card.instrument) },
-                        isSelected = isActive
+                        isSelected = isActive,
+                        instrumentType = position.instrumentType
                     )
                 }
             }
