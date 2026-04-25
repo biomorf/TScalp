@@ -1,6 +1,5 @@
 package com.example.tscalp.presentation.screens.portfolio
 
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -196,58 +196,36 @@ fun ApiNotInitializedCard() {
 }
 
 @Composable
-fun EmptyPortfolioCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "📊 Портфель пуст",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = "У вас нет активных позиций",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
 fun PortfolioPositionCard(
-    modifier: Modifier = Modifier,
     position: PortfolioPosition,
+    modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
-    instrumentType: position.instrumentType
+    instrumentType: String = ""
 ) {
-
-    // Цвет полосы в зависимости от типа инструмента
     val typeColor = when (instrumentType) {
-        "share" -> Color(0xFF1976D2)      // синий для акций
-        "bond" -> Color(0xFFFFA000)       // оранжевый для облигаций
-        "etf" -> Color(0xFF388E3C)        // зелёный для фондов
-        "currency" -> Color(0xFF7B1FA2)   // фиолетовый для валют
+        "share" -> Color(0xFF1976D2)
+        "bond" -> Color(0xFFFFA000)
+        "etf" -> Color(0xFF388E3C)
+        "currency" -> Color(0xFF7B1FA2)
         else -> Color.Gray
     }
 
-    // Цвет цены в зависимости от изменения
     val priceColor = if (position.priceChangePercent != null) {
         if (position.priceChangePercent >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
     } else MaterialTheme.colorScheme.onSurface
+
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
         Row(modifier = Modifier.padding(start = 4.dp)) {
             // Цветовая полоса слева
@@ -267,11 +245,7 @@ fun PortfolioPositionCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(position.ticker, fontWeight = FontWeight.Bold)
-                        Text(
-                            position.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1
-                        )
+                        Text(position.name, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
                     if (position.currentPrice > 0) {
                         Column(horizontalAlignment = Alignment.End) {
@@ -281,14 +255,9 @@ fun PortfolioPositionCard(
                                 fontWeight = FontWeight.Bold,
                                 color = priceColor
                             )
-                            // Процент изменения
                             if (position.priceChangePercent != null) {
                                 Text(
-                                    "${if (position.priceChangePercent >= 0) "+" else ""}${
-                                        "%.2f".format(
-                                            position.priceChangePercent
-                                        )
-                                    }%",
+                                    "${if (position.priceChangePercent >= 0) "+" else ""}${"%.2f".format(position.priceChangePercent)}%",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = priceColor
                                 )
@@ -298,44 +267,49 @@ fun PortfolioPositionCard(
                         Text("—", fontWeight = FontWeight.Bold)
                     }
                 }
-                Divider(modifier = Modifier.padding(vertical = 4.dp))
 
-                // Количество, средняя цена, P&L – показываем только если позиция есть (quantity != 0)
+                // Количество, цена и P&L (только если позиция есть)
                 if (position.quantity != 0L) {
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text(
-                                text = "Количество",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${position.quantity} шт.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Text("Количество", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${position.quantity} шт.", style = MaterialTheme.typography.bodyMedium)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "Текущая цена",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = formatCurrency(position.currentPrice),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Text("Текущая цена", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(formatCurrency(position.currentPrice), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
 
+                    // P&L
+                    if (position.profit != 0.0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("P&L", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    formatCurrency(position.profit),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                )
+                                Text(
+                                    "(${"%.2f".format(position.profitPercent)}%)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (position.profit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
-
     }
-
 }
 
 fun formatCurrency(value: Double): String {
