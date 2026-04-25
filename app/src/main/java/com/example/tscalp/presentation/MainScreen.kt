@@ -1,5 +1,7 @@
 package com.example.tscalp.presentation
 
+import androidx.navigation.compose.*
+
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height

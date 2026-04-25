@@ -138,4 +138,34 @@ object ServiceLocator {
     fun setConfirmOrdersEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("confirm_orders_enabled", enabled).apply()
     }
+
+    /**
+     * Сохраняет токен и режим песочницы для указанного брокера.
+     */
+    fun saveBrokerCredentials(brokerName: String, token: String, sandbox: Boolean) {
+        prefs.edit()
+            .putString("${brokerName}_token", token)
+            .putBoolean("${brokerName}_sandbox", sandbox)
+            .apply()
+    }
+
+    /**
+     * Загружает токен и режим песочницы для указанного брокера.
+     * @return Pair(token, sandbox) или null, если настройки не найдены.
+     */
+    fun loadBrokerCredentials(brokerName: String): Pair<String, Boolean>? {
+        val token = prefs.getString("${brokerName}_token", null) ?: return null
+        val sandbox = prefs.getBoolean("${brokerName}_sandbox", true)
+        return Pair(token, sandbox)
+    }
+
+    /**
+     * Удаляет сохранённые настройки для указанного брокера.
+     */
+    fun clearBrokerCredentials(brokerName: String) {
+        prefs.edit()
+            .remove("${brokerName}_token")
+            .remove("${brokerName}_sandbox")
+            .apply()
+    }
 }
