@@ -289,8 +289,7 @@ fun PortfolioPositionCard(
                 if (position.quantity != 0L) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
-                        thickness = 1.dp,
-                        color = Color.White.copy(alpha = 0.15f)
+                        color = MaterialTheme.colorScheme.outline
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
