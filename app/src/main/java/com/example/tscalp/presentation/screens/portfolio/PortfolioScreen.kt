@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -282,9 +283,14 @@ fun PortfolioPositionCard(
                     }
                 }
 
+
+
                 // Блок с количеством и общей стоимостью (только если позиция есть)
                 if (position.quantity != 0L) {
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
