@@ -47,14 +47,7 @@ fun SwipeablePositionCard(
                 .width(buttonWidth * 2),
             horizontalArrangement = Arrangement.End
         ) {
-            IconButton(
-                onClick = onSettings,
-                modifier = Modifier
-                    .size(buttonWidth)
-                    .background(Color(0xFF757575), shape = CircleShape)
-            ) {
-                Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
-            }
+            // Кнопка "Удалить" (красная) — теперь вторая, дальше
             IconButton(
                 onClick = onDelete,
                 modifier = Modifier
@@ -62,6 +55,15 @@ fun SwipeablePositionCard(
                     .background(Color(0xFFC62828), shape = CircleShape)
             ) {
                 Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
+            }
+            // Кнопка "Настройки" (серая) — первая, ближе
+            IconButton(
+                onClick = onSettings,
+                modifier = Modifier
+                    .size(buttonWidth)
+                    .background(Color(0xFF757575), shape = CircleShape)
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
             }
         }
 
@@ -71,7 +73,7 @@ fun SwipeablePositionCard(
                 .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .draggable(
                     state = rememberDraggableState { delta ->
-                        offsetX = (offsetX - delta).coerceIn(-thresholdPx, 0f)
+                        offsetX = (offsetX + delta).coerceIn(-thresholdPx, 0f)
                     },
                     orientation = Orientation.Horizontal
                 )
