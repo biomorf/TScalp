@@ -1,6 +1,7 @@
 package com.example.tscalp.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -31,9 +33,10 @@ fun SwipeablePositionCard(
     isSelected: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val density = LocalDensity.current
     var offsetX by remember { mutableFloatStateOf(0f) }
     val buttonWidth = 72.dp
-    val threshold = buttonWidth * 2 // порог для открытия обеих кнопок
+    val thresholdPx = with(density) { (buttonWidth * 2).toPx() }  // Преобразуем в пиксели
 
     Box(modifier = modifier.fillMaxWidth()) {
         // Кнопки подложки
@@ -68,8 +71,9 @@ fun SwipeablePositionCard(
                 .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .draggable(
                     state = rememberDraggableState { delta ->
-                        offsetX = (offsetX - delta).coerceIn(-threshold.toPx(), 0f)
-                    }
+                        offsetX = (offsetX - delta).coerceIn(-thresholdPx, 0f)
+                    },
+                    orientation = Orientation.Horizontal
                 )
         ) {
             PortfolioPositionCard(
