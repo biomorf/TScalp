@@ -18,7 +18,8 @@ data class PortfolioPosition(
     val currentPrice: Double,
     val totalValue: Double,
     val profit: Double = 0.0,
-    val profitPercent: Double =0.0
+    val profitPercent: Double =0.0,
+    val instrumentType: String = ""
 )
 
 data class OrderResult(

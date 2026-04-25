@@ -217,11 +217,11 @@ fun EmptyPortfolioCard() {
 
 @Composable
 fun PortfolioPositionCard(
-    position: PortfolioPosition,
     modifier: Modifier = Modifier,
+    position: PortfolioPosition,
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
-    instrumentType: String = ""
+    instrumentType: position.instrumentType
 ) {
 
     // Цвет полосы в зависимости от типа инструмента

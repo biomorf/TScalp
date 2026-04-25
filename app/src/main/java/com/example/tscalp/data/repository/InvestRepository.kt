@@ -86,7 +86,7 @@ class InvestRepository(
                 totalValue = totalValue,
                 profit = 0.0,
                 profitPercent = 0.0,
-                instrumentType = instrument.instrumentType
+                instrumentType = instrument.instrumentType ?: ""
             )
         }
     }
