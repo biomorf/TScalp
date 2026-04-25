@@ -182,37 +182,49 @@ class OrdersViewModel(
         val state = _uiState.value
         val figi = state.figi
         val quantity = state.quantityAsLong ?: return
-        val accountId = state.selectedAccountId ?: return
+        // Определяем, есть ли персональные настройки для выбранного инструмента
+        val activeCard = state.lastSelectedInstruments.find { it.instrument.figi == figi }
+        val brokerName = activeCard?.brokerName ?: "tinkoff"
+        val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
+        val sandboxMode = ServiceLocator.isSandboxMode() // или можно разрешить переопределение в карточке, но пока так
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                val result = repository.postMarketOrder(figi = figi, quantity = quantity, direction = direction, accountId = accountId, sandboxMode = sandboxMode)
-                // Дожидаемся актуального портфеля
-                val updatedPositions = loadPortfolio()
+                // Используем новый метод с указанием брокера
+                val result = repository.postMarketOrder(
+                    brokerName = brokerName,
+                    figi = figi,
+                    quantity = quantity,
+                    direction = direction,
+                    accountId = accountId,
+                    sandboxMode = sandboxMode
+                )
 
-// Обновляем карточки последних просмотренных
-                val updatedLastSelected = _uiState.value.lastSelectedInstruments.map { card ->
-                    val pos = updatedPositions.find { it.figi == card.instrument.figi }
-                    card.copy(
-                        quantity = pos?.quantity ?: 0L,
-                        averagePrice = pos?.currentPrice ?: card.averagePrice,
-                        profit = pos?.profit ?: 0.0,
-                        profitPercent = pos?.profitPercent ?: 0.0
-                    )
+                val directionText = when (direction) {
+                    OrderDirection.ORDER_DIRECTION_BUY -> "покупка"
+                    OrderDirection.ORDER_DIRECTION_SELL -> "продажа"
+                    else -> "операция"
                 }
 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "✅ Заявка выполнена!...",
+                        statusMessage = "✅ Заявка на $directionText выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов",
                         isError = false,
-                        quantity = "",
-                        lastSelectedInstruments = updatedLastSelected
+                        quantity = ""
                     )
                 }
+                // Обновляем портфель (пока только для дефолтного брокера)
+                loadPortfolio()
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "❌ Ошибка: ${e.message}", isError = true) }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "❌ Ошибка: ${e.message}",
+                        isError = true
+                    )
+                }
             }
         }
     }
@@ -345,6 +357,7 @@ class OrdersViewModel(
             _uiState.update { it.copy(dialogAccounts = accounts) }
         } catch (e: Exception) {
             Log.e(TAG, "Не удалось загрузить счета для $brokerName", e)
+            //_uiState.update { it.copy(dialogAccounts = emptyList()) }
         }
     }
 }

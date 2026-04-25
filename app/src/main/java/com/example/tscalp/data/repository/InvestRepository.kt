@@ -75,14 +75,20 @@ class InvestRepository(
         }
     }
 
+    /**
+     * Отправляет рыночную заявку через указанного брокера.
+     */
     suspend fun postMarketOrder(
+        brokerName: String,
         figi: String,
         quantity: Long,
         direction: OrderDirection,
         accountId: String,
         sandboxMode: Boolean
     ): OrderResult = withContext(Dispatchers.IO) {
-        val response = brokerManager.getDefaultBroker().postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
+        val broker = brokerManager.getBroker(brokerName)
+            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+        val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
         OrderResult(
             orderId = response.orderId,
             executedLots = response.lotsExecuted,

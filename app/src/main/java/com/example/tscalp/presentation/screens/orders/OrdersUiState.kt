@@ -43,7 +43,7 @@ data class OrdersUiState(
     val dialogInstrumentFigi: String? = null,       // FIGI инструмента, для которого открыт диалог
     val selectedBroker: String = "tinkoff",         // выбранный брокер в диалоге
     val selectedAccountIdDialog: String? = null,     // выбранный счёт в диалоге
-    val dialogAccounts: List<AccountUi> = emptyList()
+    val dialogAccounts: List<AccountUi> = emptyList()     // счета для диалога
 ) {
     val isFormValid: Boolean
         get() = selectedInstrument != null && quantity.toLongOrNull()?.let { it > 0 } == true && selectedAccountId != null && isApiInitialized
