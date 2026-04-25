@@ -124,7 +124,7 @@ class InvestRepository(
                     name = short.name,
                     currency = "—",
                     lot = 1,
-                    instrumentType = instrument.instrumentType
+                    instrumentType = "unknown"
                 )
             }
         }
