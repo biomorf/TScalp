@@ -33,6 +33,8 @@ import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard
 import java.text.NumberFormat
 import java.util.*
 import com.example.tscalp.ui.components.SwipeablePositionCard
+import com.example.tscalp.ui.components.BrokerAccountDialog
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,7 +82,7 @@ fun OrdersScreen(
             return@Column
         }
 
-        // Основной поиск (с историей)
+        // ========== Основной поиск (с историей) ==========
         InstrumentSearchField(
             query = uiState.searchQuery,
             onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
@@ -95,7 +97,7 @@ fun OrdersScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Основная карточка выбранного инструмента
+        // ========== Основная карточка (свайпабельная) ==========
         uiState.selectedInstrument?.let { instrument ->
             val portfolioPos = uiState.portfolioPositions.find { it.figi == instrument.figi }
             val position = PortfolioPosition(
@@ -121,7 +123,7 @@ fun OrdersScreen(
             )
         }
 
-        // Поле количества с кнопками +/-
+        // ========== Поле количества с кнопками ± ==========
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -169,7 +171,7 @@ fun OrdersScreen(
             Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
         }
 
-        // Переключатель парной торговли
+        // ========== Переключатель «Парная торговля» ==========
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -182,8 +184,9 @@ fun OrdersScreen(
             )
         }
 
-        // Блок парного инструмента
+        // ========== Блок парного инструмента (появляется при включённом переключателе) ==========
         if (uiState.pairTradingEnabled) {
+            // Второй поиск
             InstrumentSearchField(
                 query = uiState.pairSearchQuery,
                 onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
@@ -197,22 +200,45 @@ fun OrdersScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            uiState.pairedInstrument?.let { paired ->
-                Column {
-                    ResultItemCard(instrument = paired, onClick = {})
-                    OutlinedTextField(
-                        value = uiState.pairedMultiplier,
-                        onValueChange = { viewModel.onPairedMultiplierChanged(it) },
-                        label = null,
-                        placeholder = { Text("Множитель") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        textStyle = MaterialTheme.typography.bodyMedium
-                    )
-                }
+            // ========== Парная карточка (свайпабельная) и поле множителя ==========
+            uiState.pairedInstrument?.let { instrument ->
+                val portfolioPos = uiState.portfolioPositions.find { it.figi == instrument.figi }
+                val pairPrice = uiState.currentPrice  // пока используем ту же цену, что у основного
+                val position = PortfolioPosition(
+                    figi = instrument.figi,
+                    name = instrument.name,
+                    ticker = instrument.ticker,
+                    quantity = portfolioPos?.quantity ?: 0L,
+                    currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,
+                    totalValue = (pairPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
+                    profit = portfolioPos?.profit ?: 0.0,
+                    profitPercent = portfolioPos?.profitPercent ?: 0.0,
+                    instrumentType = instrument.instrumentType,
+                    priceChangePercent = null
+                )
+
+                SwipeablePositionCard(
+                    position = position,
+                    instrumentType = instrument.instrumentType,
+                    priceChangePercent = null,
+                    onDelete = { viewModel.clearPairSearch() },
+                    onSettings = { viewModel.openBrokerDialog(instrument.figi) },
+                    onClick = { },
+                    isSelected = false
+                )
+
+                OutlinedTextField(
+                    value = uiState.pairedMultiplier,
+                    onValueChange = { viewModel.onPairedMultiplierChanged(it) },
+                    label = null,
+                    placeholder = { Text("Множитель") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium
+                )
             }
         }
 
@@ -295,6 +321,20 @@ fun OrdersScreen(
                 message = message,
                 isError = uiState.isError,
                 onDismiss = { viewModel.clearStatus() }
+            )
+        }
+
+        if (uiState.showBrokerDialog) {
+            val availableBrokers = ServiceLocator.getBrokerManager().getAvailableBrokers()
+            BrokerAccountDialog(
+                availableBrokers = availableBrokers,
+                selectedBroker = uiState.selectedBroker,
+                onBrokerSelected = { viewModel.onBrokerSelected(it) },
+                accounts = uiState.dialogAccounts,
+                selectedAccountId = uiState.selectedAccountIdDialog,
+                onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
+                onDismiss = { viewModel.closeBrokerDialog() },
+                onSave = { viewModel.saveBrokerSettings() }
             )
         }
     }
