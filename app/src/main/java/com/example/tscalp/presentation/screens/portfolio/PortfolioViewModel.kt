@@ -56,10 +56,9 @@ class PortfolioViewModel(
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val allPositions = mutableListOf<PortfolioPosition>()
 
-                // Получаем имена всех зарегистрированных брокеров
+                // Обходим всех зарегистрированных брокеров
                 val brokerNames = ServiceLocator.getBrokerManager().getAvailableBrokers()
                 for (brokerName in brokerNames) {
-                    // Получаем брокера по имени
                     val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: continue
                     if (!broker.isInitialized) continue
 
@@ -68,31 +67,13 @@ class PortfolioViewModel(
                         val accounts = broker.getAccounts(sandboxMode)
                         for (account in accounts) {
                             try {
-                                val portfolioResponse = broker.getPortfolio(account.id, sandboxMode)
-                                // Преобразуем позиции из PortfolioResponse в PortfolioPosition
-                                val positions = portfolioResponse.positionsList.mapNotNull { pos ->
-                                    val instrument = try {
-                                        broker.getInstrumentByFigi(pos.figi).instrument
-                                    } catch (e: Exception) {
-                                        null
-                                    }
-                                    if (instrument != null) {
-                                        val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
-                                        val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                                        val totalValue = currentPrice * quantity
-                                        PortfolioPosition(
-                                            figi = pos.figi,
-                                            name = instrument.name,
-                                            ticker = instrument.ticker,
-                                            quantity = quantity,
-                                            currentPrice = currentPrice,
-                                            totalValue = totalValue,
-                                            instrumentType = instrument.instrumentType ?: "",
-                                            brokerName = brokerName   // <-- используем имя из цикла
-                                        )
-                                    } else null
+                                // ★ Используем новый метод getPositions вместо getPortfolio
+                                val positions = broker.getPositions(account.id, sandboxMode)
+                                // Добавляем имя брокера к каждой позиции (если getPositions ещё не сделал этого)
+                                val positionsWithBroker = positions.map {
+                                    if (it.brokerName.isBlank()) it.copy(brokerName = brokerName) else it
                                 }
-                                allPositions.addAll(positions)
+                                allPositions.addAll(positionsWithBroker)
                             } catch (e: Exception) {
                                 Log.w(TAG, "Ошибка загрузки портфеля для счета ${account.id} брокера $brokerName", e)
                             }
@@ -102,7 +83,7 @@ class PortfolioViewModel(
                     }
                 }
 
-                // Сортируем по имени брокера, чтобы группы были вместе
+                // Сортируем по имени брокера
                 allPositions.sortBy { it.brokerName }
 
                 val totalValue = allPositions.sumOf { it.totalValue }

@@ -11,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import ru.tinkoff.piapi.contract.v1.*
 import java.io.IOException
+import com.example.tscalp.domain.models.PortfolioPosition
 
 /**
  * Реализация BrokerApi для брокера БКС (Мир Инвестиций).
@@ -24,7 +25,7 @@ class BcsBrokerApi : BrokerApi {
         private const val TOKEN_PATH = "/trade-api-keycloak/realms/tradeapi/protocol/openid-connect/token"
         // Остальные пути оставляем прежними (при необходимости их тоже можно будет заменить)
         private const val ACCOUNTS_PATH = "/api/v1/users/accounts"
-        private const val PORTFOLIO_PATH = "/api/v1/portfolio"
+        private const val PORTFOLIO_PATH = "/trade-api-bff-portfolio/api/v1/portfolio"
         private const val ORDERS_PATH = "/api/v1/orders"
         private const val INSTRUMENTS_PATH = "/api/v1/securities"
         private const val MARKET_DATA_PATH = "/api/v1/marketdata"
@@ -161,14 +162,35 @@ class BcsBrokerApi : BrokerApi {
             .build()
     }
 
-    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {
-        // У БКС портфель, вероятно, возвращается по GET /api/v1/portfolio?accountId=...
+    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
         val response = makeRequest("GET", "$PORTFOLIO_PATH?accountId=$accountId")
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
+
         val json = response.body?.string() ?: throw IOException("Пустой ответ")
-        // Парсим ответ и мапим в PortfolioResponse (positionsList)
-        // Поскольку структура ответа отличается, пока вернём пустой портфель.
-        // Полная реализация позже.
+        val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
+
+        val positionsList = portfolioData["positions"] as? List<*> ?: emptyList<Any>()
+        return positionsList.mapNotNull { posItem ->
+            val posMap = posItem as? Map<String, Any> ?: return@mapNotNull null
+            val figi = posMap["figi"] as? String ?: return@mapNotNull null
+            val name = posMap["name"] as? String ?: ""
+            val ticker = posMap["ticker"] as? String ?: ""
+            val quantity = (posMap["quantity"] as? Number)?.toLong() ?: 0L
+            val currentPrice = (posMap["currentPrice"] as? Number)?.toDouble() ?: 0.0
+            PortfolioPosition(
+                figi = figi,
+                name = name,
+                ticker = ticker,
+                quantity = quantity,
+                currentPrice = currentPrice,
+                totalValue = currentPrice * quantity,
+                brokerName = "bcs"
+            )
+        }
+    }
+
+    // Старый getPortfolio можно оставить пустым или вовсе удалить, но для совместимости пусть возвращает пустой ответ.
+    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {
         return PortfolioResponse.newBuilder().build()
     }
 

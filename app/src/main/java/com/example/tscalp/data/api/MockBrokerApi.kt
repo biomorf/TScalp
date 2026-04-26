@@ -3,6 +3,7 @@ package com.example.tscalp.data.api
 import com.example.tscalp.domain.api.BrokerApi
 import ru.tinkoff.piapi.contract.v1.GetMarginAttributesResponse
 import ru.tinkoff.piapi.contract.v1.*
+import com.example.tscalp.domain.models.PortfolioPosition
 
 
 /**
@@ -60,6 +61,11 @@ class MockBrokerApi : BrokerApi {
     override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {
         // Возвращаем пустой портфель
         return PortfolioResponse.newBuilder().build()
+    }
+
+    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
+        // Для заглушки возвращаем пустой список позиций
+        return emptyList()
     }
 
     override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
