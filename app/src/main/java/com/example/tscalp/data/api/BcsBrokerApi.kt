@@ -93,20 +93,35 @@ class BcsBrokerApi : BrokerApi {
     }
 
     // Вспомогательный метод для отправки запросов
+    /**
+     * Выполняет HTTP-запрос к API БКС с автоматическим добавлением access-токена.
+     * @param method HTTP-метод (GET, POST, PUT)
+     * @param path путь относительно baseUrl
+     * @param body тело запроса (для POST/PUT)
+     * @return Response
+     */
     private suspend fun makeRequest(
         method: String,
         path: String,
         body: RequestBody? = null
     ): Response = withContext(Dispatchers.IO) {
         ensureAccessToken()
+        val fullUrl = "$PROD_BASE_URL$path"
+
+        // Временное логирование – увидим точный URL
+        Log.d("BcsBrokerApi", "Запрос: $method $fullUrl")
+
         val requestBuilder = Request.Builder()
-            .url("$PROD_BASE_URL$path")
+            .url(fullUrl)
             .header("Authorization", "Bearer $accessToken")
-        when (method) {
+            .header("Content-Type", "application/json") // на случай POST/PUT, не помешает
+
+        when (method.uppercase()) {
             "GET" -> requestBuilder.get()
-            "POST" -> requestBuilder.post(body ?: "{}".toRequestBody())
-            "PUT" -> requestBuilder.put(body ?: "{}".toRequestBody())
+            "POST" -> requestBuilder.post(body ?: "{}".toRequestBody("application/json".toMediaType()))
+            "PUT" -> requestBuilder.put(body ?: "{}".toRequestBody("application/json".toMediaType()))
         }
+
         client.newCall(requestBuilder.build()).execute()
     }
 
@@ -116,71 +131,78 @@ class BcsBrokerApi : BrokerApi {
      * Получаем счета через эндпоинт портфеля.
      * Из ответа извлекаем accountId и название счета, чтобы создать список Account.
      */
+    /**
+     * Получает счета. Сначала запрашивает портфель, чтобы извлечь accountId.
+     * Если ответ содержит массив "accounts" – использует его, иначе – создаёт один счёт из "brokerAccountId".
+     */
+    /**
+     * Получает счета на основе ответа портфеля.
+     * Используем первый элемент массива, чтобы извлечь номер счёта (поле "account").
+     */
     override suspend fun getAccounts(sandboxMode: Boolean): List<Account> {
-        // Запрашиваем портфель, чтобы получить данные о счетах
         val response = makeRequest("GET", PORTFOLIO_PATH)
         if (!response.isSuccessful) throw IOException("Ошибка получения данных портфеля: ${response.code}")
 
         val json = response.body?.string() ?: throw IOException("Пустой ответ")
-        val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
+        // Ответ – это массив позиций
+        val positionsArray: List<Map<String, Any>> = gson.fromJson(json, object : TypeToken<List<Map<String, Any>>>() {}.type)
 
-        // Пытаемся найти массив счетов (accounts) в ответе
-        val accountsList = portfolioData["accounts"] as? List<*>
-        // Если accounts нет, создаем один счет на основе информации из самого ответа
-        if (accountsList.isNullOrEmpty()) {
-            // Пытаемся получить ID счета из другого поля, например "brokerAccountId"
-            val accountId = portfolioData["brokerAccountId"] as? String ?: "bcs-default"
-            // Название счета можно попробовать взять из "accountName" или задать по умолчанию
-            val accountName = portfolioData["accountName"] as? String ?: "БКС Счёт"
+        if (positionsArray.isEmpty()) {
             return listOf(
                 Account.newBuilder()
-                    .setId(accountId)
-                    .setName(accountName)
-                    .setTypeValue(1) // Брокерский счет
+                    .setId("bcs-default")
+                    .setName("БКС Счёт")
+                    .setTypeValue(1)
                     .build()
             )
         }
 
-        // Если accounts есть, маппим их
-        return accountsList.mapNotNull { acc ->
-            val accMap = acc as? Map<String, Any> ?: return@mapNotNull null
+        val firstPosition = positionsArray[0]
+        val accountId = firstPosition["account"] as? String ?: "bcs-default"
+        val accountName = firstPosition["account"] as? String ?: "БКС Счёт"
+
+        return listOf(
             Account.newBuilder()
-                .setId(accMap["id"] as? String ?: accMap["brokerAccountId"] as? String ?: "")
-                .setName(accMap["name"] as? String ?: accMap["accountName"] as? String ?: "")
+                .setId(accountId)
+                .setName(accountName)
                 .setTypeValue(1)
                 .build()
-        }
+        )
     }
 
     /**
-     * Получаем позиции портфеля.
+     * Получает позиции портфеля.
+     * Ответ от сервера — массив JSON-объектов.
      */
     override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
         val response = makeRequest("GET", PORTFOLIO_PATH)
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
         val json = response.body?.string() ?: throw IOException("Пустой ответ")
-        val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
+        Log.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
 
-        // Позиции могут быть в поле "positions" или "portfolio"
-        val positionsList = portfolioData["positions"] as? List<*>
-            ?: portfolioData["portfolio"] as? List<*>
-            ?: emptyList<Any>()
+        // ✅ ГЛАВНОЕ ИСПРАВЛЕНИЕ: читаем ответ как МАССИВ, а не как ОБЪЕКТ
+        val portfolioArray: List<Map<String, Any>> = gson.fromJson(
+            json,
+            object : TypeToken<List<Map<String, Any>>>() {}.type
+        )
 
-        return positionsList.mapNotNull { posItem ->
-            val posMap = posItem as? Map<String, Any> ?: return@mapNotNull null
-            val figi = posMap["figi"] as? String ?: return@mapNotNull null
-            val name = posMap["name"] as? String ?: ""
-            val ticker = posMap["ticker"] as? String ?: figi
+        return portfolioArray.mapNotNull { posMap: Map<String, Any> ->
+            val ticker = posMap["ticker"] as? String ?: return@mapNotNull null
+            val exchange = posMap["exchange"] as? String ?: ""
+            val figi = if (exchange.isNotEmpty()) "$ticker:$exchange" else ticker
+            val name = posMap["displayName"] as? String ?: ticker
             val quantity = (posMap["quantity"] as? Number)?.toLong() ?: 0L
             val currentPrice = (posMap["currentPrice"] as? Number)?.toDouble() ?: 0.0
+            val totalValue = (posMap["currentValue"] as? Number)?.toDouble() ?: (currentPrice * quantity)
+
             PortfolioPosition(
                 figi = figi,
                 name = name,
                 ticker = ticker,
                 quantity = quantity,
                 currentPrice = currentPrice,
-                totalValue = currentPrice * quantity,
+                totalValue = totalValue,
                 brokerName = "bcs"
             )
         }
