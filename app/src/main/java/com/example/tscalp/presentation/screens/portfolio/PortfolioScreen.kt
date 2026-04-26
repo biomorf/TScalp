@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.HorizontalDivider
@@ -36,12 +38,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.draw.scale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
     viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory())
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Автоматическое обновление при открытии вкладки
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -49,161 +53,113 @@ fun PortfolioScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        /// Заголовок с кнопкой обновления
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Портфель",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            IconButton(
-                onClick = { viewModel.refresh() },
-                enabled = !uiState.isLoading && uiState.isApiInitialized
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Обновить"
-                )
-            }
-        }
-
-        /// Проверка инициализации API
-        if (!uiState.isApiInitialized) {
-            ApiNotInitializedCard()
-            return@Column
-        }
-
-        /// Индикатор загрузки
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    CircularProgressIndicator()
-                    Text("Загрузка портфеля...")
-                }
-            }
-            return@Column
-        }
-
-        // Свободные средства и кнопка пополнения
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("Свободные средства", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        formatCurrency(uiState.balance),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                // Кнопка пополнения только в песочнице
-                if (uiState.sandboxMode) {
-                    Button(onClick = { viewModel.payInSandbox() }) {
-                        Text("Пополнить")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Портфель") },
+                actions = {
+                    IconButton(
+                        onClick = { viewModel.refresh() },
+                        enabled = !uiState.isLoading && uiState.isApiInitialized
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                     }
                 }
+            )
+        }
+    ) { paddingValues ->
+        if (!uiState.isApiInitialized) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                ApiNotInitializedCard()
             }
+            return@Scaffold
         }
 
-        /// Общая стоимость портфеля
-        if (uiState.totalValue > 0) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Общая стоимость",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = formatCurrency(uiState.totalValue),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Индикатор загрузки
+            if (uiState.isLoading) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                        Text("Загрузка портфеля...", modifier = Modifier.padding(start = 16.dp))
+                    }
                 }
+                return@LazyColumn
             }
-        }
 
-        /// Статусное сообщение
-        uiState.statusMessage?.let { message ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (uiState.isError)
-                        MaterialTheme.colorScheme.errorContainer
-                    else
-                        MaterialTheme.colorScheme.tertiaryContainer
-                )
-            ) {
-                Text(
-                    text = message,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-        }
-
-        /// Список позиций
-        if (uiState.positions.isEmpty() && !uiState.isLoading) {
-            EmptyPortfolioCard()
-        } else {
-            if (uiState.positions.isNotEmpty()) {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Группируем позиции по brokerName
-                    val grouped = uiState.positions.groupBy { it.brokerName }
-                    for ((brokerName, positions) in grouped) {
-                        // Заголовок группы
-                        item {
+            // Свободные средства и кнопка пополнения
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Свободные средства", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                text = "--- $brokerName ---",
-                                style = MaterialTheme.typography.titleSmall,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                formatCurrency(uiState.balance),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
                             )
                         }
-                        // Позиции этой группы
-                        items(positions) { position ->
-                            PortfolioPositionCard(
-                                position = position,
-                                instrumentType = position.instrumentType,
-                                priceChangePercent = position.priceChangePercent
-                            )
-                        }
-                        // Разделитель между группами (кроме последней)
-                        if (brokerName != grouped.keys.last()) {
-                            item {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        if (uiState.sandboxMode) {
+                            Button(onClick = { viewModel.payInSandbox() }) {
+                                Text("Пополнить")
                             }
                         }
                     }
                 }
+            }
+
+            // Сообщение об ошибке
+            uiState.statusMessage?.let { message ->
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (uiState.isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    ) {
+                        Text(message, modifier = Modifier.padding(16.dp))
+                    }
+                }
+            }
+
+            // Пустой портфель
+            if (uiState.positions.isEmpty()) {
+                item { EmptyPortfolioCard() }
             } else {
-                EmptyPortfolioCard()
+                // Группировка по брокерам
+                val grouped = uiState.positions.groupBy { it.brokerName }
+                for ((brokerName, positions) in grouped) {
+                    item {
+                        Text(
+                            "--- $brokerName ---",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                    items(positions) { position ->
+                        PortfolioPositionCard(
+                            position = position,
+                            instrumentType = position.instrumentType,
+                            priceChangePercent = position.priceChangePercent
+                        )
+                    }
+                    if (brokerName != grouped.keys.last()) {
+                        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+                    }
+                }
             }
         }
     }
