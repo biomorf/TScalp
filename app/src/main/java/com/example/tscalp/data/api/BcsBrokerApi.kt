@@ -19,9 +19,10 @@ import java.io.IOException
 class BcsBrokerApi : BrokerApi {
 
     companion object {
-        private const val PROD_BASE_URL = "https://trade-api.bcs.ru"
-        //private const val TOKEN_PATH = "/api/v1/oauth/token"
+        private const val PROD_BASE_URL = "https://be.broker.ru"
+        // Точный путь авторизации, как в вашем примере
         private const val TOKEN_PATH = "/trade-api-keycloak/realms/tradeapi/protocol/openid-connect/token"
+        // Остальные пути оставляем прежними (при необходимости их тоже можно будет заменить)
         private const val ACCOUNTS_PATH = "/api/v1/users/accounts"
         private const val PORTFOLIO_PATH = "/api/v1/portfolio"
         private const val ORDERS_PATH = "/api/v1/orders"
