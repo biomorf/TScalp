@@ -1,5 +1,6 @@
 package com.example.tscalp.presentation.screens.portfolio
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import com.example.tscalp.domain.models.PortfolioPosition
 
 /**
  * ViewModel для экрана портфеля.
@@ -27,6 +29,10 @@ class PortfolioViewModel(
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
     private var priceUpdateJob: Job? = null
+
+    companion object {
+        private const val TAG = "PortfolioViewModel"
+    }
 
     init {
         checkApiInitialization()
@@ -43,36 +49,69 @@ class PortfolioViewModel(
         }
     }
 
-    suspend fun loadPortfolio() {
+    fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                val accounts = repository.getAccounts(sandboxMode)
-                if (accounts.isEmpty()) {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = "Нет доступных счетов",
-                            isError = true
-                        )
+                val allPositions = mutableListOf<PortfolioPosition>()
+
+                // Получаем имена всех зарегистрированных брокеров
+                val brokerNames = ServiceLocator.getBrokerManager().getAvailableBrokers()
+                for (brokerName in brokerNames) {
+                    // Получаем брокера по имени
+                    val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: continue
+                    if (!broker.isInitialized) continue
+
+                    try {
+                        // Получаем счета брокера
+                        val accounts = broker.getAccounts(sandboxMode)
+                        for (account in accounts) {
+                            try {
+                                val portfolioResponse = broker.getPortfolio(account.id, sandboxMode)
+                                // Преобразуем позиции из PortfolioResponse в PortfolioPosition
+                                val positions = portfolioResponse.positionsList.mapNotNull { pos ->
+                                    val instrument = try {
+                                        broker.getInstrumentByFigi(pos.figi).instrument
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                    if (instrument != null) {
+                                        val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
+                                        val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                                        val totalValue = currentPrice * quantity
+                                        PortfolioPosition(
+                                            figi = pos.figi,
+                                            name = instrument.name,
+                                            ticker = instrument.ticker,
+                                            quantity = quantity,
+                                            currentPrice = currentPrice,
+                                            totalValue = totalValue,
+                                            instrumentType = instrument.instrumentType ?: "",
+                                            brokerName = brokerName   // <-- используем имя из цикла
+                                        )
+                                    } else null
+                                }
+                                allPositions.addAll(positions)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Ошибка загрузки портфеля для счета ${account.id} брокера $brokerName", e)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Не удалось получить счета брокера $brokerName", e)
                     }
-                    return@launch
                 }
-                val accountId = accounts.first().id
 
-                // Загружаем портфель и баланс параллельно (или последовательно – не важно)
-                val positions = repository.getPortfolio(accountId, sandboxMode)
-                val balance = repository.getBalance(accountId)
-                val totalValue = positions.sumOf { it.totalValue }
+                // Сортируем по имени брокера, чтобы группы были вместе
+                allPositions.sortBy { it.brokerName }
 
+                val totalValue = allPositions.sumOf { it.totalValue }
                 _uiState.update {
                     it.copy(
-                        positions = positions,
+                        positions = allPositions,
                         totalValue = totalValue,
-                        balance = balance,
                         isLoading = false,
-                        statusMessage = if (positions.isEmpty()) "Портфель пуст" else "Загружено ${positions.size} позиций",
+                        statusMessage = if (allPositions.isEmpty()) "Портфель пуст" else "Загружено ${allPositions.size} позиций",
                         isError = false
                     )
                 }

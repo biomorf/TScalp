@@ -167,16 +167,37 @@ fun PortfolioScreen(
         if (uiState.positions.isEmpty() && !uiState.isLoading) {
             EmptyPortfolioCard()
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(uiState.positions) { position ->
-                    PortfolioPositionCard(
-                        position = position,
-                        instrumentType = position.instrumentType,
-                        priceChangePercent = position.priceChangePercent
-                    )
+            if (uiState.positions.isNotEmpty()) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Группируем позиции по brokerName
+                    val grouped = uiState.positions.groupBy { it.brokerName }
+                    for ((brokerName, positions) in grouped) {
+                        // Заголовок группы
+                        item {
+                            Text(
+                                text = "--- $brokerName ---",
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+                        // Позиции этой группы
+                        items(positions) { position ->
+                            PortfolioPositionCard(
+                                position = position,
+                                instrumentType = position.instrumentType,
+                                priceChangePercent = position.priceChangePercent
+                            )
+                        }
+                        // Разделитель между группами (кроме последней)
+                        if (brokerName != grouped.keys.last()) {
+                            item {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+                    }
                 }
+            } else {
+                EmptyPortfolioCard()
             }
         }
     }
