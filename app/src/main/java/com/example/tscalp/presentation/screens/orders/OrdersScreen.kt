@@ -140,12 +140,14 @@ fun OrdersScreen(
             OutlinedTextField(
                 value = uiState.quantity,
                 onValueChange = { viewModel.onQuantityChanged(it) },
-                label = { Text("Количество лотов") },
-                placeholder = { Text("0") },
+                label = null,
+                placeholder = { Text("Кол-во лотов") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                modifier = Modifier.weight(1f),
-                isError = uiState.quantity.isNotBlank() && uiState.quantityAsLong == null,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp),
+                textStyle = MaterialTheme.typography.bodyMedium,
                 enabled = uiState.selectedInstrument != null
             )
 
@@ -201,11 +203,14 @@ fun OrdersScreen(
                     OutlinedTextField(
                         value = uiState.pairedMultiplier,
                         onValueChange = { viewModel.onPairedMultiplierChanged(it) },
-                        label = { Text("Множитель") },
-                        placeholder = { Text("1") },
+                        label = null,
+                        placeholder = { Text("Множитель") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -374,31 +379,25 @@ fun InstrumentSearchField(
                     onQueryChanged(it)
                     expanded = it.isNotEmpty() || recentInstruments.isNotEmpty()
                 },
-                label = { Text("Поиск инструмента") },
+                label = null,                              // убираем label
                 placeholder = { Text("Введите тикер или название") },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(52.dp)                        // фиксированная высота
                     .menuAnchor(),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isSearching) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                        } else if (query.isNotEmpty()) {
-                            IconButton(onClick = {
-                                onClear()
-                                expanded = false
-                            }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Очистить")
-                            }
+                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                        else if (query.isNotEmpty()) IconButton(onClick = {
+                            onClear()
+                            expanded = false
+                        }) {
+                            Icon(Icons.Default.Clear, "Очистить")
                         }
                     }
                 },
-                supportingText = {
-                    if (query.length == 1) {
-                        Text("Введите минимум 2 символа для поиска")
-                    }
-                }
+                textStyle = MaterialTheme.typography.bodyMedium  // немного уменьшим шрифт
             )
 
             ExposedDropdownMenu(
