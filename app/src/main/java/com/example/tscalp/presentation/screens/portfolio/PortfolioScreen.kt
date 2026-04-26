@@ -75,26 +75,24 @@ fun PortfolioScreen(
             return@Scaffold
         }
 
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Индикатор загрузки
             if (uiState.isLoading) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                        Text("Загрузка портфеля...", modifier = Modifier.padding(start = 16.dp))
-                    }
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-                return@LazyColumn
+                return@Column
             }
 
             // Свободные средства и кнопка пополнения
-            item {
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -119,11 +117,11 @@ fun PortfolioScreen(
                         }
                     }
                 }
-            }
+
 
             // Сообщение об ошибке
             uiState.statusMessage?.let { message ->
-                item {
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -132,24 +130,23 @@ fun PortfolioScreen(
                     ) {
                         Text(message, modifier = Modifier.padding(16.dp))
                     }
-                }
+
             }
 
             // Пустой портфель
             if (uiState.positions.isEmpty()) {
-                item { EmptyPortfolioCard() }
+                EmptyPortfolioCard()
             } else {
                 // Группировка по брокерам
                 val grouped = uiState.positions.groupBy { it.brokerName }
                 for ((brokerName, positions) in grouped) {
-                    item {
-                        Text(
+                    Text(
                             "--- $brokerName ---",
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
-                    }
-                    items(positions) { position ->
+
+                    positions.forEach { position ->
                         PortfolioPositionCard(
                             position = position,
                             instrumentType = position.instrumentType,
@@ -157,10 +154,12 @@ fun PortfolioScreen(
                         )
                     }
                     if (brokerName != grouped.keys.last()) {
-                        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
             }
+            // Распорный элемент (необязательно, но для теста можно оставить)
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
