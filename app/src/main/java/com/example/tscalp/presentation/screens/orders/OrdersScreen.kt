@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
@@ -31,6 +32,7 @@ import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard
 import java.text.NumberFormat
 import java.util.*
+import com.example.tscalp.ui.components.SwipeablePositionCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +42,7 @@ fun OrdersScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(uiState.statusMessage) {
         if (uiState.statusMessage != null && !uiState.isError) {
@@ -83,7 +86,10 @@ fun OrdersScreen(
             onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
             isSearching = uiState.isSearching,
             searchResults = uiState.searchResults,
-            onInstrumentSelected = { instrument: InstrumentUi -> viewModel.onInstrumentSelected(instrument) },
+            onInstrumentSelected = { instrument: InstrumentUi ->
+                viewModel.onInstrumentSelected(instrument)
+                focusManager.clearFocus()
+            },
             onClear = { viewModel.clearSearch() },
             recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
             modifier = Modifier.fillMaxWidth()
@@ -104,10 +110,14 @@ fun OrdersScreen(
                 instrumentType = instrument.instrumentType,
                 priceChangePercent = null
             )
-            PortfolioPositionCard(
+            SwipeablePositionCard(
                 position = position,
                 instrumentType = instrument.instrumentType,
-                priceChangePercent = null
+                priceChangePercent = null,
+                onDelete = { viewModel.clearSelectedInstrument() },
+                onSettings = { viewModel.openBrokerDialog(instrument.figi) },
+                onClick = { },
+                isSelected = false
             )
         }
 
@@ -177,7 +187,10 @@ fun OrdersScreen(
                 onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
                 isSearching = uiState.isPairSearching,
                 searchResults = uiState.pairSearchResults,
-                onInstrumentSelected = { instrument: InstrumentUi -> viewModel.onPairedInstrumentSelected(instrument) },
+                onInstrumentSelected = { instrument: InstrumentUi ->
+                    viewModel.onPairedInstrumentSelected(instrument)
+                    focusManager.clearFocus()
+                },
                 onClear = { viewModel.clearPairSearch() },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -443,6 +456,8 @@ fun InstrumentSearchField(
         }
     }
 }
+
+
 
 fun formatCurrency(value: Double): String {
     val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))

@@ -31,34 +31,22 @@ fun SwipeablePositionCard(
     onSettings: () -> Unit,
     onClick: () -> Unit,
     isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    brokerName: String? = null,      // <-- новый параметр
-    accountName: String? = null
+    modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
     var offsetX by remember { mutableFloatStateOf(0f) }
     val buttonWidth = 72.dp
-    val thresholdPx = with(density) { (buttonWidth * 2).toPx() }  // Преобразуем в пиксели
+    val threshold = buttonWidth * 2
+    val density = LocalDensity.current
 
-    Box(modifier = modifier.fillMaxWidth()) {
+    Box(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
         // Кнопки подложки
         Row(
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
+                .matchParentSize()
+                .wrapContentSize(Alignment.CenterEnd)
                 .width(buttonWidth * 2),
             horizontalArrangement = Arrangement.End
         ) {
-            // Кнопка "Удалить" (красная) — теперь вторая, дальше
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier
-                    .size(buttonWidth)
-                    .background(Color(0xFFC62828), shape = CircleShape)
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
-            }
-            // Кнопка "Настройки" (серая) — первая, ближе
             IconButton(
                 onClick = onSettings,
                 modifier = Modifier
@@ -67,15 +55,23 @@ fun SwipeablePositionCard(
             ) {
                 Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
             }
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier
+                    .size(buttonWidth)
+                    .background(Color(0xFFC62828), shape = CircleShape)
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
+            }
         }
 
-        // Карточка, которую тянем
+        // Перетаскиваемая карточка
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .draggable(
                     state = rememberDraggableState { delta ->
-                        offsetX = (offsetX + delta).coerceIn(-thresholdPx, 0f)
+                        offsetX = (offsetX + delta).coerceIn(-with(density) { threshold.toPx() }, 0f)
                     },
                     orientation = Orientation.Horizontal
                 )
@@ -85,9 +81,7 @@ fun SwipeablePositionCard(
                 onClick = onClick,
                 isSelected = isSelected,
                 instrumentType = instrumentType,
-                priceChangePercent = priceChangePercent,
-                brokerName = brokerName,          // <-- пробрасываем
-                accountName = accountName
+                priceChangePercent = priceChangePercent
             )
         }
     }

@@ -166,6 +166,18 @@ class OrdersViewModel(
         }
     }
 
+    fun clearSelectedInstrument() {
+        _uiState.update {
+            it.copy(
+                selectedInstrument = null,
+                figi = "",
+                searchQuery = "",
+                currentPrice = null,
+                isPriceLoading = false
+            )
+        }
+    }
+
     fun setSearchActive(active: Boolean) {
         _uiState.update { it.copy(isSearchActive = active) }
         if (active) { _uiState.update { it.copy(searchResults = emptyList(), searchQuery = "") } }
