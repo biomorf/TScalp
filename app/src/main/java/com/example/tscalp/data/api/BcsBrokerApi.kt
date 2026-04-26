@@ -2,6 +2,7 @@ package com.example.tscalp.data.api
 
 import android.util.Log
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.PortfolioPosition
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +12,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import ru.tinkoff.piapi.contract.v1.*
 import java.io.IOException
-import com.example.tscalp.domain.models.PortfolioPosition
 
 /**
  * Реализация BrokerApi для брокера БКС (Мир Инвестиций).
@@ -35,12 +35,10 @@ class BcsBrokerApi : BrokerApi {
     private val client = OkHttpClient()
     private val gson = Gson()
 
-    // Зависит от режима (песочница/боевой) – устанавливается при инициализации
-    private var baseUrl = PROD_BASE_URL
     private var refreshToken: String? = null
+    private var clientId: String? = null
     private var accessToken: String? = null
     private var tokenExpiry: Long = 0
-    private var clientId: String? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean
@@ -52,7 +50,6 @@ class BcsBrokerApi : BrokerApi {
     suspend fun initialize(refreshToken: String, clientId: String) {
         this.refreshToken = refreshToken
         this.clientId = clientId
-        this.baseUrl = PROD_BASE_URL
         Log.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")
         obtainAccessToken()
     }
@@ -60,26 +57,32 @@ class BcsBrokerApi : BrokerApi {
     private suspend fun obtainAccessToken() {
         val token = refreshToken ?: throw IllegalStateException("Refresh token not set")
         val cid = clientId ?: throw IllegalStateException("Client ID not set")
-
         val formBody = FormBody.Builder()
             .add("grant_type", "refresh_token")
             .add("refresh_token", token)
             .add("client_id", cid)
             .build()
-
         val request = Request.Builder()
-            .url("$baseUrl$TOKEN_PATH")
+            .url("$PROD_BASE_URL$TOKEN_PATH")
+            .header("Content-Type", "application/x-www-form-urlencoded")
             .post(formBody)
             .build()
-
-        withContext(Dispatchers.IO) {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) throw IOException("Ошибка получения access-токена: ${response.code}")
+        try {
+            val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: ""
+                Log.e("BcsBrokerApi", "Ошибка получения access-токена: ${response.code}, тело: $errorBody")
+                throw IOException("Ошибка получения access-токена: ${response.code}")
+            }
             val responseBody = response.body?.string() ?: throw IOException("Пустой ответ")
             val map: Map<String, Any> = gson.fromJson(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
-            accessToken = map["access_token"] as? String
+            accessToken = map["access_token"] as? String ?: throw IOException("Не найден access_token в ответе")
             val expiresIn = (map["expires_in"] as? Double)?.toLong() ?: 3600
             tokenExpiry = System.currentTimeMillis() + expiresIn * 1000
+            Log.d("BcsBrokerApi", "Access-токен получен успешно, истекает через $expiresIn сек")
+        } catch (e: Exception) {
+            Log.e("BcsBrokerApi", "Ошибка обмена токена", e)
+            throw e
         }
     }
 
@@ -97,7 +100,7 @@ class BcsBrokerApi : BrokerApi {
     ): Response = withContext(Dispatchers.IO) {
         ensureAccessToken()
         val requestBuilder = Request.Builder()
-            .url("$baseUrl$path")
+            .url("$PROD_BASE_URL$path")
             .header("Authorization", "Bearer $accessToken")
         when (method) {
             "GET" -> requestBuilder.get()
@@ -109,19 +112,77 @@ class BcsBrokerApi : BrokerApi {
 
     // ---------- Реализация интерфейса BrokerApi ----------
 
+    /**
+     * Получаем счета через эндпоинт портфеля.
+     * Из ответа извлекаем accountId и название счета, чтобы создать список Account.
+     */
     override suspend fun getAccounts(sandboxMode: Boolean): List<Account> {
-        val response = makeRequest("GET", ACCOUNTS_PATH)
-        if (!response.isSuccessful) throw IOException("Ошибка получения счетов: ${response.code}")
+        // Запрашиваем портфель, чтобы получить данные о счетах
+        val response = makeRequest("GET", PORTFOLIO_PATH)
+        if (!response.isSuccessful) throw IOException("Ошибка получения данных портфеля: ${response.code}")
+
         val json = response.body?.string() ?: throw IOException("Пустой ответ")
-        // Предполагаем, что возвращается массив счетов. Адаптируем под реальный ответ.
-        val accounts: List<Map<String, Any>> = gson.fromJson(json, object : TypeToken<List<Map<String, Any>>>() {}.type)
-        return accounts.map { acc ->
+        val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
+
+        // Пытаемся найти массив счетов (accounts) в ответе
+        val accountsList = portfolioData["accounts"] as? List<*>
+        // Если accounts нет, создаем один счет на основе информации из самого ответа
+        if (accountsList.isNullOrEmpty()) {
+            // Пытаемся получить ID счета из другого поля, например "brokerAccountId"
+            val accountId = portfolioData["brokerAccountId"] as? String ?: "bcs-default"
+            // Название счета можно попробовать взять из "accountName" или задать по умолчанию
+            val accountName = portfolioData["accountName"] as? String ?: "БКС Счёт"
+            return listOf(
+                Account.newBuilder()
+                    .setId(accountId)
+                    .setName(accountName)
+                    .setTypeValue(1) // Брокерский счет
+                    .build()
+            )
+        }
+
+        // Если accounts есть, маппим их
+        return accountsList.mapNotNull { acc ->
+            val accMap = acc as? Map<String, Any> ?: return@mapNotNull null
             Account.newBuilder()
-                .setId(acc["brokerAccountId"] as? String ?: "")
-                .setName(acc["accountName"] as? String ?: "")
-                // Тип счета в БКС обычно "Брокерский", для простоты ставим BROKER
-                .setTypeValue(1) // 1 = ACCOUNT_TYPE_BROKER
+                .setId(accMap["id"] as? String ?: accMap["brokerAccountId"] as? String ?: "")
+                .setName(accMap["name"] as? String ?: accMap["accountName"] as? String ?: "")
+                .setTypeValue(1)
                 .build()
+        }
+    }
+
+    /**
+     * Получаем позиции портфеля.
+     */
+    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
+        val response = makeRequest("GET", PORTFOLIO_PATH)
+        if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
+
+        val json = response.body?.string() ?: throw IOException("Пустой ответ")
+        val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
+
+        // Позиции могут быть в поле "positions" или "portfolio"
+        val positionsList = portfolioData["positions"] as? List<*>
+            ?: portfolioData["portfolio"] as? List<*>
+            ?: emptyList<Any>()
+
+        return positionsList.mapNotNull { posItem ->
+            val posMap = posItem as? Map<String, Any> ?: return@mapNotNull null
+            val figi = posMap["figi"] as? String ?: return@mapNotNull null
+            val name = posMap["name"] as? String ?: ""
+            val ticker = posMap["ticker"] as? String ?: figi
+            val quantity = (posMap["quantity"] as? Number)?.toLong() ?: 0L
+            val currentPrice = (posMap["currentPrice"] as? Number)?.toDouble() ?: 0.0
+            PortfolioPosition(
+                figi = figi,
+                name = name,
+                ticker = ticker,
+                quantity = quantity,
+                currentPrice = currentPrice,
+                totalValue = currentPrice * quantity,
+                brokerName = "bcs"
+            )
         }
     }
 
@@ -162,32 +223,6 @@ class BcsBrokerApi : BrokerApi {
             .build()
     }
 
-    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
-        val response = makeRequest("GET", "$PORTFOLIO_PATH?accountId=$accountId")
-        if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
-
-        val json = response.body?.string() ?: throw IOException("Пустой ответ")
-        val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
-
-        val positionsList = portfolioData["positions"] as? List<*> ?: emptyList<Any>()
-        return positionsList.mapNotNull { posItem ->
-            val posMap = posItem as? Map<String, Any> ?: return@mapNotNull null
-            val figi = posMap["figi"] as? String ?: return@mapNotNull null
-            val name = posMap["name"] as? String ?: ""
-            val ticker = posMap["ticker"] as? String ?: ""
-            val quantity = (posMap["quantity"] as? Number)?.toLong() ?: 0L
-            val currentPrice = (posMap["currentPrice"] as? Number)?.toDouble() ?: 0.0
-            PortfolioPosition(
-                figi = figi,
-                name = name,
-                ticker = ticker,
-                quantity = quantity,
-                currentPrice = currentPrice,
-                totalValue = currentPrice * quantity,
-                brokerName = "bcs"
-            )
-        }
-    }
 
     // Старый getPortfolio можно оставить пустым или вовсе удалить, но для совместимости пусть возвращает пустой ответ.
     override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {

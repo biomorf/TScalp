@@ -18,12 +18,12 @@ class MockBrokerApi : BrokerApi {
         Account.newBuilder()
             .setId("mock-account-1")
             .setName("Тестовый счёт (Mock)")
-            .setType(AccountType.UNRECOGNIZED)   // или .setTypeValue(1)
+            .setTypeValue(1)   // 1 = брокерский счёт
             .build(),
         Account.newBuilder()
             .setId("mock-account-2")
             .setName("ИИС (Mock)")
-            .setType(AccountType.UNRECOGNIZED)
+            .setTypeValue(2)   // 2 = ИИС
             .build()
     )
 
