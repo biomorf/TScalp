@@ -170,4 +170,9 @@ object ServiceLocator {
             .remove("${brokerName}_sandbox")
             .apply()
     }
+
+    fun isAnyBrokerInitialized(): Boolean {
+        val bm = getBrokerManager()
+        return bm.getAllBrokers().any { it.isInitialized }
+    }
 }

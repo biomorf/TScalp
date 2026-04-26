@@ -34,13 +34,11 @@ class OrdersViewModel(
     init { checkApiInitialization() }
 
     fun checkApiInitialization() {
-        val isApiInit = ServiceLocator.getApiOrNull() != null
+        val isApiInit = ServiceLocator.isAnyBrokerInitialized()
         _uiState.update { it.copy(isApiInitialized = isApiInit) }
         if (isApiInit) {
             loadAccounts()
-            viewModelScope.launch {
-                loadPortfolio()
-            }
+            viewModelScope.launch { loadPortfolio() }   // обернули в корутину
             startPriceUpdates()
         }
     }

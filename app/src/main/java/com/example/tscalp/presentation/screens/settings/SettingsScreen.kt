@@ -285,11 +285,14 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
             "bcs" -> {
                 var bcsRefreshToken by remember { mutableStateOf("") }
                 var isWriteMode by remember { mutableStateOf(true) }
+                var connected by remember { mutableStateOf(false) }   // <-- новое состояние
 
+                // Проверяем, есть ли сохранённые настройки
                 LaunchedEffect(Unit) {
                     val creds = ServiceLocator.loadBrokerCredentials("bcs")
                     if (creds != null) {
                         bcsRefreshToken = creds.first
+                        connected = true   // если настройки сохранены, считаем подключенным
                     }
                 }
 
@@ -299,10 +302,10 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                         value = bcsRefreshToken,
                         onValueChange = { bcsRefreshToken = it },
                         label = { Text("Refresh Token") },
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !connected   // <-- блокируем поле, если подключены
                     )
 
-                    // Переключатель прав доступа (write/read)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -318,27 +321,47 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                         }
                         Switch(
                             checked = isWriteMode,
-                            onCheckedChange = { isWriteMode = it }
+                            onCheckedChange = { isWriteMode = it },
+                            enabled = !connected   // <-- тоже блокируем
                         )
                     }
 
-                    Button(onClick = {
-                        if (bcsRefreshToken.isNotBlank()) {
-                            val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                            scope.launch {
-                                try {
-                                    val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
-                                    bcsApi?.initialize(bcsRefreshToken, clientId)
-                                    statusMessage = "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
-                                    isError = false
-                                } catch (e: Exception) {
-                                    statusMessage = "Ошибка подключения: ${e.message}"
-                                    isError = true
+                    // Кнопка подключения / отключения
+                    if (connected) {
+                        Button(
+                            onClick = {
+                                ServiceLocator.clearBrokerCredentials("bcs")
+                                connected = false
+                                bcsRefreshToken = ""
+                                statusMessage = "Подключение к БКС разорвано"
+                                isError = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Отключить")
+                        }
+                    } else {
+                        Button(onClick = {
+                            if (bcsRefreshToken.isNotBlank()) {
+                                val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
+                                scope.launch {
+                                    try {
+                                        val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
+                                        bcsApi?.initialize(bcsRefreshToken, clientId)
+                                        ServiceLocator.saveBrokerCredentials("bcs", bcsRefreshToken, isWriteMode)
+                                        connected = true
+                                        statusMessage = "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
+                                        isError = false
+                                    } catch (e: Exception) {
+                                        statusMessage = "Ошибка подключения: ${e.message}"
+                                        isError = true
+                                    }
                                 }
                             }
+                        }) {
+                            Text("Подключиться")
                         }
-                    }) {
-                        Text("Подключиться")
                     }
                 }
             }

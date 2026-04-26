@@ -33,19 +33,11 @@ class PortfolioViewModel(
     }
 
     fun checkApiInitialization() {
-        val isApiInit = ServiceLocator.getApiOrNull() != null
-        _uiState.update {
-            it.copy(isApiInitialized = isApiInit, sandboxMode = ServiceLocator.isSandboxMode())
-        }
+        val isApiInit = ServiceLocator.isAnyBrokerInitialized()
+        _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = ServiceLocator.isSandboxMode()) }
         if (isApiInit) {
-            viewModelScope.launch {
-                /// ??????
-                viewModelScope.launch {
-                    loadPortfolio()
-                    startPriceUpdates()
-                }
-            }
-
+            viewModelScope.launch { loadPortfolio() }   // ← обернули в корутину
+            startPriceUpdates()
         }
     }
 

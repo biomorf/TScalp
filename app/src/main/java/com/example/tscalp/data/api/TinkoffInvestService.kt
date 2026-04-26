@@ -34,7 +34,7 @@ class TinkoffInvestService : BrokerApi {
         get() = ServiceLocator.getApiOrNull() ?: throw IllegalStateException("API не инициализирован")
 
     override val isInitialized: Boolean
-        get() = api != null
+        get() = ServiceLocator.getApiOrNull() != null
 
     /**
      * ///Вспомогательный метод, который либо возвращает api, либо выбрасывает исключение.
