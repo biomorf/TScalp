@@ -36,7 +36,9 @@ class PortfolioViewModel(
         val isApiInit = ServiceLocator.isAnyBrokerInitialized()
         _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = ServiceLocator.isSandboxMode()) }
         if (isApiInit) {
-            viewModelScope.launch { loadPortfolio() }   // ← обернули в корутину
+            if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
+                viewModelScope.launch { loadPortfolio() }
+            }
             startPriceUpdates()
         }
     }

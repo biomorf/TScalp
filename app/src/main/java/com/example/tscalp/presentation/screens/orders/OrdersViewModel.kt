@@ -34,11 +34,14 @@ class OrdersViewModel(
     init { checkApiInitialization() }
 
     fun checkApiInitialization() {
-        val isApiInit = ServiceLocator.isAnyBrokerInitialized()
-        _uiState.update { it.copy(isApiInitialized = isApiInit) }
-        if (isApiInit) {
-            loadAccounts()
-            viewModelScope.launch { loadPortfolio() }   // обернули в корутину
+        val isAnyApiInit = ServiceLocator.isAnyBrokerInitialized()
+        _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
+        if (isAnyApiInit) {
+            // Загружаем счета только если дефолтный брокер инициализирован
+            if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
+                loadAccounts()
+                viewModelScope.launch { loadPortfolio() }
+            }
             startPriceUpdates()
         }
     }
