@@ -15,7 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CancellationException
 import ru.tinkoff.piapi.contract.v1.OrderDirection
+import ru.tinkoff.piapi.contract.v1.OrderType
+import ru.tinkoff.piapi.contract.v1.Quotation
 import com.example.tscalp.domain.models.PortfolioPosition
 
 class OrdersViewModel(
@@ -184,16 +187,14 @@ class OrdersViewModel(
         val state = _uiState.value
         val figi = state.figi
         val quantity = state.quantityAsLong ?: return
-        // Определяем, есть ли персональные настройки для выбранного инструмента
         val activeCard = state.lastSelectedInstruments.find { it.instrument.figi == figi }
         val brokerName = activeCard?.brokerName ?: "tinkoff"
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
-        val sandboxMode = ServiceLocator.isSandboxMode() // или можно разрешить переопределение в карточке, но пока так
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                // Используем новый метод с указанием брокера
                 val result = repository.postMarketOrder(
                     brokerName = brokerName,
                     figi = figi,
@@ -217,8 +218,50 @@ class OrdersViewModel(
                         quantity = ""
                     )
                 }
-                // Обновляем портфель (пока только для дефолтного брокера)
                 loadPortfolio()
+
+                // --- Контрсделка (внутри того же try-catch, после успеха основной заявки) ---
+                if (state.pairTradingEnabled && state.pairedInstrument != null) {
+                    val multiplier = state.pairedMultiplier.toDoubleOrNull() ?: 1.0
+                    val pairedQuantity = (multiplier * quantity).toLong()
+
+                    if (pairedQuantity > 0) {
+                        val pairedDirection = if (direction == OrderDirection.ORDER_DIRECTION_BUY)
+                            OrderDirection.ORDER_DIRECTION_SELL
+                        else
+                            OrderDirection.ORDER_DIRECTION_BUY
+
+                        val orderType = state.orderType
+                        val price = if (orderType == OrderType.ORDER_TYPE_LIMIT) {
+                            val limitPrice = state.limitPrice.toDoubleOrNull() ?: 0.0
+                            val units = limitPrice.toLong()
+                            val nano = ((limitPrice - units) * 1_000_000_000).toInt()
+                            Quotation.newBuilder().setUnits(units).setNano(nano).build()
+                        } else {
+                            Quotation.newBuilder().setUnits(0).setNano(0).build()
+                        }
+
+                        try {
+                            val pairedResult = repository.postOrder(
+                                brokerName = brokerName,
+                                figi = state.pairedInstrument.figi,
+                                quantity = pairedQuantity,
+                                direction = pairedDirection,
+                                accountId = accountId,
+                                sandboxMode = sandboxMode,
+                                orderType = orderType,
+                                price = price
+                            )
+                            _uiState.update {
+                                it.copy(statusMessage = it.statusMessage + "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов")
+                            }
+                        } catch (e: Exception) {
+                            _uiState.update {
+                                it.copy(statusMessage = it.statusMessage + "\n❌ Ошибка контрсделки: ${e.message}", isError = true)
+                            }
+                        }
+                    }
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -226,53 +269,6 @@ class OrdersViewModel(
                         statusMessage = "❌ Ошибка: ${e.message}",
                         isError = true
                     )
-                }
-            }
-        }
-
-        // После успешной отправки основной заявки и до того, как метод завершится
-        if (state.pairTradingEnabled && state.pairedInstrument != null) {
-            val multiplier = state.pairedMultiplier.toDoubleOrNull() ?: 1.0
-            val pairedQuantity = (multiplier * quantity).toLong()
-
-            if (pairedQuantity > 0) {
-                val pairedDirection = if (direction == OrderDirection.ORDER_DIRECTION_BUY)
-                    OrderDirection.ORDER_DIRECTION_SELL
-                else
-                    OrderDirection.ORDER_DIRECTION_BUY
-
-                // orderType и price уже есть из состояния выше
-                // Перед вызовом контрсделки явно возьмите тип заявки и цену из стейта
-                val orderType = state.orderType
-                val price = if (orderType == OrderType.ORDER_TYPE_LIMIT) {
-                    // Преобразование строки limitPrice в Quotation (как в основной заявке)
-                    val limitPrice = state.limitPrice.toDoubleOrNull() ?: 0.0
-                    val units = limitPrice.toLong()
-                    val nano = ((limitPrice - units) * 1_000_000_000).toInt()
-                    Quotation.newBuilder().setUnits(units).setNano(nano).build()
-                } else {
-                    Quotation.newBuilder().setUnits(0).setNano(0).build()
-                }
-
-                try {
-                    // ... затем используйте orderType и price при вызове repository.postOrder для контрсделки
-                    val pairedResult = repository.postOrder(
-                        brokerName = brokerName,
-                        figi = state.pairedInstrument.figi,
-                        quantity = pairedQuantity,
-                        direction = pairedDirection,
-                        accountId = accountId,
-                        sandboxMode = sandboxMode,
-                        orderType = orderType,   // теперь объявлена
-                        price = price
-                    )
-                    _uiState.update {
-                        it.copy(statusMessage = it.statusMessage + "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов")
-                    }
-                } catch (e: Exception) {
-                    _uiState.update {
-                        it.copy(statusMessage = it.statusMessage + "\n❌ Ошибка контрсделки: ${e.message}", isError = true)
-                    }
                 }
             }
         }

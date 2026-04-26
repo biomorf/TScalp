@@ -3,6 +3,7 @@ package com.example.tscalp.presentation.screens.orders
 import com.example.tscalp.data.repository.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
+import ru.tinkoff.piapi.contract.v1.OrderType
 
 /**
  * Информация о выбранном инструменте для отображения в карточке «Последние просмотренные».
@@ -50,7 +51,9 @@ data class OrdersUiState(
     val pairSearchResults: List<InstrumentUi> = emptyList(), // результаты второго поиска
     val isPairSearching: Boolean = false,               // индикатор загрузки второго поиска
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
-    val pairedMultiplier: String = "1"                 // множитель (по умолчанию 1)
+    val pairedMultiplier: String = "1",                 // множитель (по умолчанию 1)
+    val orderType: OrderType = OrderType.ORDER_TYPE_MARKET,   // тип заявки (рыночная/лимитная)
+    val limitPrice: String = ""                                // цена для лимитной заявки
 ) {
     val isFormValid: Boolean
         get() = selectedInstrument != null && quantity.toLongOrNull()?.let { it > 0 } == true && selectedAccountId != null && isApiInitialized
