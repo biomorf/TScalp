@@ -1,5 +1,6 @@
 package com.example.tscalp.presentation.screens.settings
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -283,39 +284,54 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 
             "bcs" -> {
                 var refreshToken by remember { mutableStateOf("") }
-                var sandbox by remember { mutableStateOf(true) }
-                var clientId by remember { mutableStateOf("trade-api-read") }
+                var refreshToken by remember { mutableStateOf("") }
+                var isWriteMode by remember { mutableStateOf(true) } // true = trade-api-write, false = trade-api-read
 
                 LaunchedEffect(Unit) {
                     val creds = ServiceLocator.loadBrokerCredentials("bcs")
                     if (creds != null) {
                         refreshToken = creds.first
-                        sandbox = creds.second
+                        // Режим (write/read) можно сохранять отдельно, но пока не будем усложнять
                     }
                 }
 
                 Column {
                     Text("Refresh-токен (из личного кабинета БКС)")
                     OutlinedTextField(
-                        value = clientId,
-                        onValueChange = { clientId = it },
-                        label = { Text("Client ID (trade-api-read или trade-api-write)") },
+                        value = refreshToken,
+                        onValueChange = { refreshToken = it },
+                        label = { Text("Refresh Token") },
                         singleLine = true
                     )
-                    Row {
-                        Text("Полный доступ")
+
+                    // Переключатель прав доступа
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Права доступа", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                if (isWriteMode) "Полный доступ (торговля)" else "Только чтение",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Switch(
-                            checked = sandbox,
-                            onCheckedChange = { sandbox = it }
+                            checked = isWriteMode,
+                            onCheckedChange = { isWriteMode = it }
                         )
                     }
+
                     Button(onClick = {
                         if (refreshToken.isNotBlank()) {
+                            val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
                             scope.launch {
                                 try {
                                     val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
                                     bcsApi?.initialize(refreshToken, clientId)
-                                    statusMessage = "Подключено к БКС (${if (sandbox) "песочница" else "боевой"})"
+                                    statusMessage = "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
                                     isError = false
                                 } catch (e: Exception) {
                                     statusMessage = "Ошибка подключения: ${e.message}"
@@ -328,7 +344,6 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                     }
                 }
             }
-
             else -> {
                 Text("Настройки для брокера $selectedBroker пока не реализованы.")
             }

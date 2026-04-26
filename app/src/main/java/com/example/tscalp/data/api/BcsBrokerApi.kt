@@ -1,5 +1,6 @@
 package com.example.tscalp.data.api
 
+import android.util.Log
 import com.example.tscalp.domain.api.BrokerApi
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -50,6 +51,7 @@ class BcsBrokerApi : BrokerApi {
         this.refreshToken = refreshToken
         this.clientId = clientId
         this.baseUrl = PROD_BASE_URL
+        Log.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")
         obtainAccessToken()
     }
 
