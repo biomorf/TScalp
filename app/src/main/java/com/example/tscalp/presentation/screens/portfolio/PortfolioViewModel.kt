@@ -29,6 +29,7 @@ class PortfolioViewModel(
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
     private var priceUpdateJob: Job? = null
+    private var isPortfolioLoading = false
 
     companion object {
         private const val TAG = "PortfolioViewModel"
@@ -50,6 +51,8 @@ class PortfolioViewModel(
     }
 
     fun loadPortfolio() {
+        if (isPortfolioLoading) return@loadPortfolio   // <-- защита от повторного входа
+        isPortfolioLoading = true
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
@@ -121,6 +124,8 @@ class PortfolioViewModel(
                         isError = true
                     )
                 }
+            } finally {
+                isPortfolioLoading = false
             }
         }
     }
