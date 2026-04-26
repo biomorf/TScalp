@@ -26,6 +26,7 @@ class OrdersViewModel(
     val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
     private var searchJob: Job? = null
     private var priceUpdateJob: Job? = null
+    private var pairSearchJob: Job? = null
 
     companion object {
         private const val TAG = "OrdersViewModel"
@@ -228,6 +229,29 @@ class OrdersViewModel(
                 }
             }
         }
+
+        if (state.pairTradingEnabled && state.pairedInstrument != null) {
+            val multiplier = state.pairedMultiplier.toDoubleOrNull() ?: 1.0
+            val pairedQuantity = (multiplier * quantity).toLong()  // quantity – количество основной заявки
+            if (pairedQuantity > 0) {
+                val pairedDirection = if (direction == OrderDirection.ORDER_DIRECTION_BUY) OrderDirection.ORDER_DIRECTION_SELL else OrderDirection.ORDER_DIRECTION_BUY
+                try {
+                    val pairedResult = repository.postOrder(
+                        brokerName = brokerName,
+                        figi = state.pairedInstrument.figi,
+                        quantity = pairedQuantity,
+                        direction = pairedDirection,
+                        accountId = accountId,
+                        sandboxMode = sandboxMode,
+                        orderType = state.orderType,
+                        price = price
+                    )
+                    _uiState.update { it.copy(statusMessage = it.statusMessage + "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов") }
+                } catch (e: Exception) {
+                    _uiState.update { it.copy(statusMessage = it.statusMessage + "\n❌ Ошибка контрсделки: ${e.message}", isError = true) }
+                }
+            }
+        }
     }
 
     fun clearStatus() { _uiState.update { it.clearStatus() } }
@@ -360,6 +384,40 @@ class OrdersViewModel(
             Log.e(TAG, "Не удалось загрузить счета для $brokerName", e)
             //_uiState.update { it.copy(dialogAccounts = emptyList()) }
         }
+    }
+
+    fun onPairSearchQueryChanged(query: String) {
+        _uiState.update { it.copy(pairSearchQuery = query) }
+        pairSearchJob?.cancel()
+        if (query.length >= 2) {
+            pairSearchJob = viewModelScope.launch {
+                delay(500)
+                _uiState.update { it.copy(isPairSearching = true) }
+                try {
+                    val results = repository.searchInstruments(query)
+                    _uiState.update { it.copy(pairSearchResults = results, isPairSearching = false) }
+                } catch (ce: CancellationException) {
+                    _uiState.update { it.copy(isPairSearching = false) }
+                } catch (e: Exception) {
+                    _uiState.update { it.copy(pairSearchResults = emptyList(), isPairSearching = false, statusMessage = "Ошибка поиска: ${e.message}", isError = true) }
+                }
+            }
+        } else {
+            _uiState.update { it.copy(pairSearchResults = emptyList(), isPairSearching = false) }
+        }
+    }
+
+    fun onPairedInstrumentSelected(instrument: InstrumentUi) {
+        _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
+    }
+
+    fun clearPairSearch() {
+        _uiState.update { it.copy(pairSearchQuery = "", pairSearchResults = emptyList(), pairedInstrument = null) }
+    }
+
+    fun onPairedMultiplierChanged(value: String) {
+        val filtered = value.filter { it.isDigit() || it == '.' }
+        _uiState.update { it.copy(pairedMultiplier = filtered) }
     }
 }
 

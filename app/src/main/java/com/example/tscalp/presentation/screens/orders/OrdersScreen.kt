@@ -196,6 +196,49 @@ fun OrdersScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        // Переключатель парной торговли
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
+            Switch(
+                checked = uiState.pairTradingEnabled,
+                onCheckedChange = { viewModel.setPairTradingEnabled(it) }
+            )
+        }
+
+        // Блок второго поиска (появляется при включении)
+        if (uiState.pairTradingEnabled) {
+            InstrumentSearchField(
+                query = uiState.pairSearchQuery,
+                onQueryChanged = { viewModel.onPairSearchQueryChanged(it) },
+                isSearching = uiState.isPairSearching,
+                searchResults = uiState.pairSearchResults,
+                onInstrumentSelected = { viewModel.onPairedInstrumentSelected(it) },
+                onClear = { viewModel.clearPairSearch() },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            uiState.pairedInstrument?.let { paired ->
+                Column {
+                    ResultItemCard(instrument = paired, onClick = {})  // только для отображения
+                    OutlinedTextField(
+                        value = uiState.pairedMultiplier,
+                        onValueChange = { viewModel.onPairedMultiplierChanged(it) },
+                        label = { Text("Множитель") },
+                        placeholder = { Text("1") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
         // Кнопки Купить / Продать
         Row(
             modifier = Modifier.fillMaxWidth(),
