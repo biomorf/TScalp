@@ -9,10 +9,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,14 +25,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.data.repository.InstrumentUi
+import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard
 import java.text.NumberFormat
 import java.util.*
-import com.example.tscalp.domain.models.PortfolioPosition
-import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard // если компонент будет вынесен
-import com.example.tscalp.ui.components.SwipeablePositionCard
-import com.example.tscalp.ui.components.BrokerAccountDialog
-import com.example.tscalp.domain.models.AccountUi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,10 +38,6 @@ fun OrdersScreen(
     viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    fun getAccountName(accountId: String?, accounts: List<AccountUi>): String {
-        if (accountId.isNullOrBlank()) return "Не выбран"
-        return accounts.find { it.id == accountId }?.name ?: accountId.take(8) + "…"
-    }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }
 
@@ -52,6 +47,7 @@ fun OrdersScreen(
             viewModel.clearStatus()
         }
     }
+
     LaunchedEffect(Unit) {
         viewModel.checkApiInitialization()
     }
@@ -63,90 +59,59 @@ fun OrdersScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Заголовок
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Text(
+                text = "Выставление заявки",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(16.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+
         if (!uiState.isApiInitialized) {
             ApiNotInitializedCard()
             return@Column
         }
 
-        // Поиск инструментов (Expandable SearchBar)
-        if (uiState.isSearchActive) {
-            SearchBar(
-                query = uiState.searchQuery,
-                onQueryChange = { query: String -> viewModel.onSearchQueryChanged(query) },
-                onSearch = { viewModel.onSearchQueryChanged(uiState.searchQuery) },
-                active = uiState.isSearchActive,
-                onActiveChange = { active -> viewModel.setSearchActive(active) },
-                placeholder = { Text("Поиск инструментов...") },
-                leadingIcon = {
-                    IconButton(onClick = { viewModel.setSearchActive(false) }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Закрыть")
-                    }
-                }
-            ) {
-                if (uiState.searchResults.isNotEmpty()) {
-                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                        items(uiState.searchResults) { instrument: InstrumentUi ->
-                            ResultItemCard(
-                                instrument = instrument,
-                                onClick = {
-                                    viewModel.onInstrumentSelected(instrument)
-                                    viewModel.setSearchActive(false)
-                                }
-                            )
-                        }
-                    }
-                } else if (uiState.isSearching) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    }
-                }
-            }
-        } else {
-            // Кнопка открытия поиска
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                IconButton(onClick = { viewModel.setSearchActive(true) }) {
-                    Icon(Icons.Default.Search, contentDescription = "Поиск")
-                }
-            }
+        // Основной поиск (с историей)
+        InstrumentSearchField(
+            query = uiState.searchQuery,
+            onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
+            isSearching = uiState.isSearching,
+            searchResults = uiState.searchResults,
+            onInstrumentSelected = { instrument: InstrumentUi -> viewModel.onInstrumentSelected(instrument) },
+            onClear = { viewModel.clearSearch() },
+            recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Основная карточка выбранного инструмента
+        uiState.selectedInstrument?.let { instrument ->
+            val portfolioPos = uiState.portfolioPositions.find { it.figi == instrument.figi }
+            val position = PortfolioPosition(
+                figi = instrument.figi,
+                name = instrument.name,
+                ticker = instrument.ticker,
+                quantity = portfolioPos?.quantity ?: 0L,
+                currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0,
+                totalValue = (uiState.currentPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
+                profit = portfolioPos?.profit ?: 0.0,
+                profitPercent = portfolioPos?.profitPercent ?: 0.0,
+                instrumentType = instrument.instrumentType,
+                priceChangePercent = null
+            )
+            PortfolioPositionCard(
+                position = position,
+                instrumentType = instrument.instrumentType,
+                priceChangePercent = null
+            )
         }
 
-        // Последние просмотренные инструменты
-        if (uiState.lastSelectedInstruments.isNotEmpty()) {
-            Text("Последние просмотренные", style = MaterialTheme.typography.titleSmall)
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(uiState.lastSelectedInstruments) { card ->
-                    val position = PortfolioPosition(
-                        figi = card.instrument.figi,
-                        name = card.instrument.name,
-                        ticker = card.instrument.ticker,
-                        quantity = card.quantity,
-                        currentPrice = card.currentPrice ?: card.averagePrice ?: 0.0,
-                        totalValue = (card.currentPrice ?: 0.0) * card.quantity,
-                        profit = card.profit ?: 0.0,
-                        profitPercent = card.profitPercent ?: 0.0,
-                        instrumentType = card.instrument.instrumentType,
-                        priceChangePercent = card.priceChangePercent
-                    )
-                    val isActive = uiState.selectedInstrument?.figi == card.instrument.figi
-
-                    SwipeablePositionCard(
-                        position = position,
-                        instrumentType = card.instrument.instrumentType,
-                        priceChangePercent = card.priceChangePercent,
-                        onDelete = { viewModel.removeLastSelectedInstrument(card.instrument.figi) },
-                        onSettings = { viewModel.openBrokerDialog(card.instrument.figi) },
-                        onClick = { viewModel.onInstrumentSelected(card.instrument) },
-                        isSelected = isActive,
-                        brokerName = card.brokerName,      // <-- строка из карточки
-                        accountName = getAccountName(card.accountId, uiState.accounts) // <-- преобразуем ID в имя
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Количество лотов с кнопками +/-
+        // Поле количества с кнопками +/-
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -155,18 +120,16 @@ fun OrdersScreen(
             IconButton(
                 onClick = {
                     val currentQty = uiState.quantityAsLong ?: 0L
-                    if (currentQty > 0) {
-                        viewModel.onQuantityChanged((currentQty - 1).toString())
-                    }
+                    if (currentQty > 0) viewModel.onQuantityChanged((currentQty - 1).toString())
                 },
                 enabled = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null
             ) {
-                Icon(imageVector = Icons.Default.Remove, contentDescription = "Уменьшить")
+                Icon(Icons.Default.Remove, contentDescription = "Уменьшить количество")
             }
 
             OutlinedTextField(
                 value = uiState.quantity,
-                onValueChange = { newValue -> viewModel.onQuantityChanged(newValue) },
+                onValueChange = { viewModel.onQuantityChanged(it) },
                 label = { Text("Количество лотов") },
                 placeholder = { Text("0") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -183,7 +146,7 @@ fun OrdersScreen(
                 },
                 enabled = uiState.selectedInstrument != null
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Увеличить")
+                Icon(Icons.Default.Add, contentDescription = "Увеличить количество")
             }
         }
 
@@ -191,13 +154,8 @@ fun OrdersScreen(
         val quantity = uiState.quantityAsLong ?: 0L
         val price = uiState.currentPrice ?: 0.0
         if (quantity > 0 && price > 0) {
-            Text(
-                "Ориентировочная стоимость: ${formatCurrency(price * quantity)}",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
         }
-
-        Spacer(modifier = Modifier.weight(1f))
 
         // Переключатель парной торговли
         Row(
@@ -212,21 +170,21 @@ fun OrdersScreen(
             )
         }
 
-        // Блок второго поиска (появляется при включении)
+        // Блок парного инструмента
         if (uiState.pairTradingEnabled) {
             InstrumentSearchField(
                 query = uiState.pairSearchQuery,
-                onQueryChanged = { viewModel.onPairSearchQueryChanged(it) },
+                onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
                 isSearching = uiState.isPairSearching,
                 searchResults = uiState.pairSearchResults,
-                onInstrumentSelected = { viewModel.onPairedInstrumentSelected(it) },
+                onInstrumentSelected = { instrument: InstrumentUi -> viewModel.onPairedInstrumentSelected(instrument) },
                 onClear = { viewModel.clearPairSearch() },
                 modifier = Modifier.fillMaxWidth()
             )
 
             uiState.pairedInstrument?.let { paired ->
                 Column {
-                    ResultItemCard(instrument = paired, onClick = {})  // только для отображения
+                    ResultItemCard(instrument = paired, onClick = {})
                     OutlinedTextField(
                         value = uiState.pairedMultiplier,
                         onValueChange = { viewModel.onPairedMultiplierChanged(it) },
@@ -291,46 +249,40 @@ fun OrdersScreen(
                             Text("Текущая цена: ${formatCurrency(price)}")
                             Text("Общая стоимость: ${formatCurrency(price * quantity)}")
                         }
+                        if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
+                            val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
+                            Text("Контрсделка: ${uiState.pairedInstrument?.ticker} ${if (pendingDirection == "Покупка") "продажа" else "покупка"} $pairedQty лотов")
+                        }
                     }
                 },
                 confirmButton = {
                     Button(onClick = {
                         if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
                         showConfirmDialog = false
-                    }) { Text("Подтвердить") }
+                    }) {
+                        Text("Подтвердить")
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showConfirmDialog = false }) { Text("Отмена") }
+                    TextButton(onClick = { showConfirmDialog = false }) {
+                        Text("Отмена")
+                    }
                 }
             )
         }
 
-        // Статус выполнения
+        // Статусное сообщение
         uiState.statusMessage?.let { message ->
-            StatusCard(message = message, isError = uiState.isError, onDismiss = { viewModel.clearStatus() })
-        }
-
-        // Диалог настроек брокера/счёта
-        if (uiState.showBrokerDialog) {
-            val availableBrokers = remember { ServiceLocator.getBrokerManager().getAvailableBrokers() }
-            // Счета для диалога пока загружаем в ViewModel (можно добавить поле dialogAccounts)
-            // Для простоты будем передавать пустой список, а загрузку сделаем позже.
-            // В реальном коде нужно хранить счета в состоянии (dialogAccounts) и передавать сюда.
-            BrokerAccountDialog(
-                availableBrokers = availableBrokers,
-                selectedBroker = uiState.selectedBroker,
-                onBrokerSelected = { viewModel.onBrokerSelected(it) },
-                accounts = uiState.dialogAccounts, // TODO: заменить на uiState.dialogAccounts
-                selectedAccountId = uiState.selectedAccountIdDialog,
-                onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
-                onDismiss = { viewModel.closeBrokerDialog() },
-                onSave = { viewModel.saveBrokerSettings() }
+            StatusCard(
+                message = message,
+                isError = uiState.isError,
+                onDismiss = { viewModel.clearStatus() }
             )
         }
     }
 }
 
-// ------ Вспомогательные Composable-функции ------
+// --- Вспомогательные Composable функции ---
 
 @Composable
 fun ApiNotInitializedCard() {
@@ -344,8 +296,6 @@ fun ApiNotInitializedCard() {
         }
     }
 }
-
-
 
 @Composable
 fun ResultItemCard(instrument: InstrumentUi, onClick: () -> Unit) {
@@ -381,21 +331,6 @@ fun StatusCard(message: String, isError: Boolean, onDismiss: () -> Unit) {
     }
 }
 
-
-fun formatCurrency(value: Double): String {
-    val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
-    format.currency = Currency.getInstance("RUB")
-    return format.format(value)
-}
-
-/**
- * Возвращает название счёта по его ID или "Не выбран".
- */
-fun getAccountName(accountId: String?, accounts: List<AccountUi>): String {
-    if (accountId == null) return "Не выбран"
-    return accounts.find { it.id == accountId }?.name ?: accountId.take(8)
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InstrumentSearchField(
@@ -405,59 +340,112 @@ fun InstrumentSearchField(
     searchResults: List<InstrumentUi>,
     onInstrumentSelected: (InstrumentUi) -> Unit,
     onClear: () -> Unit,
+    recentInstruments: List<InstrumentUi> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-    LaunchedEffect(searchResults) { expanded = searchResults.isNotEmpty() }
+    val showDropdown = expanded && (searchResults.isNotEmpty() || (query.isEmpty() && recentInstruments.isNotEmpty()))
+
+    LaunchedEffect(searchResults) {
+        if (searchResults.isNotEmpty()) expanded = true
+    }
 
     Column(modifier = modifier) {
         ExposedDropdownMenuBox(
-            expanded = expanded && searchResults.isNotEmpty(),
+            expanded = showDropdown,
             onExpandedChange = { expanded = it }
         ) {
             OutlinedTextField(
                 value = query,
                 onValueChange = {
                     onQueryChanged(it)
-                    expanded = it.isNotEmpty()
+                    expanded = it.isNotEmpty() || recentInstruments.isNotEmpty()
                 },
                 label = { Text("Поиск инструмента") },
                 placeholder = { Text("Введите тикер или название") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                        else if (query.isNotEmpty()) IconButton(onClick = {
-                            onClear()
-                            expanded = false
-                        }) { Icon(Icons.Default.Clear, "Очистить") }
+                        if (isSearching) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        } else if (query.isNotEmpty()) {
+                            IconButton(onClick = {
+                                onClear()
+                                expanded = false
+                            }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Очистить")
+                            }
+                        }
                     }
                 },
-                supportingText = { if (query.length == 1) Text("Введите минимум 2 символа для поиска") }
+                supportingText = {
+                    if (query.length == 1) {
+                        Text("Введите минимум 2 символа для поиска")
+                    }
+                }
             )
 
             ExposedDropdownMenu(
-                expanded = expanded && searchResults.isNotEmpty(),
+                expanded = showDropdown,
                 onDismissRequest = { expanded = false }
             ) {
-                Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                    searchResults.forEach { instrument: InstrumentUi ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text("${instrument.ticker} - ${instrument.name}")
-                                    Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (query.isEmpty() && recentInstruments.isNotEmpty()) {
+                        // Показываем историю
+                        recentInstruments.forEach { instrument: InstrumentUi ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text("${instrument.ticker} - ${instrument.name}")
+                                        Text(
+                                            instrument.figi,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    onInstrumentSelected(instrument)
+                                    expanded = false
                                 }
-                            },
-                            onClick = {
-                                onInstrumentSelected(instrument)
-                                expanded = false
-                            }
-                        )
+                            )
+                        }
+                    } else {
+                        // Показываем результаты поиска
+                        searchResults.forEach { instrument: InstrumentUi ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text("${instrument.ticker} - ${instrument.name}")
+                                        Text(
+                                            instrument.figi,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    onInstrumentSelected(instrument)
+                                    expanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+fun formatCurrency(value: Double): String {
+    val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
+    format.currency = Currency.getInstance("RUB")
+    return format.format(value)
 }

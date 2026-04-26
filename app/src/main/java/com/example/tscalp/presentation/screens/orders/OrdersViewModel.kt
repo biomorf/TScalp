@@ -121,18 +121,16 @@ class OrdersViewModel(
     }
 
     fun onInstrumentSelected(instrument: InstrumentUi) {
-        // Очищаем поисковый запрос, чтобы не было повторного поиска при открытии SearchBar
         _uiState.update {
             it.copy(
                 selectedInstrument = instrument,
                 figi = instrument.figi,
-                searchQuery = "",                     // <-- очищаем, а не заполняем
+                searchQuery = "${instrument.ticker} - ${instrument.name}",
                 searchResults = emptyList()
             )
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isPriceLoading = true) }
             val prices = repository.getLastPrices(listOf(instrument.figi))
             val price = prices[instrument.figi]
             val portfolioPos = _uiState.value.portfolioPositions.find { it.figi == instrument.figi }
@@ -148,18 +146,15 @@ class OrdersViewModel(
                 profitPercent = portfolioPos?.profitPercent
             )
 
-            // Удаляем старую карточку с таким же FIGI (если была) и добавляем новую в начало
             val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
             currentList.removeAll { it.instrument.figi == instrument.figi }
             currentList.add(0, newCard)
-
-            val updatedList = currentList.take(2)   // ограничиваем двумя элементами
 
             _uiState.update {
                 it.copy(
                     currentPrice = price,
                     isPriceLoading = false,
-                    lastSelectedInstruments = updatedList
+                    lastSelectedInstruments = currentList.take(5)   // храним 5 последних
                 )
             }
         }
