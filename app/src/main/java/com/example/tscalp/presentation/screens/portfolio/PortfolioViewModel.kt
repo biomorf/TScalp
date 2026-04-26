@@ -56,9 +56,10 @@ class PortfolioViewModel(
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val allPositions = mutableListOf<PortfolioPosition>()
 
-                // Обходим всех зарегистрированных брокеров
+                // Получаем имена всех зарегистрированных брокеров
                 val brokerNames = ServiceLocator.getBrokerManager().getAvailableBrokers()
                 for (brokerName in brokerNames) {
+                    // Получаем брокера по имени
                     val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: continue
                     if (!broker.isInitialized) continue
 
@@ -67,13 +68,26 @@ class PortfolioViewModel(
                         val accounts = broker.getAccounts(sandboxMode)
                         for (account in accounts) {
                             try {
-                                // ★ Используем новый метод getPositions вместо getPortfolio
+                                // Получаем позиции от брокера (уже в виде List<PortfolioPosition>)
                                 val positions = broker.getPositions(account.id, sandboxMode)
-                                // Добавляем имя брокера к каждой позиции (если getPositions ещё не сделал этого)
-                                val positionsWithBroker = positions.map {
-                                    if (it.brokerName.isBlank()) it.copy(brokerName = brokerName) else it
-                                }
-                                allPositions.addAll(positionsWithBroker)
+
+                                // Обогащаем каждую позицию: если ticker пустой – запрашиваем через getInstrumentByFigi
+                                val enrichedPositions = positions.map { pos ->
+                                    if (pos.ticker.isBlank() && pos.figi.isNotBlank()) {
+                                        try {
+                                            val instrumentResponse = broker.getInstrumentByFigi(pos.figi)
+                                            val ticker = instrumentResponse.instrument.ticker
+                                            pos.copy(ticker = ticker)
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "Не удалось получить тикер для FIGI ${pos.figi}", e)
+                                            pos.copy(ticker = pos.figi) // fallback – используем FIGI как тикер
+                                        }
+                                    } else {
+                                        pos
+                                    }
+                                }.map { it.copy(brokerName = brokerName) } // добавляем имя брокера
+
+                                allPositions.addAll(enrichedPositions)
                             } catch (e: Exception) {
                                 Log.w(TAG, "Ошибка загрузки портфеля для счета ${account.id} брокера $brokerName", e)
                             }
@@ -83,16 +97,19 @@ class PortfolioViewModel(
                     }
                 }
 
-                // Сортируем по имени брокера
-                allPositions.sortBy { it.brokerName }
+                // Убираем возможные дубликаты (одинаковые ticker у одного брокера)
+                val deduplicated = allPositions.distinctBy { "${it.ticker}_${it.brokerName}" }
 
-                val totalValue = allPositions.sumOf { it.totalValue }
+                // Сортируем по имени брокера, чтобы группы были вместе
+                val sorted = deduplicated.sortedBy { it.brokerName }
+
+                val totalValue = sorted.sumOf { it.totalValue }
                 _uiState.update {
                     it.copy(
-                        positions = allPositions,
+                        positions = sorted,
                         totalValue = totalValue,
                         isLoading = false,
-                        statusMessage = if (allPositions.isEmpty()) "Портфель пуст" else "Загружено ${allPositions.size} позиций",
+                        statusMessage = if (deduplicated.isEmpty()) "Портфель пуст" else "Загружено ${deduplicated.size} позиций",
                         isError = false
                     )
                 }

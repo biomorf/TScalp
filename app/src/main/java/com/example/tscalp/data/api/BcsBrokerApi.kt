@@ -181,13 +181,18 @@ class BcsBrokerApi : BrokerApi {
         val json = response.body?.string() ?: throw IOException("Пустой ответ")
         Log.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
 
-        // ✅ ГЛАВНОЕ ИСПРАВЛЕНИЕ: читаем ответ как МАССИВ, а не как ОБЪЕКТ
-        val portfolioArray: List<Map<String, Any>> = gson.fromJson(
+        val allPositions: List<Map<String, Any>> = gson.fromJson(
             json,
             object : TypeToken<List<Map<String, Any>>>() {}.type
         )
 
-        return portfolioArray.mapNotNull { posMap: Map<String, Any> ->
+        // Фильтруем только те позиции, которые принадлежат указанному счёту
+        val filtered = allPositions.filter { posMap ->
+            val acc = posMap["account"] as? String ?: ""
+            acc == accountId
+        }
+
+        return filtered.mapNotNull { posMap: Map<String, Any> ->
             val ticker = posMap["ticker"] as? String ?: return@mapNotNull null
             val exchange = posMap["exchange"] as? String ?: ""
             val figi = if (exchange.isNotEmpty()) "$ticker:$exchange" else ticker
@@ -205,7 +210,7 @@ class BcsBrokerApi : BrokerApi {
                 totalValue = totalValue,
                 brokerName = "bcs"
             )
-        }
+        }.distinctBy { it.ticker } // убираем дубликаты по FIGI внутри одного брокера
     }
 
     override suspend fun postMarketOrder(
