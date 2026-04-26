@@ -284,6 +284,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
             "bcs" -> {
                 var refreshToken by remember { mutableStateOf("") }
                 var sandbox by remember { mutableStateOf(true) }
+                var clientId by remember { mutableStateOf("trade-api-read") }
 
                 LaunchedEffect(Unit) {
                     val creds = ServiceLocator.loadBrokerCredentials("bcs")
@@ -296,13 +297,13 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 Column {
                     Text("Refresh-токен (из личного кабинета БКС)")
                     OutlinedTextField(
-                        value = refreshToken,
-                        onValueChange = { refreshToken = it },
-                        label = { Text("Refresh Token") },
+                        value = clientId,
+                        onValueChange = { clientId = it },
+                        label = { Text("Client ID (trade-api-read или trade-api-write)") },
                         singleLine = true
                     )
                     Row {
-                        Text("Режим песочницы")
+                        Text("Полный доступ")
                         Switch(
                             checked = sandbox,
                             onCheckedChange = { sandbox = it }
@@ -313,7 +314,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                             scope.launch {
                                 try {
                                     val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
-                                    bcsApi?.initialize(refreshToken, sandbox)
+                                    bcsApi?.initialize(refreshToken, clientId)
                                     statusMessage = "Подключено к БКС (${if (sandbox) "песочница" else "боевой"})"
                                     isError = false
                                 } catch (e: Exception) {

@@ -18,9 +18,9 @@ import java.io.IOException
 class BcsBrokerApi : BrokerApi {
 
     companion object {
-        private const val SANDBOX_BASE_URL = "https://demo-trade-api.bcs.ru"
         private const val PROD_BASE_URL = "https://trade-api.bcs.ru"
-        private const val TOKEN_PATH = "/api/v1/oauth/token"
+        //private const val TOKEN_PATH = "/api/v1/oauth/token"
+        private const val TOKEN_PATH = "/trade-api-keycloak/realms/tradeapi/protocol/openid-connect/token"
         private const val ACCOUNTS_PATH = "/api/v1/users/accounts"
         private const val PORTFOLIO_PATH = "/api/v1/portfolio"
         private const val ORDERS_PATH = "/api/v1/orders"
@@ -33,7 +33,7 @@ class BcsBrokerApi : BrokerApi {
     private val gson = Gson()
 
     // Зависит от режима (песочница/боевой) – устанавливается при инициализации
-    private var baseUrl = SANDBOX_BASE_URL
+    private var baseUrl = PROD_BASE_URL
     private var refreshToken: String? = null
     private var accessToken: String? = null
     private var tokenExpiry: Long = 0
@@ -45,20 +45,22 @@ class BcsBrokerApi : BrokerApi {
     /**
      * Устанавливает refresh-токен и пытается получить access-токен.
      */
-    suspend fun initialize(refreshToken: String, sandboxMode: Boolean) {
+    suspend fun initialize(refreshToken: String, clientId: String) {
         this.refreshToken = refreshToken
-        this.baseUrl = if (sandboxMode) SANDBOX_BASE_URL else PROD_BASE_URL
-        // Получаем первый access-токен
-        obtainAccessToken()
+        this.baseUrl = PROD_BASE_URL
+        obtainAccessToken(clientId)
     }
 
-    private suspend fun obtainAccessToken() {
+    private suspend fun obtainAccessToken(clientId: String) {
         val token = refreshToken ?: throw IllegalStateException("Refresh token not set")
-        val json = """{"grant_type":"refresh_token","refresh_token":"$token"}"""
-        val body = json.toRequestBody("application/json".toMediaType())
+        val formBody = FormBody.Builder()
+            .add("grant_type", "refresh_token")
+            .add("refresh_token", token)
+            .add("client_id", clientId)
+            .build()
         val request = Request.Builder()
             .url("$baseUrl$TOKEN_PATH")
-            .post(body)
+            .post(formBody)
             .build()
 
         withContext(Dispatchers.IO) {
@@ -72,9 +74,9 @@ class BcsBrokerApi : BrokerApi {
         }
     }
 
-    private suspend fun ensureAccessToken() {
+    private suspend fun ensureAccessToken(clientId: String) {
         if (accessToken == null || System.currentTimeMillis() > tokenExpiry - 60000) {
-            obtainAccessToken()
+            obtainAccessToken(clientId)
         }
     }
 
