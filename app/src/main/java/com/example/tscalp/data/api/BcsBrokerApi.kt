@@ -37,6 +37,7 @@ class BcsBrokerApi : BrokerApi {
     private var refreshToken: String? = null
     private var accessToken: String? = null
     private var tokenExpiry: Long = 0
+    private var clientId: String? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean
@@ -47,17 +48,21 @@ class BcsBrokerApi : BrokerApi {
      */
     suspend fun initialize(refreshToken: String, clientId: String) {
         this.refreshToken = refreshToken
+        this.clientId = clientId
         this.baseUrl = PROD_BASE_URL
-        obtainAccessToken(clientId)
+        obtainAccessToken()
     }
 
-    private suspend fun obtainAccessToken(clientId: String) {
+    private suspend fun obtainAccessToken() {
         val token = refreshToken ?: throw IllegalStateException("Refresh token not set")
+        val cid = clientId ?: throw IllegalStateException("Client ID not set")
+
         val formBody = FormBody.Builder()
             .add("grant_type", "refresh_token")
             .add("refresh_token", token)
-            .add("client_id", clientId)
+            .add("client_id", cid)
             .build()
+
         val request = Request.Builder()
             .url("$baseUrl$TOKEN_PATH")
             .post(formBody)
@@ -74,9 +79,9 @@ class BcsBrokerApi : BrokerApi {
         }
     }
 
-    private suspend fun ensureAccessToken(clientId: String) {
+    private suspend fun ensureAccessToken() {
         if (accessToken == null || System.currentTimeMillis() > tokenExpiry - 60000) {
-            obtainAccessToken(clientId)
+            obtainAccessToken()        // без аргументов
         }
     }
 
