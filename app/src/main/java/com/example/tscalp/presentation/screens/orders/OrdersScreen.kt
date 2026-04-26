@@ -5,11 +5,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -391,4 +394,70 @@ fun formatCurrency(value: Double): String {
 fun getAccountName(accountId: String?, accounts: List<AccountUi>): String {
     if (accountId == null) return "Не выбран"
     return accounts.find { it.id == accountId }?.name ?: accountId.take(8)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InstrumentSearchField(
+    query: String,
+    onQueryChanged: (String) -> Unit,
+    isSearching: Boolean,
+    searchResults: List<InstrumentUi>,
+    onInstrumentSelected: (InstrumentUi) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(searchResults) { expanded = searchResults.isNotEmpty() }
+
+    Column(modifier = modifier) {
+        ExposedDropdownMenuBox(
+            expanded = expanded && searchResults.isNotEmpty(),
+            onExpandedChange = { expanded = it }
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = {
+                    onQueryChanged(it)
+                    expanded = it.isNotEmpty()
+                },
+                label = { Text("Поиск инструмента") },
+                placeholder = { Text("Введите тикер или название") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        else if (query.isNotEmpty()) IconButton(onClick = {
+                            onClear()
+                            expanded = false
+                        }) { Icon(Icons.Default.Clear, "Очистить") }
+                    }
+                },
+                supportingText = { if (query.length == 1) Text("Введите минимум 2 символа для поиска") }
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded && searchResults.isNotEmpty(),
+                onDismissRequest = { expanded = false }
+            ) {
+                Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                    searchResults.forEach { instrument: InstrumentUi ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text("${instrument.ticker} - ${instrument.name}")
+                                    Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
+                            onClick = {
+                                onInstrumentSelected(instrument)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

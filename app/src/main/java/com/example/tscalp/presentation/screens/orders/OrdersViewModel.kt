@@ -230,12 +230,32 @@ class OrdersViewModel(
             }
         }
 
+        // После успешной отправки основной заявки и до того, как метод завершится
         if (state.pairTradingEnabled && state.pairedInstrument != null) {
             val multiplier = state.pairedMultiplier.toDoubleOrNull() ?: 1.0
-            val pairedQuantity = (multiplier * quantity).toLong()  // quantity – количество основной заявки
+            val pairedQuantity = (multiplier * quantity).toLong()
+
             if (pairedQuantity > 0) {
-                val pairedDirection = if (direction == OrderDirection.ORDER_DIRECTION_BUY) OrderDirection.ORDER_DIRECTION_SELL else OrderDirection.ORDER_DIRECTION_BUY
+                val pairedDirection = if (direction == OrderDirection.ORDER_DIRECTION_BUY)
+                    OrderDirection.ORDER_DIRECTION_SELL
+                else
+                    OrderDirection.ORDER_DIRECTION_BUY
+
+                // orderType и price уже есть из состояния выше
+                // Перед вызовом контрсделки явно возьмите тип заявки и цену из стейта
+                val orderType = state.orderType
+                val price = if (orderType == OrderType.ORDER_TYPE_LIMIT) {
+                    // Преобразование строки limitPrice в Quotation (как в основной заявке)
+                    val limitPrice = state.limitPrice.toDoubleOrNull() ?: 0.0
+                    val units = limitPrice.toLong()
+                    val nano = ((limitPrice - units) * 1_000_000_000).toInt()
+                    Quotation.newBuilder().setUnits(units).setNano(nano).build()
+                } else {
+                    Quotation.newBuilder().setUnits(0).setNano(0).build()
+                }
+
                 try {
+                    // ... затем используйте orderType и price при вызове repository.postOrder для контрсделки
                     val pairedResult = repository.postOrder(
                         brokerName = brokerName,
                         figi = state.pairedInstrument.figi,
@@ -243,12 +263,16 @@ class OrdersViewModel(
                         direction = pairedDirection,
                         accountId = accountId,
                         sandboxMode = sandboxMode,
-                        orderType = state.orderType,
+                        orderType = orderType,   // теперь объявлена
                         price = price
                     )
-                    _uiState.update { it.copy(statusMessage = it.statusMessage + "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов") }
+                    _uiState.update {
+                        it.copy(statusMessage = it.statusMessage + "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов")
+                    }
                 } catch (e: Exception) {
-                    _uiState.update { it.copy(statusMessage = it.statusMessage + "\n❌ Ошибка контрсделки: ${e.message}", isError = true) }
+                    _uiState.update {
+                        it.copy(statusMessage = it.statusMessage + "\n❌ Ошибка контрсделки: ${e.message}", isError = true)
+                    }
                 }
             }
         }
@@ -384,6 +408,10 @@ class OrdersViewModel(
             Log.e(TAG, "Не удалось загрузить счета для $brokerName", e)
             //_uiState.update { it.copy(dialogAccounts = emptyList()) }
         }
+    }
+
+    fun setPairTradingEnabled(enabled: Boolean) {
+        _uiState.update { it.copy(pairTradingEnabled = enabled) }
     }
 
     fun onPairSearchQueryChanged(query: String) {

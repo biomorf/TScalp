@@ -11,6 +11,9 @@ import ru.tinkoff.piapi.contract.v1.AccountType as TinkoffAccountType
 import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.InstrumentResponse
 import ru.tinkoff.piapi.contract.v1.MoneyValue
+import ru.tinkoff.piapi.contract.v1.OrderType
+import ru.tinkoff.piapi.contract.v1.Quotation
+import com.example.tscalp.domain.models.OrderStatus
 
 data class InstrumentUi(
     val figi: String,
@@ -89,6 +92,37 @@ class InvestRepository(
         val broker = brokerManager.getBroker(brokerName)
             ?: throw IllegalArgumentException("Брокер $brokerName не найден")
         val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
+        OrderResult(
+            orderId = response.orderId,
+            executedLots = response.lotsExecuted,
+            totalLots = response.lotsRequested,
+            status = when (response.executionReportStatus) {
+                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW -> OrderStatus.NEW
+                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL -> OrderStatus.PARTIALLY_FILLED
+                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL -> OrderStatus.FILLED
+                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_REJECTED -> OrderStatus.REJECTED
+                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_CANCELLED -> OrderStatus.CANCELLED
+                else -> OrderStatus.NEW
+            }
+        )
+    }
+
+    /**
+     * Отправляет заявку (рыночную или лимитную) через указанного брокера.
+     */
+    suspend fun postOrder(
+        brokerName: String,
+        figi: String,
+        quantity: Long,
+        direction: OrderDirection,
+        accountId: String,
+        sandboxMode: Boolean,
+        orderType: OrderType,
+        price: Quotation
+    ): OrderResult = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+        val response = broker.postOrder(figi, quantity, direction, accountId, sandboxMode, orderType, price)
         OrderResult(
             orderId = response.orderId,
             executedLots = response.lotsExecuted,
