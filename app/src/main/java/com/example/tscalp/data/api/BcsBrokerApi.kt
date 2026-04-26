@@ -24,7 +24,7 @@ class BcsBrokerApi : BrokerApi {
         // Точный путь авторизации, как в вашем примере
         private const val TOKEN_PATH = "/trade-api-keycloak/realms/tradeapi/protocol/openid-connect/token"
         // Остальные пути оставляем прежними (при необходимости их тоже можно будет заменить)
-        private const val ACCOUNTS_PATH = "/api/v1/users/accounts"
+        private const val ACCOUNTS_PATH = "/trade-api-bff-account/api/v1/accounts"
         private const val PORTFOLIO_PATH = "/trade-api-bff-portfolio/api/v1/portfolio"
         private const val ORDERS_PATH = "/api/v1/orders"
         private const val INSTRUMENTS_PATH = "/api/v1/securities"
