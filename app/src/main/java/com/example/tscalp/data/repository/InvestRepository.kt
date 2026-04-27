@@ -10,11 +10,12 @@ import ru.tinkoff.piapi.contract.v1.OrderDirection
 import ru.tinkoff.piapi.contract.v1.AccountType as TinkoffAccountType
 import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.InstrumentResponse
-import ru.tinkoff.piapi.contract.v1.MoneyValue
+//import ru.tinkoff.piapi.contract.v1.MoneyValue
 import ru.tinkoff.piapi.contract.v1.OrderType
 import ru.tinkoff.piapi.contract.v1.Quotation
 import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.domain.models.BrokerOrderRequest
 
 
 /**
@@ -114,32 +115,37 @@ class InvestRepository(
         broker.postOrder(request)
     }
 
-    suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
-        val response = brokerManager.getDefaultBroker().getPortfolio(accountId, sandboxMode)
-        response.positionsList.mapNotNull { pos ->
-            val ticker = pos.ticker.ifBlank { pos.figi } ?: return@mapNotNull null
-            val instrument = try {
-                brokerManager.getDefaultBroker().getInstrumentByTicker(ticker)
-            } catch (e: Exception) {
-                Log.w(TAG, "Не удалось получить инструмент $ticker", e)
-                null
-            }
-            val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
-            if (quantity == 0L) return@mapNotNull null
-            val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-            val totalValue = currentPrice * quantity
+//    suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
+//        val response = brokerManager.getDefaultBroker().getPortfolio(accountId, sandboxMode)
+//        response.positionsList.mapNotNull { pos ->
+//            val ticker = pos.ticker.ifBlank { pos.figi } ?: return@mapNotNull null
+//            val instrument = try {
+//                brokerManager.getDefaultBroker().getInstrumentByTicker(ticker)
+//            } catch (e: Exception) {
+//                Log.w(TAG, "Не удалось получить инструмент $ticker", e)
+//                null
+//            }
+//            val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
+//            if (quantity == 0L) return@mapNotNull null
+//            val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+//            val totalValue = currentPrice * quantity
+//
+//            PortfolioPosition(
+//                name = instrument?.name ?: "",
+//                ticker = ticker,
+//                quantity = quantity,
+//                currentPrice = currentPrice,
+//                totalValue = totalValue,
+//                profit = 0.0,
+//                profitPercent = 0.0,
+//                instrumentType = instrument?.instrumentType ?: ""
+//            )
+//        }
+//    }
 
-            PortfolioPosition(
-                name = instrument?.name ?: "",
-                ticker = ticker,
-                quantity = quantity,
-                currentPrice = currentPrice,
-                totalValue = totalValue,
-                profit = 0.0,
-                profitPercent = 0.0,
-                instrumentType = instrument?.instrumentType ?: ""
-            )
-        }
+    suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getDefaultBroker()
+        broker.getPositions(accountId, sandboxMode)
     }
 
     /**
@@ -190,12 +196,8 @@ class InvestRepository(
         broker.getBalance(accountId)
     }
 
-    suspend fun sandboxPayIn(accountId: String, amount: Long) {
-        val money = MoneyValue.newBuilder()
-            .setUnits(amount)
-            .setNano(0)
-            .setCurrency("RUB")
-            .build()
-        brokerManager.getDefaultBroker().sandboxPayIn(accountId, money)
+    suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
+        val broker = brokerManager.getDefaultBroker()
+        broker.sandboxPayIn(accountId, amount)
     }
 }

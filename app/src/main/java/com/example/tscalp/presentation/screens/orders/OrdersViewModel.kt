@@ -25,6 +25,7 @@ import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.OrderType
 import com.example.tscalp.domain.models.OrderDirection
+//import com.example.tscalp.domain.models.OrderDirection2
 
 class OrdersViewModel(
     private val repository: InvestRepository
@@ -197,8 +198,8 @@ class OrdersViewModel(
     fun clearSearch() { _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), selectedInstrument = null, ticker = "", currentPrice = null, isPriceLoading = false, isSearchActive = false) } }
     fun onQuantityChanged(quantity: String) { _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) } }
     fun onAccountSelected(accountId: String) { _uiState.update { it.copy(selectedAccountId = accountId) } }
-    fun onBuyClick() = postOrder(OrderDirection.ORDER_DIRECTION_BUY)
-    fun onSellClick() = postOrder(OrderDirection.ORDER_DIRECTION_SELL)
+    fun onBuyClick() = postOrder(OrderDirection.BUY)
+    fun onSellClick() = postOrder(OrderDirection.SELL)
 
     private fun postOrder(direction: OrderDirection) {
         val state = _uiState.value
@@ -214,13 +215,14 @@ class OrdersViewModel(
         val price = if (orderType == BrokerOrderType.LIMIT) state.limitPrice.toDoubleOrNull() else null
 
         val request = BrokerOrderRequest(
+            brokerName = brokerName,
             ticker = ticker,
             quantity = quantity,
             direction = direction,
             accountId = accountId,
             sandboxMode = ServiceLocator.isSandboxMode(),
-            type = orderType,
-            price = price
+            type = if (state.orderType == OrderType.MARKET) BrokerOrderType.MARKET else BrokerOrderType.LIMIT,
+            price = if (state.orderType == OrderType.LIMIT) state.limitPrice.toDoubleOrNull() else null
         )
 
         viewModelScope.launch {

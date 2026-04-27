@@ -6,6 +6,7 @@ package com.example.tscalp.domain.models
  * @param price цена (для рыночной игнорируется)
  */
 data class BrokerOrderRequest(
+    val brokerName: String,
     val ticker: String,
     val quantity: Long,
     val direction: OrderDirection,
@@ -16,3 +17,4 @@ data class BrokerOrderRequest(
 )
 
 enum class OrderType { MARKET, LIMIT }
+enum class BrokerOrderType { MARKET, LIMIT }

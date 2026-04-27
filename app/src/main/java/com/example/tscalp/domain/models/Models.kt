@@ -1,8 +1,8 @@
 package com.example.tscalp.domain.models
 
-enum class OrderType { MARKET, LIMIT }
-
 enum class OrderDirection { BUY, SELL }
+//enum class OrderDirection2 { ORDER_DIRECTION_BUY, ORDER_DIRECTION_SELL }
+
 
 data class OrderResult(
     val orderId: String,
