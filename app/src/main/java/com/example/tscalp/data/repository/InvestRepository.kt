@@ -217,6 +217,30 @@ class InvestRepository(
         return brokerManager.getDefaultBroker().getLastPrices(figis)
     }
 
+    /**
+     * Получает последние цены для списка тикеров.
+     * Внутри вызывает resolveBrokerTicker для каждого тикера и запрашивает цены через брокера.
+     */
+    suspend fun getLastPricesByTicker(
+        brokerName: String,
+        tickers: List<String>
+    ): Map<String, Double?> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName) ?: return@withContext emptyMap()
+        val figiByTicker = mutableMapOf<String, String>()
+        for (ticker in tickers) {
+            val figi = broker.resolveTicker(ticker)
+            if (figi != null) {
+                figiByTicker[ticker] = figi
+            }
+        }
+        if (figiByTicker.isEmpty()) return@withContext emptyMap()
+        val figiPrices = broker.getLastPrices(figiByTicker.values.toList())
+        // Преобразуем обратно в ticker -> price
+        figiPrices.mapKeys { (figi, price) ->
+            figiByTicker.entries.firstOrNull { it.value == figi }?.key ?: figi
+        }
+    }
+
     suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val response = brokerManager.getDefaultBroker().getMarginAttributes(accountId)
         val money = response.liquidPortfolio

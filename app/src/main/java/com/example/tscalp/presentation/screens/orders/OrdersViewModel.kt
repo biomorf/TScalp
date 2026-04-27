@@ -297,16 +297,22 @@ class OrdersViewModel(
 
     private suspend fun updatePrices() {
         val state = _uiState.value
-        val figisToUpdate = state.lastSelectedInstruments.map { it.instrument.figi }.toMutableSet()
-        state.selectedInstrument?.let { figisToUpdate.add(it.figi) }
-        if (figisToUpdate.isEmpty()) return
+        val tickersToUpdate = mutableSetOf<String>()
+        state.lastSelectedInstruments.forEach { card ->
+            tickersToUpdate.add(card.instrument.ticker)
+        }
+        state.selectedInstrument?.let { tickersToUpdate.add(it.ticker) }
+        if (tickersToUpdate.isEmpty()) return
 
         try {
-            val prices = repository.getLastPrices(figisToUpdate.toList())
+            val prices = repository.getLastPricesByTicker(
+                brokerName = "tinkoff",   // или можно пробежаться по всем брокерам, но пока так
+                tickers = tickersToUpdate.toList()
+            )
 
             // Обновляем lastSelectedInstruments
             val updatedLastSelected = state.lastSelectedInstruments.map { card ->
-                val newPrice = prices[card.instrument.figi] ?: card.currentPrice
+                val newPrice = prices[card.instrument.ticker] ?: card.currentPrice
                 val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
                     ((newPrice - card.currentPrice) / card.currentPrice) * 100.0
                 } else null
@@ -320,9 +326,9 @@ class OrdersViewModel(
             // Обновляем цену и изменение для выбранного инструмента
             var newCurrentPrice = state.currentPrice
             var selectedChange = state.selectedPriceChangePercent
-            val selectedFigi = state.selectedInstrument?.figi
-            if (selectedFigi != null) {
-                val freshPrice = prices[selectedFigi]
+            val selectedTicker = state.selectedInstrument?.ticker
+            if (selectedTicker != null) {
+                val freshPrice = prices[selectedTicker]
                 if (freshPrice != null) {
                     val prevPrice = state.currentPrice
                     selectedChange = if (prevPrice != null && prevPrice != 0.0) {

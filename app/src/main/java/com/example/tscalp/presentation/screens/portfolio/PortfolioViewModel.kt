@@ -165,30 +165,39 @@ class PortfolioViewModel(
     private suspend fun updatePrices() {
         val positions = _uiState.value.positions
         if (positions.isEmpty()) return
-        val figis = positions.map { it.figi }
-        try {
-            val prices = repository.getLastPrices(figis)
-            val updatedPositions = positions.map { pos ->
-                val newPrice = prices[pos.figi] ?: pos.currentPrice
-                val previousPrice = pos.currentPrice  // сохраняем старую цену как предыдущую
-                val changePercent = if (previousPrice != 0.0 && newPrice != null) {
-                    ((newPrice - previousPrice) / previousPrice) * 100.0
-                } else null
 
-                pos.copy(
-                    currentPrice = newPrice,
-                    totalValue = newPrice * pos.quantity,
-                    priceChangePercent = changePercent
-                )
-            }
-            val newTotalValue = updatedPositions.sumOf { it.totalValue }
-            _uiState.update {
-                it.copy(
-                    positions = updatedPositions,
-                    totalValue = newTotalValue
-                )
-            }
-        } catch (_: Exception) { }
+        // Группируем тикеры по брокерам
+        val tickersByBroker = positions.groupBy { it.brokerName }
+            .mapValues { (_, posList) -> posList.map { it.ticker } }
+
+        val allPrices = mutableMapOf<String, Double?>()
+        for ((brokerName, tickers) in tickersByBroker) {
+            try {
+                val prices = repository.getLastPricesByTicker(brokerName, tickers)
+                allPrices.putAll(prices)
+            } catch (_: Exception) { }
+        }
+
+        val updatedPositions = positions.map { pos ->
+            val newPrice = allPrices[pos.ticker] ?: pos.currentPrice
+            val previousPrice = pos.currentPrice
+            val changePercent = if (previousPrice != 0.0 && newPrice != null) {
+                ((newPrice - previousPrice) / previousPrice) * 100.0
+            } else null
+            pos.copy(
+                currentPrice = newPrice,
+                totalValue = newPrice * pos.quantity,
+                priceChangePercent = changePercent
+            )
+        }
+
+        val newTotalValue = updatedPositions.sumOf { it.totalValue }
+        _uiState.update {
+            it.copy(
+                positions = updatedPositions,
+                totalValue = newTotalValue
+            )
+        }
     }
 
     fun refresh() { viewModelScope.launch { loadPortfolio() } }
