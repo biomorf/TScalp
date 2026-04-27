@@ -205,7 +205,7 @@ class OrdersViewModel(
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val result = repository.postMarketOrder(
                     brokerName = brokerName,
-                    ticker = ticker,              // <-- ticker вместо figi
+                    ticker = ticker,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
@@ -297,18 +297,12 @@ class OrdersViewModel(
 
     private suspend fun updatePrices() {
         val state = _uiState.value
-        val tickersToUpdate = mutableSetOf<String>()
-        state.lastSelectedInstruments.forEach { card ->
-            tickersToUpdate.add(card.instrument.ticker)
-        }
-        state.selectedInstrument?.let { tickersToUpdate.add(it.ticker) }
+        val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
+        state.selectedInstrument?.ticker?.let { tickersToUpdate.add(it) }
+
         if (tickersToUpdate.isEmpty()) return
 
-        try {
-            val prices = repository.getLastPricesByTicker(
-                brokerName = "tinkoff",   // или можно пробежаться по всем брокерам, но пока так
-                tickers = tickersToUpdate.toList()
-            )
+        val prices = repository.getLastPricesByTicker(tickersToUpdate.toList())
 
             // Обновляем lastSelectedInstruments
             val updatedLastSelected = state.lastSelectedInstruments.map { card ->
@@ -345,32 +339,35 @@ class OrdersViewModel(
                     selectedPriceChangePercent = selectedChange
                 )
             }
-        } catch (_: Exception) { }
     }
+
 
     /**
      * Открывает диалог настроек для указанного инструмента.
      */
-    fun openBrokerDialog(instrumentFigi: String) {
-        _uiState.update {
-            it.copy(
-                showBrokerDialog = true,
-                dialogInstrumentFigi = instrumentFigi,
-                selectedBroker = "tinkoff",                // по умолчанию Т‑Инвестиции
-                selectedAccountIdDialog = null              // счёт будет выбран позже
-            )
-        }
-        // Загружаем счета для брокера по умолчанию (можно сделать асинхронно, но пока синхронно через launch)
-        viewModelScope.launch {
-            loadDialogAccounts("tinkoff")
-        }
+/**
+ * Открывает диалог настроек брокера/счёта для указанного тикера.
+ */
+fun openBrokerDialog(ticker: String) {
+    val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
+    _uiState.update {
+        it.copy(
+            showBrokerDialog = true,
+            dialogInstrumentTicker = ticker,   // новое поле вместо figi
+            selectedBroker = existingCard?.brokerName ?: "tinkoff",
+            selectedAccountIdDialog = existingCard?.accountId
+        )
     }
+    viewModelScope.launch {
+        loadDialogAccounts(existingCard?.brokerName ?: "tinkoff")
+    }
+}
 
     /**
      * Закрывает диалог без сохранения.
      */
     fun closeBrokerDialog() {
-        _uiState.update { it.copy(showBrokerDialog = false, dialogInstrumentFigi = null) }
+        _uiState.update { it.copy(showBrokerDialog = false, dialogInstrumentTicker = null) }
     }
 
     /**
@@ -394,7 +391,7 @@ class OrdersViewModel(
      * Сохраняет выбранные настройки для инструмента и закрывает диалог.
      */
     fun saveBrokerSettings() {
-        val figi = _uiState.value.dialogInstrumentFigi ?: return
+        val ticker = _uiState.value.dialogInstrumentTicker ?: return
         val broker = _uiState.value.selectedBroker
         val accountId = _uiState.value.selectedAccountIdDialog
 
@@ -402,12 +399,12 @@ class OrdersViewModel(
         _uiState.update { state ->
             state.copy(
                 lastSelectedInstruments = state.lastSelectedInstruments.map { card ->
-                    if (card.instrument.figi == figi) {
+                    if (card.instrument.ticker == ticker) {
                         card.copy(brokerName = broker, accountId = accountId)
                     } else card
                 },
                 showBrokerDialog = false,
-                dialogInstrumentFigi = null
+                dialogInstrumentTicker = null
             )
         }
     }

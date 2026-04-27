@@ -221,24 +221,23 @@ class InvestRepository(
      * Получает последние цены для списка тикеров.
      * Внутри вызывает resolveBrokerTicker для каждого тикера и запрашивает цены через брокера.
      */
-    suspend fun getLastPricesByTicker(
-        brokerName: String,
-        tickers: List<String>
-    ): Map<String, Double?> = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(brokerName) ?: return@withContext emptyMap()
+    suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
+        // Для каждого брокера резолвим ticker -> figi, затем запрашиваем цены
         val figiByTicker = mutableMapOf<String, String>()
+        val broker = brokerManager.getDefaultBroker() // или проходим по всем брокерам
         for (ticker in tickers) {
             val figi = broker.resolveTicker(ticker)
-            if (figi != null) {
-                figiByTicker[ticker] = figi
-            }
+            if (figi != null) figiByTicker[ticker] = figi
         }
         if (figiByTicker.isEmpty()) return@withContext emptyMap()
-        val figiPrices = broker.getLastPrices(figiByTicker.values.toList())
-        // Преобразуем обратно в ticker -> price
-        figiPrices.mapKeys { (figi, price) ->
-            figiByTicker.entries.firstOrNull { it.value == figi }?.key ?: figi
+
+        val pricesResponse = broker.getLastPrices(figiByTicker.values.toList())
+        // Маппим обратно ticker -> price
+        val result = mutableMapOf<String, Double?>()
+        for ((ticker, figi) in figiByTicker) {
+            result[ticker] = pricesResponse[figi]
         }
+        result
     }
 
     suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {

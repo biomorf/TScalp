@@ -74,21 +74,23 @@ class PortfolioViewModel(
                                 // Получаем позиции от брокера (уже в виде List<PortfolioPosition>)
                                 val positions = broker.getPositions(account.id, sandboxMode)
 
-                                // Обогащаем каждую позицию: если ticker пустой – запрашиваем через getInstrumentByFigi
+                                // Обогащаем каждую позицию: если ticker пустой, пытаемся получить его через getInstrumentByTicker
                                 val enrichedPositions = positions.map { pos ->
-                                    if (pos.ticker.isBlank() && pos.figi.isNotBlank()) {
-                                        try {
-                                            val instrumentResponse = broker.getInstrumentByFigi(pos.figi)
-                                            val ticker = instrumentResponse.instrument.ticker
-                                            pos.copy(ticker = ticker)
-                                        } catch (e: Exception) {
-                                            Log.w(TAG, "Не удалось получить тикер для FIGI ${pos.figi}", e)
-                                            pos.copy(ticker = pos.figi) // fallback – используем FIGI как тикер
+                                    try {
+                                        val instrument = broker.getInstrumentByTicker(pos.ticker.ifBlank { pos.figi })
+                                        if (instrument != null) {
+                                            pos.copy(
+                                                ticker = instrument.ticker,
+                                                name = instrument.name,
+                                                instrumentType = instrument.instrumentType
+                                            )
+                                        } else {
+                                            pos
                                         }
-                                    } else {
+                                    } catch (e: Exception) {
                                         pos
                                     }
-                                }.map { it.copy(brokerName = brokerName) } // добавляем имя брокера
+                                }.map { it.copy(brokerName = brokerName) }
 
                                 allPositions.addAll(enrichedPositions)
                             } catch (e: Exception) {
@@ -165,39 +167,30 @@ class PortfolioViewModel(
     private suspend fun updatePrices() {
         val positions = _uiState.value.positions
         if (positions.isEmpty()) return
+        val tickers = positions.map { it.ticker }
+        try {
+            val prices = repository.getLastPricesByTicker(tickers)
+            val updatedPositions = positions.map { pos ->
+                val newPrice = prices[pos.ticker] ?: pos.currentPrice
+                val previousPrice = pos.currentPrice
+                val changePercent = if (previousPrice != 0.0 && newPrice != null) {
+                    ((newPrice - previousPrice) / previousPrice) * 100.0
+                } else null
 
-        // Группируем тикеры по брокерам
-        val tickersByBroker = positions.groupBy { it.brokerName }
-            .mapValues { (_, posList) -> posList.map { it.ticker } }
-
-        val allPrices = mutableMapOf<String, Double?>()
-        for ((brokerName, tickers) in tickersByBroker) {
-            try {
-                val prices = repository.getLastPricesByTicker(brokerName, tickers)
-                allPrices.putAll(prices)
-            } catch (_: Exception) { }
-        }
-
-        val updatedPositions = positions.map { pos ->
-            val newPrice = allPrices[pos.ticker] ?: pos.currentPrice
-            val previousPrice = pos.currentPrice
-            val changePercent = if (previousPrice != 0.0 && newPrice != null) {
-                ((newPrice - previousPrice) / previousPrice) * 100.0
-            } else null
-            pos.copy(
-                currentPrice = newPrice,
-                totalValue = newPrice * pos.quantity,
-                priceChangePercent = changePercent
-            )
-        }
-
-        val newTotalValue = updatedPositions.sumOf { it.totalValue }
-        _uiState.update {
-            it.copy(
-                positions = updatedPositions,
-                totalValue = newTotalValue
-            )
-        }
+                pos.copy(
+                    currentPrice = newPrice,
+                    totalValue = newPrice * pos.quantity,
+                    priceChangePercent = changePercent
+                )
+            }
+            val newTotalValue = updatedPositions.sumOf { it.totalValue }
+            _uiState.update {
+                it.copy(
+                    positions = updatedPositions,
+                    totalValue = newTotalValue
+                )
+            }
+        } catch (_: Exception) { }
     }
 
     fun refresh() { viewModelScope.launch { loadPortfolio() } }

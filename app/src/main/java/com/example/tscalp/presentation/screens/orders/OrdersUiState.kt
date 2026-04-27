@@ -47,6 +47,7 @@ data class OrdersUiState(
     // Диалог брокера
     val showBrokerDialog: Boolean = false,          // флаг открытия диалога
     val dialogInstrumentFigi: String? = null,       // FIGI инструмента, для которого открыт диалог
+    val dialogInstrumentTicker: String? = null,
     val selectedBroker: String = "tinkoff",         // выбранный брокер в диалоге
     val selectedAccountIdDialog: String? = null,     // выбранный счёт в диалоге
     val dialogAccounts: List<AccountUi> = emptyList(),     // счета для диалога
