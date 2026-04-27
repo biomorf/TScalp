@@ -17,6 +17,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.SandboxMoney
 
 /**
  * ViewModel для экрана портфеля.
@@ -51,18 +52,15 @@ class PortfolioViewModel(
     }
 
     fun loadPortfolio() {
-        if (isPortfolioLoading) return@loadPortfolio   // <-- защита от повторного входа
-        isPortfolioLoading = true
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val allPositions = mutableListOf<PortfolioPosition>()
 
-                // Получаем имена всех зарегистрированных брокеров
+                // Обходим всех зарегистрированных брокеров
                 val brokerNames = ServiceLocator.getBrokerManager().getAvailableBrokers()
                 for (brokerName in brokerNames) {
-                    // Получаем брокера по имени
                     val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: continue
                     if (!broker.isInitialized) continue
 
@@ -74,28 +72,35 @@ class PortfolioViewModel(
                                 // Получаем позиции от брокера (уже в виде List<PortfolioPosition>)
                                 val positions = broker.getPositions(account.id, sandboxMode)
 
-                                // Обогащаем каждую позицию: если ticker пустой, пытаемся получить его через getInstrumentByTicker
+                                // Обогащаем каждую позицию: если ticker пустой – запрашиваем через getInstrumentByTicker
                                 val enrichedPositions = positions.map { pos ->
-                                    try {
-                                        val instrument = broker.getInstrumentByTicker(pos.ticker)
-                                        if (instrument != null) {
-                                            pos.copy(
-                                                ticker = instrument.ticker,
-                                                name = instrument.name,
-                                                instrumentType = instrument.instrumentType
-                                            )
-                                        } else {
-                                            pos
+                                    if (pos.ticker.isBlank()) {
+                                        // Пытаемся получить тикер через getInstrumentByTicker (для Т‑Инвестиций)
+                                        val instrument = try {
+                                            broker.getInstrumentByTicker(pos.figi)
+                                        } catch (e: Exception) {
+                                            null
                                         }
-                                    } catch (e: Exception) {
+                                        pos.copy(ticker = instrument?.ticker ?: pos.figi)
+                                    } else {
                                         pos
                                     }
-                                }.map { it.copy(brokerName = brokerName) }
+                                }.map { it.copy(brokerName = brokerName) } // добавляем имя брокера
 
                                 allPositions.addAll(enrichedPositions)
                             } catch (e: Exception) {
                                 Log.w(TAG, "Ошибка загрузки портфеля для счета ${account.id} брокера $brokerName", e)
                             }
+                        }
+
+                        // Загружаем баланс для первого счета (если нужно)
+                        if (accounts.isNotEmpty()) {
+                            val balance = try {
+                                broker.getBalance(accounts.first().id)
+                            } catch (e: Exception) {
+                                0.0
+                            }
+                            _uiState.update { it.copy(balance = balance) }
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Не удалось получить счета брокера $brokerName", e)
@@ -104,8 +109,7 @@ class PortfolioViewModel(
 
                 // Убираем возможные дубликаты (одинаковые ticker у одного брокера)
                 val deduplicated = allPositions.distinctBy { "${it.ticker}_${it.brokerName}" }
-
-                // Сортируем по имени брокера, чтобы группы были вместе
+                // Сортируем по имени брокера
                 val sorted = deduplicated.sortedBy { it.brokerName }
 
                 val totalValue = sorted.sumOf { it.totalValue }
@@ -114,7 +118,7 @@ class PortfolioViewModel(
                         positions = sorted,
                         totalValue = totalValue,
                         isLoading = false,
-                        statusMessage = if (deduplicated.isEmpty()) "Портфель пуст" else "Загружено ${deduplicated.size} позиций",
+                        statusMessage = if (sorted.isEmpty()) "Портфель пуст" else "Загружено ${sorted.size} позиций",
                         isError = false
                     )
                 }
@@ -126,8 +130,6 @@ class PortfolioViewModel(
                         isError = true
                     )
                 }
-            } finally {
-                isPortfolioLoading = false
             }
         }
     }
@@ -140,7 +142,10 @@ class PortfolioViewModel(
                 val accounts = repository.getAccounts(sandboxMode)
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
                 val accountId = accounts.first().id
-                repository.sandboxPayIn(accountId, 100_000L) // пополняем на 100 000 рублей
+                repository.sandboxPayIn(
+                    accountId = accountId,
+                    amount = SandboxMoney(currency = "RUB", units = 100_000)
+                ) // пополняем на 100 000 рублей
                 loadPortfolio()
             } catch (e: Exception) {
                 _uiState.update {

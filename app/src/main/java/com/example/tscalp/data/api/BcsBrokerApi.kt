@@ -11,8 +11,15 @@ import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import ru.tinkoff.piapi.contract.v1.*
 import java.io.IOException
+import com.example.tscalp.domain.models.SandboxMoney
+import com.example.tscalp.domain.models.BrokerOrderRequest
+import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.BrokerAccountType
+import com.example.tscalp.domain.models.OrderResult
+import com.example.tscalp.domain.models.OrderDirection
+import com.example.tscalp.domain.models.OrderType
+import com.example.tscalp.domain.models.OrderStatus
 
 /**
  * Реализация BrokerApi для брокера БКС (Мир Инвестиций).
@@ -140,34 +147,35 @@ class BcsBrokerApi : BrokerApi {
      * Получает счета на основе ответа портфеля.
      * Используем первый элемент массива, чтобы извлечь номер счёта (поле "account").
      */
-    override suspend fun getAccounts(sandboxMode: Boolean): List<Account> {
+    override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> {
         val response = makeRequest("GET", PORTFOLIO_PATH)
-        if (!response.isSuccessful) throw IOException("Ошибка получения данных портфеля: ${response.code}")
+        if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
         val json = response.body?.string() ?: throw IOException("Пустой ответ")
-        // Ответ – это массив позиций
-        val positionsArray: List<Map<String, Any>> = gson.fromJson(json, object : TypeToken<List<Map<String, Any>>>() {}.type)
+        val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
 
-        if (positionsArray.isEmpty()) {
-            return listOf(
-                Account.newBuilder()
-                    .setId("bcs-default")
-                    .setName("БКС Счёт")
-                    .setTypeValue(1)
-                    .build()
-            )
+        // Пытаемся найти массив счетов в ответе
+        val accountsList = portfolioData["accounts"] as? List<*>
+        if (!accountsList.isNullOrEmpty()) {
+            return accountsList.mapNotNull { acc ->
+                val accMap = acc as? Map<String, Any> ?: return@mapNotNull null
+                BrokerAccount(
+                    id = accMap["id"] as? String ?: accMap["brokerAccountId"] as? String ?: "",
+                    name = accMap["name"] as? String ?: accMap["accountName"] as? String ?: "",
+                    type = BrokerAccountType.BROKER
+                )
+            }
         }
 
-        val firstPosition = positionsArray[0]
-        val accountId = firstPosition["account"] as? String ?: "bcs-default"
-        val accountName = firstPosition["account"] as? String ?: "БКС Счёт"
-
+        // Если счетов нет – создаём один счёт из первого элемента портфеля
+        val firstPosition = portfolioData["positions"] as? List<*>
+        val accountId = (firstPosition?.firstOrNull() as? Map<String, Any>)?.get("account") as? String ?: "bcs-default"
         return listOf(
-            Account.newBuilder()
-                .setId(accountId)
-                .setName(accountName)
-                .setTypeValue(1)
-                .build()
+            BrokerAccount(
+                id = accountId,
+                name = accountId,
+                type = BrokerAccountType.BROKER
+            )
         )
     }
 
@@ -213,54 +221,20 @@ class BcsBrokerApi : BrokerApi {
         }.distinctBy { it.ticker } // убираем дубликаты по FIGI внутри одного брокера
     }
 
-    override suspend fun postMarketOrder(
-        figi: String,
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean
-    ): PostOrderResponse {
-        // БКС использует параметры: symbol (тикер, не FIGI!), side (buy/sell), quantity, accountId
-        // Нам нужно преобразовать figi в тикер? Лучше передавать figi как symbol, но может не работать.
-        // Временно будем передавать figi. В будущем заменим на тикер.
-        val side = if (direction == OrderDirection.ORDER_DIRECTION_BUY) "buy" else "sell"
-        val body = """
-            {
-                "symbol": "$figi",
-                "side": "$side",
-                "quantity": $quantity,
-                "accountId": "$accountId",
-                "type": "market"
-            }
-        """.trimIndent().toRequestBody("application/json".toMediaType())
 
-        val response = makeRequest("POST", ORDERS_PATH, body)
-        if (!response.isSuccessful) throw IOException("Ошибка выставления заявки: ${response.code}")
-        val json = response.body?.string() ?: throw IOException("Пустой ответ")
-        val orderMap: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
-        val orderId = orderMap["orderId"] as? String ?: ""
-        val executedLots = (orderMap["executedQuantity"] as? Double)?.toLong() ?: 0L
-        val requestedLots = quantity
-
-        return PostOrderResponse.newBuilder()
-            .setOrderId(orderId)
-            .setLotsExecuted(executedLots)
-            .setLotsRequested(requestedLots)
-            .setExecutionReportStatus(OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW)
-            .build()
-    }
 
 
     // Старый getPortfolio можно оставить пустым или вовсе удалить, но для совместимости пусть возвращает пустой ответ.
-    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {
-        return PortfolioResponse.newBuilder().build()
-    }
+//    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {
+//        return PortfolioResponse.newBuilder().build()
+//    }
 
+    override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
 
-    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> {
-        // Аналогично, потребуется адаптация
-        return emptyList()
-    }
+//    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> {
+//        // Аналогично, потребуется адаптация
+//        return emptyList()
+//    }
 
     override suspend fun resolveTicker(ticker: String): String? {
         // У БКС нет отдельного идентификатора, возвращаем ticker как есть
@@ -274,63 +248,53 @@ class BcsBrokerApi : BrokerApi {
 
 
 
-    override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
-        // БКС может иметь свой метод пополнения демо-счета
-        val body = """
-            {
-                "accountId": "$accountId",
-                "currency": "${amount.currency}",
-                "amount": ${amount.units}
-            }
-        """.trimIndent().toRequestBody("application/json".toMediaType())
-        makeRequest("POST", SANDBOX_PAY_IN_PATH, body)
+    override suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
+        Log.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
     }
 
-    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse {
-        // Заглушка
-        return GetMarginAttributesResponse.newBuilder().build()
+    override suspend fun getBalance(accountId: String): Double {
+        // Пока возвращаем 0, так как API БКС не предоставляет прямого метода баланса
+        return 0.0
     }
 
-    override suspend fun postOrder(
-        figi: String,
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean,
-        orderType: OrderType,
-        price: Quotation
-    ): PostOrderResponse {
-        // Аналогично postMarketOrder, но с ценой
-        val side = if (direction == OrderDirection.ORDER_DIRECTION_BUY) "buy" else "sell"
-        val type = if (orderType == OrderType.ORDER_TYPE_MARKET) "market" else "limit"
+//    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse {
+//        // Заглушка
+//        return GetMarginAttributesResponse.newBuilder().build()
+//    }
+
+    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
+        val side = if (request.direction == OrderDirection.BUY) "buy" else "sell"
+        val type = if (request.type == OrderType.MARKET) "market" else "limit"
+        val priceField = if (request.price != null) """, "limitPrice": ${request.price}""" else ""
         val body = """
-            {
-                "symbol": "$figi",
-                "side": "$side",
-                "quantity": $quantity,
-                "accountId": "$accountId",
-                "type": "$type",
-                "limitPrice": ${if (orderType == OrderType.ORDER_TYPE_LIMIT) "${price.units}.${price.nano}" else ""}
-            }
-        """.trimIndent().toRequestBody("application/json".toMediaType())
+        {
+            "symbol": "${request.ticker}",
+            "side": "$side",
+            "quantity": ${request.quantity},
+            "accountId": "${request.accountId}",
+            "type": "$type"
+            $priceField
+        }
+    """.trimIndent().toRequestBody("application/json".toMediaType())
+
         val response = makeRequest("POST", ORDERS_PATH, body)
         if (!response.isSuccessful) throw IOException("Ошибка выставления заявки: ${response.code}")
-        // Парсим ответ аналогично postMarketOrder
+
         val json = response.body?.string() ?: throw IOException("Пустой ответ")
         val orderMap: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
-        val orderId = orderMap["orderId"] as? String ?: ""
-        return PostOrderResponse.newBuilder()
-            .setOrderId(orderId)
-            .setLotsExecuted((orderMap["executedQuantity"] as? Double)?.toLong() ?: 0L)
-            .setLotsRequested(quantity)
-            .setExecutionReportStatus(OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW)
-            .build()
+
+        return OrderResult(
+            orderId = orderMap["orderId"] as? String ?: "",
+            executedLots = (orderMap["executedQuantity"] as? Double)?.toLong() ?: 0L,
+            totalLots = request.quantity,
+            status = OrderStatus.NEW
+        )
     }
 
-    suspend fun getSandboxAccounts(): List<Account> {
-        // БКС может не иметь отдельного песочного API
-        return getAccounts(sandboxMode = true)
-    }
+//    suspend fun getSandboxAccounts(): List<Account> {
+//        // БКС может не иметь отдельного песочного API
+//        return getAccounts(sandboxMode = true)
+//    }
 
     override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
 }

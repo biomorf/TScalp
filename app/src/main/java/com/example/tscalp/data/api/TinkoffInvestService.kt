@@ -9,6 +9,9 @@ import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.*
 import ru.ttech.piapi.core.InvestApi
 import java.util.concurrent.ConcurrentHashMap
+import com.example.tscalp.domain.models.*
+import com.example.tscalp.domain.models.OrderType
+import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.PortfolioPosition
 
 /**
@@ -60,6 +63,24 @@ class TinkoffInvestService : BrokerApi {
         return figi
     }
 
+    // Публичный метод, соответствующий интерфейсу BrokerApi
+    override suspend fun findInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
+        val shorts = findInstrumentShorts(query)
+        shorts.mapNotNull { short ->
+            val instrument = getInstrumentByTicker(short.ticker)
+            if (instrument != null) {
+                InstrumentUi(
+                    ticker = instrument.ticker,
+                    name = instrument.name,
+                    currency = instrument.currency,
+                    lot = instrument.lot,
+                    instrumentType = instrument.instrumentType,
+                    figi = short.figi
+                )
+            } else null
+        }
+    }
+
     /**
      * Возвращает InstrumentUi по тикеру. Использует resolveTicker и затем getInstrumentByFigi.
      */
@@ -81,7 +102,8 @@ class TinkoffInvestService : BrokerApi {
      * Возвращает краткие результаты поиска (InstrumentShort) по строке запроса.
      * Используется для кэширования и resolveTicker.
      */
-    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
+    // Приватный метод для внутреннего кэширования (использует protobuf)
+    private suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
         currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
@@ -99,66 +121,77 @@ class TinkoffInvestService : BrokerApi {
         currentApi.instrumentsServiceSync.getInstrumentBy(request)
     }
 
-    override suspend fun getAccounts(sandboxMode: Boolean): List<Account> = withContext(Dispatchers.IO) {
+    override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetAccountsRequest.getDefaultInstance()
-        return@withContext if (sandboxMode) {
+        val accounts = if (sandboxMode) {
             currentApi.sandboxServiceSync.getSandboxAccounts(request).accountsList
         } else {
             currentApi.usersServiceSync.getAccounts(request).accountsList
         }
-    }
-
-    override suspend fun postMarketOrder(
-        figi: String,
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean
-    ): PostOrderResponse = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
-        val request = PostOrderRequest.newBuilder()
-            .setFigi(figi)
-            .setQuantity(quantity)
-            .setPrice(price)
-            .setDirection(direction)
-            .setAccountId(accountId)
-            .setOrderType(OrderType.ORDER_TYPE_MARKET)
-            .build()
-        return@withContext if (sandboxMode) {
-            currentApi.sandboxServiceSync.postSandboxOrder(request)
-        } else {
-            currentApi.ordersServiceSync.postOrder(request)
+        accounts.map { acc ->
+            BrokerAccount(
+                id = acc.id,
+                name = acc.name,
+                type = when (acc.typeValue) {
+                    1 -> BrokerAccountType.BROKER
+                    2 -> BrokerAccountType.IIS
+                    3 -> BrokerAccountType.INVEST_BOX
+                    else -> BrokerAccountType.OTHER
+                }
+            )
         }
     }
 
-    override suspend fun postOrder(
-        figi: String,
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean,
-        orderType: OrderType,
-        price: Quotation
-    ): PostOrderResponse = withContext(Dispatchers.IO) {
+
+
+    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val request = PostOrderRequest.newBuilder()
-            .setFigi(figi)
-            .setQuantity(quantity)
-            .setPrice(price)
-            .setDirection(direction)
-            .setAccountId(accountId)
-            .setOrderType(orderType)
-            .build()
-        return@withContext if (sandboxMode) {
-            currentApi.sandboxServiceSync.postSandboxOrder(request)
+        val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
+
+        // Преобразуем цену в protobuf Quotation
+        val price = if (request.type == OrderType.LIMIT && request.price != null) {
+            val units = request.price.toLong()
+            val nano = ((request.price - units) * 1_000_000_000).toInt()
+            Quotation.newBuilder().setUnits(units).setNano(nano).build()
         } else {
-            currentApi.ordersServiceSync.postOrder(request)
+            Quotation.newBuilder().setUnits(0).setNano(0).build()
         }
+
+        val apiOrderType = when (request.type) {
+            OrderType.MARKET -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_MARKET
+            OrderType.LIMIT -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_LIMIT
+        }
+
+        val apiDirection = when (request.direction) {
+            OrderDirection.BUY -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_BUY
+            OrderDirection.SELL -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_SELL
+        }
+
+        val apiRequest = PostOrderRequest.newBuilder()
+            .setFigi(figi)
+            .setQuantity(request.quantity)
+            .setPrice(price)
+            .setDirection(apiDirection)
+            .setAccountId(request.accountId)
+            .setOrderType(apiOrderType)
+            .build()
+
+        val response = if (request.sandboxMode) {
+            currentApi.sandboxServiceSync.postSandboxOrder(apiRequest)
+        } else {
+            currentApi.ordersServiceSync.postOrder(apiRequest)
+        }
+
+        OrderResult(
+            orderId = response.orderId,
+            executedLots = response.lotsExecuted,
+            totalLots = response.lotsRequested,
+            status = OrderStatus.NEW
+        )
     }
 
-    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
+    suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
         return@withContext if (sandboxMode) {
@@ -173,7 +206,7 @@ class TinkoffInvestService : BrokerApi {
         val response = getPortfolio(accountId, sandboxMode)
 
         response.positionsList.mapNotNull { pos ->
-            // Пытаемся получить тикер из протобуфа, иначе резолвим через figi
+            // Получаем тикер: либо из самого ответа, либо резолвим через figi
             val ticker = pos.ticker.ifBlank { resolveTicker(pos.figi) ?: pos.figi }
             if (ticker.isBlank()) return@mapNotNull null
 
@@ -221,18 +254,32 @@ class TinkoffInvestService : BrokerApi {
         result
     }
 
-    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
+//    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
+//        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+//        val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
+//        currentApi.usersServiceSync.getMarginAttributes(request)
+//    }
+
+    override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-        currentApi.usersServiceSync.getMarginAttributes(request)
+        val response = currentApi.usersServiceSync.getMarginAttributes(request)
+        val money = response.liquidPortfolio
+        (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
     }
 
-    override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
+    override suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
         withContext(Dispatchers.IO) {
             val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+            // Преобразуем в protobuf MoneyValue
+            val money = MoneyValue.newBuilder()
+                .setCurrency(amount.currency)
+                .setUnits(amount.units)
+                .setNano(amount.nano)
+                .build()
             val request = SandboxPayInRequest.newBuilder()
                 .setAccountId(accountId)
-                .setAmount(amount)
+                .setAmount(money)
                 .build()
             currentApi.sandboxServiceSync.sandboxPayIn(request)
         }

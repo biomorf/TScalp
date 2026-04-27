@@ -1,36 +1,23 @@
 package com.example.tscalp.domain.api
 
 import com.example.tscalp.domain.models.InstrumentUi
-import ru.tinkoff.piapi.contract.v1.*
-//import com.example.tscalp.domain.models.
-import com.example.tscalp.domain.models.PortfolioPosition
+//import ru.tinkoff.piapi.contract.v1.*
+import com.example.tscalp.domain.models.*
 
 
 interface BrokerApi {
     val isInitialized: Boolean
-    suspend fun getAccounts(sandboxMode: Boolean): List<Account>
-    suspend fun postMarketOrder(
-        figi: String,
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean
-    ): PostOrderResponse
+    suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
+
+
     /**
      * Выставляет заявку (рыночную или лимитную) через брокера.
      * @param orderType тип заявки (ORDER_TYPE_MARKET или ORDER_TYPE_LIMIT)
      * @param price цена (для рыночной игнорируется, можно передать Quotation.getDefaultInstance())
      */
-    suspend fun postOrder(
-        figi: String,
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean,
-        orderType: OrderType,
-        price: Quotation
-    ): PostOrderResponse
-    suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse
+    suspend fun postOrder(request: BrokerOrderRequest): OrderResult
+
+    //suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse
 
     /**
      * Возвращает специфичный для брокера идентификатор инструмента по тикеру.
@@ -41,10 +28,12 @@ interface BrokerApi {
 
     // Опционально: если нужно получать полный InstrumentUi по тикеру
     suspend fun getInstrumentByTicker(ticker: String): InstrumentUi?
-    suspend fun findInstrumentShorts(query: String): List<InstrumentShort>
+    suspend fun findInstruments(query: String): List<InstrumentUi>
+    //suspend fun findInstrumentShorts(query: String): List<InstrumentShort>
     //suspend fun getLastPrices(figis: List<String>): Map<String, Double?>
-    suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse
-    suspend fun sandboxPayIn(accountId: String, amount: MoneyValue)
+    //suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse
+    suspend fun getBalance(accountId: String): Double
+    suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney)
 
     /**
      * Возвращает позиции портфеля для указанного счёта в виде списка доменных объектов.

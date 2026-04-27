@@ -14,6 +14,7 @@ import ru.tinkoff.piapi.contract.v1.MoneyValue
 import ru.tinkoff.piapi.contract.v1.OrderType
 import ru.tinkoff.piapi.contract.v1.Quotation
 import com.example.tscalp.domain.models.OrderStatus
+import com.example.tscalp.domain.models.AccountUi
 
 
 /**
@@ -31,16 +32,17 @@ class InvestRepository(
      * Получает счета для брокера по умолчанию (Tinkoff).
      * Оставлен для совместимости с существующим кодом.
      */
-    suspend fun getAccounts(sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
-        val accounts = brokerManager.getDefaultBroker().getAccounts(sandboxMode)
-        accounts.map { account ->
+    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName) ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+        val accounts = broker.getAccounts(sandboxMode)
+        accounts.map { acc ->
             AccountUi(
-                id = account.id,
-                name = account.name,
-                type = when (account.typeValue) {
-                    1 -> AccountType.BROKER
-                    2 -> AccountType.IIS
-                    3 -> AccountType.INVEST_BOX
+                id = acc.id,
+                name = acc.name,
+                type = when (acc.type) {
+                    BrokerAccountType.BROKER -> AccountType.BROKER
+                    BrokerAccountType.IIS -> AccountType.IIS
+                    BrokerAccountType.INVEST_BOX -> AccountType.INVEST_BOX
                     else -> AccountType.BROKER
                 }
             )
@@ -52,87 +54,64 @@ class InvestRepository(
      * @param brokerName имя брокера (например, "tinkoff")
      * @param sandboxMode режим песочницы
      */
-    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(brokerName)
-            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
-        val accounts = broker.getAccounts(sandboxMode)
-        accounts.map { account ->
-            AccountUi(
-                id = account.id,
-                name = account.name,
-                type = when (account.typeValue) {
-                    1 -> AccountType.BROKER
-                    2 -> AccountType.IIS
-                    3 -> AccountType.INVEST_BOX
-                    else -> AccountType.BROKER
-                }
-            )
-        }
-    }
+//    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
+//        val broker = brokerManager.getBroker(brokerName)
+//            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+//        val accounts = broker.getAccounts(sandboxMode)
+//        accounts.map { account ->
+//            AccountUi(
+//                id = account.id,
+//                name = account.name,
+//                type = when (account.typeValue) {
+//                    1 -> AccountType.BROKER
+//                    2 -> AccountType.IIS
+//                    3 -> AccountType.INVEST_BOX
+//                    else -> AccountType.BROKER
+//                }
+//            )
+//        }
+//    }
 
     /**
      * Отправляет рыночную заявку через указанного брокера.
      */
-    suspend fun postMarketOrder(
-        brokerName: String,
-        ticker: String,            // теперь ticker вместо figi
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean
-    ): OrderResult = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(brokerName)
-            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
-        ///val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
-        // Разрешаем ticker в нужный идентификатор
-        val figi = broker.resolveTicker(ticker) ?: throw IllegalArgumentException("Инструмент с тикером $ticker не найден")
-        // Вызываем старый метод с figi
-        val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
-        OrderResult(
-            orderId = response.orderId,
-            executedLots = response.lotsExecuted,
-            totalLots = response.lotsRequested,
-            status = when (response.executionReportStatus) {
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW -> OrderStatus.NEW
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL -> OrderStatus.PARTIALLY_FILLED
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL -> OrderStatus.FILLED
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_REJECTED -> OrderStatus.REJECTED
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_CANCELLED -> OrderStatus.CANCELLED
-                else -> OrderStatus.NEW
-            }
-        )
-    }
+//    suspend fun postMarketOrder(
+//        brokerName: String,
+//        ticker: String,            // теперь ticker вместо figi
+//        quantity: Long,
+//        direction: OrderDirection,
+//        accountId: String,
+//        sandboxMode: Boolean
+//    ): OrderResult = withContext(Dispatchers.IO) {
+//        val broker = brokerManager.getBroker(brokerName)
+//            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+//        ///val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
+//        // Разрешаем ticker в нужный идентификатор
+//        val figi = broker.resolveTicker(ticker) ?: throw IllegalArgumentException("Инструмент с тикером $ticker не найден")
+//        // Вызываем старый метод с figi
+//        val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
+//        OrderResult(
+//            orderId = response.orderId,
+//            executedLots = response.lotsExecuted,
+//            totalLots = response.lotsRequested,
+//            status = when (response.executionReportStatus) {
+//                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW -> OrderStatus.NEW
+//                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL -> OrderStatus.PARTIALLY_FILLED
+//                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL -> OrderStatus.FILLED
+//                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_REJECTED -> OrderStatus.REJECTED
+//                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_CANCELLED -> OrderStatus.CANCELLED
+//                else -> OrderStatus.NEW
+//            }
+//        )
+//    }
 
     /**
      * Отправляет заявку (рыночную или лимитную) через указанного брокера.
      */
-    suspend fun postOrder(
-        brokerName: String,
-        ticker: String,
-        quantity: Long,
-        direction: OrderDirection,
-        accountId: String,
-        sandboxMode: Boolean,
-        orderType: OrderType,
-        price: Quotation
-    ): OrderResult = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(brokerName)
-            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
-        val figi = broker.resolveTicker(ticker) ?: throw IllegalArgumentException("Инструмент с тикером $ticker не найден")
-        val response = broker.postOrder(figi, quantity, direction, accountId, sandboxMode, orderType, price)
-        OrderResult(
-            orderId = response.orderId,
-            executedLots = response.lotsExecuted,
-            totalLots = response.lotsRequested,
-            status = when (response.executionReportStatus) {
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW -> OrderStatus.NEW
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL -> OrderStatus.PARTIALLY_FILLED
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL -> OrderStatus.FILLED
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_REJECTED -> OrderStatus.REJECTED
-                ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_CANCELLED -> OrderStatus.CANCELLED
-                else -> OrderStatus.NEW
-            }
-        )
+    suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(request.brokerName)
+            ?: throw IllegalArgumentException("Брокер ${request.brokerName} не найден")
+        broker.postOrder(request)
     }
 
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
@@ -185,30 +164,8 @@ class InvestRepository(
      * ///Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
      */
     suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
-        val shorts = brokerManager.getDefaultBroker().findInstrumentShorts(query)
-        shorts.map { short ->
-            val full = brokerManager.getDefaultBroker().getInstrumentByTicker(short.ticker)
-            if (full != null) {
-                InstrumentUi(
-                    ticker = full.ticker,          // было instrument.ticker
-                    name = full.name,              // было instrument.name
-                    currency = full.currency,      // было instrument.currency
-                    lot = full.lot,                // было instrument.lot
-                    instrumentType = full.instrumentType, // было instrument.instrumentType
-                    figi = short.figi              // если ещё нужно
-                )
-            } else {
-                // fallback, если инструмент не найден
-                InstrumentUi(
-                    ticker = short.ticker,
-                    name = short.name,
-                    currency = "",
-                    lot = 1,
-                    instrumentType = "",
-                    figi = short.figi
-                )
-            }
-        }
+        val broker = brokerManager.getDefaultBroker()
+        broker.findInstruments(query)
     }
 
 
@@ -222,10 +179,15 @@ class InvestRepository(
         broker.getLastPricesByTicker(tickers)
     }
 
+//    suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
+//        val response = brokerManager.getDefaultBroker().getMarginAttributes(accountId)
+//        val money = response.liquidPortfolio
+//        (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+//    }
+
     suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
-        val response = brokerManager.getDefaultBroker().getMarginAttributes(accountId)
-        val money = response.liquidPortfolio
-        (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+        val broker = brokerManager.getDefaultBroker()
+        broker.getBalance(accountId)
     }
 
     suspend fun sandboxPayIn(accountId: String, amount: Long) {

@@ -16,11 +16,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
-import ru.tinkoff.piapi.contract.v1.OrderDirection
-import ru.tinkoff.piapi.contract.v1.OrderType
-import ru.tinkoff.piapi.contract.v1.Quotation
+//import ru.tinkoff.piapi.contract.v1.OrderDirection
+//import ru.tinkoff.piapi.contract.v1.OrderType
+//import ru.tinkoff.piapi.contract.v1.Quotation
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.data.api.TinkoffInvestService
+import com.example.tscalp.domain.models.BrokerOrderType
+import com.example.tscalp.domain.models.BrokerOrderRequest
+import com.example.tscalp.domain.models.OrderType
+import com.example.tscalp.domain.models.OrderDirection
 
 class OrdersViewModel(
     private val repository: InvestRepository
@@ -80,7 +84,7 @@ class OrdersViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                val accounts = repository.getAccounts(sandboxMode)
+                val accounts = repository.getAccounts(brokerName, sandboxMode)
                 val defaultAccount = accounts.firstOrNull()
                 _uiState.update { it.copy(accounts = accounts, selectedAccountId = defaultAccount?.id, isLoading = false, statusMessage = if (accounts.isEmpty()) "Нет доступных счетов" else "Загружено ${accounts.size} счёт(ов)") }
             } catch (e: Exception) {
@@ -96,7 +100,7 @@ class OrdersViewModel(
     private suspend fun loadPortfolio(): List<PortfolioPosition> {
         return try {
             val sandboxMode = ServiceLocator.isSandboxMode()
-            val accounts = repository.getAccounts(sandboxMode)
+            val accounts = repository.getAccounts(brokerName, sandboxMode)
             if (accounts.isNotEmpty()) {
                 val accountId = accounts.first().id
                 val positions = repository.getPortfolio(accountId, sandboxMode)
@@ -200,81 +204,48 @@ class OrdersViewModel(
         val state = _uiState.value
         val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return
         val quantity = state.quantityAsLong ?: return
+
         val activeCard = state.lastSelectedInstruments.find { it.instrument.ticker == ticker }
         val brokerName = activeCard?.brokerName ?: "tinkoff"
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
 
+        // Формируем универсальный запрос
+        val orderType = if (state.orderType == OrderType.MARKET) BrokerOrderType.MARKET else BrokerOrderType.LIMIT
+        val price = if (orderType == BrokerOrderType.LIMIT) state.limitPrice.toDoubleOrNull() else null
+
+        val request = BrokerOrderRequest(
+            ticker = ticker,
+            quantity = quantity,
+            direction = direction,
+            accountId = accountId,
+            sandboxMode = ServiceLocator.isSandboxMode(),
+            type = orderType,
+            price = price
+        )
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                val sandboxMode = ServiceLocator.isSandboxMode()
-                val result = repository.postMarketOrder(
-                    brokerName = brokerName,
-                    ticker = ticker,
-                    quantity = quantity,
-                    direction = direction,
-                    accountId = accountId,
-                    sandboxMode = sandboxMode
-                )
+                val result = repository.postOrder(request)
 
                 val directionText = when (direction) {
-                    OrderDirection.ORDER_DIRECTION_BUY -> "покупка"
-                    OrderDirection.ORDER_DIRECTION_SELL -> "продажа"
+                    OrderDirection.BUY -> "покупка"
+                    OrderDirection.SELL -> "продажа"
                     else -> "операция"
                 }
 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "✅ Заявка на $directionText выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов",
+                        statusMessage = "✅ Заявка на $directionText выполнена!\n" +
+                                "ID: ${result.orderId}\n" +
+                                "Исполнено: ${result.executedLots}/${result.totalLots} лотов",
                         isError = false,
                         quantity = ""
                     )
                 }
                 loadPortfolio()
-
-                // --- Контрсделка (внутри того же try-catch, после успеха основной заявки) ---
-                if (state.pairTradingEnabled && state.pairedInstrument != null) {
-                    val multiplier = state.pairedMultiplier.toDoubleOrNull() ?: 1.0
-                    val pairedQuantity = (multiplier * quantity).toLong()
-
-                    if (pairedQuantity > 0) {
-                        val pairedDirection = if (direction == OrderDirection.ORDER_DIRECTION_BUY)
-                            OrderDirection.ORDER_DIRECTION_SELL
-                        else
-                            OrderDirection.ORDER_DIRECTION_BUY
-
-                        val orderType = state.orderType
-                        val price = if (orderType == OrderType.ORDER_TYPE_LIMIT) {
-                            val limitPrice = state.limitPrice.toDoubleOrNull() ?: 0.0
-                            val units = limitPrice.toLong()
-                            val nano = ((limitPrice - units) * 1_000_000_000).toInt()
-                            Quotation.newBuilder().setUnits(units).setNano(nano).build()
-                        } else {
-                            Quotation.newBuilder().setUnits(0).setNano(0).build()
-                        }
-
-                        try {
-                            val pairedResult = repository.postOrder(
-                                brokerName = brokerName,
-                                ticker = state.pairedInstrument.ticker,
-                                quantity = pairedQuantity,
-                                direction = pairedDirection,
-                                accountId = accountId,
-                                sandboxMode = sandboxMode,
-                                orderType = orderType,
-                                price = price
-                            )
-                            _uiState.update {
-                                it.copy(statusMessage = it.statusMessage + "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов")
-                            }
-                        } catch (e: Exception) {
-                            _uiState.update {
-                                it.copy(statusMessage = it.statusMessage + "\n❌ Ошибка контрсделки: ${e.message}", isError = true)
-                            }
-                        }
-                    }
-                }
+                refreshLastSelectedInstruments()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
