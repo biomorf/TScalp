@@ -34,6 +34,10 @@ import java.text.NumberFormat
 import java.util.*
 import com.example.tscalp.ui.components.SwipeablePositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -419,12 +423,11 @@ fun InstrumentSearchField(
                     onQueryChanged(it)
                     expanded = it.isNotEmpty() || recentInstruments.isNotEmpty()
                 },
-                label = null,                              // убираем label
+                label = { Text("Поиск инструмента") },
                 placeholder = { Text("Введите тикер или название") },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)                        // фиксированная высота
                     .menuAnchor(),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -437,7 +440,7 @@ fun InstrumentSearchField(
                         }
                     }
                 },
-                textStyle = MaterialTheme.typography.bodyMedium  // немного уменьшим шрифт
+                supportingText = { if (query.length == 1) Text("Введите минимум 2 символа для поиска") }
             )
 
             ExposedDropdownMenu(
@@ -450,42 +453,54 @@ fun InstrumentSearchField(
                         .verticalScroll(rememberScrollState())
                 ) {
                     if (query.isEmpty() && recentInstruments.isNotEmpty()) {
-                        // Показываем историю
+                        // История
                         recentInstruments.forEach { instrument: InstrumentUi ->
+                            val typeColor = getInstrumentTypeColor(instrument.instrumentType)
+                            //val typeColor = Color.Red // вместо getInstrumentTypeColor(instrument.instrumentType)
                             DropdownMenuItem(
                                 text = {
                                     Column {
                                         Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(
-                                            instrument.figi,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 },
                                 onClick = {
                                     onInstrumentSelected(instrument)
                                     expanded = false
+                                },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(4.dp)
+                                            .height(36.dp)               // фиксированная высота – работает стабильно
+                                            .background(typeColor)
+                                    )
                                 }
                             )
                         }
                     } else {
-                        // Показываем результаты поиска
+                        // Результаты поиска
                         searchResults.forEach { instrument: InstrumentUi ->
+                            val typeColor = getInstrumentTypeColor(instrument.instrumentType)
+                            //val typeColor = Color.Red // вместо getInstrumentTypeColor(instrument.instrumentType)
                             DropdownMenuItem(
                                 text = {
                                     Column {
                                         Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(
-                                            instrument.figi,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 },
                                 onClick = {
                                     onInstrumentSelected(instrument)
                                     expanded = false
+                                },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(4.dp)
+                                            .height(36.dp)               // фиксированная высота – работает стабильно
+                                            .background(typeColor)
+                                    )
                                 }
                             )
                         }
@@ -502,4 +517,18 @@ fun formatCurrency(value: Double): String {
     val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
     format.currency = Currency.getInstance("RUB")
     return format.format(value)
+}
+
+/**
+ * Возвращает цветовую индикацию типа инструмента.
+ * Используется как в карточках, так и в выпадающем списке поиска.
+ */
+fun getInstrumentTypeColor(instrumentType: String): Color {
+    return when (instrumentType) {
+        "share" -> Color(0xFF1565C0)
+        "bond" -> Color(0xFFE65100)
+        "etf" -> Color(0xFF2E7D32)
+        "currency" -> Color(0xFF6A1B9A)
+        else -> Color(0xFF757575)
+    }
 }
