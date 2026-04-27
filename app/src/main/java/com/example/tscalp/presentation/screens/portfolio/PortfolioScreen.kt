@@ -1,5 +1,6 @@
 package com.example.tscalp.presentation.screens.portfolio
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -220,7 +221,7 @@ fun PortfolioPositionCard(
         animationSpec = spring()
     )
 
-    // --- Остальной код карточки ---
+    // --- Цвет полосы в зависимости от типа инструмента ---
     val typeColor = when (instrumentType) {
         "share" -> Color(0xFF1565C0)
         "bond" -> Color(0xFFE65100)
@@ -228,7 +229,8 @@ fun PortfolioPositionCard(
         "currency" -> Color(0xFF6A1B9A)
         else -> Color(0xFF757575)
     }
-
+    //val typeColor = Color.Red
+    Log.d("PortfolioPositionCard", "instrumentType=$instrumentType, color=$typeColor")
     val backgroundColor = if (isSelected) {
         MaterialTheme.colorScheme.secondaryContainer
     } else {
@@ -236,17 +238,17 @@ fun PortfolioPositionCard(
     }
 
     Card(
-        modifier = modifier
+            modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
-        Row(modifier = Modifier.padding(start = 3.dp)) { // Полоса тоньше
-            // Цветовая полоса слева
+        Row(modifier = Modifier.height(IntrinsicSize.Max).padding(start = 4.dp)) {
+            // Цветовая полоса слева (проверенная, рабочая)
             Box(
                 modifier = Modifier
-                    .width(3.dp)
-                    .height(IntrinsicSize.Max)
+                    .width(4.dp)
+                    .fillMaxHeight()
                     .background(typeColor)
             )
 
@@ -273,7 +275,7 @@ fun PortfolioPositionCard(
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = priceColor,
-                                modifier = Modifier.scale(textScale)  // <-- вместо textScale
+                                modifier = Modifier.scale(textScale)
                             )
                             if (priceChangePercent != null) {
                                 Text(
