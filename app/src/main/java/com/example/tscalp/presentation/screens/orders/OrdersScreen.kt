@@ -1,15 +1,15 @@
 package com.example.tscalp.presentation.screens.orders
 
-import androidx.compose.foundation.clickable
+//import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+//import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
+//import androidx.compose.material.icons.filled.Refresh
+//import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
@@ -17,14 +17,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+//import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.domain.models.InstrumentUi
-import com.example.tscalp.presentation.screens.orders.SelectedInstrumentInfo
+//import com.example.tscalp.presentation.screens.orders.SelectedInstrumentInfo
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.ui.components.AssetPositionCard
@@ -352,24 +352,24 @@ fun ApiNotInitializedCard() {
     }
 }
 
-@Composable
-fun ResultItemCard(instrument: InstrumentUi, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("${instrument.ticker} – ${instrument.name}", fontWeight = FontWeight.Bold)
-                Text(instrument.ticker, style = MaterialTheme.typography.bodySmall)
-                if (instrument.lot > 1) Text("Лот: ${instrument.lot} шт.", style = MaterialTheme.typography.bodySmall)
-            }
-            Text(instrument.currency, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
+//@Composable
+//fun ResultItemCard(instrument: InstrumentUi, onClick: () -> Unit) {
+//    Card(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .clickable { onClick() },
+//        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+//    ) {
+//        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+//            Column(modifier = Modifier.weight(1f)) {
+//                Text("${instrument.ticker} – ${instrument.name}", fontWeight = FontWeight.Bold)
+//                Text(instrument.ticker, style = MaterialTheme.typography.bodySmall)
+//                if (instrument.lot > 1) Text("Лот: ${instrument.lot} шт.", style = MaterialTheme.typography.bodySmall)
+//            }
+//            Text(instrument.currency, style = MaterialTheme.typography.bodySmall)
+//        }
+//    }
+//}
 
 @Composable
 fun StatusCard(message: String, isError: Boolean, onDismiss: () -> Unit) {

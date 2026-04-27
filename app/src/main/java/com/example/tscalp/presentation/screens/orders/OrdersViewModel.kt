@@ -161,11 +161,11 @@ class OrdersViewModel(
         }
     }
 
-    fun removeLastSelectedInstrument(figi: String) {
-        _uiState.update { state ->
-            state.copy(lastSelectedInstruments = state.lastSelectedInstruments.filter { it.instrument.figi != figi })
-        }
-    }
+//    fun removeLastSelectedInstrument(figi: String) {
+//        _uiState.update { state ->
+//            state.copy(lastSelectedInstruments = state.lastSelectedInstruments.filter { it.instrument.figi != figi })
+//        }
+//    }
 
     fun clearSelectedInstrument() {
         _uiState.update {
@@ -185,7 +185,7 @@ class OrdersViewModel(
     }
 
     fun clearSearch() { _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), selectedInstrument = null, ticker = "", currentPrice = null, isPriceLoading = false, isSearchActive = false) } }
-    fun onFigiChanged(figi: String) { _uiState.update { it.copy(ticker = figi.uppercase()) } }
+    //fun onFigiChanged(figi: String) { _uiState.update { it.copy(ticker = figi.uppercase()) } }
     fun onQuantityChanged(quantity: String) { _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) } }
     fun onAccountSelected(accountId: String) { _uiState.update { it.copy(selectedAccountId = accountId) } }
     fun onBuyClick() = postOrder(OrderDirection.ORDER_DIRECTION_BUY)
@@ -353,7 +353,7 @@ fun openBrokerDialog(ticker: String) {
     _uiState.update {
         it.copy(
             showBrokerDialog = true,
-            dialogInstrumentTicker = ticker,   // новое поле вместо figi
+            dialogInstrumentTicker = ticker,
             selectedBroker = existingCard?.brokerName ?: "tinkoff",
             selectedAccountIdDialog = existingCard?.accountId
         )
