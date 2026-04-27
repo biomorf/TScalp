@@ -28,6 +28,11 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.runtime.mutableIntStateOf
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.VisualTransformation
+
 
 @Composable
 fun SettingsScreen() {
@@ -78,7 +83,7 @@ fun SettingsScreen() {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerSettingsContent(onBack: () -> Unit) {
     val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
@@ -88,42 +93,53 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(pageCount = { brokerNames.size })
 
-    // Синхронизация HorizontalPager и TabRow
+    // Синхронизация вкладок и пейджера (мгновенный переход)
     LaunchedEffect(selectedTabIndex) {
-        pagerState.animateScrollToPage(selectedTabIndex)
+        pagerState.scrollToPage(selectedTabIndex)   // ← мгновенно, без анимации
     }
     LaunchedEffect(pagerState.currentPage) {
         selectedTabIndex = pagerState.currentPage
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Подключение") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                    }
+                }
+            )
         }
-        Text("Настройки подключения", style = MaterialTheme.typography.headlineSmall)
-
-        TabRow(selectedTabIndex = selectedTabIndex) {
-            brokerNames.forEach { broker ->
-                Tab(
-                    selected = selectedTabIndex == brokerNames.indexOf(broker),
-                    onClick = { selectedTabIndex = brokerNames.indexOf(broker) },
-                    text = { Text(broker) }
-                )
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+        ) {
+            TabRow(selectedTabIndex = selectedTabIndex) {
+                brokerNames.forEach { broker ->
+                    Tab(
+                        selected = selectedTabIndex == brokerNames.indexOf(broker),
+                        onClick = { selectedTabIndex = brokerNames.indexOf(broker) },
+                        text = { Text(broker) }
+                    )
+                }
             }
-        }
 
-        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-            val brokerName = brokerNames[page]
-            when (brokerName) {
-                "tinkoff" -> TinkoffSettingsPanel(ordersViewModel, uiState)
-                "bcs" -> BcsSettingsPanel()
-                "mock" -> MockSettingsPanel()
-                else -> Text("Настройки для $brokerName пока не реализованы")
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f),
+                userScrollEnabled = true
+            ) { page ->
+                val brokerName = brokerNames[page]
+                when (brokerName) {
+                    "tinkoff" -> TinkoffSettingsPanel(ordersViewModel, uiState)
+                    "bcs" -> BcsSettingsPanel()
+                    "mock" -> MockSettingsPanel()
+                    else -> Text("Настройки для $brokerName пока не реализованы")
+                }
             }
         }
     }
@@ -146,7 +162,12 @@ fun TinkoffSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())   // ← позволяет скроллить
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("tinkoff") != null
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -189,8 +210,7 @@ fun TinkoffSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             onValueChange = { token = it },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите токен из личного кабинета") },
-            visualTransformation = if (showToken)
-                androidx.compose.ui.text.input.VisualTransformation.None
+            visualTransformation = if (showToken) VisualTransformation.None
             else PasswordVisualTransformation(),
             trailingIcon = {
                 TextButton(onClick = { showToken = !showToken }) {
@@ -289,6 +309,7 @@ fun BcsSettingsPanel() {
     var refreshToken by remember { mutableStateOf("") }
     var isWriteMode by remember { mutableStateOf(true) }
     var connected by remember { mutableStateOf(false) }
+    var showToken by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -301,15 +322,69 @@ fun BcsSettingsPanel() {
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Статус подключения
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (connected) MaterialTheme.colorScheme.tertiaryContainer
+                else MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Статус API", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (connected) "✅ Подключено" else "❌ Не подключено",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (connected) {
+                    Button(
+                        onClick = {
+                            ServiceLocator.clearBrokerCredentials("bcs")
+                            connected = false
+                            refreshToken = ""
+                            showToken = false
+                            statusMessage = "Подключение к БКС разорвано"
+                            isError = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Отключить")
+                    }
+                }
+            }
+        }
+
+        // Поле токена
         OutlinedTextField(
             value = refreshToken,
             onValueChange = { refreshToken = it },
-            label = { Text("Refresh Token") },
+            label = { Text("Токен доступа") },
+            placeholder = { Text("Введите refresh‑токен из личного кабинета") },
+            visualTransformation = if (showToken) VisualTransformation.None
+            else PasswordVisualTransformation(),
+            trailingIcon = {
+                TextButton(onClick = { showToken = !showToken }) {
+                    Text(if (showToken) "Скрыть" else "Показать")
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             enabled = !connected
         )
 
+        // Права доступа
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -330,12 +405,14 @@ fun BcsSettingsPanel() {
             )
         }
 
+        // Кнопки
         if (connected) {
             Button(
                 onClick = {
                     ServiceLocator.clearBrokerCredentials("bcs")
                     connected = false
                     refreshToken = ""
+                    showToken = false
                     statusMessage = "Подключение к БКС разорвано"
                     isError = false
                 },
@@ -369,6 +446,33 @@ fun BcsSettingsPanel() {
             }
         }
 
+        // Инструкция
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("📋 Как получить токен", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    """
+                    1. Зайдите в личный кабинет БКС Мир Инвестиций
+                    2. Перейдите в раздел «Настройки» → «API»
+                    3. Нажмите «Создать новый токен»
+                    4. Выберите права: чтение портфеля и совершение сделок
+                    5. Скопируйте полученный refresh‑токен
+                    6. Вставьте его в поле выше
+                    
+                    ⚠️ Рекомендации по безопасности:
+                    • Сначала тестируйте в режиме песочницы
+                    • Не передавайте токен третьим лицам
+                    • Токен хранится в зашифрованном виде
+                    """.trimIndent(),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        // Статусное сообщение
         statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
