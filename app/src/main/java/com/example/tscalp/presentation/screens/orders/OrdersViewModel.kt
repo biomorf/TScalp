@@ -144,7 +144,7 @@ class OrdersViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
-            val prices = repository.getLastPricesByTicker(tickersToUpdate)
+            val prices = repository.getLastPricesByTicker(listOf(instrument.ticker))
             val price = prices[instrument.ticker]
             val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
 
@@ -302,13 +302,16 @@ class OrdersViewModel(
 
     private suspend fun updatePrices() {
         val state = _uiState.value
+        // Собираем тикеры из последних выбранных инструментов
         val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
-        state.selectedInstrument?.let { tickersToUpdate.add(it.ticker) }
+        // Добавляем тикер выбранного инструмента, если он есть
+        state.selectedInstrument?.ticker?.let { tickersToUpdate.add(it) }
         if (tickersToUpdate.isEmpty()) return
 
         try {
             val prices = repository.getLastPricesByTicker(tickersToUpdate.toList())
 
+            // Обновляем lastSelectedInstruments
             val updatedLastSelected = state.lastSelectedInstruments.map { card ->
                 val newPrice = prices[card.instrument.ticker] ?: card.currentPrice
                 val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
@@ -321,10 +324,11 @@ class OrdersViewModel(
                 )
             }
 
+            // Обновляем цену и изменение для выбранного инструмента
             var newCurrentPrice = state.currentPrice
             var selectedChange = state.selectedPriceChangePercent
-            state.selectedInstrument?.let { sel ->
-                val freshPrice = prices[sel.ticker]
+            state.selectedInstrument?.ticker?.let { ticker ->
+                val freshPrice = prices[ticker]
                 if (freshPrice != null) {
                     val prevPrice = state.currentPrice
                     selectedChange = if (prevPrice != null && prevPrice != 0.0) {
