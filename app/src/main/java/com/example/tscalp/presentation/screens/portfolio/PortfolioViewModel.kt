@@ -77,11 +77,11 @@ class PortfolioViewModel(
                                     if (pos.ticker.isBlank()) {
                                         // Пытаемся получить тикер через getInstrumentByTicker (для Т‑Инвестиций)
                                         val instrument = try {
-                                            broker.getInstrumentByTicker(pos.figi)
+                                            broker.getInstrumentByTicker(pos.ticker)
                                         } catch (e: Exception) {
                                             null
                                         }
-                                        pos.copy(ticker = instrument?.ticker ?: pos.figi)
+                                        pos.copy(ticker = instrument?.ticker ?: pos.ticker)
                                     } else {
                                         pos
                                     }
@@ -139,7 +139,8 @@ class PortfolioViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                val accounts = repository.getAccounts(sandboxMode)
+                val brokerName = "tinkoff"   // ← добавьте эту строку перед вызовом
+                val accounts = repository.getAccounts(brokerName, sandboxMode)
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
                 val accountId = accounts.first().id
                 repository.sandboxPayIn(

@@ -3,7 +3,8 @@ package com.example.tscalp.presentation.screens.orders
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
-import ru.tinkoff.piapi.contract.v1.OrderType
+import com.example.tscalp.domain.models.BrokerOrderType
+//import ru.tinkoff.piapi.contract.v1.OrderType
 
 /**
  * Информация о выбранном инструменте для отображения в карточке «Последние просмотренные».
@@ -41,7 +42,7 @@ data class OrdersUiState(
     val portfolioPositions: List<PortfolioPosition> = emptyList(),
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),
     val isSearchActive: Boolean = false,          // <-- для управления SearchBar
-    val orderType: OrderType = OrderType.ORDER_TYPE_MARKET,   // тип заявки (рыночная/лимитная)
+    val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)
     val limitPrice: String = "",                                // цена для лимитной заявки
     val selectedPriceChangePercent: Double? = null,   // изменение цены выбранного инструмента
     // Диалог брокера

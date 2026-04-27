@@ -18,7 +18,7 @@ import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerAccountType
 import com.example.tscalp.domain.models.OrderResult
 import com.example.tscalp.domain.models.OrderDirection
-import com.example.tscalp.domain.models.OrderType
+import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderStatus
 
 /**
@@ -264,7 +264,7 @@ class BcsBrokerApi : BrokerApi {
 
     override suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
         val side = if (request.direction == OrderDirection.BUY) "buy" else "sell"
-        val type = if (request.type == OrderType.MARKET) "market" else "limit"
+        val type = if (request.type == BrokerOrderType.MARKET) "market" else "limit"
         val priceField = if (request.price != null) """, "limitPrice": ${request.price}""" else ""
         val body = """
         {

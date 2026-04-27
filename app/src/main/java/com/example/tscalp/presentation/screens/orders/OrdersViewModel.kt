@@ -23,7 +23,7 @@ import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.BrokerOrderRequest
-import com.example.tscalp.domain.models.OrderType
+//import com.example.tscalp.domain.models.OrderType
 import com.example.tscalp.domain.models.OrderDirection
 //import com.example.tscalp.domain.models.OrderDirection2
 
@@ -85,11 +85,27 @@ class OrdersViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
+                // По умолчанию загружаем счета для Т-Инвестиций (основной брокер)
+                val brokerName = "tinkoff"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 val defaultAccount = accounts.firstOrNull()
-                _uiState.update { it.copy(accounts = accounts, selectedAccountId = defaultAccount?.id, isLoading = false, statusMessage = if (accounts.isEmpty()) "Нет доступных счетов" else "Загружено ${accounts.size} счёт(ов)") }
+                _uiState.update {
+                    it.copy(
+                        accounts = accounts,
+                        selectedAccountId = defaultAccount?.id,
+                        isLoading = false,
+                        statusMessage = if (accounts.isEmpty()) "Нет доступных счетов"
+                        else "Загружено ${accounts.size} счёт(ов)"
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Ошибка загрузки счетов: ${e.message}", isError = true) }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "Ошибка загрузки счетов: ${e.message}",
+                        isError = true
+                    )
+                }
             }
         }
     }
@@ -101,6 +117,7 @@ class OrdersViewModel(
     private suspend fun loadPortfolio(): List<PortfolioPosition> {
         return try {
             val sandboxMode = ServiceLocator.isSandboxMode()
+            val brokerName = "tinkoff"   // ← добавьте эту строку
             val accounts = repository.getAccounts(brokerName, sandboxMode)
             if (accounts.isNotEmpty()) {
                 val accountId = accounts.first().id
@@ -211,7 +228,7 @@ class OrdersViewModel(
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
 
         // Формируем универсальный запрос
-        val orderType = if (state.orderType == OrderType.MARKET) BrokerOrderType.MARKET else BrokerOrderType.LIMIT
+        val orderType = if (state.orderType == BrokerOrderType.MARKET) BrokerOrderType.MARKET else BrokerOrderType.LIMIT
         val price = if (orderType == BrokerOrderType.LIMIT) state.limitPrice.toDoubleOrNull() else null
 
         val request = BrokerOrderRequest(
@@ -221,8 +238,8 @@ class OrdersViewModel(
             direction = direction,
             accountId = accountId,
             sandboxMode = ServiceLocator.isSandboxMode(),
-            type = if (state.orderType == OrderType.MARKET) BrokerOrderType.MARKET else BrokerOrderType.LIMIT,
-            price = if (state.orderType == OrderType.LIMIT) state.limitPrice.toDoubleOrNull() else null
+            type = orderType,                          // теперь тип совпадает
+            price = price
         )
 
         viewModelScope.launch {
@@ -236,6 +253,11 @@ class OrdersViewModel(
                     else -> "операция"
                 }
 
+                // Дожидаемся загрузки портфеля
+                loadPortfolio()
+                // После загрузки обновляем карточки
+                refreshLastSelectedInstruments()
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -246,8 +268,6 @@ class OrdersViewModel(
                         quantity = ""
                     )
                 }
-                loadPortfolio()
-                refreshLastSelectedInstruments()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -258,6 +278,26 @@ class OrdersViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * Обновляет список lastSelectedInstruments, подтягивая актуальные данные из портфеля.
+     */
+    private fun refreshLastSelectedInstruments() {
+        val currentList = _uiState.value.lastSelectedInstruments
+        if (currentList.isEmpty()) return
+
+        val positions = _uiState.value.portfolioPositions
+        val updatedList = currentList.map { card ->
+            val pos = positions.find { it.ticker == card.instrument.ticker }
+            card.copy(
+                quantity = pos?.quantity ?: 0L,
+                averagePrice = pos?.currentPrice ?: card.averagePrice,
+                profit = pos?.profit ?: 0.0,
+                profitPercent = pos?.profitPercent ?: 0.0
+            )
+        }
+        _uiState.update { it.copy(lastSelectedInstruments = updatedList) }
     }
 
     fun clearStatus() { _uiState.update { it.clearStatus() } }

@@ -12,9 +12,9 @@ data class BrokerOrderRequest(
     val direction: OrderDirection,
     val accountId: String,
     val sandboxMode: Boolean,
-    val type: OrderType = OrderType.MARKET,
+    val type: BrokerOrderType = BrokerOrderType.MARKET,
     val price: Double? = null
 )
 
-enum class OrderType { MARKET, LIMIT }
+//enum class OrderType { MARKET, LIMIT }
 enum class BrokerOrderType { MARKET, LIMIT }

@@ -10,7 +10,7 @@ import ru.tinkoff.piapi.contract.v1.*
 import ru.ttech.piapi.core.InvestApi
 import java.util.concurrent.ConcurrentHashMap
 import com.example.tscalp.domain.models.*
-import com.example.tscalp.domain.models.OrderType
+import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.PortfolioPosition
 
@@ -150,7 +150,7 @@ class TinkoffInvestService : BrokerApi {
         val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
 
         // Преобразуем цену в protobuf Quotation
-        val price = if (request.type == OrderType.LIMIT && request.price != null) {
+        val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
             val units = request.price.toLong()
             val nano = ((request.price - units) * 1_000_000_000).toInt()
             Quotation.newBuilder().setUnits(units).setNano(nano).build()
@@ -159,8 +159,8 @@ class TinkoffInvestService : BrokerApi {
         }
 
         val apiOrderType = when (request.type) {
-            OrderType.MARKET -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_MARKET
-            OrderType.LIMIT -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_LIMIT
+            BrokerOrderType.MARKET -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_MARKET
+            BrokerOrderType.LIMIT -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_LIMIT
         }
 
         val apiDirection = when (request.direction) {
