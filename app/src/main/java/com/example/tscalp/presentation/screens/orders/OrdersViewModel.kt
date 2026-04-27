@@ -296,41 +296,49 @@ class OrdersViewModel(
 
     private suspend fun updatePrices() {
         val state = _uiState.value
-        // Собираем FIGI из последних просмотренных и выбранного инструмента
         val figisToUpdate = state.lastSelectedInstruments.map { it.instrument.figi }.toMutableSet()
         state.selectedInstrument?.let { figisToUpdate.add(it.figi) }
         if (figisToUpdate.isEmpty()) return
 
         try {
             val prices = repository.getLastPrices(figisToUpdate.toList())
+
             // Обновляем lastSelectedInstruments
             val updatedLastSelected = state.lastSelectedInstruments.map { card ->
                 val newPrice = prices[card.instrument.figi] ?: card.currentPrice
-                // Сравниваем с предыдущей ценой (если есть)
-                val previousPrice = card.currentPrice ?: newPrice
-                val changePercent = if (previousPrice != null && previousPrice != 0.0 && newPrice != null) {
-                    ((newPrice - previousPrice) / previousPrice) * 100.0
+                val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
+                    ((newPrice - card.currentPrice) / card.currentPrice) * 100.0
                 } else null
-
                 card.copy(
                     currentPrice = newPrice,
-                    previousPrice = previousPrice,
+                    previousPrice = card.currentPrice,
                     priceChangePercent = changePercent
                 )
             }
-            // Обновляем currentPrice, если выбранный инструмент совпадает
-            val newCurrentPrice = state.selectedInstrument?.let { sel ->
-                prices[sel.figi] ?: state.currentPrice
+
+            // Обновляем цену и изменение для выбранного инструмента
+            var newCurrentPrice = state.currentPrice
+            var selectedChange = state.selectedPriceChangePercent
+            val selectedFigi = state.selectedInstrument?.figi
+            if (selectedFigi != null) {
+                val freshPrice = prices[selectedFigi]
+                if (freshPrice != null) {
+                    val prevPrice = state.currentPrice
+                    selectedChange = if (prevPrice != null && prevPrice != 0.0) {
+                        ((freshPrice - prevPrice) / prevPrice) * 100.0
+                    } else null
+                    newCurrentPrice = freshPrice
+                }
             }
+
             _uiState.update {
                 it.copy(
                     lastSelectedInstruments = updatedLastSelected,
-                    currentPrice = newCurrentPrice
+                    currentPrice = newCurrentPrice,
+                    selectedPriceChangePercent = selectedChange
                 )
             }
-        } catch (e: Exception) {
-            // тихо игнорируем, чтобы не спамить ошибками
-        }
+        } catch (_: Exception) { }
     }
 
     /**

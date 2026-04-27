@@ -2,8 +2,6 @@ package com.example.tscalp.presentation.screens.orders
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,18 +24,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.data.repository.InstrumentUi
-import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.di.ServiceLocator
-import com.example.tscalp.presentation.screens.portfolio.PortfolioPositionCard
-import java.text.NumberFormat
-import java.util.*
-import com.example.tscalp.ui.components.SwipeablePositionCard
+import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.example.tscalp.util.formatCurrency
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,13 +108,13 @@ fun OrdersScreen(
                 instrumentType = instrument.instrumentType,
                 priceChangePercent = null
             )
-            SwipeablePositionCard(
+            AssetPositionCard(
                 position = position,
                 instrumentType = instrument.instrumentType,
-                priceChangePercent = null,
-                onDelete = { viewModel.clearSelectedInstrument() },
+                priceChangePercent = uiState.selectedPriceChangePercent, // либо из lastSelectedInstruments, если хотите
+                onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
                 onSettings = { viewModel.openBrokerDialog(instrument.figi) },
-                onClick = { },
+                onClick = { },  // не обязательно
                 isSelected = false
             )
         }
@@ -221,13 +213,13 @@ fun OrdersScreen(
                     priceChangePercent = null
                 )
 
-                SwipeablePositionCard(
+                AssetPositionCard(
                     position = position,
                     instrumentType = instrument.instrumentType,
-                    priceChangePercent = null,
-                    onDelete = { viewModel.clearPairSearch() },
+                    priceChangePercent = uiState.selectedPriceChangePercent, // либо из lastSelectedInstruments, если хотите
+                    onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
                     onSettings = { viewModel.openBrokerDialog(instrument.figi) },
-                    onClick = { },
+                    onClick = { },  // не обязательно
                     isSelected = false
                 )
 
@@ -509,14 +501,6 @@ fun InstrumentSearchField(
             }
         }
     }
-}
-
-
-
-fun formatCurrency(value: Double): String {
-    val format = NumberFormat.getCurrencyInstance(Locale("ru", "RU"))
-    format.currency = Currency.getInstance("RUB")
-    return format.format(value)
 }
 
 /**

@@ -53,7 +53,8 @@ data class OrdersUiState(
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
     val pairedMultiplier: String = "1",                 // множитель (по умолчанию 1)
     val orderType: OrderType = OrderType.ORDER_TYPE_MARKET,   // тип заявки (рыночная/лимитная)
-    val limitPrice: String = ""                                // цена для лимитной заявки
+    val limitPrice: String = "",                                // цена для лимитной заявки
+    val selectedPriceChangePercent: Double? = null   // изменение цены выбранного инструмента
 ) {
     val isFormValid: Boolean
         get() = selectedInstrument != null && quantity.toLongOrNull()?.let { it > 0 } == true && selectedAccountId != null && isApiInitialized
