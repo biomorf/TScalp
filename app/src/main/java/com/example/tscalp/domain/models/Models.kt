@@ -20,7 +20,6 @@ enum class AccountType {
 }
 
 data class PortfolioPosition(
-    val figi: String,
     val name: String,
     val ticker: String,
     val quantity: Long,

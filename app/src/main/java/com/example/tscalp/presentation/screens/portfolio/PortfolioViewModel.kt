@@ -77,7 +77,7 @@ class PortfolioViewModel(
                                 // Обогащаем каждую позицию: если ticker пустой, пытаемся получить его через getInstrumentByTicker
                                 val enrichedPositions = positions.map { pos ->
                                     try {
-                                        val instrument = broker.getInstrumentByTicker(pos.ticker.ifBlank { pos.figi })
+                                        val instrument = broker.getInstrumentByTicker(pos.ticker)
                                         if (instrument != null) {
                                             pos.copy(
                                                 ticker = instrument.ticker,

@@ -55,7 +55,6 @@ interface BrokerApi {
             val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
             val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
             PortfolioPosition(
-                figi = pos.figi,
                 name = try { getInstrumentByFigi(pos.figi).instrument.name } catch (e: Exception) { "" },
                 ticker = try { getInstrumentByFigi(pos.figi).instrument.ticker } catch (e: Exception) { "" },
                 quantity = quantity,

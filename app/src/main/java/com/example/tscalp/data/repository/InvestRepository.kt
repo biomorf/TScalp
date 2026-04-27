@@ -151,7 +151,6 @@ class InvestRepository(
             val totalValue = currentPrice * quantity
 
             PortfolioPosition(
-                figi = pos.figi,
                 name = instrument.name,
                 ticker = instrument.ticker,
                 quantity = quantity,

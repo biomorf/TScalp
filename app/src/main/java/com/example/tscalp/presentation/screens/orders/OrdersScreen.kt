@@ -98,7 +98,6 @@ fun OrdersScreen(
         uiState.selectedInstrument?.let { instrument: InstrumentUi ->
             val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
             val position = PortfolioPosition(
-                figi = instrument.figi,
                 name = instrument.name,
                 ticker = instrument.ticker,
                 quantity = portfolioPos?.quantity ?: 0L,
@@ -203,7 +202,6 @@ fun OrdersScreen(
                 val pairPrice = uiState.currentPrice  // пока используем ту же цену, что у основного
                 val position = PortfolioPosition(
                     name = instrument.name,
-                    figi = instrument.figi,
                     ticker = instrument.ticker,
                     quantity = portfolioPos?.quantity ?: 0L,
                     currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,

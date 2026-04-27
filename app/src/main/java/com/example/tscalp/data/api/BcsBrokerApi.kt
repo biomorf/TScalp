@@ -203,7 +203,6 @@ class BcsBrokerApi : BrokerApi {
             val totalValue = (posMap["currentValue"] as? Number)?.toDouble() ?: (currentPrice * quantity)
 
             PortfolioPosition(
-                figi = figi,
                 name = name,
                 ticker = ticker,
                 quantity = quantity,
