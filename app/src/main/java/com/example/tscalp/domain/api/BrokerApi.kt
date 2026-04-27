@@ -5,6 +5,7 @@ import ru.tinkoff.piapi.contract.v1.*
 //import com.example.tscalp.domain.models.
 import com.example.tscalp.domain.models.PortfolioPosition
 
+
 interface BrokerApi {
     val isInitialized: Boolean
     suspend fun getAccounts(sandboxMode: Boolean): List<Account>
@@ -30,7 +31,7 @@ interface BrokerApi {
         price: Quotation
     ): PostOrderResponse
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse
-    suspend fun getInstrumentByFigi(figi: String): InstrumentResponse
+
     /**
      * Возвращает специфичный для брокера идентификатор инструмента по тикеру.
      * Для Т-Инвестиций это figi, для БКС — bscticker (пока просто ticker).
@@ -41,7 +42,7 @@ interface BrokerApi {
     // Опционально: если нужно получать полный InstrumentUi по тикеру
     suspend fun getInstrumentByTicker(ticker: String): InstrumentUi?
     suspend fun findInstrumentShorts(query: String): List<InstrumentShort>
-    suspend fun getLastPrices(figis: List<String>): Map<String, Double?>
+    //suspend fun getLastPrices(figis: List<String>): Map<String, Double?>
     suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse
     suspend fun sandboxPayIn(accountId: String, amount: MoneyValue)
 
@@ -49,20 +50,31 @@ interface BrokerApi {
      * Возвращает позиции портфеля для указанного счёта в виде списка доменных объектов.
      * Реализация по умолчанию для обратной совместимости (использует getPortfolio).
      */
-    suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
-        val response = getPortfolio(accountId, sandboxMode)
-        return response.positionsList.mapNotNull { pos ->
-            val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
-            val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-            PortfolioPosition(
-                name = try { getInstrumentByFigi(pos.figi).instrument.name } catch (e: Exception) { "" },
-                ticker = try { getInstrumentByFigi(pos.figi).instrument.ticker } catch (e: Exception) { "" },
-                quantity = quantity,
-                currentPrice = currentPrice,
-                totalValue = currentPrice * quantity
-            )
-        }
-    }
+//    suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
+//        val response = getPortfolio(accountId, sandboxMode)
+//        return response.positionsList.mapNotNull { pos ->
+//            val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
+//            val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+//            PortfolioPosition(
+//                name = try { getInstrumentByFigi(pos.figi).instrument.name } catch (e: Exception) { "" },
+//                ticker = try { getInstrumentByFigi(pos.figi).instrument.ticker } catch (e: Exception) { "" },
+//                quantity = quantity,
+//                currentPrice = currentPrice,
+//                totalValue = currentPrice * quantity
+//            )
+//        }
+//    }
+
+    /**
+     * Возвращает позиции портфеля для указанного счёта в виде списка доменных объектов.
+     * Каждый брокер реализует по‑своему: Т‑Инвестиции – через getPortfolio, БКС – парсинг JSON.
+     */
+    suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition>
 
 
+    /**
+     * Получает последние цены для списка тикеров.
+     * Возвращает карту ticker -> цена (или null, если цена недоступна).
+     */
+    suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?>
 }

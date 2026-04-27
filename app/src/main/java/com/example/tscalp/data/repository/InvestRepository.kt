@@ -138,12 +138,12 @@ class InvestRepository(
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
         val response = brokerManager.getDefaultBroker().getPortfolio(accountId, sandboxMode)
         response.positionsList.mapNotNull { pos ->
+            val ticker = pos.ticker.ifBlank { pos.figi } ?: return@mapNotNull null
             val instrument = try {
-                val instrumentResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(pos.figi)
-                instrumentResponse.instrument  /// извлекаем Instrument из InstrumentResponse
+                brokerManager.getDefaultBroker().getInstrumentByTicker(ticker)
             } catch (e: Exception) {
-                Log.w(TAG, "Не удалось получить инструмент ${pos.figi}")
-                return@mapNotNull null
+                Log.w(TAG, "Не удалось получить инструмент $ticker", e)
+                null
             }
             val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
             if (quantity == 0L) return@mapNotNull null
@@ -151,14 +151,14 @@ class InvestRepository(
             val totalValue = currentPrice * quantity
 
             PortfolioPosition(
-                name = instrument.name,
-                ticker = instrument.ticker,
+                name = instrument?.name ?: "",
+                ticker = ticker,
                 quantity = quantity,
                 currentPrice = currentPrice,
                 totalValue = totalValue,
                 profit = 0.0,
                 profitPercent = 0.0,
-                instrumentType = instrument.instrumentType ?: ""
+                instrumentType = instrument?.instrumentType ?: ""
             )
         }
     }
@@ -166,9 +166,9 @@ class InvestRepository(
     /**
      * ///Получение полного инструмента по FIGI (обёртка над TinkoffInvestService).
      */
-    suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
-        return brokerManager.getDefaultBroker().getInstrumentByFigi(figi)
-    }
+//    suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
+//        return brokerManager.getDefaultBroker().getInstrumentByFigi(figi)
+//    }
 
     /**
      * Возвращает специфичный для брокера идентификатор (figi, uid и т.д.) по тикеру.
@@ -187,56 +187,39 @@ class InvestRepository(
     suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
         val shorts = brokerManager.getDefaultBroker().findInstrumentShorts(query)
         shorts.map { short ->
-            try {
-                val fullResponse = brokerManager.getDefaultBroker().getInstrumentByFigi(short.figi) /// InstrumentResponse
-                val instrument = fullResponse.instrument /// Извлекаем Instrument
+            val full = brokerManager.getDefaultBroker().getInstrumentByTicker(short.ticker)
+            if (full != null) {
                 InstrumentUi(
-                    figi = instrument.figi,
-                    ticker = instrument.ticker,
-                    name = instrument.name,
-                    currency = instrument.currency,
-                    lot = instrument.lot,
-                    instrumentType = instrument.instrumentType
+                    ticker = full.ticker,          // было instrument.ticker
+                    name = full.name,              // было instrument.name
+                    currency = full.currency,      // было instrument.currency
+                    lot = full.lot,                // было instrument.lot
+                    instrumentType = full.instrumentType, // было instrument.instrumentType
+                    figi = short.figi              // если ещё нужно
                 )
-            } catch (e: Exception) {
-                Log.w(TAG, "Не удалось получить полный инструмент для ${short.figi}, используем краткие данные")
+            } else {
+                // fallback, если инструмент не найден
                 InstrumentUi(
-                    figi = short.figi,
                     ticker = short.ticker,
                     name = short.name,
-                    currency = "—",
+                    currency = "",
                     lot = 1,
-                    instrumentType = "unknown"
+                    instrumentType = "",
+                    figi = short.figi
                 )
             }
         }
     }
 
-    suspend fun getLastPrices(figis: List<String>): Map<String, Double?> {
-        return brokerManager.getDefaultBroker().getLastPrices(figis)
-    }
+
 
     /**
      * Получает последние цены для списка тикеров.
      * Внутри вызывает resolveBrokerTicker для каждого тикера и запрашивает цены через брокера.
      */
     suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
-        // Для каждого брокера резолвим ticker -> figi, затем запрашиваем цены
-        val figiByTicker = mutableMapOf<String, String>()
-        val broker = brokerManager.getDefaultBroker() // или проходим по всем брокерам
-        for (ticker in tickers) {
-            val figi = broker.resolveTicker(ticker)
-            if (figi != null) figiByTicker[ticker] = figi
-        }
-        if (figiByTicker.isEmpty()) return@withContext emptyMap()
-
-        val pricesResponse = broker.getLastPrices(figiByTicker.values.toList())
-        // Маппим обратно ticker -> price
-        val result = mutableMapOf<String, Double?>()
-        for ((ticker, figi) in figiByTicker) {
-            result[ticker] = pricesResponse[figi]
-        }
-        result
+        val broker = brokerManager.getDefaultBroker()
+        broker.getLastPricesByTicker(tickers)
     }
 
     suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {

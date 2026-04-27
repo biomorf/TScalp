@@ -256,11 +256,6 @@ class BcsBrokerApi : BrokerApi {
         return PortfolioResponse.newBuilder().build()
     }
 
-    override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
-        // БКС API использует ticker, а не figi. Нужен отдельный поиск.
-        // Пока заглушка.
-        throw NotImplementedError("Метод не реализован для БКС")
-    }
 
     override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> {
         // Аналогично, потребуется адаптация
@@ -277,10 +272,7 @@ class BcsBrokerApi : BrokerApi {
         return null
     }
 
-    override suspend fun getLastPrices(figis: List<String>): Map<String, Double?> {
-        // Потребуется запрос рыночных данных
-        return emptyMap()
-    }
+
 
     override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
         // БКС может иметь свой метод пополнения демо-счета
@@ -339,4 +331,6 @@ class BcsBrokerApi : BrokerApi {
         // БКС может не иметь отдельного песочного API
         return getAccounts(sandboxMode = true)
     }
+
+    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
 }

@@ -1,28 +1,19 @@
 package com.example.tscalp.data.api
 
 import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.*
 import ru.ttech.piapi.core.InvestApi
-import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
-import ru.tinkoff.piapi.contract.v1.GetMarginAttributesResponse
-import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
-import ru.tinkoff.piapi.contract.v1.MoneyValue
 import java.util.concurrent.ConcurrentHashMap
+import com.example.tscalp.domain.models.PortfolioPosition
 
 /**
- * ///Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
- * ///Не хранит собственный экземпляр API, а получает его через ServiceLocator.
- * ///Таким образом, состояние разделяется между всеми экранами.
- */
-/**
- * ///Сервис для низкоуровневых вызовов T-Invest API.
- * ///Использует глобальный клиент из ServiceLocator.
- * ///Все методы – suspend, выполняются на IO-потоке.
+ * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
+ * Хранит ticker→figi кэш, самостоятельно управляет своим экземпляром InvestApi.
  */
 class TinkoffInvestService : BrokerApi {
 
@@ -30,25 +21,86 @@ class TinkoffInvestService : BrokerApi {
         private const val TAG = "TinkoffInvestService"
     }
 
-    /// Глобальный объект API из синглтона
-    private val api: InvestApi
-        get() = ServiceLocator.getApiOrNull() ?: throw IllegalStateException("API не инициализирован")
-
-    override val isInitialized: Boolean
-        get() = ServiceLocator.getApiOrNull() != null
-
-    /**
-     * ///Вспомогательный метод, который либо возвращает api, либо выбрасывает исключение.
-     */
-    private fun requireApi(): InvestApi = api ?: throw IllegalStateException("API не инициализирован")
-
-    // Кэш ticker -> figi
+    // Кэш ticker → figi для быстрой конвертации
     private val tickerToFigiCache = ConcurrentHashMap<String, String>()
 
-    /// ------------------- Реализация методов BrokerApi -------------------
+    // Собственный экземпляр API, создаётся при инициализации
+    @Volatile
+    private var api: InvestApi? = null
+
+    override val isInitialized: Boolean
+        get() = api != null
+
+    /**
+     * Инициализирует клиент API заново (вызывается из UI при подключении).
+     * Использует сохранённые в ServiceLocator токен и режим.
+     */
+    fun initializeFromSettings() {
+        val token = ServiceLocator.getToken() ?: return
+        val sandbox = ServiceLocator.isSandboxMode()
+        val target = if (sandbox) {
+            "sandbox-invest-public-api.tbank.ru:443"
+        } else {
+            "invest-public-api.tbank.ru:443"
+        }
+        api = InvestApi.createApi(InvestApi.defaultChannel(token, target))
+        tickerToFigiCache.clear()
+    }
+
+    /**
+     * Ищет figi по тикеру. Сначала проверяет кэш, затем делает запрос к API.
+     */
+    override suspend fun resolveTicker(ticker: String): String? {
+        tickerToFigiCache[ticker]?.let { return it }
+        val shortList = findInstrumentShorts(ticker)
+        val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
+        if (figi != null) {
+            tickerToFigiCache[ticker] = figi
+        }
+        return figi
+    }
+
+    /**
+     * Возвращает InstrumentUi по тикеру. Использует resolveTicker и затем getInstrumentByFigi.
+     */
+    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
+        val figi = resolveTicker(ticker) ?: return null
+        val instrumentResponse = getInstrumentByFigi(figi)
+        val inst = instrumentResponse.instrument
+        return InstrumentUi(
+            ticker = inst.ticker,
+            figi = inst.figi,
+            name = inst.name,
+            currency = inst.currency,
+            lot = inst.lot,
+            instrumentType = inst.instrumentType ?: ""
+        )
+    }
+
+    /**
+     * Возвращает краткие результаты поиска (InstrumentShort) по строке запроса.
+     * Используется для кэширования и resolveTicker.
+     */
+    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
+        currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
+    }
+
+    /**
+     * Внутренний метод получения полной информации об инструменте по figi.
+     */
+    private suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = InstrumentRequest.newBuilder()
+            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
+            .setId(figi)
+            .build()
+        currentApi.instrumentsServiceSync.getInstrumentBy(request)
+    }
 
     override suspend fun getAccounts(sandboxMode: Boolean): List<Account> = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetAccountsRequest.getDefaultInstance()
         return@withContext if (sandboxMode) {
             currentApi.sandboxServiceSync.getSandboxAccounts(request).accountsList
@@ -64,37 +116,23 @@ class TinkoffInvestService : BrokerApi {
         accountId: String,
         sandboxMode: Boolean
     ): PostOrderResponse = withContext(Dispatchers.IO) {
-        try {
-            val currentApi = requireApi()
-            val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
-            val request = PostOrderRequest.newBuilder()
-                .setFigi(figi)
-                .setQuantity(quantity)
-                .setPrice(price)
-                .setDirection(direction)
-                .setAccountId(accountId)
-                .setOrderType(OrderType.ORDER_TYPE_MARKET)
-                .build()
-            return@withContext if (sandboxMode) {
-                currentApi.sandboxServiceSync.postSandboxOrder(request)
-            } else {
-                currentApi.ordersServiceSync.postOrder(request)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка отправки заявки", e)
-            // Пытаемся извлечь gRPC-статус для деталей
-            val status = io.grpc.Status.fromThrowable(e)
-            if (status != null) {
-                Log.e(TAG, "gRPC статус: ${status.code}, описание: ${status.description}")
-            }
-            throw Exception("Не удалось выставить заявку: ${e.message}")
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val price = Quotation.newBuilder().setUnits(0).setNano(0).build()
+        val request = PostOrderRequest.newBuilder()
+            .setFigi(figi)
+            .setQuantity(quantity)
+            .setPrice(price)
+            .setDirection(direction)
+            .setAccountId(accountId)
+            .setOrderType(OrderType.ORDER_TYPE_MARKET)
+            .build()
+        return@withContext if (sandboxMode) {
+            currentApi.sandboxServiceSync.postSandboxOrder(request)
+        } else {
+            currentApi.ordersServiceSync.postOrder(request)
         }
     }
 
-    /**
-     * Выставляет заявку (рыночную или лимитную) через Т‑Инвестиции.
-     * Реализует требований интерфейса BrokerApi.
-     */
     override suspend fun postOrder(
         figi: String,
         quantity: Long,
@@ -104,7 +142,7 @@ class TinkoffInvestService : BrokerApi {
         orderType: OrderType,
         price: Quotation
     ): PostOrderResponse = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = PostOrderRequest.newBuilder()
             .setFigi(figi)
             .setQuantity(quantity)
@@ -121,7 +159,7 @@ class TinkoffInvestService : BrokerApi {
     }
 
     override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
         return@withContext if (sandboxMode) {
             currentApi.sandboxServiceSync.getSandboxPortfolio(request)
@@ -130,82 +168,73 @@ class TinkoffInvestService : BrokerApi {
         }
     }
 
-    /**
-     * ///Получает полную информацию об инструменте по его FIGI.
-     * ///В запросе обязательно указывает тип идентификатора — FIGI.
-     */
-    override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
-        val request = InstrumentRequest.newBuilder()
-            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
-            .setId(figi)
-            .build()
-        currentApi.instrumentsServiceSync.getInstrumentBy(request)
-    }
+    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val response = getPortfolio(accountId, sandboxMode)
 
-    override suspend fun resolveTicker(ticker: String): String? {
-        // Проверяем кэш
-        tickerToFigiCache[ticker]?.let { return it }
+        response.positionsList.mapNotNull { pos ->
+            // Пытаемся получить тикер из протобуфа, иначе резолвим через figi
+            val ticker = pos.ticker.ifBlank { resolveTicker(pos.figi) ?: pos.figi }
+            if (ticker.isBlank()) return@mapNotNull null
 
-        // Ищем через findInstrument (уже кэширует)
-        val shortList = findInstrumentShorts(ticker)
-        val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
-        if (figi != null) {
-            tickerToFigiCache[ticker] = figi
+            val instrument = getInstrumentByTicker(ticker)
+            val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
+            val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+            val totalValue = currentPrice * quantity
+
+            PortfolioPosition(
+                name = instrument?.name ?: "",
+                ticker = ticker,
+                quantity = quantity,
+                currentPrice = currentPrice,
+                totalValue = totalValue,
+                profit = 0.0,
+                profitPercent = 0.0,
+                instrumentType = instrument?.instrumentType ?: ""
+            )
         }
-        return figi
     }
 
-    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
-        val figi = resolveTicker(ticker) ?: return null
-        val instrumentResponse = getInstrumentByFigi(figi)
-        val inst = instrumentResponse.instrument
-        return InstrumentUi(
-            figi = inst.figi,
-            ticker = inst.ticker,
-            name = inst.name,
-            currency = inst.currency,
-            lot = inst.lot,
-            instrumentType = inst.instrumentType ?: ""
-        )
-    }
+    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
+        if (tickers.isEmpty()) return@withContext emptyMap()
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
 
-    /**
-     * ///Поиск инструментов по строковому запросу.
-     * ///Возвращает список кратких данных (InstrumentShort), без попытки получить полный Instrument.
-     * ///Полные данные (валюта, лот) будут загружены позже при необходимости.
-     */
-    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
-        val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
-        currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
-    }
+        // Резолвим тикеры в figi
+        val tickerToFigi = mutableMapOf<String, String>()
+        for (ticker in tickers) {
+            resolveTicker(ticker)?.let { tickerToFigi[ticker] = it }
+        }
+        if (tickerToFigi.isEmpty()) return@withContext emptyMap()
 
-    override suspend fun getLastPrices(figis: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
-        if (figis.isEmpty()) return@withContext emptyMap()
-        val currentApi = requireApi()
+        val figis = tickerToFigi.values.toList()
         val request = GetLastPricesRequest.newBuilder().addAllFigi(figis).build()
         val response = currentApi.marketDataServiceSync.getLastPrices(request)
-        response.lastPricesList.associate { it.figi to it.price?.let { p -> p.units + p.nano / 1_000_000_000.0 } }
+
+        val result = mutableMapOf<String, Double?>()
+        for (lastPrice in response.lastPricesList) {
+            val originalTicker = tickerToFigi.entries.find { it.value == lastPrice.figi }?.key
+            if (originalTicker != null) {
+                val price = lastPrice.price?.let { it.units + it.nano / 1_000_000_000.0 }
+                result[originalTicker] = price
+            }
+        }
+        result
     }
 
     override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
-        val currentApi = requireApi()
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-        // Метод есть только в UsersServiceSync (боевой режим)
         currentApi.usersServiceSync.getMarginAttributes(request)
     }
 
     override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
         withContext(Dispatchers.IO) {
-            val currentApi = requireApi()
+            val currentApi = api ?: throw IllegalStateException("API не инициализирован")
             val request = SandboxPayInRequest.newBuilder()
                 .setAccountId(accountId)
                 .setAmount(amount)
                 .build()
             currentApi.sandboxServiceSync.sandboxPayIn(request)
-            Log.d(TAG, "Пополнение выполнено успешно")
-            // Ничего не возвращаем, Unit
         }
     }
 }

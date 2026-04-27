@@ -20,6 +20,7 @@ import ru.tinkoff.piapi.contract.v1.OrderDirection
 import ru.tinkoff.piapi.contract.v1.OrderType
 import ru.tinkoff.piapi.contract.v1.Quotation
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.data.api.TinkoffInvestService
 
 class OrdersViewModel(
     private val repository: InvestRepository
@@ -52,14 +53,25 @@ class OrdersViewModel(
 
     fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
-            ServiceLocator.createApi(token, sandboxMode)
-            _uiState.update { it.copy(isApiInitialized = true, statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})", isError = false) }
-            loadAccounts()
-            viewModelScope.launch {
-                loadPortfolio()
+            ServiceLocator.saveBrokerCredentials("tinkoff", token, sandboxMode)
+            (ServiceLocator.getBrokerManager().getBroker("tinkoff") as? TinkoffInvestService)?.initializeFromSettings()
+
+            _uiState.update {
+                it.copy(
+                    isApiInitialized = true,
+                    statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})",
+                    isError = false
+                )
             }
+            loadAccounts()
+            viewModelScope.launch { loadPortfolio() }   // <-- обернули в корутину
         } catch (e: Exception) {
-            _uiState.update { it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true) }
+            _uiState.update {
+                it.copy(
+                    statusMessage = "Ошибка подключения: ${e.message}",
+                    isError = true
+                )
+            }
         }
     }
 
@@ -132,7 +144,7 @@ class OrdersViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
-            val prices = repository.getLastPrices(listOf(instrument.ticker))
+            val prices = repository.getLastPricesByTicker(tickersToUpdate)
             val price = prices[instrument.ticker]
             val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
 
@@ -291,7 +303,7 @@ class OrdersViewModel(
     private suspend fun updatePrices() {
         val state = _uiState.value
         val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
-        state.selectedInstrument?.ticker?.let { tickersToUpdate.add(it) }
+        state.selectedInstrument?.let { tickersToUpdate.add(it.ticker) }
 
         if (tickersToUpdate.isEmpty()) return
 

@@ -69,16 +69,13 @@ class MockBrokerApi : BrokerApi {
         return emptyList()
     }
 
-    override suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
-        // Заглушка: полный инструмент не возвращаем
-        throw NotImplementedError("MockBroker не поддерживает поиск инструментов")
-    }
+
 
     override suspend fun resolveTicker(ticker: String): String? = ticker
     override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? = null
 
     override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = emptyList()
-    override suspend fun getLastPrices(figis: List<String>): Map<String, Double?> = emptyMap()
+
     override suspend fun sandboxPayIn(accountId: String, amount: MoneyValue) {
         // Ничего не делаем в заглушке
     }
@@ -86,4 +83,6 @@ class MockBrokerApi : BrokerApi {
         // Возвращаем пустой ответ – баланс будет 0, но это не критично для заглушки
         return GetMarginAttributesResponse.newBuilder().build()
     }
+
+    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
 }
