@@ -304,12 +304,11 @@ class OrdersViewModel(
         val state = _uiState.value
         val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
         state.selectedInstrument?.let { tickersToUpdate.add(it.ticker) }
-
         if (tickersToUpdate.isEmpty()) return
 
-        val prices = repository.getLastPricesByTicker(tickersToUpdate.toList())
+        try {
+            val prices = repository.getLastPricesByTicker(tickersToUpdate.toList())
 
-            // Обновляем lastSelectedInstruments
             val updatedLastSelected = state.lastSelectedInstruments.map { card ->
                 val newPrice = prices[card.instrument.ticker] ?: card.currentPrice
                 val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
@@ -322,12 +321,10 @@ class OrdersViewModel(
                 )
             }
 
-            // Обновляем цену и изменение для выбранного инструмента
             var newCurrentPrice = state.currentPrice
             var selectedChange = state.selectedPriceChangePercent
-            val selectedTicker = state.selectedInstrument?.ticker
-            if (selectedTicker != null) {
-                val freshPrice = prices[selectedTicker]
+            state.selectedInstrument?.let { sel ->
+                val freshPrice = prices[sel.ticker]
                 if (freshPrice != null) {
                     val prevPrice = state.currentPrice
                     selectedChange = if (prevPrice != null && prevPrice != 0.0) {
@@ -344,6 +341,7 @@ class OrdersViewModel(
                     selectedPriceChangePercent = selectedChange
                 )
             }
+        } catch (_: Exception) { }
     }
 
 
