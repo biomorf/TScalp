@@ -1,5 +1,14 @@
 package com.example.tscalp.domain.models
 
+data class InstrumentUi(
+    val figi: String,
+    val ticker: String,
+    val name: String,
+    val currency: String,
+    val lot: Int,
+    val instrumentType: String = ""   /// тип инструмента: share, bond, etf, currency
+)
+
 data class AccountUi(
     val id: String,
     val name: String,

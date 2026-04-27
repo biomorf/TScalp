@@ -15,14 +15,6 @@ import ru.tinkoff.piapi.contract.v1.OrderType
 import ru.tinkoff.piapi.contract.v1.Quotation
 import com.example.tscalp.domain.models.OrderStatus
 
-data class InstrumentUi(
-    val figi: String,
-    val ticker: String,
-    val name: String,
-    val currency: String,
-    val lot: Int,
-    val instrumentType: String = ""   /// тип инструмента: share, bond, etf, currency
-)
 
 /**
  * ///Репозиторий – преобразует контракты API в доменные модели приложения.
@@ -83,7 +75,7 @@ class InvestRepository(
      */
     suspend fun postMarketOrder(
         brokerName: String,
-        figi: String,
+        ticker: String,            // теперь ticker вместо figi
         quantity: Long,
         direction: OrderDirection,
         accountId: String,
@@ -91,6 +83,10 @@ class InvestRepository(
     ): OrderResult = withContext(Dispatchers.IO) {
         val broker = brokerManager.getBroker(brokerName)
             ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+        ///val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
+        // Разрешаем ticker в нужный идентификатор
+        val figi = broker.resolveTicker(ticker) ?: throw IllegalArgumentException("Инструмент с тикером $ticker не найден")
+        // Вызываем старый метод с figi
         val response = broker.postMarketOrder(figi, quantity, direction, accountId, sandboxMode)
         OrderResult(
             orderId = response.orderId,
@@ -112,7 +108,7 @@ class InvestRepository(
      */
     suspend fun postOrder(
         brokerName: String,
-        figi: String,
+        ticker: String,
         quantity: Long,
         direction: OrderDirection,
         accountId: String,
@@ -122,6 +118,7 @@ class InvestRepository(
     ): OrderResult = withContext(Dispatchers.IO) {
         val broker = brokerManager.getBroker(brokerName)
             ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+        val figi = broker.resolveTicker(ticker) ?: throw IllegalArgumentException("Инструмент с тикером $ticker не найден")
         val response = broker.postOrder(figi, quantity, direction, accountId, sandboxMode, orderType, price)
         OrderResult(
             orderId = response.orderId,
@@ -172,6 +169,16 @@ class InvestRepository(
      */
     suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
         return brokerManager.getDefaultBroker().getInstrumentByFigi(figi)
+    }
+
+    /**
+     * Возвращает специфичный для брокера идентификатор (figi, uid и т.д.) по тикеру.
+     * @param brokerName имя брокера
+     * @param ticker тикер инструмента
+     */
+    suspend fun resolveBrokerTicker(brokerName: String, ticker: String): String? {
+        val broker = brokerManager.getBroker(brokerName) ?: return null
+        return broker.resolveTicker(ticker)
     }
 
     /**

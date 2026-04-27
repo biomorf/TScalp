@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.tscalp.data.repository.InstrumentUi
+import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.ServiceLocator
 import kotlinx.coroutines.Job
@@ -100,7 +100,7 @@ class OrdersViewModel(
     }
 
     fun onSearchQueryChanged(query: String) {
-        _uiState.update { it.copy(searchQuery = query, selectedInstrument = null, figi = "") }
+        _uiState.update { it.copy(searchQuery = query, selectedInstrument = null, ticker = "") }
         searchJob?.cancel()
         if (query.length >= 2) {
             searchJob = viewModelScope.launch {
@@ -124,16 +124,17 @@ class OrdersViewModel(
         _uiState.update {
             it.copy(
                 selectedInstrument = instrument,
-                figi = instrument.figi,
+                ticker = instrument.ticker,          // <-- теперь ticker
                 searchQuery = "${instrument.ticker} - ${instrument.name}",
                 searchResults = emptyList()
             )
         }
 
         viewModelScope.launch {
-            val prices = repository.getLastPrices(listOf(instrument.figi))
-            val price = prices[instrument.figi]
-            val portfolioPos = _uiState.value.portfolioPositions.find { it.figi == instrument.figi }
+            _uiState.update { it.copy(isPriceLoading = true) }
+            val prices = repository.getLastPrices(listOf(instrument.ticker))
+            val price = prices[instrument.ticker]
+            val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
 
             val newCard = SelectedInstrumentInfo(
                 instrument = instrument,
@@ -147,7 +148,7 @@ class OrdersViewModel(
             )
 
             val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
-            currentList.removeAll { it.instrument.figi == instrument.figi }
+            currentList.removeAll { it.instrument.ticker == instrument.ticker }
             currentList.add(0, newCard)
 
             _uiState.update {
@@ -170,7 +171,7 @@ class OrdersViewModel(
         _uiState.update {
             it.copy(
                 selectedInstrument = null,
-                figi = "",
+                ticker = "",
                 searchQuery = "",
                 currentPrice = null,
                 isPriceLoading = false
@@ -183,8 +184,8 @@ class OrdersViewModel(
         if (active) { _uiState.update { it.copy(searchResults = emptyList(), searchQuery = "") } }
     }
 
-    fun clearSearch() { _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), selectedInstrument = null, figi = "", currentPrice = null, isPriceLoading = false, isSearchActive = false) } }
-    fun onFigiChanged(figi: String) { _uiState.update { it.copy(figi = figi.uppercase()) } }
+    fun clearSearch() { _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), selectedInstrument = null, ticker = "", currentPrice = null, isPriceLoading = false, isSearchActive = false) } }
+    fun onFigiChanged(figi: String) { _uiState.update { it.copy(ticker = figi.uppercase()) } }
     fun onQuantityChanged(quantity: String) { _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) } }
     fun onAccountSelected(accountId: String) { _uiState.update { it.copy(selectedAccountId = accountId) } }
     fun onBuyClick() = postOrder(OrderDirection.ORDER_DIRECTION_BUY)
@@ -192,9 +193,9 @@ class OrdersViewModel(
 
     private fun postOrder(direction: OrderDirection) {
         val state = _uiState.value
-        val figi = state.figi
+        val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return
         val quantity = state.quantityAsLong ?: return
-        val activeCard = state.lastSelectedInstruments.find { it.instrument.figi == figi }
+        val activeCard = state.lastSelectedInstruments.find { it.instrument.ticker == ticker }
         val brokerName = activeCard?.brokerName ?: "tinkoff"
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
 
@@ -204,7 +205,7 @@ class OrdersViewModel(
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val result = repository.postMarketOrder(
                     brokerName = brokerName,
-                    figi = figi,
+                    ticker = ticker,              // <-- ticker вместо figi
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
@@ -251,7 +252,7 @@ class OrdersViewModel(
                         try {
                             val pairedResult = repository.postOrder(
                                 brokerName = brokerName,
-                                figi = state.pairedInstrument.figi,
+                                ticker = state.pairedInstrument.ticker,
                                 quantity = pairedQuantity,
                                 direction = pairedDirection,
                                 accountId = accountId,

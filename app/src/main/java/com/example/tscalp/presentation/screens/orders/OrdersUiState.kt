@@ -1,6 +1,6 @@
 package com.example.tscalp.presentation.screens.orders
 
-import com.example.tscalp.data.repository.InstrumentUi
+import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
 import ru.tinkoff.piapi.contract.v1.OrderType
@@ -23,7 +23,7 @@ data class SelectedInstrumentInfo(
 )
 
 data class OrdersUiState(
-    val figi: String = "",
+    val ticker: String = "",                // <-- было val figi: String = ""
     val quantity: String = "",
     val accounts: List<AccountUi> = emptyList(),
     val selectedAccountId: String? = null,
@@ -35,11 +35,16 @@ data class OrdersUiState(
     val searchResults: List<InstrumentUi> = emptyList(),
     val isSearching: Boolean = false,
     val selectedInstrument: InstrumentUi? = null,
+    val selectedTicker: String? = selectedInstrument?.ticker,
     val currentPrice: Double? = null,
     val isPriceLoading: Boolean = false,
     val portfolioPositions: List<PortfolioPosition> = emptyList(),
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),
     val isSearchActive: Boolean = false,          // <-- для управления SearchBar
+    val orderType: OrderType = OrderType.ORDER_TYPE_MARKET,   // тип заявки (рыночная/лимитная)
+    val limitPrice: String = "",                                // цена для лимитной заявки
+    val selectedPriceChangePercent: Double? = null,   // изменение цены выбранного инструмента
+    // Диалог брокера
     val showBrokerDialog: Boolean = false,          // флаг открытия диалога
     val dialogInstrumentFigi: String? = null,       // FIGI инструмента, для которого открыт диалог
     val selectedBroker: String = "tinkoff",         // выбранный брокер в диалоге
@@ -52,9 +57,6 @@ data class OrdersUiState(
     val isPairSearching: Boolean = false,               // индикатор загрузки второго поиска
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
     val pairedMultiplier: String = "1",                 // множитель (по умолчанию 1)
-    val orderType: OrderType = OrderType.ORDER_TYPE_MARKET,   // тип заявки (рыночная/лимитная)
-    val limitPrice: String = "",                                // цена для лимитной заявки
-    val selectedPriceChangePercent: Double? = null   // изменение цены выбранного инструмента
 ) {
     val isFormValid: Boolean
         get() = selectedInstrument != null && quantity.toLongOrNull()?.let { it > 0 } == true && selectedAccountId != null && isApiInitialized

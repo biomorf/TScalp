@@ -5,13 +5,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.InstrumentUi
 import ru.tinkoff.piapi.contract.v1.*
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
 import ru.tinkoff.piapi.contract.v1.GetMarginAttributesResponse
 import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
 import ru.tinkoff.piapi.contract.v1.MoneyValue
-
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * ///Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
@@ -40,6 +41,9 @@ class TinkoffInvestService : BrokerApi {
      * ///Вспомогательный метод, который либо возвращает api, либо выбрасывает исключение.
      */
     private fun requireApi(): InvestApi = api ?: throw IllegalStateException("API не инициализирован")
+
+    // Кэш ticker -> figi
+    private val tickerToFigiCache = ConcurrentHashMap<String, String>()
 
     /// ------------------- Реализация методов BrokerApi -------------------
 
@@ -137,6 +141,33 @@ class TinkoffInvestService : BrokerApi {
             .setId(figi)
             .build()
         currentApi.instrumentsServiceSync.getInstrumentBy(request)
+    }
+
+    override suspend fun resolveTicker(ticker: String): String? {
+        // Проверяем кэш
+        tickerToFigiCache[ticker]?.let { return it }
+
+        // Ищем через findInstrument (уже кэширует)
+        val shortList = findInstrumentShorts(ticker)
+        val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
+        if (figi != null) {
+            tickerToFigiCache[ticker] = figi
+        }
+        return figi
+    }
+
+    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
+        val figi = resolveTicker(ticker) ?: return null
+        val instrumentResponse = getInstrumentByFigi(figi)
+        val inst = instrumentResponse.instrument
+        return InstrumentUi(
+            figi = inst.figi,
+            ticker = inst.ticker,
+            name = inst.name,
+            currency = inst.currency,
+            lot = inst.lot,
+            instrumentType = inst.instrumentType ?: ""
+        )
     }
 
     /**

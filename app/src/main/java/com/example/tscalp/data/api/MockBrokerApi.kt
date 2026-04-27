@@ -1,6 +1,7 @@
 package com.example.tscalp.data.api
 
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.InstrumentUi
 import ru.tinkoff.piapi.contract.v1.GetMarginAttributesResponse
 import ru.tinkoff.piapi.contract.v1.*
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -72,6 +73,9 @@ class MockBrokerApi : BrokerApi {
         // Заглушка: полный инструмент не возвращаем
         throw NotImplementedError("MockBroker не поддерживает поиск инструментов")
     }
+
+    override suspend fun resolveTicker(ticker: String): String? = ticker
+    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? = null
 
     override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = emptyList()
     override suspend fun getLastPrices(figis: List<String>): Map<String, Double?> = emptyMap()

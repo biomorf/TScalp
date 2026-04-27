@@ -1,7 +1,8 @@
 package com.example.tscalp.domain.api
 
+import com.example.tscalp.domain.models.InstrumentUi
 import ru.tinkoff.piapi.contract.v1.*
-import ru.ttech.piapi.core.InvestApi
+//import com.example.tscalp.domain.models.
 import com.example.tscalp.domain.models.PortfolioPosition
 
 interface BrokerApi {
@@ -30,6 +31,15 @@ interface BrokerApi {
     ): PostOrderResponse
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse
     suspend fun getInstrumentByFigi(figi: String): InstrumentResponse
+    /**
+     * Возвращает специфичный для брокера идентификатор инструмента по тикеру.
+     * Для Т-Инвестиций это figi, для БКС — bscticker (пока просто ticker).
+     * Может вернуть null, если инструмент не найден.
+     */
+    suspend fun resolveTicker(ticker: String): String?
+
+    // Опционально: если нужно получать полный InstrumentUi по тикеру
+    suspend fun getInstrumentByTicker(ticker: String): InstrumentUi?
     suspend fun findInstrumentShorts(query: String): List<InstrumentShort>
     suspend fun getLastPrices(figis: List<String>): Map<String, Double?>
     suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse
@@ -54,4 +64,6 @@ interface BrokerApi {
             )
         }
     }
+
+
 }

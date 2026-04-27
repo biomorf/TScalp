@@ -23,7 +23,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.tscalp.data.repository.InstrumentUi
+import com.example.tscalp.domain.models.InstrumentUi
+import com.example.tscalp.presentation.screens.orders.SelectedInstrumentInfo
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.ui.components.AssetPositionCard
@@ -94,8 +95,8 @@ fun OrdersScreen(
         )
 
         // ========== Основная карточка (свайпабельная) ==========
-        uiState.selectedInstrument?.let { instrument ->
-            val portfolioPos = uiState.portfolioPositions.find { it.figi == instrument.figi }
+        uiState.selectedInstrument?.let { instrument: InstrumentUi ->
+            val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
             val position = PortfolioPosition(
                 figi = instrument.figi,
                 name = instrument.name,
@@ -113,7 +114,7 @@ fun OrdersScreen(
                 instrumentType = instrument.instrumentType,
                 priceChangePercent = uiState.selectedPriceChangePercent, // либо из lastSelectedInstruments, если хотите
                 onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
-                onSettings = { viewModel.openBrokerDialog(instrument.figi) },
+                onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                 onClick = { },  // не обязательно
                 isSelected = false
             )
@@ -197,12 +198,12 @@ fun OrdersScreen(
             )
 
             // ========== Парная карточка (свайпабельная) и поле множителя ==========
-            uiState.pairedInstrument?.let { instrument ->
-                val portfolioPos = uiState.portfolioPositions.find { it.figi == instrument.figi }
+            uiState.pairedInstrument?.let { instrument: InstrumentUi ->
+                val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
                 val pairPrice = uiState.currentPrice  // пока используем ту же цену, что у основного
                 val position = PortfolioPosition(
-                    figi = instrument.figi,
                     name = instrument.name,
+                    figi = instrument.figi,
                     ticker = instrument.ticker,
                     quantity = portfolioPos?.quantity ?: 0L,
                     currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,
@@ -210,7 +211,7 @@ fun OrdersScreen(
                     profit = portfolioPos?.profit ?: 0.0,
                     profitPercent = portfolioPos?.profitPercent ?: 0.0,
                     instrumentType = instrument.instrumentType,
-                    priceChangePercent = null
+                    priceChangePercent = null,
                 )
 
                 AssetPositionCard(
@@ -218,7 +219,7 @@ fun OrdersScreen(
                     instrumentType = instrument.instrumentType,
                     priceChangePercent = uiState.selectedPriceChangePercent, // либо из lastSelectedInstruments, если хотите
                     onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
-                    onSettings = { viewModel.openBrokerDialog(instrument.figi) },
+                    onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                     onClick = { },  // не обязательно
                     isSelected = false
                 )
@@ -362,7 +363,7 @@ fun ResultItemCard(instrument: InstrumentUi, onClick: () -> Unit) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("${instrument.ticker} – ${instrument.name}", fontWeight = FontWeight.Bold)
-                Text(instrument.figi, style = MaterialTheme.typography.bodySmall)
+                Text(instrument.ticker, style = MaterialTheme.typography.bodySmall)
                 if (instrument.lot > 1) Text("Лот: ${instrument.lot} шт.", style = MaterialTheme.typography.bodySmall)
             }
             Text(instrument.currency, style = MaterialTheme.typography.bodySmall)
@@ -453,7 +454,7 @@ fun InstrumentSearchField(
                                 text = {
                                     Column {
                                         Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(instrument.ticker, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 },
                                 onClick = {
@@ -479,7 +480,7 @@ fun InstrumentSearchField(
                                 text = {
                                     Column {
                                         Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(instrument.ticker, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 },
                                 onClick = {

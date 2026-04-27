@@ -3,6 +3,7 @@ package com.example.tscalp.data.api
 import android.util.Log
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.InstrumentUi
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -265,6 +266,16 @@ class BcsBrokerApi : BrokerApi {
     override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> {
         // Аналогично, потребуется адаптация
         return emptyList()
+    }
+
+    override suspend fun resolveTicker(ticker: String): String? {
+        // У БКС нет отдельного идентификатора, возвращаем ticker как есть
+        return ticker
+    }
+
+    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
+        // Заглушка: можно реализовать через поиск в портфеле или отдельный запрос
+        return null
     }
 
     override suspend fun getLastPrices(figis: List<String>): Map<String, Double?> {
