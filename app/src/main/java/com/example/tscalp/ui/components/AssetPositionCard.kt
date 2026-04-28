@@ -60,7 +60,7 @@ fun AssetPositionCard(
     val density = LocalDensity.current
 
     Box(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
-        // Кнопки подложки
+        // Кнопки подложки (поменяли порядок: сначала Удалить, потом Настройки)
         Row(
             modifier = Modifier
                 .matchParentSize()
@@ -68,16 +68,7 @@ fun AssetPositionCard(
                 .width(buttonWidth * 2),
             horizontalArrangement = Arrangement.End
         ) {
-            if (onSettings != null) {
-                IconButton(
-                    onClick = onSettings,
-                    modifier = Modifier
-                        .size(buttonWidth)
-                        .background(Color(0xFF757575), shape = CircleShape)
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
-                }
-            }
+            // Сначала кнопка Удалить (красная) – появляется первой при свайпе
             if (onDelete != null) {
                 IconButton(
                     onClick = onDelete,
@@ -86,6 +77,17 @@ fun AssetPositionCard(
                         .background(Color(0xFFC62828), shape = CircleShape)
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
+                }
+            }
+            // Затем кнопка Настройки (серая) – появляется при более сильном свайпе
+            if (onSettings != null) {
+                IconButton(
+                    onClick = onSettings,
+                    modifier = Modifier
+                        .size(buttonWidth)
+                        .background(Color(0xFF757575), shape = CircleShape)
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
                 }
             }
         }
