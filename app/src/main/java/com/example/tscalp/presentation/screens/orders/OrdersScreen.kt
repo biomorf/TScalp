@@ -14,7 +14,7 @@ import androidx.compose.material.icons.Icons
 //import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 //import androidx.compose.material.icons.filled.Refresh
-//import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
@@ -501,14 +501,17 @@ fun InstrumentSearchField(
                     expanded = it.isNotEmpty() || recentInstruments.isNotEmpty()
                 },
                 label = null,
-                placeholder = { Text("Введите тикер или название", fontSize = 12.sp) },
+                placeholder = {
+                    Text("Введите тикер или название", fontSize = 14.sp)
+                },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 32.dp)          // минимальная высота, но не жёсткая
                     .menuAnchor(),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(12.dp))
+                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         else if (query.isNotEmpty()) IconButton(
                             onClick = {
                                 onClear()
@@ -516,14 +519,15 @@ fun InstrumentSearchField(
                             },
                             modifier = Modifier.size(24.dp)
                         ) {
-                            Icon(Icons.Default.Clear, "Очистить", modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Clear, "Очистить", modifier = Modifier.size(18.dp))
                         }
                     }
                 },
-                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
             )
 
+            // Выпадающий список (без изменений)
             ExposedDropdownMenu(
                 expanded = showDropdown,
                 onDismissRequest = { expanded = false }
@@ -534,15 +538,14 @@ fun InstrumentSearchField(
                         .verticalScroll(rememberScrollState())
                 ) {
                     if (query.isEmpty() && recentInstruments.isNotEmpty()) {
-                        // История
+                        // История недавних инструментов
                         recentInstruments.forEach { instrument: InstrumentUi ->
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
-                            //val typeColor = Color.Red // вместо getInstrumentTypeColor(instrument.instrumentType)
                             DropdownMenuItem(
                                 text = {
                                     Column {
                                         Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(instrument.ticker, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 },
                                 onClick = {
@@ -553,7 +556,7 @@ fun InstrumentSearchField(
                                     Box(
                                         modifier = Modifier
                                             .width(4.dp)
-                                            .height(36.dp)               // фиксированная высота – работает стабильно
+                                            .height(36.dp)
                                             .background(typeColor)
                                     )
                                 },
@@ -564,12 +567,11 @@ fun InstrumentSearchField(
                         // Результаты поиска
                         searchResults.forEach { instrument: InstrumentUi ->
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
-                            //val typeColor = Color.Red // вместо getInstrumentTypeColor(instrument.instrumentType)
                             DropdownMenuItem(
                                 text = {
                                     Column {
                                         Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(instrument.ticker, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 },
                                 onClick = {
@@ -580,7 +582,7 @@ fun InstrumentSearchField(
                                     Box(
                                         modifier = Modifier
                                             .width(4.dp)
-                                            .height(36.dp)               // фиксированная высота – работает стабильно
+                                            .height(36.dp)
                                             .background(typeColor)
                                     )
                                 },
