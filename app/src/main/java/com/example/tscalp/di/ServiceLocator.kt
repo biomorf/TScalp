@@ -64,9 +64,23 @@ object ServiceLocator {
     fun hasSavedToken(brokerName: String): Boolean =
         prefs.contains("${brokerName}_token")
 
-    fun isSandboxMode(): Boolean = prefs.getBoolean("TInvest_sandbox", true)
-
     fun getToken(): String? = prefs.getString("TInvest_token", null)
+
+    /**
+     * Сохраняет идентификатор счёта по умолчанию для указанного брокера.
+     */
+    fun saveDefaultAccountId(brokerName: String, accountId: String) {
+        prefs.edit().putString("${brokerName}_default_account", accountId).apply()
+    }
+
+    /**
+     * Возвращает сохранённый идентификатор счёта по умолчанию или null.
+     */
+    fun loadDefaultAccountId(brokerName: String): String? {
+        return prefs.getString("${brokerName}_default_account", null)
+    }
+
+    fun isSandboxMode(): Boolean = prefs.getBoolean("TInvest_sandbox", true)
 
     // --- Управление флагом подтверждения заявок ---
 

@@ -142,7 +142,12 @@ class PortfolioViewModel(
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
 
-                val accountId = accounts.first().id
+                val defaultAccountId = ServiceLocator.loadDefaultAccountId("TInvest")
+                val accountId = if (defaultAccountId != null && accounts.any { it.id == defaultAccountId }) {
+                    defaultAccountId
+                } else {
+                    accounts.first().id
+                }
                 Log.d(TAG, "Пополнение счёта $accountId через TInvest")
 
                 repository.sandboxPayIn(

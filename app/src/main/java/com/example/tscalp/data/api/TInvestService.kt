@@ -1,6 +1,5 @@
 package com.example.tscalp.data.api
 
-import android.util.Log
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi

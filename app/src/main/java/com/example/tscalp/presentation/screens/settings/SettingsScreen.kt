@@ -7,6 +7,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,12 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.tscalp.di.ServiceLocator
-import com.example.tscalp.presentation.screens.orders.OrdersViewModel
-import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.tscalp.data.api.BcsBrokerApi
-import kotlinx.coroutines.launch
+
+
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
@@ -27,11 +26,21 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.runtime.mutableIntStateOf
-import com.example.tscalp.presentation.screens.orders.OrdersUiState
+
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import com.example.tscalp.data.api.BcsBrokerApi
+import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.domain.models.AccountUi
+
+import com.example.tscalp.presentation.screens.orders.OrdersViewModel
+import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
+import com.example.tscalp.presentation.screens.orders.OrdersUiState
+import com.example.tscalp.data.repository.InvestRepository
 
 
 @Composable
@@ -145,6 +154,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiState) {
     var token by remember { mutableStateOf("") }
@@ -154,6 +164,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
     var isError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // Загружаем сохранённые настройки при старте
     LaunchedEffect(Unit) {
         val creds = ServiceLocator.loadBrokerCredentials("TInvest")
         if (creds != null) {
@@ -162,13 +173,32 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         }
     }
 
+    // Определяем, подключены ли (есть ли сохранённые настройки и API инициализировано)
+    val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("TInvest") != null
+
+    // Данные для выбора счёта по умолчанию
+    val repository: InvestRepository = remember { InvestRepository(ServiceLocator.getBrokerManager()) }
+    var availableAccounts by remember { mutableStateOf<List<AccountUi>>(emptyList()) }
+    var defaultAccountId by remember { mutableStateOf(ServiceLocator.loadDefaultAccountId("TInvest") ?: "") }
+    var accountExpanded by remember { mutableStateOf(false) }
+
+// Загружаем список счетов при каждом открытии панели (если подключены)
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            try {
+                val sandbox = ServiceLocator.isSandboxMode()
+                availableAccounts = repository.getAccounts("TInvest", sandbox)
+            } catch (_: Exception) { }
+        }
+    }
+
     Column(
         modifier = Modifier
-            .verticalScroll(rememberScrollState())   // ← позволяет скроллить
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("TInvest") != null
+        // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -205,6 +235,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             }
         }
 
+        // Поле токена
         OutlinedTextField(
             value = token,
             onValueChange = { token = it },
@@ -222,6 +253,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             enabled = !isConnected
         )
 
+        // Переключатель песочницы
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -242,6 +274,39 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             )
         }
 
+        // Выбор счёта по умолчанию
+        if (isConnected) {
+            ExposedDropdownMenuBox(
+                expanded = accountExpanded,
+                onExpandedChange = { accountExpanded = it }
+            ) {
+                TextField(
+                    value = availableAccounts.find { it.id == defaultAccountId }?.name ?: "Выберите счёт",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Счёт по умолчанию") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = accountExpanded,
+                    onDismissRequest = { accountExpanded = false }
+                ) {
+                    availableAccounts.forEach { account ->
+                        DropdownMenuItem(
+                            text = { Text(account.name) },
+                            onClick = {
+                                defaultAccountId = account.id
+                                ServiceLocator.saveDefaultAccountId("TInvest", account.id)
+                                accountExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Кнопка подключения / отключения
         if (!isConnected) {
             Button(
                 onClick = {
@@ -265,6 +330,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             }
         }
 
+        // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -290,6 +356,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             }
         }
 
+        // Статусное сообщение
         statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
