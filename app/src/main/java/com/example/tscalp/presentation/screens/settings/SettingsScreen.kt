@@ -164,7 +164,12 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
     var isError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Загружаем сохранённые настройки при старте
+    // Данные для выбора счёта по умолчанию
+    val repository: InvestRepository = remember { InvestRepository(ServiceLocator.getBrokerManager()) }
+    var availableAccounts by remember { mutableStateOf<List<AccountUi>>(emptyList()) }
+    var defaultAccountId by remember { mutableStateOf(ServiceLocator.loadDefaultAccountId("TInvest") ?: "") }
+    var accountExpanded by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         val creds = ServiceLocator.loadBrokerCredentials("TInvest")
         if (creds != null) {
@@ -173,16 +178,8 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         }
     }
 
-    // Определяем, подключены ли (есть ли сохранённые настройки и API инициализировано)
     val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("TInvest") != null
 
-    // Данные для выбора счёта по умолчанию
-    val repository: InvestRepository = remember { InvestRepository(ServiceLocator.getBrokerManager()) }
-    var availableAccounts by remember { mutableStateOf<List<AccountUi>>(emptyList()) }
-    var defaultAccountId by remember { mutableStateOf(ServiceLocator.loadDefaultAccountId("TInvest") ?: "") }
-    var accountExpanded by remember { mutableStateOf(false) }
-
-// Загружаем список счетов при каждом открытии панели (если подключены)
     LaunchedEffect(isConnected) {
         if (isConnected) {
             try {
@@ -192,13 +189,18 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         }
     }
 
+    // Главное изменение: fillMaxSize() + verticalScroll – прижимает вверх
     Column(
         modifier = Modifier
+            .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.Start
     ) {
-        // Статус подключения
+        Spacer(modifier = Modifier.height(0.dp))   // гарантирует начало от края
+
+        // Карточка статуса подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -206,8 +208,11 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 else MaterialTheme.colorScheme.errorContainer
             )
         ) {
+            // Кнопка справа – Row растянут на всю ширину
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -230,6 +235,26 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text("Отключить")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    ServiceLocator.saveBrokerCredentials("TInvest", token, sandboxMode)
+                                    ordersViewModel.initializeApi(token, sandboxMode)
+                                    token = ""
+                                    statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
+                                    isError = false
+                                } catch (e: Exception) {
+                                    statusMessage = "Ошибка подключения: ${e.message}"
+                                    isError = true
+                                }
+                            }
+                        },
+                        enabled = token.isNotBlank()
+                    ) {
+                        Text("Подключиться")
                     }
                 }
             }
@@ -292,7 +317,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     expanded = accountExpanded,
                     onDismissRequest = { accountExpanded = false }
                 ) {
-                    availableAccounts.forEach { account ->
+                    availableAccounts.forEach { account: AccountUi ->
                         DropdownMenuItem(
                             text = { Text(account.name) },
                             onClick = {
@@ -303,30 +328,6 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                         )
                     }
                 }
-            }
-        }
-
-        // Кнопка подключения / отключения
-        if (!isConnected) {
-            Button(
-                onClick = {
-                    scope.launch {
-                        try {
-                            ServiceLocator.saveBrokerCredentials("TInvest", token, sandboxMode)
-                            ordersViewModel.initializeApi(token, sandboxMode)
-                            token = ""
-                            statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
-                            isError = false
-                        } catch (e: Exception) {
-                            statusMessage = "Ошибка подключения: ${e.message}"
-                            isError = true
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = token.isNotBlank()
-            ) {
-                Text("Подключиться")
             }
         }
 
