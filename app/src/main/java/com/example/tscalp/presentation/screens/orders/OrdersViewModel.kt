@@ -229,7 +229,6 @@ class OrdersViewModel(
         val brokerName = activeCard?.brokerName ?: "TInvest"
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
 
-        // Формируем универсальный запрос
         val orderType = if (state.orderType == BrokerOrderType.MARKET) BrokerOrderType.MARKET else BrokerOrderType.LIMIT
         val price = if (orderType == BrokerOrderType.LIMIT) state.limitPrice.toDoubleOrNull() else null
 
@@ -240,32 +239,70 @@ class OrdersViewModel(
             direction = direction,
             accountId = accountId,
             sandboxMode = ServiceLocator.isSandboxMode(),
-            type = orderType,                          // теперь тип совпадает
+            type = orderType,
             price = price
         )
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
+                // ----- Основная заявка -----
                 val result = repository.postOrder(request)
-
                 val directionText = when (direction) {
                     OrderDirection.BUY -> "покупка"
                     OrderDirection.SELL -> "продажа"
                     else -> "операция"
                 }
+                var finalMessage = "✅ Заявка на $directionText выполнена!\n" +
+                        "ID: ${result.orderId}\n" +
+                        "Исполнено: ${result.executedLots}/${result.totalLots} лотов"
 
-                // Дожидаемся загрузки портфеля
+                // ----- Контрсделка (парная торговля) -----
+                if (state.pairTradingEnabled && state.pairedInstrument != null) {
+                    val multiplier = state.pairedMultiplier.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
+                    val pairedQuantity = (quantity * multiplier).toLong()
+                    if (pairedQuantity > 0) {
+                        val pairedDirection = if (direction == OrderDirection.BUY)
+                            OrderDirection.SELL
+                        else
+                            OrderDirection.BUY
+
+                        // Ищем сохранённые настройки для второй карточки
+                        val pairedCard = state.lastSelectedInstruments.find {
+                            it.instrument.ticker == state.pairedInstrument?.ticker
+                        }
+                        // Если настройки есть – используем их, иначе берём из первой карточки (fallback)
+                        val pairedBrokerName = pairedCard?.brokerName ?: brokerName
+                        val pairedAccountId = pairedCard?.accountId ?: accountId
+
+                        try {
+                            val pairedRequest = BrokerOrderRequest(
+                                brokerName = pairedBrokerName,   // теперь из второй карточки или fallback
+                                ticker = state.pairedInstrument.ticker,
+                                quantity = pairedQuantity,
+                                direction = pairedDirection,
+                                accountId = pairedAccountId,     // теперь из второй карточки или fallback
+                                sandboxMode = ServiceLocator.isSandboxMode(),
+                                type = orderType,
+                                price = price
+                            )
+                            val pairedResult = repository.postOrder(pairedRequest)
+                            finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${pairedResult.orderId}"
+                        } catch (e: Exception) {
+                            finalMessage += "\n❌ Ошибка контрсделки: ${e.message}"
+                            Log.e(TAG, "Ошибка контрсделки", e)
+                        }
+                    }
+                }
+
+                // Обновляем портфель и карточки
                 loadPortfolio()
-                // После загрузки обновляем карточки
                 refreshLastSelectedInstruments()
 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "✅ Заявка на $directionText выполнена!\n" +
-                                "ID: ${result.orderId}\n" +
-                                "Исполнено: ${result.executedLots}/${result.totalLots} лотов",
+                        statusMessage = finalMessage,
                         isError = false,
                         quantity = ""
                     )

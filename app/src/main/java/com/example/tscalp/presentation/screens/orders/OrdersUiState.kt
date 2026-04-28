@@ -57,7 +57,7 @@ data class OrdersUiState(
     val pairSearchResults: List<InstrumentUi> = emptyList(), // результаты второго поиска
     val isPairSearching: Boolean = false,               // индикатор загрузки второго поиска
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
-    val pairedMultiplier: String = "1",                 // множитель (по умолчанию 1)
+    val pairedMultiplier: String = "10",               // множитель (по умолчанию 10)
     val swipeResetTrigger: Boolean = false
 ) {
     val isFormValid: Boolean
