@@ -1,19 +1,10 @@
 package com.example.tscalp.data.repository
 
 import android.util.Log
-//import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import ru.tinkoff.piapi.contract.v1.OrderDirection
-import ru.tinkoff.piapi.contract.v1.AccountType as TinkoffAccountType
-import ru.tinkoff.piapi.contract.v1.Instrument
-import ru.tinkoff.piapi.contract.v1.InstrumentResponse
-//import ru.tinkoff.piapi.contract.v1.MoneyValue
-import ru.tinkoff.piapi.contract.v1.OrderType
-import ru.tinkoff.piapi.contract.v1.Quotation
-import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.BrokerOrderRequest
 
@@ -30,7 +21,7 @@ class InvestRepository(
     }
 
     /**
-     * Получает счета для брокера по умолчанию (Tinkoff).
+     * Получает счета для брокера по умолчанию (TInvest).
      * Оставлен для совместимости с существующим кодом.
      */
     suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
@@ -52,7 +43,7 @@ class InvestRepository(
 
     /**
      * Получает список счетов для указанного брокера.
-     * @param brokerName имя брокера (например, "tinkoff")
+     * @param brokerName имя брокера (например, "TInvest")
      * @param sandboxMode режим песочницы
      */
 //    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
@@ -149,7 +140,7 @@ class InvestRepository(
     }
 
     /**
-     * ///Получение полного инструмента по FIGI (обёртка над TinkoffInvestService).
+     * ///Получение полного инструмента по FIGI (обёртка над TInvestInvestService).
      */
 //    suspend fun getInstrumentByFigi(figi: String): InstrumentResponse {
 //        return brokerManager.getDefaultBroker().getInstrumentByFigi(figi)

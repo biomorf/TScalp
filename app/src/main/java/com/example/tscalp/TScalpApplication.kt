@@ -16,7 +16,7 @@ class TScalpApplication : Application() {
                 // Каждый брокер сам знает, как восстановить своё состояние
                 // (для Т-Инвестиций это вызов initializeFromSettings, для БКС — initialize из настроек)
                 when (brokerName) {
-                    "tinkoff" -> (broker as? com.example.tscalp.data.api.TinkoffInvestService)?.initializeFromSettings()
+                    "TInvest" -> (broker as? com.example.tscalp.data.api.TInvestInvestService)?.initializeFromSettings()
                     "bcs" -> {
                         // Для БКС проверяем, сохранены ли refresh-токен и clientId
                         val creds = ServiceLocator.loadBrokerCredentials("bcs")

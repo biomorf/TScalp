@@ -18,10 +18,10 @@ import com.example.tscalp.domain.models.PortfolioPosition
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
  * Хранит ticker→figi кэш, самостоятельно управляет своим экземпляром InvestApi.
  */
-class TinkoffInvestService : BrokerApi {
+class TInvestInvestService : BrokerApi {
 
     companion object {
-        private const val TAG = "TinkoffInvestService"
+        private const val TAG = "TInvestInvestService"
     }
 
     // Кэш ticker → figi для быстрой конвертации

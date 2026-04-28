@@ -2,7 +2,7 @@ package com.example.tscalp.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.tscalp.data.api.TinkoffInvestService
+import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.api.MockBrokerApi
 import com.example.tscalp.data.api.BcsBrokerApi
 import com.example.tscalp.domain.api.BrokerApi
@@ -22,7 +22,7 @@ object ServiceLocator {
 
     private fun createBrokerManager(): BrokerManager {
         val brokers: Map<String, BrokerApi> = mapOf(
-            "tinkoff" to TinkoffInvestService(),
+            "TInvest" to TInvestInvestService(),
             "mock" to MockBrokerApi(),
             "bcs" to BcsBrokerApi()
         )
@@ -64,9 +64,9 @@ object ServiceLocator {
     fun hasSavedToken(brokerName: String): Boolean =
         prefs.contains("${brokerName}_token")
 
-    fun isSandboxMode(): Boolean = prefs.getBoolean("tinkoff_sandbox", true)
+    fun isSandboxMode(): Boolean = prefs.getBoolean("TInvest_sandbox", true)
 
-    fun getToken(): String? = prefs.getString("tinkoff_token", null)
+    fun getToken(): String? = prefs.getString("TInvest_token", null)
 
     // --- Управление флагом подтверждения заявок ---
 

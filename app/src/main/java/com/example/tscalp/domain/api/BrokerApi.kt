@@ -1,7 +1,6 @@
 package com.example.tscalp.domain.api
 
 import com.example.tscalp.domain.models.InstrumentUi
-//import ru.tinkoff.piapi.contract.v1.*
 import com.example.tscalp.domain.models.*
 
 

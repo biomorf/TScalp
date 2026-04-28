@@ -16,16 +16,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
-//import ru.tinkoff.piapi.contract.v1.OrderDirection
-//import ru.tinkoff.piapi.contract.v1.OrderType
-//import ru.tinkoff.piapi.contract.v1.Quotation
 import com.example.tscalp.domain.models.PortfolioPosition
-import com.example.tscalp.data.api.TinkoffInvestService
+import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.BrokerOrderRequest
 //import com.example.tscalp.domain.models.OrderType
 import com.example.tscalp.domain.models.OrderDirection
-//import com.example.tscalp.domain.models.OrderDirection2
+
 
 class OrdersViewModel(
     private val repository: InvestRepository
@@ -58,8 +55,8 @@ class OrdersViewModel(
 
     fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
-            ServiceLocator.saveBrokerCredentials("tinkoff", token, sandboxMode)
-            (ServiceLocator.getBrokerManager().getBroker("tinkoff") as? TinkoffInvestService)?.initializeFromSettings()
+            ServiceLocator.saveBrokerCredentials("TInvest", token, sandboxMode)
+            (ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService)?.initializeFromSettings()
 
             _uiState.update {
                 it.copy(
@@ -86,7 +83,7 @@ class OrdersViewModel(
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 // По умолчанию загружаем счета для Т-Инвестиций (основной брокер)
-                val brokerName = "tinkoff"
+                val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 val defaultAccount = accounts.firstOrNull()
                 _uiState.update {
@@ -117,7 +114,7 @@ class OrdersViewModel(
     private suspend fun loadPortfolio(): List<PortfolioPosition> {
         return try {
             val sandboxMode = ServiceLocator.isSandboxMode()
-            val brokerName = "tinkoff"   // ← добавьте эту строку
+            val brokerName = "TInvest"   // ← добавьте эту строку
             val accounts = repository.getAccounts(brokerName, sandboxMode)
             if (accounts.isNotEmpty()) {
                 val accountId = accounts.first().id
@@ -224,7 +221,7 @@ class OrdersViewModel(
         val quantity = state.quantityAsLong ?: return
 
         val activeCard = state.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-        val brokerName = activeCard?.brokerName ?: "tinkoff"
+        val brokerName = activeCard?.brokerName ?: "TInvest"
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
 
         // Формируем универсальный запрос
@@ -374,12 +371,12 @@ fun openBrokerDialog(ticker: String) {
         it.copy(
             showBrokerDialog = true,
             dialogInstrumentTicker = ticker,
-            selectedBroker = existingCard?.brokerName ?: "tinkoff",
+            selectedBroker = existingCard?.brokerName ?: "TInvest",
             selectedAccountIdDialog = existingCard?.accountId
         )
     }
     viewModelScope.launch {
-        loadDialogAccounts(existingCard?.brokerName ?: "tinkoff")
+        loadDialogAccounts(existingCard?.brokerName ?: "TInvest")
     }
 }
 

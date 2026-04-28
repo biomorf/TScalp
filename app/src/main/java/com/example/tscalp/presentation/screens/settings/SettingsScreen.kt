@@ -135,7 +135,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
             ) { page ->
                 val brokerName = brokerNames[page]
                 when (brokerName) {
-                    "tinkoff" -> TinkoffSettingsPanel(ordersViewModel, uiState)
+                    "TInvest" -> TInvestSettingsPanel(ordersViewModel, uiState)
                     "bcs" -> BcsSettingsPanel()
                     "mock" -> MockSettingsPanel()
                     else -> Text("Настройки для $brokerName пока не реализованы")
@@ -146,7 +146,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 }
 
 @Composable
-fun TinkoffSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiState) {
+fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiState) {
     var token by remember { mutableStateOf("") }
     var sandboxMode by remember { mutableStateOf(true) }
     var showToken by remember { mutableStateOf(false) }
@@ -155,7 +155,7 @@ fun TinkoffSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        val creds = ServiceLocator.loadBrokerCredentials("tinkoff")
+        val creds = ServiceLocator.loadBrokerCredentials("TInvest")
         if (creds != null) {
             token = creds.first
             sandboxMode = creds.second
@@ -168,7 +168,7 @@ fun TinkoffSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("tinkoff") != null
+        val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("TInvest") != null
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -191,7 +191,7 @@ fun TinkoffSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 if (isConnected) {
                     Button(
                         onClick = {
-                            ServiceLocator.clearBrokerCredentials("tinkoff")
+                            ServiceLocator.clearBrokerCredentials("TInvest")
                             ordersViewModel.checkApiInitialization()
                             token = ""
                             statusMessage = "Подключение к Т‑Инвестициям разорвано"
@@ -247,7 +247,7 @@ fun TinkoffSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 onClick = {
                     scope.launch {
                         try {
-                            ServiceLocator.saveBrokerCredentials("tinkoff", token, sandboxMode)
+                            ServiceLocator.saveBrokerCredentials("TInvest", token, sandboxMode)
                             ordersViewModel.initializeApi(token, sandboxMode)
                             token = ""
                             statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"

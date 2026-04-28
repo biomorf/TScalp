@@ -4,10 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-//import com.example.tscalp.data.api.TinkoffInvestService
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.repository.InvestRepository
-//import com.example.tscalp.presentation.screens.portfolio.PortfolioUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -139,7 +137,7 @@ class PortfolioViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                val brokerName = "tinkoff"   // ← добавьте эту строку перед вызовом
+                val brokerName = "TInvest"   // ← добавьте эту строку перед вызовом
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
                 val accountId = accounts.first().id

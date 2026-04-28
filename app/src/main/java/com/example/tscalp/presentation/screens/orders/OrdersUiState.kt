@@ -4,7 +4,7 @@ import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.BrokerOrderType
-//import ru.tinkoff.piapi.contract.v1.OrderType
+
 
 /**
  * Информация о выбранном инструменте для отображения в карточке «Последние просмотренные».
@@ -19,7 +19,7 @@ data class SelectedInstrumentInfo(
     val averagePrice: Double?,
     val profit: Double?,
     val profitPercent: Double?,
-    val brokerName: String = "tinkoff",   // брокер по умолчанию
+    val brokerName: String = "TInvest",   // брокер по умолчанию
     val accountId: String? = null
 )
 
@@ -48,7 +48,7 @@ data class OrdersUiState(
     // Диалог брокера
     val showBrokerDialog: Boolean = false,          // флаг открытия диалога
     val dialogInstrumentTicker: String? = null,
-    val selectedBroker: String = "tinkoff",         // выбранный брокер в диалоге
+    val selectedBroker: String = "TInvest",         // выбранный брокер в диалоге
     val selectedAccountIdDialog: String? = null,     // выбранный счёт в диалоге
     val dialogAccounts: List<AccountUi> = emptyList(),     // счета для диалога
     // Парная торговля

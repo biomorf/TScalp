@@ -3,8 +3,6 @@ package com.example.tscalp.data.api
 import android.util.Log
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
-import ru.tinkoff.piapi.contract.v1.GetMarginAttributesResponse
-import ru.tinkoff.piapi.contract.v1.*
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.BrokerAccount

@@ -1,13 +1,13 @@
 package com.example.tscalp.di
 
 import com.example.tscalp.domain.api.BrokerApi
-import com.example.tscalp.data.api.MockBrokerApi
+
 
 class BrokerManager(private val brokers: Map<String, BrokerApi>) {
 
     /**
      * Возвращает брокера по его уникальному имени.
-     * @param name имя брокера (например, "tinkoff")
+     * @param name имя брокера (например, "TInvest")
      */
     fun getBroker(name: String): BrokerApi? = brokers[name]
 
@@ -15,12 +15,12 @@ class BrokerManager(private val brokers: Map<String, BrokerApi>) {
      * Возвращает брокера по умолчанию (Т‑Инвестиции).
      * В будущем можно будет сделать выбор активного брокера в настройках.
      */
-    fun getDefaultBroker(): BrokerApi = brokers["tinkoff"]
-        ?: throw IllegalStateException("Брокер Tinkoff не зарегистрирован")
+    fun getDefaultBroker(): BrokerApi = brokers["TInvest"]
+        ?: throw IllegalStateException("Брокер TInvest не зарегистрирован")
 
     /**
      * Возвращает список имён всех зарегистрированных брокеров.
-     * Сейчас – только "tinkoff", в будущем пополнится.
+     * Сейчас – только "TInvest", в будущем пополнится.
      */
     fun getAvailableBrokers(): List<String> = brokers.keys.toList()
 
