@@ -187,11 +187,21 @@ class PortfolioViewModel(
         try {
             val prices = repository.getLastPricesByTicker(tickers)
             val updatedPositions = positions.map { pos ->
-                val newPrice = prices[pos.ticker] ?: pos.currentPrice
-                val previousPrice = pos.currentPrice
-                val changePercent = if (previousPrice != 0.0 && newPrice != null) {
-                    ((newPrice - previousPrice) / previousPrice) * 100.0
-                } else null
+                val ticker = pos.ticker
+                val freshPrice = prices[pos.ticker]
+                /// Если свежая цена пришла и она > 0 – используем её, иначе оставляем старую
+                val newPrice = if (freshPrice != null && freshPrice > 0.0) {
+                    freshPrice
+                } else {
+                    Log.w(TAG, "Нет цены для тикера $ticker")
+                    pos.currentPrice   /// сохраняем последнее известное значение
+                }
+                // Процент изменения считаем только когда есть и старая, и новая цена
+                val changePercent = if (pos.currentPrice != 0.0 && newPrice != pos.currentPrice) {
+                    ((newPrice - pos.currentPrice) / pos.currentPrice) * 100.0
+                } else {
+                    null   /// без изменений → нейтральный цвет
+                }
 
                 pos.copy(
                     currentPrice = newPrice,
