@@ -111,7 +111,7 @@ dependencies {
     implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
 
     // Обязательно для SSL на Android
-    implementation("org.conscrypt:conscrypt-android:2.5.2")
+    implementation("org.conscrypt:conscrypt-android:2.5.3")
 
     // Обязательная зависимость для ManagedChannel
     implementation("io.grpc:grpc-stub:1.57.2")

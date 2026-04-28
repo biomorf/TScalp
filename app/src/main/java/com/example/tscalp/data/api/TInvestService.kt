@@ -1,5 +1,6 @@
 package com.example.tscalp.data.api
 
+import android.util.Log
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
@@ -261,16 +262,43 @@ class TInvestInvestService : BrokerApi {
 
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-        val response = currentApi.usersServiceSync.getMarginAttributes(request)
-        val money = response.liquidPortfolio
-        (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+
+        if (ServiceLocator.isSandboxMode()) {
+            // В песочнице метод getMarginAttributes недоступен, а свободные рубли не отражаются в портфеле.
+            // Баланс будет обновлён в PortfolioViewModel после загрузки портфеля как totalValue.
+            // В песочнице запрашиваем портфель и берём стоимость валют (денежные средства)
+            // В песочнице запрашиваем портфель и суммируем денежные средства + стоимость активов
+            val portfolioRequest = PortfolioRequest.newBuilder().setAccountId(accountId).build()
+            val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(portfolioRequest)
+
+            // 1. Денежные средства (totalAmountCurrencies)
+            val money = portfolio.totalAmountCurrencies
+            var balance = (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+
+            // 2. Добавляем стоимость всех позиций (акции, облигации, фонды и т.д.)
+            for (position in portfolio.positionsList) {
+                val price = position.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                val quantity = position.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                balance += price * quantity
+            }
+
+            Log.d(TAG, "Баланс песочницы (деньги + активы) для счета $accountId: $balance")
+            balance
+        } else {
+            // Боевой режим – ликвидный портфель (уже включает все активы и деньги)
+            val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
+            val response = currentApi.usersServiceSync.getMarginAttributes(request)
+            val money = response.liquidPortfolio
+            val balance = (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+            Log.d(TAG, "Баланс для счета $accountId: $balance")
+            balance
+        }
     }
 
     override suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
         withContext(Dispatchers.IO) {
             val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-            // Преобразуем в protobuf MoneyValue
+            Log.d(TAG, "Отправка запроса на пополнение счета $accountId на сумму ${amount.units} ${amount.currency}")
             val money = MoneyValue.newBuilder()
                 .setCurrency(amount.currency)
                 .setUnits(amount.units)
@@ -280,7 +308,8 @@ class TInvestInvestService : BrokerApi {
                 .setAccountId(accountId)
                 .setAmount(money)
                 .build()
-            currentApi.sandboxServiceSync.sandboxPayIn(request)
+            val response = currentApi.sandboxServiceSync.sandboxPayIn(request)
+            Log.d(TAG, "Пополнение выполнено успешно, ответ: $response")
         }
     }
 }

@@ -88,7 +88,7 @@ fun PortfolioScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Свободные средства", style = MaterialTheme.typography.titleMedium)
+                            Text("Баланс", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 formatCurrency(uiState.balance),
                                 style = MaterialTheme.typography.headlineSmall,

@@ -188,6 +188,7 @@ class InvestRepository(
     }
 
     suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
+        Log.d("InvestRepository", "Вызов sandboxPayIn для счета $accountId, сумма ${amount.units} ${amount.currency}")
         val broker = brokerManager.getDefaultBroker()
         broker.sandboxPayIn(accountId, amount)
     }

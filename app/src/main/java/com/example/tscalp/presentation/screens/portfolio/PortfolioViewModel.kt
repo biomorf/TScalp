@@ -91,8 +91,8 @@ class PortfolioViewModel(
                             }
                         }
 
-                        // Загружаем баланс для первого счета (если нужно)
-                        if (accounts.isNotEmpty()) {
+                        // Загружаем баланс для первого счета (если нужно) – ОСТАВЛЯЕМ этот блок
+                        if (accounts.isNotEmpty() && broker !is com.example.tscalp.data.api.MockBrokerApi) {
                             val balance = try {
                                 broker.getBalance(accounts.first().id)
                             } catch (e: Exception) {
@@ -115,6 +115,7 @@ class PortfolioViewModel(
                     it.copy(
                         positions = sorted,
                         totalValue = totalValue,
+                        // balance НЕ ПЕРЕЗАПИСЫВАЕМ – он уже установлен выше из getBalance
                         isLoading = false,
                         statusMessage = if (sorted.isEmpty()) "Портфель пуст" else "Загружено ${sorted.size} позиций",
                         isError = false
@@ -137,7 +138,6 @@ class PortfolioViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                // Для Т‑Инвестиций используем брокера "TInvest"
                 val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
@@ -152,11 +152,13 @@ class PortfolioViewModel(
 
                 repository.sandboxPayIn(
                     accountId = accountId,
-                    amount = SandboxMoney(currency = "RUB", units = 100_000)
+                    amount = SandboxMoney(currency = "RUB", units = 100_000) // пополняем на 100 000 рублей
                 )
+                Log.d(TAG, "Пополнение выполнено успешно")
                 // Обновляем портфель и баланс
                 loadPortfolio()
             } catch (e: Exception) {
+                Log.e(TAG, "Ошибка пополнения", e)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
