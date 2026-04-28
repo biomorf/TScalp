@@ -22,13 +22,19 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.runtime.getValue
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.ui.components.AssetPositionCard
-
+//import androidx.compose.material3.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
     viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory())
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    // Pull‑to‑Refresh состояние
+    val pullToRefreshState = rememberPullToRefreshState()
 
     // Автоматическое обновление при открытии вкладки
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -36,6 +42,11 @@ fun PortfolioScreen(
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             viewModel.refresh()
         }
+    }
+
+    // Синхронизация isRefreshing с isLoading
+    LaunchedEffect(uiState.isLoading) {
+        isRefreshing = uiState.isLoading
     }
 
     Scaffold(
@@ -60,24 +71,29 @@ fun PortfolioScreen(
             return@Scaffold
         }
 
-        Column(
+        // Pull-to-Refresh контейнер
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Индикатор загрузки
-            if (uiState.isLoading) {
-                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Индикатор загрузки (показываем, если не используется pull-to-refresh)
+                if (uiState.isLoading && !isRefreshing) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
-                return@Column
-            }
 
-            // Свободные средства и кнопка пополнения
-
+                // Свободные средства и кнопка пополнения
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -103,49 +119,45 @@ fun PortfolioScreen(
                     }
                 }
 
-
-            // Сообщение об ошибке
-            uiState.statusMessage?.let { message ->
-
+                // Сообщение об ошибке
+                uiState.statusMessage?.let { message ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (uiState.isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer
+                            containerColor = if (uiState.isError) MaterialTheme.colorScheme.errorContainer
+                            else MaterialTheme.colorScheme.tertiaryContainer
                         )
                     ) {
                         Text(message, modifier = Modifier.padding(16.dp))
                     }
+                }
 
-            }
-
-            // Пустой портфель
-            if (uiState.positions.isEmpty()) {
-                EmptyPortfolioCard()
-            } else {
-                // Группировка по брокерам
-                val grouped = uiState.positions.groupBy { it.brokerName }
-                for ((brokerName, positions) in grouped) {
-                    Text(
+                // Пустой портфель
+                if (uiState.positions.isEmpty() && !uiState.isLoading) {
+                    EmptyPortfolioCard()
+                } else if (uiState.positions.isNotEmpty()) {
+                    // Группировка по брокерам
+                    val grouped = uiState.positions.groupBy { it.brokerName }
+                    for ((brokerName, positions) in grouped) {
+                        Text(
                             "--- $brokerName ---",
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
-
-                    positions.forEach { position ->
-                        AssetPositionCard(
-                            position = position,
-                            instrumentType = position.instrumentType,
-                            priceChangePercent = position.priceChangePercent
-                            // onDelete и onSettings не передаём — полоса и анимация будут без свайпа
-                        )
-                    }
-                    if (brokerName != grouped.keys.last()) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        positions.forEach { position ->
+                            AssetPositionCard(
+                                position = position,
+                                instrumentType = position.instrumentType,
+                                priceChangePercent = position.priceChangePercent
+                            )
+                        }
+                        if (brokerName != grouped.keys.last()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            // Распорный элемент (необязательно, но для теста можно оставить)
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
