@@ -155,7 +155,7 @@ class OrdersViewModel(
         _uiState.update {
             it.copy(
                 selectedInstrument = instrument,
-                ticker = instrument.ticker,          // <-- теперь ticker
+                ticker = instrument.ticker,
                 searchQuery = "${instrument.ticker} - ${instrument.name}",
                 searchResults = emptyList()
             )
@@ -167,6 +167,9 @@ class OrdersViewModel(
             val price = prices[instrument.ticker]
             val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
 
+            // Получаем существующую карточку (если была), чтобы сохранить настройки брокера/счёта
+            val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == instrument.ticker }
+
             val newCard = SelectedInstrumentInfo(
                 instrument = instrument,
                 currentPrice = price,
@@ -175,7 +178,9 @@ class OrdersViewModel(
                 quantity = portfolioPos?.quantity ?: 0L,
                 averagePrice = portfolioPos?.currentPrice,
                 profit = portfolioPos?.profit,
-                profitPercent = portfolioPos?.profitPercent
+                profitPercent = portfolioPos?.profitPercent,
+                brokerName = existingCard?.brokerName ?: "TInvest",
+                accountId = existingCard?.accountId
             )
 
             val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
@@ -186,7 +191,7 @@ class OrdersViewModel(
                 it.copy(
                     currentPrice = price,
                     isPriceLoading = false,
-                    lastSelectedInstruments = currentList.take(5)   // храним 5 последних
+                    lastSelectedInstruments = currentList.take(5)
                 )
             }
         }

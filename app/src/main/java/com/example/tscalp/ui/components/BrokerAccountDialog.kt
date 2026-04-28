@@ -20,6 +20,9 @@ fun BrokerAccountDialog(
     onDismiss: () -> Unit,
     onSave: () -> Unit
 ) {
+    // Локальный флаг, чтобы кнопка сразу активировалась при выборе
+    var isSaveEnabled by remember { mutableStateOf(selectedAccountId != null) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Настройки торговли") },
@@ -80,6 +83,7 @@ fun BrokerAccountDialog(
                                 text = { Text(account.name) },
                                 onClick = {
                                     onAccountSelected(account.id)
+                                    isSaveEnabled = true   // ← включаем кнопку
                                     accountExpanded = false
                                 }
                             )
@@ -89,7 +93,7 @@ fun BrokerAccountDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onSave, enabled = selectedAccountId != null) {
+            Button(onClick = onSave, enabled = isSaveEnabled) {
                 Text("Сохранить")
             }
         },

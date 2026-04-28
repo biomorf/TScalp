@@ -137,14 +137,19 @@ class PortfolioViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                val brokerName = "TInvest"   // ← добавьте эту строку перед вызовом
+                // Для Т‑Инвестиций используем брокера "TInvest"
+                val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
+
                 val accountId = accounts.first().id
+                Log.d(TAG, "Пополнение счёта $accountId через TInvest")
+
                 repository.sandboxPayIn(
                     accountId = accountId,
                     amount = SandboxMoney(currency = "RUB", units = 100_000)
-                ) // пополняем на 100 000 рублей
+                )
+                // Обновляем портфель и баланс
                 loadPortfolio()
             } catch (e: Exception) {
                 _uiState.update {

@@ -364,20 +364,22 @@ fun OrdersScreen(
         // Диалог подтверждения
         if (showConfirmDialog) {
             val ticker = uiState.selectedInstrument?.ticker ?: ""
+            val quantity = uiState.quantityAsLong ?: 0L
+            val price = uiState.currentPrice ?: 0.0
             AlertDialog(
                 onDismissRequest = { showConfirmDialog = false },
                 title = { Text("Подтверждение заявки") },
                 text = {
                     Column {
-//                        Text("Вы собираетесь ${pendingDirection.lowercase()} $quantity лотов $ticker")
-//                        if (price > 0) {
-//                            Text("Текущая цена: ${formatCurrency(price)}")
-//                            Text("Общая стоимость: ${formatCurrency(price * quantity)}")
-//                        }
-//                        if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
-//                            val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
-//                            Text("Контрсделка: ${uiState.pairedInstrument?.ticker} ${if (pendingDirection == "Покупка") "продажа" else "покупка"} $pairedQty лотов")
-//                        }
+                        Text("Вы собираетесь ${pendingDirection.lowercase()} $quantity лотов $ticker")
+                        if (price > 0) {
+                            Text("Текущая цена: ${formatCurrency(price)}")
+                            Text("Общая стоимость: ${formatCurrency(price * quantity)}")
+                        }
+                        if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
+                            val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
+                            Text("Контрсделка: ${uiState.pairedInstrument?.ticker} ${if (pendingDirection == "Покупка") "продажа" else "покупка"} $pairedQty лотов")
+                        }
                     }
                 },
                 confirmButton = {
