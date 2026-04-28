@@ -1,8 +1,13 @@
 package com.example.tscalp.presentation.screens.orders
 
 //import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -19,19 +24,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 //import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.InstrumentUi
 //import com.example.tscalp.presentation.screens.orders.SelectedInstrumentInfo
 import com.example.tscalp.domain.models.PortfolioPosition
-import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
-import androidx.compose.foundation.background
 import com.example.tscalp.util.formatCurrency
 
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.border
+
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,51 +131,106 @@ fun OrdersScreen(
 
         // ========== Поле количества с кнопками ± ==========
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),   // высота строки подстраивается под самое высокое дочернее view (поле ввода)
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Кнопка "−"
             IconButton(
                 onClick = {
                     val currentQty = uiState.quantityAsLong ?: 0L
                     if (currentQty > 0) viewModel.onQuantityChanged((currentQty - 1).toString())
                 },
-                enabled = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null
+                enabled = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null,
+                modifier = Modifier
+                    .fillMaxHeight()   // растягиваем на всю высоту Row
+                    .width(28.dp)
             ) {
-                Icon(Icons.Default.Remove, contentDescription = "Уменьшить количество")
+                Icon(
+                    Icons.Default.Remove,
+                    "Уменьшить",
+                    modifier = Modifier.size(18.dp)
+                )
             }
 
-            OutlinedTextField(
+            // Поле ввода с подсказкой стоимости
+            BasicTextField(
                 value = uiState.quantity,
                 onValueChange = { viewModel.onQuantityChanged(it) },
-                label = null,
-                placeholder = { Text("Кол-во лотов") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 singleLine = true,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(52.dp),
-                textStyle = MaterialTheme.typography.bodyMedium,
-                enabled = uiState.selectedInstrument != null
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                decorationBox = { innerTextField ->
+                    Column {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = 1.dp,
+                                    color = if (uiState.quantity.isNotBlank() && uiState.quantityAsLong == null)
+                                        MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            if (uiState.quantity.isEmpty()) {
+                                Text(
+                                    "Кол-во лотов",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    )
+                                )
+                            }
+                            innerTextField()
+                        }
+
+                        // Ориентировочная стоимость (используем прямо uiState)
+                        val currentQty = uiState.quantityAsLong ?: 0L
+                        val currentPrice = uiState.currentPrice ?: 0.0
+                        if (currentQty > 0 && currentPrice > 0) {
+                            Text(
+                                "Ориентировочно: ${formatCurrency(currentPrice * currentQty)}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                ),
+                                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                            )
+                        }
+                    }
+                }
             )
 
+            // Кнопка "+"
             IconButton(
                 onClick = {
                     val currentQty = uiState.quantityAsLong ?: 0L
                     viewModel.onQuantityChanged((currentQty + 1).toString())
                 },
-                enabled = uiState.selectedInstrument != null
+                enabled = uiState.selectedInstrument != null,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(28.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Увеличить количество")
+                Icon(
+                    Icons.Default.Add,
+                    "Увеличить",
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
 
-        // Ориентировочная стоимость
-        val quantity = uiState.quantityAsLong ?: 0L
-        val price = uiState.currentPrice ?: 0.0
-        if (quantity > 0 && price > 0) {
-            Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
-        }
+//        // Ориентировочная стоимость
+//        val quantity = uiState.quantityAsLong ?: 0L
+//        val price = uiState.currentPrice ?: 0.0
+//        if (quantity > 0 && price > 0) {
+//            Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
+//        }
 
         // ========== Переключатель «Парная торговля» ==========
         Row(
@@ -222,17 +287,38 @@ fun OrdersScreen(
                     isSelected = false
                 )
 
-                OutlinedTextField(
+                BasicTextField(
                     value = uiState.pairedMultiplier,
                     onValueChange = { viewModel.onPairedMultiplierChanged(it) },
-                    label = null,
-                    placeholder = { Text("Множитель") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium
+                        .heightIn(min = 36.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    decorationBox = { innerTextField ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            if (uiState.pairedMultiplier.isEmpty()) {
+                                Text(
+                                    "Множитель",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    )
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
                 )
             }
         }
@@ -283,15 +369,15 @@ fun OrdersScreen(
                 title = { Text("Подтверждение заявки") },
                 text = {
                     Column {
-                        Text("Вы собираетесь ${pendingDirection.lowercase()} $quantity лотов $ticker")
-                        if (price > 0) {
-                            Text("Текущая цена: ${formatCurrency(price)}")
-                            Text("Общая стоимость: ${formatCurrency(price * quantity)}")
-                        }
-                        if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
-                            val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
-                            Text("Контрсделка: ${uiState.pairedInstrument?.ticker} ${if (pendingDirection == "Покупка") "продажа" else "покупка"} $pairedQty лотов")
-                        }
+//                        Text("Вы собираетесь ${pendingDirection.lowercase()} $quantity лотов $ticker")
+//                        if (price > 0) {
+//                            Text("Текущая цена: ${formatCurrency(price)}")
+//                            Text("Общая стоимость: ${formatCurrency(price * quantity)}")
+//                        }
+//                        if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
+//                            val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
+//                            Text("Контрсделка: ${uiState.pairedInstrument?.ticker} ${if (pendingDirection == "Покупка") "продажа" else "покупка"} $pairedQty лотов")
+//                        }
                     }
                 },
                 confirmButton = {
@@ -414,24 +500,28 @@ fun InstrumentSearchField(
                     onQueryChanged(it)
                     expanded = it.isNotEmpty() || recentInstruments.isNotEmpty()
                 },
-                label = { Text("Поиск инструмента") },
-                placeholder = { Text("Введите тикер или название") },
+                label = null,
+                placeholder = { Text("Введите тикер или название", fontSize = 12.sp) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor(),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                        else if (query.isNotEmpty()) IconButton(onClick = {
-                            onClear()
-                            expanded = false
-                        }) {
-                            Icon(Icons.Default.Clear, "Очистить")
+                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(12.dp))
+                        else if (query.isNotEmpty()) IconButton(
+                            onClick = {
+                                onClear()
+                                expanded = false
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Clear, "Очистить", modifier = Modifier.size(16.dp))
                         }
                     }
                 },
-                supportingText = { if (query.length == 1) Text("Введите минимум 2 символа для поиска") }
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
             )
 
             ExposedDropdownMenu(
@@ -466,7 +556,8 @@ fun InstrumentSearchField(
                                             .height(36.dp)               // фиксированная высота – работает стабильно
                                             .background(typeColor)
                                     )
-                                }
+                                },
+                                modifier = Modifier.heightIn(min = 48.dp)
                             )
                         }
                     } else {
@@ -492,7 +583,8 @@ fun InstrumentSearchField(
                                             .height(36.dp)               // фиксированная высота – работает стабильно
                                             .background(typeColor)
                                     )
-                                }
+                                },
+                                modifier = Modifier.heightIn(min = 48.dp)
                             )
                         }
                     }
