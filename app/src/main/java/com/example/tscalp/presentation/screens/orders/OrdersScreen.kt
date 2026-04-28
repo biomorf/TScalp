@@ -125,7 +125,8 @@ fun OrdersScreen(
                 onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
                 onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                 onClick = { },  // не обязательно
-                isSelected = false
+                isSelected = false,
+                resetSwipe = uiState.swipeResetTrigger
             )
         }
 
@@ -284,7 +285,8 @@ fun OrdersScreen(
                     onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                     onClick = { },  // не обязательно
-                    isSelected = false
+                    isSelected = false,
+                    resetSwipe = uiState.swipeResetTrigger
                 )
 
                 BasicTextField(

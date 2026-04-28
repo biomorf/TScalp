@@ -58,6 +58,7 @@ data class OrdersUiState(
     val isPairSearching: Boolean = false,               // индикатор загрузки второго поиска
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
     val pairedMultiplier: String = "1",                 // множитель (по умолчанию 1)
+    val swipeResetTrigger: Boolean = false
 ) {
     val isFormValid: Boolean
         get() = selectedInstrument != null && quantity.toLongOrNull()?.let { it > 0 } == true && selectedAccountId != null && isApiInitialized

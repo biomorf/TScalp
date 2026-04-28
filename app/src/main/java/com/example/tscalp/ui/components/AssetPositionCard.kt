@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -38,6 +39,7 @@ fun AssetPositionCard(
     onSettings: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
+    resetSwipe: Boolean = false,          // <-- новый параметр
     modifier: Modifier = Modifier
 ) {
     // Если свайп не нужен, просто показываем карточку
@@ -58,6 +60,19 @@ fun AssetPositionCard(
     val buttonWidth = 72.dp
     val threshold = buttonWidth * 2
     val density = LocalDensity.current
+
+    // Плавный возврат при resetSwipe = true
+    LaunchedEffect(resetSwipe) {
+        if (resetSwipe) {
+            // Анимированно возвращаем offsetX к 0
+            val target = 0f
+            animate(
+                initialValue = offsetX,
+                targetValue = target,
+                animationSpec = tween(300)
+            ) { value, _ -> offsetX = value }
+        }
+    }
 
     Box(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
         // Кнопки подложки (поменяли порядок: сначала Удалить, потом Настройки)

@@ -389,7 +389,8 @@ fun openBrokerDialog(ticker: String) {
      * Закрывает диалог без сохранения.
      */
     fun closeBrokerDialog() {
-        _uiState.update { it.copy(showBrokerDialog = false, dialogInstrumentTicker = null) }
+        _uiState.update { it.copy(showBrokerDialog = false, dialogInstrumentTicker = null,
+            swipeResetTrigger = !it.swipeResetTrigger) }
     }
 
     /**
@@ -426,7 +427,8 @@ fun openBrokerDialog(ticker: String) {
                     } else card
                 },
                 showBrokerDialog = false,
-                dialogInstrumentTicker = null
+                dialogInstrumentTicker = null,
+                swipeResetTrigger = !state.swipeResetTrigger   // вызываем анимацию
             )
         }
     }
