@@ -19,9 +19,12 @@ import kotlinx.coroutines.CancellationException
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.domain.models.BrokerOrderType
+import com.example.tscalp.domain.models.OrderTypeSelection
 import com.example.tscalp.domain.models.BrokerOrderRequest
 //import com.example.tscalp.domain.models.OrderType
 import com.example.tscalp.domain.models.OrderDirection
+import com.example.tscalp.domain.models.StopOrderType
+import com.example.tscalp.domain.models.StopOrderRequest
 
 
 class OrdersViewModel(
@@ -117,24 +120,6 @@ class OrdersViewModel(
      * Загружает портфель для первого счета и возвращает список позиций.
      * Теперь это suspend-функция, которую можно await'ить.
      */
-//    private suspend fun loadPortfolio(): List<PortfolioPosition> {
-//        return try {
-//            val sandboxMode = ServiceLocator.isSandboxMode()
-//            val brokerName = "TInvest"   // ← добавьте эту строку
-//            val accounts = repository.getAccounts(brokerName, sandboxMode)
-//            if (accounts.isNotEmpty()) {
-//                val accountId = accounts.first().id
-//                val positions = repository.getPortfolio(accountId, sandboxMode)
-//                _uiState.update { it.copy(portfolioPositions = positions) }
-//                positions
-//            } else {
-//                emptyList()
-//            }
-//        } catch (e: Exception) {
-//            Log.e(TAG, "Ошибка загрузки портфеля", e)
-//            emptyList()
-//        }
-//    }
     private suspend fun loadPortfolio(
         brokerName: String = "TInvest",
         accountId: String? = null
@@ -258,93 +243,155 @@ class OrdersViewModel(
         val brokerName = activeCard?.brokerName ?: "TInvest"
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
 
-        val orderType = if (state.orderType == BrokerOrderType.MARKET) BrokerOrderType.MARKET else BrokerOrderType.LIMIT
-        val price = if (orderType == BrokerOrderType.LIMIT) state.limitPrice.toDoubleOrNull() else null
+        when (state.orderType) {
+            // ──── ОБЫЧНАЯ / ЛИМИТНАЯ ЗАЯВКА ────
+            OrderTypeSelection.Market, OrderTypeSelection.Limit -> {
+                val regularOrderType = if (state.orderType == OrderTypeSelection.Market)
+                    BrokerOrderType.MARKET
+                else
+                    BrokerOrderType.LIMIT
 
-        val request = BrokerOrderRequest(
-            brokerName = brokerName,
-            ticker = ticker,
-            quantity = quantity,
-            direction = direction,
-            accountId = accountId,
-            sandboxMode = ServiceLocator.isSandboxMode(),
-            type = orderType,
-            price = price
-        )
+                val price = if (regularOrderType == BrokerOrderType.LIMIT)
+                    state.limitPrice.toDoubleOrNull()
+                else
+                    null
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            try {
-                // ----- Основная заявка -----
-                Log.d(TAG, "Отправка заявки: broker=$brokerName, ticker=$ticker, qty=$quantity, dir=$direction, type=$orderType, price=${request.price}")
+                val request = BrokerOrderRequest(
+                    brokerName = brokerName,
+                    ticker = ticker,
+                    quantity = quantity,
+                    direction = direction,
+                    accountId = accountId,
+                    sandboxMode = ServiceLocator.isSandboxMode(),
+                    type = regularOrderType,
+                    price = price
+                )
 
-                val result = repository.postOrder(request)
-                val directionText = when (direction) {
-                    OrderDirection.BUY -> "покупка"
-                    OrderDirection.SELL -> "продажа"
-                    else -> "операция"
-                }
-                var finalMessage = "✅ Заявка на $directionText выполнена!\n" +
-                        "ID: ${result.orderId}\n" +
-                        "Исполнено: ${result.executedLots}/${result.totalLots} лотов"
+                viewModelScope.launch {
+                    _uiState.update { it.copy(isLoading = true, statusMessage = null) }
+                    try {
+                        val result = repository.postOrder(request)
 
-                // ----- Контрсделка (парная торговля) -----
-                if (state.pairTradingEnabled && state.pairedInstrument != null) {
-                    val multiplier = state.pairedMultiplier.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
-                    val pairedQuantity = (quantity * multiplier).toLong()
-                    if (pairedQuantity > 0) {
-                        val pairedDirection = if (direction == OrderDirection.BUY)
-                            OrderDirection.SELL
-                        else
-                            OrderDirection.BUY
-
-                        // Ищем сохранённые настройки для второй карточки
-                        val pairedCard = state.lastSelectedInstruments.find {
-                            it.instrument.ticker == state.pairedInstrument?.ticker
+                        val directionText = when (direction) {
+                            OrderDirection.BUY -> "покупка"
+                            OrderDirection.SELL -> "продажа"
+                            else -> "операция"
                         }
-                        // Если настройки есть – используем их, иначе берём из первой карточки (fallback)
-                        val pairedBrokerName = pairedCard?.brokerName ?: brokerName
-                        val pairedAccountId = pairedCard?.accountId ?: accountId
+                        var finalMessage = "✅ Заявка на $directionText выполнена!\n" +
+                                "ID: ${result.orderId}\n" +
+                                "Исполнено: ${result.executedLots}/${result.totalLots} лотов"
 
-                        try {
-                            val pairedRequest = BrokerOrderRequest(
-                                brokerName = pairedBrokerName,   // теперь из второй карточки или fallback
-                                ticker = state.pairedInstrument.ticker,
-                                quantity = pairedQuantity,
-                                direction = pairedDirection,
-                                accountId = pairedAccountId,     // теперь из второй карточки или fallback
-                                sandboxMode = ServiceLocator.isSandboxMode(),
-                                type = orderType,
-                                price = price
+                        // ──── КОНТРСДЕЛКА ────
+                        if (state.pairTradingEnabled && state.pairedInstrument != null) {
+                            val multiplier = state.pairedMultiplier.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
+                            val pairedQuantity = (quantity * multiplier).toLong()
+                            if (pairedQuantity > 0) {
+                                val pairedDirection = if (direction == OrderDirection.BUY)
+                                    OrderDirection.SELL
+                                else
+                                    OrderDirection.BUY
+
+                                val pairedCard = state.lastSelectedInstruments.find {
+                                    it.instrument.ticker == state.pairedInstrument?.ticker
+                                }
+                                val pairedBrokerName = pairedCard?.brokerName ?: brokerName
+                                val pairedAccountId = pairedCard?.accountId ?: accountId
+
+                                try {
+                                    val pairedRequest = BrokerOrderRequest(
+                                        brokerName = pairedBrokerName,
+                                        ticker = state.pairedInstrument.ticker,
+                                        quantity = pairedQuantity,
+                                        direction = pairedDirection,
+                                        accountId = pairedAccountId,
+                                        sandboxMode = ServiceLocator.isSandboxMode(),
+                                        type = regularOrderType,
+                                        price = price
+                                    )
+                                    val pairedResult = repository.postOrder(pairedRequest)
+                                    finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${pairedResult.orderId}"
+                                } catch (e: Exception) {
+                                    finalMessage += "\n❌ Ошибка контрсделки: ${e.message}"
+                                    Log.e(TAG, "Ошибка контрсделки", e)
+                                }
+                            }
+                        }
+
+                        loadPortfolio(brokerName, accountId)
+                        refreshLastSelectedInstruments()
+
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                statusMessage = finalMessage,
+                                isError = false,
+                                quantity = "",
+                                limitPrice = ""
                             )
-                            val pairedResult = repository.postOrder(pairedRequest)
-                            finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${pairedResult.orderId}"
-                        } catch (e: Exception) {
-                            finalMessage += "\n❌ Ошибка контрсделки: ${e.message}"
-                            Log.e(TAG, "Ошибка контрсделки", e)
+                        }
+                    } catch (e: Exception) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                statusMessage = "❌ Ошибка: ${e.message}",
+                                isError = true
+                            )
                         }
                     }
                 }
+            }
 
-                // Обновляем портфель и карточки
-                loadPortfolio(brokerName, accountId)
-                refreshLastSelectedInstruments()
+            // ──── СТОП-ЗАЯВКА ────
+            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit, OrderTypeSelection.StopLimit -> {
+                val stopPrice = state.stopPrice.toDoubleOrNull() ?: return
+                if (stopPrice <= 0) return
 
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        statusMessage = finalMessage,
-                        isError = false,
-                        quantity = ""
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        statusMessage = "❌ Ошибка: ${e.message}",
-                        isError = true
-                    )
+                val stopOrderType = state.orderType.stopOrderType
+                    ?: return // не должно случиться, но для безопасности
+
+                val limitPrice = if (stopOrderType == StopOrderType.STOP_LIMIT)
+                    state.limitPrice.toDoubleOrNull()
+                else
+                    null
+
+                val stopRequest = StopOrderRequest(
+                    brokerName = brokerName,
+                    ticker = ticker,
+                    quantity = quantity,
+                    direction = direction,
+                    accountId = accountId,
+                    sandboxMode = ServiceLocator.isSandboxMode(),
+                    stopPrice = stopPrice,
+                    price = limitPrice,
+                    stopOrderType = stopOrderType,
+                    expirationType = state.expirationType
+                )
+
+                viewModelScope.launch {
+                    _uiState.update { it.copy(isLoading = true, statusMessage = null) }
+                    try {
+                        val stopId = repository.postStopOrder(stopRequest)
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                statusMessage = "✅ Стоп‑заявка выставлена, ID: ${stopId.take(8)}…",
+                                isError = false,
+                                quantity = "",
+                                stopPrice = "",
+                                limitPrice = ""
+                            )
+                        }
+                        loadPortfolio(brokerName, accountId)
+                        refreshLastSelectedInstruments()
+                    } catch (e: Exception) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                statusMessage = "❌ Ошибка стоп‑заявки: ${e.message}",
+                                isError = true
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -546,14 +593,27 @@ fun openBrokerDialog(ticker: String) {
         _uiState.update { it.copy(pairedMultiplier = filtered) }
     }
 
-    fun onOrderTypeChanged(type: BrokerOrderType) {
+    fun onOrderTypeChanged(type: OrderTypeSelection) {
         _uiState.update { it.copy(orderType = type) }
+        // Если нужно сбросить лимитную цену при переходе на рыночную, можно добавить
+        if (type == OrderTypeSelection.Market) {
+            _uiState.update { it.copy(limitPrice = "") }
+        }
     }
+
 
     fun onLimitPriceChanged(price: String) {
         val filtered = price.filter { it.isDigit() || it == '.' }
         _uiState.update { it.copy(limitPrice = filtered) }
     }
+
+    fun onStopPriceChanged(price: String) {
+        _uiState.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
+    }
+
+//    fun onStopOrderTypeChanged(type: StopOrderType) {
+//        _uiState.update { it.copy(stopOrderType = type) }
+//    }
 }
 
 class OrdersViewModelFactory : ViewModelProvider.Factory {

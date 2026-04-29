@@ -13,13 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.example.tscalp.domain.models.StopOrderUi
-
-data class StopOrdersUiState(
-    val orders: List<StopOrderUi> = emptyList(),
-    val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false
-)
+import com.example.tscalp.domain.models.StopOrdersUiState
 
 class StopOrdersViewModel : ViewModel() {
 

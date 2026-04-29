@@ -37,11 +37,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
-import com.example.tscalp.domain.models.BrokerOrderType
+import com.example.tscalp.domain.models.OrderTypeSelection
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.util.formatCurrency
-import com.example.tscalp.presentation.screens.orders.StopOrdersViewModel
 import com.example.tscalp.ui.components.StopOrdersDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -140,10 +139,10 @@ fun OrdersScreen(
             AssetPositionCard(
                 position = position,
                 instrumentType = instrument.instrumentType,
-                priceChangePercent = uiState.selectedPriceChangePercent, // либо из lastSelectedInstruments, если хотите
-                onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
+                priceChangePercent = uiState.selectedPriceChangePercent,
+                onDelete = { viewModel.clearSelectedInstrument() },
                 onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                onClick = { },  // не обязательно
+                onClick = { },
                 isSelected = false,
                 resetSwipe = uiState.swipeResetTrigger
             )
@@ -153,11 +152,10 @@ fun OrdersScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min),   // высота строки подстраивается под самое высокое дочернее view (поле ввода)
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Кнопка "−"
             IconButton(
                 onClick = {
                     val currentQty = uiState.quantityAsLong ?: 0L
@@ -165,7 +163,7 @@ fun OrdersScreen(
                 },
                 enabled = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null,
                 modifier = Modifier
-                    .fillMaxHeight()   // растягиваем на всю высоту Row
+                    .fillMaxHeight()
                     .width(28.dp)
             ) {
                 Icon(
@@ -175,7 +173,6 @@ fun OrdersScreen(
                 )
             }
 
-            // Поле ввода с подсказкой стоимости
             BasicTextField(
                 value = uiState.quantity,
                 onValueChange = { viewModel.onQuantityChanged(it) },
@@ -209,7 +206,6 @@ fun OrdersScreen(
                             innerTextField()
                         }
 
-                        // Ориентировочная стоимость (используем прямо uiState)
                         val currentQty = uiState.quantityAsLong ?: 0L
                         val currentPrice = uiState.currentPrice ?: 0.0
                         if (currentQty > 0 && currentPrice > 0) {
@@ -226,7 +222,6 @@ fun OrdersScreen(
                 }
             )
 
-            // Кнопка "+"
             IconButton(
                 onClick = {
                     val currentQty = uiState.quantityAsLong ?: 0L
@@ -245,39 +240,47 @@ fun OrdersScreen(
             }
         }
 
-//        // Ориентировочная стоимость
-//        val quantity = uiState.quantityAsLong ?: 0L
-//        val price = uiState.currentPrice ?: 0.0
-//        if (quantity > 0 && price > 0) {
-//            Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
-//        }
-
-        // Выбор типа заявки (рыночная / лимитная)
+        // ========== Выбор типа заявки ==========
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             FilterChip(
-                selected = uiState.orderType == BrokerOrderType.MARKET,
-                onClick = { viewModel.onOrderTypeChanged(BrokerOrderType.MARKET) },
-                label = { Text("Рыночная") }
+                selected = uiState.orderType == OrderTypeSelection.Market,
+                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Market) },
+                label = { Text("Рын.") }
             )
             FilterChip(
-                selected = uiState.orderType == BrokerOrderType.LIMIT,
-                onClick = { viewModel.onOrderTypeChanged(BrokerOrderType.LIMIT) },
-                label = { Text("Лимитная") }
+                selected = uiState.orderType == OrderTypeSelection.Limit,
+                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Limit) },
+                label = { Text("Лим.") }
+            )
+            FilterChip(
+                selected = uiState.orderType == OrderTypeSelection.StopLoss,
+                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLoss) },
+                label = { Text("Stop‑Loss") }
+            )
+            FilterChip(
+                selected = uiState.orderType == OrderTypeSelection.TakeProfit,
+                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.TakeProfit) },
+                label = { Text("Take‑Profit") }
+            )
+            FilterChip(
+                selected = uiState.orderType == OrderTypeSelection.StopLimit,
+                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLimit) },
+                label = { Text("Stop‑Limit") }
             )
         }
 
-        // Поле цены (только для лимитной заявки)
-        if (uiState.orderType == BrokerOrderType.LIMIT) {
+        // Поле цены (только для лимитной и стоп-лимит)
+        if (uiState.orderType is OrderTypeSelection.Limit || uiState.orderType is OrderTypeSelection.StopLimit) {
             BasicTextField(
                 value = uiState.limitPrice,
                 onValueChange = { viewModel.onLimitPriceChanged(it) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 36.dp),   // такая же минимальная высота
+                    .heightIn(min = 36.dp),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -307,22 +310,51 @@ fun OrdersScreen(
             )
         }
 
-        // ========== Переключатель «Парная торговля» ==========
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Стоп‑цена (для всех стоп‑заявок)
+        if (uiState.orderType is OrderTypeSelection.StopLoss ||
+            uiState.orderType is OrderTypeSelection.TakeProfit ||
+            uiState.orderType is OrderTypeSelection.StopLimit
         ) {
-            Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
-            Switch(
-                checked = uiState.pairTradingEnabled,
-                onCheckedChange = { viewModel.setPairTradingEnabled(it) }
+            OutlinedTextField(
+                value = uiState.stopPrice,
+                onValueChange = { viewModel.onStopPriceChanged(it) },
+                label = { Text("Стоп‑цена") },
+                placeholder = { Text("Например, 100.50") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
             )
+            // Для StopLimit показываем дополнительное поле цены
+            if (uiState.orderType is OrderTypeSelection.StopLimit) {
+                OutlinedTextField(
+                    value = uiState.limitPrice,
+                    onValueChange = { viewModel.onLimitPriceChanged(it) },
+                    label = { Text("Лимитная цена") },
+                    placeholder = { Text("Например, 101.00") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
-        // ========== Блок парного инструмента (появляется при включённом переключателе) ==========
+        // ========== Переключатель «Парная торговля» ==========
+        if (uiState.orderType is OrderTypeSelection.Market || uiState.orderType is OrderTypeSelection.Limit) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
+                Switch(
+                    checked = uiState.pairTradingEnabled,
+                    onCheckedChange = { viewModel.setPairTradingEnabled(it) }
+                )
+            }
+        }
+
+        // ========== Блок парного инструмента ==========
         if (uiState.pairTradingEnabled) {
-            // Второй поиск
             InstrumentSearchField(
                 query = uiState.pairSearchQuery,
                 onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
@@ -336,10 +368,9 @@ fun OrdersScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // ========== Парная карточка (свайпабельная) и поле множителя ==========
             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                val pairPrice = uiState.currentPrice  // пока используем ту же цену, что у основного
+                val pairPrice = uiState.currentPrice
                 val position = PortfolioPosition(
                     name = instrument.name,
                     ticker = instrument.ticker,
@@ -349,16 +380,16 @@ fun OrdersScreen(
                     profit = portfolioPos?.profit ?: 0.0,
                     profitPercent = portfolioPos?.profitPercent ?: 0.0,
                     instrumentType = instrument.instrumentType,
-                    priceChangePercent = null,
+                    priceChangePercent = null
                 )
 
                 AssetPositionCard(
                     position = position,
                     instrumentType = instrument.instrumentType,
-                    priceChangePercent = uiState.selectedPriceChangePercent, // либо из lastSelectedInstruments, если хотите
-                    onDelete = { viewModel.clearSelectedInstrument() },   // или clearPairSearch() для парной
+                    priceChangePercent = uiState.selectedPriceChangePercent,
+                    onDelete = { viewModel.clearSelectedInstrument() },
                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                    onClick = { },  // не обязательно
+                    onClick = { },
                     isSelected = false,
                     resetSwipe = uiState.swipeResetTrigger
                 )
@@ -497,6 +528,7 @@ fun OrdersScreen(
             )
         }
     }
+
     if (showStopOrdersDialog) {
         StopOrdersDialog(
             viewModel = stopOrdersViewModel,
@@ -504,6 +536,8 @@ fun OrdersScreen(
         )
     }
 }
+
+// Вспомогательные функции (ApiNotInitializedCard, StatusCard, InstrumentSearchField, getInstrumentTypeColor) остаются без изменений.
 
 // --- Вспомогательные Composable функции ---
 

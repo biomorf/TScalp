@@ -5,8 +5,11 @@ enum class OrderStatus {
 }
 
 //enum class OrderType { MARKET, LIMIT }
-enum class BrokerOrderType { MARKET, LIMIT }
-
+enum class BrokerOrderType {
+    MARKET,
+    LIMIT
+}
+enum class StopOrderType { TAKE_PROFIT, STOP_LOSS, STOP_LIMIT }
 enum class OrderDirection { BUY, SELL }
 
 /**
@@ -26,8 +29,15 @@ data class StopOrderRequest(
     val expireDate: String? = null     // если нужна конкретная дата
 )
 
-enum class StopOrderType { TAKE_PROFIT, STOP_LOSS, STOP_LIMIT }
+
 enum class StopOrderExpirationType { GOOD_TILL_CANCEL, GOOD_TILL_DATE }
+
+data class StopOrdersUiState(
+    val orders: List<StopOrderUi> = emptyList(),
+    val isLoading: Boolean = false,
+    val statusMessage: String? = null,
+    val isError: Boolean = false
+)
 
 data class StopOrderUi(
     val stopOrderId: String,

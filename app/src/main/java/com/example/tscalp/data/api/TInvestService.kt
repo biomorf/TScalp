@@ -7,17 +7,26 @@ import com.example.tscalp.domain.models.InstrumentUi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
-import com.example.tscalp.domain.models.*
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.PortfolioPosition
-import ru.tinkoff.piapi.contract.v1.*
+import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.BrokerAccountType
+import com.example.tscalp.domain.models.SandboxMoney
+import com.example.tscalp.domain.models.OrderResult
+import com.example.tscalp.domain.models.OrderStatus
+import com.example.tscalp.domain.models.StopOrderRequest
+import com.example.tscalp.domain.models.StopOrderUi
+import com.example.tscalp.domain.models.BrokerOrderRequest
+
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.PostStopOrderRequest
 import ru.tinkoff.piapi.contract.v1.StopOrderDirection
 import ru.tinkoff.piapi.contract.v1.StopOrderType as ProtoStopOrderType
 import ru.tinkoff.piapi.contract.v1.StopOrderExpirationType as ProtoStopOrderExpirationType
+import ru.tinkoff.piapi.contract.v1.OrderType
 
+import ru.tinkoff.piapi.contract.v1.*
 
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
@@ -39,10 +48,6 @@ class TInvestInvestService : BrokerApi {
     override val isInitialized: Boolean
         get() = api != null
 
-    /**
-     * Инициализирует клиент API заново (вызывается из UI при подключении).
-     * Использует сохранённые в ServiceLocator токен и режим.
-     */
     fun initializeFromSettings() {
         val token = ServiceLocator.getToken() ?: return
         val sandbox = ServiceLocator.isSandboxMode()
@@ -55,9 +60,6 @@ class TInvestInvestService : BrokerApi {
         tickerToFigiCache.clear()
     }
 
-    /**
-     * Ищет figi по тикеру. Сначала проверяет кэш, затем делает запрос к API.
-     */
     override suspend fun resolveTicker(ticker: String): String? {
         tickerToFigiCache[ticker]?.let { return it }
         val shortList = findInstrumentShorts(ticker)
@@ -68,7 +70,6 @@ class TInvestInvestService : BrokerApi {
         return figi
     }
 
-    // Публичный метод, соответствующий интерфейсу BrokerApi
     override suspend fun findInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
         val shorts = findInstrumentShorts(query)
         shorts.mapNotNull { short ->
@@ -86,9 +87,6 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-    /**
-     * Возвращает InstrumentUi по тикеру. Использует resolveTicker и затем getInstrumentByFigi.
-     */
     override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
         val figi = resolveTicker(ticker) ?: return null
         val instrumentResponse = getInstrumentByFigi(figi)
@@ -103,20 +101,12 @@ class TInvestInvestService : BrokerApi {
         )
     }
 
-    /**
-     * Возвращает краткие результаты поиска (InstrumentShort) по строке запроса.
-     * Используется для кэширования и resolveTicker.
-     */
-    // Приватный метод для внутреннего кэширования (использует protobuf)
     private suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
         currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
     }
 
-    /**
-     * Внутренний метод получения полной информации об инструменте по figi.
-     */
     private suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = InstrumentRequest.newBuilder()
@@ -163,7 +153,6 @@ class TInvestInvestService : BrokerApi {
         val response = getPortfolio(accountId, sandboxMode)
 
         response.positionsList.mapNotNull { pos ->
-            // Получаем тикер: либо из самого ответа, либо резолвим через figi
             val ticker = pos.ticker.ifBlank { resolveTicker(pos.figi) ?: pos.figi }
             if (ticker.isBlank()) return@mapNotNull null
 
@@ -189,7 +178,6 @@ class TInvestInvestService : BrokerApi {
         if (tickers.isEmpty()) return@withContext emptyMap()
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
 
-        // Резолвим тикеры в figi
         val tickerToFigi = mutableMapOf<String, String>()
         for (ticker in tickers) {
             resolveTicker(ticker)?.let { tickerToFigi[ticker] = it }
@@ -211,38 +199,22 @@ class TInvestInvestService : BrokerApi {
         result
     }
 
-//    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse = withContext(Dispatchers.IO) {
-//        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-//        val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-//        currentApi.usersServiceSync.getMarginAttributes(request)
-//    }
-
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
 
         if (ServiceLocator.isSandboxMode()) {
-            // В песочнице метод getMarginAttributes недоступен, а свободные рубли не отражаются в портфеле.
-            // Баланс будет обновлён в PortfolioViewModel после загрузки портфеля как totalValue.
-            // В песочнице запрашиваем портфель и берём стоимость валют (денежные средства)
-            // В песочнице запрашиваем портфель и суммируем денежные средства + стоимость активов
             val portfolioRequest = PortfolioRequest.newBuilder().setAccountId(accountId).build()
             val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(portfolioRequest)
-
-            // 1. Денежные средства (totalAmountCurrencies)
             val money = portfolio.totalAmountCurrencies
             var balance = (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
-
-            // 2. Добавляем стоимость всех позиций (акции, облигации, фонды и т.д.)
             for (position in portfolio.positionsList) {
                 val price = position.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
                 val quantity = position.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
                 balance += price * quantity
             }
-
             Log.d(TAG, "Баланс песочницы (деньги + активы) для счета $accountId: $balance")
             balance
         } else {
-            // Боевой режим – ликвидный портфель (уже включает все активы и деньги)
             val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
             val response = currentApi.usersServiceSync.getMarginAttributes(request)
             val money = response.liquidPortfolio
@@ -274,7 +246,6 @@ class TInvestInvestService : BrokerApi {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
 
-        // Преобразуем цену в protobuf Quotation
         val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
             val units = request.price.toLong()
             val nano = ((request.price - units) * 1_000_000_000).toInt()
@@ -316,22 +287,22 @@ class TInvestInvestService : BrokerApi {
         )
     }
 
-    // stop orders
+    // --- stop orders ---
 
     private fun protoDirection(direction: OrderDirection): ru.tinkoff.piapi.contract.v1.StopOrderDirection = when (direction) {
         OrderDirection.BUY -> ru.tinkoff.piapi.contract.v1.StopOrderDirection.STOP_ORDER_DIRECTION_BUY
         OrderDirection.SELL -> ru.tinkoff.piapi.contract.v1.StopOrderDirection.STOP_ORDER_DIRECTION_SELL
     }
 
-    private fun protoStopOrderType(type: StopOrderType): ru.tinkoff.piapi.contract.v1.StopOrderType = when (type) {
-        StopOrderType.TAKE_PROFIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_TAKE_PROFIT
-        StopOrderType.STOP_LOSS -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LOSS
-        StopOrderType.STOP_LIMIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LIMIT
+    private fun protoStopOrderType(type: com.example.tscalp.domain.models.StopOrderType): ru.tinkoff.piapi.contract.v1.StopOrderType = when (type) {
+        com.example.tscalp.domain.models.StopOrderType.TAKE_PROFIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_TAKE_PROFIT
+        com.example.tscalp.domain.models.StopOrderType.STOP_LOSS -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LOSS
+        com.example.tscalp.domain.models.StopOrderType.STOP_LIMIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LIMIT
     }
 
-    private fun protoExpirationType(expiration: StopOrderExpirationType): ru.tinkoff.piapi.contract.v1.StopOrderExpirationType = when (expiration) {
-        StopOrderExpirationType.GOOD_TILL_CANCEL -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL
-        StopOrderExpirationType.GOOD_TILL_DATE -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_DATE
+    private fun protoExpirationType(expiration: com.example.tscalp.domain.models.StopOrderExpirationType): ru.tinkoff.piapi.contract.v1.StopOrderExpirationType = when (expiration) {
+        com.example.tscalp.domain.models.StopOrderExpirationType.GOOD_TILL_CANCEL -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL
+        com.example.tscalp.domain.models.StopOrderExpirationType.GOOD_TILL_DATE -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_DATE
     }
 
     private fun quotationFromDouble(value: Double): Quotation {
@@ -343,26 +314,6 @@ class TInvestInvestService : BrokerApi {
     private fun moneyToDouble(money: MoneyValue?): Double {
         if (money == null) return 0.0
         return money.units + money.nano / 1_000_000_000.0
-    }
-
-    private fun parseDate(dateStr: String): com.google.protobuf.Timestamp {
-        // Упрощённый парсинг (реализуйте по необходимости)
-        return com.google.protobuf.Timestamp.newBuilder().build()
-    }
-
-    private fun buildProtoStopOrderRequest(figi: String, req: StopOrderRequest): ru.tinkoff.piapi.contract.v1.PostStopOrderRequest {
-        val builder = ru.tinkoff.piapi.contract.v1.PostStopOrderRequest.newBuilder()
-            .setFigi(figi)
-            .setQuantity(req.quantity)
-            .setDirection(protoDirection(req.direction))
-            .setAccountId(req.accountId)
-            .setStopPrice(quotationFromDouble(req.stopPrice))
-            .setStopOrderType(protoStopOrderType(req.stopOrderType))
-            .setExpirationType(protoExpirationType(req.expirationType))
-
-        if (req.price != null) builder.setPrice(quotationFromDouble(req.price))
-        if (req.expireDate != null) builder.setExpireDate(parseDate(req.expireDate))
-        return builder.build()
     }
 
     override suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
@@ -382,7 +333,6 @@ class TInvestInvestService : BrokerApi {
 
         val protoRequest = builder.build()
         val response = if (ServiceLocator.isSandboxMode()) {
-            // В песочнице используется специальный метод
             currentApi.sandboxServiceSync.postSandboxStopOrder(protoRequest)
         } else {
             currentApi.stopOrdersServiceSync.postStopOrder(protoRequest)
@@ -402,6 +352,15 @@ class TInvestInvestService : BrokerApi {
         Log.d(TAG, "StopOrder fields: ${response.allFields}")
 
         response.stopOrdersList.map { order ->
+            val orderTypeFieldDescriptor = order.descriptorForType.findFieldByName("order_type")
+            val orderTypeValue = orderTypeFieldDescriptor?.let { order.getField(it) }
+            val type = when (orderTypeValue?.toString()) {
+                "STOP_ORDER_TYPE_TAKE_PROFIT" -> "TAKE_PROFIT"
+                "STOP_ORDER_TYPE_STOP_LOSS"   -> "STOP_LOSS"
+                "STOP_ORDER_TYPE_STOP_LIMIT"  -> "STOP_LIMIT"
+                else -> orderTypeValue?.toString()?.removePrefix("STOP_ORDER_TYPE_") ?: "UNKNOWN"
+            }
+
             StopOrderUi(
                 stopOrderId = order.stopOrderId,
                 ticker = resolveTicker(order.figi) ?: order.figi,
@@ -410,7 +369,7 @@ class TInvestInvestService : BrokerApi {
                 stopPrice = moneyToDouble(order.stopPrice),
                 limitPrice = order.price?.let { moneyToDouble(it) },
                 quantity = order.lotsRequested,
-                type = "unknown",   // временно вместо order.type.name
+                type = type,
                 status = order.status.name
             )
         }
@@ -429,6 +388,11 @@ class TInvestInvestService : BrokerApi {
                 currentApi.stopOrdersServiceSync.cancelStopOrder(request)
             }
         }
+    }
+
+    private fun parseDate(dateStr: String): com.google.protobuf.Timestamp {
+        // Упрощённый парсинг (реализуйте по необходимости)
+        return com.google.protobuf.Timestamp.newBuilder().build()
     }
 
 }

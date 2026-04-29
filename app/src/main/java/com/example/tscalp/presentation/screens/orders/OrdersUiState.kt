@@ -5,6 +5,9 @@ import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.BrokerOrderType
+import com.example.tscalp.domain.models.StopOrderType
+import com.example.tscalp.domain.models.StopOrderExpirationType
+import com.example.tscalp.domain.models.OrderTypeSelection
 
 
 /**
@@ -43,7 +46,7 @@ data class OrdersUiState(
     val portfolioPositions: List<PortfolioPosition> = emptyList(),
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),
     val isSearchActive: Boolean = false,          // <-- для управления SearchBar
-    val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)
+    //val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)
     val limitPrice: String = "",                                // цена для лимитной заявки
     val selectedPriceChangePercent: Double? = null,   // изменение цены выбранного инструмента
     // Диалог брокера
@@ -59,21 +62,32 @@ data class OrdersUiState(
     val isPairSearching: Boolean = false,               // индикатор загрузки второго поиска
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
     val pairedMultiplier: String = "10",               // множитель (по умолчанию 10)
-    val swipeResetTrigger: Boolean = false
+    val swipeResetTrigger: Boolean = false,
+    // Стоп‑заявки
+    val orderType: OrderTypeSelection = OrderTypeSelection.Market, // было BrokerOrderType.MARKET
+    val stopPrice: String = "",
+    val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
+    val expireDate: String? = null
+    // поле stopOrderType удалено, теперь берём из orderType.stopOrderType
+
 ) {
     val isFormValid: Boolean
         get() {
             val basicValid = selectedInstrument != null &&
                     quantity.toLongOrNull()?.let { it > 0 } == true &&
                     isApiInitialized
-            val limitPriceValid = if (orderType == BrokerOrderType.LIMIT) {
+            val limitPriceValid = if (orderType is OrderTypeSelection.Limit || orderType is OrderTypeSelection.StopLimit) {
                 limitPrice.toDoubleOrNull() != null
             } else true
-            val pairValid = if (pairTradingEnabled) {
-                pairedInstrument != null &&
-                        pairedMultiplier.toDoubleOrNull()?.let { it > 0.0 } == true
+            val stopPriceValid = if (orderType is OrderTypeSelection.StopLoss ||
+                orderType is OrderTypeSelection.TakeProfit ||
+                orderType is OrderTypeSelection.StopLimit) {
+                stopPrice.toDoubleOrNull()?.let { it > 0 } == true
             } else true
-            return basicValid && limitPriceValid && pairValid
+            val pairValid = if (pairTradingEnabled) {
+                pairedInstrument != null && pairedMultiplier.toDoubleOrNull()?.let { it > 0.0 } == true
+            } else true
+            return basicValid && limitPriceValid && stopPriceValid && pairValid
         }
     val quantityAsLong: Long? get() = quantity.toLongOrNull()
     fun clearStatus(): OrdersUiState = copy(statusMessage = null, isError = false)
