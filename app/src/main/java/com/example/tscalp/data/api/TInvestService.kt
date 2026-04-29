@@ -6,13 +6,18 @@ import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import ru.tinkoff.piapi.contract.v1.*
-import ru.ttech.piapi.core.InvestApi
 import java.util.concurrent.ConcurrentHashMap
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.PortfolioPosition
+import ru.tinkoff.piapi.contract.v1.*
+import ru.ttech.piapi.core.InvestApi
+import ru.tinkoff.piapi.contract.v1.PostStopOrderRequest
+import ru.tinkoff.piapi.contract.v1.StopOrderDirection
+import ru.tinkoff.piapi.contract.v1.StopOrderType as ProtoStopOrderType
+import ru.tinkoff.piapi.contract.v1.StopOrderExpirationType as ProtoStopOrderExpirationType
+
 
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
@@ -143,54 +148,6 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-
-
-    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
-
-        // Преобразуем цену в protobuf Quotation
-        val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
-            val units = request.price.toLong()
-            val nano = ((request.price - units) * 1_000_000_000).toInt()
-            Quotation.newBuilder().setUnits(units).setNano(nano).build()
-        } else {
-            Quotation.newBuilder().setUnits(0).setNano(0).build()
-        }
-
-        val apiOrderType = when (request.type) {
-            BrokerOrderType.MARKET -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_MARKET
-            BrokerOrderType.LIMIT -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_LIMIT
-        }
-
-        val apiDirection = when (request.direction) {
-            OrderDirection.BUY -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_BUY
-            OrderDirection.SELL -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_SELL
-        }
-
-        val apiRequest = PostOrderRequest.newBuilder()
-            .setFigi(figi)
-            .setQuantity(request.quantity)
-            .setPrice(price)
-            .setDirection(apiDirection)
-            .setAccountId(request.accountId)
-            .setOrderType(apiOrderType)
-            .build()
-
-        val response = if (request.sandboxMode) {
-            currentApi.sandboxServiceSync.postSandboxOrder(apiRequest)
-        } else {
-            currentApi.ordersServiceSync.postOrder(apiRequest)
-        }
-
-        OrderResult(
-            orderId = response.orderId,
-            executedLots = response.lotsExecuted,
-            totalLots = response.lotsRequested,
-            status = OrderStatus.NEW
-        )
-    }
-
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
@@ -312,4 +269,166 @@ class TInvestInvestService : BrokerApi {
             Log.d(TAG, "Пополнение выполнено успешно, ответ: $response")
         }
     }
+
+    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
+
+        // Преобразуем цену в protobuf Quotation
+        val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
+            val units = request.price.toLong()
+            val nano = ((request.price - units) * 1_000_000_000).toInt()
+            Quotation.newBuilder().setUnits(units).setNano(nano).build()
+        } else {
+            Quotation.newBuilder().setUnits(0).setNano(0).build()
+        }
+
+        val apiOrderType = when (request.type) {
+            BrokerOrderType.MARKET -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_MARKET
+            BrokerOrderType.LIMIT -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_LIMIT
+        }
+
+        val apiDirection = when (request.direction) {
+            OrderDirection.BUY -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_BUY
+            OrderDirection.SELL -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_SELL
+        }
+
+        val apiRequest = PostOrderRequest.newBuilder()
+            .setFigi(figi)
+            .setQuantity(request.quantity)
+            .setPrice(price)
+            .setDirection(apiDirection)
+            .setAccountId(request.accountId)
+            .setOrderType(apiOrderType)
+            .build()
+
+        val response = if (request.sandboxMode) {
+            currentApi.sandboxServiceSync.postSandboxOrder(apiRequest)
+        } else {
+            currentApi.ordersServiceSync.postOrder(apiRequest)
+        }
+
+        OrderResult(
+            orderId = response.orderId,
+            executedLots = response.lotsExecuted,
+            totalLots = response.lotsRequested,
+            status = OrderStatus.NEW
+        )
+    }
+
+    // stop orders
+
+    private fun protoDirection(direction: OrderDirection): ru.tinkoff.piapi.contract.v1.StopOrderDirection = when (direction) {
+        OrderDirection.BUY -> ru.tinkoff.piapi.contract.v1.StopOrderDirection.STOP_ORDER_DIRECTION_BUY
+        OrderDirection.SELL -> ru.tinkoff.piapi.contract.v1.StopOrderDirection.STOP_ORDER_DIRECTION_SELL
+    }
+
+    private fun protoStopOrderType(type: StopOrderType): ru.tinkoff.piapi.contract.v1.StopOrderType = when (type) {
+        StopOrderType.TAKE_PROFIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_TAKE_PROFIT
+        StopOrderType.STOP_LOSS -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LOSS
+        StopOrderType.STOP_LIMIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LIMIT
+    }
+
+    private fun protoExpirationType(expiration: StopOrderExpirationType): ru.tinkoff.piapi.contract.v1.StopOrderExpirationType = when (expiration) {
+        StopOrderExpirationType.GOOD_TILL_CANCEL -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL
+        StopOrderExpirationType.GOOD_TILL_DATE -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_DATE
+    }
+
+    private fun quotationFromDouble(value: Double): Quotation {
+        val units = value.toLong()
+        val nano = ((value - units) * 1_000_000_000).toInt()
+        return Quotation.newBuilder().setUnits(units).setNano(nano).build()
+    }
+
+    private fun moneyToDouble(money: MoneyValue?): Double {
+        if (money == null) return 0.0
+        return money.units + money.nano / 1_000_000_000.0
+    }
+
+    private fun parseDate(dateStr: String): com.google.protobuf.Timestamp {
+        // Упрощённый парсинг (реализуйте по необходимости)
+        return com.google.protobuf.Timestamp.newBuilder().build()
+    }
+
+    private fun buildProtoStopOrderRequest(figi: String, req: StopOrderRequest): ru.tinkoff.piapi.contract.v1.PostStopOrderRequest {
+        val builder = ru.tinkoff.piapi.contract.v1.PostStopOrderRequest.newBuilder()
+            .setFigi(figi)
+            .setQuantity(req.quantity)
+            .setDirection(protoDirection(req.direction))
+            .setAccountId(req.accountId)
+            .setStopPrice(quotationFromDouble(req.stopPrice))
+            .setStopOrderType(protoStopOrderType(req.stopOrderType))
+            .setExpirationType(protoExpirationType(req.expirationType))
+
+        if (req.price != null) builder.setPrice(quotationFromDouble(req.price))
+        if (req.expireDate != null) builder.setExpireDate(parseDate(req.expireDate))
+        return builder.build()
+    }
+
+    override suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
+
+        val builder = PostStopOrderRequest.newBuilder()
+            .setFigi(figi)
+            .setQuantity(request.quantity)
+            .setDirection(protoDirection(request.direction))
+            .setAccountId(request.accountId)
+            .setStopPrice(quotationFromDouble(request.stopPrice))
+            .setStopOrderType(protoStopOrderType(request.stopOrderType))
+            .setExpirationType(protoExpirationType(request.expirationType))
+        if (request.price != null) builder.setPrice(quotationFromDouble(request.price))
+        if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))
+
+        val protoRequest = builder.build()
+        val response = if (ServiceLocator.isSandboxMode()) {
+            // В песочнице используется специальный метод
+            currentApi.sandboxServiceSync.postSandboxStopOrder(protoRequest)
+        } else {
+            currentApi.stopOrdersServiceSync.postStopOrder(protoRequest)
+        }
+        response.stopOrderId
+    }
+
+    override suspend fun getStopOrders(accountId: String): List<StopOrderUi> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = GetStopOrdersRequest.newBuilder().setAccountId(accountId).build()
+        val response = if (ServiceLocator.isSandboxMode()) {
+            currentApi.sandboxServiceSync.getSandboxStopOrders(request)
+        } else {
+            currentApi.stopOrdersServiceSync.getStopOrders(request)
+        }
+
+        Log.d(TAG, "StopOrder fields: ${response.allFields}")
+
+        response.stopOrdersList.map { order ->
+            StopOrderUi(
+                stopOrderId = order.stopOrderId,
+                ticker = resolveTicker(order.figi) ?: order.figi,
+                figi = order.figi,
+                direction = order.direction.name,
+                stopPrice = moneyToDouble(order.stopPrice),
+                limitPrice = order.price?.let { moneyToDouble(it) },
+                quantity = order.lotsRequested,
+                type = "unknown",   // временно вместо order.type.name
+                status = order.status.name
+            )
+        }
+    }
+
+    override suspend fun cancelStopOrder(accountId: String, stopOrderId: String) {
+        withContext(Dispatchers.IO) {
+            val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+            val request = CancelStopOrderRequest.newBuilder()
+                .setAccountId(accountId)
+                .setStopOrderId(stopOrderId)
+                .build()
+            if (ServiceLocator.isSandboxMode()) {
+                currentApi.sandboxServiceSync.cancelSandboxStopOrder(request)
+            } else {
+                currentApi.stopOrdersServiceSync.cancelStopOrder(request)
+            }
+        }
+    }
+
 }

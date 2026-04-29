@@ -20,6 +20,7 @@ import com.example.tscalp.domain.models.OrderResult
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderStatus
+import com.example.tscalp.domain.models.*
 
 /**
  * Реализация BrokerApi для брокера БКС (Мир Инвестиций).
@@ -297,4 +298,8 @@ class BcsBrokerApi : BrokerApi {
 //    }
 
     override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
+
+    override suspend fun postStopOrder(request: StopOrderRequest): String = "bcs-stop-${System.currentTimeMillis()}"
+    override suspend fun getStopOrders(accountId: String): List<StopOrderUi> = emptyList()
+    override suspend fun cancelStopOrder(accountId: String, stopOrderId: String) {}
 }

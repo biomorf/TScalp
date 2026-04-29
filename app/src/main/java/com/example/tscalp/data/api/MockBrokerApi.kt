@@ -10,7 +10,7 @@ import com.example.tscalp.domain.models.OrderResult
 import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.BrokerAccountType
-
+import com.example.tscalp.domain.models.*
 
 /**
  * Тестовый брокер-заглушка для демонстрации мультиброкерности.
@@ -68,4 +68,8 @@ class MockBrokerApi : BrokerApi {
 //    }
 
     override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
+
+    override suspend fun postStopOrder(request: StopOrderRequest): String = "mock-stop-${System.currentTimeMillis()}"
+    override suspend fun getStopOrders(accountId: String): List<StopOrderUi> = emptyList()
+    override suspend fun cancelStopOrder(accountId: String, stopOrderId: String) {}
 }

@@ -66,19 +66,19 @@ interface BrokerApi {
      */
     suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?>
 
-//    /**
-//     * Выставляет стоп-заявку (take-profit, stop-loss, stop-limit).
-//     * @return StopOrderResponse с информацией о созданной заявке.
-//     */
-//    suspend fun postStopOrder(request: StopOrderRequest): StopOrderResponse
-//
-//    /**
-//     * Возвращает список активных стоп-заявок для указанного счёта.
-//     */
-//    suspend fun getStopOrders(accountId: String): List<StopOrder>
-//
-//    /**
-//     * Отменяет стоп-заявку по её идентификатору.
-//     */
-//    suspend fun cancelStopOrder(accountId: String, stopOrderId: String)
+    /**
+     * Выставляет стоп-заявку (take-profit, stop-loss, stop-limit).
+     * @return StopOrderResponse с информацией о созданной заявке.
+     */
+    suspend fun postStopOrder(request: StopOrderRequest): String   // возвращает stopOrderId
+
+    /**
+     * Возвращает список активных стоп-заявок для указанного счёта.
+     */
+    suspend fun getStopOrders(accountId: String): List<StopOrderUi>
+
+    /**
+     * Отменяет стоп-заявку по её идентификатору.
+     */
+    suspend fun cancelStopOrder(accountId: String, stopOrderId: String)
 }
