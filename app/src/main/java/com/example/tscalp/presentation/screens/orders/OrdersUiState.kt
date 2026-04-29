@@ -1,5 +1,6 @@
 package com.example.tscalp.presentation.screens.orders
 
+import android.util.Log
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -61,7 +62,19 @@ data class OrdersUiState(
     val swipeResetTrigger: Boolean = false
 ) {
     val isFormValid: Boolean
-        get() = selectedInstrument != null && quantity.toLongOrNull()?.let { it > 0 } == true && selectedAccountId != null && isApiInitialized
+        get() {
+            val basicValid = selectedInstrument != null &&
+                    quantity.toLongOrNull()?.let { it > 0 } == true &&
+                    isApiInitialized
+            val limitPriceValid = if (orderType == BrokerOrderType.LIMIT) {
+                limitPrice.toDoubleOrNull() != null
+            } else true
+            val pairValid = if (pairTradingEnabled) {
+                pairedInstrument != null &&
+                        pairedMultiplier.toDoubleOrNull()?.let { it > 0.0 } == true
+            } else true
+            return basicValid && limitPriceValid && pairValid
+        }
     val quantityAsLong: Long? get() = quantity.toLongOrNull()
     fun clearStatus(): OrdersUiState = copy(statusMessage = null, isError = false)
 }

@@ -34,6 +34,8 @@ class OrdersViewModel(
     private var priceUpdateJob: Job? = null
     private var pairSearchJob: Job? = null
 
+
+
     companion object {
         private const val TAG = "OrdersViewModel"
     }
@@ -85,6 +87,10 @@ class OrdersViewModel(
                 // По умолчанию загружаем счета для Т-Инвестиций (основной брокер)
                 val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
+                //получения счетов добавьте автоматический выбор первого счёта, если ни один не выбран
+                if (_uiState.value.selectedAccountId == null && accounts.isNotEmpty()) {
+                    _uiState.update { it.copy(selectedAccountId = accounts.first().id) }
+                }
                 val defaultAccount = accounts.firstOrNull()
                 _uiState.update {
                     it.copy(
@@ -111,22 +117,45 @@ class OrdersViewModel(
      * Загружает портфель для первого счета и возвращает список позиций.
      * Теперь это suspend-функция, которую можно await'ить.
      */
-    private suspend fun loadPortfolio(): List<PortfolioPosition> {
-        return try {
+//    private suspend fun loadPortfolio(): List<PortfolioPosition> {
+//        return try {
+//            val sandboxMode = ServiceLocator.isSandboxMode()
+//            val brokerName = "TInvest"   // ← добавьте эту строку
+//            val accounts = repository.getAccounts(brokerName, sandboxMode)
+//            if (accounts.isNotEmpty()) {
+//                val accountId = accounts.first().id
+//                val positions = repository.getPortfolio(accountId, sandboxMode)
+//                _uiState.update { it.copy(portfolioPositions = positions) }
+//                positions
+//            } else {
+//                emptyList()
+//            }
+//        } catch (e: Exception) {
+//            Log.e(TAG, "Ошибка загрузки портфеля", e)
+//            emptyList()
+//        }
+//    }
+    private suspend fun loadPortfolio(
+        brokerName: String = "TInvest",
+        accountId: String? = null
+    ) {
+        try {
             val sandboxMode = ServiceLocator.isSandboxMode()
-            val brokerName = "TInvest"   // ← добавьте эту строку
-            val accounts = repository.getAccounts(brokerName, sandboxMode)
-            if (accounts.isNotEmpty()) {
-                val accountId = accounts.first().id
-                val positions = repository.getPortfolio(accountId, sandboxMode)
-                _uiState.update { it.copy(portfolioPositions = positions) }
-                positions
-            } else {
-                emptyList()
+            val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: return
+            // Если accountId не передан, получаем его через getAccounts (только для TInvest)
+            val actualAccountId = accountId ?: run {
+                val accounts = broker.getAccounts(sandboxMode)
+                accounts.firstOrNull()?.id ?: return
             }
+            val newPositions = broker.getPositions(actualAccountId, sandboxMode)
+
+            // Обновляем portfolioPositions: удаляем старые позиции этого брокера и добавляем новые
+            val currentPositions = _uiState.value.portfolioPositions.toMutableList()
+            currentPositions.removeAll { it.brokerName == brokerName }
+            currentPositions.addAll(newPositions.map { it.copy(brokerName = brokerName) })
+            _uiState.update { it.copy(portfolioPositions = currentPositions) }
         } catch (e: Exception) {
-            Log.e(TAG, "Ошибка загрузки портфеля", e)
-            emptyList()
+            Log.e(TAG, "Ошибка загрузки портфеля для $brokerName", e)
         }
     }
 
@@ -247,6 +276,8 @@ class OrdersViewModel(
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
                 // ----- Основная заявка -----
+                Log.d(TAG, "Отправка заявки: broker=$brokerName, ticker=$ticker, qty=$quantity, dir=$direction, type=$orderType, price=${request.price}")
+
                 val result = repository.postOrder(request)
                 val directionText = when (direction) {
                     OrderDirection.BUY -> "покупка"
@@ -296,7 +327,7 @@ class OrdersViewModel(
                 }
 
                 // Обновляем портфель и карточки
-                loadPortfolio()
+                loadPortfolio(brokerName, accountId)
                 refreshLastSelectedInstruments()
 
                 _uiState.update {
@@ -342,7 +373,7 @@ class OrdersViewModel(
     fun clearStatus() { _uiState.update { it.clearStatus() } }
     fun retryLoadAccounts() { loadAccounts() }
 
-    private fun startPriceUpdates() {
+    fun startPriceUpdates() {
         priceUpdateJob?.cancel()
         priceUpdateJob = viewModelScope.launch {
             while (isActive) {
@@ -354,9 +385,8 @@ class OrdersViewModel(
 
     private suspend fun updatePrices() {
         val state = _uiState.value
-        // Собираем тикеры из последних выбранных инструментов
+        // Собираем тикеры только из visible карточек
         val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
-        // Добавляем тикер выбранного инструмента, если он есть
         state.selectedInstrument?.ticker?.let { tickersToUpdate.add(it) }
         if (tickersToUpdate.isEmpty()) return
 
@@ -369,37 +399,29 @@ class OrdersViewModel(
                 val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
                     ((newPrice - card.currentPrice) / card.currentPrice) * 100.0
                 } else null
-                card.copy(
-                    currentPrice = newPrice,
-                    previousPrice = card.currentPrice,
-                    priceChangePercent = changePercent
-                )
+                card.copy(currentPrice = newPrice, priceChangePercent = changePercent)
             }
 
-            // Обновляем цену и изменение для выбранного инструмента
-            var newCurrentPrice = state.currentPrice
-            var selectedChange = state.selectedPriceChangePercent
-            state.selectedInstrument?.ticker?.let { ticker ->
-                val freshPrice = prices[ticker]
-                if (freshPrice != null) {
-                    val prevPrice = state.currentPrice
-                    selectedChange = if (prevPrice != null && prevPrice != 0.0) {
-                        ((freshPrice - prevPrice) / prevPrice) * 100.0
-                    } else null
-                    newCurrentPrice = freshPrice
-                }
-            }
+            // Обновляем цену для выбранного инструмента
+            val selectedTicker = state.selectedInstrument?.ticker
+            val newSelectedPrice = selectedTicker?.let { prices[it] } ?: state.currentPrice
+            val selectedChange = if (state.currentPrice != null && state.currentPrice != 0.0 && newSelectedPrice != null) {
+                ((newSelectedPrice - state.currentPrice) / state.currentPrice) * 100.0
+            } else null
 
             _uiState.update {
                 it.copy(
                     lastSelectedInstruments = updatedLastSelected,
-                    currentPrice = newCurrentPrice,
+                    currentPrice = newSelectedPrice,
                     selectedPriceChangePercent = selectedChange
                 )
             }
         } catch (_: Exception) { }
     }
 
+    fun stopPriceUpdates() {
+        priceUpdateJob?.cancel()
+    }
 
     /**
      * Открывает диалог настроек для указанного инструмента.
@@ -522,6 +544,15 @@ fun openBrokerDialog(ticker: String) {
     fun onPairedMultiplierChanged(value: String) {
         val filtered = value.filter { it.isDigit() || it == '.' }
         _uiState.update { it.copy(pairedMultiplier = filtered) }
+    }
+
+    fun onOrderTypeChanged(type: BrokerOrderType) {
+        _uiState.update { it.copy(orderType = type) }
+    }
+
+    fun onLimitPriceChanged(price: String) {
+        val filtered = price.filter { it.isDigit() || it == '.' }
+        _uiState.update { it.copy(limitPrice = filtered) }
     }
 }
 

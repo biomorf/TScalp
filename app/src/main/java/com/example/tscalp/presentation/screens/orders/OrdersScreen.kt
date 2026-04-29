@@ -1,8 +1,8 @@
 package com.example.tscalp.presentation.screens.orders
 
-//import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
@@ -11,18 +11,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-//import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
-//import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-//import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -32,16 +32,15 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.InstrumentUi
-//import com.example.tscalp.presentation.screens.orders.SelectedInstrumentInfo
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.util.formatCurrency
-
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.border
-
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.runtime.DisposableEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +51,18 @@ fun OrdersScreen(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.startPriceUpdates()
+            } else if (event == Lifecycle.Event.ON_PAUSE) {
+                viewModel.stopPriceUpdates()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(uiState.statusMessage) {
         if (uiState.statusMessage != null && !uiState.isError) {
@@ -71,18 +82,31 @@ fun OrdersScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Заголовок
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Text(
-                text = "Выставление заявки",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(16.dp),
-                textAlign = TextAlign.Center
+
+        // Заголовок с кнопкой "Список заявок"
+        TopAppBar(
+            title = { Text("Выставление заявки") },
+            actions = {
+                var showOrdersDialog by remember { mutableStateOf(false) }
+                IconButton(onClick = { showOrdersDialog = true }) {
+                    Icon(Icons.Default.List, contentDescription = "Список заявок")
+                }
+                if (showOrdersDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showOrdersDialog = false },
+                        title = { Text("Активные заявки") },
+                        text = { Text("Здесь будет список заявок (в разработке)") },
+                        confirmButton = {
+                            Button(onClick = { showOrdersDialog = false }) { Text("OK") }
+                        }
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
-        }
+        )
 
         if (!uiState.isApiInitialized) {
             ApiNotInitializedCard()
@@ -232,6 +256,61 @@ fun OrdersScreen(
 //        if (quantity > 0 && price > 0) {
 //            Text("Ориентировочная стоимость: ${formatCurrency(price * quantity)}")
 //        }
+
+        // Выбор типа заявки (рыночная / лимитная)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilterChip(
+                selected = uiState.orderType == BrokerOrderType.MARKET,
+                onClick = { viewModel.onOrderTypeChanged(BrokerOrderType.MARKET) },
+                label = { Text("Рыночная") }
+            )
+            FilterChip(
+                selected = uiState.orderType == BrokerOrderType.LIMIT,
+                onClick = { viewModel.onOrderTypeChanged(BrokerOrderType.LIMIT) },
+                label = { Text("Лимитная") }
+            )
+        }
+
+        // Поле цены (только для лимитной заявки)
+        if (uiState.orderType == BrokerOrderType.LIMIT) {
+            BasicTextField(
+                value = uiState.limitPrice,
+                onValueChange = { viewModel.onLimitPriceChanged(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 36.dp),   // такая же минимальная высота
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        if (uiState.limitPrice.isEmpty()) {
+                            Text(
+                                "Цена за лот",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+        }
 
         // ========== Переключатель «Парная торговля» ==========
         Row(
