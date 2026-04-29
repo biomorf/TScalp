@@ -20,6 +20,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,8 +29,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -37,10 +41,8 @@ import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.util.formatCurrency
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.runtime.DisposableEffect
+import com.example.tscalp.presentation.screens.orders.StopOrdersViewModel
+import com.example.tscalp.ui.components.StopOrdersDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +53,10 @@ fun OrdersScreen(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
+
+    var showStopOrdersDialog by remember { mutableStateOf(false) }
+    val stopOrdersViewModel = remember { StopOrdersViewModel() }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -87,19 +93,8 @@ fun OrdersScreen(
         TopAppBar(
             title = { Text("Выставление заявки") },
             actions = {
-                var showOrdersDialog by remember { mutableStateOf(false) }
-                IconButton(onClick = { showOrdersDialog = true }) {
+                IconButton(onClick = { showStopOrdersDialog = true }) {
                     Icon(Icons.Default.List, contentDescription = "Список заявок")
-                }
-                if (showOrdersDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showOrdersDialog = false },
-                        title = { Text("Активные заявки") },
-                        text = { Text("Здесь будет список заявок (в разработке)") },
-                        confirmButton = {
-                            Button(onClick = { showOrdersDialog = false }) { Text("OK") }
-                        }
-                    )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -501,6 +496,12 @@ fun OrdersScreen(
                 onSave = { viewModel.saveBrokerSettings() }
             )
         }
+    }
+    if (showStopOrdersDialog) {
+        StopOrdersDialog(
+            viewModel = stopOrdersViewModel,
+            onDismiss = { showStopOrdersDialog = false }
+        )
     }
 }
 
