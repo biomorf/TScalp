@@ -5,6 +5,10 @@ package com.example.tscalp.domain.models
  */
 enum class BrokerAccountType { BROKER, IIS, INVEST_BOX, OTHER }
 
+enum class AccountType {
+    BROKER, IIS, INVEST_BOX
+}
+
 /**
  * Универсальная модель брокерского счёта для использования в интерфейсе BrokerApi.
  */
@@ -12,4 +16,10 @@ data class BrokerAccount(
     val id: String,
     val name: String,
     val type: BrokerAccountType
+)
+
+data class AccountUi(
+    val id: String,
+    val name: String,
+    val type: AccountType
 )

@@ -1,20 +1,5 @@
 package com.example.tscalp.domain.models
 
-enum class OrderDirection { BUY, SELL }
-//enum class OrderDirection2 { ORDER_DIRECTION_BUY, ORDER_DIRECTION_SELL }
-
-
-data class OrderResult(
-    val orderId: String,
-    val executedLots: Long,
-    val totalLots: Long,
-    val status: OrderStatus
-)
-
-enum class OrderStatus {
-    NEW, PARTIALLY_FILLED, FILLED, REJECTED, CANCELLED
-}
-
 data class InstrumentUi(
     val figi: String,
     val ticker: String,
@@ -36,16 +21,6 @@ data class PortfolioPosition(
     val priceChangePercent: Double? = null,
     val brokerName: String = ""
 )
-
-data class AccountUi(
-    val id: String,
-    val name: String,
-    val type: AccountType
-)
-
-enum class AccountType {
-    BROKER, IIS, INVEST_BOX
-}
 
 /**
  * Универсальное представление денежной суммы для пополнения песочницы.
