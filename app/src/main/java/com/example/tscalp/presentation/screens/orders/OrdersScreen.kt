@@ -240,37 +240,47 @@ fun OrdersScreen(
             }
         }
 
-        // ========== Выбор типа заявки ==========
-        Row(
+        // Выбор типа заявки
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            FilterChip(
-                selected = uiState.orderType == OrderTypeSelection.Market,
-                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Market) },
-                label = { Text("Рын.") }
-            )
-            FilterChip(
-                selected = uiState.orderType == OrderTypeSelection.Limit,
-                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Limit) },
-                label = { Text("Лим.") }
-            )
-            FilterChip(
-                selected = uiState.orderType == OrderTypeSelection.StopLoss,
-                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLoss) },
-                label = { Text("Stop‑Loss") }
-            )
-            FilterChip(
-                selected = uiState.orderType == OrderTypeSelection.TakeProfit,
-                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.TakeProfit) },
-                label = { Text("Take‑Profit") }
-            )
-            FilterChip(
-                selected = uiState.orderType == OrderTypeSelection.StopLimit,
-                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLimit) },
-                label = { Text("Stop‑Limit") }
-            )
+            // Первая строка: рыночная и лимитная
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = uiState.orderType == OrderTypeSelection.Market,
+                    onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Market) },
+                    label = { Text("Рын.") }
+                )
+                FilterChip(
+                    selected = uiState.orderType == OrderTypeSelection.Limit,
+                    onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Limit) },
+                    label = { Text("Лим.") }
+                )
+            }
+
+            // Вторая строка: стоп‑заявки
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = uiState.orderType == OrderTypeSelection.StopLoss,
+                    onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLoss) },
+                    label = { Text("Stop‑Loss") }
+                )
+                FilterChip(
+                    selected = uiState.orderType == OrderTypeSelection.TakeProfit,
+                    onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.TakeProfit) },
+                    label = { Text("Take‑Profit") }
+                )
+                FilterChip(
+                    selected = uiState.orderType == OrderTypeSelection.StopLimit,
+                    onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLimit) },
+                    label = { Text("Stop‑Limit") }
+                )
+            }
         }
 
         // Поле цены (только для лимитной и стоп-лимит)
