@@ -7,26 +7,32 @@ import androidx.lifecycle.viewModelScope
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.domain.models.OrderListItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.example.tscalp.domain.models.StopOrderUi
-import com.example.tscalp.domain.models.StopOrdersUiState
 
 class StopOrdersViewModel : ViewModel() {
 
     private val repository = InvestRepository(ServiceLocator.getBrokerManager())
 
-    private val _uiState = MutableStateFlow(StopOrdersUiState())
-    val uiState: StateFlow<StopOrdersUiState> = _uiState.asStateFlow()
+    data class OrdersListState(
+        val orders: List<OrderListItem> = emptyList(),
+        val isLoading: Boolean = false,
+        val statusMessage: String? = null,
+        val isError: Boolean = false
+    )
+
+    private val _uiState = MutableStateFlow(OrdersListState())
+    val uiState: StateFlow<OrdersListState> = _uiState.asStateFlow()
 
     companion object {
         private const val TAG = "StopOrdersViewModel"
     }
 
-    fun loadStopOrders() {
+    fun loadOrders() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
@@ -38,52 +44,54 @@ class StopOrdersViewModel : ViewModel() {
                     }
                     return@launch
                 }
-                // Единственный accountId, который используется дальше
-                val accountId: String = accounts.first().id
-
+                val accountId = accounts.first().id
                 val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
                     ?: throw IllegalStateException("Брокер TInvest не найден")
-                // Вызов getStopOrders с явно типизированным параметром
-                val protoOrders: List<com.example.tscalp.domain.models.StopOrderUi> = broker.getStopOrders(accountId)
 
-                val uiOrders = protoOrders.map { order ->
-                    order.copy()   // просто копируем, уже содержит все поля
-                }
+                val regularOrders = broker.getOrders(accountId)
+                val stopOrders = broker.getStopOrders(accountId)
+                val allOrders = (regularOrders + stopOrders).sortedWith(
+                    compareBy<OrderListItem> { it.orderDate ?: Long.MAX_VALUE }
+                        .thenBy { it.price }
+                )
 
                 _uiState.update {
                     it.copy(
-                        orders = uiOrders,
+                        orders = allOrders,
                         isLoading = false,
-                        statusMessage = if (uiOrders.isEmpty()) "Нет активных стоп-заявок" else null
+                        statusMessage = if (allOrders.isEmpty()) "Нет активных заявок" else null
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isLoading = false, statusMessage = "Ошибка: ${e.message}", isError = true)
                 }
-                Log.e(TAG, "Ошибка загрузки стоп-заявок", e)
+                Log.e(TAG, "Ошибка загрузки заявок", e)
             }
         }
     }
 
-    fun cancelStopOrder(stopOrderId: String) {
+    fun cancelOrder(order: OrderListItem) {
         viewModelScope.launch {
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
                 val accounts = repository.getAccounts("TInvest", sandboxMode)
                 if (accounts.isEmpty()) return@launch
-                val accountId: String = accounts.first().id
-
+                val accountId = accounts.first().id
                 val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
                     ?: return@launch
-                broker.cancelStopOrder(accountId, stopOrderId)
 
-                loadStopOrders()
+                if (order.isStopOrder) {
+                    broker.cancelStopOrder(accountId, order.orderId)
+                } else {
+                    broker.cancelOrder(accountId, order.orderId)
+                }
+                loadOrders()  // обновить список после отмены
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(statusMessage = "Ошибка отмены: ${e.message}", isError = true)
                 }
-                Log.e(TAG, "Ошибка отмены стоп-заявки", e)
+                Log.e(TAG, "Ошибка отмены заявки", e)
             }
         }
     }

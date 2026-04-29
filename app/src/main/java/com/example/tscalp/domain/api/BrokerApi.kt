@@ -75,10 +75,13 @@ interface BrokerApi {
     /**
      * Возвращает список активных стоп-заявок для указанного счёта.
      */
-    suspend fun getStopOrders(accountId: String): List<StopOrderUi>
+    suspend fun getStopOrders(accountId: String): List<OrderListItem>
 
     /**
      * Отменяет стоп-заявку по её идентификатору.
      */
     suspend fun cancelStopOrder(accountId: String, stopOrderId: String)
+
+    suspend fun getOrders(accountId: String): List<OrderListItem>
+    suspend fun cancelOrder(accountId: String, orderId: String)
 }

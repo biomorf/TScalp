@@ -9,10 +9,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.tscalp.domain.models.StopOrderUi
+import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.presentation.screens.orders.StopOrdersViewModel
 
 @Composable
@@ -20,84 +18,65 @@ fun StopOrdersDialog(
     viewModel: StopOrdersViewModel,
     onDismiss: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsState()
 
-    // Загружаем список при первом открытии
     LaunchedEffect(Unit) {
-        viewModel.loadStopOrders()
+        viewModel.loadOrders()
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Стоп‑заявки") },
+        title = { Text("Активные заявки") },
         text = {
-            when {
-                uiState.isLoading -> {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+            if (state.isLoading) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-                uiState.orders.isEmpty() -> {
-                    Text(uiState.statusMessage ?: "Нет активных стоп‑заявок")
-                }
-                else -> {
-                    LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                        items(uiState.orders) { order ->
-                            StopOrderRow(
-                                order = order,
-                                onCancel = { viewModel.cancelStopOrder(order.stopOrderId) }
-                            )
-                        }
+            } else if (state.orders.isEmpty()) {
+                Text("Нет активных заявок")
+            } else {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp)
+                ) {
+                    items(state.orders) { order ->
+                        OrderListItemRow(
+                            order = order,
+                            onCancel = { viewModel.cancelOrder(order) }
+                        )
+                        HorizontalDivider()
                     }
                 }
             }
+            state.statusMessage?.let {
+                Text(it, color = if (state.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            }
         },
         confirmButton = {
-            Button(onClick = onDismiss) { Text("Закрыть") }
+            TextButton(onClick = onDismiss) {
+                Text("Закрыть")
+            }
         }
     )
 }
 
 @Composable
-private fun StopOrderRow(
-    order: StopOrderUi,
-    onCancel: () -> Unit
-) {
-    Card(
+fun OrderListItemRow(order: OrderListItem, onCancel: () -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = order.ticker,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Стоп: ${order.stopPrice} | ${order.direction}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "ID: ${order.stopOrderId.take(8)}…",
-                    style = MaterialTheme.typography.labelSmall
-                )
+        Column(modifier = Modifier.weight(1f)) {
+            Text("${order.ticker} ${order.direction} ${order.quantity} лотов")
+            Text("Цена: ${order.price}", style = MaterialTheme.typography.bodySmall)
+            if (order.stopPrice != null) {
+                Text("Стоп: ${order.stopPrice}", style = MaterialTheme.typography.bodySmall)
             }
-            IconButton(onClick = onCancel) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Отменить стоп‑заявку",
-                    tint = Color(0xFFC62828)
-                )
-            }
+            Text("Тип: ${order.type} | Статус: ${order.status}", style = MaterialTheme.typography.bodySmall)
+        }
+        IconButton(onClick = onCancel) {
+            Icon(Icons.Default.Delete, contentDescription = "Отменить заявку")
         }
     }
 }

@@ -1,12 +1,14 @@
 package com.example.tscalp.data.api
 
 import android.util.Log
-import com.example.tscalp.di.ServiceLocator
-import com.example.tscalp.domain.api.BrokerApi
-import com.example.tscalp.domain.models.InstrumentUi
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+
+import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -18,15 +20,37 @@ import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.StopOrderUi
 import com.example.tscalp.domain.models.BrokerOrderRequest
+import com.example.tscalp.domain.models.OrderListItem
+import com.example.tscalp.domain.models.StopOrderType as DomainStopOrderType
+import com.example.tscalp.domain.models.StopOrderExpirationType as DomainStopOrderExpirationType
 
 import ru.ttech.piapi.core.InvestApi
+import ru.tinkoff.piapi.contract.v1.Order
 import ru.tinkoff.piapi.contract.v1.PostStopOrderRequest
 import ru.tinkoff.piapi.contract.v1.StopOrderDirection
 import ru.tinkoff.piapi.contract.v1.StopOrderType as ProtoStopOrderType
 import ru.tinkoff.piapi.contract.v1.StopOrderExpirationType as ProtoStopOrderExpirationType
 import ru.tinkoff.piapi.contract.v1.OrderType
-
-import ru.tinkoff.piapi.contract.v1.*
+import ru.tinkoff.piapi.contract.v1.PostOrderRequest
+import ru.tinkoff.piapi.contract.v1.OrderDirection as ProtoOrderDirection
+import ru.tinkoff.piapi.contract.v1.GetOrdersRequest
+import ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus
+import ru.tinkoff.piapi.contract.v1.CancelOrderRequest
+import ru.tinkoff.piapi.contract.v1.GetStopOrdersRequest
+import ru.tinkoff.piapi.contract.v1.CancelStopOrderRequest
+import ru.tinkoff.piapi.contract.v1.Quotation
+import ru.tinkoff.piapi.contract.v1.MoneyValue
+import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
+import ru.tinkoff.piapi.contract.v1.InstrumentRequest
+import ru.tinkoff.piapi.contract.v1.InstrumentIdType
+import ru.tinkoff.piapi.contract.v1.InstrumentResponse
+import ru.tinkoff.piapi.contract.v1.InstrumentShort
+import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
+import ru.tinkoff.piapi.contract.v1.PortfolioRequest
+import ru.tinkoff.piapi.contract.v1.PortfolioResponse
+import ru.tinkoff.piapi.contract.v1.GetLastPricesRequest
+import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
+import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
 
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
@@ -294,15 +318,15 @@ class TInvestInvestService : BrokerApi {
         OrderDirection.SELL -> ru.tinkoff.piapi.contract.v1.StopOrderDirection.STOP_ORDER_DIRECTION_SELL
     }
 
-    private fun protoStopOrderType(type: com.example.tscalp.domain.models.StopOrderType): ru.tinkoff.piapi.contract.v1.StopOrderType = when (type) {
-        com.example.tscalp.domain.models.StopOrderType.TAKE_PROFIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_TAKE_PROFIT
-        com.example.tscalp.domain.models.StopOrderType.STOP_LOSS -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LOSS
-        com.example.tscalp.domain.models.StopOrderType.STOP_LIMIT -> ru.tinkoff.piapi.contract.v1.StopOrderType.STOP_ORDER_TYPE_STOP_LIMIT
+    private fun protoStopOrderType(type: DomainStopOrderType): ru.tinkoff.piapi.contract.v1.StopOrderType = when (type) {
+        DomainStopOrderType.TAKE_PROFIT -> ProtoStopOrderType.STOP_ORDER_TYPE_TAKE_PROFIT
+        DomainStopOrderType.STOP_LOSS -> ProtoStopOrderType.STOP_ORDER_TYPE_STOP_LOSS
+        DomainStopOrderType.STOP_LIMIT -> ProtoStopOrderType.STOP_ORDER_TYPE_STOP_LIMIT
     }
 
-    private fun protoExpirationType(expiration: com.example.tscalp.domain.models.StopOrderExpirationType): ru.tinkoff.piapi.contract.v1.StopOrderExpirationType = when (expiration) {
-        com.example.tscalp.domain.models.StopOrderExpirationType.GOOD_TILL_CANCEL -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL
-        com.example.tscalp.domain.models.StopOrderExpirationType.GOOD_TILL_DATE -> ru.tinkoff.piapi.contract.v1.StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_DATE
+    private fun protoExpirationType(expiration: DomainStopOrderExpirationType): ru.tinkoff.piapi.contract.v1.StopOrderExpirationType = when (expiration) {
+        DomainStopOrderExpirationType.GOOD_TILL_CANCEL -> ProtoStopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL
+        DomainStopOrderExpirationType.GOOD_TILL_DATE -> ProtoStopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_DATE
     }
 
     private fun quotationFromDouble(value: Double): Quotation {
@@ -340,7 +364,7 @@ class TInvestInvestService : BrokerApi {
         response.stopOrderId
     }
 
-    override suspend fun getStopOrders(accountId: String): List<StopOrderUi> = withContext(Dispatchers.IO) {
+    override suspend fun getStopOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetStopOrdersRequest.newBuilder().setAccountId(accountId).build()
         val response = if (ServiceLocator.isSandboxMode()) {
@@ -349,28 +373,44 @@ class TInvestInvestService : BrokerApi {
             currentApi.stopOrdersServiceSync.getStopOrders(request)
         }
 
-        Log.d(TAG, "StopOrder fields: ${response.allFields}")
-
         response.stopOrdersList.map { order ->
-            val orderTypeFieldDescriptor = order.descriptorForType.findFieldByName("order_type")
-            val orderTypeValue = orderTypeFieldDescriptor?.let { order.getField(it) }
-            val type = when (orderTypeValue?.toString()) {
-                "STOP_ORDER_TYPE_TAKE_PROFIT" -> "TAKE_PROFIT"
-                "STOP_ORDER_TYPE_STOP_LOSS"   -> "STOP_LOSS"
-                "STOP_ORDER_TYPE_STOP_LIMIT"  -> "STOP_LIMIT"
-                else -> orderTypeValue?.toString()?.removePrefix("STOP_ORDER_TYPE_") ?: "UNKNOWN"
+            val ticker = resolveTicker(order.figi) ?: order.figi
+
+            // Тип стоп-заявки через дескриптор с явным кастом
+            val fieldDescriptor = order.descriptorForType.findFieldByName("order_type")
+            val type = if (fieldDescriptor != null) {
+                val enumValue = order.getField(fieldDescriptor) as? com.google.protobuf.Descriptors.EnumValueDescriptor
+                enumValue?.name?.removePrefix("STOP_ORDER_TYPE_") ?: "UNKNOWN"
+            } else {
+                "UNKNOWN"
             }
 
-            StopOrderUi(
-                stopOrderId = order.stopOrderId,
-                ticker = resolveTicker(order.figi) ?: order.figi,
-                figi = order.figi,
-                direction = order.direction.name,
-                stopPrice = moneyToDouble(order.stopPrice),
-                limitPrice = order.price?.let { moneyToDouble(it) },
+            // Явное приведение String (убирает String!)
+            val orderIdStr: String = order.stopOrderId as String
+            val figiStr: String = order.figi as String
+
+            // Направление и статус через enum (избавляемся от String!)
+            val directionStr: String = (order.direction as Enum<*>).name.removePrefix("STOP_ORDER_DIRECTION_")
+            val statusStr: String = (order.status as Enum<*>).name.removePrefix("STOP_ORDER_STATUS_")
+
+            // Явное извлечение MoneyValue с объявлением типа
+            val sp: MoneyValue? = order.stopPrice
+            val stopPriceDouble = sp?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+
+            val orderDateLong = order.getCreateDate()?.seconds
+
+            OrderListItem(
+                orderId = orderIdStr,
+                ticker = ticker,
+                figi = figiStr,
+                direction = directionStr,
+                price = stopPriceDouble,
+                stopPrice = stopPriceDouble,
                 quantity = order.lotsRequested,
                 type = type,
-                status = order.status.name
+                status = statusStr,
+                orderDate = orderDateLong,
+                isStopOrder = true
             )
         }
     }
@@ -395,4 +435,95 @@ class TInvestInvestService : BrokerApi {
         return com.google.protobuf.Timestamp.newBuilder().build()
     }
 
+
+
+    override suspend fun getOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = GetOrdersRequest.newBuilder()
+            .setAccountId(accountId)
+            .build()
+        val response = if (ServiceLocator.isSandboxMode()) {
+            currentApi.sandboxServiceSync.getSandboxOrders(request)
+        } else {
+            currentApi.ordersServiceSync.getOrders(request)
+        }
+
+        val activeStatuses = setOf(
+            OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
+            OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL
+        )
+
+        response.ordersList
+            .filter { it.executionReportStatus in activeStatuses }
+            .map { order ->
+                val ticker = resolveTicker(order.figi) ?: order.figi
+
+                val orderType = when (order.orderType) {
+                    OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
+                    OrderType.ORDER_TYPE_MARKET -> "MARKET"
+                    else -> "UNKNOWN"
+                }
+
+                val direction = when (order.directionValue) {
+                    1 -> "BUY"
+                    2 -> "SELL"
+                    else -> "UNKNOWN"
+                }
+                val status = when (order.executionReportStatusValue) {
+                    1 -> "NEW"
+                    2 -> "PARTIALLYFILL"
+                    3 -> "FILL"
+                    4 -> "CANCELLED"
+                    5 -> "REJECTED"
+                    else -> "UNKNOWN"
+                }
+
+                // Строки – через as String
+                val orderIdStr: String = (order.orderId ?: "").toString()
+                val figiStr: String = (order.figi ?: "").toString()
+
+                // Извлечение цены через дескриптор – поле "price" (MoneyValue)
+                val priceField = order.descriptorForType.findFieldByName("price")
+                val priceValue = priceField?.let { order.getField(it) }
+                val priceDouble = when (priceValue) {
+                    is MoneyValue -> priceValue.units + priceValue.nano / 1_000_000_000.0
+                    is Quotation -> priceValue.units + priceValue.nano / 1_000_000_000.0
+                    else -> 0.0
+                }
+
+                // Дата создания через дескриптор – поле "create_date" (Timestamp)
+                val dateField = order.descriptorForType.findFieldByName("create_date")
+                val dateValue = dateField?.let { order.getField(it) }
+                val orderDateLong = (dateValue as? com.google.protobuf.Timestamp)?.seconds
+
+                OrderListItem(
+                    orderId = orderIdStr,
+                    ticker = ticker,
+                    figi = figiStr,
+                    direction = direction,
+                    price = priceDouble,
+                    stopPrice = null,
+                    quantity = order.lotsRequested,
+                    type = orderType,
+                    status = status,
+                    orderDate = orderDateLong,
+                    isStopOrder = false
+                )
+            }
+    }
+
+    override suspend fun cancelOrder(accountId: String, orderId: String) {
+        withContext(Dispatchers.IO) {
+            val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+            val request = CancelOrderRequest.newBuilder()
+                .setAccountId(accountId)
+                .setOrderId(orderId)
+                .build()
+            if (ServiceLocator.isSandboxMode()) {
+                currentApi.sandboxServiceSync.cancelSandboxOrder(request)
+            } else {
+                currentApi.ordersServiceSync.cancelOrder(request)
+            }
+        }
+    }
 }

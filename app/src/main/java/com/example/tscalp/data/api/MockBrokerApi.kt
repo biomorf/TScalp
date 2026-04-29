@@ -10,6 +10,7 @@ import com.example.tscalp.domain.models.OrderResult
 import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.BrokerAccountType
+import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.domain.models.*
 
 /**
@@ -70,6 +71,13 @@ class MockBrokerApi : BrokerApi {
     override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
 
     override suspend fun postStopOrder(request: StopOrderRequest): String = "mock-stop-${System.currentTimeMillis()}"
-    override suspend fun getStopOrders(accountId: String): List<StopOrderUi> = emptyList()
+    override suspend fun getStopOrders(accountId: String): List<OrderListItem> = emptyList()
     override suspend fun cancelStopOrder(accountId: String, stopOrderId: String) {}
+
+    override suspend fun getOrders(accountId: String): List<OrderListItem> = emptyList()
+
+    override suspend fun cancelOrder(accountId: String, orderId: String) {
+        // Заглушка – отмена обычных заявок не эмулируется
+        throw UnsupportedOperationException("cancelOrder не поддерживается для MockBrokerApi")
+    }
 }
