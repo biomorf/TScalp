@@ -4,6 +4,11 @@ import android.util.Log
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.channels.awaitClose
+
 import java.util.concurrent.ConcurrentHashMap
 
 import com.example.tscalp.di.ServiceLocator
@@ -51,6 +56,11 @@ import ru.tinkoff.piapi.contract.v1.PortfolioResponse
 import ru.tinkoff.piapi.contract.v1.GetLastPricesRequest
 import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
 import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
+import ru.tinkoff.piapi.contract.v1.MarketDataRequest
+import ru.tinkoff.piapi.contract.v1.MarketDataResponse
+import ru.tinkoff.piapi.contract.v1.SubscribeLastPriceRequest
+import ru.tinkoff.piapi.contract.v1.SubscriptionAction
+import ru.tinkoff.piapi.contract.v1.LastPriceInstrument
 
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
@@ -532,4 +542,35 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             }
         }
     }
+
+    fun subscribeLastPrices(figis: List<String>): Flow<Pair<String, Double>> = callbackFlow {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+
+        val instruments = figis.map { figi ->
+            LastPriceInstrument.newBuilder().setFigi(figi).build()
+        }
+
+        val subscribe = SubscribeLastPriceRequest.newBuilder()
+            .setSubscriptionAction(SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE)
+            .addAllInstruments(instruments)
+            .build()
+
+        val marketRequest = MarketDataRequest.newBuilder()
+            .setSubscribeLastPriceRequest(subscribe)
+            .build()
+
+        val job = currentApi.marketDataStreamServiceAsync.marketDataStream(
+            flowOf(marketRequest),
+            { response: MarketDataResponse ->
+                if (response.hasLastPrice()) {
+                    val lp = response.lastPrice
+                    val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
+                    if (price != null) trySend(lp.figi to price)
+                }
+            }
+        )
+
+        awaitClose { job.cancel() }
+    }
 }
+

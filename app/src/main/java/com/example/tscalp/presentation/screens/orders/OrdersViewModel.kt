@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.catch
+
+
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.domain.models.BrokerOrderType
@@ -34,8 +37,8 @@ class OrdersViewModel(
     private val _uiState = MutableStateFlow(OrdersUiState())
     val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
     private var searchJob: Job? = null
-    private var priceUpdateJob: Job? = null
     private var pairSearchJob: Job? = null
+    private var priceStreamJob: Job? = null
 
 
 
@@ -166,6 +169,7 @@ class OrdersViewModel(
     }
 
     fun onInstrumentSelected(instrument: InstrumentUi) {
+        // Обновляем выбранный инструмент и поисковую строку
         _uiState.update {
             it.copy(
                 selectedInstrument = instrument,
@@ -177,11 +181,15 @@ class OrdersViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
+
+            // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
             val prices = repository.getLastPricesByTicker(listOf(instrument.ticker))
             val price = prices[instrument.ticker]
+
+            // 2. Ищем позицию в портфеле
             val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
 
-            // Получаем существующую карточку (если была), чтобы сохранить настройки брокера/счёта
+            // 3. Берём существующую карточку (если была), чтобы сохранить настройки брокера/счёта
             val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == instrument.ticker }
 
             val newCard = SelectedInstrumentInfo(
@@ -197,6 +205,7 @@ class OrdersViewModel(
                 accountId = existingCard?.accountId
             )
 
+            // 4. Обновляем список последних выбранных инструментов
             val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
             currentList.removeAll { it.instrument.ticker == instrument.ticker }
             currentList.add(0, newCard)
@@ -208,6 +217,9 @@ class OrdersViewModel(
                     lastSelectedInstruments = currentList.take(5)
                 )
             }
+
+            // 5. Запускаем стрим для реактивного обновления цены
+            startPriceUpdates()
         }
     }
 
@@ -420,55 +432,55 @@ class OrdersViewModel(
     fun clearStatus() { _uiState.update { it.clearStatus() } }
     fun retryLoadAccounts() { loadAccounts() }
 
-    fun startPriceUpdates() {
-        priceUpdateJob?.cancel()
-        priceUpdateJob = viewModelScope.launch {
-            while (isActive) {
-                delay(5_000) // каждые 5 секунд
-                updatePrices()
-            }
-        }
-    }
+//    fun startPriceUpdates() {
+//        priceUpdateJob?.cancel()
+//        priceUpdateJob = viewModelScope.launch {
+//            while (isActive) {
+//                delay(5_000) // каждые 5 секунд
+//                updatePrices()
+//            }
+//        }
+//    }
+//
+//    private suspend fun updatePrices() {
+//        val state = _uiState.value
+//        // Собираем тикеры только из visible карточек
+//        val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
+//        state.selectedInstrument?.ticker?.let { tickersToUpdate.add(it) }
+//        if (tickersToUpdate.isEmpty()) return
+//
+//        try {
+//            val prices = repository.getLastPricesByTicker(tickersToUpdate.toList())
+//
+//            // Обновляем lastSelectedInstruments
+//            val updatedLastSelected = state.lastSelectedInstruments.map { card ->
+//                val newPrice = prices[card.instrument.ticker] ?: card.currentPrice
+//                val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
+//                    ((newPrice - card.currentPrice) / card.currentPrice) * 100.0
+//                } else null
+//                card.copy(currentPrice = newPrice, priceChangePercent = changePercent)
+//            }
+//
+//            // Обновляем цену для выбранного инструмента
+//            val selectedTicker = state.selectedInstrument?.ticker
+//            val newSelectedPrice = selectedTicker?.let { prices[it] } ?: state.currentPrice
+//            val selectedChange = if (state.currentPrice != null && state.currentPrice != 0.0 && newSelectedPrice != null) {
+//                ((newSelectedPrice - state.currentPrice) / state.currentPrice) * 100.0
+//            } else null
+//
+//            _uiState.update {
+//                it.copy(
+//                    lastSelectedInstruments = updatedLastSelected,
+//                    currentPrice = newSelectedPrice,
+//                    selectedPriceChangePercent = selectedChange
+//                )
+//            }
+//        } catch (_: Exception) { }
+//    }
 
-    private suspend fun updatePrices() {
-        val state = _uiState.value
-        // Собираем тикеры только из visible карточек
-        val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
-        state.selectedInstrument?.ticker?.let { tickersToUpdate.add(it) }
-        if (tickersToUpdate.isEmpty()) return
-
-        try {
-            val prices = repository.getLastPricesByTicker(tickersToUpdate.toList())
-
-            // Обновляем lastSelectedInstruments
-            val updatedLastSelected = state.lastSelectedInstruments.map { card ->
-                val newPrice = prices[card.instrument.ticker] ?: card.currentPrice
-                val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
-                    ((newPrice - card.currentPrice) / card.currentPrice) * 100.0
-                } else null
-                card.copy(currentPrice = newPrice, priceChangePercent = changePercent)
-            }
-
-            // Обновляем цену для выбранного инструмента
-            val selectedTicker = state.selectedInstrument?.ticker
-            val newSelectedPrice = selectedTicker?.let { prices[it] } ?: state.currentPrice
-            val selectedChange = if (state.currentPrice != null && state.currentPrice != 0.0 && newSelectedPrice != null) {
-                ((newSelectedPrice - state.currentPrice) / state.currentPrice) * 100.0
-            } else null
-
-            _uiState.update {
-                it.copy(
-                    lastSelectedInstruments = updatedLastSelected,
-                    currentPrice = newSelectedPrice,
-                    selectedPriceChangePercent = selectedChange
-                )
-            }
-        } catch (_: Exception) { }
-    }
-
-    fun stopPriceUpdates() {
-        priceUpdateJob?.cancel()
-    }
+//    fun stopPriceUpdates() {
+//        priceUpdateJob?.cancel()
+//    }
 
     /**
      * Открывает диалог настроек для указанного инструмента.
@@ -614,6 +626,45 @@ fun openBrokerDialog(ticker: String) {
 //    fun onStopOrderTypeChanged(type: StopOrderType) {
 //        _uiState.update { it.copy(stopOrderType = type) }
 //    }
+
+    fun startPriceUpdates() {
+        stopPriceUpdates()
+        val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
+        val state = _uiState.value
+
+        // Собираем figi для основного и парного инструментов
+        val tickers = mutableListOf<String>()
+        state.selectedInstrument?.let { tickers.add(it.ticker) }
+        state.pairedInstrument?.let { tickers.add(it.ticker) }
+
+        if (tickers.isEmpty()) return
+
+        viewModelScope.launch {
+            val figiList = tickers.mapNotNull { broker.resolveTicker(it) }
+            if (figiList.isEmpty()) return@launch
+
+            priceStreamJob = launch {
+                broker.subscribeLastPrices(figiList)
+                    .catch { e -> Log.e(TAG, "Price stream error", e) }
+                    .collect { (figi, price) ->
+                        _uiState.update { currentState ->
+                            when (figi) {
+                                currentState.selectedInstrument?.ticker?.let { broker.resolveTicker(it) } -> {
+                                    currentState.copy(currentPrice = price)
+                                }
+                                // Для парного инструмента можно обновлять отдельное поле (пока пропускаем)
+                                else -> currentState
+                            }
+                        }
+                    }
+            }
+        }
+    }
+
+    fun stopPriceUpdates() {
+        priceStreamJob?.cancel()
+        priceStreamJob = null
+    }
 }
 
 class OrdersViewModelFactory : ViewModelProvider.Factory {
