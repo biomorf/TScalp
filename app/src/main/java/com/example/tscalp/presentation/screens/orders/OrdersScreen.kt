@@ -284,7 +284,7 @@ fun OrdersScreen(
         }
 
         // Поле цены (только для лимитной и стоп-лимит)
-        if (uiState.orderType is OrderTypeSelection.Limit || uiState.orderType is OrderTypeSelection.StopLimit) {
+        if (uiState.orderType is OrderTypeSelection.Limit) {
             BasicTextField(
                 value = uiState.limitPrice,
                 onValueChange = { viewModel.onLimitPriceChanged(it) },
@@ -325,25 +325,73 @@ fun OrdersScreen(
             uiState.orderType is OrderTypeSelection.TakeProfit ||
             uiState.orderType is OrderTypeSelection.StopLimit
         ) {
-            OutlinedTextField(
+            BasicTextField(
                 value = uiState.stopPrice,
                 onValueChange = { viewModel.onStopPriceChanged(it) },
-                label = { Text("Стоп‑цена") },
-                placeholder = { Text("Например, 100.50") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 36.dp),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        if (uiState.stopPrice.isEmpty()) {
+                            Text(
+                                "Триггер стоп-цена",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
             )
-            // Для StopLimit показываем дополнительное поле цены
+            // Для StopLimit дополнительное поле цены
             if (uiState.orderType is OrderTypeSelection.StopLimit) {
-                OutlinedTextField(
+                BasicTextField(
                     value = uiState.limitPrice,
                     onValueChange = { viewModel.onLimitPriceChanged(it) },
-                    label = { Text("Лимитная цена") },
-                    placeholder = { Text("Например, 101.00") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 36.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    decorationBox = { innerTextField ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            if (uiState.limitPrice.isEmpty()) {
+                                Text(
+                                    "Лимитная цена",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    )
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
                 )
             }
         }

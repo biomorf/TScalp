@@ -363,7 +363,7 @@ class TInvestInvestService : BrokerApi {
         }
         response.stopOrderId
     }
-
+//////////!!!!!!!!!!!!!!!!!11111111111!!!!!!!!!!!!!!
     override suspend fun getStopOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetStopOrdersRequest.newBuilder().setAccountId(accountId).build()
@@ -436,81 +436,87 @@ class TInvestInvestService : BrokerApi {
     }
 
 
-
-    override suspend fun getOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val request = GetOrdersRequest.newBuilder()
-            .setAccountId(accountId)
-            .build()
-        val response = if (ServiceLocator.isSandboxMode()) {
-            currentApi.sandboxServiceSync.getSandboxOrders(request)
-        } else {
-            currentApi.ordersServiceSync.getOrders(request)
-        }
-
-        val activeStatuses = setOf(
-            OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
-            OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL
-        )
-
-        response.ordersList
-            .filter { it.executionReportStatus in activeStatuses }
-            .map { order ->
-                val ticker = resolveTicker(order.figi) ?: order.figi
-
-                val orderType = when (order.orderType) {
-                    OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
-                    OrderType.ORDER_TYPE_MARKET -> "MARKET"
-                    else -> "UNKNOWN"
-                }
-
-                val direction = when (order.directionValue) {
-                    1 -> "BUY"
-                    2 -> "SELL"
-                    else -> "UNKNOWN"
-                }
-                val status = when (order.executionReportStatusValue) {
-                    1 -> "NEW"
-                    2 -> "PARTIALLYFILL"
-                    3 -> "FILL"
-                    4 -> "CANCELLED"
-                    5 -> "REJECTED"
-                    else -> "UNKNOWN"
-                }
-
-                // Строки – через as String
-                val orderIdStr: String = (order.orderId ?: "").toString()
-                val figiStr: String = (order.figi ?: "").toString()
-
-                // Извлечение цены через дескриптор – поле "price" (MoneyValue)
-                val priceField = order.descriptorForType.findFieldByName("price")
-                val priceValue = priceField?.let { order.getField(it) }
-                val priceDouble = when (priceValue) {
-                    is MoneyValue -> priceValue.units + priceValue.nano / 1_000_000_000.0
-                    is Quotation -> priceValue.units + priceValue.nano / 1_000_000_000.0
-                    else -> 0.0
-                }
-
-                // Дата создания через дескриптор – поле "create_date" (Timestamp)
-                val dateField = order.descriptorForType.findFieldByName("create_date")
-                val dateValue = dateField?.let { order.getField(it) }
-                val orderDateLong = (dateValue as? com.google.protobuf.Timestamp)?.seconds
-
-                OrderListItem(
-                    orderId = orderIdStr,
-                    ticker = ticker,
-                    figi = figiStr,
-                    direction = direction,
-                    price = priceDouble,
-                    stopPrice = null,
-                    quantity = order.lotsRequested,
-                    type = orderType,
-                    status = status,
-                    orderDate = orderDateLong,
-                    isStopOrder = false
-                )
-            }
+/////////////!!!!!!!1111111111111!1!!!!!!!!!!
+override suspend fun getOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
+    val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+    val request = GetOrdersRequest.newBuilder()
+        .setAccountId(accountId)
+        .build()
+    val response = if (ServiceLocator.isSandboxMode()) {
+        currentApi.sandboxServiceSync.getSandboxOrders(request)
+    } else {
+        currentApi.ordersServiceSync.getOrders(request)
     }
+
+    val activeStatuses = setOf(
+        OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
+        OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL
+    )
+
+    response.ordersList
+        .filter { it.executionReportStatus in activeStatuses }
+        .map { order ->
+            val ticker = resolveTicker(order.figi) ?: order.figi
+
+            val orderType = when (order.orderType) {
+                OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
+                OrderType.ORDER_TYPE_MARKET -> "MARKET"
+                else -> "UNKNOWN"
+            }
+
+            val direction = when (order.directionValue) {
+                1 -> "BUY"
+                2 -> "SELL"
+                else -> "UNKNOWN"
+            }
+
+            // --- Извлечение статуса через дескриптор ---
+            val statusField = order.descriptorForType.findFieldByName("execution_report_status")
+            val statusStr: String = if (statusField != null) {
+                val rawStatus = order.getField(statusField)
+                if (rawStatus is com.google.protobuf.Descriptors.EnumValueDescriptor) {
+                    rawStatus.name.removePrefix("EXECUTION_REPORT_STATUS_")
+                } else {
+                    "UNKNOWN"
+                }
+            } else {
+                "UNKNOWN"
+            }
+            Log.d(TAG, "Order ${order.orderId} rawStatusValue=${statusField?.let{order.getField(it)}}, mapped=$statusStr")
+
+            // Строки
+            val orderIdStr: String = (order.orderId ?: "").toString()
+            val figiStr: String = (order.figi ?: "").toString()
+
+            // Цена через дескриптор
+            val priceField = order.descriptorForType.findFieldByName("price")
+            val priceValue = priceField?.let { order.getField(it) }
+            val priceDouble = when (priceValue) {
+                is MoneyValue -> priceValue.units + priceValue.nano / 1_000_000_000.0
+                is Quotation -> priceValue.units + priceValue.nano / 1_000_000_000.0
+                else -> 0.0
+            }
+
+            // Дата через дескриптор
+            val dateField = order.descriptorForType.findFieldByName("create_date")
+            val dateValue = dateField?.let { order.getField(it) }
+            val orderDateLong = (dateValue as? com.google.protobuf.Timestamp)?.seconds
+
+            OrderListItem(
+                orderId = orderIdStr,
+                ticker = ticker,
+                figi = figiStr,
+                direction = direction,
+                price = priceDouble,
+                stopPrice = null,
+                quantity = order.lotsRequested,
+                type = orderType,
+                status = statusStr,
+                orderDate = orderDateLong,
+                isStopOrder = false
+            )
+        }
+}
 
     override suspend fun cancelOrder(accountId: String, orderId: String) {
         withContext(Dispatchers.IO) {
