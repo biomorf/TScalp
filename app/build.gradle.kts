@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    kotlin("plugin.serialization") version "2.0.21"  //for navigation using sealed class
+    kotlin("plugin.serialization") version "2.3.21"  //for navigation using sealed class
 }
 
 android {
@@ -30,9 +30,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    // блок kotlin переносим наружу, здесь его быть не должно!
     buildFeatures {
         compose = true
         buildConfig = true
@@ -48,8 +46,14 @@ android {
             )
         }
     }
-}
+} // ←
 
+// Теперь блок kotlin на верхнем уровне (вне android)
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
 // Блок для опциональной конфигурации компилятора Compose
 composeCompiler {
     enableStrongSkippingMode = true
@@ -66,25 +70,27 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.activity:activity-compose:1.9.0")
+    //implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("androidx.activity:activity-compose:1.12.4")
     //implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     //implementation("androidx.navigation:navigation-compose:2.7.7")
-    implementation("androidx.navigation:navigation-compose:2.8.0")    //for navigation using sealed classes
+    implementation("androidx.navigation:navigation-compose:2.9.8")    //for navigation using sealed classes
     //implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")    //for navigation using sealed classes
 
 
     // Core
     //implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.core:core:1.18.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
 
     // Coroutines
     //implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     
     // Security for token storage
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    //implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
     
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -109,18 +115,25 @@ dependencies {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")
     }
 
-    implementation("io.grpc:grpc-okhttp:1.68.1")
-    implementation("io.grpc:grpc-stub:1.68.1")
-    implementation("io.grpc:grpc-protobuf-lite:1.68.1")
-    implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
+    //implementation("io.grpc:grpc-okhttp:1.68.1")
+    //implementation("io.grpc:grpc-stub:1.68.1")
+    //implementation("io.grpc:grpc-protobuf-lite:1.68.1")
+    //implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
+    implementation("io.grpc:grpc-okhttp:1.80.0")
+    implementation("io.grpc:grpc-stub:1.80.0")
+    implementation("io.grpc:grpc-protobuf-lite:1.80.0")
+    implementation("io.grpc:grpc-netty:1.80.0") // явно добавим Netty без shaded
 
     // Обязательно для SSL на Android
     implementation("org.conscrypt:conscrypt-android:2.5.3")
 
     // Обязательная зависимость для ManagedChannel
-    implementation("io.grpc:grpc-stub:1.57.2")
+    //implementation("io.grpc:grpc-stub:1.57.2")
+    implementation("io.grpc:grpc-stub:1.80.0")
 
     // BCS Broker
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.code.gson:gson:2.10.1")
+    //implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    //implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.google.code.gson:gson:2.13.2")
 }
