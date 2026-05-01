@@ -61,7 +61,8 @@ import ru.tinkoff.piapi.contract.v1.MarketDataResponse
 import ru.tinkoff.piapi.contract.v1.SubscribeLastPriceRequest
 import ru.tinkoff.piapi.contract.v1.SubscriptionAction
 import ru.tinkoff.piapi.contract.v1.LastPriceInstrument
-
+import io.grpc.stub.StreamObserver
+import ru.tinkoff.piapi.contract.v1.MarketDataStreamServiceGrpc
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
  * Хранит ticker→figi кэш, самостоятельно управляет своим экземпляром InvestApi.
@@ -78,6 +79,8 @@ class TInvestInvestService : BrokerApi {
     // Собственный экземпляр API, создаётся при инициализации
     @Volatile
     private var api: InvestApi? = null
+    @Volatile
+    private lateinit var grpcChannel: io.grpc.ManagedChannel
 
     override val isInitialized: Boolean
         get() = api != null
@@ -90,7 +93,8 @@ class TInvestInvestService : BrokerApi {
         } else {
             "invest-public-api.tbank.ru:443"
         }
-        api = InvestApi.createApi(InvestApi.defaultChannel(token, target))
+        grpcChannel = InvestApi.defaultChannel(token, target)   // <-- сохраняем
+        api = InvestApi.createApi(grpcChannel)                  // <-- используем
         tickerToFigiCache.clear()
     }
 
@@ -544,7 +548,10 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
     }
 
     fun subscribeLastPrices(figis: List<String>): Flow<Pair<String, Double>> = callbackFlow {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        if (!::grpcChannel.isInitialized) {
+            throw IllegalStateException("gRPC-канал не инициализирован")
+        }
+        val stub = MarketDataStreamServiceGrpc.newStub(grpcChannel)  // <-- работает
 
         val instruments = figis.map { figi ->
             LastPriceInstrument.newBuilder().setFigi(figi).build()
@@ -559,18 +566,36 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             .setSubscribeLastPriceRequest(subscribe)
             .build()
 
-        val job = currentApi.marketDataStreamServiceAsync.marketDataStream(
-            flowOf(marketRequest),
-            { response: MarketDataResponse ->
-                if (response.hasLastPrice()) {
-                    val lp = response.lastPrice
+        val streamObserver = object : StreamObserver<MarketDataResponse> {
+            override fun onNext(value: MarketDataResponse) {
+                Log.d(TAG, "onNext: hasLastPrice=${value.hasLastPrice()}, hasPing=${value.hasPing()}, " +
+                        "hasSubscribeLastPriceResponse=${value.hasSubscribeLastPriceResponse()}, " +
+                        "fields=${value.allFields.keys}")
+                if (value.hasLastPrice()) {
+                    val lp = value.lastPrice
                     val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
                     if (price != null) trySend(lp.figi to price)
                 }
             }
-        )
 
-        awaitClose { job.cancel() }
+            override fun onError(t: Throwable) {
+                Log.e(TAG, "stream error", t)
+                close(t)
+            }
+
+            override fun onCompleted() {
+                Log.d(TAG, "stream completed")
+                close()
+            }
+        }
+
+        val requestObserver = stub.marketDataStream(streamObserver)
+        requestObserver.onNext(marketRequest)
+
+        awaitClose {
+            Log.d(TAG, "unsubscribing")
+            requestObserver.onCompleted()
+        }
     }
 }
 

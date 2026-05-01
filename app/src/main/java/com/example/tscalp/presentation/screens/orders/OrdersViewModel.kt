@@ -643,18 +643,17 @@ fun openBrokerDialog(ticker: String) {
             val figiList = tickers.mapNotNull { broker.resolveTicker(it) }
             if (figiList.isEmpty()) return@launch
 
+            Log.d(TAG, "startPriceUpdates: subscribing to figiList=$figiList")
+
             priceStreamJob = launch {
                 broker.subscribeLastPrices(figiList)
                     .catch { e -> Log.e(TAG, "Price stream error", e) }
                     .collect { (figi, price) ->
-                        _uiState.update { currentState ->
-                            when (figi) {
-                                currentState.selectedInstrument?.ticker?.let { broker.resolveTicker(it) } -> {
-                                    currentState.copy(currentPrice = price)
-                                }
-                                // Для парного инструмента можно обновлять отдельное поле (пока пропускаем)
-                                else -> currentState
-                            }
+                        Log.d(TAG, "stream received: figi=$figi, price=$price")
+                        val selectedFigi = _uiState.value.selectedInstrument?.ticker?.let { broker.resolveTicker(it) }
+                        Log.d(TAG, "selectedFigi=$selectedFigi, updating price=$price if matches")
+                        if (figi == selectedFigi) {
+                            _uiState.update { it.copy(currentPrice = price) }
                         }
                     }
             }
