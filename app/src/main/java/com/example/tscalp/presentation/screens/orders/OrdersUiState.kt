@@ -42,6 +42,7 @@ data class OrdersUiState(
     val selectedInstrument: InstrumentUi? = null,
     val selectedTicker: String? = selectedInstrument?.ticker,
     val currentPrice: Double? = null,
+    val pairCurrentPrice: Double? = null,
     val isPriceLoading: Boolean = false,
     val portfolioPositions: List<PortfolioPosition> = emptyList(),
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),

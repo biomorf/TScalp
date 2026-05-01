@@ -427,7 +427,7 @@ fun OrdersScreen(
 
                 uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                     val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                    val pairPrice = uiState.currentPrice
+                    val pairPrice = uiState.pairCurrentPrice  // было uiState.currentPrice
                     val position = PortfolioPosition(
                         name = instrument.name,
                         ticker = instrument.ticker,

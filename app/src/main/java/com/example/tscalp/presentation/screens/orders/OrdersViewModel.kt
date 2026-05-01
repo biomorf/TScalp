@@ -568,7 +568,20 @@ fun openBrokerDialog(ticker: String) {
     }
 
     fun setPairTradingEnabled(enabled: Boolean) {
-        _uiState.update { it.copy(pairTradingEnabled = enabled) }
+        _uiState.update {
+            if (enabled) {
+                it.copy(pairTradingEnabled = true)
+            } else {
+                it.copy(
+                    pairTradingEnabled = false,
+                    pairCurrentPrice = null,         // сбрасываем цену парного инструмента
+                    pairedInstrument = null,         // можно заодно сбросить и выбранный парный инструмент
+                    pairedMultiplier = "10",         // и множитель вернуть в умолчание (опционально)
+                    pairSearchQuery = "",            // очищаем поисковую строку
+                    pairSearchResults = emptyList()  // и результаты поиска
+                )
+            }
+        }
     }
 
     fun onPairSearchQueryChanged(query: String) {
@@ -594,6 +607,7 @@ fun openBrokerDialog(ticker: String) {
 
     fun onPairedInstrumentSelected(instrument: InstrumentUi) {
         _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
+        startPriceUpdates()   // перезапускаем стрим для обновления цен обоих инструментов
     }
 
     fun clearPairSearch() {
@@ -632,28 +646,33 @@ fun openBrokerDialog(ticker: String) {
         val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
         val state = _uiState.value
 
-        // Собираем figi для основного и парного инструментов
-        val tickers = mutableListOf<String>()
-        state.selectedInstrument?.let { tickers.add(it.ticker) }
-        state.pairedInstrument?.let { tickers.add(it.ticker) }
-
-        if (tickers.isEmpty()) return
-
         viewModelScope.launch {
-            val figiList = tickers.mapNotNull { broker.resolveTicker(it) }
-            if (figiList.isEmpty()) return@launch
+            val tickerToFigi = mutableMapOf<String, String>()
+            state.selectedInstrument?.let { instrument ->
+                val figi = broker.resolveTicker(instrument.ticker)
+                if (figi != null) tickerToFigi[instrument.ticker] = figi
+            }
+            state.pairedInstrument?.let { instrument ->
+                val figi = broker.resolveTicker(instrument.ticker)
+                if (figi != null) tickerToFigi[instrument.ticker] = figi
+            }
 
-            Log.d(TAG, "startPriceUpdates: subscribing to figiList=$figiList")
+            if (tickerToFigi.isEmpty()) return@launch
+
+            val figiList = tickerToFigi.values.toList()
+            val figiToTicker = tickerToFigi.entries.associate { (ticker, figi) -> figi to ticker }
 
             priceStreamJob = launch {
                 broker.subscribeLastPrices(figiList)
                     .catch { e -> Log.e(TAG, "Price stream error", e) }
                     .collect { (figi, price) ->
-                        Log.d(TAG, "stream received: figi=$figi, price=$price")
-                        val selectedFigi = _uiState.value.selectedInstrument?.ticker?.let { broker.resolveTicker(it) }
-                        Log.d(TAG, "selectedFigi=$selectedFigi, updating price=$price if matches")
-                        if (figi == selectedFigi) {
-                            _uiState.update { it.copy(currentPrice = price) }
+                        val ticker = figiToTicker[figi] ?: return@collect
+                        _uiState.update {
+                            when (ticker) {
+                                state.selectedInstrument?.ticker -> it.copy(currentPrice = price)
+                                state.pairedInstrument?.ticker -> it.copy(pairCurrentPrice = price)
+                                else -> it
+                            }
                         }
                     }
             }
