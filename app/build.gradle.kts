@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.tscalp"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.tscalp"
@@ -75,7 +75,8 @@ dependencies {
 
 
     // Core
-    implementation("androidx.core:core-ktx:1.13.1")
+    //implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.core:core:1.18.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
 
     // Coroutines
