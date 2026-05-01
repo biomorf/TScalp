@@ -63,6 +63,10 @@ import ru.tinkoff.piapi.contract.v1.SubscriptionAction
 import ru.tinkoff.piapi.contract.v1.LastPriceInstrument
 import io.grpc.stub.StreamObserver
 import ru.tinkoff.piapi.contract.v1.MarketDataStreamServiceGrpc
+import ru.tinkoff.piapi.contract.v1.MarketDataServerSideStreamRequest
+
+
+
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
  * Хранит ticker→figi кэш, самостоятельно управляет своим экземпляром InvestApi.
@@ -551,7 +555,7 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
         if (!::grpcChannel.isInitialized) {
             throw IllegalStateException("gRPC-канал не инициализирован")
         }
-        val stub = MarketDataStreamServiceGrpc.newStub(grpcChannel)  // <-- работает
+        val stub = MarketDataStreamServiceGrpc.newStub(grpcChannel)
 
         val instruments = figis.map { figi ->
             LastPriceInstrument.newBuilder().setFigi(figi).build()
@@ -562,17 +566,21 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             .addAllInstruments(instruments)
             .build()
 
-        val marketRequest = MarketDataRequest.newBuilder()
+        val serverSideRequest = MarketDataServerSideStreamRequest.newBuilder()
             .setSubscribeLastPriceRequest(subscribe)
             .build()
 
-        val streamObserver = object : StreamObserver<MarketDataResponse> {
+        Log.d(TAG, "subscribeLastPrices via server-side StreamObserver for $figis")
+
+        val responseObserver = object : StreamObserver<MarketDataResponse> {
             override fun onNext(value: MarketDataResponse) {
-                Log.d(TAG, "onNext: hasLastPrice=${value.hasLastPrice()}, hasPing=${value.hasPing()}, " +
+                Log.d(TAG, "stream onNext: hasLastPrice=${value.hasLastPrice()}, " +
+                        "hasPing=${value.hasPing()}, " +
                         "hasSubscribeLastPriceResponse=${value.hasSubscribeLastPriceResponse()}, " +
                         "fields=${value.allFields.keys}")
                 if (value.hasLastPrice()) {
                     val lp = value.lastPrice
+                    Log.d(TAG, "✅ lastPrice: figi=${lp.figi}, price=${lp.price}")
                     val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
                     if (price != null) trySend(lp.figi to price)
                 }
@@ -589,12 +597,12 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             }
         }
 
-        val requestObserver = stub.marketDataStream(streamObserver)
-        requestObserver.onNext(marketRequest)
+        // Правильный вызов: передаём запрос и observer ответа
+        stub.marketDataServerSideStream(serverSideRequest, responseObserver)
 
         awaitClose {
-            Log.d(TAG, "unsubscribing")
-            requestObserver.onCompleted()
+            Log.d(TAG, "closing server-side stream")
+            // gRPC сам завершит стрим при отмене
         }
     }
 }
