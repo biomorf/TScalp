@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -100,18 +101,25 @@ fun OrdersScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Заголовок с кнопкой "Список заявок"
-            TopAppBar(
-                title = { Text("Выставление заявки") },
-                actions = {
-                    IconButton(onClick = { showStopOrdersDialog = true }) {
-                        Icon(Icons.Default.List, contentDescription = "Список заявок")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            // Заголовок с кнопкой "Список заявок"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)                     // фиксированная компактная высота как у TopAppBar
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 12.dp),      // стандартные боковые отступы TopAppBar
+                verticalAlignment = Alignment.CenterVertically // ← гарантирует вертикальное центрирование
+            ) {
+                Text(
+                    text = "Выставление заявки",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f)     // занимает всё место слева
                 )
-            )
+                IconButton(onClick = { showStopOrdersDialog = true }) {
+                    Icon(Icons.Default.List, contentDescription = "Список заявок")
+                }
+            }
 
             if (!uiState.isApiInitialized) {
                 ApiNotInitializedCard()
