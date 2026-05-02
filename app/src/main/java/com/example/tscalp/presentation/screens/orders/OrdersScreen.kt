@@ -16,6 +16,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarVisuals
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,12 +37,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.ui.components.StopOrdersDialog
 import com.example.tscalp.util.formatCurrency
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +55,8 @@ fun OrdersScreen(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
+
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var showStopOrdersDialog by remember { mutableStateOf(false) }
     val stopOrdersViewModel = remember { StopOrdersViewModel() }
@@ -521,6 +531,34 @@ fun OrdersScreen(
                 }
             }
         }   // конец фиксированной секции
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(8.dp)
+        ) { data ->
+            Snackbar(
+                containerColor = if (uiState.isError)
+                    MaterialTheme.colorScheme.errorContainer
+                else
+                    MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = if (uiState.isError)
+                    MaterialTheme.colorScheme.onErrorContainer
+                else
+                    MaterialTheme.colorScheme.onTertiaryContainer,
+                action = {
+                    val label = data.visuals.actionLabel
+                    if (label != null) {
+                        TextButton(onClick = { data.dismiss() }) {
+                            Text(label)
+                        }
+                    }
+                }
+            ) {
+                Text(data.visuals.message)
+            }
+        }
     }   // конец корневого Box
 
     // ==================== ДИАЛОГИ И СТАТУСНЫЕ СООБЩЕНИЯ ====================
@@ -560,12 +598,24 @@ fun OrdersScreen(
         )
     }
 
-    uiState.statusMessage?.let { message ->
-        StatusCard(
-            message = message,
-            isError = uiState.isError,
-            onDismiss = { viewModel.clearStatus() }
-        )
+    // ✅ Снекбар вместо StatusCard
+    LaunchedEffect(uiState.statusMessage) {
+        uiState.statusMessage?.let { message ->
+            val visuals = object : SnackbarVisuals {
+                override val message: String = message
+                override val actionLabel: String? = if (uiState.isError) "OK" else null
+                override val withDismissAction: Boolean = false
+                override val duration: SnackbarDuration =
+                    if (uiState.isError) SnackbarDuration.Indefinite
+                    else SnackbarDuration.Short
+            }
+            // При появлении нового сообщения сначала скрываем предыдущее (если есть)
+            snackbarHostState.currentSnackbarData?.dismiss()
+            // Показываем снекбар и ждём его закрытия
+            snackbarHostState.showSnackbar(visuals)
+            // После закрытия (для ошибок — после нажатия OK) очищаем статус
+            viewModel.clearStatus()
+        }
     }
 
     if (uiState.showBrokerDialog) {
