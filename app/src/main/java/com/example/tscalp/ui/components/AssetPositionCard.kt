@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -12,6 +11,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
@@ -19,16 +19,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.util.formatCurrency
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
-import com.example.tscalp.util.formatCurrency
-import androidx.compose.ui.draw.scale
 
 @Composable
 fun AssetPositionCard(
@@ -39,23 +40,88 @@ fun AssetPositionCard(
     onSettings: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
-    resetSwipe: Boolean = false,          // <-- новый параметр
+    resetSwipe: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // Если свайп не нужен, просто показываем карточку
+    // --- Цветовая индикация изменения цены (состояния) ---
+    var previousPrice by remember { mutableStateOf(position.currentPrice) }
+    var priceDelta by remember { mutableStateOf(0.0) }
+    var showDeltaPopup by remember { mutableStateOf(false) }
+
+    val isPriceUp = position.currentPrice > previousPrice
+    val isPriceDown = position.currentPrice < previousPrice
+
+    // Фон карточки подсвечивается при изменении
+    val backgroundColor by animateColorAsState(
+        targetValue = when {
+            isPriceUp && previousPrice != 0.0 -> Color(0x2200C853)
+            isPriceDown && previousPrice != 0.0 -> Color(0x22FF1744)
+            else -> Color.Transparent
+        },
+        animationSpec = tween(durationMillis = 300)
+    )
+
+    // Единый LaunchedEffect: и запоминание цены, и показ popup
+    LaunchedEffect(position.currentPrice) {
+        if (previousPrice != 0.0 && position.currentPrice != previousPrice) {
+            priceDelta = position.currentPrice - previousPrice
+            showDeltaPopup = true
+            delay(1500)
+            showDeltaPopup = false
+        }
+        previousPrice = position.currentPrice
+    }
+
+    // Содержимое карточки (общее для всех случаев)
+    val cardContent = @Composable {
+        Box(
+            modifier = Modifier
+                .background(backgroundColor, RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(8.dp))
+        ) {
+            PortfolioCardContent(
+                position = position,
+                instrumentType = instrumentType,
+                priceChangePercent = priceChangePercent,
+                onClick = onClick,
+                isSelected = isSelected
+            )
+
+            // Popup с абсолютным изменением (показывается поверх контента)
+            if (showDeltaPopup) {
+                val deltaText = if (priceDelta >= 0)
+                    "+${"%.2f".format(priceDelta)}"
+                else
+                    "${"%.2f".format(priceDelta)}"
+                val deltaColor = if (priceDelta >= 0) Color(0xFF00C853) else Color(0xFFFF1744)
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-8).dp, y = 8.dp)
+                        .background(
+                            color = deltaColor.copy(alpha = 0.9f),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = deltaText,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+
+    // Если свайп не нужен — просто показываем карточку с индикацией
     if (onDelete == null && onSettings == null) {
-        PortfolioCardContent(
-            position = position,
-            instrumentType = instrumentType,
-            priceChangePercent = priceChangePercent,
-            onClick = onClick,
-            isSelected = isSelected,
-            modifier = modifier
-        )
+        cardContent()
         return
     }
 
-    // Свайп с кнопками
+    // --- Карточка со свайпом ---
     var offsetX by remember { mutableFloatStateOf(0f) }
     val buttonWidth = 72.dp
     val threshold = buttonWidth * 2
@@ -64,9 +130,8 @@ fun AssetPositionCard(
     // Плавный возврат при resetSwipe = true
     LaunchedEffect(resetSwipe) {
         if (resetSwipe) {
-            // Анимированно возвращаем offsetX к 0
             val target = 0f
-            animate(
+            androidx.compose.animation.core.animate(
                 initialValue = offsetX,
                 targetValue = target,
                 animationSpec = tween(300)
@@ -75,7 +140,7 @@ fun AssetPositionCard(
     }
 
     Box(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
-        // Кнопки подложки (поменяли порядок: сначала Удалить, потом Настройки)
+        // Кнопки подложки
         Row(
             modifier = Modifier
                 .matchParentSize()
@@ -83,7 +148,6 @@ fun AssetPositionCard(
                 .width(buttonWidth * 2),
             horizontalArrangement = Arrangement.End
         ) {
-            // Сначала кнопка Удалить (красная) – появляется первой при свайпе
             if (onDelete != null) {
                 IconButton(
                     onClick = onDelete,
@@ -94,7 +158,6 @@ fun AssetPositionCard(
                     Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
                 }
             }
-            // Затем кнопка Настройки (серая) – появляется при более сильном свайпе
             if (onSettings != null) {
                 IconButton(
                     onClick = onSettings,
@@ -107,24 +170,20 @@ fun AssetPositionCard(
             }
         }
 
-        // Перетаскиваемая карточка
+        // Перетаскиваемая карточка (внутри неё анимации и popup)
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .draggable(
                     state = rememberDraggableState { delta ->
-                        offsetX = (offsetX + delta).coerceIn(-with(density) { threshold.toPx() }, 0f)
+                        offsetX = (offsetX + delta).coerceIn(
+                            -with(density) { threshold.toPx() }, 0f
+                        )
                     },
                     orientation = Orientation.Horizontal
                 )
         ) {
-            PortfolioCardContent(
-                position = position,
-                instrumentType = instrumentType,
-                priceChangePercent = priceChangePercent,
-                onClick = onClick,
-                isSelected = isSelected
-            )
+            cardContent()
         }
     }
 }
@@ -158,7 +217,6 @@ private fun PortfolioCardContent(
         animationSpec = spring()
     )
 
-    // --- Цвет полосы в зависимости от типа инструмента ---
     val typeColor = when (instrumentType) {
         "share" -> Color(0xFF1565C0)
         "bond" -> Color(0xFFE65100)
@@ -180,7 +238,6 @@ private fun PortfolioCardContent(
         colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
         Row(modifier = Modifier.height(IntrinsicSize.Max).padding(start = 4.dp)) {
-            // Цветовая полоса слева
             Box(
                 modifier = Modifier
                     .width(4.dp)
@@ -189,7 +246,6 @@ private fun PortfolioCardContent(
             )
 
             Column(modifier = Modifier.padding(12.dp)) {
-                // Верхний ряд: тикер, название, текущая цена
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -226,7 +282,6 @@ private fun PortfolioCardContent(
                     }
                 }
 
-                // Блок с количеством и общей стоимостью (если позиция есть)
                 if (position.quantity != 0L) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
@@ -247,7 +302,6 @@ private fun PortfolioCardContent(
                     }
                 }
 
-                // Прибыль/убыток (P&L)
                 if (position.quantity != 0L && position.profit != 0.0) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
