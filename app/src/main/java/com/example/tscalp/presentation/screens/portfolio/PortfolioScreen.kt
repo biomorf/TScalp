@@ -7,6 +7,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarVisuals
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,6 +37,7 @@ fun PortfolioScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Pull‑to‑Refresh состояние
     val pullToRefreshState = rememberPullToRefreshState()
@@ -120,15 +126,20 @@ fun PortfolioScreen(
                 }
 
                 // Сообщение об ошибке
-                uiState.statusMessage?.let { message ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (uiState.isError) MaterialTheme.colorScheme.errorContainer
-                            else MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                    ) {
-                        Text(message, modifier = Modifier.padding(16.dp))
+                LaunchedEffect(uiState.statusMessage) {
+                    uiState.statusMessage?.let { message ->
+                        val visuals = object : SnackbarVisuals {
+                            override val message: String = message
+                            override val actionLabel: String? = if (uiState.isError) "OK" else null
+                            override val withDismissAction: Boolean = false
+                            override val duration: SnackbarDuration =
+                                if (uiState.isError) SnackbarDuration.Indefinite
+                                else SnackbarDuration.Short
+                        }
+                        // Скрыть предыдущий снекбар, если висит
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        snackbarHostState.showSnackbar(visuals)
+                        viewModel.clearStatus()
                     }
                 }
 
@@ -157,6 +168,33 @@ fun PortfolioScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(8.dp)
+            ) { data ->
+                val label = data.visuals.actionLabel
+                Snackbar(
+                    containerColor = if (uiState.isError)
+                        MaterialTheme.colorScheme.errorContainer
+                    else
+                        MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = if (uiState.isError)
+                        MaterialTheme.colorScheme.onErrorContainer
+                    else
+                        MaterialTheme.colorScheme.onTertiaryContainer,
+                    action = {
+                        if (label != null) {
+                            TextButton(onClick = { data.dismiss() }) {
+                                Text(label)
+                            }
+                        }
+                    }
+                ) {
+                    Text(data.visuals.message)
+                }
             }
         }
     }
