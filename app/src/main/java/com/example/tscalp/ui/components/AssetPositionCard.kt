@@ -240,35 +240,38 @@ private fun PortfolioCardContent(
                                 color = priceColor,
                                 modifier = Modifier.scale(textScale)
                             )
-                            if (priceChangePercent != null) {
-                                Text(
-                                    "${if (priceChangePercent >= 0) "+" else ""}${"%.2f".format(priceChangePercent)}%",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = priceColor
-                                )
-                            }
                         }
                     } else {
                         Text("—", fontWeight = FontWeight.Bold)
                     }
                 }
 
-                if (position.quantity != 0L) {
+                if (position.quantity != 0L || priceChangePercent != null) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
                         color = MaterialTheme.colorScheme.outline
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Количество", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("${position.quantity} шт.", style = MaterialTheme.typography.bodyMedium)
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Строка: количество · стоимость
+                        if (position.quantity != 0L) {
+                            Text(
+                                text = "${position.quantity} шт. · ${formatCurrency(position.totalValue)}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Стоимость", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatCurrency(position.totalValue), style = MaterialTheme.typography.bodyMedium)
+                        // Spacer между количеством и изменением
+                        if (position.quantity != 0L && priceChangePercent != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                        // Строка с изменением цены (абсолютное + процент)
+                        if (priceChangePercent != null) {
+                            val changeAbsolute = (priceChangePercent / 100.0) * position.currentPrice
+                            val sign = if (priceChangePercent >= 0) "+" else ""
+                            Text(
+                                text = "${sign}${formatCurrency(changeAbsolute)} (${sign}${"%.2f".format(priceChangePercent)}%)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (priceChangePercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                            )
                         }
                     }
                 }

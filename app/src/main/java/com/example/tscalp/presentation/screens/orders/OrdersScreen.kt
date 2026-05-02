@@ -105,16 +105,16 @@ fun OrdersScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)                     // фиксированная компактная высота как у TopAppBar
+                    .height(56.dp)
                     .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 12.dp),      // стандартные боковые отступы TopAppBar
-                verticalAlignment = Alignment.CenterVertically // ← гарантирует вертикальное центрирование
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Выставление заявки",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.weight(1f)     // занимает всё место слева
+                    modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { showStopOrdersDialog = true }) {
                     Icon(Icons.Default.List, contentDescription = "Список заявок")
