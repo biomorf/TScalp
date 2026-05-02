@@ -46,7 +46,7 @@ fun AssetPositionCard(
     // --- Цветовая индикация изменения цены (состояния) ---
     var previousPrice by remember { mutableStateOf(position.currentPrice) }
     var priceDelta by remember { mutableStateOf(0.0) }
-    var showDeltaPopup by remember { mutableStateOf(false) }
+
 
     val isPriceUp = position.currentPrice > previousPrice
     val isPriceDown = position.currentPrice < previousPrice
@@ -65,9 +65,6 @@ fun AssetPositionCard(
     LaunchedEffect(position.currentPrice) {
         if (previousPrice != 0.0 && position.currentPrice != previousPrice) {
             priceDelta = position.currentPrice - previousPrice
-            showDeltaPopup = true
-            delay(1500)
-            showDeltaPopup = false
         }
         previousPrice = position.currentPrice
     }
@@ -86,32 +83,6 @@ fun AssetPositionCard(
                 onClick = onClick,
                 isSelected = isSelected
             )
-
-            // Popup с абсолютным изменением (показывается поверх контента)
-            if (showDeltaPopup) {
-                val deltaText = if (priceDelta >= 0)
-                    "+${"%.2f".format(priceDelta)}"
-                else
-                    "${"%.2f".format(priceDelta)}"
-                val deltaColor = if (priceDelta >= 0) Color(0xFF00C853) else Color(0xFFFF1744)
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = (-8).dp, y = 8.dp)
-                        .background(
-                            color = deltaColor.copy(alpha = 0.9f),
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = deltaText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
-                }
-            }
         }
     }
 
