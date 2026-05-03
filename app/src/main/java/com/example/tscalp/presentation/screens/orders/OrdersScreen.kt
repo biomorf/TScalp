@@ -139,6 +139,8 @@ fun OrdersScreen(
                 onClear = { viewModel.clearSearch() },
                 recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                 modifier = Modifier.fillMaxWidth()
+                    //.height(32.dp)
+
             )
 
             // ========== Основная карточка ==========
@@ -708,29 +710,40 @@ fun InstrumentSearchField(
                     onQueryChanged(it)
                     expanded = it.isNotEmpty() || recentInstruments.isNotEmpty()
                 },
-                label = null,
-                placeholder = { Text("Введите тикер или название", fontSize = 14.sp) },
+                placeholder = {
+                    Text(
+                        "Введите тикер или название",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                    )
+                },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 32.dp)
-                    .menuAnchor(),
+                    .height(32.dp)                // фиксированная компактная высота
+                    .menuAnchor()
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent
+                ),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isSearching) CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         else if (query.isNotEmpty()) IconButton(
-                            onClick = {
-                                onClear()
-                                expanded = false
-                            },
+                            onClick = { onClear(); expanded = false },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(Icons.Default.Clear, "Очистить", modifier = Modifier.size(18.dp))
                         }
                     }
-                },
-                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
+                }
             )
 
             ExposedDropdownMenu(
