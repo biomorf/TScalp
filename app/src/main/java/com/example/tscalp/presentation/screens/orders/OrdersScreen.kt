@@ -5,25 +5,41 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarVisuals
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.*
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,14 +54,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.ui.components.StopOrdersDialog
 import com.example.tscalp.util.formatCurrency
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,8 +70,6 @@ fun OrdersScreen(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
-
-    val snackbarHostState = remember { SnackbarHostState() }
 
     var showStopOrdersDialog by remember { mutableStateOf(false) }
     val stopOrdersViewModel = remember { StopOrdersViewModel() }
@@ -75,9 +87,19 @@ fun OrdersScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(uiState.statusMessage) {
-        if (uiState.statusMessage != null && !uiState.isError) {
-            kotlinx.coroutines.delay(5000)
+        uiState.statusMessage?.let { message ->
+            val visuals = object : SnackbarVisuals {
+                override val message: String = message
+                override val actionLabel: String? = if (uiState.isError) "OK" else null
+                override val withDismissAction: Boolean = false
+                override val duration: SnackbarDuration =
+                    if (uiState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
+            }
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(visuals)
             viewModel.clearStatus()
         }
     }
@@ -86,13 +108,11 @@ fun OrdersScreen(
         viewModel.checkApiInitialization()
     }
 
-    // ========== КОРНЕВОЙ BOX ==========
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // ========== СКРОЛЛИРУЕМАЯ ОСНОВНАЯ ЧАСТЬ ==========
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -100,7 +120,6 @@ fun OrdersScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Заголовок с кнопкой "Список заявок"
             // Заголовок с кнопкой "Список заявок"
             Row(
                 modifier = Modifier
@@ -123,7 +142,7 @@ fun OrdersScreen(
 
             if (!uiState.isApiInitialized) {
                 ApiNotInitializedCard()
-                return@Box   // выходим из всей функции
+                return@Box
             }
 
             // ========== Основной поиск ==========
@@ -139,8 +158,6 @@ fun OrdersScreen(
                 onClear = { viewModel.clearSearch() },
                 recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                 modifier = Modifier.fillMaxWidth()
-                    //.height(32.dp)
-
             )
 
             // ========== Основная карточка ==========
@@ -188,7 +205,7 @@ fun OrdersScreen(
                     Icon(Icons.Default.Remove, "Уменьшить", modifier = Modifier.size(18.dp))
                 }
 
-                BasicTextField(
+                androidx.compose.foundation.text.BasicTextField(
                     value = uiState.quantity,
                     onValueChange = { viewModel.onQuantityChanged(it) },
                     modifier = Modifier.weight(1f),
@@ -248,7 +265,7 @@ fun OrdersScreen(
                 }
             }
 
-            // ========== Выбор типа заявки (чипсы) ==========
+            // ========== Выбор типа заявки ==========
             Column(
                 modifier = Modifier.wrapContentWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -284,7 +301,7 @@ fun OrdersScreen(
                 }
             }
 
-            // ========== Ценовые поля (статическая высота) ==========
+            // ========== Ценовые поля ==========
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -299,7 +316,7 @@ fun OrdersScreen(
                         enter = fadeIn(),
                         exit = fadeOut()
                     ) {
-                        BasicTextField(
+                        androidx.compose.foundation.text.BasicTextField(
                             value = uiState.limitPrice,
                             onValueChange = { viewModel.onLimitPriceChanged(it) },
                             modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp),
@@ -336,7 +353,7 @@ fun OrdersScreen(
                         exit = fadeOut()
                     ) {
                         Column {
-                            BasicTextField(
+                            androidx.compose.foundation.text.BasicTextField(
                                 value = uiState.stopPrice,
                                 onValueChange = { viewModel.onStopPriceChanged(it) },
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp),
@@ -368,7 +385,7 @@ fun OrdersScreen(
                                 enter = fadeIn(),
                                 exit = fadeOut()
                             ) {
-                                BasicTextField(
+                                androidx.compose.foundation.text.BasicTextField(
                                     value = uiState.limitPrice,
                                     onValueChange = { viewModel.onLimitPriceChanged(it) },
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp),
@@ -400,25 +417,13 @@ fun OrdersScreen(
                     }
                 }
             }
-        }   // конец скроллируемой колонки
 
-        // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ ==========
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .background(MaterialTheme.colorScheme.background)
-                .padding(vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Переключатель "Парная торговля"
-            if (uiState.orderType is OrderTypeSelection.Market ||
-                uiState.orderType is OrderTypeSelection.Limit) {
+            // ========== Парная торговля ==========
+            if (uiState.orderType is OrderTypeSelection.Market || uiState.orderType is OrderTypeSelection.Limit) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -430,7 +435,6 @@ fun OrdersScreen(
                 }
             }
 
-            // Блок парного инструмента
             if (uiState.pairTradingEnabled) {
                 InstrumentSearchField(
                     query = uiState.pairSearchQuery,
@@ -447,7 +451,7 @@ fun OrdersScreen(
 
                 uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                     val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                    val pairPrice = uiState.pairCurrentPrice  // было uiState.currentPrice
+                    val pairPrice = uiState.pairCurrentPrice
                     val position = PortfolioPosition(
                         name = instrument.name,
                         ticker = instrument.ticker,
@@ -471,7 +475,7 @@ fun OrdersScreen(
                         resetSwipe = uiState.swipeResetTrigger
                     )
 
-                    BasicTextField(
+                    androidx.compose.foundation.text.BasicTextField(
                         value = uiState.pairedMultiplier,
                         onValueChange = { viewModel.onPairedMultiplierChanged(it) },
                         modifier = Modifier
@@ -540,14 +544,16 @@ fun OrdersScreen(
                     Text("ПРОДАТЬ")
                 }
             }
-        }   // конец фиксированной секции
+        }
 
+        // Снекбар поверх всего
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(8.dp)
         ) { data ->
+            val label = data.visuals.actionLabel
             Snackbar(
                 containerColor = if (uiState.isError)
                     MaterialTheme.colorScheme.errorContainer
@@ -558,7 +564,6 @@ fun OrdersScreen(
                 else
                     MaterialTheme.colorScheme.onTertiaryContainer,
                 action = {
-                    val label = data.visuals.actionLabel
                     if (label != null) {
                         TextButton(onClick = { data.dismiss() }) {
                             Text(label)
@@ -569,9 +574,9 @@ fun OrdersScreen(
                 Text(data.visuals.message)
             }
         }
-    }   // конец корневого Box
+    }
 
-    // ==================== ДИАЛОГИ И СТАТУСНЫЕ СООБЩЕНИЯ ====================
+    // ==================== ДИАЛОГИ ====================
     if (showConfirmDialog) {
         val ticker = uiState.selectedInstrument?.ticker ?: ""
         val quantity = uiState.quantityAsLong ?: 0L
@@ -608,26 +613,6 @@ fun OrdersScreen(
         )
     }
 
-    // ✅ Снекбар вместо StatusCard
-    LaunchedEffect(uiState.statusMessage) {
-        uiState.statusMessage?.let { message ->
-            val visuals = object : SnackbarVisuals {
-                override val message: String = message
-                override val actionLabel: String? = if (uiState.isError) "OK" else null
-                override val withDismissAction: Boolean = false
-                override val duration: SnackbarDuration =
-                    if (uiState.isError) SnackbarDuration.Indefinite
-                    else SnackbarDuration.Short
-            }
-            // При появлении нового сообщения сначала скрываем предыдущее (если есть)
-            snackbarHostState.currentSnackbarData?.dismiss()
-            // Показываем снекбар и ждём его закрытия
-            snackbarHostState.showSnackbar(visuals)
-            // После закрытия (для ошибок — после нажатия OK) очищаем статус
-            viewModel.clearStatus()
-        }
-    }
-
     if (uiState.showBrokerDialog) {
         val availableBrokers = ServiceLocator.getBrokerManager().getAvailableBrokers()
         BrokerAccountDialog(
@@ -650,7 +635,7 @@ fun OrdersScreen(
     }
 }
 
-// ==================== ВСПОМОГАТЕЛЬНЫЕ COMPOSABLE ФУНКЦИИ ====================
+// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
 @Composable
 fun ApiNotInitializedCard() {
@@ -722,7 +707,7 @@ fun InstrumentSearchField(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(32.dp)                // фиксированная компактная высота
+                    .height(36.dp)                           // такая же высота, как у поля количества
                     .menuAnchor()
                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
@@ -756,7 +741,7 @@ fun InstrumentSearchField(
                         .verticalScroll(rememberScrollState())
                 ) {
                     if (query.isEmpty() && recentInstruments.isNotEmpty()) {
-                        recentInstruments.forEach { instrument: InstrumentUi ->
+                        recentInstruments.forEach { instrument ->
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             DropdownMenuItem(
                                 text = {
@@ -781,7 +766,7 @@ fun InstrumentSearchField(
                             )
                         }
                     } else {
-                        searchResults.forEach { instrument: InstrumentUi ->
+                        searchResults.forEach { instrument ->
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             DropdownMenuItem(
                                 text = {
