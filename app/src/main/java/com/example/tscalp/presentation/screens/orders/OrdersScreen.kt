@@ -713,8 +713,7 @@ fun InstrumentSearchField(
                 placeholder = {
                     Text(
                         "Введите тикер или название",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyLarge.copy(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                         )
                     )
@@ -722,18 +721,11 @@ fun InstrumentSearchField(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(32.dp)                // фиксированная компактная высота
-                    .menuAnchor()
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    .menuAnchor(),                       // убрали height, border и прозрачные цвета
+                textStyle = MaterialTheme.typography.bodyLarge,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent
-                ),
-                trailingIcon = {
+                leadingIcon = null,                      // поисковая иконка слева не нужна
+                trailingIcon = {                         // иконка очистки остаётся
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isSearching) CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         else if (query.isNotEmpty()) IconButton(
