@@ -5,6 +5,7 @@ import androidx.navigation.compose.*
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
@@ -72,7 +73,7 @@ fun MainScreen() {
 @Composable
 fun TScalpBottomNavigation(navController: NavHostController) {
     NavigationBar(
-        modifier = Modifier.height(60.dp),
+        modifier = Modifier.height(80.dp), // Рекомендованная высота M3
     ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
@@ -83,13 +84,20 @@ fun TScalpBottomNavigation(navController: NavHostController) {
             } == true
 
             NavigationBarItem(
+
                 icon = {
                     Icon(
                         imageVector = item.icon,
-                        contentDescription = item.title
+                        contentDescription = item.title,
+                        modifier = Modifier.size(24.dp) // Стандартный размер иконки M3
                     )
                 },
-                label = { Text(item.title) },
+                label = {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.labelMedium // Рекомендованный стиль текста M3
+                    )
+                },
                 selected = isSelected,
                 onClick = {
                     navController.navigate(item.route) {
