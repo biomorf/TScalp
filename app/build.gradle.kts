@@ -11,8 +11,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.tscalp"
-        minSdk = 24
-        targetSdk = 35
+        minSdk = 30
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
@@ -102,7 +102,8 @@ dependencies {
     }
 
     // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
-    implementation("com.google.protobuf:protobuf-java:3.25.3")
+    //implementation("com.google.protobuf:protobuf-java:3.25.3")
+    implementation("com.google.protobuf:protobuf-java:4.34.1")
 
     // Исключаем конфликтующий модуль из всех конфигураций
     configurations.all {
