@@ -22,6 +22,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -111,61 +113,71 @@ fun OrdersScreen(
                 return@Box
             }
 
-            // 👇 Добавлен отступ между заголовком и основным поиском
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ========== ФИКСИРОВАННЫЙ ОСНОВНОЙ ПОИСК ==========
-            InstrumentSearchField(
-                query = uiState.searchQuery,
-                onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
-                isSearching = uiState.isSearching,
-                searchResults = uiState.searchResults,
-                onInstrumentSelected = { instrument: InstrumentUi ->
-                    viewModel.onInstrumentSelected(instrument)
-                    focusManager.clearFocus()
-                },
-                onClear = { viewModel.clearSearch() },
-                recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                modifier = Modifier.fillMaxWidth()
-            )
+            // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА (показывается что-то одно) ==========
+            if (uiState.selectedInstrument == null) {
+                // Если инструмент не выбран, показываем поиск
+                InstrumentSearchField(
+                    query = uiState.searchQuery,
+                    onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
+                    isSearching = uiState.isSearching,
+                    searchResults = uiState.searchResults,
+                    onInstrumentSelected = { instrument: InstrumentUi ->
+                        viewModel.onInstrumentSelected(instrument)
+                        focusManager.clearFocus()
+                    },
+                    onClear = { viewModel.clearSearch() },
+                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                // Если выбран, показываем карточку инструмента
+                uiState.selectedInstrument?.let { instrument: InstrumentUi ->
+                    val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
+                    val position = PortfolioPosition(
+                        name = instrument.name,
+                        ticker = instrument.ticker,
+                        quantity = portfolioPos?.quantity ?: 0L,
+                        currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0,
+                        totalValue = (uiState.currentPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
+                        profit = portfolioPos?.profit ?: 0.0,
+                        profitPercent = portfolioPos?.profitPercent ?: 0.0,
+                        instrumentType = instrument.instrumentType,
+                        priceChangePercent = null
+                    )
+                    AssetPositionCard(
+                        position = position,
+                        instrumentType = instrument.instrumentType,
+                        priceChangePercent = uiState.selectedPriceChangePercent,
+                        onDelete = { viewModel.clearSelectedInstrument() },
+                        onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
+                        onClick = { },
+                        isSelected = false,
+                        resetSwipe = uiState.swipeResetTrigger
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ========== СКРОЛЛИРУЕМЫЙ БЛОК (контент формы) ==========
+            // ========== СКРОЛЛИРУЕМЫЙ БЛОК (контент формы) с индикаторами прокрутки ==========
+            val scrollState = rememberScrollState()
+            // Верхняя тень появляется, когда пользователь прокрутил вниз
+            val showTopShadow by remember { derivedStateOf { scrollState.value > 0 } }
+            // Нижняя тень появляется, когда контент можно прокрутить дальше
+            val showBottomShadow by remember {
+                derivedStateOf { scrollState.maxValue > 0 && scrollState.value < scrollState.maxValue }
+            }
+
             Box(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(scrollState),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // ========== Основная карточка ==========
-                    uiState.selectedInstrument?.let { instrument: InstrumentUi ->
-                        val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                        val position = PortfolioPosition(
-                            name = instrument.name,
-                            ticker = instrument.ticker,
-                            quantity = portfolioPos?.quantity ?: 0L,
-                            currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0,
-                            totalValue = (uiState.currentPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
-                            profit = portfolioPos?.profit ?: 0.0,
-                            profitPercent = portfolioPos?.profitPercent ?: 0.0,
-                            instrumentType = instrument.instrumentType,
-                            priceChangePercent = null
-                        )
-                        AssetPositionCard(
-                            position = position,
-                            instrumentType = instrument.instrumentType,
-                            priceChangePercent = uiState.selectedPriceChangePercent,
-                            onDelete = { viewModel.clearSelectedInstrument() },
-                            onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                            onClick = { },
-                            isSelected = false,
-                            resetSwipe = uiState.swipeResetTrigger
-                        )
-                    }
-
                     // ========== Поле количества ==========
                     Row(
                         modifier = Modifier
@@ -397,6 +409,43 @@ fun OrdersScreen(
                             }
                         }
                     }
+                } // конец скроллируемой колонки
+
+                // === ИНДИКАТОРЫ ПРОКРУТКИ ===
+                // Верхняя тень – появляется, когда прокрутили вниз
+                if (showTopShadow) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(12.dp)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.08f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                            .align(Alignment.TopCenter)
+                    )
+                }
+
+                // Нижняя тень – появляется, когда можно прокрутить дальше
+                if (showBottomShadow) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(12.dp)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                            .align(Alignment.BottomCenter)
+                    )
                 }
             }
 
@@ -427,80 +476,83 @@ fun OrdersScreen(
                     }
                 }
 
-                // Блок парного инструмента (фиксирован, не скроллится)
+                // === ЧЕРЕДОВАНИЕ ПАРНОГО ПОИСКА / КАРТОЧКИ ===
                 if (uiState.pairTradingEnabled) {
-                    InstrumentSearchField(
-                        query = uiState.pairSearchQuery,
-                        onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
-                        isSearching = uiState.isPairSearching,
-                        searchResults = uiState.pairSearchResults,
-                        onInstrumentSelected = { instrument: InstrumentUi ->
-                            viewModel.onPairedInstrumentSelected(instrument)
-                            focusManager.clearFocus()
-                        },
-                        onClear = { viewModel.clearPairSearch() },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    uiState.pairedInstrument?.let { instrument: InstrumentUi ->
-                        val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                        val pairPrice = uiState.pairCurrentPrice
-                        val position = PortfolioPosition(
-                            name = instrument.name,
-                            ticker = instrument.ticker,
-                            quantity = portfolioPos?.quantity ?: 0L,
-                            currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,
-                            totalValue = (pairPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
-                            profit = portfolioPos?.profit ?: 0.0,
-                            profitPercent = portfolioPos?.profitPercent ?: 0.0,
-                            instrumentType = instrument.instrumentType,
-                            priceChangePercent = null
+                    if (uiState.pairedInstrument == null) {
+                        // Пока не выбран парный инструмент – показываем поиск
+                        InstrumentSearchField(
+                            query = uiState.pairSearchQuery,
+                            onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
+                            isSearching = uiState.isPairSearching,
+                            searchResults = uiState.pairSearchResults,
+                            onInstrumentSelected = { instrument: InstrumentUi ->
+                                viewModel.onPairedInstrumentSelected(instrument)
+                                focusManager.clearFocus()
+                            },
+                            onClear = { viewModel.clearPairSearch() },
+                            modifier = Modifier.fillMaxWidth()
                         )
+                    } else {
+                        // Парный инструмент выбран – показываем карточку и множитель
+                        uiState.pairedInstrument?.let { instrument: InstrumentUi ->
+                            val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
+                            val pairPrice = uiState.pairCurrentPrice
+                            val position = PortfolioPosition(
+                                name = instrument.name,
+                                ticker = instrument.ticker,
+                                quantity = portfolioPos?.quantity ?: 0L,
+                                currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,
+                                totalValue = (pairPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
+                                profit = portfolioPos?.profit ?: 0.0,
+                                profitPercent = portfolioPos?.profitPercent ?: 0.0,
+                                instrumentType = instrument.instrumentType,
+                                priceChangePercent = null
+                            )
 
-                        AssetPositionCard(
-                            position = position,
-                            instrumentType = instrument.instrumentType,
-                            priceChangePercent = uiState.selectedPriceChangePercent,
-                            onDelete = { viewModel.clearSelectedInstrument() },
-                            onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                            onClick = { },
-                            isSelected = false,
-                            resetSwipe = uiState.swipeResetTrigger
-                        )
+                            AssetPositionCard(
+                                position = position,
+                                instrumentType = instrument.instrumentType,
+                                priceChangePercent = uiState.selectedPriceChangePercent,
+                                onDelete = { viewModel.clearSelectedInstrument() },
+                                onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
+                                onClick = { },
+                                isSelected = false,
+                                resetSwipe = uiState.swipeResetTrigger
+                            )
 
-                        BasicTextField(
-                            value = uiState.pairedMultiplier,
-                            onValueChange = { viewModel.onPairedMultiplierChanged(it) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 36.dp),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            decorationBox = { innerTextField ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    if (uiState.pairedMultiplier.isEmpty()) {
-                                        Text(
-                                            "Множитель",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontSize = 14.sp,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            BasicTextField(
+                                value = uiState.pairedMultiplier,
+                                onValueChange = { viewModel.onPairedMultiplierChanged(it) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 36.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                decorationBox = { innerTextField ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        if (uiState.pairedMultiplier.isEmpty()) {
+                                            Text(
+                                                "Множитель",
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                                )
                                             )
-                                        )
+                                        }
+                                        innerTextField()
                                     }
-                                    innerTextField()
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
 
-                // 👇 Добавлен дополнительный отступ перед кнопками
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Кнопки КУПИТЬ / ПРОДАТЬ
