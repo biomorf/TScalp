@@ -54,7 +54,8 @@ private fun M3TextField(
     modifier: Modifier = Modifier,
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    overlayText: String? = null            // <-- новый параметр
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     BasicTextField(
@@ -62,7 +63,7 @@ private fun M3TextField(
         onValueChange = onValueChange,
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)                           // стандартная высота Material 3
+            .height(56.dp)
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
             .padding(horizontal = 12.dp),
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
@@ -73,6 +74,7 @@ private fun M3TextField(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.CenterStart
             ) {
+                // Плейсхолдер
                 if (value.isEmpty()) {
                     Text(
                         text = placeholder,
@@ -81,7 +83,27 @@ private fun M3TextField(
                         )
                     )
                 }
+                // Поле ввода
                 innerTextField()
+
+                // Оверлей справа (если задан)
+                if (overlayText != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .background(
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = overlayText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = textColor
+                        )
+                    }
+                }
             }
         }
     )
@@ -219,6 +241,13 @@ fun OrdersScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // ========== Поле количества ==========
+                    // Ориентировочная стоимость
+                    val currentQty = uiState.quantityAsLong ?: 0L
+                    val currentPrice = uiState.currentPrice ?: 0.0
+                    val costOverlay = if (currentQty > 0 && currentPrice > 0) {
+                        formatCurrency(currentPrice * currentQty)
+                    } else null
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -237,12 +266,14 @@ fun OrdersScreen(
                             Icon(Icons.Default.Remove, "Уменьшить", modifier = Modifier.size(24.dp))
                         }
 
+
                         M3TextField(
                             value = uiState.quantity,
                             onValueChange = { viewModel.onQuantityChanged(it) },
                             placeholder = "Кол-во лотов",
                             keyboardType = KeyboardType.Number,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            overlayText = costOverlay   // <-- передаём оверлей
                         )
 
                         IconButton(
@@ -257,21 +288,6 @@ fun OrdersScreen(
                         }
                     }
 
-                    // Ориентировочная стоимость
-                    val currentQty = uiState.quantityAsLong ?: 0L
-                    val currentPrice = uiState.currentPrice ?: 0.0
-                    if (currentQty > 0 && currentPrice > 0) {
-                        Text(
-                            "Ориентировочно: ${formatCurrency(currentPrice * currentQty)}",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            ),
-                            modifier = Modifier
-                                .align(Alignment.Start)
-                                .padding(start = 56.dp)
-                        )
-                    }
 
                     // ========== Выбор типа заявки ==========
                     Column(
@@ -399,7 +415,7 @@ fun OrdersScreen(
                         } else {
                             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                                val pairPrice = uiState.pairCurrentPrice
+                                val pairPrice = uiState.pairCurrentPrice ?: 0.0
                                 val position = PortfolioPosition(
                                     name = instrument.name,
                                     ticker = instrument.ticker,
@@ -423,11 +439,21 @@ fun OrdersScreen(
                                     resetSwipe = uiState.swipeResetTrigger
                                 )
 
+
+
+
+
+                                val totalQty = currentQty * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)
+                                val multiplierOverlay = if (totalQty > 0 && pairPrice > 0) {
+                                    formatCurrency(pairPrice * totalQty)
+                                } else null
+
                                 M3TextField(
                                     value = uiState.pairedMultiplier,
                                     onValueChange = { viewModel.onPairedMultiplierChanged(it) },
                                     placeholder = "Множитель",
-                                    keyboardType = KeyboardType.Decimal
+                                    keyboardType = KeyboardType.Decimal,
+                                    overlayText = multiplierOverlay   // <-- оверлей для второй карточки
                                 )
                             }
                         }
