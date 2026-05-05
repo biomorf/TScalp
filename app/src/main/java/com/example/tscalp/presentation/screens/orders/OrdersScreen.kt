@@ -5,17 +5,20 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarVisuals
@@ -23,6 +26,18 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DockedSearchBar
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SearchBarState
+import androidx.compose.material3.rememberSearchBarState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.material3.ListItem
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -692,76 +707,75 @@ fun InstrumentSearchField(
     recentInstruments: List<InstrumentUi> = emptyList(),
     modifier: Modifier = Modifier
 ) {
+    var inputText by remember { mutableStateOf(query) }
     var expanded by remember { mutableStateOf(false) }
-    val showDropdown = expanded && (searchResults.isNotEmpty() || (query.isEmpty() && recentInstruments.isNotEmpty()))
 
-    LaunchedEffect(searchResults) {
-        if (searchResults.isNotEmpty()) expanded = true
+    // Синхронизация с ViewModel при внешней очистке
+    LaunchedEffect(query) {
+        if (query.isEmpty() && inputText.isNotEmpty()) {
+            inputText = ""
+            expanded = false
+        }
     }
 
     Column(modifier = modifier) {
-        ExposedDropdownMenuBox(
-            expanded = showDropdown,
-            onExpandedChange = { expanded = it }
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = {
-                    onQueryChanged(it)
-                    expanded = it.isNotEmpty() || recentInstruments.isNotEmpty()
-                },
-                placeholder = {
-                    Text(
-                        "Введите тикер или название",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                        )
+        DockedSearchBar(
+            query = inputText,
+            onQueryChange = { newText: String ->
+                inputText = newText
+                onQueryChanged(newText)
+                // Автоматически раскрываем список, если есть текст или история
+                expanded = newText.isNotEmpty() || recentInstruments.isNotEmpty()
+            },
+            onSearch = { expanded = false },
+            active = expanded,
+            onActiveChange = { expanded = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = {
+                Text(
+                    "Введите тикер или название",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(),                       // убрали height, border и прозрачные цвета
-                textStyle = MaterialTheme.typography.bodyLarge,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                leadingIcon = null,                      // поисковая иконка слева не нужна
-                trailingIcon = {                         // иконка очистки остаётся
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                        else if (query.isNotEmpty()) IconButton(
-                            onClick = { onClear(); expanded = false },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Default.Clear, "Очистить", modifier = Modifier.size(18.dp))
-                        }
+                )
+            },
+            leadingIcon = {
+                if (inputText.isNotEmpty()) {
+                    IconButton(onClick = {
+                        inputText = ""
+                        onClear()
+                        expanded = false
+                    }) {
+                        Icon(Icons.Default.Clear, "Очистить")
                     }
+                } else {
+                    Icon(Icons.Default.Search, "Поиск")
                 }
-            )
-
-            ExposedDropdownMenu(
-                expanded = showDropdown,
-                onDismissRequest = { expanded = false }
-            ) {
+            },
+            trailingIcon = {
+                if (isSearching) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                }
+            }
+        ) {
+            // Выпадающий список
+            if (expanded && (searchResults.isNotEmpty() || (inputText.isEmpty() && recentInstruments.isNotEmpty()))) {
                 Column(
                     modifier = Modifier
                         .heightIn(max = 300.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    if (query.isEmpty() && recentInstruments.isNotEmpty()) {
-                        recentInstruments.forEach { instrument: InstrumentUi ->
+                    if (inputText.isEmpty() && recentInstruments.isNotEmpty()) {
+                        recentInstruments.forEach { instrument ->
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
+                            ListItem(
+                                headlineContent = {
+                                    Text("${instrument.ticker} - ${instrument.name}")
                                 },
-                                onClick = {
-                                    onInstrumentSelected(instrument)
-                                    expanded = false
+                                supportingContent = {
+                                    Text(instrument.figi, style = MaterialTheme.typography.bodySmall)
                                 },
-                                leadingIcon = {
+                                leadingContent = {
                                     Box(
                                         modifier = Modifier
                                             .width(4.dp)
@@ -769,24 +783,24 @@ fun InstrumentSearchField(
                                             .background(typeColor)
                                     )
                                 },
-                                modifier = Modifier.heightIn(min = 48.dp)
+                                modifier = Modifier.clickable {
+                                    onInstrumentSelected(instrument)
+                                    inputText = "${instrument.ticker} - ${instrument.name}"
+                                    expanded = false
+                                }
                             )
                         }
                     } else {
-                        searchResults.forEach { instrument: InstrumentUi ->
+                        searchResults.forEach { instrument ->
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text("${instrument.ticker} - ${instrument.name}")
-                                        Text(instrument.figi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
+                            ListItem(
+                                headlineContent = {
+                                    Text("${instrument.ticker} - ${instrument.name}")
                                 },
-                                onClick = {
-                                    onInstrumentSelected(instrument)
-                                    expanded = false
+                                supportingContent = {
+                                    Text(instrument.figi, style = MaterialTheme.typography.bodySmall)
                                 },
-                                leadingIcon = {
+                                leadingContent = {
                                     Box(
                                         modifier = Modifier
                                             .width(4.dp)
@@ -794,7 +808,11 @@ fun InstrumentSearchField(
                                             .background(typeColor)
                                     )
                                 },
-                                modifier = Modifier.heightIn(min = 48.dp)
+                                modifier = Modifier.clickable {
+                                    onInstrumentSelected(instrument)
+                                    inputText = "${instrument.ticker} - ${instrument.name}"
+                                    expanded = false
+                                }
                             )
                         }
                     }
