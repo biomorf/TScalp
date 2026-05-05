@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.ui.components.AssetPositionCard
@@ -41,6 +42,11 @@ import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.ui.components.StopOrdersDialog
 import com.example.tscalp.util.formatCurrency
 
+/**
+ * Вспомогательная функция для создания поля ввода в стиле Material 3.
+ * Высота 56dp, текст вертикально центрирован, рамка как у остальных полей,
+ * цвет текста адаптирован к теме.
+ */
 @Composable
 private fun M3TextField(
     value: String,
@@ -50,16 +56,16 @@ private fun M3TextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true
 ) {
-    val textColor = MaterialTheme.colorScheme.onSurface   // <-- цвет текста из темы
+    val textColor = MaterialTheme.colorScheme.onSurface
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(56.dp)                           // стандартная высота Material 3
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
             .padding(horizontal = 12.dp),
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),  // <-- явный цвет
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         decorationBox = { innerTextField ->
@@ -71,7 +77,7 @@ private fun M3TextField(
                     Text(
                         text = placeholder,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = textColor.copy(alpha = 0.4f)   // плейсхолдер чуть прозрачнее
+                            color = textColor.copy(alpha = 0.4f)
                         )
                     )
                 }
@@ -251,6 +257,7 @@ fun OrdersScreen(
                         }
                     }
 
+                    // Ориентировочная стоимость
                     val currentQty = uiState.quantityAsLong ?: 0L
                     val currentPrice = uiState.currentPrice ?: 0.0
                     if (currentQty > 0 && currentPrice > 0) {
@@ -260,7 +267,9 @@ fun OrdersScreen(
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             ),
-                            modifier = Modifier.align(Alignment.Start).padding(start = 56.dp)
+                            modifier = Modifier
+                                .align(Alignment.Start)
+                                .padding(start = 56.dp)
                         )
                     }
 
@@ -304,7 +313,7 @@ fun OrdersScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(124.dp)   // достаточно для двух полей + spacer
+                            .height(82.dp)
                     ) {
                         Column(
                             verticalArrangement = Arrangement.Top,
@@ -354,6 +363,75 @@ fun OrdersScreen(
                             }
                         }
                     }
+
+                    // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
+                    if (uiState.orderType is OrderTypeSelection.Market ||
+                        uiState.orderType is OrderTypeSelection.Limit) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
+                            Switch(
+                                checked = uiState.pairTradingEnabled,
+                                onCheckedChange = { viewModel.setPairTradingEnabled(it) }
+                            )
+                        }
+                    }
+
+                    if (uiState.pairTradingEnabled) {
+                        if (uiState.pairedInstrument == null) {
+                            InstrumentSearchField(
+                                query = uiState.pairSearchQuery,
+                                onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
+                                isSearching = uiState.isPairSearching,
+                                searchResults = uiState.pairSearchResults,
+                                onInstrumentSelected = { instrument: InstrumentUi ->
+                                    viewModel.onPairedInstrumentSelected(instrument)
+                                    focusManager.clearFocus()
+                                },
+                                onClear = { viewModel.clearPairSearch() },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            uiState.pairedInstrument?.let { instrument: InstrumentUi ->
+                                val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
+                                val pairPrice = uiState.pairCurrentPrice
+                                val position = PortfolioPosition(
+                                    name = instrument.name,
+                                    ticker = instrument.ticker,
+                                    quantity = portfolioPos?.quantity ?: 0L,
+                                    currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,
+                                    totalValue = (pairPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
+                                    profit = portfolioPos?.profit ?: 0.0,
+                                    profitPercent = portfolioPos?.profitPercent ?: 0.0,
+                                    instrumentType = instrument.instrumentType,
+                                    priceChangePercent = null
+                                )
+
+                                AssetPositionCard(
+                                    position = position,
+                                    instrumentType = instrument.instrumentType,
+                                    priceChangePercent = uiState.selectedPriceChangePercent,
+                                    onDelete = { viewModel.clearPairSearch() },
+                                    onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
+                                    onClick = { },
+                                    isSelected = false,
+                                    resetSwipe = uiState.swipeResetTrigger
+                                )
+
+                                M3TextField(
+                                    value = uiState.pairedMultiplier,
+                                    onValueChange = { viewModel.onPairedMultiplierChanged(it) },
+                                    placeholder = "Множитель",
+                                    keyboardType = KeyboardType.Decimal
+                                )
+                            }
+                        }
+                    }
                 } // конец скроллируемой колонки
 
                 // === ИНДИКАТОРЫ ПРОКРУТКИ ===
@@ -385,7 +463,7 @@ fun OrdersScreen(
                 }
             }
 
-            // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ ==========
+            // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -394,74 +472,6 @@ fun OrdersScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Переключатель «Парная торговля» теперь виден всегда
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
-                    Switch(
-                        checked = uiState.pairTradingEnabled,
-                        onCheckedChange = { viewModel.setPairTradingEnabled(it) }
-                    )
-                }
-
-                if (uiState.pairTradingEnabled) {
-                    if (uiState.pairedInstrument == null) {
-                        InstrumentSearchField(
-                            query = uiState.pairSearchQuery,
-                            onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
-                            isSearching = uiState.isPairSearching,
-                            searchResults = uiState.pairSearchResults,
-                            onInstrumentSelected = { instrument: InstrumentUi ->
-                                viewModel.onPairedInstrumentSelected(instrument)
-                                focusManager.clearFocus()
-                            },
-                            onClear = { viewModel.clearPairSearch() },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        uiState.pairedInstrument?.let { instrument: InstrumentUi ->
-                            val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                            val pairPrice = uiState.pairCurrentPrice
-                            val position = PortfolioPosition(
-                                name = instrument.name,
-                                ticker = instrument.ticker,
-                                quantity = portfolioPos?.quantity ?: 0L,
-                                currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,
-                                totalValue = (pairPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
-                                profit = portfolioPos?.profit ?: 0.0,
-                                profitPercent = portfolioPos?.profitPercent ?: 0.0,
-                                instrumentType = instrument.instrumentType,
-                                priceChangePercent = null
-                            )
-
-                            AssetPositionCard(
-                                position = position,
-                                instrumentType = instrument.instrumentType,
-                                priceChangePercent = uiState.selectedPriceChangePercent,
-                                onDelete = { viewModel.clearPairSearch() },
-                                onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                                onClick = { },
-                                isSelected = false,
-                                resetSwipe = uiState.swipeResetTrigger
-                            )
-
-                            M3TextField(
-                                value = uiState.pairedMultiplier,
-                                onValueChange = { viewModel.onPairedMultiplierChanged(it) },
-                                placeholder = "Множитель",
-                                keyboardType = KeyboardType.Decimal
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 // Кнопки КУПИТЬ / ПРОДАТЬ
                 Row(
                     modifier = Modifier
@@ -502,7 +512,7 @@ fun OrdersScreen(
             }
         }
 
-        // Снекбар
+        // Снекбар поверх всего
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -521,7 +531,9 @@ fun OrdersScreen(
                 action = {
                     val label = data.visuals.actionLabel
                     if (label != null) {
-                        TextButton(onClick = { data.dismiss() }) { Text(label) }
+                        TextButton(onClick = { data.dismiss() }) {
+                            Text(label)
+                        }
                     }
                 }
             ) {
@@ -560,7 +572,9 @@ fun OrdersScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) { Text("Отмена") }
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("Отмена")
+                }
             }
         )
     }
