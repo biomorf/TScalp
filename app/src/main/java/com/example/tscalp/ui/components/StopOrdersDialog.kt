@@ -1,17 +1,22 @@
 package com.example.tscalp.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.presentation.screens.orders.StopOrdersViewModel
+import com.example.tscalp.util.formatCurrency
 
 @Composable
 fun StopOrdersDialog(
@@ -35,15 +40,35 @@ fun StopOrdersDialog(
             } else if (state.orders.isEmpty()) {
                 Text("Нет активных заявок")
             } else {
-                LazyColumn(
-                    modifier = Modifier.heightIn(max = 400.dp)
-                ) {
-                    items(state.orders) { order ->
-                        OrderListItemRow(
-                            order = order,
-                            onCancel = { viewModel.cancelOrder(order) }
+                val scrollState = rememberScrollState()
+                val canScroll = remember { derivedStateOf { scrollState.maxValue > 0 } }
+
+                Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                    ) {
+                        state.orders.forEach { order ->
+                            OrderListItemRow(
+                                order = order,
+                                onCancel = { viewModel.cancelOrder(order) }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
+                    // Вертикальный индикатор прокрутки
+                    if (canScroll.value) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(vertical = 4.dp)
+                                .width(2.dp)
+                                .clip(RoundedCornerShape(1.dp))
+                                .background(Color.Gray.copy(alpha = 0.5f))
                         )
-                        HorizontalDivider()
                     }
                 }
             }
@@ -69,10 +94,25 @@ fun OrderListItemRow(order: OrderListItem, onCancel: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text("${order.ticker} ${order.direction} ${order.quantity} лотов")
-            Text("Цена: ${order.price}", style = MaterialTheme.typography.bodySmall)
-            if (order.stopPrice != null) {
-                Text("Стоп: ${order.stopPrice}", style = MaterialTheme.typography.bodySmall)
+
+            when {
+                order.type == "STOP_LIMIT" -> {
+                    val trigger = order.stopPrice ?: 0.0
+                    Text("Триггер-цена: ≈${formatCurrency(trigger)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Лимитная цена: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Общая стоимость: ${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
+                }
+                order.isStopOrder -> {
+                    val approx = "≈"
+                    Text("Цена за лот: $approx${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Общая стоимость: $approx${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
+                }
+                else -> {
+                    Text("Цена за лот: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Общая стоимость: ${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
+                }
             }
+
             Text("Тип: ${order.type} | Статус: ${order.status}", style = MaterialTheme.typography.bodySmall)
         }
         IconButton(onClick = onCancel) {

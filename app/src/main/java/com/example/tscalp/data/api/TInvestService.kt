@@ -510,7 +510,8 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             val figiStr: String = (order.figi ?: "").toString()
 
             // Цена через дескриптор
-            val priceField = order.descriptorForType.findFieldByName("price")
+            val priceField = order.descriptorForType.findFieldByName("initial_order_price")
+                ?: order.descriptorForType.findFieldByName("price")
             val priceValue = priceField?.let { order.getField(it) }
             val priceDouble = when (priceValue) {
                 is MoneyValue -> priceValue.units + priceValue.nano / 1_000_000_000.0
