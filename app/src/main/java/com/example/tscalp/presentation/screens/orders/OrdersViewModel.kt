@@ -28,6 +28,7 @@ import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.StopOrderType
 import com.example.tscalp.domain.models.StopOrderRequest
+import com.example.tscalp.domain.models.TradingAvailability
 
 
 class OrdersViewModel(
@@ -46,7 +47,19 @@ class OrdersViewModel(
         private const val TAG = "OrdersViewModel"
     }
 
-    init { checkApiInitialization() }
+    init {
+        checkApiInitialization()
+        // Фоновое обновление статусов каждые 5 минут
+        viewModelScope.launch {
+            while (isActive) {
+                delay(5 * 60 * 1000L)
+                val idsToUpdate = _uiState.value.tradingStatuses.keys.toList()
+                if (idsToUpdate.isNotEmpty()) {
+                    updateTradingStatuses(idsToUpdate)
+                }
+            }
+        }
+    }
 
     fun checkApiInitialization() {
         val isAnyApiInit = ServiceLocator.isAnyBrokerInitialized()
@@ -156,6 +169,12 @@ class OrdersViewModel(
                     delay(500)
                     _uiState.update { it.copy(isSearching = true) }
                     val results = repository.searchInstruments(query)
+                    // Обновляем статусы доступности для найденных инструментов
+                    if (results.isNotEmpty()) {
+                        launch {
+                            updateTradingStatuses(results.map { it.tscalpInstrumentId })
+                        }
+                    }
                     _uiState.update { it.copy(searchResults = results, isSearching = false) }
                 } catch (ce: kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isSearching = false) }
@@ -593,6 +612,12 @@ fun openBrokerDialog(ticker: String) {
                 _uiState.update { it.copy(isPairSearching = true) }
                 try {
                     val results = repository.searchInstruments(query)
+                    // Обновляем статусы доступности для найденных инструментов
+                    if (results.isNotEmpty()) {
+                        launch {
+                            updateTradingStatuses(results.map { it.tscalpInstrumentId })
+                        }
+                    }
                     _uiState.update { it.copy(pairSearchResults = results, isPairSearching = false) }
                 } catch (ce: CancellationException) {
                     _uiState.update { it.copy(isPairSearching = false) }
@@ -682,6 +707,19 @@ fun openBrokerDialog(ticker: String) {
     fun stopPriceUpdates() {
         priceStreamJob?.cancel()
         priceStreamJob = null
+    }
+
+    private suspend fun updateTradingStatuses(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") ?: return
+        try {
+            val statuses = broker.getTradingStatuses(ids)
+            _uiState.update { state ->
+                state.copy(tradingStatuses = state.tradingStatuses + statuses)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка обновления статусов доступности", e)
+        }
     }
 }
 
