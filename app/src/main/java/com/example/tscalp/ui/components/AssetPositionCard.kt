@@ -271,26 +271,26 @@ private fun PortfolioCardContent(
                         modifier = Modifier.padding(vertical = 4.dp),
                         color = MaterialTheme.colorScheme.outline
                     )
-                    Column(modifier = Modifier.fillMaxWidth()) {
+
                         // Строка: количество · стоимость
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         if (position.quantity != 0L) {
                             Text(
                                 text = "${position.quantity} шт. · ${formatCurrency(position.totalValue)}",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
-                        // Spacer между количеством и изменением
-                        if (position.quantity != 0L && priceChangePercent != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                        }
-                        // Строка с изменением цены (абсолютное + процент)
+                        Spacer(Modifier.weight(1f))
                         if (priceChangePercent != null) {
                             val changeAbsolute = (priceChangePercent / 100.0) * position.currentPrice
                             val sign = if (priceChangePercent >= 0) "+" else ""
                             Text(
                                 text = "${sign}${formatCurrency(changeAbsolute)} (${sign}${"%.2f".format(priceChangePercent)}%)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (priceChangePercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                color = if (priceChangePercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
                     }

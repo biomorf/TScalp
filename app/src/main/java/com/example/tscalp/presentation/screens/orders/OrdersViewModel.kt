@@ -692,11 +692,20 @@ fun openBrokerDialog(ticker: String) {
                     .catch { e -> Log.e(TAG, "Price stream error", e) }
                     .collect { (figi, price) ->
                         val ticker = figiToTicker[figi] ?: return@collect
-                        _uiState.update {
+                        _uiState.update { state ->
+                            val oldPrice = state.currentPrice
+                            val newPercent = if (oldPrice != null && oldPrice != 0.0) {
+                                ((price - oldPrice) / oldPrice) * 100.0
+                            } else null
                             when (ticker) {
-                                state.selectedInstrument?.ticker -> it.copy(currentPrice = price)
-                                state.pairedInstrument?.ticker -> it.copy(pairCurrentPrice = price)
-                                else -> it
+                                state.selectedInstrument?.ticker -> state.copy(
+                                    currentPrice = price,
+                                    selectedPriceChangePercent = newPercent
+                                )
+                                state.pairedInstrument?.ticker -> state.copy(
+                                    pairCurrentPrice = price
+                                )
+                                else -> state
                             }
                         }
                     }
