@@ -410,6 +410,7 @@ fun OrdersScreen(
                                     focusManager.clearFocus()
                                 },
                                 onClear = { viewModel.clearPairSearch() },
+                                recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
