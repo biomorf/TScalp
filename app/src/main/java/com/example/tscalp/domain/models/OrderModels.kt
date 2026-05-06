@@ -3,7 +3,7 @@ package com.example.tscalp.domain.models
 data class OrderListItem(
     val orderId: String,
     val ticker: String,
-    val figi: String,
+    val tscalpInstrumentId: String,
     val direction: String,      // "BUY" / "SELL"
     val price: Double,          // лимитная цена (для обычных) или стоп-цена
     val stopPrice: Double?,     // null для обычных
@@ -13,6 +13,12 @@ data class OrderListItem(
     val orderDate: Long?,       // время создания (epoch seconds)
     val isStopOrder: Boolean    // true → отмена через cancelStopOrder, false → cancelOrder
 )
+
+enum class TradingAvailability {
+    AVAILABLE,
+    UNAVAILABLE,
+    UNKNOWN
+}
 
 enum class OrderStatus {
     NEW, PARTIALLY_FILLED, FILLED, REJECTED, CANCELLED

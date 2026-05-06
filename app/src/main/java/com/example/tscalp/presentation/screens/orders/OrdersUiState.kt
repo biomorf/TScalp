@@ -8,7 +8,7 @@ import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.StopOrderType
 import com.example.tscalp.domain.models.StopOrderExpirationType
 import com.example.tscalp.domain.models.OrderTypeSelection
-
+import com.example.tscalp.domain.models.TradingAvailability
 
 /**
  * Информация о выбранном инструменте для отображения в карточке «Последние просмотренные».
@@ -68,7 +68,8 @@ data class OrdersUiState(
     val orderType: OrderTypeSelection = OrderTypeSelection.Market, // было BrokerOrderType.MARKET
     val stopPrice: String = "",
     val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
-    val expireDate: String? = null
+    val expireDate: String? = null,
+    val tradingStatuses: Map<String, TradingAvailability> = emptyMap()
     // поле stopOrderType удалено, теперь берём из orderType.stopOrderType
 
 ) {

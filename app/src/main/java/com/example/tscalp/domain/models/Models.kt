@@ -1,7 +1,7 @@
 package com.example.tscalp.domain.models
 
 data class InstrumentUi(
-    val figi: String,
+    val tscalpInstrumentId: String,
     val ticker: String,
     val name: String,
     val currency: String,
@@ -19,7 +19,8 @@ data class PortfolioPosition(
     val profitPercent: Double =0.0,
     val instrumentType: String = "",
     val priceChangePercent: Double? = null,
-    val brokerName: String = ""
+    val brokerName: String = "",
+    val tscalpInstrumentId: String = ""
 )
 
 /**

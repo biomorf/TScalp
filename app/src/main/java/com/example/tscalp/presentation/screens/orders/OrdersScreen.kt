@@ -205,6 +205,7 @@ fun OrdersScreen(
                     val position = PortfolioPosition(
                         name = instrument.name,
                         ticker = instrument.ticker,
+                        tscalpInstrumentId = instrument.tscalpInstrumentId,
                         quantity = portfolioPos?.quantity ?: 0L,
                         currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0,
                         totalValue = (uiState.currentPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
@@ -427,6 +428,7 @@ fun OrdersScreen(
                                 val position = PortfolioPosition(
                                     name = instrument.name,
                                     ticker = instrument.ticker,
+                                    tscalpInstrumentId = instrument.tscalpInstrumentId,
                                     quantity = portfolioPos?.quantity ?: 0L,
                                     currentPrice = pairPrice,
                                     totalValue = pairPrice * (portfolioPos?.quantity ?: 0L),
@@ -751,7 +753,7 @@ fun InstrumentSearchField(
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             ListItem(
                                 headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
-                                supportingContent = { Text(instrument.figi, style = MaterialTheme.typography.bodySmall) },
+                                supportingContent = { Text(instrument.tscalpInstrumentId, style = MaterialTheme.typography.bodySmall) },
                                 leadingContent = {
                                     Box(
                                         modifier = Modifier
@@ -772,7 +774,7 @@ fun InstrumentSearchField(
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             ListItem(
                                 headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
-                                supportingContent = { Text(instrument.figi, style = MaterialTheme.typography.bodySmall) },
+                                supportingContent = { Text(instrument.tscalpInstrumentId, style = MaterialTheme.typography.bodySmall) },
                                 leadingContent = {
                                     Box(
                                         modifier = Modifier

@@ -123,7 +123,7 @@ class TInvestInvestService : BrokerApi {
                     currency = instrument.currency,
                     lot = instrument.lot,
                     instrumentType = instrument.instrumentType,
-                    figi = short.figi
+                    tscalpInstrumentId = short.figi
                 )
             } else null
         }
@@ -135,7 +135,7 @@ class TInvestInvestService : BrokerApi {
         val inst = instrumentResponse.instrument
         return InstrumentUi(
             ticker = inst.ticker,
-            figi = inst.figi,
+            tscalpInstrumentId = inst.figi,
             name = inst.name,
             currency = inst.currency,
             lot = inst.lot,
@@ -420,7 +420,7 @@ class TInvestInvestService : BrokerApi {
             OrderListItem(
                 orderId = orderIdStr,
                 ticker = ticker,
-                figi = figiStr,
+                tscalpInstrumentId = figiStr,
                 direction = directionStr,
                 price = stopPriceDouble,
                 stopPrice = stopPriceDouble,
@@ -523,7 +523,7 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             OrderListItem(
                 orderId = orderIdStr,
                 ticker = ticker,
-                figi = figiStr,
+                tscalpInstrumentId = figiStr,
                 direction = direction,
                 price = priceDouble,
                 stopPrice = null,
