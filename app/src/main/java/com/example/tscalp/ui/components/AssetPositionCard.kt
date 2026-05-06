@@ -26,8 +26,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.util.formatCurrency
+import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.TradingAvailability
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -41,6 +42,8 @@ fun AssetPositionCard(
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
     resetSwipe: Boolean = false,
+    tscalpInstrumentId: String? = null,
+    tradingAvailability: TradingAvailability? = null,
     modifier: Modifier = Modifier
 ) {
     // --- Цветовая индикация изменения цены (состояния) ---
@@ -81,7 +84,9 @@ fun AssetPositionCard(
                 instrumentType = instrumentType,
                 priceChangePercent = priceChangePercent,
                 onClick = onClick,
-                isSelected = isSelected
+                isSelected = isSelected,
+                tscalpInstrumentId = tscalpInstrumentId,
+                tradingAvailability = tradingAvailability
             )
         }
     }
@@ -166,6 +171,8 @@ private fun PortfolioCardContent(
     priceChangePercent: Double?,
     onClick: (() -> Unit)?,
     isSelected: Boolean,
+    tscalpInstrumentId: String? = null,
+    tradingAvailability: TradingAvailability? = null,
     modifier: Modifier = Modifier
 ) {
     // --- Анимация цвета цены ---
@@ -230,6 +237,19 @@ private fun PortfolioCardContent(
                             maxLines = 1,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        // === Новый блок отображения идентификатора ===
+                        val displayId = if (tscalpInstrumentId.isNullOrBlank()) "000000" else tscalpInstrumentId
+                        val idColor = when (tradingAvailability) {
+                            TradingAvailability.AVAILABLE -> Color(0xFF2E7D32)
+                            TradingAvailability.UNAVAILABLE -> Color(0xFFC62828)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Text(
+                            text = displayId,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = idColor
+                        )
+                        // ==========================================
                     }
                     if (position.currentPrice > 0) {
                         Column(horizontalAlignment = Alignment.End) {

@@ -41,6 +41,7 @@ import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.ui.components.StopOrdersDialog
 import com.example.tscalp.util.formatCurrency
+import com.example.tscalp.domain.models.TradingAvailability
 
 /**
  * Вспомогательная функция для создания поля ввода в стиле Material 3.
@@ -197,6 +198,7 @@ fun OrdersScreen(
                     },
                     onClear = { viewModel.clearSearch() },
                     recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = uiState.tradingStatuses,
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
@@ -222,7 +224,9 @@ fun OrdersScreen(
                         onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                         onClick = { },
                         isSelected = false,
-                        resetSwipe = uiState.swipeResetTrigger
+                        resetSwipe = uiState.swipeResetTrigger,
+                        tscalpInstrumentId = instrument.tscalpInstrumentId,
+                        tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId]
                     )
                 }
             }
@@ -418,6 +422,7 @@ fun OrdersScreen(
                                 },
                                 onClear = { viewModel.clearPairSearch() },
                                 recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                                tradingStatuses = uiState.tradingStatuses,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
@@ -446,7 +451,9 @@ fun OrdersScreen(
                                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                                     onClick = { },
                                     isSelected = false,
-                                    resetSwipe = uiState.swipeResetTrigger
+                                    resetSwipe = uiState.swipeResetTrigger,
+                                    tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                    tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId]
                                 )
 
                                 // Оверлей стоимости для множителя
@@ -691,6 +698,7 @@ fun InstrumentSearchField(
     onInstrumentSelected: (InstrumentUi) -> Unit,
     onClear: () -> Unit,
     recentInstruments: List<InstrumentUi> = emptyList(),
+    tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     var inputText by remember { mutableStateOf(query) }
@@ -753,7 +761,19 @@ fun InstrumentSearchField(
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             ListItem(
                                 headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
-                                supportingContent = { Text(instrument.tscalpInstrumentId, style = MaterialTheme.typography.bodySmall) },
+                                supportingContent = {
+                                    val status = tradingStatuses[instrument.tscalpInstrumentId]
+                                    val textColor = when (status) {
+                                        TradingAvailability.AVAILABLE -> Color(0xFF2E7D32)
+                                        TradingAvailability.UNAVAILABLE -> Color(0xFFC62828)
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                    Text(
+                                        text = instrument.tscalpInstrumentId,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = textColor
+                                    )
+                                },
                                 leadingContent = {
                                     Box(
                                         modifier = Modifier
@@ -774,7 +794,19 @@ fun InstrumentSearchField(
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             ListItem(
                                 headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
-                                supportingContent = { Text(instrument.tscalpInstrumentId, style = MaterialTheme.typography.bodySmall) },
+                                supportingContent = {
+                                    val status = tradingStatuses[instrument.tscalpInstrumentId]
+                                    val textColor = when (status) {
+                                        TradingAvailability.AVAILABLE -> Color(0xFF2E7D32)
+                                        TradingAvailability.UNAVAILABLE -> Color(0xFFC62828)
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                    Text(
+                                        text = instrument.tscalpInstrumentId,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = textColor
+                                    )
+                                },
                                 leadingContent = {
                                     Box(
                                         modifier = Modifier
