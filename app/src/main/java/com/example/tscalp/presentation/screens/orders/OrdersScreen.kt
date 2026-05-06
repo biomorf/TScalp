@@ -588,20 +588,95 @@ fun OrdersScreen(
     if (showConfirmDialog) {
         val ticker = uiState.selectedInstrument?.ticker ?: ""
         val quantity = uiState.quantityAsLong ?: 0L
-        val price = uiState.currentPrice ?: 0.0
+
+        val isMarket = uiState.orderType is OrderTypeSelection.Market
+        val isLimit = uiState.orderType is OrderTypeSelection.Limit
+        val isStopLoss = uiState.orderType is OrderTypeSelection.StopLoss
+        val isTakeProfit = uiState.orderType is OrderTypeSelection.TakeProfit
+        val isStopLimit = uiState.orderType is OrderTypeSelection.StopLimit
+
+        // Цена исполнения и признак приблизительности
+        val executionPrice: Double
+        val executionLabel: String
+        val approximate: Boolean
+
+        when {
+            isLimit || isStopLimit -> {
+                executionPrice = uiState.limitPrice.toDoubleOrNull() ?: 0.0
+                executionLabel = "Лимитная цена"
+                approximate = false
+            }
+            isStopLoss || isTakeProfit -> {
+                // для стоп‑лосса/тейк‑профита исполнение по триггер‑цене
+                executionPrice = uiState.stopPrice.toDoubleOrNull() ?: 0.0
+                executionLabel = "Триггер‑цена"
+                approximate = true
+            }
+            else -> { // Market
+                executionPrice = uiState.currentPrice ?: 0.0
+                executionLabel = "Текущая цена (исполнение по рынку)"
+                approximate = true
+            }
+        }
+
+        // Триггер‑цена для стоп‑лимита (уже учтена выше как executionPrice для StopLoss/TakeProfit)
+        val triggerPrice: Double? = if (isStopLoss || isTakeProfit || isStopLimit) {
+            uiState.stopPrice.toDoubleOrNull()
+        } else null
+
+        val priceSymbol = if (approximate) "≈" else ""
+
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
             title = { Text("Подтверждение заявки") },
             text = {
                 Column {
                     Text("Вы собираетесь ${pendingDirection.lowercase()} $quantity лотов $ticker")
-                    if (price > 0) {
-                        Text("Текущая цена: ${formatCurrency(price)}")
-                        Text("Общая стоимость: ${formatCurrency(price * quantity)}")
+
+                    // Триггер‑цена (для всех стоп‑заявок) выводится первой
+                    if (triggerPrice != null && triggerPrice > 0) {
+                        // Для стоп‑лимита триггер‑цена отдельно, для остальных уже выведена как executionPrice
+                        if (isStopLimit || isStopLoss || isTakeProfit) {
+                            Text("Триггер‑цена выставления заявки: ≈${formatCurrency(triggerPrice)}")
+                        }
                     }
+
+                    // Цена исполнения и общая стоимость
+                    if (executionPrice > 0) {
+                        if (!(isStopLoss || isTakeProfit)) { // для этих типов не показываем текущую цену
+                            Text("$executionLabel: $priceSymbol${formatCurrency(executionPrice)}")
+                        }
+                        Text("Общая стоимость: $priceSymbol${formatCurrency(executionPrice * quantity)}")
+                    }
+
+                    // Контрсделка
                     if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
                         val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
-                        Text("Контрсделка: ${uiState.pairedInstrument?.ticker} ${if (pendingDirection == "Покупка") "продажа" else "покупка"} $pairedQty лотов")
+                        val pairDirection = if (pendingDirection == "Покупка") "продажа" else "покупка"
+                        val pairTicker = uiState.pairedInstrument?.ticker ?: ""
+
+                        // Определяем цену для контрсделки
+                        val pairExecPrice: Double
+                        val pairApprox: Boolean
+                        when {
+                            isLimit || isStopLimit -> {
+                                // для лимитных заявок – та же лимитная цена
+                                pairExecPrice = executionPrice
+                                pairApprox = false
+                            }
+                            else -> {
+                                // для рыночных, стоп‑лосс, тейк‑профит – рыночная цена парного инструмента
+                                pairExecPrice = uiState.pairCurrentPrice ?: 0.0
+                                pairApprox = true
+                            }
+                        }
+                        val pairSymbol = if (pairApprox) "≈" else ""
+
+                        Text("Контрсделка: $pairDirection $pairedQty лотов $pairTicker")
+                        if (pairExecPrice > 0) {
+                            Text("Цена исполнения: $pairSymbol${formatCurrency(pairExecPrice)}")
+                            Text("Общая стоимость: $pairSymbol${formatCurrency(pairExecPrice * pairedQty)}")
+                        }
                     }
                 }
             },
