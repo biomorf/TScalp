@@ -55,7 +55,9 @@ private fun M3TextField(
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true,
-    overlayText: String? = null            // <-- новый параметр
+    overlayText: String? = null,
+    overlayAlpha: Float = 1f,
+    overlayColor: Color = MaterialTheme.colorScheme.onSurface   // по умолчанию как основной текст
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     BasicTextField(
@@ -100,7 +102,8 @@ private fun M3TextField(
                         Text(
                             text = overlayText,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = textColor
+                            //color = textColor,
+                            color = overlayColor
                         )
                     }
                 }
@@ -273,7 +276,9 @@ fun OrdersScreen(
                             placeholder = "Кол-во лотов",
                             keyboardType = KeyboardType.Number,
                             modifier = Modifier.weight(1f),
-                            overlayText = costOverlay   // <-- передаём оверлей
+                            overlayText = costOverlay,
+                            overlayAlpha = 0.1f,
+                            overlayColor = MaterialTheme.colorScheme.outline
                         )
 
                         IconButton(
@@ -400,6 +405,7 @@ fun OrdersScreen(
 
                     if (uiState.pairTradingEnabled) {
                         if (uiState.pairedInstrument == null) {
+                            // Парный поиск с историей (общая с основным поиском)
                             InstrumentSearchField(
                                 query = uiState.pairSearchQuery,
                                 onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
@@ -414,6 +420,7 @@ fun OrdersScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
+                            // Карточка парного инструмента и множитель
                             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
                                 val pairPrice = uiState.pairCurrentPrice ?: 0.0
@@ -421,8 +428,8 @@ fun OrdersScreen(
                                     name = instrument.name,
                                     ticker = instrument.ticker,
                                     quantity = portfolioPos?.quantity ?: 0L,
-                                    currentPrice = pairPrice ?: portfolioPos?.currentPrice ?: 0.0,
-                                    totalValue = (pairPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
+                                    currentPrice = pairPrice,
+                                    totalValue = pairPrice * (portfolioPos?.quantity ?: 0L),
                                     profit = portfolioPos?.profit ?: 0.0,
                                     profitPercent = portfolioPos?.profitPercent ?: 0.0,
                                     instrumentType = instrument.instrumentType,
@@ -440,10 +447,8 @@ fun OrdersScreen(
                                     resetSwipe = uiState.swipeResetTrigger
                                 )
 
-
-
-
-
+                                // Оверлей стоимости для множителя
+                                val currentQty = uiState.quantityAsLong ?: 0L
                                 val totalQty = currentQty * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)
                                 val multiplierOverlay = if (totalQty > 0 && pairPrice > 0) {
                                     formatCurrency(pairPrice * totalQty)
@@ -454,7 +459,8 @@ fun OrdersScreen(
                                     onValueChange = { viewModel.onPairedMultiplierChanged(it) },
                                     placeholder = "Множитель",
                                     keyboardType = KeyboardType.Decimal,
-                                    overlayText = multiplierOverlay   // <-- оверлей для второй карточки
+                                    overlayText = multiplierOverlay,
+                                    overlayColor = MaterialTheme.colorScheme.outline   // полусерый, как в поле количества
                                 )
                             }
                         }
