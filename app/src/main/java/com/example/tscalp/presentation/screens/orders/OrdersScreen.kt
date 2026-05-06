@@ -326,11 +326,11 @@ fun OrdersScreen(
                     }
 
                     // ========== Ценовые поля (статическая высота) ==========
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(82.dp)
-                    ) {
+//                    Box(
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .height(130.dp)
+//                    ) {
                         Column(
                             verticalArrangement = Arrangement.Top,
                             modifier = Modifier.fillMaxWidth()
@@ -378,11 +378,11 @@ fun OrdersScreen(
                                 }
                             }
                         }
-                    }
+                    //}
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
-                    if (uiState.orderType is OrderTypeSelection.Market ||
-                        uiState.orderType is OrderTypeSelection.Limit) {
+//                    if (uiState.orderType is OrderTypeSelection.Market ||
+//                        uiState.orderType is OrderTypeSelection.Limit) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -396,7 +396,7 @@ fun OrdersScreen(
                                 onCheckedChange = { viewModel.setPairTradingEnabled(it) }
                             )
                         }
-                    }
+                    //}
 
                     if (uiState.pairTradingEnabled) {
                         if (uiState.pairedInstrument == null) {
