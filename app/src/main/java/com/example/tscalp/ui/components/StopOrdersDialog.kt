@@ -86,6 +86,23 @@ fun StopOrdersDialog(
 
 @Composable
 fun OrderListItemRow(order: OrderListItem, onCancel: () -> Unit) {
+    // Цвет типа ордера
+    val typeColor = when (order.type) {
+        "LIMIT" -> Color(0xFF1565C0)
+        "MARKET" -> Color(0xFFEF6C00)
+        "STOP_LOSS" -> Color(0xFFC62828)
+        "TAKE_PROFIT" -> Color(0xFF2E7D32)
+        "STOP_LIMIT" -> Color(0xFF6A1B9A)
+        else -> Color.Gray
+    }
+
+    // Цвет цены в зависимости от направления
+    val priceColor = when (order.direction) {
+        "BUY" -> Color(0xFF2E7D32)
+        "SELL" -> Color(0xFFC62828)
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -95,25 +112,35 @@ fun OrderListItemRow(order: OrderListItem, onCancel: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text("${order.ticker} ${order.direction} ${order.quantity} лотов")
 
+            // Тип ордера цветной
+            Text(
+                text = "Тип: ${order.type}",
+                style = MaterialTheme.typography.bodySmall,
+                color = typeColor
+            )
+
+            // Цена и стоимость с учётом вида заявки
             when {
                 order.type == "STOP_LIMIT" -> {
                     val trigger = order.stopPrice ?: 0.0
-                    Text("Триггер-цена: ≈${formatCurrency(trigger)}", style = MaterialTheme.typography.bodySmall)
-                    Text("Лимитная цена: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall)
+                    Text("≈ Триггер-цена: ${formatCurrency(trigger)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Лимитная цена: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
                     Text("Общая стоимость: ${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
                 }
                 order.isStopOrder -> {
                     val approx = "≈"
-                    Text("Цена за лот: $approx${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall)
+                    Text("$approx Цена за лот: $approx${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
                     Text("Общая стоимость: $approx${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
                 }
                 else -> {
-                    Text("Цена за лот: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall)
+                    // Обычные ордера
+                    Text("Цена за лот: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
                     Text("Общая стоимость: ${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
                 }
             }
 
-            Text("Тип: ${order.type} | Статус: ${order.status}", style = MaterialTheme.typography.bodySmall)
+            // Статус ордера
+            Text("Статус: ${order.status}", style = MaterialTheme.typography.bodySmall)
         }
         IconButton(onClick = onCancel) {
             Icon(Icons.Default.Delete, contentDescription = "Отменить заявку")
