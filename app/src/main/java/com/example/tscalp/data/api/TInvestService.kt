@@ -208,6 +208,7 @@ class TInvestInvestService : BrokerApi {
             PortfolioPosition(
                 name = instrument?.name ?: "",
                 ticker = ticker,
+                tscalpInstrumentId = pos.figi,
                 quantity = quantity,
                 currentPrice = currentPrice,
                 totalValue = totalValue,

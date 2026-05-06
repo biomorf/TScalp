@@ -1,6 +1,7 @@
 package com.example.tscalp.presentation.screens.portfolio
 
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.TradingAvailability
 
 /**
  * UI-состояние экрана портфеля.
@@ -13,5 +14,6 @@ data class PortfolioUiState(
     val statusMessage: String? = null,
     val isError: Boolean = false,
     val isApiInitialized: Boolean = false,
-    val sandboxMode: Boolean = false
+    val sandboxMode: Boolean = false,
+    val tradingStatuses: Map<String, TradingAvailability> = emptyMap()
 )

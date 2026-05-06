@@ -12,6 +12,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,17 +21,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.ui.platform.LocalLifecycleOwner
+
 //import java.util.*
 import androidx.compose.runtime.getValue
+
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.ui.components.AssetPositionCard
-//import androidx.compose.material3.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import com.example.tscalp.domain.models.TradingAvailability
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
@@ -159,7 +162,9 @@ fun PortfolioScreen(
                             AssetPositionCard(
                                 position = position,
                                 instrumentType = position.instrumentType,
-                                priceChangePercent = position.priceChangePercent
+                                priceChangePercent = position.priceChangePercent,
+                                tscalpInstrumentId = position.tscalpInstrumentId,
+                                tradingAvailability = uiState.tradingStatuses[position.tscalpInstrumentId] ?: TradingAvailability.UNKNOWN
                             )
                         }
                         if (brokerName != grouped.keys.last()) {

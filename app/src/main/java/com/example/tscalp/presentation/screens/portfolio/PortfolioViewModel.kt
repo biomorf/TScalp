@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
+import com.example.tscalp.domain.models.TradingAvailability
 
 /**
  * ViewModel для экрана портфеля.
@@ -36,6 +37,16 @@ class PortfolioViewModel(
 
     init {
         checkApiInitialization()
+        // Обновление статусов каждые 5 минут
+        viewModelScope.launch {
+            while (isActive) {
+                delay(5 * 60 * 1000L)
+                val currentPositions = _uiState.value.positions
+                if (currentPositions.isNotEmpty()) {
+                    updateTradingStatuses(currentPositions)
+                }
+            }
+        }
     }
 
     fun checkApiInitialization() {
@@ -121,6 +132,11 @@ class PortfolioViewModel(
                         isError = false
                     )
                 }
+                if (sorted.isNotEmpty()) {
+                    viewModelScope.launch {
+                        updateTradingStatuses(sorted)
+                    }
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -130,6 +146,26 @@ class PortfolioViewModel(
                     )
                 }
             }
+        }
+    }
+
+    private suspend fun updateTradingStatuses(positions: List<PortfolioPosition>) {
+        // Группируем позиции по брокеру
+        val byBroker = positions.groupBy { it.brokerName }
+        val allStatuses = mutableMapOf<String, TradingAvailability>()
+        for ((brokerName, posList) in byBroker) {
+            val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: continue
+            val ids = posList.map { it.tscalpInstrumentId }.filter { it.isNotBlank() }
+            if (ids.isEmpty()) continue
+            try {
+                val statuses = broker.getTradingStatuses(ids)
+                allStatuses.putAll(statuses)
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка обновления статусов для $brokerName", e)
+            }
+        }
+        if (allStatuses.isNotEmpty()) {
+            _uiState.update { it.copy(tradingStatuses = allStatuses) }
         }
     }
 
