@@ -671,27 +671,20 @@ fun openBrokerDialog(ticker: String) {
         val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
         val state = _uiState.value
 
+        val idToTicker = mutableMapOf<String, String>()       // tscalpInstrumentId → ticker
+        state.selectedInstrument?.let { idToTicker[it.tscalpInstrumentId] = it.ticker }
+        state.pairedInstrument?.let { idToTicker[it.tscalpInstrumentId] = it.ticker }
+
+        if (idToTicker.isEmpty()) return
+
+        val ids = idToTicker.keys.toList()
+
         viewModelScope.launch {
-            val tickerToFigi = mutableMapOf<String, String>()
-            state.selectedInstrument?.let { instrument ->
-                val figi = broker.resolveTicker(instrument.ticker)
-                if (figi != null) tickerToFigi[instrument.ticker] = figi
-            }
-            state.pairedInstrument?.let { instrument ->
-                val figi = broker.resolveTicker(instrument.ticker)
-                if (figi != null) tickerToFigi[instrument.ticker] = figi
-            }
-
-            if (tickerToFigi.isEmpty()) return@launch
-
-            val figiList = tickerToFigi.values.toList()
-            val figiToTicker = tickerToFigi.entries.associate { (ticker, figi) -> figi to ticker }
-
             priceStreamJob = launch {
-                broker.subscribeLastPrices(figiList)
+                broker.subscribeLastPrices(ids)   // ids — это tscalpInstrumentId, которые для Т‑Инвестиций равны figi
                     .catch { e -> Log.e(TAG, "Price stream error", e) }
-                    .collect { (figi, price) ->
-                        val ticker = figiToTicker[figi] ?: return@collect
+                    .collect { (id, price) ->
+                        val ticker = idToTicker[id] ?: return@collect
                         _uiState.update { state ->
                             val oldPrice = state.currentPrice
                             val newPercent = if (oldPrice != null && oldPrice != 0.0) {
