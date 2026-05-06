@@ -1,6 +1,7 @@
 package com.example.tscalp.domain.api
 
 import com.example.tscalp.domain.models.InstrumentUi
+import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.*
 
 
@@ -84,4 +85,10 @@ interface BrokerApi {
 
     suspend fun getOrders(accountId: String): List<OrderListItem>
     suspend fun cancelOrder(accountId: String, orderId: String)
+
+    /**
+     * Возвращает статусы доступности для торговли для списка идентификаторов инструментов.
+     * Ключ — идентификатор инструмента (tscalpInstrumentId), значение — статус доступности.
+     */
+    suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability>
 }

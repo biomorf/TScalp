@@ -314,4 +314,8 @@ class BcsBrokerApi : BrokerApi {
     // Заглушка: отмена обычных заявок не поддерживается для BCS
     throw UnsupportedOperationException("cancelOrder не реализован для BcsBrokerApi")
     }
+
+    override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> {
+        return ids.associateWith { TradingAvailability.UNKNOWN }
+    }
 }

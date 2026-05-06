@@ -80,4 +80,8 @@ class MockBrokerApi : BrokerApi {
         // Заглушка – отмена обычных заявок не эмулируется
         throw UnsupportedOperationException("cancelOrder не поддерживается для MockBrokerApi")
     }
+
+    override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> {
+        return ids.associateWith { TradingAvailability.UNKNOWN }
+    }
 }

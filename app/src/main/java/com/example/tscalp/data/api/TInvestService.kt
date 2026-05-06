@@ -28,6 +28,7 @@ import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.domain.models.StopOrderType as DomainStopOrderType
 import com.example.tscalp.domain.models.StopOrderExpirationType as DomainStopOrderExpirationType
+import com.example.tscalp.domain.models.TradingAvailability
 
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.Order
@@ -64,6 +65,7 @@ import ru.tinkoff.piapi.contract.v1.LastPriceInstrument
 import io.grpc.stub.StreamObserver
 import ru.tinkoff.piapi.contract.v1.MarketDataStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.MarketDataServerSideStreamRequest
+import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
 
 
 
@@ -604,6 +606,27 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             Log.d(TAG, "closing server-side stream")
             // gRPC сам завершит стрим при отмене
         }
+    }
+
+    override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val result = mutableMapOf<String, TradingAvailability>()
+
+        // Для каждого figi запрашиваем статус
+        ids.forEach { figi ->
+            try {
+                val request = GetTradingStatusRequest.newBuilder()
+                    .setFigi(figi)
+                    .build()
+                val response = currentApi.marketDataServiceSync.getTradingStatus(request)
+                val available = response.apiTradeAvailableFlag  // true/false
+                result[figi] = if (available) TradingAvailability.AVAILABLE else TradingAvailability.UNAVAILABLE
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка получения статуса для $figi", e)
+                result[figi] = TradingAvailability.UNKNOWN
+            }
+        }
+        result
     }
 }
 
