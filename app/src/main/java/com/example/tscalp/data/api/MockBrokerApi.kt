@@ -26,7 +26,13 @@ class MockBrokerApi : BrokerApi {
         BrokerAccount("mock-2", "ИИС (Mock)", BrokerAccountType.IIS)
     )
 
+    override suspend fun openSandboxAccount(): String {
+        throw UnsupportedOperationException("Открытие счёта песочницы не поддерживается для этого брокера")
+    }
 
+    override suspend fun closeSandboxAccount(accountId: String) {
+        throw UnsupportedOperationException("Закрытие счетов песочницы не поддерживается для этого брокера")
+    }
 
     override suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
         return OrderResult(

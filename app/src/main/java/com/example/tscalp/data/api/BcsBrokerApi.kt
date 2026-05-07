@@ -169,6 +169,8 @@ class BcsBrokerApi : BrokerApi {
             }
         }
 
+
+
         // Если счетов нет – создаём один счёт из первого элемента портфеля
         val firstPosition = portfolioData["positions"] as? List<*>
         val accountId = (firstPosition?.firstOrNull() as? Map<String, Any>)?.get("account") as? String ?: "bcs-default"
@@ -317,5 +319,13 @@ class BcsBrokerApi : BrokerApi {
 
     override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> {
         return ids.associateWith { TradingAvailability.UNKNOWN }
+    }
+
+    override suspend fun openSandboxAccount(): String {
+        throw UnsupportedOperationException("Открытие счёта песочницы не поддерживается для этого брокера")
+    }
+
+    override suspend fun closeSandboxAccount(accountId: String) {
+        throw UnsupportedOperationException("Закрытие счетов песочницы не поддерживается для этого брокера")
     }
 }

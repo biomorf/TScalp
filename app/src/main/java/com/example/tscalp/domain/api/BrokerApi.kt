@@ -8,6 +8,8 @@ import com.example.tscalp.domain.models.*
 interface BrokerApi {
     val isInitialized: Boolean
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
+    suspend fun openSandboxAccount(): String   // возвращает accountId нового счёта
+    suspend fun closeSandboxAccount(accountId: String)
 
 
     /**

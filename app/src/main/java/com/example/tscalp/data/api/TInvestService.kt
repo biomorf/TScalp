@@ -31,6 +31,9 @@ import com.example.tscalp.domain.models.StopOrderExpirationType as DomainStopOrd
 import com.example.tscalp.domain.models.TradingAvailability
 
 import ru.ttech.piapi.core.InvestApi
+import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
+import ru.tinkoff.piapi.contract.v1.OpenSandboxAccountRequest
+import ru.tinkoff.piapi.contract.v1.CloseSandboxAccountRequest
 import ru.tinkoff.piapi.contract.v1.Order
 import ru.tinkoff.piapi.contract.v1.PostStopOrderRequest
 import ru.tinkoff.piapi.contract.v1.StopOrderDirection
@@ -51,7 +54,7 @@ import ru.tinkoff.piapi.contract.v1.InstrumentRequest
 import ru.tinkoff.piapi.contract.v1.InstrumentIdType
 import ru.tinkoff.piapi.contract.v1.InstrumentResponse
 import ru.tinkoff.piapi.contract.v1.InstrumentShort
-import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
+
 import ru.tinkoff.piapi.contract.v1.PortfolioRequest
 import ru.tinkoff.piapi.contract.v1.PortfolioResponse
 import ru.tinkoff.piapi.contract.v1.GetLastPricesRequest
@@ -179,6 +182,24 @@ class TInvestInvestService : BrokerApi {
                     else -> BrokerAccountType.OTHER
                 }
             )
+        }
+    }
+
+    override suspend fun openSandboxAccount(): String = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = ru.tinkoff.piapi.contract.v1.OpenSandboxAccountRequest.newBuilder().build()
+        val response = currentApi.sandboxServiceSync.openSandboxAccount(request)
+        response.accountId
+    }
+
+    override suspend fun closeSandboxAccount(accountId: String) {
+        withContext(Dispatchers.IO) {
+            val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+            val request = ru.tinkoff.piapi.contract.v1.CloseSandboxAccountRequest.newBuilder()
+                .setAccountId(accountId)
+                .build()
+            currentApi.sandboxServiceSync.closeSandboxAccount(request)
+            Log.d(TAG, "Счёт песочницы $accountId закрыт")
         }
     }
 

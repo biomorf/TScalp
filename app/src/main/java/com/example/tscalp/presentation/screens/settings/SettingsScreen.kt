@@ -33,8 +33,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-import com.example.tscalp.data.api.BcsBrokerApi
+
 import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.BcsBrokerApi
+
 import com.example.tscalp.domain.models.AccountUi
 
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
@@ -158,18 +161,21 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 @Composable
 fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiState) {
     var token by remember { mutableStateOf("") }
-    var sandboxMode by remember { mutableStateOf(true) }
+    var sandboxMode by remember { mutableStateOf(ServiceLocator.isSandboxMode()) }
     var showToken by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Данные для выбора счёта по умолчанию
     val repository: InvestRepository = remember { InvestRepository(ServiceLocator.getBrokerManager()) }
     var availableAccounts by remember { mutableStateOf<List<AccountUi>>(emptyList()) }
     var defaultAccountId by remember { mutableStateOf(ServiceLocator.loadDefaultAccountId("TInvest") ?: "") }
     var accountExpanded by remember { mutableStateOf(false) }
 
+    var showCloseDialog by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }  // общий флаг загрузки
+
+    // Загрузка сохранённых креденшелов
     LaunchedEffect(Unit) {
         val creds = ServiceLocator.loadBrokerCredentials("TInvest")
         if (creds != null) {
@@ -180,16 +186,17 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
 
     val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("TInvest") != null
 
-    LaunchedEffect(isConnected) {
+    // При подключении/изменении режима перезагружаем счета
+    LaunchedEffect(isConnected, sandboxMode) {
         if (isConnected) {
             try {
-                val sandbox = ServiceLocator.isSandboxMode()
-                availableAccounts = repository.getAccounts("TInvest", sandbox)
+                availableAccounts = repository.getAccounts("TInvest", sandboxMode)
             } catch (_: Exception) { }
+        } else {
+            availableAccounts = emptyList()
         }
     }
 
-    // Главное изменение: fillMaxSize() + verticalScroll – прижимает вверх
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -198,9 +205,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
-        Spacer(modifier = Modifier.height(0.dp))   // гарантирует начало от края
-
-        // Карточка статуса подключения
+        // --- Карточка статуса подключения (без изменений) ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -208,7 +213,6 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 else MaterialTheme.colorScheme.errorContainer
             )
         ) {
-            // Кнопка справа – Row растянут на всю ширину
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -260,7 +264,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             }
         }
 
-        // Поле токена
+        // --- Поле токена ---
         OutlinedTextField(
             value = token,
             onValueChange = { token = it },
@@ -278,7 +282,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             enabled = !isConnected
         )
 
-        // Переключатель песочницы
+        // --- Переключатель песочницы ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -299,14 +303,15 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             )
         }
 
-        // Выбор счёта по умолчанию
+        // --- Выбор счёта по умолчанию ---
         if (isConnected) {
             ExposedDropdownMenuBox(
                 expanded = accountExpanded,
                 onExpandedChange = { accountExpanded = it }
             ) {
+                val selectedAccount = availableAccounts.find { it.id == defaultAccountId }
                 TextField(
-                    value = availableAccounts.find { it.id == defaultAccountId }?.name ?: "Выберите счёт",
+                    value = selectedAccount?.let { "${it.name} (${it.id})" } ?: "Выберите счёт",
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Счёт по умолчанию") },
@@ -319,7 +324,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 ) {
                     availableAccounts.forEach { account: AccountUi ->
                         DropdownMenuItem(
-                            text = { Text(account.name) },
+                            text = { Text("${account.name} (${account.id})") },
                             onClick = {
                                 defaultAccountId = account.id
                                 ServiceLocator.saveDefaultAccountId("TInvest", account.id)
@@ -329,9 +334,57 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     }
                 }
             }
+
+            // --- Кнопка открытия счёта песочницы (только в режиме песочницы) ---
+            if (sandboxMode) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isRefreshing = true
+                            try {
+                                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+                                val newAccountId = broker?.openSandboxAccount()
+                                if (newAccountId != null) {
+                                    // Принудительно обновляем список счетов
+                                    availableAccounts = repository.getAccounts("TInvest", sandboxMode)
+                                    defaultAccountId = newAccountId
+                                    ServiceLocator.saveDefaultAccountId("TInvest", newAccountId)
+                                    statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
+                                    isError = false
+                                }
+                            } catch (e: Exception) {
+                                statusMessage = "Ошибка открытия счёта: ${e.message}"
+                                isError = true
+                            }
+                            isRefreshing = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isRefreshing
+                ) {
+                    if (isRefreshing) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("Открыть новый счёт песочницы")
+                    }
+                }
+            }
+
+            // --- Кнопка закрытия счёта песочницы (только если выбран счёт) ---
+            if (sandboxMode && defaultAccountId.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { showCloseDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Закрыть счёт песочницы")
+                }
+            }
         }
 
-        // Инструкция
+        // --- Инструкция (без изменений) ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -357,7 +410,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             }
         }
 
-        // Статусное сообщение
+        // --- Статусное сообщение ---
         statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -369,6 +422,46 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 Text(message, modifier = Modifier.padding(16.dp))
             }
         }
+    }
+
+    // --- Диалог подтверждения закрытия счёта ---
+    if (showCloseDialog) {
+        AlertDialog(
+            onDismissRequest = { showCloseDialog = false },
+            title = { Text("Закрытие счёта песочницы") },
+            text = { Text("Вы уверены, что хотите закрыть счёт «${availableAccounts.find { it.id == defaultAccountId }?.name}»? Это действие необратимо.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isRefreshing = true
+                            try {
+                                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+                                broker?.closeSandboxAccount(defaultAccountId)
+                                availableAccounts = repository.getAccounts("TInvest", sandboxMode)
+                                defaultAccountId = ""
+                                ServiceLocator.saveDefaultAccountId("TInvest", "")
+                                statusMessage = "Счёт песочницы закрыт"
+                                isError = false
+                            } catch (e: Exception) {
+                                statusMessage = "Ошибка закрытия счёта: ${e.message}"
+                                isError = true
+                            }
+                            isRefreshing = false
+                            showCloseDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Закрыть")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCloseDialog = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 }
 
