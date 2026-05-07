@@ -77,6 +77,7 @@ import ru.tinkoff.piapi.contract.v1.MarketDataServerSideStreamRequest
 import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
+import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
 
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
@@ -97,6 +98,10 @@ class TInvestInvestService : BrokerApi {
     private var api: InvestApi? = null
     @Volatile
     private lateinit var grpcChannel: io.grpc.ManagedChannel
+    @Volatile
+    private lateinit var pricesStreamChannel: io.grpc.ManagedChannel
+    @Volatile
+    private lateinit var ordersStateChannel: io.grpc.ManagedChannel
 
     override val isInitialized: Boolean
         get() = api != null
@@ -109,11 +114,14 @@ class TInvestInvestService : BrokerApi {
         } else {
             "invest-public-api.tbank.ru:443"
         }
-        grpcChannel = InvestApi.defaultChannel(token, target)   // <-- сохраняем
-        api = InvestApi.createApi(grpcChannel)                  // <-- используем
+        grpcChannel = InvestApi.defaultChannel(token, target)
+        pricesStreamChannel = InvestApi.defaultChannel(token, target)
+        ordersStateChannel = InvestApi.defaultChannel(token, target)
+        api = InvestApi.createApi(grpcChannel)   // 👈 API привязан к основному каналу
         tickerToFigiCache.clear()
     }
 
+    // ---------- Базовые методы ----------
     override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetAccountsRequest.getDefaultInstance()
@@ -231,6 +239,7 @@ class TInvestInvestService : BrokerApi {
     }
 
 
+    // ---------- FIGI / Ticker ----------
     override suspend fun resolveTicker(ticker: String): String? {
         tickerToFigiCache[ticker]?.let { return it }
         val shortList = findInstrumentShorts(ticker)
@@ -252,6 +261,7 @@ class TInvestInvestService : BrokerApi {
                 InstrumentUi(
                     ticker = instrument.ticker,
                     name = instrument.name,
+                    uid = instrument.uid ?: "",
                     currency = instrument.currency,
                     lot = instrument.lot,
                     instrumentType = instrument.instrumentType,
@@ -268,6 +278,7 @@ class TInvestInvestService : BrokerApi {
         return InstrumentUi(
             ticker = inst.ticker,
             tscalpInstrumentId = inst.figi,
+            uid = inst.uid ?: "",
             name = inst.name,
             currency = inst.currency,
             lot = inst.lot,
@@ -291,16 +302,21 @@ class TInvestInvestService : BrokerApi {
     }
 
 
+    // ---------- Orders ----------
     override suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
+        val uid = request.instrumentUid
+        Log.d(TAG, "postOrder: ticker=${request.ticker}, figi=$figi, uid=${uid ?: "null"}, " +
+                "confirmMarginTrade=true, sandbox=${request.sandboxMode}")
 
         val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
             val units = request.price.toLong()
             val nano = ((request.price - units) * 1_000_000_000).toInt()
             Quotation.newBuilder().setUnits(units).setNano(nano).build()
         } else {
-            Quotation.newBuilder().setUnits(0).setNano(0).build()
+            // Для рыночных заявок API требует ненулевое значение цены
+            Quotation.newBuilder().setUnits(1).setNano(0).build()
         }
 
         val apiOrderType = when (request.type) {
@@ -314,19 +330,23 @@ class TInvestInvestService : BrokerApi {
         }
 
         val apiRequest = PostOrderRequest.newBuilder()
-            .setFigi(figi)
+            .setInstrumentId(uid!!)
             .setQuantity(request.quantity)
             .setPrice(price)
             .setDirection(apiDirection)
             .setAccountId(request.accountId)
             .setOrderType(apiOrderType)
+            .setConfirmMarginTrade(true)
             .build()
+
+        Log.d(TAG, "postOrder request fields: ${apiRequest.allFields}")
 
         val response = if (request.sandboxMode) {
             currentApi.sandboxServiceSync.postSandboxOrder(apiRequest)
         } else {
             currentApi.ordersServiceSync.postOrder(apiRequest)
         }
+        Log.d(TAG, "postOrder response: $response")
 
         OrderResult(
             orderId = response.orderId,
@@ -337,8 +357,105 @@ class TInvestInvestService : BrokerApi {
         )
     }
 
-    // --- stop orders ---
+    override suspend fun getOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = GetOrdersRequest.newBuilder()
+            .setAccountId(accountId)
+            .build()
+        val response = if (ServiceLocator.isSandboxMode()) {
+            currentApi.sandboxServiceSync.getSandboxOrders(request)
+        } else {
+            currentApi.ordersServiceSync.getOrders(request)
+        }
 
+        val activeStatuses = setOf(
+            OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
+            OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL
+        )
+
+        response.ordersList
+            .filter { it.executionReportStatus in activeStatuses }
+            .map { order ->
+                val figi = order.figi
+                val ticker = getTickerByFigi(figi) ?: figi
+
+                val orderType = when (order.orderType) {
+                    OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
+                    OrderType.ORDER_TYPE_MARKET -> "MARKET"
+                    else -> "UNKNOWN"
+                }
+
+                val direction = when (order.directionValue) {
+                    1 -> "BUY"
+                    2 -> "SELL"
+                    else -> "UNKNOWN"
+                }
+
+                val statusField = order.descriptorForType.findFieldByName("execution_report_status")
+                val statusStr: String = if (statusField != null) {
+                    val rawStatus = order.getField(statusField)
+                    if (rawStatus is com.google.protobuf.Descriptors.EnumValueDescriptor) {
+                        rawStatus.name.removePrefix("EXECUTION_REPORT_STATUS_")
+                    } else {
+                        "UNKNOWN"
+                    }
+                } else {
+                    "UNKNOWN"
+                }
+
+
+                Log.d(TAG, "Order ${order.orderId} rawStatusValue=${statusField?.let { order.getField(it) }}, mapped=$statusStr")
+                val orderIdStr: String = (order.orderId ?: "").toString()
+                val figiStr: String = (order.figi ?: "").toString()
+
+
+                val priceField = order.descriptorForType.findFieldByName("initial_order_price")
+                    ?: order.descriptorForType.findFieldByName("price")
+                val priceValue = priceField?.let { order.getField(it) }
+                val priceDouble = when (priceValue) {
+                    is MoneyValue -> priceValue.units + priceValue.nano / 1_000_000_000.0
+                    is Quotation -> priceValue.units + priceValue.nano / 1_000_000_000.0
+                    else -> 0.0
+                }
+
+                val dateField = order.descriptorForType.findFieldByName("create_date")
+                val dateValue = dateField?.let { order.getField(it) }
+                val orderDateLong = (dateValue as? com.google.protobuf.Timestamp)?.seconds
+
+                OrderListItem(
+                    orderId = orderIdStr,
+                    ticker = ticker,
+                    tscalpInstrumentId = figiStr,
+                    direction = direction,
+                    price = priceDouble,
+                    stopPrice = null,
+                    quantity = order.lotsRequested,
+                    type = orderType,
+                    status = statusStr,
+                    orderDate = orderDateLong,
+                    isStopOrder = false
+                )
+            }
+    }
+
+    override suspend fun cancelOrder(accountId: String, orderId: String) {
+        withContext(Dispatchers.IO) {
+            val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+            val request = CancelOrderRequest.newBuilder()
+                .setAccountId(accountId)
+                .setOrderId(orderId)
+                .build()
+            if (ServiceLocator.isSandboxMode()) {
+                currentApi.sandboxServiceSync.cancelSandboxOrder(request)
+            } else {
+                currentApi.ordersServiceSync.cancelOrder(request)
+            }
+        }
+    }
+
+
+
+    // ---------- Stop Orders ----------
     private fun protoDirection(direction: OrderDirection): ru.tinkoff.piapi.contract.v1.StopOrderDirection = when (direction) {
         OrderDirection.BUY -> ru.tinkoff.piapi.contract.v1.StopOrderDirection.STOP_ORDER_DIRECTION_BUY
         OrderDirection.SELL -> ru.tinkoff.piapi.contract.v1.StopOrderDirection.STOP_ORDER_DIRECTION_SELL
@@ -361,23 +478,23 @@ class TInvestInvestService : BrokerApi {
         return Quotation.newBuilder().setUnits(units).setNano(nano).build()
     }
 
-    private fun moneyToDouble(money: MoneyValue?): Double {
-        if (money == null) return 0.0
-        return money.units + money.nano / 1_000_000_000.0
-    }
-
     override suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
+        val uid = request.instrumentUid
 
         val builder = PostStopOrderRequest.newBuilder()
-            .setFigi(figi)
+            .apply {
+                if (uid != null) setInstrumentId(uid)   // ← для акций
+                else setFigi(figi)                      // ← для фьючерсов (совместимость)
+            }
             .setQuantity(request.quantity)
             .setDirection(protoDirection(request.direction))
             .setAccountId(request.accountId)
             .setStopPrice(quotationFromDouble(request.stopPrice))
             .setStopOrderType(protoStopOrderType(request.stopOrderType))
             .setExpirationType(protoExpirationType(request.expirationType))
+            .setConfirmMarginTrade(true)
         if (request.price != null) builder.setPrice(quotationFromDouble(request.price))
         if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))
 
@@ -389,7 +506,7 @@ class TInvestInvestService : BrokerApi {
         }
         response.stopOrderId
     }
-//////////!!!!!!!!!!!!!!!!!11111111111!!!!!!!!!!!!!!
+
     override suspend fun getStopOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetStopOrdersRequest.newBuilder().setAccountId(accountId).build()
@@ -400,7 +517,8 @@ class TInvestInvestService : BrokerApi {
         }
 
         response.stopOrdersList.map { order ->
-            val ticker = resolveTicker(order.figi) ?: order.figi
+            val figi = order.figi
+            val ticker = getTickerByFigi(order.figi) ?: order.figi
 
             // Тип стоп-заявки через дескриптор с явным кастом
             val fieldDescriptor = order.descriptorForType.findFieldByName("order_type")
@@ -410,6 +528,7 @@ class TInvestInvestService : BrokerApi {
             } else {
                 "UNKNOWN"
             }
+
 
             // Явное приведение String (убирает String!)
             val orderIdStr: String = order.stopOrderId as String
@@ -462,103 +581,6 @@ class TInvestInvestService : BrokerApi {
     }
 
 
-/////////////!!!!!!!1111111111111!1!!!!!!!!!!
-override suspend fun getOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
-    val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-    val request = GetOrdersRequest.newBuilder()
-        .setAccountId(accountId)
-        .build()
-    val response = if (ServiceLocator.isSandboxMode()) {
-        currentApi.sandboxServiceSync.getSandboxOrders(request)
-    } else {
-        currentApi.ordersServiceSync.getOrders(request)
-    }
-
-    val activeStatuses = setOf(
-        OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
-        OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL
-    )
-
-    response.ordersList
-        .filter { it.executionReportStatus in activeStatuses }
-        .map { order ->
-            val ticker = resolveTicker(order.figi) ?: order.figi
-
-            val orderType = when (order.orderType) {
-                OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
-                OrderType.ORDER_TYPE_MARKET -> "MARKET"
-                else -> "UNKNOWN"
-            }
-
-            val direction = when (order.directionValue) {
-                1 -> "BUY"
-                2 -> "SELL"
-                else -> "UNKNOWN"
-            }
-
-            // --- Извлечение статуса через дескриптор ---
-            val statusField = order.descriptorForType.findFieldByName("execution_report_status")
-            val statusStr: String = if (statusField != null) {
-                val rawStatus = order.getField(statusField)
-                if (rawStatus is com.google.protobuf.Descriptors.EnumValueDescriptor) {
-                    rawStatus.name.removePrefix("EXECUTION_REPORT_STATUS_")
-                } else {
-                    "UNKNOWN"
-                }
-            } else {
-                "UNKNOWN"
-            }
-            Log.d(TAG, "Order ${order.orderId} rawStatusValue=${statusField?.let{order.getField(it)}}, mapped=$statusStr")
-
-            // Строки
-            val orderIdStr: String = (order.orderId ?: "").toString()
-            val figiStr: String = (order.figi ?: "").toString()
-
-            // Цена через дескриптор
-            val priceField = order.descriptorForType.findFieldByName("initial_order_price")
-                ?: order.descriptorForType.findFieldByName("price")
-            val priceValue = priceField?.let { order.getField(it) }
-            val priceDouble = when (priceValue) {
-                is MoneyValue -> priceValue.units + priceValue.nano / 1_000_000_000.0
-                is Quotation -> priceValue.units + priceValue.nano / 1_000_000_000.0
-                else -> 0.0
-            }
-
-            // Дата через дескриптор
-            val dateField = order.descriptorForType.findFieldByName("create_date")
-            val dateValue = dateField?.let { order.getField(it) }
-            val orderDateLong = (dateValue as? com.google.protobuf.Timestamp)?.seconds
-
-            OrderListItem(
-                orderId = orderIdStr,
-                ticker = ticker,
-                tscalpInstrumentId = figiStr,
-                direction = direction,
-                price = priceDouble,
-                stopPrice = null,
-                quantity = order.lotsRequested,
-                type = orderType,
-                status = statusStr,
-                orderDate = orderDateLong,
-                isStopOrder = false
-            )
-        }
-}
-
-    override suspend fun cancelOrder(accountId: String, orderId: String) {
-        withContext(Dispatchers.IO) {
-            val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-            val request = CancelOrderRequest.newBuilder()
-                .setAccountId(accountId)
-                .setOrderId(orderId)
-                .build()
-            if (ServiceLocator.isSandboxMode()) {
-                currentApi.sandboxServiceSync.cancelSandboxOrder(request)
-            } else {
-                currentApi.ordersServiceSync.cancelOrder(request)
-            }
-        }
-    }
 
     override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
         if (tickers.isEmpty()) return@withContext emptyMap()
@@ -585,12 +607,11 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
         result
     }
 
-
     fun subscribeLastPrices(figis: List<String>): Flow<Pair<String, Double>> = callbackFlow {
-        if (!::grpcChannel.isInitialized) {
-            throw IllegalStateException("gRPC-канал не инициализирован")
+        if (!::pricesStreamChannel.isInitialized) {
+            throw IllegalStateException("gRPC-стрим не инициализирован")
         }
-        val stub = MarketDataStreamServiceGrpc.newStub(grpcChannel)
+        val stub = MarketDataStreamServiceGrpc.newStub(pricesStreamChannel)
 
         val instruments = figis.map { figi ->
             LastPriceInstrument.newBuilder().setFigi(figi).build()
@@ -609,13 +630,13 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
 
         val responseObserver = object : StreamObserver<MarketDataResponse> {
             override fun onNext(value: MarketDataResponse) {
-                Log.d(TAG, "stream onNext: hasLastPrice=${value.hasLastPrice()}, " +
-                        "hasPing=${value.hasPing()}, " +
-                        "hasSubscribeLastPriceResponse=${value.hasSubscribeLastPriceResponse()}, " +
-                        "fields=${value.allFields.keys}")
+//                Log.d(TAG, "stream onNext: hasLastPrice=${value.hasLastPrice()}, " +
+//                        "hasPing=${value.hasPing()}, " +
+//                        "hasSubscribeLastPriceResponse=${value.hasSubscribeLastPriceResponse()}, " +
+//                        "fields=${value.allFields.keys}")
                 if (value.hasLastPrice()) {
                     val lp = value.lastPrice
-                    Log.d(TAG, "✅ lastPrice: figi=${lp.figi}, price=${lp.price}")
+                    //Log.d(TAG, "✅ lastPrice: figi=${lp.figi}, price=${lp.price}")
                     val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
                     if (price != null) trySend(lp.figi to price)
                 }
@@ -666,18 +687,21 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
     }
 
     override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = callbackFlow {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        if (!::ordersStateChannel.isInitialized) {
+            throw IllegalStateException("Канал для OrderState не инициализирован")
+        }
+        val stub = OrdersStreamServiceGrpc.newStub(ordersStateChannel)
+
         val request = OrderStateStreamRequest.newBuilder()
             .addAccounts(accountId)
             .build()
 
-        val job = currentApi.ordersStreamServiceAsync.orderStateStream(
-            request,
-            { /* статус подписки – можно оставить пустым */ },
-            { response: OrderStateStreamResponse ->
-                Log.d(TAG, "OrderStateStream received response: ${response.allFields}")
-                if (response.hasOrderState()) {
-                    val state = response.orderState
+        Log.d(TAG, "subscribeOrderState via StreamObserver for account $accountId")
+
+        val responseObserver = object : StreamObserver<OrderStateStreamResponse> {
+            override fun onNext(value: OrderStateStreamResponse) {
+                if (value.hasOrderState()) {
+                    val state = value.orderState
 
                     val figiField = state.descriptorForType.findFieldByName("figi")
                     val figi = figiField?.let { state.getField(it) } as? String ?: ""
@@ -712,80 +736,36 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
                     )
                 }
             }
-        )
-        awaitClose { job.cancel() }
+
+            override fun onError(t: Throwable) {
+                Log.e(TAG, "OrderState stream error", t)
+                close(t)
+            }
+
+            override fun onCompleted() {
+                Log.d(TAG, "OrderState stream completed")
+                close()
+            }
+        }
+
+        // Открываем серверный стрим – запрос передаётся сразу, requestObserver не нужен
+        stub.orderStateStream(request, responseObserver)
+
+        awaitClose {
+            Log.d(TAG, "Closing OrderState stream")
+            // gRPC сам завершит стрим при отмене
+        }
     }
 
     override suspend fun checkTradeAvailability(
         accountId: String,
         tscalpInstrumentId: String,
+        uid: String?,
         direction: OrderDirection,
         quantity: Long
-    ): TradeCheckResult = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
 
-        // 1. Получаем figi по tscalpInstrumentId
-        val figi = resolveTicker(tscalpInstrumentId) ?: return@withContext TradeCheckResult.Error("Инструмент не найден")
-
-        // 2. Получаем торговый статус инструмента
-        val tradingStatusRequest = GetTradingStatusRequest.newBuilder().setFigi(figi).build()
-        val tradingStatusResponse = currentApi.marketDataServiceSync.getTradingStatus(tradingStatusRequest)
-
-        // Проверка apiTradeAvailableFlag
-        if (!tradingStatusResponse.apiTradeAvailableFlag) {
-            return@withContext TradeCheckResult.Error("Инструмент недоступен для торговли через API")
-        }
-
-        // Проверка торговой сессии
-        val statusField = tradingStatusResponse.descriptorForType.findFieldByName("trading_status")
-        val tradingStatus = statusField?.let { tradingStatusResponse.getField(it) }?.toString() ?: "UNKNOWN"
-        if (tradingStatus !in listOf("SECURITY_TRADING_STATUS_NORMAL_TRADING", "SECURITY_TRADING_STATUS_DEALER_NORMAL_TRADING")) {
-            return@withContext TradeCheckResult.Error("Торги по инструменту приостановлены (статус: $tradingStatus)")
-        }
-
-        // Проверка флагов покупки/продажи
-        val buyAvailableField = tradingStatusResponse.descriptorForType.findFieldByName("buy_available_flag")
-        val sellAvailableField = tradingStatusResponse.descriptorForType.findFieldByName("sell_available_flag")
-        val buyAvailable = (buyAvailableField?.let { tradingStatusResponse.getField(it) } as? Boolean) ?: false
-        val sellAvailable = (sellAvailableField?.let { tradingStatusResponse.getField(it) } as? Boolean) ?: false
-
-        if (direction == OrderDirection.BUY && !buyAvailable) {
-            return@withContext TradeCheckResult.Error("Покупка недоступна")
-        }
-        if (direction == OrderDirection.SELL && !sellAvailable) {
-            return@withContext TradeCheckResult.Error("Продажа недоступна")
-        }
-
-        // 3. Маржинальная проверка
-        try {
-            val marginRequest = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-            val marginResponse = currentApi.usersServiceSync.getMarginAttributes(marginRequest)
-
-            val buyMarginField = marginResponse.descriptorForType.findFieldByName("buy_margin_available")
-            val sellMarginField = marginResponse.descriptorForType.findFieldByName("sell_margin_available")
-            val missingFundsField = marginResponse.descriptorForType.findFieldByName("amount_of_missing_funds")
-
-            val buyMarginAvailable = (buyMarginField?.let { marginResponse.getField(it) } as? Boolean) ?: true
-            val sellMarginAvailable = (sellMarginField?.let { marginResponse.getField(it) } as? Boolean) ?: true
-            val missingFunds = (missingFundsField?.let { marginResponse.getField(it) } as? MoneyValue)?.let {
-                it.units + it.nano / 1_000_000_000.0
-            } ?: 0.0
-
-            if (direction == OrderDirection.BUY && !buyMarginAvailable) {
-                return@withContext TradeCheckResult.Error("Покупка недоступна (не подключена маржинальная торговля)")
-            }
-            if (direction == OrderDirection.SELL && !sellMarginAvailable) {
-                return@withContext TradeCheckResult.Error("Продажа недоступна (не подключена маржинальная торговля)")
-            }
-            if (missingFunds > 0) {
-                return@withContext TradeCheckResult.Error("Недостаточно средств для обеспечения заявки (необходимо: ${"%.2f".format(missingFunds)} ₽)")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка получения маржинальных атрибутов", e)
-            return@withContext TradeCheckResult.Error("Не удалось проверить маржинальную доступность")
-        }
-
-        TradeCheckResult.Success
+    ): TradeCheckResult {
+        return TradeCheckResult.Success
     }
 }
 

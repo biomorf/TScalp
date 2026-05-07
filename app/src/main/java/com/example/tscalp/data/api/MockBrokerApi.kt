@@ -101,6 +101,7 @@ class MockBrokerApi : BrokerApi {
     override suspend fun checkTradeAvailability(
         accountId: String,
         tscalpInstrumentId: String,
+        uid: String?,
         direction: OrderDirection,
         quantity: Long
     ): TradeCheckResult = TradeCheckResult.Success

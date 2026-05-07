@@ -3,6 +3,7 @@ package com.example.tscalp.domain.models
 data class InstrumentUi(
     val tscalpInstrumentId: String,
     val ticker: String,
+    val uid: String = "",
     val name: String,
     val currency: String,
     val lot: Int,

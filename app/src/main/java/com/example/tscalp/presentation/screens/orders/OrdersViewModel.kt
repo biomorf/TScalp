@@ -288,7 +288,13 @@ class OrdersViewModel(
                 return
             }
 
-        val checkResult = broker.checkTradeAvailability(accountId, tscalpId, direction, quantity)
+        val checkResult = broker.checkTradeAvailability(
+            accountId,
+            tscalpId,
+            uid = state.selectedInstrument?.uid,
+            direction,
+            quantity
+        )
 
         when (checkResult) {
             is TradeCheckResult.Success -> { /* продолжаем */ }
@@ -313,6 +319,7 @@ class OrdersViewModel(
                 val request = BrokerOrderRequest(
                     brokerName = brokerName,
                     ticker = ticker,
+                    instrumentUid = state.selectedInstrument?.uid,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
@@ -433,6 +440,7 @@ class OrdersViewModel(
                 val stopRequest = StopOrderRequest(
                     brokerName = brokerName,
                     ticker = ticker,
+                    instrumentUid = state.selectedInstrument?.uid,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,

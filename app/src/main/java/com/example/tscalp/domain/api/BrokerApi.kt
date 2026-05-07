@@ -85,6 +85,7 @@ interface BrokerApi {
     suspend fun checkTradeAvailability(
         accountId: String,
         tscalpInstrumentId: String,
+        uid: String? = null,
         direction: OrderDirection,
         quantity: Long
     ): TradeCheckResult

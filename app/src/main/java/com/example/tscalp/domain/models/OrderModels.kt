@@ -71,6 +71,7 @@ enum class OrderDirection { BUY, SELL }
 data class StopOrderRequest(
     val brokerName: String,
     val ticker: String,
+    val instrumentUid: String? = null,   // uid инструмента (для акций)
     val quantity: Long,
     val direction: OrderDirection,
     val accountId: String,
@@ -112,6 +113,7 @@ data class StopOrderUi(
 data class BrokerOrderRequest(
     val brokerName: String,
     val ticker: String,
+    val instrumentUid: String? = null,   // uid инструмента (для акций)
     val quantity: Long,
     val direction: OrderDirection,
     val accountId: String,
