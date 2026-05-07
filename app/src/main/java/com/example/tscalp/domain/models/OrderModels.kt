@@ -1,5 +1,38 @@
 package com.example.tscalp.domain.models
 
+sealed class TradeCheckResult {
+    data object Success : TradeCheckResult()
+    data class Error(val message: String) : TradeCheckResult()
+}
+
+data class TradingStatusDetails(
+    val isApiTradeAvailable: Boolean,
+    val buyAvailable: Boolean,
+    val sellAvailable: Boolean,
+    val tradingStatus: String   // например "SECURITY_TRADING_STATUS_NORMAL_TRADING"
+)
+
+data class OrderState(
+    val orderId: String,
+    val orderRequestId: String?,
+    val ticker: String,
+    val direction: String,          // "BUY" / "SELL"
+    val limitPrice: Double?,        // начальная лимитная цена (если лимитный)
+    val executedPrice: Double?,     // цена исполнения
+    val quantity: Long,
+    val executedQuantity: Long,
+    val status: String,             // "NEW", "FILL", "PARTIALLYFILL" и т.д.
+    val updateTime: Long?           // epoch seconds
+)
+
+data class OrderResult(
+    val orderId: String,
+    val executedLots: Long,
+    val totalLots: Long,
+    val status: OrderStatus,
+    val orderRequestId: String? = null
+)
+
 data class OrderListItem(
     val orderId: String,
     val ticker: String,
@@ -87,9 +120,3 @@ data class BrokerOrderRequest(
     val price: Double? = null
 )
 
-data class OrderResult(
-    val orderId: String,
-    val executedLots: Long,
-    val totalLots: Long,
-    val status: OrderStatus
-)

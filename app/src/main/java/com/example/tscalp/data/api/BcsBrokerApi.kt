@@ -1,17 +1,21 @@
 package com.example.tscalp.data.api
 
 import android.util.Log
+import java.io.IOException
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.*
+
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.InstrumentUi
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.IOException
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.BrokerAccount
@@ -21,6 +25,7 @@ import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.OrderListItem
+import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.*
 
 /**
@@ -169,8 +174,6 @@ class BcsBrokerApi : BrokerApi {
             }
         }
 
-
-
         // Если счетов нет – создаём один счёт из первого элемента портфеля
         val firstPosition = portfolioData["positions"] as? List<*>
         val accountId = (firstPosition?.firstOrNull() as? Map<String, Any>)?.get("account") as? String ?: "bcs-default"
@@ -181,6 +184,23 @@ class BcsBrokerApi : BrokerApi {
                 type = BrokerAccountType.BROKER
             )
         )
+    }
+
+    override suspend fun openSandboxAccount(): String {
+        throw UnsupportedOperationException("Открытие счёта песочницы не поддерживается для БКС")
+    }
+
+    override suspend fun closeSandboxAccount(accountId: String) {
+        throw UnsupportedOperationException("Закрытие счёта песочницы не поддерживается для БКС")
+    }
+
+    override suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
+        Log.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
+    }
+
+    override suspend fun getBalance(accountId: String): Double {
+        // Пока возвращаем 0, так как API БКС не предоставляет прямого метода баланса
+        return 0.0
     }
 
     /**
@@ -250,17 +270,6 @@ class BcsBrokerApi : BrokerApi {
         return null
     }
 
-
-
-    override suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
-        Log.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
-    }
-
-    override suspend fun getBalance(accountId: String): Double {
-        // Пока возвращаем 0, так как API БКС не предоставляет прямого метода баланса
-        return 0.0
-    }
-
 //    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse {
 //        // Заглушка
 //        return GetMarginAttributesResponse.newBuilder().build()
@@ -321,11 +330,12 @@ class BcsBrokerApi : BrokerApi {
         return ids.associateWith { TradingAvailability.UNKNOWN }
     }
 
-    override suspend fun openSandboxAccount(): String {
-        throw UnsupportedOperationException("Открытие счёта песочницы не поддерживается для этого брокера")
-    }
+    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = flowOf()
 
-    override suspend fun closeSandboxAccount(accountId: String) {
-        throw UnsupportedOperationException("Закрытие счетов песочницы не поддерживается для этого брокера")
-    }
+    override suspend fun checkTradeAvailability(
+        accountId: String,
+        tscalpInstrumentId: String,
+        direction: OrderDirection,
+        quantity: Long
+    ): TradeCheckResult = TradeCheckResult.Success
 }

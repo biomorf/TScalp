@@ -1,6 +1,10 @@
 package com.example.tscalp.data.api
 
 import android.util.Log
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -11,6 +15,7 @@ import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.BrokerAccountType
 import com.example.tscalp.domain.models.OrderListItem
+import com.example.tscalp.domain.models.OrderState
 import com.example.tscalp.domain.models.*
 
 /**
@@ -90,4 +95,13 @@ class MockBrokerApi : BrokerApi {
     override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> {
         return ids.associateWith { TradingAvailability.UNKNOWN }
     }
+
+    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = flowOf()
+
+    override suspend fun checkTradeAvailability(
+        accountId: String,
+        tscalpInstrumentId: String,
+        direction: OrderDirection,
+        quantity: Long
+    ): TradeCheckResult = TradeCheckResult.Success
 }
