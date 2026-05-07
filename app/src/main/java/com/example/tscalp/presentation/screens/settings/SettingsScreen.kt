@@ -38,7 +38,7 @@ import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.api.BcsBrokerApi
 
-import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.domain.models.BrokerAccount
 
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
@@ -168,7 +168,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
     val scope = rememberCoroutineScope()
 
     val repository: InvestRepository = remember { InvestRepository(ServiceLocator.getBrokerManager()) }
-    var availableAccounts by remember { mutableStateOf<List<AccountUi>>(emptyList()) }
+    var availableAccounts by remember { mutableStateOf<List<BrokerAccount>>(emptyList()) }
     var defaultAccountId by remember { mutableStateOf(ServiceLocator.loadDefaultAccountId("TInvest") ?: "") }
     var accountExpanded by remember { mutableStateOf(false) }
 
@@ -322,7 +322,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     expanded = accountExpanded,
                     onDismissRequest = { accountExpanded = false }
                 ) {
-                    availableAccounts.forEach { account: AccountUi ->
+                    availableAccounts.forEach { account: BrokerAccount ->
                         DropdownMenuItem(
                             text = { Text("${account.name} (${account.id})") },
                             onClick = {

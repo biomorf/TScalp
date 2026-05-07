@@ -578,7 +578,7 @@ fun openBrokerDialog(ticker: String) {
         try {
             val sandboxMode = ServiceLocator.isSandboxMode()
             val accounts = repository.getAccounts(brokerName, sandboxMode)
-            // Сохраним счета в состоянии для диалога (можно добавить поле dialogAccounts: List<AccountUi>)
+            // Сохраним счета в состоянии для диалога (можно добавить поле dialogAccounts: List<BrokerAccount>)
             _uiState.update { it.copy(dialogAccounts = accounts) }
         } catch (e: Exception) {
             Log.e(TAG, "Не удалось загрузить счета для $brokerName", e)

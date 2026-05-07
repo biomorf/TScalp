@@ -1,8 +1,9 @@
 package com.example.tscalp.presentation.screens.orders
 
 import android.util.Log
+import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.BrokerAccountType
 import com.example.tscalp.domain.models.InstrumentUi
-import com.example.tscalp.domain.models.AccountUi
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.StopOrderType
@@ -30,7 +31,7 @@ data class SelectedInstrumentInfo(
 data class OrdersUiState(
     val ticker: String = "",
     val quantity: String = "",
-    val accounts: List<AccountUi> = emptyList(),
+    val accounts: List<BrokerAccount> = emptyList(),
     val selectedAccountId: String? = null,
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
@@ -55,7 +56,7 @@ data class OrdersUiState(
     val dialogInstrumentTicker: String? = null,
     val selectedBroker: String = "TInvest",         // выбранный брокер в диалоге
     val selectedAccountIdDialog: String? = null,     // выбранный счёт в диалоге
-    val dialogAccounts: List<AccountUi> = emptyList(),     // счета для диалога
+    val dialogAccounts: List<BrokerAccount> = emptyList(),     // счета для диалога
     // Парная торговля
     val pairTradingEnabled: Boolean = false,
     val pairSearchQuery: String = "",                   // запрос второго поиска

@@ -5,7 +5,7 @@ import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerOrderRequest
 
 
@@ -24,21 +24,10 @@ class InvestRepository(
      * Получает счета для брокера по умолчанию (TInvest).
      * Оставлен для совместимости с существующим кодом.
      */
-    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<AccountUi> = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(brokerName) ?: throw IllegalArgumentException("Брокер $brokerName не найден")
-        val accounts = broker.getAccounts(sandboxMode)
-        accounts.map { acc ->
-            AccountUi(
-                id = acc.id,
-                name = acc.name,
-                type = when (acc.type) {
-                    BrokerAccountType.BROKER -> AccountType.BROKER
-                    BrokerAccountType.IIS -> AccountType.IIS
-                    BrokerAccountType.INVEST_BOX -> AccountType.INVEST_BOX
-                    else -> AccountType.BROKER
-                }
-            )
-        }
+    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<BrokerAccount> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+        broker.getAccounts(sandboxMode)  // возвращает List<BrokerAccount> – просто возвращаем
     }
 
      suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {

@@ -6,7 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.tscalp.domain.models.AccountUi
+import com.example.tscalp.domain.models.BrokerAccount
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -14,7 +14,7 @@ fun BrokerAccountDialog(
     availableBrokers: List<String>,
     selectedBroker: String,
     onBrokerSelected: (String) -> Unit,
-    accounts: List<AccountUi>,
+    accounts: List<BrokerAccount>,
     selectedAccountId: String?,
     onAccountSelected: (String) -> Unit,
     onDismiss: () -> Unit,
