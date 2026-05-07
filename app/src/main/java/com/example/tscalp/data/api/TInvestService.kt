@@ -240,30 +240,6 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
-        if (tickers.isEmpty()) return@withContext emptyMap()
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-
-        val tickerToFigi = mutableMapOf<String, String>()
-        for (ticker in tickers) {
-            resolveTicker(ticker)?.let { tickerToFigi[ticker] = it }
-        }
-        if (tickerToFigi.isEmpty()) return@withContext emptyMap()
-
-        val figis = tickerToFigi.values.toList()
-        val request = GetLastPricesRequest.newBuilder().addAllFigi(figis).build()
-        val response = currentApi.marketDataServiceSync.getLastPrices(request)
-
-        val result = mutableMapOf<String, Double?>()
-        for (lastPrice in response.lastPricesList) {
-            val originalTicker = tickerToFigi.entries.find { it.value == lastPrice.figi }?.key
-            if (originalTicker != null) {
-                val price = lastPrice.price?.let { it.units + it.nano / 1_000_000_000.0 }
-                result[originalTicker] = price
-            }
-        }
-        result
-    }
 
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
@@ -272,13 +248,8 @@ class TInvestInvestService : BrokerApi {
             val portfolioRequest = PortfolioRequest.newBuilder().setAccountId(accountId).build()
             val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(portfolioRequest)
             val money = portfolio.totalAmountCurrencies
-            var balance = (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
-            for (position in portfolio.positionsList) {
-                val price = position.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                val quantity = position.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                balance += price * quantity
-            }
-            Log.d(TAG, "Баланс песочницы (деньги + активы) для счета $accountId: $balance")
+            val balance = (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+            Log.d(TAG, "Баланс песочницы для счета $accountId: $balance")
             balance
         } else {
             val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
@@ -575,6 +546,32 @@ override suspend fun getOrders(accountId: String): List<OrderListItem> = withCon
             }
         }
     }
+
+    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
+        if (tickers.isEmpty()) return@withContext emptyMap()
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+
+        val tickerToFigi = mutableMapOf<String, String>()
+        for (ticker in tickers) {
+            resolveTicker(ticker)?.let { tickerToFigi[ticker] = it }
+        }
+        if (tickerToFigi.isEmpty()) return@withContext emptyMap()
+
+        val figis = tickerToFigi.values.toList()
+        val request = GetLastPricesRequest.newBuilder().addAllFigi(figis).build()
+        val response = currentApi.marketDataServiceSync.getLastPrices(request)
+
+        val result = mutableMapOf<String, Double?>()
+        for (lastPrice in response.lastPricesList) {
+            val originalTicker = tickerToFigi.entries.find { it.value == lastPrice.figi }?.key
+            if (originalTicker != null) {
+                val price = lastPrice.price?.let { it.units + it.nano / 1_000_000_000.0 }
+                result[originalTicker] = price
+            }
+        }
+        result
+    }
+
 
     fun subscribeLastPrices(figis: List<String>): Flow<Pair<String, Double>> = callbackFlow {
         if (!::grpcChannel.isInitialized) {
