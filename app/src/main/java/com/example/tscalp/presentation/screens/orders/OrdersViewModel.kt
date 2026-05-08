@@ -825,7 +825,7 @@ fun openBrokerDialog(ticker: String) {
                 broker.subscribePositionsStream(accountId)
                     .collect { item -> updatePositionPnl(item) }
             } catch (e: Exception) {
-                Log.e(TAG, "PositionsStream error", e)
+                Log.w(TAG, "PositionsStream не доступен в sandbox", e)
             }
         }
     }

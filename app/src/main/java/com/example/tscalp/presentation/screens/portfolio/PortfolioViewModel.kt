@@ -205,7 +205,7 @@ class PortfolioViewModel(
     private suspend fun updatePrices() {
         val positions = _uiState.value.positions
         if (positions.isEmpty()) return
-        val ids = positions.map { it.tscalpInstrumentId }
+        val ids = positions.filter { it.ticker != "RUB000UTSTOM" }.map { it.tscalpInstrumentId }
         try {
             val prices = repository.getLastPricesByTscalpInstrumentId(ids)
             val updatedPositions = positions.map { pos ->

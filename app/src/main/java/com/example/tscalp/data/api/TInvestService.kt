@@ -219,7 +219,7 @@ class TInvestInvestService : BrokerApi {
 
             // Вычитаем стоимость всех позиций в рублях
             val positionsValue = portfolio.positionsList
-                .filterNot { it.figi == "RUB000UTSTOM" }   // ← исключаем техническую рублёвую позицию
+                .filterNot { it.instrumentType == "currency" }   // исключаем все валютные позиции (в песочнице это рубли)
                 .sumOf { pos ->
                     val price = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
                     val qty = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
@@ -856,11 +856,9 @@ class TInvestInvestService : BrokerApi {
 
             override fun onClose(status: io.grpc.Status, trailers: io.grpc.Metadata) {
                 if (!status.isOk) {
-                    Log.e(TAG, "PositionsStream error: $status")
-                    close(status.asException())
-                } else {
-                    close()
+                    Log.w(TAG, "PositionsStream not available (sandbox?): $status")
                 }
+                close()
             }
         }
 
