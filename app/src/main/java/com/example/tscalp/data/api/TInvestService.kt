@@ -92,7 +92,7 @@ class TInvestInvestService : BrokerApi {
 
     // Кэш ticker → figi для быстрой конвертации
     private val tickerToFigiCache = ConcurrentHashMap<String, String>()
-    //private val figiToTickerCache = ConcurrentHashMap<String, String>()
+
 
     // Собственный экземпляр API, создаётся при инициализации
     @Volatile
@@ -187,16 +187,14 @@ class TInvestInvestService : BrokerApi {
             val totalValue = currentPrice * quantity
 
             PortfolioPosition(
-                name = instrument?.name ?: "",
-                //name = instrument.name,
-                ticker = instrument?.ticker ?: "",
                 tscalpInstrumentId = instrument?.uid ?: "",   // теперь uid
+                name = instrument?.name ?: "",
+                ticker = instrument?.ticker ?: "",
                 quantity = quantity,
                 currentPrice = currentPrice,
                 totalValue = totalValue,
                 profit = 0.0,
                 profitPercent = 0.0,
-                //instrumentType = instrument?.instrumentType ?: "",
                 instrumentType = instrument?.instrumentType ?: ""
             )
         }
@@ -292,63 +290,15 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-//    override suspend fun findInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
-//        val shorts = findInstrumentShorts(query)
-//        shorts.mapNotNull { short ->
-//            val instrument = getInstrumentByTicker(short.ticker)
-//            if (instrument != null) {
-//                InstrumentUi(
-//                    ticker = instrument.ticker,
-//                    name = instrument.name,
-//                    uid = instrument.uid ?: "",
-//                    currency = instrument.currency,
-//                    lot = instrument.lot,
-//                    instrumentType = instrument.instrumentType,
-//                    tscalpInstrumentId = short.figi
-//                )
-//            } else null
-//        }
-//    }
-
     override suspend fun resolveTicker(ticker: String): String? {
         tickerToFigiCache[ticker]?.let { return it }
         val shortList = findInstrumentShorts(ticker)
         val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
         if (figi != null) {
             tickerToFigiCache[ticker] = figi
-            //figiToTickerCache[figi] = ticker   // <-- заполняем обратный кэш
         }
         return figi
     }
-
-    //private fun getTickerByFigi(figi: String): String? = figiToTickerCache[figi]
-
-
-
-//    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
-//        val figi = resolveTicker(ticker) ?: return null
-//        val instrumentResponse = getInstrumentByFigi(figi)
-//        val inst = instrumentResponse.instrument
-//        return InstrumentUi(
-//            ticker = inst.ticker,
-//            tscalpInstrumentId = inst.figi,
-//            uid = inst.uid ?: "",
-//            name = inst.name,
-//            currency = inst.currency,
-//            lot = inst.lot,
-//            instrumentType = inst.instrumentType ?: ""
-//        )
-//    }
-
-
-//    private suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
-//        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-//        val request = InstrumentRequest.newBuilder()
-//            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
-//            .setId(figi)
-//            .build()
-//        currentApi.instrumentsServiceSync.getInstrumentBy(request)
-//    }
 
 
     // ---------- Orders ----------
