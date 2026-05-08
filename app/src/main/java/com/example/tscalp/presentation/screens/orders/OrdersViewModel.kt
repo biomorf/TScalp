@@ -33,6 +33,7 @@ import com.example.tscalp.domain.models.StopOrderType
 import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
+import com.example.tscalp.domain.models.PositionStreamItem
 
 
 class OrdersViewModel(
@@ -44,6 +45,7 @@ class OrdersViewModel(
     private var searchJob: Job? = null
     private var pairSearchJob: Job? = null
     private var priceStreamJob: Job? = null
+    private var positionStreamJob: Job? = null
 
 
 
@@ -75,6 +77,7 @@ class OrdersViewModel(
                 viewModelScope.launch { loadPortfolio() }
             }
             startPriceUpdates()
+            startPositionUpdates()
         }
     }
 
@@ -243,6 +246,7 @@ class OrdersViewModel(
 
             // 5. Запускаем стрим для реактивного обновления цены
             startPriceUpdates()
+            startPositionUpdates()
         }
     }
 
@@ -760,6 +764,7 @@ fun openBrokerDialog(ticker: String) {
     fun stopPriceUpdates() {
         priceStreamJob?.cancel()
         priceStreamJob = null
+        stopPositionUpdates()
     }
 
     private suspend fun updateTradingStatuses(ids: List<String>) {
@@ -774,6 +779,50 @@ fun openBrokerDialog(ticker: String) {
             Log.e(TAG, "Ошибка обновления статусов доступности", e)
         }
     }
+
+    fun startPositionUpdates() {
+        stopPositionUpdates()
+        val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
+        val accountId = _uiState.value.selectedAccountId ?: return
+
+        positionStreamJob = viewModelScope.launch {
+            try {
+                broker.subscribePositionsStream(accountId)
+                    .collect { item -> updatePositionPnl(item) }
+            } catch (e: Exception) {
+                Log.e(TAG, "PositionsStream error", e)
+            }
+        }
+    }
+
+    fun stopPositionUpdates() {
+        positionStreamJob?.cancel()
+        positionStreamJob = null
+    }
+
+    private fun updatePositionPnl(item: PositionStreamItem) {
+        val avgPrice = item.averagePositionPrice ?: return
+        val yield = item.expectedYield ?: return
+        val quantity = item.quantity
+        if (quantity == 0L) return
+
+        Log.d(TAG, "updatePositionPnl: uid=${item.instrumentUid}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
+        val positions = _uiState.value.portfolioPositions
+        Log.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
+
+        val profitPercent = if (avgPrice != 0.0) (yield / (avgPrice * quantity)) * 100.0 else 0.0
+
+        _uiState.update { state ->
+            val updatedPositions = state.portfolioPositions.map { pos ->
+                if (pos.tscalpInstrumentId == item.instrumentUid) {
+                    Log.d(TAG, "Updating position ${pos.ticker}: profit=$yield, percent=$profitPercent")
+                    pos.copy(profit = yield, profitPercent = profitPercent)
+                } else pos
+            }
+            state.copy(portfolioPositions = updatedPositions)
+        }
+    }
+
 }
 
 class OrdersViewModelFactory : ViewModelProvider.Factory {

@@ -89,4 +89,6 @@ interface BrokerApi {
         direction: OrderDirection,
         quantity: Long
     ): TradeCheckResult
+
+    suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem>
 }

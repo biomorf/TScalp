@@ -102,8 +102,8 @@ dependencies {
     }
 
     // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
-    //implementation("com.google.protobuf:protobuf-java:3.25.3")
-    implementation("com.google.protobuf:protobuf-java:4.34.1")
+    implementation("com.google.protobuf:protobuf-java:3.25.3")
+    //implementation("com.google.protobuf:protobuf-java:4.34.1")
 
     // Исключаем конфликтующий модуль из всех конфигураций
     configurations.all {
@@ -121,6 +121,7 @@ dependencies {
     //implementation("io.grpc:grpc-protobuf-lite:1.68.1")
     //implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
     implementation("io.grpc:grpc-okhttp:1.80.0")
+    implementation("io.grpc:grpc-kotlin-stub:1.5.0")
     implementation("io.grpc:grpc-stub:1.80.0")
     implementation("io.grpc:grpc-protobuf-lite:1.80.0")
     implementation("io.grpc:grpc-netty:1.80.0") // явно добавим Netty без shaded

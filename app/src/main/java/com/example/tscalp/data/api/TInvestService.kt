@@ -36,6 +36,7 @@ import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.OrderState
 import com.example.tscalp.domain.models.TradingStatusDetails
+import com.example.tscalp.domain.models.PositionStreamItem
 
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.Instrument
@@ -79,6 +80,10 @@ import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
 import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
+import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
+import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
+
+
 
 /**
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
@@ -768,7 +773,90 @@ class TInvestInvestService : BrokerApi {
         return TradeCheckResult.Success
     }
 
+    override suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem> = callbackFlow {
+        if (!::ordersStateChannel.isInitialized) {
+            throw IllegalStateException("Канал для PositionsStream не инициализирован")
+        }
 
+        val request = PositionsStreamRequest.newBuilder()
+            .addAccounts(accountId)
+            .build()
+
+        // Дескриптор метода для PositionsStream
+        val methodDescriptor = io.grpc.MethodDescriptor.newBuilder<PositionsStreamRequest, PositionsStreamResponse>()
+            .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+            .setFullMethodName("tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream")
+            .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamRequest.getDefaultInstance()))
+            .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamResponse.getDefaultInstance()))
+            .build()
+
+        val call = ordersStateChannel.newCall(methodDescriptor, io.grpc.CallOptions.DEFAULT)
+
+        val responseObserver = object : io.grpc.ClientCall.Listener<PositionsStreamResponse>() {
+            override fun onMessage(response: PositionsStreamResponse) {
+                if (response.hasPosition()) {
+                    val pos = response.position
+
+                    // Извлекаем поля через дескрипторы
+                    val uidField = pos.descriptorForType.findFieldByName("instrument_uid")
+                    val uid = uidField?.let { pos.getField(it) } as? String ?: ""
+
+                    val tickerField = pos.descriptorForType.findFieldByName("ticker")
+                    val ticker = tickerField?.let { pos.getField(it) } as? String ?: uid
+
+                    val quantityField = pos.descriptorForType.findFieldByName("quantity")
+                    val quantity = (quantityField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }?.toLong() ?: 0L
+
+                    val currentPriceField = pos.descriptorForType.findFieldByName("current_price")
+                    val currentPrice = (currentPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }
+
+                    val avgPriceField = pos.descriptorForType.findFieldByName("average_position_price")
+                    val avgPrice = (avgPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }
+
+                    val yieldField = pos.descriptorForType.findFieldByName("expected_yield")
+                    val yield = (yieldField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }
+
+                    trySend(
+                        PositionStreamItem(
+                            instrumentUid = uid,
+                            ticker = ticker,
+                            quantity = quantity,
+                            currentPrice = currentPrice,
+                            averagePositionPrice = avgPrice,
+                            expectedYield = yield
+                        )
+                    )
+                }
+            }
+
+            override fun onClose(status: io.grpc.Status, trailers: io.grpc.Metadata) {
+                if (!status.isOk) {
+                    Log.e(TAG, "PositionsStream error: $status")
+                    close(status.asException())
+                } else {
+                    close()
+                }
+            }
+        }
+
+        call.start(responseObserver, io.grpc.Metadata())
+        call.sendMessage(request)
+        call.halfClose()
+        call.request(1)
+
+        awaitClose {
+            Log.d(TAG, "Closing PositionsStream")
+            call.cancel("Cancelled by client", null)
+        }
+    }
 
 
 

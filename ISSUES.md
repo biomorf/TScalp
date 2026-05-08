@@ -120,3 +120,117 @@ val typeName = (value as? EnumValueDescriptor)?.name?.removePrefix("PREFIX\_")
 ---
 
 _Дата последнего обновления: 2026-05-07_
+
+
+
+# ISSUE: PositionsStream не доставляет данные (P&L не обновляется)
+
+**Статус:** Отложен  
+**Дата:** 2026-05-08  
+**Приоритет:** Низкий (функциональность P&L не критична, можно смотреть в других приложениях)
+
+---
+
+## Контекст
+Пытались внедрить `PositionsStream` для отображения прибыли/убытка (P&L) на карточках инструментов в реальном времени. Стрим должен был доставлять `expected_yield`, `average_position_price`, `current_price` и другие поля позиций.
+
+---
+
+## Что сделано
+1. **Модель `PositionStreamItem`** — содержит `instrumentUid`, `ticker`, `quantity`, `currentPrice`, `averagePositionPrice`, `expectedYield`.
+2. **Метод `subscribePositionsStream`** добавлен в `BrokerApi` и реализован в `TInvestService` через универсальный gRPC-вызов (из-за отсутствия `PositionsStreamServiceGrpc` в текущей версии SDK).
+3. **Интеграция в `OrdersViewModel`** — подготовлен метод `updatePositionPnl`, который обновляет `profit`/`profitPercent` в `portfolioPositions`. PositionsStream запускается отдельно от стрима цен.
+
+---
+
+## Проблемы
+- **Песочница:** ошибка `UNAUTHENTICATED: 40003` сразу после запуска стрима. Метод, вероятно, недоступен в sandbox-окружении.
+- **Боевой режим:** ошибок аутентификации нет, но данных `hasPosition()` не поступает. Возможно, стрим несовместим с текущей версией SDK (1.48.1) или требуется другой способ подписки (например, через `OperationsStreamServiceGrpc`, который отсутствует).
+- **Логирование:** Сообщения `updatePositionPnl` не появляются, что подтверждает отсутствие входящих данных.
+
+---
+
+## Возможные решения (на будущее)
+1. **Обновить SDK** до версии, где `PositionsStreamServiceGrpc` станет доступен, и использовать официальный `OperationsStreamServiceCoroutineStub`.
+2. **Исправить универсальный gRPC-вызов:** проверить правильность имени метода (`OperationsStreamService/PositionsStream`) и параметров.
+3. **Временно использовать fallback-расчёт P&L** — вычислять прибыль на клиенте на основе `averagePositionPrice` из `getPositions` и текущей цены из `subscribeLastPrices`. Это даст работающий P&L без стрима.
+4. **Проверить доступность метода в документации API** Т‑Инвестиций — возможно, `PositionsStream` не входит в стандартный набор или требует отдельных прав.
+
+---
+
+## Дополнительно
+- Функциональность P&Л не критична, поэтому задача отложена.
+- Код стрима и обновления позиций сохранён, может быть легко активирован после обновления SDK или исправления gRPC-вызова.
+
+
+
+
+# Настройка стримов в T-Invest API (gRPC)
+
+**Статус:** Рабочие стримы (`MarketDataStream`, `OrderStateStream`) успешно внедрены.  
+`PositionsStream` отложен до обновления SDK.
+
+---
+
+## Общие принципы
+
+- **Разделяйте каналы (ManagedChannel)** для торговых операций и стримов, чтобы избежать взаимного влияния.
+- **Используйте Kotlin-обёртки (`*GrpcKt`),** если они доступны и нет конфликтов зависимостей.
+- **При отсутствии Kotlin-стаба** стройте gRPC-вызов вручную через `MethodDescriptor` – это надёжно и не зависит от версий SDK.
+- **Всегда проверяйте доступность стримовых методов в sandbox-окружении** – многие из них возвращают `UNAUTHENTICATED`.
+
+---
+
+## Реализованные стримы
+
+### 1. `MarketDataStream` (LastPrice)
+- **Метод:** `subscribeLastPrices(uids: List<String>)`
+- **Канал:** `pricesStreamChannel`
+- **Особенности:** использует `MarketDataStreamServiceGrpc.newStub(channel)` и `StreamObserver`.
+- **Статус:** Работает в песочнице и боевом режиме.
+
+### 2. `OrderStateStream`
+- **Метод:** `subscribeOrderState(accountId: String)`
+- **Канал:** `ordersStateChannel`
+- **Особенности:** использует `OrdersStreamServiceGrpc.newStub(channel)`.
+- **Статус:** Работает в боевом режиме; в песочнице `UNAUTHENTICATED`.
+
+---
+
+## Проблемный стрим: `PositionsStream`
+
+### Попытка 1: Kotlin-stub
+- Использовали `OperationsStreamServiceGrpcKt.OperationsStreamServiceCoroutineStub`.
+- **Ошибка:** `Cannot access 'io.grpc.kotlin.AbstractCoroutineStub'` из-за конфликта `grpc-kotlin-stub`.
+- **Решение:** Добавили `implementation("io.grpc:grpc-kotlin-stub:1.5.0")`, но ошибка сохранилась.
+
+### Попытка 2: Ручной gRPC-вызов
+- Построили `MethodDescriptor` для `OperationsStreamService/PositionsStream`.
+- **Результат:** Стрим запускается без ошибок компиляции.
+- **Песочница:** `UNAUTHENTICATED: 40003`.
+- **Боевой режим:** Ошибок нет, но данные `hasPosition()` не поступают (пустой стрим).
+
+### Вывод
+- `PositionsStream` не поддерживается в текущей версии SDK (1.48.1).
+- Возможно, метод не входит в стандартный набор прав или требует отдельного подключения.
+- **Решение:** Отложить до обновления SDK.
+
+---
+
+## Альтернатива для P&L (без PositionsStream)
+Если нужно отображать прибыль/убыток, можно вычислять её на клиенте:
+- В `getPositions` заполнять `averagePositionPrice` из API.
+- При каждом обновлении цены (стрим `LastPrice`) пересчитывать `profit = (currentPrice - avgPrice) * quantity` и `profitPercent`.
+- Этот подход не зависит от PositionsStream и работает уже сейчас.
+
+---
+
+## Рекомендации на будущее
+
+- При обновлении SDK проверить наличие `PositionsStreamServiceGrpc` – тогда использовать официальный Kotlin-stub.
+- При использовании ручного gRPC всегда логировать `onClose` статус и `response.allFields` для диагностики.
+- Для песочницы предусмотреть fallback-режим, отключающий стримы, которые не поддерживаются.
+
+
+
+

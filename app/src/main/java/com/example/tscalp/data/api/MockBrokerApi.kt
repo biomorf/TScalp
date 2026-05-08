@@ -105,4 +105,6 @@ class MockBrokerApi : BrokerApi {
         direction: OrderDirection,
         quantity: Long
     ): TradeCheckResult = TradeCheckResult.Success
+
+    override suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem> = flowOf()
 }

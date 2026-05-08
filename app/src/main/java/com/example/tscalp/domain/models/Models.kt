@@ -1,5 +1,14 @@
 package com.example.tscalp.domain.models
 
+data class PositionStreamItem(
+    val instrumentUid: String,
+    val ticker: String,
+    val quantity: Long,
+    val currentPrice: Double?,       // текущая цена (может быть null)
+    val averagePositionPrice: Double?, // средняя цена позиции
+    val expectedYield: Double?       // ожидаемая доходность (абсолютная)
+)
+
 data class InstrumentUi(
     val tscalpInstrumentId: String,    // универсальный идентификатор TScalp
     val ticker: String,
