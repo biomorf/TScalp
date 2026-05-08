@@ -218,11 +218,13 @@ class TInvestInvestService : BrokerApi {
                     (portfolio.totalAmountCurrencies?.nano ?: 0) / 1_000_000_000.0
 
             // Вычитаем стоимость всех позиций в рублях
-            val positionsValue = portfolio.positionsList.sumOf { pos ->
-                val price = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                val qty = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                price * qty
-            }
+            val positionsValue = portfolio.positionsList
+                .filterNot { it.figi == "RUB000UTSTOM" }   // ← исключаем техническую рублёвую позицию
+                .sumOf { pos ->
+                    val price = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                    val qty = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                    price * qty
+                }
 
             val freeBalance = totalRub - positionsValue
             Log.d(TAG, "Свободный баланс песочницы: $freeBalance (общий: $totalRub, позиций: $positionsValue)")
