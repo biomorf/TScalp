@@ -70,8 +70,9 @@ data class OrdersUiState(
     val stopPrice: String = "",
     val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
     val expireDate: String? = null,
-    val tradingStatuses: Map<String, TradingAvailability> = emptyMap()
+    val tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
     // поле stopOrderType удалено, теперь берём из orderType.stopOrderType
+    val freeBalance: Double? = null
 
 ) {
     val isFormValid: Boolean

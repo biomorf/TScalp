@@ -516,6 +516,14 @@ fun OrdersScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Кнопки КУПИТЬ / ПРОДАТЬ
+                val balance = uiState.freeBalance
+                if (balance != null) {
+                    Text(
+                        text = "Свободно: ${formatCurrency(balance)}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

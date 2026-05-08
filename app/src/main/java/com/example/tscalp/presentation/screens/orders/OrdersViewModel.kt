@@ -118,11 +118,20 @@ class OrdersViewModel(
                     _uiState.update { it.copy(selectedAccountId = accounts.first().id) }
                 }
                 val defaultAccount = accounts.firstOrNull()
+                val balance = if (defaultAccount != null) {
+                    try {
+                        repository.getBalance(defaultAccount.id)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Ошибка загрузки баланса", e)
+                        null
+                    }
+                } else null
                 _uiState.update {
                     it.copy(
                         accounts = accounts,
                         selectedAccountId = defaultAccount?.id,
                         isLoading = false,
+                        freeBalance = balance,
                         statusMessage = if (accounts.isEmpty()) "Нет доступных счетов"
                         else "Загружено ${accounts.size} счёт(ов)"
                     )
@@ -357,7 +366,7 @@ class OrdersViewModel(
                                     }
                                 }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Ошибка подписки на исполнение", e)
+                            Log.w(TAG, "OrderState stream error (может быть недоступен в sandbox)", e)
                         }
                     }
 
@@ -396,7 +405,8 @@ class OrdersViewModel(
                                     accountId = pairedAccountId,
                                     sandboxMode = ServiceLocator.isSandboxMode(),
                                     type = regularOrderType,
-                                    price = price
+                                    price = price,
+                                    instrumentUid = state.pairedInstrument?.tscalpInstrumentId
                                 )
                                 val pairedResult = repository.postOrder(pairedRequest)
                                 finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${pairedResult.orderId}"
@@ -409,6 +419,16 @@ class OrdersViewModel(
 
                     loadPortfolio(brokerName, accountId)
                     refreshLastSelectedInstruments()
+                    var currentBalance = try {
+                        repository.getBalance(accountId)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Не удалось получить баланс", e)
+                        null
+                    }
+
+                    if (currentBalance != null && currentBalance < 1000.0) {
+                        finalMessage += "\n⚠️ Низкий свободный остаток: ${formatCurrency(currentBalance)}"
+                    }
 
                     _uiState.update {
                         it.copy(
@@ -416,7 +436,8 @@ class OrdersViewModel(
                             statusMessage = finalMessage,
                             isError = false,
                             quantity = "",
-                            limitPrice = ""
+                            limitPrice = "",
+                            freeBalance = currentBalance
                         )
                     }
                 } catch (e: Exception) {
@@ -458,18 +479,32 @@ class OrdersViewModel(
                 _uiState.update { it.copy(isLoading = true, statusMessage = null) }
                 try {
                     val stopId = repository.postStopOrder(stopRequest)
+                    loadPortfolio(brokerName, accountId)
+                    refreshLastSelectedInstruments()
+
+                    val currentBalance = try {
+                        repository.getBalance(accountId)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Не удалось получить баланс", e)
+                        null
+                    }
+
+                    var finalMessage = "✅ Стоп‑заявка выставлена, ID: ${stopId.take(8)}…"
+                    if (currentBalance != null && currentBalance < 1000.0) {
+                        finalMessage += "\n⚠️ Низкий свободный остаток: ${formatCurrency(currentBalance)}"
+                    }
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            statusMessage = "✅ Стоп‑заявка выставлена, ID: ${stopId.take(8)}…",
+                            statusMessage = finalMessage,
                             isError = false,
                             quantity = "",
                             stopPrice = "",
-                            limitPrice = ""
+                            limitPrice = "",
+                            freeBalance = currentBalance
                         )
                     }
-                    loadPortfolio(brokerName, accountId)
-                    refreshLastSelectedInstruments()
                 } catch (e: Exception) {
                     _uiState.update {
                         it.copy(

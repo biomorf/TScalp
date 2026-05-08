@@ -2,6 +2,7 @@ package com.example.tscalp.data.api
 
 import android.util.Log
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +38,7 @@ import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.OrderState
 import com.example.tscalp.domain.models.TradingStatusDetails
 import com.example.tscalp.domain.models.PositionStreamItem
+import com.example.tscalp.util.formatCurrency
 
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.Instrument
@@ -208,14 +210,23 @@ class TInvestInvestService : BrokerApi {
 
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-
         if (ServiceLocator.isSandboxMode()) {
             val portfolioRequest = PortfolioRequest.newBuilder().setAccountId(accountId).build()
             val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(portfolioRequest)
-            val money = portfolio.totalAmountCurrencies
-            val balance = (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
-            Log.d(TAG, "Баланс песочницы для счета $accountId: $balance")
-            balance
+
+            val totalRub = (portfolio.totalAmountCurrencies?.units ?: 0) +
+                    (portfolio.totalAmountCurrencies?.nano ?: 0) / 1_000_000_000.0
+
+            // Вычитаем стоимость всех позиций в рублях
+            val positionsValue = portfolio.positionsList.sumOf { pos ->
+                val price = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                val qty = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                price * qty
+            }
+
+            val freeBalance = totalRub - positionsValue
+            Log.d(TAG, "Свободный баланс песочницы: $freeBalance (общий: $totalRub, позиций: $positionsValue)")
+            freeBalance
         } else {
             val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
             val response = currentApi.usersServiceSync.getMarginAttributes(request)
@@ -373,7 +384,7 @@ class TInvestInvestService : BrokerApi {
             .map { order ->
                 // Извлекаем instrument_uid через дескриптор
                 val uidField = order.descriptorForType.findFieldByName("instrument_uid")
-                val uid = uidField?.let { order.getField(it) } as? String ?: order.figi
+                val uid = uidField?.let { order.getField(it) as? String } ?: order.figi
 // Тикер берём напрямую из ответа API
                 val tickerField = order.descriptorForType.findFieldByName("ticker")
                 val ticker = tickerField?.let { order.getField(it) } as? String ?: uid
@@ -487,12 +498,10 @@ class TInvestInvestService : BrokerApi {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
 
         val uid = request.instrumentUid
+            ?: throw IllegalArgumentException("StopOrderRequest.instrumentUid не может быть null")
 
         val builder = PostStopOrderRequest.newBuilder()
-            .apply {
-                if (uid != null) setInstrumentId(uid)   // ← для акций
-                else setFigi(figi)                      // ← для фьючерсов (совместимость)
-            }
+            .setInstrumentId(uid)
             .setQuantity(request.quantity)
             .setDirection(protoDirection(request.direction))
             .setAccountId(request.accountId)
@@ -545,8 +554,8 @@ class TInvestInvestService : BrokerApi {
 
 
             // Явное приведение String (убирает String!)
-            val orderIdStr: String = order.stopOrderId as String
-            val figiStr: String = order.figi as String
+            val orderIdStr = order.stopOrderId.toString()
+            val figiStr = order.figi.toString()
 
             // Направление и статус через enum (избавляемся от String!)
             val directionStr: String = (order.direction as Enum<*>).name.removePrefix("STOP_ORDER_DIRECTION_")
@@ -677,6 +686,8 @@ class TInvestInvestService : BrokerApi {
                         val response = currentApi.marketDataServiceSync.getTradingStatus(request)
                         val available = response.apiTradeAvailableFlag
                         figi to if (available) TradingAvailability.AVAILABLE else TradingAvailability.UNAVAILABLE
+                    } catch (e: CancellationException) {
+                        throw e   // обязательно перебросить
                     } catch (e: Exception) {
                         Log.e(TAG, "Ошибка статуса $figi: ${e.message}")
                         figi to TradingAvailability.UNKNOWN
@@ -768,9 +779,13 @@ class TInvestInvestService : BrokerApi {
         uid: String?,
         direction: OrderDirection,
         quantity: Long
-
     ): TradeCheckResult {
-        return TradeCheckResult.Success
+        val balance = getBalance(accountId)
+        // Для оценки стоимости сделки берём последнюю цену (можно получить из кэша или запросить)
+        val lastPrice = getLastPricesByTscalpInstrumentId(listOf(uid ?: return TradeCheckResult.Error("Нет uid")))[uid] ?: return TradeCheckResult.Error("Цена не получена")
+        val required = lastPrice * quantity // комиссию пока не учитываем для простоты
+        return if (balance >= required) TradeCheckResult.Success
+        else TradeCheckResult.Error("Недостаточно средств. Свободно: ${formatCurrency(balance)}, требуется: ~${formatCurrency(required)}")
     }
 
     override suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem> = callbackFlow {
