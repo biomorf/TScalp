@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.tscalp.util.formatCurrency
+import com.example.tscalp.util.formatPrice
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.TradingAvailability
 import kotlinx.coroutines.delay
@@ -254,7 +255,7 @@ private fun PortfolioCardContent(
                     if (position.currentPrice > 0) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                formatCurrency(position.currentPrice),
+                                formatPrice(position.currentPrice, instrumentType),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = priceColor,

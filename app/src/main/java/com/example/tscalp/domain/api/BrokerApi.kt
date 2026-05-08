@@ -34,7 +34,7 @@ interface BrokerApi {
     suspend fun resolveTicker(ticker: String): String?
 
     // Опционально: если нужно получать полный InstrumentUi по тикеру
-    suspend fun getInstrumentByTicker(ticker: String): InstrumentUi?
+    //suspend fun getInstrumentByTicker(ticker: String): InstrumentUi?
     suspend fun findInstruments(query: String): List<InstrumentUi>
     //suspend fun findInstrumentShorts(query: String): List<InstrumentShort>
     //suspend fun getLastPrices(figis: List<String>): Map<String, Double?>

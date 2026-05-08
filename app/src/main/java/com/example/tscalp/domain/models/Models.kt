@@ -1,9 +1,11 @@
 package com.example.tscalp.domain.models
 
 data class InstrumentUi(
-    val tscalpInstrumentId: String,
+    val tscalpInstrumentId: String,    // универсальный идентификатор TScalp
     val ticker: String,
-    val uid: String = "",
+    val classCode: String,            // код класса (например, SPBFUT)
+    val isin: String,                 // ISIN
+    val ttech_uid: String,                  // instrument_uid из T-tech Invest API
     val name: String,
     val currency: String,
     val lot: Int,

@@ -41,6 +41,7 @@ import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.ui.components.StopOrdersDialog
 import com.example.tscalp.util.formatCurrency
+import com.example.tscalp.util.formatPrice
 import com.example.tscalp.domain.models.TradingAvailability
 
 /**
@@ -637,16 +638,16 @@ fun OrdersScreen(
                     if (triggerPrice != null && triggerPrice > 0) {
                         // Для стоп‑лимита триггер‑цена отдельно, для остальных уже выведена как executionPrice
                         if (isStopLimit || isStopLoss || isTakeProfit) {
-                            Text("Триггер‑цена выставления заявки: ≈${formatCurrency(triggerPrice)}")
+                            Text("Триггер‑цена выставления заявки: ≈${formatPrice(triggerPrice, uiState.selectedInstrument?.instrumentType ?: "")}")
                         }
                     }
 
                     // Цена исполнения и общая стоимость
                     if (executionPrice > 0) {
                         if (!(isStopLoss || isTakeProfit)) { // для этих типов не показываем текущую цену
-                            Text("$executionLabel: $priceSymbol${formatCurrency(executionPrice)}")
+                            Text("$executionLabel: $priceSymbol${formatPrice(executionPrice, uiState.selectedInstrument?.instrumentType ?: "")}")
                         }
-                        Text("Общая стоимость: $priceSymbol${formatCurrency(executionPrice * quantity)}")
+                        Text("Общая стоимость: $priceSymbol${formatPrice(executionPrice * quantity, uiState.selectedInstrument?.instrumentType ?: "")}")
                     }
 
                     // Контрсделка
@@ -674,8 +675,8 @@ fun OrdersScreen(
 
                         Text("Контрсделка: $pairDirection $pairedQty лотов $pairTicker")
                         if (pairExecPrice > 0) {
-                            Text("Цена исполнения: $pairSymbol${formatCurrency(pairExecPrice)}")
-                            Text("Общая стоимость: $pairSymbol${formatCurrency(pairExecPrice * pairedQty)}")
+                            Text("Цена исполнения: $pairSymbol${formatPrice(pairExecPrice, uiState.pairedInstrument?.instrumentType ?: "")}")
+                            Text("Общая стоимость: $pairSymbol${formatPrice(pairExecPrice * pairedQty, uiState.pairedInstrument?.instrumentType ?: "")}")
                         }
                     }
                 }

@@ -64,7 +64,7 @@ class MockBrokerApi : BrokerApi {
 
     override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
 
-    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? = null
+    //override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? = null
 
     //override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = emptyList()
 

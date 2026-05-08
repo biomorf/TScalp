@@ -37,6 +37,7 @@ data class OrderListItem(
     val orderId: String,
     val ticker: String,
     val tscalpInstrumentId: String,
+    val instrumentType: String = "",
     val direction: String,      // "BUY" / "SELL"
     val price: Double,          // лимитная цена (для обычных) или стоп-цена
     val stopPrice: Double?,     // null для обычных

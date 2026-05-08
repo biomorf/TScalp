@@ -12,3 +12,15 @@ fun formatCurrency(value: Double): String {
     format.currency = Currency.getInstance("RUB")
     return format.format(value)
 }
+
+/**
+ * Форматирует цену в зависимости от типа инструмента.
+ * Для фьючерсов – в пунктах, для остальных – в валюте.
+ */
+fun formatPrice(price: Double, instrumentType: String): String {
+    return if (instrumentType == "futures") {
+        "%.2f пт".format(price)
+    } else {
+        formatCurrency(price)
+    }
+}

@@ -265,10 +265,10 @@ class BcsBrokerApi : BrokerApi {
         return ticker
     }
 
-    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
-        // Заглушка: можно реализовать через поиск в портфеле или отдельный запрос
-        return null
-    }
+//    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
+//        // Заглушка: можно реализовать через поиск в портфеле или отдельный запрос
+//        return null
+//    }
 
 //    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse {
 //        // Заглушка

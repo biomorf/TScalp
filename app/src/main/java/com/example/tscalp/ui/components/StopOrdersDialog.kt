@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.presentation.screens.orders.StopOrdersViewModel
 import com.example.tscalp.util.formatCurrency
+import com.example.tscalp.util.formatPrice
 
 @Composable
 fun StopOrdersDialog(
@@ -123,19 +124,19 @@ fun OrderListItemRow(order: OrderListItem, onCancel: () -> Unit) {
             when {
                 order.type == "STOP_LIMIT" -> {
                     val trigger = order.stopPrice ?: 0.0
-                    Text("≈ Триггер-цена: ${formatCurrency(trigger)}", style = MaterialTheme.typography.bodySmall)
-                    Text("Лимитная цена: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
-                    Text("Общая стоимость: ${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
+                    Text("≈ Триггер-цена: ${formatPrice(trigger, order.instrumentType)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Лимитная цена: ${formatPrice(order.price, order.instrumentType)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
+                    Text("Общая стоимость: ${formatPrice(order.price * order.quantity, order.instrumentType)}", style = MaterialTheme.typography.bodySmall)
                 }
                 order.isStopOrder -> {
                     val approx = "≈"
-                    Text("$approx Цена за лот: $approx${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
-                    Text("Общая стоимость: $approx${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
+                    Text("$approx Цена за лот: $approx${formatPrice(order.price, order.instrumentType)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
+                    Text("Общая стоимость: $approx${formatPrice(order.price * order.quantity, order.instrumentType)}", style = MaterialTheme.typography.bodySmall)
                 }
                 else -> {
                     // Обычные ордера
-                    Text("Цена за лот: ${formatCurrency(order.price)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
-                    Text("Общая стоимость: ${formatCurrency(order.price * order.quantity)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Цена за лот: ${formatPrice(order.price, order.instrumentType)}", style = MaterialTheme.typography.bodySmall, color = priceColor)
+                    Text("Общая стоимость: ${formatPrice(order.price * order.quantity, order.instrumentType)}", style = MaterialTheme.typography.bodySmall)
                 }
             }
 

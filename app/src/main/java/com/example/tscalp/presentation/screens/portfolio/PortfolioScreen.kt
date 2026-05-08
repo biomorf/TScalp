@@ -30,6 +30,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.getValue
 
 import com.example.tscalp.util.formatCurrency
+import com.example.tscalp.util.formatPrice
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.domain.models.TradingAvailability
 

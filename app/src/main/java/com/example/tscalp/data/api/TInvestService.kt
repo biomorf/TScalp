@@ -38,6 +38,7 @@ import com.example.tscalp.domain.models.OrderState
 import com.example.tscalp.domain.models.TradingStatusDetails
 
 import ru.ttech.piapi.core.InvestApi
+import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
 import ru.tinkoff.piapi.contract.v1.OpenSandboxAccountRequest
 import ru.tinkoff.piapi.contract.v1.CloseSandboxAccountRequest
@@ -177,23 +178,25 @@ class TInvestInvestService : BrokerApi {
         val response = getPortfolio(accountId, sandboxMode)
 
         response.positionsList.mapNotNull { pos ->
-            val ticker = pos.ticker.ifBlank { resolveTicker(pos.figi) ?: pos.figi }
-            if (ticker.isBlank()) return@mapNotNull null
+            val uid = pos.instrumentUid
+            if (uid.isBlank()) return@mapNotNull null
 
-            val instrument = getInstrumentByTicker(ticker)
+            val instrument = getInstrumentByUid(uid)
             val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
             val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
             val totalValue = currentPrice * quantity
 
             PortfolioPosition(
                 name = instrument?.name ?: "",
-                ticker = ticker,
-                tscalpInstrumentId = pos.figi,
+                //name = instrument.name,
+                ticker = instrument?.ticker ?: "",
+                tscalpInstrumentId = instrument?.uid ?: "",   // теперь uid
                 quantity = quantity,
                 currentPrice = currentPrice,
                 totalValue = totalValue,
                 profit = 0.0,
                 profitPercent = 0.0,
+                //instrumentType = instrument?.instrumentType ?: "",
                 instrumentType = instrument?.instrumentType ?: ""
             )
         }
@@ -240,6 +243,73 @@ class TInvestInvestService : BrokerApi {
 
 
     // ---------- FIGI / Ticker ----------
+
+    private suspend fun getInstrumentByUid(uid: String): Instrument? = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = InstrumentRequest.newBuilder()
+            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_UID)
+            .setId(uid)
+            .build()
+        val response = currentApi.instrumentsServiceSync.getInstrumentBy(request)
+        response.instrument
+    }
+
+    /**
+     * Преобразует protobuf‑объект Instrument в универсальный InstrumentUi.
+     * tscalpInstrumentId заполняется из uid (рекомендованный идентификатор Т‑Инвестиций).
+     */
+    private fun mapInstrumentToUi(instrument: Instrument): InstrumentUi {
+        return InstrumentUi(
+            tscalpInstrumentId = instrument.uid,    // uid становится универсальным идентификатором
+            ttech_uid = instrument.uid,
+            ticker = instrument.ticker,
+            classCode = instrument.classCode ?: "",
+            isin = instrument.isin ?: "",
+            name = instrument.name,
+            currency = instrument.currency,
+            lot = instrument.lot,
+            instrumentType = instrument.instrumentType ?: ""
+        )
+    }
+
+    private suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
+        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
+        currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
+    }
+
+
+    override suspend fun findInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
+        val shorts = findInstrumentShorts(query)  // возвращает List<InstrumentShort> (содержит uid)
+        shorts.mapNotNull { short ->
+            try {
+                val instrument = getInstrumentByUid(short.uid) ?: return@mapNotNull null
+                mapInstrumentToUi(instrument)
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
+                null
+            }
+        }
+    }
+
+//    override suspend fun findInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
+//        val shorts = findInstrumentShorts(query)
+//        shorts.mapNotNull { short ->
+//            val instrument = getInstrumentByTicker(short.ticker)
+//            if (instrument != null) {
+//                InstrumentUi(
+//                    ticker = instrument.ticker,
+//                    name = instrument.name,
+//                    uid = instrument.uid ?: "",
+//                    currency = instrument.currency,
+//                    lot = instrument.lot,
+//                    instrumentType = instrument.instrumentType,
+//                    tscalpInstrumentId = short.figi
+//                )
+//            } else null
+//        }
+//    }
+
     override suspend fun resolveTicker(ticker: String): String? {
         tickerToFigiCache[ticker]?.let { return it }
         val shortList = findInstrumentShorts(ticker)
@@ -253,53 +323,32 @@ class TInvestInvestService : BrokerApi {
 
     private fun getTickerByFigi(figi: String): String? = figiToTickerCache[figi]
 
-    override suspend fun findInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
-        val shorts = findInstrumentShorts(query)
-        shorts.mapNotNull { short ->
-            val instrument = getInstrumentByTicker(short.ticker)
-            if (instrument != null) {
-                InstrumentUi(
-                    ticker = instrument.ticker,
-                    name = instrument.name,
-                    uid = instrument.uid ?: "",
-                    currency = instrument.currency,
-                    lot = instrument.lot,
-                    instrumentType = instrument.instrumentType,
-                    tscalpInstrumentId = short.figi
-                )
-            } else null
-        }
-    }
 
-    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
-        val figi = resolveTicker(ticker) ?: return null
-        val instrumentResponse = getInstrumentByFigi(figi)
-        val inst = instrumentResponse.instrument
-        return InstrumentUi(
-            ticker = inst.ticker,
-            tscalpInstrumentId = inst.figi,
-            uid = inst.uid ?: "",
-            name = inst.name,
-            currency = inst.currency,
-            lot = inst.lot,
-            instrumentType = inst.instrumentType ?: ""
-        )
-    }
 
-    private suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
-        currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
-    }
+//    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
+//        val figi = resolveTicker(ticker) ?: return null
+//        val instrumentResponse = getInstrumentByFigi(figi)
+//        val inst = instrumentResponse.instrument
+//        return InstrumentUi(
+//            ticker = inst.ticker,
+//            tscalpInstrumentId = inst.figi,
+//            uid = inst.uid ?: "",
+//            name = inst.name,
+//            currency = inst.currency,
+//            lot = inst.lot,
+//            instrumentType = inst.instrumentType ?: ""
+//        )
+//    }
 
-    private suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val request = InstrumentRequest.newBuilder()
-            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
-            .setId(figi)
-            .build()
-        currentApi.instrumentsServiceSync.getInstrumentBy(request)
-    }
+
+//    private suspend fun getInstrumentByFigi(figi: String): InstrumentResponse = withContext(Dispatchers.IO) {
+//        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+//        val request = InstrumentRequest.newBuilder()
+//            .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI)
+//            .setId(figi)
+//            .build()
+//        currentApi.instrumentsServiceSync.getInstrumentBy(request)
+//    }
 
 
     // ---------- Orders ----------
@@ -426,6 +475,7 @@ class TInvestInvestService : BrokerApi {
                     orderId = orderIdStr,
                     ticker = ticker,
                     tscalpInstrumentId = figiStr,
+                    instrumentType = "",       // позже заполним реальный тип
                     direction = direction,
                     price = priceDouble,
                     stopPrice = null,
@@ -766,6 +816,23 @@ class TInvestInvestService : BrokerApi {
 
     ): TradeCheckResult {
         return TradeCheckResult.Success
+    }
+
+
+
+
+
+
+///======================UTILS================================
+    private fun classCodeToInstrumentType(classCode: String): String {
+        return when (classCode) {
+            "SPBFUT", "SPBOPT" -> "futures"   // срочный рынок
+            "TQBR", "TQBS", "TQIF", "TQIR" -> "share"   // акции
+            "TQOB", "TQCB", "TQRD" -> "bond"            // облигации
+            "TQTF" -> "etf"                             // фонды
+            "CETS" -> "currency"                        // валюта
+            else -> ""                                   // неизвестный
+        }
     }
 }
 

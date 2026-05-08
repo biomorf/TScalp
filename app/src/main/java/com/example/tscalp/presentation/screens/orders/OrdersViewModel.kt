@@ -291,7 +291,7 @@ class OrdersViewModel(
         val checkResult = broker.checkTradeAvailability(
             accountId,
             tscalpId,
-            uid = state.selectedInstrument?.uid,
+            uid = state.selectedInstrument?.tscalpInstrumentId,
             direction,
             quantity
         )
@@ -319,7 +319,7 @@ class OrdersViewModel(
                 val request = BrokerOrderRequest(
                     brokerName = brokerName,
                     ticker = ticker,
-                    instrumentUid = state.selectedInstrument?.uid,
+                    instrumentUid = state.selectedInstrument?.tscalpInstrumentId,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
@@ -440,7 +440,7 @@ class OrdersViewModel(
                 val stopRequest = StopOrderRequest(
                     brokerName = brokerName,
                     ticker = ticker,
-                    instrumentUid = state.selectedInstrument?.uid,
+                    instrumentUid = state.selectedInstrument?.tscalpInstrumentId,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,

@@ -81,22 +81,8 @@ class PortfolioViewModel(
                                 // Получаем позиции от брокера (уже в виде List<PortfolioPosition>)
                                 val positions = broker.getPositions(account.id, sandboxMode)
 
-                                // Обогащаем каждую позицию: если ticker пустой – запрашиваем через getInstrumentByTicker
-                                val enrichedPositions = positions.map { pos ->
-                                    if (pos.ticker.isBlank()) {
-                                        // Пытаемся получить тикер через getInstrumentByTicker (для Т‑Инвестиций)
-                                        val instrument = try {
-                                            broker.getInstrumentByTicker(pos.ticker)
-                                        } catch (e: Exception) {
-                                            null
-                                        }
-                                        pos.copy(ticker = instrument?.ticker ?: pos.ticker)
-                                    } else {
-                                        pos
-                                    }
-                                }.map { it.copy(brokerName = brokerName) } // добавляем имя брокера
+                                allPositions.addAll(positions.map { it.copy(brokerName = brokerName) })
 
-                                allPositions.addAll(enrichedPositions)
                             } catch (e: Exception) {
                                 Log.w(TAG, "Ошибка загрузки портфеля для счета ${account.id} брокера $brokerName", e)
                             }
