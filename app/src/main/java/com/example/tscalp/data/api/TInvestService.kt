@@ -92,7 +92,7 @@ class TInvestInvestService : BrokerApi {
 
     // Кэш ticker → figi для быстрой конвертации
     private val tickerToFigiCache = ConcurrentHashMap<String, String>()
-    private val figiToTickerCache = ConcurrentHashMap<String, String>()
+    //private val figiToTickerCache = ConcurrentHashMap<String, String>()
 
     // Собственный экземпляр API, создаётся при инициализации
     @Volatile
@@ -119,7 +119,7 @@ class TInvestInvestService : BrokerApi {
         pricesStreamChannel = InvestApi.defaultChannel(token, target)
         ordersStateChannel = InvestApi.defaultChannel(token, target)
         api = InvestApi.createApi(grpcChannel)   // 👈 API привязан к основному каналу
-        tickerToFigiCache.clear()
+        //tickerToFigiCache.clear()
     }
 
     // ---------- Базовые методы ----------
@@ -316,12 +316,12 @@ class TInvestInvestService : BrokerApi {
         val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
         if (figi != null) {
             tickerToFigiCache[ticker] = figi
-            figiToTickerCache[figi] = ticker   // <-- заполняем обратный кэш
+            //figiToTickerCache[figi] = ticker   // <-- заполняем обратный кэш
         }
         return figi
     }
 
-    private fun getTickerByFigi(figi: String): String? = figiToTickerCache[figi]
+    //private fun getTickerByFigi(figi: String): String? = figiToTickerCache[figi]
 
 
 
@@ -425,8 +425,8 @@ class TInvestInvestService : BrokerApi {
         response.ordersList
             .filter { it.executionReportStatus in activeStatuses }
             .map { order ->
-                val figi = order.figi
-                val ticker = getTickerByFigi(figi) ?: figi
+                val uid = order.figi    // временно фиги, но присвоим tscalpInstrumentId
+                val ticker = resolveTicker(uid) ?: uid
 
                 val orderType = when (order.orderType) {
                     OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
@@ -474,7 +474,7 @@ class TInvestInvestService : BrokerApi {
                 OrderListItem(
                     orderId = orderIdStr,
                     ticker = ticker,
-                    tscalpInstrumentId = figiStr,
+                    tscalpInstrumentId = uid,
                     instrumentType = "",       // позже заполним реальный тип
                     direction = direction,
                     price = priceDouble,
@@ -567,8 +567,8 @@ class TInvestInvestService : BrokerApi {
         }
 
         response.stopOrdersList.map { order ->
-            val figi = order.figi
-            val ticker = getTickerByFigi(order.figi) ?: order.figi
+            val uid = order.figi    // временно фиги, но присвоим tscalpInstrumentId
+            val ticker = resolveTicker(uid) ?: uid
 
             // Тип стоп-заявки через дескриптор с явным кастом
             val fieldDescriptor = order.descriptorForType.findFieldByName("order_type")
@@ -597,7 +597,7 @@ class TInvestInvestService : BrokerApi {
             OrderListItem(
                 orderId = orderIdStr,
                 ticker = ticker,
-                tscalpInstrumentId = figiStr,
+                tscalpInstrumentId = uid,   // напрямую, без figi,
                 direction = directionStr,
                 price = stopPriceDouble,
                 stopPrice = stopPriceDouble,
@@ -755,8 +755,9 @@ class TInvestInvestService : BrokerApi {
 
                     val figiField = state.descriptorForType.findFieldByName("figi")
                     val figi = figiField?.let { state.getField(it) } as? String ?: ""
-                    val ticker = getTickerByFigi(figi) ?: figi
-
+                    // Извлекаем тикер напрямую из OrderState (есть в ответе API)
+                    val tickerField = state.descriptorForType.findFieldByName("ticker")
+                    val ticker = tickerField?.let { state.getField(it) } as? String ?: figi
                     val dateField = state.descriptorForType.findFieldByName("order_date")
                         ?: state.descriptorForType.findFieldByName("create_date")
                     val updateTime = dateField?.let { state.getField(it) } as? com.google.protobuf.Timestamp
@@ -770,20 +771,22 @@ class TInvestInvestService : BrokerApi {
                     val initPriceDouble = initPrice?.let { it.units + it.nano / 1_000_000_000.0 }
                     val execPriceDouble = execPrice?.let { it.units + it.nano / 1_000_000_000.0 }
 
-                    trySend(
-                        OrderState(
-                            orderId = state.orderId,
-                            orderRequestId = state.orderRequestId.ifBlank { null },
-                            ticker = ticker,
-                            direction = state.direction.name.removePrefix("ORDER_DIRECTION_"),
-                            limitPrice = initPriceDouble,
-                            executedPrice = execPriceDouble,
-                            quantity = state.lotsRequested,
-                            executedQuantity = state.lotsExecuted,
-                            status = state.executionReportStatus.name.removePrefix("EXECUTION_REPORT_STATUS_"),
-                            updateTime = epochSeconds
+
+                        trySend(
+                            OrderState(
+                                orderId = state.orderId,
+                                orderRequestId = state.orderRequestId.ifBlank { null },
+                                ticker = ticker,
+                                direction = state.direction.name.removePrefix("ORDER_DIRECTION_"),
+                                limitPrice = initPriceDouble,
+                                executedPrice = execPriceDouble,
+                                quantity = state.lotsRequested,
+                                executedQuantity = state.lotsExecuted,
+                                status = state.executionReportStatus.name.removePrefix("EXECUTION_REPORT_STATUS_"),
+                                updateTime = epochSeconds
+                            )
                         )
-                    )
+
                 }
             }
 

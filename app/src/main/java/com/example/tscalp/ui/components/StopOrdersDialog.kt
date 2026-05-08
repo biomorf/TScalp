@@ -111,7 +111,7 @@ fun OrderListItemRow(order: OrderListItem, onCancel: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("${order.ticker} ${order.direction} ${order.quantity} лотов")
+            Text("${order.tscalpInstrumentId} ${order.direction} ${order.quantity} лотов")
 
             // Тип ордера цветной
             Text(
