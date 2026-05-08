@@ -260,10 +260,10 @@ class BcsBrokerApi : BrokerApi {
 //        return emptyList()
 //    }
 
-    override suspend fun resolveTicker(ticker: String): String? {
-        // У БКС нет отдельного идентификатора, возвращаем ticker как есть
-        return ticker
-    }
+//    override suspend fun resolveTicker(ticker: String): String? {
+//        // У БКС нет отдельного идентификатора, возвращаем ticker как есть
+//        return ticker
+//    }
 
 //    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
 //        // Заглушка: можно реализовать через поиск в портфеле или отдельный запрос
@@ -309,7 +309,7 @@ class BcsBrokerApi : BrokerApi {
 //        return getAccounts(sandboxMode = true)
 //    }
 
-    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
+    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
 
     override suspend fun postStopOrder(request: StopOrderRequest): String = "bcs-stop-${System.currentTimeMillis()}"
     override suspend fun getStopOrders(accountId: String): List<OrderListItem> = emptyList()

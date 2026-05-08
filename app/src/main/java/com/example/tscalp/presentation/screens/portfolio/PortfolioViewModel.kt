@@ -205,12 +205,12 @@ class PortfolioViewModel(
     private suspend fun updatePrices() {
         val positions = _uiState.value.positions
         if (positions.isEmpty()) return
-        val tickers = positions.map { it.ticker }
+        val ids = positions.map { it.tscalpInstrumentId }
         try {
-            val prices = repository.getLastPricesByTicker(tickers)
+            val prices = repository.getLastPricesByTscalpInstrumentId(ids)
             val updatedPositions = positions.map { pos ->
                 val ticker = pos.ticker
-                val freshPrice = prices[pos.ticker]
+                val freshPrice = prices[pos.tscalpInstrumentId]
                 /// Если свежая цена пришла и она > 0 – используем её, иначе оставляем старую
                 val newPrice = if (freshPrice != null && freshPrice > 0.0) {
                     freshPrice

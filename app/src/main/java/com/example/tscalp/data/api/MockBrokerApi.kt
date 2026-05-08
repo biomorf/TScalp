@@ -60,7 +60,7 @@ class MockBrokerApi : BrokerApi {
 
 
 
-    override suspend fun resolveTicker(ticker: String): String? = ticker
+    //override suspend fun resolveTicker(ticker: String): String? = ticker
 
     override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
 
@@ -79,7 +79,7 @@ class MockBrokerApi : BrokerApi {
 //        return GetMarginAttributesResponse.newBuilder().build()
 //    }
 
-    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = emptyMap()
+    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
 
     override suspend fun postStopOrder(request: StopOrderRequest): String = "mock-stop-${System.currentTimeMillis()}"
     override suspend fun getStopOrders(accountId: String): List<OrderListItem> = emptyList()

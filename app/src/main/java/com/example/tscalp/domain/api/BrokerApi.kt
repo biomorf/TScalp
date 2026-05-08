@@ -31,7 +31,7 @@ interface BrokerApi {
      * Для Т-Инвестиций это figi, для БКС — bscticker (пока просто ticker).
      * Может вернуть null, если инструмент не найден.
      */
-    suspend fun resolveTicker(ticker: String): String?
+    //suspend fun resolveTicker(ticker: String): String?
 
     // Опционально: если нужно получать полный InstrumentUi по тикеру
     //suspend fun getInstrumentByTicker(ticker: String): InstrumentUi?
@@ -72,7 +72,7 @@ interface BrokerApi {
      * Получает последние цены для списка тикеров.
      * Возвращает карту ticker -> цена (или null, если цена недоступна).
      */
-    suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?>
+    suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?>
 
     /**
      * Возвращает статусы доступности для торговли для списка идентификаторов инструментов.

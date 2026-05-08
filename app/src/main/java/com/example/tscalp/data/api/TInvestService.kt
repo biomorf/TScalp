@@ -91,7 +91,7 @@ class TInvestInvestService : BrokerApi {
     }
 
     // Кэш ticker → figi для быстрой конвертации
-    private val tickerToFigiCache = ConcurrentHashMap<String, String>()
+    //private val tickerToFigiCache = ConcurrentHashMap<String, String>()
 
 
     // Собственный экземпляр API, создаётся при инициализации
@@ -290,23 +290,23 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-    override suspend fun resolveTicker(ticker: String): String? {
-        tickerToFigiCache[ticker]?.let { return it }
-        val shortList = findInstrumentShorts(ticker)
-        val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
-        if (figi != null) {
-            tickerToFigiCache[ticker] = figi
-        }
-        return figi
-    }
+//    override suspend fun resolveTicker(ticker: String): String? {
+//        tickerToFigiCache[ticker]?.let { return it }
+//        val shortList = findInstrumentShorts(ticker)
+//        val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
+//        if (figi != null) {
+//            tickerToFigiCache[ticker] = figi
+//        }
+//        return figi
+//    }
 
 
     // ---------- Orders ----------
     override suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
+
         val uid = request.instrumentUid
-        Log.d(TAG, "postOrder: ticker=${request.ticker}, figi=$figi, uid=${uid ?: "null"}, " +
+        Log.d(TAG, "postOrder: ticker=${request.ticker}, uid=${uid ?: "null"}, " +
                 "confirmMarginTrade=true, sandbox=${request.sandboxMode}")
 
         val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
@@ -378,7 +378,9 @@ class TInvestInvestService : BrokerApi {
                 // Извлекаем instrument_uid через дескриптор
                 val uidField = order.descriptorForType.findFieldByName("instrument_uid")
                 val uid = uidField?.let { order.getField(it) } as? String ?: order.figi
-                val ticker = resolveTicker(uid) ?: uid
+// Тикер берём напрямую из ответа API
+                val tickerField = order.descriptorForType.findFieldByName("ticker")
+                val ticker = tickerField?.let { order.getField(it) } as? String ?: uid
 
 // Определяем instrumentType
                 val classCodeField = order.descriptorForType.findFieldByName("class_code")
@@ -487,7 +489,7 @@ class TInvestInvestService : BrokerApi {
 
     override suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        val figi = resolveTicker(request.ticker) ?: throw IllegalArgumentException("Тикер ${request.ticker} не найден")
+
         val uid = request.instrumentUid
 
         val builder = PostStopOrderRequest.newBuilder()
@@ -527,7 +529,9 @@ class TInvestInvestService : BrokerApi {
             // Извлекаем instrument_uid через дескриптор
             val uidField = order.descriptorForType.findFieldByName("instrument_uid")
             val uid = uidField?.let { order.getField(it) } as? String ?: order.figi
-            val ticker = resolveTicker(uid) ?: uid
+// Тикер берём напрямую из ответа API
+            val tickerField = order.descriptorForType.findFieldByName("ticker")
+            val ticker = tickerField?.let { order.getField(it) } as? String ?: uid
 
             // Определяем instrumentType
             val classCodeField = order.descriptorForType.findFieldByName("class_code")
@@ -597,29 +601,39 @@ class TInvestInvestService : BrokerApi {
 
 
 
-    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
-        if (tickers.isEmpty()) return@withContext emptyMap()
+//    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
+//        if (tickers.isEmpty()) return@withContext emptyMap()
+//        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+//
+//        val tickerToFigi = mutableMapOf<String, String>()
+//        for (ticker in tickers) {
+//            resolveTicker(ticker)?.let { tickerToFigi[ticker] = it }
+//        }
+//        if (tickerToFigi.isEmpty()) return@withContext emptyMap()
+//
+//        val figis = tickerToFigi.values.toList()
+//        val request = GetLastPricesRequest.newBuilder().addAllFigi(figis).build()
+//        val response = currentApi.marketDataServiceSync.getLastPrices(request)
+//
+//        val result = mutableMapOf<String, Double?>()
+//        for (lastPrice in response.lastPricesList) {
+//            val originalTicker = tickerToFigi.entries.find { it.value == lastPrice.figi }?.key
+//            if (originalTicker != null) {
+//                val price = lastPrice.price?.let { it.units + it.nano / 1_000_000_000.0 }
+//                result[originalTicker] = price
+//            }
+//        }
+//        result
+//    }
+
+    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyMap()
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-
-        val tickerToFigi = mutableMapOf<String, String>()
-        for (ticker in tickers) {
-            resolveTicker(ticker)?.let { tickerToFigi[ticker] = it }
-        }
-        if (tickerToFigi.isEmpty()) return@withContext emptyMap()
-
-        val figis = tickerToFigi.values.toList()
-        val request = GetLastPricesRequest.newBuilder().addAllFigi(figis).build()
+        val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(ids).build()
         val response = currentApi.marketDataServiceSync.getLastPrices(request)
-
-        val result = mutableMapOf<String, Double?>()
-        for (lastPrice in response.lastPricesList) {
-            val originalTicker = tickerToFigi.entries.find { it.value == lastPrice.figi }?.key
-            if (originalTicker != null) {
-                val price = lastPrice.price?.let { it.units + it.nano / 1_000_000_000.0 }
-                result[originalTicker] = price
-            }
+        response.lastPricesList.associate { lp ->
+            lp.instrumentUid to (lp.price?.let { it.units + it.nano / 1_000_000_000.0 })
         }
-        result
     }
 
     fun subscribeLastPrices(figis: List<String>): Flow<Pair<String, Double>> = callbackFlow {

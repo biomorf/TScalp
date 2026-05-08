@@ -40,10 +40,10 @@ class InvestRepository(
      * @param brokerName имя брокера
      * @param ticker тикер инструмента
      */
-    suspend fun resolveBrokerTicker(brokerName: String, ticker: String): String? {
-        val broker = brokerManager.getBroker(brokerName) ?: return null
-        return broker.resolveTicker(ticker)
-    }
+//    suspend fun resolveBrokerTicker(brokerName: String, ticker: String): String? {
+//        val broker = brokerManager.getBroker(brokerName) ?: return null
+//        return broker.resolveTicker(ticker)
+//    }
 
     /**
      * ///Поиск инструментов – возвращает список InstrumentUi, готовых для UI.
@@ -58,9 +58,9 @@ class InvestRepository(
      * Получает последние цены для списка тикеров.
      * Внутри вызывает resolveBrokerTicker для каждого тикера и запрашивает цены через брокера.
      */
-    suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
+    suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
         val broker = brokerManager.getDefaultBroker()
-        broker.getLastPricesByTicker(tickers)
+        broker.getLastPricesByTscalpInstrumentId(ids)
     }
 
     suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {

@@ -206,8 +206,8 @@ class OrdersViewModel(
             _uiState.update { it.copy(isPriceLoading = true) }
 
             // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
-            val prices = repository.getLastPricesByTicker(listOf(instrument.ticker))
-            val price = prices[instrument.ticker]
+            val prices = repository.getLastPricesByTscalpInstrumentId(listOf(instrument.tscalpInstrumentId))
+            val price = prices[instrument.tscalpInstrumentId]
 
             // 2. Ищем позицию в портфеле
             val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
