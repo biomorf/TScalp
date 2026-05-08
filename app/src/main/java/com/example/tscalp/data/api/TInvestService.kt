@@ -375,8 +375,15 @@ class TInvestInvestService : BrokerApi {
         response.ordersList
             .filter { it.executionReportStatus in activeStatuses }
             .map { order ->
-                val uid = order.figi    // временно фиги, но присвоим tscalpInstrumentId
+                // Извлекаем instrument_uid через дескриптор
+                val uidField = order.descriptorForType.findFieldByName("instrument_uid")
+                val uid = uidField?.let { order.getField(it) } as? String ?: order.figi
                 val ticker = resolveTicker(uid) ?: uid
+
+// Определяем instrumentType
+                val classCodeField = order.descriptorForType.findFieldByName("class_code")
+                val classCode = classCodeField?.let { order.getField(it) } as? String ?: ""
+                val instrumentType = classCodeToInstrumentType(classCode)
 
                 val orderType = when (order.orderType) {
                     OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
@@ -425,7 +432,7 @@ class TInvestInvestService : BrokerApi {
                     orderId = orderIdStr,
                     ticker = ticker,
                     tscalpInstrumentId = uid,
-                    instrumentType = "",       // позже заполним реальный тип
+                    instrumentType = instrumentType,
                     direction = direction,
                     price = priceDouble,
                     stopPrice = null,
@@ -517,8 +524,15 @@ class TInvestInvestService : BrokerApi {
         }
 
         response.stopOrdersList.map { order ->
-            val uid = order.figi    // временно фиги, но присвоим tscalpInstrumentId
+            // Извлекаем instrument_uid через дескриптор
+            val uidField = order.descriptorForType.findFieldByName("instrument_uid")
+            val uid = uidField?.let { order.getField(it) } as? String ?: order.figi
             val ticker = resolveTicker(uid) ?: uid
+
+            // Определяем instrumentType
+            val classCodeField = order.descriptorForType.findFieldByName("class_code")
+            val classCode = classCodeField?.let { order.getField(it) } as? String ?: ""
+            val instrumentType = classCodeToInstrumentType(classCode)
 
             // Тип стоп-заявки через дескриптор с явным кастом
             val fieldDescriptor = order.descriptorForType.findFieldByName("order_type")
@@ -555,7 +569,8 @@ class TInvestInvestService : BrokerApi {
                 type = type,
                 status = statusStr,
                 orderDate = orderDateLong,
-                isStopOrder = true
+                isStopOrder = true,
+                instrumentType = instrumentType
             )
         }
     }
