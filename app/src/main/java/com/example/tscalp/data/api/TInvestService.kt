@@ -260,6 +260,7 @@ class TInvestInvestService : BrokerApi {
         return InstrumentUi(
             tscalpInstrumentId = instrument.uid,    // uid становится универсальным идентификатором
             ttech_uid = instrument.uid,
+            ttech_figi = instrument.figi ?: "",   // временно для стрима LastPrice
             ticker = instrument.ticker,
             classCode = instrument.classCode ?: "",
             isin = instrument.isin ?: "",
@@ -289,16 +290,6 @@ class TInvestInvestService : BrokerApi {
             }
         }
     }
-
-//    override suspend fun resolveTicker(ticker: String): String? {
-//        tickerToFigiCache[ticker]?.let { return it }
-//        val shortList = findInstrumentShorts(ticker)
-//        val figi = shortList.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.figi
-//        if (figi != null) {
-//            tickerToFigiCache[ticker] = figi
-//        }
-//        return figi
-//    }
 
 
     // ---------- Orders ----------
@@ -601,30 +592,7 @@ class TInvestInvestService : BrokerApi {
 
 
 
-//    override suspend fun getLastPricesByTicker(tickers: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
-//        if (tickers.isEmpty()) return@withContext emptyMap()
-//        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-//
-//        val tickerToFigi = mutableMapOf<String, String>()
-//        for (ticker in tickers) {
-//            resolveTicker(ticker)?.let { tickerToFigi[ticker] = it }
-//        }
-//        if (tickerToFigi.isEmpty()) return@withContext emptyMap()
-//
-//        val figis = tickerToFigi.values.toList()
-//        val request = GetLastPricesRequest.newBuilder().addAllFigi(figis).build()
-//        val response = currentApi.marketDataServiceSync.getLastPrices(request)
-//
-//        val result = mutableMapOf<String, Double?>()
-//        for (lastPrice in response.lastPricesList) {
-//            val originalTicker = tickerToFigi.entries.find { it.value == lastPrice.figi }?.key
-//            if (originalTicker != null) {
-//                val price = lastPrice.price?.let { it.units + it.nano / 1_000_000_000.0 }
-//                result[originalTicker] = price
-//            }
-//        }
-//        result
-//    }
+
 
     override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext emptyMap()
@@ -636,14 +604,14 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-    fun subscribeLastPrices(figis: List<String>): Flow<Pair<String, Double>> = callbackFlow {
+    fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> = callbackFlow {
         if (!::pricesStreamChannel.isInitialized) {
             throw IllegalStateException("gRPC-стрим не инициализирован")
         }
         val stub = MarketDataStreamServiceGrpc.newStub(pricesStreamChannel)
 
-        val instruments = figis.map { figi ->
-            LastPriceInstrument.newBuilder().setFigi(figi).build()
+        val instruments = uids.map { uid ->
+            LastPriceInstrument.newBuilder().setInstrumentId(uid).build()
         }
 
         val subscribe = SubscribeLastPriceRequest.newBuilder()
@@ -655,7 +623,7 @@ class TInvestInvestService : BrokerApi {
             .setSubscribeLastPriceRequest(subscribe)
             .build()
 
-        Log.d(TAG, "subscribeLastPrices via server-side StreamObserver for $figis")
+        Log.d(TAG, "subscribeLastPrices via server-side StreamObserver for $uids")
 
         val responseObserver = object : StreamObserver<MarketDataResponse> {
             override fun onNext(value: MarketDataResponse) {
@@ -667,7 +635,7 @@ class TInvestInvestService : BrokerApi {
                     val lp = value.lastPrice
                     //Log.d(TAG, "✅ lastPrice: figi=${lp.figi}, price=${lp.price}")
                     val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
-                    if (price != null) trySend(lp.figi to price)
+                    if (price != null) trySend(lp.instrumentUid to price)
                 }
             }
 
