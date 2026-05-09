@@ -681,18 +681,18 @@ class TInvestInvestService : BrokerApi {
 
         // Параллельные запросы с ограничением
         val statuses = kotlinx.coroutines.coroutineScope {
-            ids.map { figi ->
+            ids.map { uid ->
                 async {
                     try {
-                        val request = GetTradingStatusRequest.newBuilder().setFigi(figi).build()
+                        val request = GetTradingStatusRequest.newBuilder().setInstrumentId(uid).build()
                         val response = currentApi.marketDataServiceSync.getTradingStatus(request)
                         val available = response.apiTradeAvailableFlag
-                        figi to if (available) TradingAvailability.AVAILABLE else TradingAvailability.UNAVAILABLE
+                        uid to if (available) TradingAvailability.AVAILABLE else TradingAvailability.UNAVAILABLE
                     } catch (e: CancellationException) {
                         throw e   // обязательно перебросить
                     } catch (e: Exception) {
-                        Log.e(TAG, "Ошибка статуса $figi: ${e.message}")
-                        figi to TradingAvailability.UNKNOWN
+                        Log.w(TAG, "Статус для $uid временно недоступен: ${e.message}")
+                        uid to TradingAvailability.UNKNOWN
                     }
                 }
             }.awaitAll().toMap()
