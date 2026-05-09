@@ -205,31 +205,37 @@ class PortfolioViewModel(
     private suspend fun updatePrices() {
         val positions = _uiState.value.positions
         if (positions.isEmpty()) return
-        val ids = positions.filter { it.ticker != "RUB000UTSTOM" }.map { it.tscalpInstrumentId }
+        val ids = positions
+            .filter { it.ticker != "RUB000UTSTOM" }
+            .map { it.tscalpInstrumentId }
+        if (ids.isEmpty()) return   // нечего обновлять, выходим без запроса
         try {
             val prices = repository.getLastPricesByTscalpInstrumentId(ids)
             val updatedPositions = positions.map { pos ->
-                val ticker = pos.ticker
-                val freshPrice = prices[pos.tscalpInstrumentId]
-                /// Если свежая цена пришла и она > 0 – используем её, иначе оставляем старую
-                val newPrice = if (freshPrice != null && freshPrice > 0.0) {
-                    freshPrice
+                // RUB000UTSTOM не обновится через API, оставляем старую цену (1.0)
+                if (pos.ticker == "RUB000UTSTOM") {
+                    pos.copy(currentPrice = 1.0, totalValue = 1.0 * pos.quantity, priceChangePercent = null)
                 } else {
-                    Log.w(TAG, "Нет цены для тикера $ticker")
-                    pos.currentPrice   /// сохраняем последнее известное значение
+                    val ticker = pos.ticker
+                    val freshPrice = prices[pos.tscalpInstrumentId]
+                    /// Если свежая цена пришла и она > 0 – используем её, иначе оставляем старую
+                    val newPrice = if (freshPrice != null && freshPrice > 0.0) {
+                        freshPrice
+                    } else {
+                        Log.w(TAG, "Нет цены для тикера $ticker")
+                        pos.currentPrice   /// сохраняем последнее известное значение
+                    }
+                    // Процент изменения считаем только когда есть и старая, и новая цена
+                    val changePercent =
+                        if (pos.currentPrice != 0.0 && newPrice != pos.currentPrice) {
+                            ((newPrice - pos.currentPrice) / pos.currentPrice) * 100.0
+                        } else null
+                    pos.copy(
+                        currentPrice = newPrice,
+                        totalValue = newPrice * pos.quantity,
+                        priceChangePercent = changePercent
+                    )
                 }
-                // Процент изменения считаем только когда есть и старая, и новая цена
-                val changePercent = if (pos.currentPrice != 0.0 && newPrice != pos.currentPrice) {
-                    ((newPrice - pos.currentPrice) / pos.currentPrice) * 100.0
-                } else {
-                    null   /// без изменений → нейтральный цвет
-                }
-
-                pos.copy(
-                    currentPrice = newPrice,
-                    totalValue = newPrice * pos.quantity,
-                    priceChangePercent = changePercent
-                )
             }
             val newTotalValue = updatedPositions.sumOf { it.totalValue }
             _uiState.update {
