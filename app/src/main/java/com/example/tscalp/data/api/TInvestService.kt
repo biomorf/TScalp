@@ -115,7 +115,7 @@ class TInvestInvestService : BrokerApi {
         get() = api != null
 
     fun initializeFromSettings() {
-        val token = ServiceLocator.getToken() ?: return
+        val token = ServiceLocator.getToken("TInvest") ?: return
         val sandbox = ServiceLocator.isSandboxMode()
         val target = if (sandbox) {
             "sandbox-invest-public-api.tbank.ru:443"

@@ -2,10 +2,12 @@ package com.example.tscalp.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.tscalp.data.api.TInvestInvestService
-import com.example.tscalp.data.api.MockBrokerApi
-import com.example.tscalp.data.api.BcsBrokerApi
+
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.BcsBrokerApi
+import com.example.tscalp.data.api.FinamBrokerApi
+
 
 object ServiceLocator {
 
@@ -23,8 +25,8 @@ object ServiceLocator {
     private fun createBrokerManager(): BrokerManager {
         val brokers: Map<String, BrokerApi> = mapOf(
             "TInvest" to TInvestInvestService(),
-            "mock" to MockBrokerApi(),
-            "bcs" to BcsBrokerApi()
+            "bcs" to BcsBrokerApi(),
+            "finam" to FinamBrokerApi()
         )
         return BrokerManager(brokers)
     }
@@ -61,10 +63,26 @@ object ServiceLocator {
             .apply()
     }
 
+    /**
+     * Сохраняет токен для указанного брокера.
+     * Для Финама ключ будет "finam_token".
+     */
+    fun saveToken(brokerName: String, token: String) {
+        prefs.edit().putString("${brokerName}_token", token).apply()
+    }
+
     fun hasSavedToken(brokerName: String): Boolean =
         prefs.contains("${brokerName}_token")
 
-    fun getToken(): String? = prefs.getString("TInvest_token", null)
+    //fun getToken(): String? = prefs.getString("TInvest_token", null)
+
+    /**
+     * Возвращает токен для указанного брокера или null.
+     */
+    fun getToken(brokerName: String): String? {
+        return prefs.getString("${brokerName}_token", null)
+    }
+
 
     /**
      * Сохраняет идентификатор счёта по умолчанию для указанного брокера.

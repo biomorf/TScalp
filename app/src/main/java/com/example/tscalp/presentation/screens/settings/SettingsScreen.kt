@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.api.BcsBrokerApi
+import com.example.tscalp.data.api.FinamBrokerApi
 
 import com.example.tscalp.domain.models.BrokerAccount
 
@@ -149,7 +150,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 when (brokerName) {
                     "TInvest" -> TInvestSettingsPanel(ordersViewModel, uiState)
                     "bcs" -> BcsSettingsPanel()
-                    "mock" -> MockSettingsPanel()
+                    "finam" -> FinamSettingsPanel()
                     else -> Text("Настройки для $brokerName пока не реализованы")
                 }
             }
@@ -649,16 +650,159 @@ fun BcsSettingsPanel() {
 }
 
 @Composable
-fun MockSettingsPanel() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+fun FinamSettingsPanel() {
+    var token by remember { mutableStateOf("") }
+    var showToken by remember { mutableStateOf(false) }
+    var connected by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    // Загрузка сохранённых токенов
+    LaunchedEffect(Unit) {
+        val savedToken = ServiceLocator.getToken("finam")
+        if (savedToken != null) {
+            token = savedToken
+            connected = true
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            "Mock‑брокер не требует подключения. Вы можете использовать его для тестирования интерфейса.",
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium
+        // Статус подключения
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (connected)
+                    MaterialTheme.colorScheme.tertiaryContainer
+                else
+                    MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Статус API", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (connected) "✅ Подключено" else "❌ Не подключено",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (connected) {
+                    Button(
+                        onClick = {
+                            ServiceLocator.clearBrokerCredentials("finam")
+                            connected = false
+                            token = ""
+                            showToken = false
+                            statusMessage = "Подключение к Finnam разорвано"
+                            isError = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Отключить")
+                    }
+                }
+            }
+        }
+
+        // Поле токена
+        OutlinedTextField(
+            value = token,
+            onValueChange = { token = it },
+            label = { Text("Токен доступа") },
+            placeholder = { Text("Введите секретный токен Finnam") },
+            visualTransformation = if (showToken)
+                VisualTransformation.None
+            else
+                PasswordVisualTransformation(),
+            trailingIcon = {
+                TextButton(onClick = { showToken = !showToken }) {
+                    Text(if (showToken) "Скрыть" else "Показать")
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = !connected
         )
+
+        // Кнопка подключения
+        if (!connected) {
+            Button(
+                onClick = {
+                    scope.launch {
+                        try {
+                            ServiceLocator.saveToken("finam", token)
+                            val finamApi = ServiceLocator.getBrokerManager()
+                                .getBroker("finam") as? FinamBrokerApi
+                            finamApi?.initializeFromSettings()
+                            connected = true
+                            statusMessage = "Подключено к Finnam"
+                            isError = false
+                        } catch (e: Exception) {
+                            statusMessage = "Ошибка подключения: ${e.message}"
+                            isError = true
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = token.isNotBlank()
+            ) {
+                Text("Подключиться")
+            }
+        }
+
+        // Инструкция
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Как получить токен", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    """
+                    1. Зайдите в личный кабинет Finam
+                    2. Перейдите в раздел «Настройки» → «API»
+                    3. Создайте новый токен с правами на торговлю и чтение
+                    4. Скопируйте секретный токен
+                    5. Вставьте его в поле выше
+                    
+                    ⚠️ Рекомендации:
+                    • Храните токен в безопасном месте
+                    • Не передавайте третьим лицам
+                    """.trimIndent(),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        // Статусное сообщение
+        statusMessage?.let { message ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isError)
+                        MaterialTheme.colorScheme.errorContainer
+                    else
+                        MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Text(message, modifier = Modifier.padding(16.dp))
+            }
+        }
     }
 }
 

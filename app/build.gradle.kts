@@ -44,6 +44,7 @@ android {
                 "META-INF/AL2.0",
                 "META-INF/LGPL2.1"
             )
+            pickFirsts += listOf("**/com/google/protobuf/**")
         }
     }
 } // ←
@@ -102,8 +103,10 @@ dependencies {
     }
 
     // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
-    implementation("com.google.protobuf:protobuf-java:3.25.3")
+    //implementation("com.google.protobuf:protobuf-java:3.25.3")
     //implementation("com.google.protobuf:protobuf-java:4.34.1")
+    implementation("com.google.protobuf:protobuf-java:3.25.8")
+    implementation("com.google.protobuf:protobuf-kotlin:3.25.8")
 
     // Исключаем конфликтующий модуль из всех конфигураций
     configurations.all {
@@ -138,4 +141,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     //implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.google.code.gson:gson:2.13.2")
+
+    //Finam API SDK
+
 }
