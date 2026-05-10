@@ -747,6 +747,13 @@ fun openBrokerDialog(ticker: String) {
     fun onPairedInstrumentSelected(instrument: InstrumentUi) {
         _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
         startPriceUpdates()   // перезапускаем стрим для обновления цен обоих инструментов
+        viewModelScope.launch {
+            val prices = repository.getLastPricesByTscalpInstrumentId(listOf(instrument.tscalpInstrumentId))
+            val price = prices[instrument.tscalpInstrumentId]
+            if (price != null) {
+                _uiState.update { it.copy(pairCurrentPrice = price) }
+            }
+        }
     }
 
     fun clearPairSearch() {
@@ -799,6 +806,7 @@ fun openBrokerDialog(ticker: String) {
                     .catch { e -> Log.e(TAG, "Price stream error", e) }
                     .collect { (id, price) ->
                         val ticker = idToTicker[id] ?: return@collect
+                        Log.d(TAG, "Цена для $ticker: $price")
                         _uiState.update { state ->
                             val oldPrice = state.currentPrice
                             val newPercent = if (oldPrice != null && oldPrice != 0.0) {

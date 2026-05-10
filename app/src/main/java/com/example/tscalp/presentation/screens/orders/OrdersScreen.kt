@@ -356,7 +356,7 @@ fun OrdersScreen(
                     ) { orderType: OrderTypeSelection ->
                         when (orderType) {
                             OrderTypeSelection.Limit -> {
-                                M3TextField(
+                                    M3TextField(
                                     value = uiState.limitPrice,
                                     onValueChange = { viewModel.onLimitPriceChanged(it) },
                                     placeholder = "Цена за лот",
