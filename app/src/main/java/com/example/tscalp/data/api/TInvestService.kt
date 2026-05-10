@@ -141,7 +141,7 @@ class TInvestInvestService : BrokerApi {
         accounts.map { acc ->
             BrokerAccount(
                 id = acc.id,
-                name = acc.name,
+                name = acc.name.ifBlank { "Счёт ${acc.id.take(8)}…" },
                 type = when (acc.typeValue) {
                     1 -> BrokerAccountType.BROKER
                     2 -> BrokerAccountType.IIS

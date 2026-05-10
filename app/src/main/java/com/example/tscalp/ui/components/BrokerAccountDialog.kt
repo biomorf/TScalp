@@ -3,7 +3,6 @@ package com.example.tscalp.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.tscalp.domain.models.BrokerAccount
@@ -20,8 +19,16 @@ fun BrokerAccountDialog(
     onDismiss: () -> Unit,
     onSave: () -> Unit
 ) {
-    // Локальный флаг, чтобы кнопка сразу активировалась при выборе
-    var isSaveEnabled by remember { mutableStateOf(selectedAccountId != null) }
+    // Устойчивое сравнение с trim, fallback на первый счёт
+    val selectedAccountName = remember(accounts, selectedAccountId) {
+        val trimmedSelected = selectedAccountId?.trim()
+        val account = accounts.firstOrNull { it.id.trim() == trimmedSelected }
+        account?.name?.ifBlank { "Счёт ${account.id.take(8)}…" }
+            ?: accounts.firstOrNull()?.name?.ifBlank { "Счёт ${accounts.first().id.take(8)}…" }
+            ?: "Счёт не найден"
+    }
+
+    val isSaveEnabled = selectedAccountId != null && accounts.any { it.id.trim() == selectedAccountId.trim() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -68,7 +75,7 @@ fun BrokerAccountDialog(
                     onExpandedChange = { accountExpanded = it }
                 ) {
                     TextField(
-                        value = accounts.find { it.id == selectedAccountId }?.name ?: "Выберите счёт",
+                        value = selectedAccountName,
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
@@ -80,10 +87,9 @@ fun BrokerAccountDialog(
                     ) {
                         accounts.forEach { account ->
                             DropdownMenuItem(
-                                text = { Text(account.name) },
+                                text = { Text(account.name.ifBlank { "Счёт ${account.id.take(8)}…" }) },
                                 onClick = {
                                     onAccountSelected(account.id)
-                                    isSaveEnabled = true   // ← включаем кнопку
                                     accountExpanded = false
                                 }
                             )

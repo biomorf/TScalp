@@ -598,17 +598,33 @@ class OrdersViewModel(
  * Открывает диалог настроек брокера/счёта для указанного тикера.
  */
 fun openBrokerDialog(ticker: String) {
-    val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-    _uiState.update {
-        it.copy(
-            showBrokerDialog = true,
-            dialogInstrumentTicker = ticker,
-            selectedBroker = existingCard?.brokerName ?: "TInvest",
-            selectedAccountIdDialog = existingCard?.accountId
-        )
-    }
     viewModelScope.launch {
-        loadDialogAccounts(existingCard?.brokerName ?: "TInvest")
+        val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
+        val brokerName = existingCard?.brokerName ?: "TInvest"
+
+        val accounts = try {
+            repository.getAccounts(brokerName, ServiceLocator.isSandboxMode())
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка загрузки счетов для $brokerName", e)
+            emptyList()
+        }
+
+        val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
+        val selectedId = if (savedAccountId != null && accounts.any { it.id.trim() == savedAccountId.trim() }) {
+            savedAccountId
+        } else {
+            accounts.firstOrNull()?.id
+        }
+
+        _uiState.update {
+            it.copy(
+                showBrokerDialog = true,
+                dialogInstrumentTicker = ticker,
+                selectedBroker = brokerName,
+                selectedAccountIdDialog = selectedId,
+                dialogAccounts = accounts
+            )
+        }
     }
 }
 
@@ -637,6 +653,31 @@ fun openBrokerDialog(ticker: String) {
         _uiState.update { it.copy(selectedAccountIdDialog = accountId) }
     }
 
+     /**
+     * Загружает счета для указанного брокера и сохраняет их во временный список (можно добавить поле в UIState).
+     * Пока для простоты будем хранить список счетов в локальной переменной диалога.
+     */
+    private suspend fun loadDialogAccounts(brokerName: String) {
+        try {
+            val accounts = repository.getAccounts(brokerName, ServiceLocator.isSandboxMode())
+            _uiState.update { state ->
+                val current = state.selectedAccountIdDialog?.trim()
+                val newSelected = if (current != null && accounts.any { it.id.trim() == current }) {
+                    state.selectedAccountIdDialog
+                } else {
+                    accounts.firstOrNull()?.id
+                }
+                state.copy(
+                    dialogAccounts = accounts,
+                    selectedAccountIdDialog = newSelected
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка загрузки счетов для $brokerName", e)
+            _uiState.update { it.copy(dialogAccounts = emptyList(), selectedAccountIdDialog = null) }
+        }
+    }
+
     /**
      * Сохраняет выбранные настройки для инструмента и закрывает диалог.
      */
@@ -645,7 +686,6 @@ fun openBrokerDialog(ticker: String) {
         val broker = _uiState.value.selectedBroker
         val accountId = _uiState.value.selectedAccountIdDialog
 
-        // Обновляем соответствующую карточку в lastSelectedInstruments
         _uiState.update { state ->
             state.copy(
                 lastSelectedInstruments = state.lastSelectedInstruments.map { card ->
@@ -655,24 +695,8 @@ fun openBrokerDialog(ticker: String) {
                 },
                 showBrokerDialog = false,
                 dialogInstrumentTicker = null,
-                swipeResetTrigger = !state.swipeResetTrigger   // вызываем анимацию
+                swipeResetTrigger = !state.swipeResetTrigger
             )
-        }
-    }
-
-    /**
-     * Загружает счета для указанного брокера и сохраняет их во временный список (можно добавить поле в UIState).
-     * Пока для простоты будем хранить список счетов в локальной переменной диалога.
-     */
-    private suspend fun loadDialogAccounts(brokerName: String) {
-        try {
-            val sandboxMode = ServiceLocator.isSandboxMode()
-            val accounts = repository.getAccounts(brokerName, sandboxMode)
-            // Сохраним счета в состоянии для диалога (можно добавить поле dialogAccounts: List<BrokerAccount>)
-            _uiState.update { it.copy(dialogAccounts = accounts) }
-        } catch (e: Exception) {
-            Log.e(TAG, "Не удалось загрузить счета для $brokerName", e)
-            //_uiState.update { it.copy(dialogAccounts = emptyList()) }
         }
     }
 
