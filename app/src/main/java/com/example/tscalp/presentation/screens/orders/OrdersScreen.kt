@@ -3,6 +3,9 @@ package com.example.tscalp.presentation.screens.orders
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -342,15 +345,17 @@ fun OrdersScreen(
 //                            .fillMaxWidth()
 //                            .height(130.dp)
 //                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.Top,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            AnimatedVisibility(
-                                visible = uiState.orderType is OrderTypeSelection.Limit,
-                                enter = fadeIn(),
-                                exit = fadeOut()
-                            ) {
+                    // Ценовые поля – с плавной заменой без наложения
+                    // Ценовые поля – с плавной заменой без наложения
+                    AnimatedContent(
+                        targetState = uiState.orderType,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(200)) togetherWith fadeOut(animationSpec = tween(200))
+                        },
+                        label = "price_fields"
+                    ) { orderType: OrderTypeSelection ->
+                        when (orderType) {
+                            OrderTypeSelection.Limit -> {
                                 M3TextField(
                                     value = uiState.limitPrice,
                                     onValueChange = { viewModel.onLimitPriceChanged(it) },
@@ -358,14 +363,18 @@ fun OrdersScreen(
                                     keyboardType = KeyboardType.Decimal
                                 )
                             }
-
-                            AnimatedVisibility(
-                                visible = uiState.orderType is OrderTypeSelection.StopLoss ||
-                                        uiState.orderType is OrderTypeSelection.TakeProfit ||
-                                        uiState.orderType is OrderTypeSelection.StopLimit,
-                                enter = fadeIn(),
-                                exit = fadeOut()
-                            ) {
+                            OrderTypeSelection.StopLoss,
+                            OrderTypeSelection.TakeProfit -> {
+                                Column {
+                                    M3TextField(
+                                        value = uiState.stopPrice,
+                                        onValueChange = { viewModel.onStopPriceChanged(it) },
+                                        placeholder = "Триггер стоп-цена",
+                                        keyboardType = KeyboardType.Decimal
+                                    )
+                                }
+                            }
+                            OrderTypeSelection.StopLimit -> {
                                 Column {
                                     M3TextField(
                                         value = uiState.stopPrice,
@@ -374,21 +383,17 @@ fun OrdersScreen(
                                         keyboardType = KeyboardType.Decimal
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    AnimatedVisibility(
-                                        visible = uiState.orderType is OrderTypeSelection.StopLimit,
-                                        enter = fadeIn(),
-                                        exit = fadeOut()
-                                    ) {
-                                        M3TextField(
-                                            value = uiState.limitPrice,
-                                            onValueChange = { viewModel.onLimitPriceChanged(it) },
-                                            placeholder = "Лимитная цена",
-                                            keyboardType = KeyboardType.Decimal
-                                        )
-                                    }
+                                    M3TextField(
+                                        value = uiState.limitPrice,
+                                        onValueChange = { viewModel.onLimitPriceChanged(it) },
+                                        placeholder = "Лимитная цена",
+                                        keyboardType = KeyboardType.Decimal
+                                    )
                                 }
                             }
+                            else -> { /* Market – ничего не показываем */ }
                         }
+                    }
                     //}
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
