@@ -847,20 +847,17 @@ fun InstrumentSearchField(
                 ) {
                     if (inputText.isEmpty() && recentInstruments.isNotEmpty()) {
                         recentInstruments.forEach { instrument ->
+                            val status = tradingStatuses[instrument.tscalpInstrumentId]
+                            if (status == TradingAvailability.UNAVAILABLE) return@forEach
+
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             ListItem(
                                 headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
                                 supportingContent = {
-                                    val status = tradingStatuses[instrument.tscalpInstrumentId]
-                                    val textColor = when (status) {
-                                        TradingAvailability.AVAILABLE -> Color(0xFF2E7D32)
-                                        TradingAvailability.UNAVAILABLE -> Color(0xFFC62828)
-                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
                                     Text(
                                         text = instrument.tscalpInstrumentId,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = textColor
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 },
                                 leadingContent = {
@@ -880,20 +877,17 @@ fun InstrumentSearchField(
                         }
                     } else {
                         searchResults.forEach { instrument ->
+                            val status = tradingStatuses[instrument.tscalpInstrumentId]
+                            if (status == TradingAvailability.UNAVAILABLE) return@forEach
+
                             val typeColor = getInstrumentTypeColor(instrument.instrumentType)
                             ListItem(
                                 headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
                                 supportingContent = {
-                                    val status = tradingStatuses[instrument.tscalpInstrumentId]
-                                    val textColor = when (status) {
-                                        TradingAvailability.AVAILABLE -> Color(0xFF2E7D32)
-                                        TradingAvailability.UNAVAILABLE -> Color(0xFFC62828)
-                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
                                     Text(
                                         text = instrument.tscalpInstrumentId,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = textColor
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 },
                                 leadingContent = {

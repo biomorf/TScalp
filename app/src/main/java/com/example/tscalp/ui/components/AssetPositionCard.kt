@@ -238,17 +238,12 @@ private fun PortfolioCardContent(
                             maxLines = 1,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        // === Новый блок отображения идентификатора ===
+                        // Упрощённое нейтральное отображение идентификатора
                         val displayId = if (tscalpInstrumentId.isNullOrBlank()) "000000" else tscalpInstrumentId
-                        val idColor = when (tradingAvailability) {
-                            TradingAvailability.AVAILABLE -> Color(0xFF2E7D32)
-                            TradingAvailability.UNAVAILABLE -> Color(0xFFC62828)
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
                         Text(
                             text = displayId,
                             style = MaterialTheme.typography.bodySmall,
-                            color = idColor
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         // ==========================================
                     }
