@@ -218,6 +218,7 @@ fun OrdersScreen(
                         profit = portfolioPos?.profit ?: 0.0,
                         profitPercent = portfolioPos?.profitPercent ?: 0.0,
                         instrumentType = instrument.instrumentType,
+                        averagePrice = portfolioPos?.currentPrice,
                         priceChangePercent = null
                     )
                     AssetPositionCard(

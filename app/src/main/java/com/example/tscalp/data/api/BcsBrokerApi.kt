@@ -240,6 +240,9 @@ class BcsBrokerApi : BrokerApi {
                 quantity = quantity,
                 currentPrice = currentPrice,
                 totalValue = totalValue,
+                profit = null,
+                profitPercent = null,
+                averagePrice = null,   // если нет
                 brokerName = "bcs"
             )
         }.distinctBy { it.ticker } // убираем дубликаты по FIGI внутри одного брокера

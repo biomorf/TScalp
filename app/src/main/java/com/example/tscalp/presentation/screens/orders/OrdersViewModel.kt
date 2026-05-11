@@ -51,6 +51,13 @@ class OrdersViewModel(
 
     companion object {
         private const val TAG = "OrdersViewModel"
+
+        /**
+         * Флаг, определяющий способ обновления P&L.
+         * false → периодический опрос портфеля (loadPortfolio)
+         * true  → стрим PositionsStream (когда SDK будет совместим)
+         */
+        private const val USE_POSITION_STREAM = false
     }
 
     init {
@@ -165,6 +172,7 @@ class OrdersViewModel(
                 accounts.firstOrNull()?.id ?: return
             }
             val newPositions = broker.getPositions(actualAccountId, sandboxMode)
+            Log.d(TAG, "Позиции загружены: ${newPositions.map { "${it.ticker} profit=${it.profit} percent=${it.profitPercent}" }}")
 
             // Обновляем portfolioPositions: удаляем старые позиции этого брокера и добавляем новые
             val currentPositions = _uiState.value.portfolioPositions.toMutableList()
@@ -852,12 +860,27 @@ fun openBrokerDialog(ticker: String) {
         val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
         val accountId = _uiState.value.selectedAccountId ?: return
 
-        positionStreamJob = viewModelScope.launch {
-            try {
-                broker.subscribePositionsStream(accountId)
-                    .collect { item -> updatePositionPnl(item) }
-            } catch (e: Exception) {
-                Log.w(TAG, "PositionsStream не доступен в sandbox", e)
+        if (USE_POSITION_STREAM) {
+            // Режим стрима (потребуется, когда SDK заработает)
+            positionStreamJob = viewModelScope.launch {
+                try {
+                    broker.subscribePositionsStream(accountId)
+                        .collect { item -> updatePositionPnl(item) }
+                } catch (e: Exception) {
+                    Log.w(TAG, "PositionsStream error (stream not available)", e)
+                }
+            }
+        } else {
+            // Периодический опрос портфеля
+            positionStreamJob = viewModelScope.launch {
+                while (isActive) {
+                    delay(10_000) // интервал обновления 10 секунд
+                    try {
+                        loadPortfolio(brokerName = "TInvest", accountId = accountId)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Ошибка обновления портфеля", e)
+                    }
+                }
             }
         }
     }

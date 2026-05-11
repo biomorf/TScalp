@@ -262,52 +262,71 @@ private fun PortfolioCardContent(
                     }
                 }
 
+                //=============================================================
                 if (position.quantity != 0L || priceChangePercent != null) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
                         color = MaterialTheme.colorScheme.outline
                     )
+                    //=============================================================
 
-                        // Строка: количество · стоимость
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
-                        if (position.quantity != 0L) {
-                            Text(
-                                text = "${position.quantity} шт. · ${formatCurrency(position.totalValue)}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
-                        if (priceChangePercent != null) {
-                            val changeAbsolute = (priceChangePercent / 100.0) * position.currentPrice
-                            val sign = if (priceChangePercent >= 0) "+" else ""
-                            Text(
-                                text = "${sign}${formatCurrency(changeAbsolute)} (${sign}${"%.2f".format(priceChangePercent)}%)",
-                                color = if (priceChangePercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
+                        // Левая часть: средняя стоимость + детали
+                        Column {
+                            val avgPrice = position.averagePrice
+                            val avgTotal = if (avgPrice != null && avgPrice > 0) {
+                                position.quantity.toDouble() * avgPrice
+                            } else null
 
-                if (position.quantity != 0L && position.profit != 0.0) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("P&L", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                formatCurrency(position.profit),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (position.profit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
-                            )
-                            Text(
-                                "(${"%.2f".format(position.profitPercent)}%)",
+                                text = if (avgTotal != null) formatPrice(avgTotal, instrumentType) else "-",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (position.profit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (avgPrice != null && avgPrice > 0) {
+                                    "${position.quantity} лот  ·  ${formatPrice(avgPrice, instrumentType)}"
+                                } else {
+                                    "${position.quantity} лот  ·  -"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        // Правая часть: прибыль / убыток
+                        Column(horizontalAlignment = Alignment.End) {
+                            val profit = position.profit
+                            val profitFormatted = when {
+                                profit == null -> "-"
+                                instrumentType == "futures" -> formatPrice(profit, "futures")
+                                else -> formatCurrency(profit)
+                            }
+                            val profitPercent = position.profitPercent
+
+                            val profitColor = if (profit != null && profit >= 0) Color(0xFF2E7D32)
+                            else if (profit != null) Color(0xFFC62828)
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+
+                            Text(
+                                text = profitFormatted,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = profitColor,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            val percentColor = if (profitPercent != null && profitPercent >= 0) Color(0xFF2E7D32)
+                            else if (profitPercent != null) Color(0xFFC62828)
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+
+                            Text(
+                                text = if (profitPercent != null) "${"%.2f".format(profitPercent)}%" else "-",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = percentColor
                             )
                         }
                     }

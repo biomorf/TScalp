@@ -192,6 +192,24 @@ class TInvestInvestService : BrokerApi {
             val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
             val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
             val totalValue = currentPrice * quantity
+            val expectedYield = pos.expectedYield?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+            val avgPrice = pos.averagePositionPrice?.let { it.units + it.nano / 1_000_000_000.0 }
+
+            // Используем expectedYield, если он положительный, иначе считаем сами
+            val profit: Double? = if (expectedYield != null && expectedYield > 0.0) {
+                expectedYield
+            } else if (avgPrice != null && avgPrice > 0.0) {
+                (currentPrice - avgPrice) * quantity
+            } else null
+
+            val profitPercent: Double? = when {
+                profit != null && avgPrice != null && avgPrice > 0.0 && quantity > 0 -> {
+                    (profit / (avgPrice * quantity)) * 100.0
+                }
+                else -> null
+            }
+
+            Log.d(TAG, "Позиция $uid: expectedYield=$expectedYield, avgPrice=$avgPrice")
 
             PortfolioPosition(
                 tscalpInstrumentId = instrument?.uid ?: "",   // теперь uid
@@ -199,9 +217,10 @@ class TInvestInvestService : BrokerApi {
                 ticker = instrument?.ticker ?: "",
                 quantity = quantity,
                 currentPrice = currentPrice,
+                averagePrice = avgPrice,
                 totalValue = totalValue,
-                profit = 0.0,
-                profitPercent = 0.0,
+                profit = profit,
+                profitPercent = profitPercent,
                 instrumentType = instrument?.instrumentType ?: ""
             )
         }
