@@ -7,6 +7,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.awaitClose
+
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,6 +31,7 @@ import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.domain.models.TradeCheckResult
+import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.*
 
 /**
@@ -35,6 +41,7 @@ import com.example.tscalp.domain.models.*
 class BcsBrokerApi : BrokerApi {
 
     companion object {
+        private const val TAG = "BcsBrokerApi"
         private const val PROD_BASE_URL = "https://be.broker.ru"
         // Точный путь авторизации, как в вашем примере
         private const val TOKEN_PATH = "/trade-api-keycloak/realms/tradeapi/protocol/openid-connect/token"
@@ -207,7 +214,40 @@ class BcsBrokerApi : BrokerApi {
      * Получает позиции портфеля.
      * Ответ от сервера — массив JSON-объектов.
      */
-    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = callbackFlow {
+        // Стартовый снапшот
+        try {
+            val positions = fetchPositionsRest(accountId, false)
+            positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
+        } catch (e: Exception) {
+            Log.w(TAG, "BCS snapshot failed", e)
+        }
+
+        // Периодический опрос
+        while (isActive) {
+            delay(10_000)
+            try {
+                val positions = fetchPositionsRest(accountId, false)
+                positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
+            } catch (e: Exception) {
+                Log.w(TAG, "BCS polling error", e)
+            }
+        }
+
+        awaitClose { /* cleanup if needed */ }
+    }
+
+    private fun convertToStreamItem(pos: PortfolioPosition) = PositionStreamItem(
+        instrumentUid = pos.tscalpInstrumentId,
+        ticker = pos.ticker,
+        quantity = pos.quantity,
+        currentPrice = pos.currentPrice,
+        averagePositionPrice = pos.averagePrice,
+        expectedYield = pos.profit
+    )
+
+    // реализация на основе HTTP-клиента
+    override suspend fun fetchPositionsRest(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> {
         val response = makeRequest("GET", PORTFOLIO_PATH)
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
@@ -343,5 +383,5 @@ class BcsBrokerApi : BrokerApi {
         quantity: Long
     ): TradeCheckResult = TradeCheckResult.Success
 
-    override suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem> = flowOf()
+
 }

@@ -18,7 +18,21 @@ interface BrokerApi {
      * Возвращает позиции портфеля для указанного счёта в виде списка доменных объектов.
      * Каждый брокер реализует по‑своему: Т‑Инвестиции – через getPortfolio, БКС – парсинг JSON.
      */
-    suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition>
+    // Прямой запрос позиций (REST / gRPC-unary) – используется в polling и при первой загрузке
+    /**
+     * Прямой запрос позиций (REST / gRPC-unary).
+     * Используется только внутри сервисных реализаций, не должен вызываться Presentation или Repository.
+     */
+    suspend fun fetchPositionsRest(accountId: String, sandboxMode: Boolean): List<PortfolioPosition>
+
+    // Единый стрим позиций с автоматическим восстановлением (gRPC → WebSocket → Polling)
+    // Если брокер не поддерживает стриминг, реализация может сразу делегировать в polling
+    /**
+     * Единый поток обновлений позиций.
+     * Скрывает внутри себя каскад fallback (gRPC → WebSocket → Polling),
+     * а также при подписке сразу эмитит текущий снапшот портфеля.
+     */
+    fun subscribePositions(accountId: String): Flow<PositionStreamItem>
 
     suspend fun getBalance(accountId: String): Double
     suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney)
@@ -90,5 +104,5 @@ interface BrokerApi {
         quantity: Long
     ): TradeCheckResult
 
-    suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem>
+
 }

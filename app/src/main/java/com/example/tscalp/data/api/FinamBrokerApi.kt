@@ -1,19 +1,27 @@
 package com.example.tscalp.data.api
 
 import android.util.Log
-import com.example.tscalp.domain.api.BrokerApi
-import com.example.tscalp.domain.models.*
-import com.example.tscalp.di.ServiceLocator
+
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.awaitClose
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
+
+import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.PositionStreamItem
+import com.example.tscalp.domain.models.*
+
 
 class FinamBrokerApi : BrokerApi {
 
@@ -86,7 +94,40 @@ class FinamBrokerApi : BrokerApi {
         TODO("Not yet implemented")
     }
 
-    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = callbackFlow {
+        // Стартовый снапшот
+        try {
+            val positions = fetchPositionsRest(accountId, false)
+            positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Finam snapshot failed", e)
+        }
+
+        // Периодический опрос
+        while (isActive) {
+            delay(10_000)
+            try {
+                val positions = fetchPositionsRest(accountId, false)
+                positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Finam polling error", e)
+            }
+        }
+
+        awaitClose { /* cleanup if needed */ }
+    }
+
+    private fun convertToStreamItem(pos: PortfolioPosition) = PositionStreamItem(
+        instrumentUid = pos.tscalpInstrumentId,
+        ticker = pos.ticker,
+        quantity = pos.quantity,
+        currentPrice = pos.currentPrice,
+        averagePositionPrice = pos.averagePrice,
+        expectedYield = pos.profit
+    )
+
+    // реализация на основе HTTP-клиента
+    override suspend fun fetchPositionsRest(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
         // TODO: запрос портфеля
         emptyList()
     }
@@ -154,8 +195,5 @@ class FinamBrokerApi : BrokerApi {
         return TradeCheckResult.Success
     }
 
-    override suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem> {
-        // Будет реализовано через WebSocket
-        return flowOf()
-    }
+
 }

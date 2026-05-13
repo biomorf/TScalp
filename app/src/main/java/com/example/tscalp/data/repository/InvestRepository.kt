@@ -30,10 +30,10 @@ class InvestRepository(
         broker.getAccounts(sandboxMode)  // возвращает List<BrokerAccount> – просто возвращаем
     }
 
-     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getDefaultBroker()
-        broker.getPositions(accountId, sandboxMode)
-    }
+//     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
+//        val broker = brokerManager.getDefaultBroker()
+//        broker.getPositions(accountId, sandboxMode)
+//    }
 
     /**
      * Возвращает специфичный для брокера идентификатор (figi, uid и т.д.) по тикеру.

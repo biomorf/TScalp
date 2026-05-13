@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
+
 
 import java.util.concurrent.ConcurrentHashMap
 
@@ -175,16 +178,96 @@ class TInvestInvestService : BrokerApi {
 
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        Log.d(TAG, "getPortfolio: accountId=$accountId, sandbox=$sandboxMode")
         val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
         return@withContext if (sandboxMode) {
+            Log.d(TAG, "Вызов sandboxServiceSync.getSandboxPortfolio")
             currentApi.sandboxServiceSync.getSandboxPortfolio(request)
         } else {
+            Log.d(TAG, "Вызов operationsServiceSync.getPortfolio")
             currentApi.operationsServiceSync.getPortfolio(request)
         }
     }
 
-    override suspend fun getPositions(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = callbackFlow {
+        var currentFallback = 0 // 0 = gRPC, 1 = WebSocket, 2 = Polling
+
+        // Стартовый снапшот портфеля
+        try {
+            val sandbox = ServiceLocator.isSandboxMode()
+            val snapshot = fetchPositionsRest(accountId, sandbox)
+            snapshot.forEach { pos ->
+                trySend(PositionStreamItem(
+                    instrumentUid = pos.tscalpInstrumentId,
+                    ticker = pos.ticker,
+                    quantity = pos.quantity,
+                    currentPrice = pos.currentPrice,
+                    averagePositionPrice = pos.averagePrice,
+                    expectedYield = pos.profit
+                ))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Не удалось получить стартовый снапшот портфеля: ${e.message}")
+        }
+
+        suspend fun tryNextFallback() {
+            when (currentFallback) {
+                0 -> {
+                    Log.d(TAG, "Пробуем gRPC PositionsStream")
+                    try {
+                        subscribePositionsGrpc(accountId).collect { item -> trySend(item) }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "gRPC PositionsStream не удался: ${e.message}")
+                        currentFallback = 1
+                        tryNextFallback()
+                    }
+                }
+                1 -> {
+                    Log.d(TAG, "Пробуем WebSocket PositionsStream")
+                    try {
+                        subscribePositionsWebSocket(accountId).collect { item -> trySend(item) }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "WebSocket PositionsStream не удался: ${e.message}")
+                        currentFallback = 2
+                        tryNextFallback()
+                    }
+                }
+                2 -> {
+                    Log.d(TAG, "Переключаемся на периодический опрос (polling)")
+                    while (isActive) {
+                        delay(10_000)
+                        try {
+                            val sandbox = ServiceLocator.isSandboxMode()
+                            val positions = fetchPositionsRest(accountId, sandbox)
+                            positions.forEach { pos ->
+                                trySend(PositionStreamItem(
+                                    instrumentUid = pos.tscalpInstrumentId,
+                                    ticker = pos.ticker,
+                                    quantity = pos.quantity,
+                                    currentPrice = pos.currentPrice,
+                                    averagePositionPrice = pos.averagePrice,
+                                    expectedYield = pos.profit
+                                ))
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Polling error: ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
+
+        tryNextFallback()
+        awaitClose { /* cleanup */ }
+    }
+
+    private fun subscribePositionsWebSocket(accountId: String): Flow<PositionStreamItem> = callbackFlow {
+        throw UnsupportedOperationException("WebSocket не реализован")
+    }
+
+    override suspend fun fetchPositionsRest(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
+        //val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        Log.d(TAG, "fetchPositionsRest: accountId=$accountId, sandbox=$sandboxMode")
         val response = getPortfolio(accountId, sandboxMode)
 
         response.positionsList.mapNotNull { pos ->
@@ -246,6 +329,92 @@ class TInvestInvestService : BrokerApi {
             )
         }
     }
+
+    private fun subscribePositionsGrpc(accountId: String): Flow<PositionStreamItem> = callbackFlow {
+        if (!::ordersStateChannel.isInitialized) {
+            throw IllegalStateException("Канал для PositionsStream не инициализирован")
+        }
+
+        val request = PositionsStreamRequest.newBuilder()
+            .addAccounts(accountId)
+            .build()
+
+        // Дескриптор метода для PositionsStream
+        val methodDescriptor = io.grpc.MethodDescriptor.newBuilder<PositionsStreamRequest, PositionsStreamResponse>()
+            .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+            .setFullMethodName("tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream")
+            .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamRequest.getDefaultInstance()))
+            .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamResponse.getDefaultInstance()))
+            .build()
+
+        val call = ordersStateChannel.newCall(methodDescriptor, io.grpc.CallOptions.DEFAULT)
+
+        val responseObserver = object : io.grpc.ClientCall.Listener<PositionsStreamResponse>() {
+            override fun onMessage(response: PositionsStreamResponse) {
+                if (response.hasPosition()) {
+                    val pos = response.position
+
+                    // Извлекаем поля через дескрипторы
+                    val uidField = pos.descriptorForType.findFieldByName("instrument_uid")
+                    val uid = uidField?.let { pos.getField(it) } as? String ?: ""
+
+                    val tickerField = pos.descriptorForType.findFieldByName("ticker")
+                    val ticker = tickerField?.let { pos.getField(it) } as? String ?: uid
+
+                    val quantityField = pos.descriptorForType.findFieldByName("quantity")
+                    val quantity = (quantityField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }?.toLong() ?: 0L
+
+                    val currentPriceField = pos.descriptorForType.findFieldByName("current_price")
+                    val currentPrice = (currentPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }
+
+                    val avgPriceField = pos.descriptorForType.findFieldByName("average_position_price")
+                    val avgPrice = (avgPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }
+
+                    val yieldField = pos.descriptorForType.findFieldByName("expected_yield")
+                    val yield = (yieldField?.let { pos.getField(it) } as? MoneyValue)?.let {
+                        it.units + it.nano / 1_000_000_000.0
+                    }
+
+                    trySend(
+                        PositionStreamItem(
+                            instrumentUid = uid,
+                            ticker = ticker,
+                            quantity = quantity,
+                            currentPrice = currentPrice,
+                            averagePositionPrice = avgPrice,
+                            expectedYield = yield
+                        )
+                    )
+                }
+            }
+
+            override fun onClose(status: io.grpc.Status, trailers: io.grpc.Metadata) {
+                if (!status.isOk) {
+                    Log.w(TAG, "PositionsStream not available (sandbox?): $status")
+                }
+                close()
+            }
+        }
+
+        call.start(responseObserver, io.grpc.Metadata())
+        call.sendMessage(request)
+        call.halfClose()
+        call.request(1)
+
+        awaitClose {
+            Log.d(TAG, "Closing PositionsStream")
+            call.cancel("Cancelled by client", null)
+        }
+    }
+
+
+
 
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
@@ -955,88 +1124,7 @@ class TInvestInvestService : BrokerApi {
         else TradeCheckResult.Error("Недостаточно средств. Свободно: ${formatCurrency(balance)}, требуется: ~${formatCurrency(required)}")
     }
 
-    override suspend fun subscribePositionsStream(accountId: String): Flow<PositionStreamItem> = callbackFlow {
-        if (!::ordersStateChannel.isInitialized) {
-            throw IllegalStateException("Канал для PositionsStream не инициализирован")
-        }
 
-        val request = PositionsStreamRequest.newBuilder()
-            .addAccounts(accountId)
-            .build()
-
-        // Дескриптор метода для PositionsStream
-        val methodDescriptor = io.grpc.MethodDescriptor.newBuilder<PositionsStreamRequest, PositionsStreamResponse>()
-            .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
-            .setFullMethodName("tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream")
-            .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamRequest.getDefaultInstance()))
-            .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamResponse.getDefaultInstance()))
-            .build()
-
-        val call = ordersStateChannel.newCall(methodDescriptor, io.grpc.CallOptions.DEFAULT)
-
-        val responseObserver = object : io.grpc.ClientCall.Listener<PositionsStreamResponse>() {
-            override fun onMessage(response: PositionsStreamResponse) {
-                if (response.hasPosition()) {
-                    val pos = response.position
-
-                    // Извлекаем поля через дескрипторы
-                    val uidField = pos.descriptorForType.findFieldByName("instrument_uid")
-                    val uid = uidField?.let { pos.getField(it) } as? String ?: ""
-
-                    val tickerField = pos.descriptorForType.findFieldByName("ticker")
-                    val ticker = tickerField?.let { pos.getField(it) } as? String ?: uid
-
-                    val quantityField = pos.descriptorForType.findFieldByName("quantity")
-                    val quantity = (quantityField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }?.toLong() ?: 0L
-
-                    val currentPriceField = pos.descriptorForType.findFieldByName("current_price")
-                    val currentPrice = (currentPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }
-
-                    val avgPriceField = pos.descriptorForType.findFieldByName("average_position_price")
-                    val avgPrice = (avgPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }
-
-                    val yieldField = pos.descriptorForType.findFieldByName("expected_yield")
-                    val yield = (yieldField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }
-
-                    trySend(
-                        PositionStreamItem(
-                            instrumentUid = uid,
-                            ticker = ticker,
-                            quantity = quantity,
-                            currentPrice = currentPrice,
-                            averagePositionPrice = avgPrice,
-                            expectedYield = yield
-                        )
-                    )
-                }
-            }
-
-            override fun onClose(status: io.grpc.Status, trailers: io.grpc.Metadata) {
-                if (!status.isOk) {
-                    Log.w(TAG, "PositionsStream not available (sandbox?): $status")
-                }
-                close()
-            }
-        }
-
-        call.start(responseObserver, io.grpc.Metadata())
-        call.sendMessage(request)
-        call.halfClose()
-        call.request(1)
-
-        awaitClose {
-            Log.d(TAG, "Closing PositionsStream")
-            call.cancel("Cancelled by client", null)
-        }
-    }
 
 
 

@@ -81,7 +81,7 @@ class OrdersViewModel(
             // Загружаем счета только если дефолтный брокер инициализирован
             if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
                 loadAccounts()
-                viewModelScope.launch { loadPortfolio() }
+                //viewModelScope.launch { startPositionUpdates() }
             }
             startPriceUpdates()
             startPositionUpdates()
@@ -101,7 +101,7 @@ class OrdersViewModel(
                 )
             }
             loadAccounts()
-            viewModelScope.launch { loadPortfolio() }   // <-- обернули в корутину
+            viewModelScope.launch { startPositionUpdates() }   // <-- обернули в корутину
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
@@ -155,34 +155,34 @@ class OrdersViewModel(
         }
     }
 
-    /**
-     * Загружает портфель для первого счета и возвращает список позиций.
-     * Теперь это suspend-функция, которую можно await'ить.
-     */
-    private suspend fun loadPortfolio(
-        brokerName: String = "TInvest",
-        accountId: String? = null
-    ) {
-        try {
-            val sandboxMode = ServiceLocator.isSandboxMode()
-            val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: return
-            // Если accountId не передан, получаем его через getAccounts (только для TInvest)
-            val actualAccountId = accountId ?: run {
-                val accounts = broker.getAccounts(sandboxMode)
-                accounts.firstOrNull()?.id ?: return
-            }
-            val newPositions = broker.getPositions(actualAccountId, sandboxMode)
-            Log.d(TAG, "Позиции загружены: ${newPositions.map { "${it.ticker} profit=${it.profit} percent=${it.profitPercent}" }}")
-
-            // Обновляем portfolioPositions: удаляем старые позиции этого брокера и добавляем новые
-            val currentPositions = _uiState.value.portfolioPositions.toMutableList()
-            currentPositions.removeAll { it.brokerName == brokerName }
-            currentPositions.addAll(newPositions.map { it.copy(brokerName = brokerName) })
-            _uiState.update { it.copy(portfolioPositions = currentPositions) }
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка загрузки портфеля для $brokerName", e)
-        }
-    }
+//    /**
+//     * Загружает портфель для первого счета и возвращает список позиций.
+//     * Теперь это suspend-функция, которую можно await'ить.
+//     */
+//    private suspend fun loadPortfolio(
+//        brokerName: String = "TInvest",
+//        accountId: String? = null
+//    ) {
+//        try {
+//            val sandboxMode = ServiceLocator.isSandboxMode()
+//            val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: return
+//            // Если accountId не передан, получаем его через getAccounts (только для TInvest)
+//            val actualAccountId = accountId ?: run {
+//                val accounts = broker.getAccounts(sandboxMode)
+//                accounts.firstOrNull()?.id ?: return
+//            }
+//            val newPositions = broker.getPositions(actualAccountId, sandboxMode)
+//            Log.d(TAG, "Позиции загружены: ${newPositions.map { "${it.ticker} profit=${it.profit} percent=${it.profitPercent}" }}")
+//
+//            // Обновляем portfolioPositions: удаляем старые позиции этого брокера и добавляем новые
+//            val currentPositions = _uiState.value.portfolioPositions.toMutableList()
+//            currentPositions.removeAll { it.brokerName == brokerName }
+//            currentPositions.addAll(newPositions.map { it.copy(brokerName = brokerName) })
+//            _uiState.update { it.copy(portfolioPositions = currentPositions) }
+//        } catch (e: Exception) {
+//            Log.e(TAG, "Ошибка загрузки портфеля для $brokerName", e)
+//        }
+//    }
 
     fun onSearchQueryChanged(query: String) {
         _uiState.update { it.copy(searchQuery = query, selectedInstrument = null, ticker = "") }
@@ -430,7 +430,7 @@ class OrdersViewModel(
                         }
                     }
 
-                    loadPortfolio(brokerName, accountId)
+                    //loadPortfolio(brokerName, accountId)
                     refreshLastSelectedInstruments()
                     var currentBalance = try {
                         repository.getBalance(accountId)
@@ -492,7 +492,7 @@ class OrdersViewModel(
                 _uiState.update { it.copy(isLoading = true, statusMessage = null) }
                 try {
                     val stopId = repository.postStopOrder(stopRequest)
-                    loadPortfolio(brokerName, accountId)
+                    //loadPortfolio(brokerName, accountId)
                     refreshLastSelectedInstruments()
 
                     val currentBalance = try {
@@ -865,27 +865,9 @@ fun openBrokerDialog(ticker: String) {
         val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
         val accountId = _uiState.value.selectedAccountId ?: return
 
-        if (USE_POSITION_STREAM) {
-            // Режим стрима (потребуется, когда SDK заработает)
-            positionStreamJob = viewModelScope.launch {
-                try {
-                    broker.subscribePositionsStream(accountId)
-                        .collect { item -> updatePositionPnl(item) }
-                } catch (e: Exception) {
-                    Log.w(TAG, "PositionsStream error (stream not available)", e)
-                }
-            }
-        } else {
-            // Периодический опрос портфеля
-            positionStreamJob = viewModelScope.launch {
-                while (isActive) {
-                    delay(10_000) // интервал обновления 10 секунд
-                    try {
-                        loadPortfolio(brokerName = "TInvest", accountId = accountId)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Ошибка обновления портфеля", e)
-                    }
-                }
+        positionStreamJob = viewModelScope.launch {
+            broker.subscribePositions(accountId).collect { item ->
+                updatePositionPnl(item)
             }
         }
     }

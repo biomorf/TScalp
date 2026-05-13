@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
@@ -17,6 +18,7 @@ import kotlinx.coroutines.delay
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
+import com.example.tscalp.domain.models.PositionStreamItem
 
 /**
  * ViewModel для экрана портфеля.
@@ -60,79 +62,65 @@ class PortfolioViewModel(
         }
     }
 
+
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
+            val broker = ServiceLocator.getBrokerManager().getDefaultBroker()
+            val accountId = ServiceLocator.loadDefaultAccountId("TInvest") ?: run {
+                _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
+                return@launch
+            }
             try {
-                val sandboxMode = ServiceLocator.isSandboxMode()
-                val allPositions = mutableListOf<PortfolioPosition>()
-
-                // Обходим всех зарегистрированных брокеров
-                val brokerNames = ServiceLocator.getBrokerManager().getAvailableBrokers()
-                for (brokerName in brokerNames) {
-                    val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: continue
-                    if (!broker.isInitialized) continue
-
-                    try {
-                        // Получаем счета брокера
-                        val accounts = broker.getAccounts(sandboxMode)
-                        for (account in accounts) {
-                            try {
-                                // Получаем позиции от брокера (уже в виде List<PortfolioPosition>)
-                                val positions = broker.getPositions(account.id, sandboxMode)
-
-                                allPositions.addAll(positions.map { it.copy(brokerName = brokerName) })
-
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Ошибка загрузки портфеля для счета ${account.id} брокера $brokerName", e)
-                            }
-                        }
-
-                        // Загружаем баланс для первого счета (если нужно) – ОСТАВЛЯЕМ этот блок
-                        if (accounts.isNotEmpty() && broker !is com.example.tscalp.data.api.MockBrokerApi) {
-                            val balance = try {
-                                broker.getBalance(accounts.first().id)
-                            } catch (e: Exception) {
-                                0.0
-                            }
-                            _uiState.update { it.copy(balance = balance) }
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Не удалось получить счета брокера $brokerName", e)
+                broker.subscribePositions(accountId).collect { item ->
+                    updatePortfolioItem(item)
+                    // После первого обновления снимаем индикатор загрузки
+                    if (_uiState.value.isLoading) {
+                        _uiState.update { it.copy(isLoading = false) }
                     }
-                }
-
-                // Убираем возможные дубликаты (одинаковые ticker у одного брокера)
-                val deduplicated = allPositions.distinctBy { "${it.ticker}_${it.brokerName}" }
-                // Сортируем по имени брокера
-                val sorted = deduplicated.sortedBy { it.brokerName }
-
-                val totalValue = sorted.sumOf { it.totalValue }
-                _uiState.update {
-                    it.copy(
-                        positions = sorted,
-                        totalValue = totalValue,
-                        // balance НЕ ПЕРЕЗАПИСЫВАЕМ – он уже установлен выше из getBalance
-                        isLoading = false,
-                        statusMessage = if (sorted.isEmpty()) "Портфель пуст" else "Загружено ${sorted.size} позиций",
-                        isError = false
-                    )
-                }
-                if (sorted.isNotEmpty()) {
-                    viewModelScope.launch {
-                        updateTradingStatuses(sorted)
-                    }
+                    // (опционально) можно пересчитать totalValue
                 }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        statusMessage = "Ошибка: ${e.message}",
-                        isError = true
-                    )
-                }
+                _uiState.update { it.copy(isLoading = false, statusMessage = "Ошибка подписки: ${e.message}", isError = true) }
             }
         }
+    }
+
+    private fun updatePortfolioItem(item: PositionStreamItem) {
+        val current = _uiState.value.positions.toMutableList()
+        val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
+        if (index == -1) {
+            // Новая позиция (например, при первом снапшоте)
+            current.add(PortfolioPosition(
+                tscalpInstrumentId = item.instrumentUid,
+                ticker = item.ticker,
+                name = item.ticker, // позже можно подгрузить полное имя
+                quantity = item.quantity,
+                currentPrice = item.currentPrice ?: 0.0,
+                averagePrice = item.averagePositionPrice,
+                totalValue = (item.currentPrice ?: 0.0) * item.quantity,
+                profit = item.expectedYield,
+                profitPercent = item.averagePositionPrice?.let { avg ->
+                    if (avg > 0) ((item.currentPrice ?: 0.0) - avg) / avg * 100.0 else null
+                },
+                instrumentType = "" // TODO: заполнить из кэша инструментов
+            ))
+        } else {
+            // Обновляем существующую позицию
+            val pos = current[index]
+            val newPrice = item.currentPrice ?: pos.currentPrice
+            current[index] = pos.copy(
+                quantity = item.quantity,
+                currentPrice = newPrice,
+                averagePrice = item.averagePositionPrice ?: pos.averagePrice,
+                totalValue = newPrice * item.quantity,
+                profit = item.expectedYield,
+                profitPercent = item.averagePositionPrice?.let { avg ->
+                    if (avg > 0) (newPrice - avg) / avg * 100.0 else null
+                }
+            )
+        }
+        _uiState.update { it.copy(positions = current) }
     }
 
     private suspend fun updateTradingStatuses(positions: List<PortfolioPosition>) {
