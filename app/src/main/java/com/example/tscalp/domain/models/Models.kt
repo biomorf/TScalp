@@ -21,7 +21,8 @@ data class PortfolioPosition(
     val instrumentType: String = "",
     val priceChangePercent: Double? = null,
     val brokerName: String = "",
-    val tscalpInstrumentId: String = ""
+    val tscalpInstrumentId: String = "",
+    val pointValue: Double? = null      // ← стоимость пункта для фьючерсов
 )
 
 /**

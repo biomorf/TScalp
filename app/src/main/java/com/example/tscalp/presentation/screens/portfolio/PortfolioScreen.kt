@@ -29,6 +29,9 @@ import androidx.lifecycle.repeatOnLifecycle
 //import java.util.*
 import androidx.compose.runtime.getValue
 
+import com.example.tscalp.domain.models.InstrumentUi
+import com.example.tscalp.domain.models.FutureUi
+import com.example.tscalp.domain.models.ShareUi
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
 import com.example.tscalp.ui.components.AssetPositionCard
@@ -163,6 +166,7 @@ fun PortfolioScreen(
                             AssetPositionCard(
                                 position = position,
                                 instrumentType = position.instrumentType,
+                                pointValue = position.pointValue,
                                 priceChangePercent = position.priceChangePercent,
                                 tscalpInstrumentId = position.tscalpInstrumentId,
                                 tradingAvailability = uiState.tradingStatuses[position.tscalpInstrumentId] ?: TradingAvailability.UNKNOWN

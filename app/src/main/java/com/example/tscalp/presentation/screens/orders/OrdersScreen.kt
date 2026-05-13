@@ -221,9 +221,11 @@ fun OrdersScreen(
                         averagePrice = portfolioPos?.currentPrice,
                         priceChangePercent = null
                     )
+                    val pointValue = (instrument as? FutureUi)?.pointValue
                     AssetPositionCard(
                         position = position,
                         instrumentType = instrument.instrumentType,
+                        pointValue = pointValue,
                         priceChangePercent = uiState.selectedPriceChangePercent,
                         onDelete = { viewModel.clearSelectedInstrument() },
                         onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
@@ -437,6 +439,7 @@ fun OrdersScreen(
                             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
                                 val pairPrice = uiState.pairCurrentPrice ?: 0.0
+                                val pointValue = (instrument as? FutureUi)?.pointValue
                                 val position = PortfolioPosition(
                                     name = instrument.name,
                                     ticker = instrument.ticker,
@@ -447,12 +450,14 @@ fun OrdersScreen(
                                     profit = portfolioPos?.profit ?: 0.0,
                                     profitPercent = portfolioPos?.profitPercent ?: 0.0,
                                     instrumentType = instrument.instrumentType,
-                                    priceChangePercent = null
+                                    priceChangePercent = null,
+                                    pointValue = pointValue
                                 )
 
                                 AssetPositionCard(
                                     position = position,
                                     instrumentType = instrument.instrumentType,
+                                    pointValue = pointValue,
                                     priceChangePercent = uiState.selectedPriceChangePercent,
                                     onDelete = { viewModel.clearPairSearch() },
                                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },

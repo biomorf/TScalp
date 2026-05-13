@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -45,6 +46,7 @@ fun AssetPositionCard(
     resetSwipe: Boolean = false,
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
+    pointValue: Double? = null,
     modifier: Modifier = Modifier
 ) {
     // --- Цветовая индикация изменения цены (состояния) ---
@@ -87,7 +89,8 @@ fun AssetPositionCard(
                 onClick = onClick,
                 isSelected = isSelected,
                 tscalpInstrumentId = tscalpInstrumentId,
-                tradingAvailability = tradingAvailability
+                tradingAvailability = tradingAvailability,
+                pointValue = pointValue
             )
         }
     }
@@ -174,6 +177,7 @@ private fun PortfolioCardContent(
     isSelected: Boolean,
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
+    pointValue: Double? = null,
     modifier: Modifier = Modifier
 ) {
     // --- Анимация цвета цены ---
@@ -256,6 +260,14 @@ private fun PortfolioCardContent(
                                 color = priceColor,
                                 modifier = Modifier.scale(textScale)
                             )
+                            // --- Рублёвый эквивалент для фьючерсов ---
+                            if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
+                                Text(
+                                    formatCurrency(position.currentPrice * pointValue),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     } else {
                         Text("—", fontWeight = FontWeight.Bold)
@@ -301,33 +313,48 @@ private fun PortfolioCardContent(
                         // Правая часть: прибыль / убыток
                         Column(horizontalAlignment = Alignment.End) {
                             val profit = position.profit
-                            val profitFormatted = when {
-                                profit == null -> "-"
-                                instrumentType == "futures" -> formatPrice(profit, "futures")
-                                else -> formatCurrency(profit)
-                            }
                             val profitPercent = position.profitPercent
 
+                            // Определяем цвет на основе прибыли
                             val profitColor = if (profit != null && profit >= 0) Color(0xFF2E7D32)
                             else if (profit != null) Color(0xFFC62828)
                             else MaterialTheme.colorScheme.onSurfaceVariant
 
-                            Text(
-                                text = profitFormatted,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = profitColor,
-                                fontWeight = FontWeight.Medium
-                            )
+                            if (profit != null) {
+                                if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
+                                    // Для фьючерсов: показываем прибыль в пунктах и в рублях
+                                    val profitRub = profit * pointValue
+                                    Text("DEBUG: type=$instrumentType, pointValue=$pointValue", fontSize = 10.sp)
+                                    Text(
+                                        text = "${profit} пт  ·  ${formatCurrency(profitRub)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = profitColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                } else {
+                                    // Остальные типы: только абсолютная прибыль (или в рублях для акций)
+                                    Text(
+                                        text = formatCurrency(profit),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = profitColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            } else {
+                                Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
 
-                            val percentColor = if (profitPercent != null && profitPercent >= 0) Color(0xFF2E7D32)
-                            else if (profitPercent != null) Color(0xFFC62828)
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-
-                            Text(
-                                text = if (profitPercent != null) "${"%.2f".format(profitPercent)}%" else "-",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = percentColor
-                            )
+                            // Процент изменения (остаётся без изменений)
+                            if (profitPercent != null) {
+                                val percentColor = if (profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                Text(
+                                    text = "${"%.2f".format(profitPercent)}%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = percentColor
+                                )
+                            } else {
+                                Text("—", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }

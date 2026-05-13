@@ -210,6 +210,7 @@ class TInvestInvestService : BrokerApi {
                 }
                 else -> null
             }
+            val pointVal = (instrument as? FutureUi)?.pointValue
 
             Log.d(TAG, "Позиция $uid: expectedYield=$expectedYield, avgPrice=$avgPrice")
 
@@ -223,7 +224,8 @@ class TInvestInvestService : BrokerApi {
                 totalValue = totalValue,
                 profit = profit,
                 profitPercent = profitPercent,
-                instrumentType = instrument?.instrumentType ?: ""
+                instrumentType = instrument?.instrumentType ?: "",
+                pointValue = pointVal
             )
         }
     }
