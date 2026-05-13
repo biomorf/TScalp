@@ -9,19 +9,6 @@ data class PositionStreamItem(
     val expectedYield: Double?       // ожидаемая доходность (абсолютная)
 )
 
-data class InstrumentUi(
-    val tscalpInstrumentId: String,    // универсальный идентификатор TScalp
-    val ticker: String,
-    val classCode: String,            // код класса (например, SPBFUT)
-    val isin: String,                 // ISIN
-    val ttech_uid: String,                  // instrument_uid из T-tech Invest API
-    val ttech_figi: String = "",   // временно для стрима LastPrice
-    val name: String,
-    val currency: String,
-    val lot: Int,
-    val instrumentType: String = ""   /// тип инструмента: share, bond, etf, currency
-)
-
 data class PortfolioPosition(
     val name: String,
     val ticker: String,

@@ -19,6 +19,8 @@ import io.grpc.stub.StreamObserver
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
+import com.example.tscalp.domain.models.FutureUi
+import com.example.tscalp.domain.models.ShareUi
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -292,20 +294,115 @@ class TInvestInvestService : BrokerApi {
     /**
      * Преобразует protobuf‑объект Instrument в универсальный InstrumentUi.
      * tscalpInstrumentId заполняется из uid (рекомендованный идентификатор Т‑Инвестиций).
+     * Для фьючерсов возвращает FutureUi, для акций – ShareUi, для остальных – базовый InstrumentUi.
      */
     private fun mapInstrumentToUi(instrument: Instrument): InstrumentUi {
-        return InstrumentUi(
-            tscalpInstrumentId = instrument.uid,    // uid становится универсальным идентификатором
-            ttech_uid = instrument.uid,
-            ttech_figi = instrument.figi ?: "",   // временно для стрима LastPrice
-            ticker = instrument.ticker,
-            classCode = instrument.classCode ?: "",
-            isin = instrument.isin ?: "",
-            name = instrument.name,
-            currency = instrument.currency,
-            lot = instrument.lot,
-            instrumentType = instrument.instrumentType ?: ""
-        )
+        val uid = instrument.uid
+        val figi = instrument.figi ?: ""
+        val type = instrument.instrumentType ?: ""
+        val minInc = instrument.minPriceIncrement?.let { it.units + it.nano / 1_000_000_000.0 }
+        val tradingStatus = instrument.tradingStatus.name
+
+        return when {
+            type == "futures" -> FutureUi(
+                tscalpInstrumentId = uid,
+                ticker = instrument.ticker,
+                classCode = instrument.classCode ?: "",
+                isin = instrument.isin ?: "",
+                ttech_uid = uid,
+                ttech_figi = figi,
+                name = instrument.name,
+                currency = instrument.currency,
+                lot = instrument.lot,
+                exchange = instrument.exchange,
+                tradingStatus = tradingStatus,
+                apiTradeAvailableFlag = instrument.apiTradeAvailableFlag,
+                buyAvailableFlag = instrument.buyAvailableFlag,
+                sellAvailableFlag = instrument.sellAvailableFlag,
+                shortEnabledFlag = instrument.shortEnabledFlag,
+                minPriceIncrement = minInc,
+                minPriceIncrementAmount = null, // SDK не предоставляет, оставим null
+                klong = null, kshort = null, dlong = null, dshort = null,
+                dlongMin = null, dshortMin = null,
+                first1minCandleDate = null,
+                first1dayCandleDate = null,
+                forIisFlag = instrument.forIisFlag,
+                forQualInvestorFlag = instrument.forQualInvestorFlag,
+                weekendFlag = instrument.weekendFlag,
+                blockedTcaFlag = instrument.blockedTcaFlag,
+                countryOfRisk = instrument.countryOfRisk,
+                countryOfRiskName = instrument.countryOfRiskName,
+                sector = null, // отсутствует в SDK
+                brand = null,
+                requiredTests = null,
+                expirationDate = null,
+                firstTradeDate = null,
+                lastTradeDate = null,
+                futuresType = null, // можно попробовать instrument.futuresType, но его нет в текущем SDK
+                assetType = null,
+                basicAsset = null,                 // ← теперь null вместо instrument.basicAsset
+                basicAssetSize = null,
+                positionUid = instrument.positionUid,
+                basicAssetPositionUid = null,      // ← теперь null вместо instrument.basicAssetPositionUid
+                initialMarginOnBuy = null,
+                initialMarginOnSell = null,
+                dlongClient = null,
+                dshortClient = null
+            )
+            type == "share" -> ShareUi(
+                tscalpInstrumentId = uid,
+                ticker = instrument.ticker,
+                classCode = instrument.classCode ?: "",
+                isin = instrument.isin ?: "",
+                ttech_uid = uid,
+                ttech_figi = figi,
+                name = instrument.name,
+                currency = instrument.currency,
+                lot = instrument.lot,
+                exchange = instrument.exchange,
+                tradingStatus = tradingStatus,
+                apiTradeAvailableFlag = instrument.apiTradeAvailableFlag,
+                buyAvailableFlag = instrument.buyAvailableFlag,
+                sellAvailableFlag = instrument.sellAvailableFlag,
+                shortEnabledFlag = instrument.shortEnabledFlag,
+                minPriceIncrement = minInc,
+                minPriceIncrementAmount = null,
+                klong = null, kshort = null, dlong = null, dshort = null,
+                dlongMin = null, dshortMin = null,
+                first1minCandleDate = null,
+                first1dayCandleDate = null,
+                forIisFlag = instrument.forIisFlag,
+                forQualInvestorFlag = instrument.forQualInvestorFlag,
+                weekendFlag = instrument.weekendFlag,
+                blockedTcaFlag = instrument.blockedTcaFlag,
+                countryOfRisk = instrument.countryOfRisk,
+                countryOfRiskName = instrument.countryOfRiskName,
+                sector = null,
+                brand = null,
+                requiredTests = null,
+                ipoDate = null,
+                issueSize = null,
+                issueSizePlan = null,
+                nominal = null,
+                divYieldFlag = null,
+                shareType = null,
+                liquidityFlag = null,
+                assetUid = null,
+                instrumentExchange = null
+            )
+            else -> InstrumentUi(
+                tscalpInstrumentId = uid,
+                ticker = instrument.ticker,
+                classCode = instrument.classCode ?: "",
+                isin = instrument.isin ?: "",
+                ttech_uid = uid,
+                ttech_figi = figi,
+                name = instrument.name,
+                currency = instrument.currency,
+                lot = instrument.lot,
+                instrumentType = type
+            )
+        }
     }
 
     private suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
