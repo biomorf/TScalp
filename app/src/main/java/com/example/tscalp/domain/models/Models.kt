@@ -10,6 +10,9 @@ data class PositionStreamItem(
 )
 
 data class PortfolioPosition(
+    val tscalpInstrumentId: String = "",
+    val brokerName: String = "",
+    val instrumentType: String = "",
     val name: String,
     val ticker: String,
     val quantity: Long,
@@ -18,10 +21,7 @@ data class PortfolioPosition(
     val totalValue: Double,
     val profit: Double?,
     val profitPercent: Double?,
-    val instrumentType: String = "",
     val priceChangePercent: Double? = null,
-    val brokerName: String = "",
-    val tscalpInstrumentId: String = "",
     val pointValue: Double? = null      // ← стоимость пункта для фьючерсов
 )
 

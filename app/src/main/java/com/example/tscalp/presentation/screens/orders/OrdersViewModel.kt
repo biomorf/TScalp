@@ -225,6 +225,11 @@ class OrdersViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
 
+            // 🔁 Загружаем актуальный InstrumentUi с pointValue
+            val repo = ServiceLocator.getInstrumentRepository()
+            val actualInstrument = repo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
+            _uiState.update { it.copy(selectedInstrument = actualInstrument, ticker = actualInstrument.ticker) }
+
             // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
             val prices = repository.getLastPricesByTscalpInstrumentId(listOf(instrument.tscalpInstrumentId))
             val price = prices[instrument.tscalpInstrumentId]

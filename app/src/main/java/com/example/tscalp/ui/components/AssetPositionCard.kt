@@ -315,36 +315,43 @@ private fun PortfolioCardContent(
                             val profit = position.profit
                             val profitPercent = position.profitPercent
 
-                            // Определяем цвет на основе прибыли
                             val profitColor = if (profit != null && profit >= 0) Color(0xFF2E7D32)
                             else if (profit != null) Color(0xFFC62828)
                             else MaterialTheme.colorScheme.onSurfaceVariant
 
-                            if (profit != null) {
-                                if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
-                                    // Для фьючерсов: показываем прибыль в пунктах и в рублях
-                                    val profitRub = profit * pointValue
-                                    Text("DEBUG: type=$instrumentType, pointValue=$pointValue", fontSize = 10.sp)
-                                    Text(
-                                        text = "${profit} пт  ·  ${formatCurrency(profitRub)}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = profitColor,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                            profit?.let { p ->
+                                if (instrumentType == "futures") {
+                                    val pv = pointValue
+                                    val pointsStr = "%.2f".format(p)            // ← округление до 2 знаков
+                                    if (pv != null && pv > 0) {
+                                        val profitRub = p * pv
+                                        Text("pointValue=$pointValue", fontSize = 10.sp, color = Color.Gray)
+                                        Text(
+                                            text = "${pointsStr} пт  ·  ${formatCurrency(profitRub)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = profitColor,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "${pointsStr} пт",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = profitColor,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 } else {
-                                    // Остальные типы: только абсолютная прибыль (или в рублях для акций)
                                     Text(
-                                        text = formatCurrency(profit),
+                                        text = formatCurrency(p),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = profitColor,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
-                            } else {
+                            } ?: run {
                                 Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
 
-                            // Процент изменения (остаётся без изменений)
                             if (profitPercent != null) {
                                 val percentColor = if (profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
                                 Text(

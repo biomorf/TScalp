@@ -86,6 +86,7 @@ import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
 import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
 import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
+import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
 
 
 
@@ -190,7 +191,19 @@ class TInvestInvestService : BrokerApi {
             val uid = pos.instrumentUid
             if (uid.isBlank()) return@mapNotNull null
 
-            val instrument = getInstrumentByUid(uid)
+            val protoInstrument = fetchProtoInstrument(uid)
+
+            var marginAmount: Double? = null
+            if (protoInstrument?.instrumentType == "futures" && protoInstrument.figi != null) {
+                marginAmount = getFuturesMargin(protoInstrument.figi)
+            }
+
+            val instrumentUi = protoInstrument?.let { mapProtoToDomain(it, marginAmount) }
+
+            val pointVal = (instrumentUi as? FutureUi)?.pointValue
+
+            //Log.d(TAG, "Тип инструмента: ${instrumentUi?.instrumentType}, pointValue=${(instrumentUi as? FutureUi)?.pointValue}")
+
             val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
             val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
             val totalValue = currentPrice * quantity
@@ -210,26 +223,29 @@ class TInvestInvestService : BrokerApi {
                 }
                 else -> null
             }
-            val pointVal = (instrument as? FutureUi)?.pointValue
+
+            // Предзаполняем кэш инструментов, чтобы он был доступен другим экранам
+            if (instrumentUi != null) {
+                ServiceLocator.getInstrumentRepository().getInstrument(instrumentUi.tscalpInstrumentId)
+            }
 
             Log.d(TAG, "Позиция $uid: expectedYield=$expectedYield, avgPrice=$avgPrice")
 
             PortfolioPosition(
-                tscalpInstrumentId = instrument?.uid ?: "",   // теперь uid
-                name = instrument?.name ?: "",
-                ticker = instrument?.ticker ?: "",
+                tscalpInstrumentId = instrumentUi?.tscalpInstrumentId ?: "",   // теперь uid
+                name = instrumentUi?.name ?: "",
+                ticker = instrumentUi?.ticker ?: "",
                 quantity = quantity,
                 currentPrice = currentPrice,
                 averagePrice = avgPrice,
                 totalValue = totalValue,
                 profit = profit,
                 profitPercent = profitPercent,
-                instrumentType = instrument?.instrumentType ?: "",
+                instrumentType = instrumentUi?.instrumentType ?: "",
                 pointValue = pointVal
             )
         }
     }
-
 
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
@@ -283,7 +299,18 @@ class TInvestInvestService : BrokerApi {
 
     // ---------- FIGI / Ticker ----------
 
-    private suspend fun getInstrumentByUid(uid: String): Instrument? = withContext(Dispatchers.IO) {
+
+    suspend fun fetchFullInstrument(uid: String): InstrumentUi? {
+        val protoInstrument = fetchProtoInstrument(uid) ?: return null
+        var marginAmount: Double? = null
+        if (protoInstrument.instrumentType == "futures" && protoInstrument.figi != null) {
+            marginAmount = getFuturesMargin(protoInstrument.figi)
+        }
+        return mapProtoToDomain(protoInstrument, marginAmount)
+    }
+
+
+    private suspend fun fetchProtoInstrument(uid: String): Instrument? = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = InstrumentRequest.newBuilder()
             .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_UID)
@@ -293,12 +320,32 @@ class TInvestInvestService : BrokerApi {
         response.instrument
     }
 
+
+    /**
+     * Получает стоимость шага цены (min_price_increment_amount) для фьючерса по его figi.
+     * Использует метод GetFuturesMargin из API Т‑Инвестиций.
+     */
+    private suspend fun getFuturesMargin(figi: String): Double? {
+        try {
+            val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+            val request = GetFuturesMarginRequest.newBuilder().setFigi(figi).build()
+            val response = currentApi.instrumentsServiceSync.getFuturesMargin(request)
+            return response.minPriceIncrementAmount?.let { it.units + it.nano / 1_000_000_000.0 }
+        } catch (e: Exception) {
+            Log.w(TAG, "Не удалось получить стоимость шага цены для $figi: ${e.message}")
+            return null
+        }
+    }
+
     /**
      * Преобразует protobuf‑объект Instrument в универсальный InstrumentUi.
      * tscalpInstrumentId заполняется из uid (рекомендованный идентификатор Т‑Инвестиций).
      * Для фьючерсов возвращает FutureUi, для акций – ShareUi, для остальных – базовый InstrumentUi.
      */
-    private fun mapInstrumentToUi(instrument: Instrument): InstrumentUi {
+    private fun mapProtoToDomain(
+        instrument: Instrument,
+        minPriceIncrementAmountOverride: Double? = null
+    ): InstrumentUi {
         val uid = instrument.uid
         val figi = instrument.figi ?: ""
         val type = instrument.instrumentType ?: ""
@@ -323,7 +370,7 @@ class TInvestInvestService : BrokerApi {
                 sellAvailableFlag = instrument.sellAvailableFlag,
                 shortEnabledFlag = instrument.shortEnabledFlag,
                 minPriceIncrement = minInc,
-                minPriceIncrementAmount = null, // SDK не предоставляет, оставим null
+                minPriceIncrementAmount = minPriceIncrementAmountOverride,   // передаём то, что получили из getFuturesMargin
                 klong = null, kshort = null, dlong = null, dshort = null,
                 dlongMin = null, dshortMin = null,
                 first1minCandleDate = null,
@@ -334,18 +381,18 @@ class TInvestInvestService : BrokerApi {
                 blockedTcaFlag = instrument.blockedTcaFlag,
                 countryOfRisk = instrument.countryOfRisk,
                 countryOfRiskName = instrument.countryOfRiskName,
-                sector = null, // отсутствует в SDK
+                sector = null,
                 brand = null,
                 requiredTests = null,
                 expirationDate = null,
                 firstTradeDate = null,
                 lastTradeDate = null,
-                futuresType = null, // можно попробовать instrument.futuresType, но его нет в текущем SDK
+                futuresType = null,
                 assetType = null,
-                basicAsset = null,                 // ← теперь null вместо instrument.basicAsset
+                basicAsset = null,
                 basicAssetSize = null,
                 positionUid = instrument.positionUid,
-                basicAssetPositionUid = null,      // ← теперь null вместо instrument.basicAssetPositionUid
+                basicAssetPositionUid = null,
                 initialMarginOnBuy = null,
                 initialMarginOnSell = null,
                 dlongClient = null,
@@ -418,8 +465,8 @@ class TInvestInvestService : BrokerApi {
         val shorts = findInstrumentShorts(query)  // возвращает List<InstrumentShort> (содержит uid)
         shorts.mapNotNull { short ->
             try {
-                val instrument = getInstrumentByUid(short.uid) ?: return@mapNotNull null
-                mapInstrumentToUi(instrument)
+                val instrument = fetchProtoInstrument(short.uid) ?: return@mapNotNull null
+                mapProtoToDomain(instrument)
             } catch (e: Exception) {
                 Log.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
                 null

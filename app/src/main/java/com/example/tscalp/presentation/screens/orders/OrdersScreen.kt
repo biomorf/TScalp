@@ -208,24 +208,25 @@ fun OrdersScreen(
             } else {
                 uiState.selectedInstrument?.let { instrument: InstrumentUi ->
                     val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                    val position = PortfolioPosition(
+
+                    // Если позиция есть в портфеле – используем её целиком (единый источник)
+                    val position = portfolioPos ?: PortfolioPosition(
                         name = instrument.name,
                         ticker = instrument.ticker,
                         tscalpInstrumentId = instrument.tscalpInstrumentId,
-                        quantity = portfolioPos?.quantity ?: 0L,
-                        currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0,
-                        totalValue = (uiState.currentPrice ?: 0.0) * (portfolioPos?.quantity ?: 0L),
-                        profit = portfolioPos?.profit ?: 0.0,
-                        profitPercent = portfolioPos?.profitPercent ?: 0.0,
+                        quantity = 0L,
+                        currentPrice = uiState.currentPrice ?: 0.0,
+                        totalValue = (uiState.currentPrice ?: 0.0) * 0L,
+                        profit = null,
+                        profitPercent = null,
                         instrumentType = instrument.instrumentType,
-                        averagePrice = portfolioPos?.currentPrice,
-                        priceChangePercent = null
+                        pointValue = (instrument as? FutureUi)?.pointValue
                     )
-                    val pointValue = (instrument as? FutureUi)?.pointValue
+
                     AssetPositionCard(
                         position = position,
                         instrumentType = instrument.instrumentType,
-                        pointValue = pointValue,
+                        pointValue = position.pointValue,   // теперь всегда валидный
                         priceChangePercent = uiState.selectedPriceChangePercent,
                         onDelete = { viewModel.clearSelectedInstrument() },
                         onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
@@ -438,26 +439,26 @@ fun OrdersScreen(
                             // Карточка парного инструмента и множитель
                             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
+                                val pairedPointValue = (instrument as? FutureUi)?.pointValue
                                 val pairPrice = uiState.pairCurrentPrice ?: 0.0
-                                val pointValue = (instrument as? FutureUi)?.pointValue
-                                val position = PortfolioPosition(
+                                // Единый источник: если позиция есть в портфеле – берём её целиком
+                                val position = portfolioPos ?: PortfolioPosition(
                                     name = instrument.name,
                                     ticker = instrument.ticker,
                                     tscalpInstrumentId = instrument.tscalpInstrumentId,
-                                    quantity = portfolioPos?.quantity ?: 0L,
+                                    quantity = 0L,
                                     currentPrice = pairPrice,
-                                    totalValue = pairPrice * (portfolioPos?.quantity ?: 0L),
-                                    profit = portfolioPos?.profit ?: 0.0,
-                                    profitPercent = portfolioPos?.profitPercent ?: 0.0,
+                                    totalValue = pairPrice * 0L,
+                                    profit = null,
+                                    profitPercent = null,
                                     instrumentType = instrument.instrumentType,
-                                    priceChangePercent = null,
-                                    pointValue = pointValue
+                                    pointValue = pairedPointValue
                                 )
 
                                 AssetPositionCard(
                                     position = position,
                                     instrumentType = instrument.instrumentType,
-                                    pointValue = pointValue,
+                                    pointValue = position.pointValue,   // теперь всегда валидный
                                     priceChangePercent = uiState.selectedPriceChangePercent,
                                     onDelete = { viewModel.clearPairSearch() },
                                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },

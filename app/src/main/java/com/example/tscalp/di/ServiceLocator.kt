@@ -7,6 +7,7 @@ import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.api.BcsBrokerApi
 import com.example.tscalp.data.api.FinamBrokerApi
+import com.example.tscalp.data.repository.InstrumentRepository
 
 
 object ServiceLocator {
@@ -107,5 +108,16 @@ object ServiceLocator {
 
     fun setConfirmOrdersEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("confirm_orders_enabled", enabled).apply()
+    }
+
+    @Volatile
+    private var instrumentRepository: InstrumentRepository? = null
+
+    fun getInstrumentRepository(): InstrumentRepository {
+        return instrumentRepository ?: synchronized(this) {
+            instrumentRepository ?: InstrumentRepository(
+                brokerManager = getBrokerManager()
+            ).also { instrumentRepository = it }
+        }
     }
 }
