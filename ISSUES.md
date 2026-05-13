@@ -234,3 +234,95 @@ _Дата последнего обновления: 2026-05-07_
 
 
 
+markdown
+# ISSUE: Отсутствие данных стоимости одного пункта цены для фьючерсов в API Т-Инвестиций
+
+## Описание проблемы
+При работе с фьючерсами через API Т-Инвестиций (`T-Invest API`) поле `min_price_increment_amount` (стоимость шага цены) не заполняется в ответе метода `getInstrumentByUid`.  
+Из-за этого:
+
+- Невозможно вычислить стоимость одного пункта цены (`pointValue`) для фьючерсов.
+- Рублёвый эквивалент прибыли/убытка и текущей цены не отображается в карточках портфеля и на вкладке заявок.
+- Карточки на разных экранах (Портфель, Заявки) показывали разные данные: на одном рублёвый эквивалент был, на другом – отсутствовал.
+
+**Технические детали**  
+
+- Используется Kotlin SDK `kotlin-sdk-grpc-core` версии 1.48.1.
+- Метод `GetFuturesMargin` (из того же SDK) возвращает `min_price_increment_amount`, но требует отдельного вызова.
+- Ранее инструменты маппились в общий класс `InstrumentUi`, который не имел специализированных полей для фьючерсов.
+
+## Реализованное решение
+
+### 1. Специализированные доменные модели
+Созданы классы-наследники `InstrumentUi`:
+
+- `FutureUi` – для фьючерсов, содержит вычисляемое свойство `pointValue` (стоимость пункта).
+- `ShareUi` – для акций (аналогичная структура, но без `pointValue`).
+
+```kotlin
+data class FutureUi(..., val minPriceIncrement: Double?, val minPriceIncrementAmount: Double?) : InstrumentUi(...) {
+    val pointValue: Double get() {
+        val inc = minPriceIncrement ?: 0.0
+        val amount = minPriceIncrementAmount ?: 0.0
+        return if (inc > 0.0 && amount > 0.0) amount / inc else 1.0
+    }
+}
+##2. Получение стоимости шага цены через API
+В TInvestInvestService добавлен метод getFuturesMargin(figi):
+
+kotlin
+private suspend fun getFuturesMargin(figi: String): Double? {
+    val request = GetFuturesMarginRequest.newBuilder().setFigi(figi).build()
+    val response = currentApi.instrumentsServiceSync.getFuturesMargin(request)
+    return response.minPriceIncrementAmount?.let { it.units + it.nano / 1_000_000_000.0 }
+}
+##3. Централизованный источник полных данных
+Создан InstrumentRepository – in‑memory кэш, который для каждого tscalpInstrumentId (uid) хранит полностью загруженный InstrumentUi (с реальным pointValue для фьючерсов).
+
+Метод fetchFullInstrument объединяет:
+
+загрузку protobuf-инструмента (fetchProtoInstrument)
+
+при необходимости – вызов getFuturesMargin
+
+маппинг в доменную модель (mapProtoToDomain)
+
+kotlin
+class InstrumentRepository {
+    suspend fun getInstrument(uid: String): InstrumentUi? { ... }
+}
+##4. Интеграция репозитория во ViewModel и UI
+OrdersViewModel – при выборе инструмента сразу получает актуальный InstrumentUi через репозиторий.
+
+OrdersScreen / PortfolioScreen – для создания карточки используется PortfolioPosition из портфеля (если есть), иначе – временная позиция, но с обязательным заполнением pointValue из FutureUi.
+
+Все экраны теперь используют один и тот же объект InstrumentUi из кэша.
+
+##5. Переименование методов для ясности
+В TInvestInvestService:
+
+getInstrumentByUid → fetchProtoInstrument
+
+mapInstrumentToUi → mapProtoToDomain
+
+getInstrumentUiByUid → fetchFullInstrument
+
+Это явно отделяет слой работы с protobuf от доменного слоя.
+
+Результат
+Единообразное отображение – рублёвый эквивалент показывается на всех вкладках (Портфель, Заявки) одинаково.
+
+Консистентность данных – карточки всегда строятся из одного источника (InstrumentRepository).
+
+Чистая архитектура – разделение ответственности между сервисом, репозиторием и UI.
+
+Масштабируемость – добавление новых типов инструментов (опционы, облигации) не потребует переписывания Presentation-слоя.
+
+text
+
+
+
+
+
+
+
