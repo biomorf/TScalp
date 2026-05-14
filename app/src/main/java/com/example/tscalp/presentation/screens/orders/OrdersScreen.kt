@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +34,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -66,7 +69,9 @@ private fun M3TextField(
     singleLine: Boolean = true,
     overlayText: String? = null,
     overlayAlpha: Float = 1f,
-    overlayColor: Color = MaterialTheme.colorScheme.onSurface   // по умолчанию как основной текст
+    overlayColor: Color = MaterialTheme.colorScheme.onSurface,
+    labelText: String? = null,                          // ← новый параметр
+    labelStyle: TextStyle = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic) // ← стиль метки
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     BasicTextField(
@@ -74,30 +79,51 @@ private fun M3TextField(
         onValueChange = onValueChange,
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(72.dp)                             // высота увеличена
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
             .padding(horizontal = 12.dp),
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                // Плейсхолдер
-                if (value.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            color = textColor.copy(alpha = 0.4f)
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Левый оверлей (название поля)
+                if (labelText != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .wrapContentWidth()
+                            .align(Alignment.CenterStart)
+                            .padding(start = 0.dp, end = 8.dp)
+                    ) {
+                        Text(
+                            text = labelText,
+                            style = labelStyle,
+                            color = textColor.copy(alpha = 0.6f)
                         )
-                    )
+                    }
                 }
-                // Поле ввода
-                innerTextField()
 
-                // Оверлей справа (если задан)
+                // Центральный ввод (сдвинут вправо, если есть левая метка)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = if (labelText != null) 80.dp else 0.dp) // примерный отступ под метку
+                ) {
+                    // Плейсхолдер (если поле пустое и нет левой метки)
+                    if (value.isEmpty() && labelText == null) {
+                        Text(
+                            text = placeholder,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = textColor.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+                    // Поле ввода
+                    innerTextField()
+                }
+
+                // Правый оверлей (стоимость)
                 if (overlayText != null) {
                     Box(
                         modifier = Modifier
@@ -111,7 +137,6 @@ private fun M3TextField(
                         Text(
                             text = overlayText,
                             style = MaterialTheme.typography.bodyMedium,
-                            //color = textColor,
                             color = overlayColor
                         )
                     }
@@ -309,16 +334,37 @@ fun OrdersScreen(
                         }
 
 
-                        M3TextField(
-                            value = uiState.quantity,
-                            onValueChange = { viewModel.onQuantityChanged(it) },
-                            placeholder = "Кол-во лотов",
-                            keyboardType = KeyboardType.Number,
-                            modifier = Modifier.weight(1f),
-                            overlayText = costOverlay,
-                            overlayAlpha = 0.1f,
-                            overlayColor = MaterialTheme.colorScheme.outline
-                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedTextField(
+                                value = uiState.quantity,
+                                onValueChange = { viewModel.onQuantityChanged(it) },
+                                label = { Text("Кол-во лотов") },
+                                textStyle = MaterialTheme.typography.bodyLarge,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (costOverlay != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .padding(end = 12.dp, top = 8.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = costOverlay,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         IconButton(
                             onClick = {
@@ -533,25 +579,45 @@ fun OrdersScreen(
                                     }
                                 } else null
 
-                                M3TextField(
-                                    value = uiState.pairedMultiplier,
-                                    onValueChange = { viewModel.onPairedMultiplierChanged(it) },
-                                    placeholder = "Множитель",
-                                    keyboardType = KeyboardType.Decimal,
-                                    overlayText = multiplierOverlay,
-                                    overlayColor = MaterialTheme.colorScheme.outline,   // полусерый, как в поле количества
-                                    modifier = Modifier
-                                        .onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                scope.launch {
-                                                    // Небольшая задержка, чтобы клавиатура успела открыться
-                                                    kotlinx.coroutines.delay(100000)
-                                                    scrollState.animateScrollTo(scrollState.maxValue)
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedTextField(
+                                        value = uiState.pairedMultiplier,
+                                        onValueChange = { viewModel.onPairedMultiplierChanged(it) },
+                                        label = { Text("Множитель") },
+                                        textStyle = MaterialTheme.typography.bodyLarge,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        scrollState.animateScrollTo(scrollState.maxValue)
+                                                    }
                                                 }
                                             }
+                                    )
+                                    if (multiplierOverlay != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .matchParentSize()
+                                                .padding(end = 12.dp, top = 8.dp),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Text(
+                                                text = multiplierOverlay,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier
+                                                    .background(
+                                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                                        RoundedCornerShape(4.dp)
+                                                    )
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
                                         }
-
-                                )
+                                    }
+                                }
                             }
                         }
                     }
