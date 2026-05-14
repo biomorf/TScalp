@@ -54,98 +54,6 @@ import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
 import com.example.tscalp.domain.models.TradingAvailability
 
-/**
- * Вспомогательная функция для создания поля ввода в стиле Material 3.
- * Высота 56dp, текст вертикально центрирован, рамка как у остальных полей,
- * цвет текста адаптирован к теме.
- */
-@Composable
-private fun M3TextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    placeholder: String = "",
-    keyboardType: KeyboardType = KeyboardType.Text,
-    singleLine: Boolean = true,
-    overlayText: String? = null,
-    overlayAlpha: Float = 1f,
-    overlayColor: Color = MaterialTheme.colorScheme.onSurface,
-    labelText: String? = null,                          // ← новый параметр
-    labelStyle: TextStyle = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic) // ← стиль метки
-) {
-    val textColor = MaterialTheme.colorScheme.onSurface
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(72.dp)                             // высота увеличена
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
-            .padding(horizontal = 12.dp),
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-        singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        decorationBox = { innerTextField ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Левый оверлей (название поля)
-                if (labelText != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .wrapContentWidth()
-                            .align(Alignment.CenterStart)
-                            .padding(start = 0.dp, end = 8.dp)
-                    ) {
-                        Text(
-                            text = labelText,
-                            style = labelStyle,
-                            color = textColor.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-
-                // Центральный ввод (сдвинут вправо, если есть левая метка)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = if (labelText != null) 80.dp else 0.dp) // примерный отступ под метку
-                ) {
-                    // Плейсхолдер (если поле пустое и нет левой метки)
-                    if (value.isEmpty() && labelText == null) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = textColor.copy(alpha = 0.4f)
-                            )
-                        )
-                    }
-                    // Поле ввода
-                    innerTextField()
-                }
-
-                // Правый оверлей (стоимость)
-                if (overlayText != null) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .background(
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = overlayText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = overlayColor
-                        )
-                    }
-                }
-            }
-        }
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(
@@ -422,48 +330,60 @@ fun OrdersScreen(
 //                            .height(130.dp)
 //                    ) {
                     // Ценовые поля – с плавной заменой без наложения
-                    // Ценовые поля – с плавной заменой без наложения
                     AnimatedContent(
                         targetState = uiState.orderType,
                         transitionSpec = {
-                            fadeIn(animationSpec = tween(200)) togetherWith fadeOut(animationSpec = tween(200))
+                            fadeIn(animationSpec = tween(200)) togetherWith
+                                    fadeOut(animationSpec = tween(200))
                         },
                         label = "price_fields"
                     ) { orderType: OrderTypeSelection ->
                         when (orderType) {
                             OrderTypeSelection.Limit -> {
-                                    M3TextField(
+                                OutlinedTextField(
                                     value = uiState.limitPrice,
                                     onValueChange = { viewModel.onLimitPriceChanged(it) },
-                                    placeholder = "Цена за лот",
-                                    keyboardType = KeyboardType.Decimal
+                                    label = { Text("Цена за лот") },
+                                    textStyle = MaterialTheme.typography.bodyLarge,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                             OrderTypeSelection.StopLoss,
                             OrderTypeSelection.TakeProfit -> {
                                 Column {
-                                    M3TextField(
+                                    OutlinedTextField(
                                         value = uiState.stopPrice,
                                         onValueChange = { viewModel.onStopPriceChanged(it) },
-                                        placeholder = "Триггер стоп-цена",
-                                        keyboardType = KeyboardType.Decimal
+                                        label = { Text("Триггер стоп-цена") },
+                                        textStyle = MaterialTheme.typography.bodyLarge,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
                             OrderTypeSelection.StopLimit -> {
                                 Column {
-                                    M3TextField(
+                                    OutlinedTextField(
                                         value = uiState.stopPrice,
                                         onValueChange = { viewModel.onStopPriceChanged(it) },
-                                        placeholder = "Триггер стоп-цена",
-                                        keyboardType = KeyboardType.Decimal
+                                        label = { Text("Триггер стоп-цена") },
+                                        textStyle = MaterialTheme.typography.bodyLarge,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    M3TextField(
+                                    OutlinedTextField(
                                         value = uiState.limitPrice,
                                         onValueChange = { viewModel.onLimitPriceChanged(it) },
-                                        placeholder = "Лимитная цена",
-                                        keyboardType = KeyboardType.Decimal
+                                        label = { Text("Лимитная цена") },
+                                        textStyle = MaterialTheme.typography.bodyLarge,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
