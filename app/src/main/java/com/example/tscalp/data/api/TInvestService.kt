@@ -184,20 +184,6 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-    private val _positionsSharedFlow = MutableSharedFlow<PositionStreamItem>(replay = 0)
-    val positionsSharedFlow: SharedFlow<PositionStreamItem> = _positionsSharedFlow
-
-    private var positionsCollectionJob: Job? = null
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    fun startSharedPositionStream(accountId: String) {
-        if (positionsCollectionJob?.isActive == true) return
-        positionsCollectionJob = serviceScope.launch {
-            subscribePositions(accountId).collect { item ->
-                _positionsSharedFlow.emit(item)
-            }
-        }
-    }
 
     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
@@ -227,50 +213,39 @@ class TInvestInvestService : BrokerApi {
             Log.w(TAG, "Не удалось получить стартовый снапшот: ${e.message}")
         }
 
-        // 2. Пробуем gRPC
-        var gRPCOk = true
-        try {
-            Log.d(TAG, "Пробуем gRPC PositionsStream")
-            subscribePositionsGrpc(accountId).collect { item ->
-                trySend(item)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "gRPC PositionsStream не удался: ${e.message}")
-            gRPCOk = false
-        }
+//        // 2. Пробуем gRPC
+//        try {
+//            Log.d(TAG, "Пробуем gRPC PositionsStream")
+//            subscribePositionsGrpc(accountId).collect { item ->
+//                trySend(item)
+//            }
+//        } catch (e: Exception) {
+//            Log.w(TAG, "gRPC PositionsStream не удался: ${e.message}")
+//        }
+//
+//        // 3. Пробуем WebSocket
+//        try {
+//            Log.d(TAG, "Пробуем WebSocket PositionsStream")
+//            subscribePositionsWebSocket(accountId).collect { item ->
+//                trySend(item)
+//            }
+//        } catch (e: Exception) {
+//            Log.w(TAG, "WebSocket PositionsStream не удался: ${e.message}")
+//        }
 
-        // 3. Если gRPC не удался, пробуем WebSocket
-        if (!gRPCOk) {
-            var webSocketOk = true
+        // 4. Если всё предыдущее не сработало, переходим на polling
+        Log.d(TAG, "Переключаемся на периодический опрос (polling)")
+        while (isActive) {
+            delay(10_000)
             try {
-                Log.d(TAG, "Пробуем WebSocket PositionsStream")
-                subscribePositionsWebSocket(accountId).collect { item ->
-                    trySend(item)
+                val sandbox = ServiceLocator.isSandboxMode()
+                val positions = fetchPositionsRest(accountId, sandbox)
+                Log.d(TAG, "Polling получил ${positions.size} позиций")
+                for (pos in positions) {
+                    trySend(convertToStreamItem(pos))
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "WebSocket PositionsStream не удался: ${e.message}")
-                webSocketOk = false
-            }
-
-            // 4. Если и WebSocket не удался, переходим на polling
-            if (!webSocketOk) {
-                Log.d(TAG, "Переключаемся на периодический опрос (polling)")
-                while (isActive) {
-                    delay(3_000)
-                    Log.d(TAG, "Polling цикл: получаем позиции…")
-                    try {
-                        val sandbox = ServiceLocator.isSandboxMode()
-                        val positions = fetchPositionsRest(accountId, sandbox)
-                        Log.d(TAG, "Polling отправляет позиции: ${positions.size} шт.")
-                        for (pos in positions) {
-                            val item = convertToStreamItem(pos)
-                            Log.d(TAG, "Polling отправляет элемент: ${item.instrumentUid} type=${item.instrumentType} pointValue=${item.pointValue}")
-                            trySend(item)
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Polling error: ${e.message}")
-                    }
-                }
+                Log.w(TAG, "Polling error: ${e.message}")
             }
         }
 

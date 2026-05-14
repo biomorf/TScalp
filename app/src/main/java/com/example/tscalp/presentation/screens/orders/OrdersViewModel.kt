@@ -22,6 +22,7 @@ import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.domain.models.BrokerOrderType
@@ -849,12 +850,8 @@ fun openBrokerDialog(ticker: String) {
 
     fun startPositionUpdates() {
         stopPositionUpdates()
-        val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
-        val accountId = _uiState.value.selectedAccountId ?: return
-
-        broker.startSharedPositionStream(accountId) // гарантируем, что источник запущен
         positionStreamJob = viewModelScope.launch {
-            broker.positionsSharedFlow.collect { item ->
+            SharedPositionStreamManager.flow.collect { item: PositionStreamItem ->
                 updatePositionPnl(item)
             }
         }

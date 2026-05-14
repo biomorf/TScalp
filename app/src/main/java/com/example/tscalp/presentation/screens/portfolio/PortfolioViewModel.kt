@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.shareIn
 
 import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
@@ -72,30 +73,27 @@ class PortfolioViewModel(
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: run {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Брокер не доступен", isError = true) }
-                return@launch
-            }
+            val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
             val accountId = ServiceLocator.loadDefaultAccountId("TInvest") ?: run {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                 return@launch
             }
 
-            // Первичная загрузка через прямой запрос (чтобы сразу показать портфель)
+            // Первичный запрос для немедленного отображения
             try {
                 val sandbox = ServiceLocator.isSandboxMode()
-                val positions = broker.fetchPositionsRest(accountId, sandbox)
+                val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
                 _uiState.update { it.copy(positions = positions, isLoading = false) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Ошибка загрузки: ${e.message}", isError = true) }
+                _uiState.update { it.copy(isLoading = false, statusMessage = "Ошибка загрузки", isError = true) }
                 return@launch
             }
 
-            // Запускаем общий источник (если ещё не запущен)
-            broker.startSharedPositionStream(accountId)
+            // Гарантируем, что общий поток запущен
+            SharedPositionStreamManager.start(accountId)
 
             // Подписываемся на обновления
-            broker.positionsSharedFlow.collect { item ->
+            SharedPositionStreamManager.flow.collect { item ->
                 updatePortfolioItem(item)
             }
         }

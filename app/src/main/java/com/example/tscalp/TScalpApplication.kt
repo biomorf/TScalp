@@ -2,6 +2,8 @@ package com.example.tscalp
 
 import android.app.Application
 import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.data.api.SharedPositionStreamManager
+
 
 class TScalpApplication : Application() {
     override fun onCreate() {
@@ -16,7 +18,14 @@ class TScalpApplication : Application() {
                 // Каждый брокер сам знает, как восстановить своё состояние
                 // (для Т-Инвестиций это вызов initializeFromSettings, для БКС — initialize из настроек)
                 when (brokerName) {
-                    "TInvest" -> (broker as? com.example.tscalp.data.api.TInvestInvestService)?.initializeFromSettings()
+                    "TInvest" -> {
+                        (broker as? com.example.tscalp.data.api.TInvestInvestService)?.initializeFromSettings()
+                        // Запускаем единый поток позиций, если известен счёт по умолчанию
+                        val accountId = ServiceLocator.loadDefaultAccountId("TInvest")
+                        if (accountId != null) {
+                            SharedPositionStreamManager.start(accountId)
+                        }
+                    }
                     "bcs" -> {
                         // Для БКС проверяем, сохранены ли refresh-токен и clientId
                         val creds = ServiceLocator.loadBrokerCredentials("bcs")
