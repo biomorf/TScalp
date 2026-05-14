@@ -249,6 +249,14 @@ private fun PortfolioCardContent(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        // Информационная строка о стоимости пункта цены (только для фьючерсов)
+                        if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
+                            Text(
+                                text = "Стоимость пункта цены: ${formatCurrency(pointValue)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         // ==========================================
                     }
                     if (position.currentPrice > 0) {
@@ -322,34 +330,35 @@ private fun PortfolioCardContent(
                             profit?.let { p ->
                                 if (instrumentType == "futures") {
                                     val pv = pointValue
-                                    val pointsStr = "%.2f".format(p)            // ← округление до 2 знаков
+                                    //Text("pointValue=$pointValue", fontSize = 10.sp, color = Color.Gray)  // ← восстановлено
+                                    val pointsStr = "%.2f".format(p)
+                                    val sign = if (p >= 0) "+" else ""
                                     if (pv != null && pv > 0) {
                                         val profitRub = p * pv
-                                        Text("pointValue=$pointValue", fontSize = 10.sp, color = Color.Gray)
+                                        val rubSign = if (profitRub >= 0) "+" else ""
                                         Text(
-                                            text = "${pointsStr} пт  ·  ${formatCurrency(profitRub)}",
+                                            text = "${sign}${pointsStr} пт  ·  ${rubSign}${formatCurrency(profitRub)}",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = profitColor,
                                             fontWeight = FontWeight.Medium
                                         )
                                     } else {
                                         Text(
-                                            text = "${pointsStr} пт",
+                                            text = "${sign}${pointsStr} пт",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = profitColor,
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
                                 } else {
+                                    val sign = if (p >= 0) "+" else ""
                                     Text(
-                                        text = formatCurrency(p),
+                                        text = sign + formatCurrency(p),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = profitColor,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
-                            } ?: run {
-                                Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
 
                             if (profitPercent != null) {
