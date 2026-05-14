@@ -363,8 +363,9 @@ private fun PortfolioCardContent(
 
                             if (profitPercent != null) {
                                 val percentColor = if (profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                val percentSign = if (profitPercent >= 0) "+" else ""
                                 Text(
-                                    text = "${"%.2f".format(profitPercent)}%",
+                                    text = "${percentSign}${"%.2f".format(profitPercent)}%",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = percentColor
                                 )
