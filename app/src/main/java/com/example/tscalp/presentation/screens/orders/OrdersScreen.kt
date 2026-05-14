@@ -142,7 +142,7 @@ fun OrdersScreen(
                         .fillMaxSize()
                         .verticalScroll(scrollState),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
                     if (uiState.selectedInstrument == null) {
@@ -292,7 +292,7 @@ fun OrdersScreen(
                     // ========== Выбор типа заявки ==========
                     Column(
                         modifier = Modifier.wrapContentWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
@@ -377,7 +377,7 @@ fun OrdersScreen(
                                         singleLine = true,
                                         modifier = Modifier.fillMaxWidth()
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     OutlinedTextField(
                                         value = uiState.limitPrice,
                                         onValueChange = { viewModel.onLimitPriceChanged(it) },
@@ -400,7 +400,7 @@ fun OrdersScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 2.dp),
+                                .padding(horizontal = 16.dp, vertical = 0.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
