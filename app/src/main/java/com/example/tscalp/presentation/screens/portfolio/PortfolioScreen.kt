@@ -114,7 +114,7 @@ fun PortfolioScreen(
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        //horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
@@ -125,6 +125,7 @@ fun PortfolioScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+                        Spacer(Modifier.weight(1f))
                         if (uiState.sandboxMode) {
                             Button(onClick = { viewModel.payInSandbox() }) {
                                 Text("Пополнить")

@@ -1,5 +1,7 @@
 package com.example.tscalp.presentation.screens.orders
 
+import kotlinx.coroutines.launch
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -11,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +28,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
@@ -243,6 +247,7 @@ fun OrdersScreen(
 
             // ========== СКРОЛЛИРУЕМЫЙ БЛОК с индикаторами прокрутки ==========
             val scrollState = rememberScrollState()
+            val scope = rememberCoroutineScope()
             val showTopShadow by remember { derivedStateOf { scrollState.value > 0 } }
             val showBottomShadow by remember {
                 derivedStateOf { scrollState.maxValue > 0 && scrollState.value < scrollState.maxValue }
@@ -433,7 +438,17 @@ fun OrdersScreen(
                                 onClear = { viewModel.clearPairSearch() },
                                 recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                                 tradingStatuses = uiState.tradingStatuses,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused) {
+                                            scope.launch {
+                                                // Небольшая задержка, чтобы клавиатура успела открыться
+                                                kotlinx.coroutines.delay(100)
+                                                scrollState.animateScrollTo(scrollState.maxValue)
+                                            }
+                                        }
+                                    }
                             )
                         } else {
                             // Карточка парного инструмента и множитель
@@ -482,7 +497,18 @@ fun OrdersScreen(
                                     placeholder = "Множитель",
                                     keyboardType = KeyboardType.Decimal,
                                     overlayText = multiplierOverlay,
-                                    overlayColor = MaterialTheme.colorScheme.outline   // полусерый, как в поле количества
+                                    overlayColor = MaterialTheme.colorScheme.outline,   // полусерый, как в поле количества
+                                    modifier = Modifier
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                scope.launch {
+                                                    // Небольшая задержка, чтобы клавиатура успела открыться
+                                                    kotlinx.coroutines.delay(100000)
+                                                    scrollState.animateScrollTo(scrollState.maxValue)
+                                                }
+                                            }
+                                        }
+
                                 )
                             }
                         }
