@@ -126,59 +126,7 @@ fun OrdersScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
-            if (uiState.selectedInstrument == null) {
-                InstrumentSearchField(
-                    query = uiState.searchQuery,
-                    onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
-                    isSearching = uiState.isSearching,
-                    searchResults = uiState.searchResults,
-                    onInstrumentSelected = { instrument: InstrumentUi ->
-                        viewModel.onInstrumentSelected(instrument)
-                        focusManager.clearFocus()
-                    },
-                    onClear = { viewModel.clearSearch() },
-                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                    tradingStatuses = uiState.tradingStatuses,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                uiState.selectedInstrument?.let { instrument: InstrumentUi ->
-                    val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
 
-                    // Если позиция есть в портфеле – используем её целиком (единый источник)
-                    val position = portfolioPos ?: PortfolioPosition(
-                        tscalpInstrumentId = instrument.tscalpInstrumentId,
-                        name = instrument.name,
-                        isin = instrument.isin,
-                        ticker = instrument.ticker,
-                        classCode = instrument.classCode,
-                        quantity = 0L,
-                        currentPrice = uiState.currentPrice ?: 0.0,
-                        totalValue = (uiState.currentPrice ?: 0.0) * 0L,
-                        profit = null,
-                        profitPercent = null,
-                        instrumentType = instrument.instrumentType,
-                        pointValue = (instrument as? FutureUi)?.pointValue
-                    )
-
-                    AssetPositionCard(
-                        position = position,
-                        instrumentType = instrument.instrumentType,
-                        pointValue = position.pointValue,   // теперь всегда валидный
-                        priceChangePercent = uiState.selectedPriceChangePercent,
-                        onDelete = { viewModel.clearSelectedInstrument() },
-                        onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                        onClick = { },
-                        isSelected = false,
-                        resetSwipe = uiState.swipeResetTrigger,
-                        tscalpInstrumentId = instrument.tscalpInstrumentId,
-                        tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId]
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
 
             // ========== СКРОЛЛИРУЕМЫЙ БЛОК с индикаторами прокрутки ==========
             val scrollState = rememberScrollState()
@@ -196,6 +144,60 @@ fun OrdersScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
+                    if (uiState.selectedInstrument == null) {
+                        InstrumentSearchField(
+                            query = uiState.searchQuery,
+                            onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
+                            isSearching = uiState.isSearching,
+                            searchResults = uiState.searchResults,
+                            onInstrumentSelected = { instrument: InstrumentUi ->
+                                viewModel.onInstrumentSelected(instrument)
+                                focusManager.clearFocus()
+                            },
+                            onClear = { viewModel.clearSearch() },
+                            recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                            tradingStatuses = uiState.tradingStatuses,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        uiState.selectedInstrument?.let { instrument: InstrumentUi ->
+                            val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
+
+                            // Если позиция есть в портфеле – используем её целиком (единый источник)
+                            val position = portfolioPos ?: PortfolioPosition(
+                                tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                name = instrument.name,
+                                isin = instrument.isin,
+                                ticker = instrument.ticker,
+                                classCode = instrument.classCode,
+                                quantity = 0L,
+                                currentPrice = uiState.currentPrice ?: 0.0,
+                                totalValue = (uiState.currentPrice ?: 0.0) * 0L,
+                                profit = null,
+                                profitPercent = null,
+                                instrumentType = instrument.instrumentType,
+                                pointValue = (instrument as? FutureUi)?.pointValue
+                            )
+
+                            AssetPositionCard(
+                                position = position,
+                                instrumentType = instrument.instrumentType,
+                                pointValue = position.pointValue,   // теперь всегда валидный
+                                priceChangePercent = uiState.selectedPriceChangePercent,
+                                onDelete = { viewModel.clearSelectedInstrument() },
+                                onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
+                                onClick = { },
+                                isSelected = false,
+                                resetSwipe = uiState.swipeResetTrigger,
+                                tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId]
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(1.dp))
+
                     // ========== Поле количества ==========
                     // Ориентировочная стоимость
                     val currentQty = uiState.quantityAsLong ?: 0L
