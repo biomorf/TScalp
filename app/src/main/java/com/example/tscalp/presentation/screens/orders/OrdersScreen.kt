@@ -196,7 +196,7 @@ fun OrdersScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(1.dp))
+                    //Spacer(modifier = Modifier.height(1.dp))
 
                     // ========== Поле количества ==========
                     // Ориентировочная стоимость
@@ -230,7 +230,7 @@ fun OrdersScreen(
                             .fillMaxWidth()
                             .height(56.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         IconButton(
                             onClick = {
@@ -400,7 +400,7 @@ fun OrdersScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                                .padding(horizontal = 16.dp, vertical = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
