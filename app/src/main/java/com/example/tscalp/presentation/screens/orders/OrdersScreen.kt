@@ -266,9 +266,28 @@ fun OrdersScreen(
                     // ========== Поле количества ==========
                     // Ориентировочная стоимость
                     val currentQty = uiState.quantityAsLong ?: 0L
-                    val currentPrice = uiState.currentPrice ?: 0.0
-                    val costOverlay = if (currentQty > 0 && currentPrice > 0) {
-                        formatCurrency(currentPrice * currentQty)
+
+                    // Определяем цену исполнения в зависимости от типа заявки
+                    val executionPrice: Double = when (uiState.orderType) {
+                        is OrderTypeSelection.Market -> uiState.currentPrice ?: 0.0
+                        is OrderTypeSelection.Limit,
+                        is OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull() ?: 0.0
+                        is OrderTypeSelection.StopLoss,
+                        is OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull() ?: 0.0
+                    }
+
+                    val instrumentType = uiState.selectedInstrument?.instrumentType ?: ""
+
+                    val costOverlay: String? = if (currentQty > 0 && executionPrice > 0) {
+                        if (instrumentType == "futures") {
+                            val pointValue = (uiState.selectedInstrument as? FutureUi)?.pointValue ?: 1.0
+                            val totalPoints = executionPrice * currentQty
+                            val totalRub = totalPoints * pointValue
+                            // Формат как в карточке: "пункты · рубли"
+                            "${formatPrice(totalPoints, instrumentType)}  ·  ${formatCurrency(totalRub)}"
+                        } else {
+                            formatCurrency(executionPrice * currentQty)
+                        }
                     } else null
 
                     Row(
@@ -491,8 +510,27 @@ fun OrdersScreen(
                                 // Оверлей стоимости для множителя
                                 val currentQty = uiState.quantityAsLong ?: 0L
                                 val totalQty = currentQty * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)
-                                val multiplierOverlay = if (totalQty > 0 && pairPrice > 0) {
-                                    formatCurrency(pairPrice * totalQty)
+
+                                // Определяем цену исполнения для парного инструмента по тому же принципу
+                                val pairExecutionPrice: Double = when (uiState.orderType) {
+                                    is OrderTypeSelection.Market -> uiState.pairCurrentPrice ?: 0.0
+                                    is OrderTypeSelection.Limit,
+                                    is OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull() ?: 0.0
+                                    is OrderTypeSelection.StopLoss,
+                                    is OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull() ?: 0.0
+                                }
+
+                                val pairedInstrumentType = uiState.pairedInstrument?.instrumentType ?: ""
+
+                                val multiplierOverlay: String? = if (totalQty > 0 && pairExecutionPrice > 0) {
+                                    if (pairedInstrumentType == "futures") {
+                                        val pairedPointValue = (uiState.pairedInstrument as? FutureUi)?.pointValue ?: 1.0
+                                        val pairTotalPoints = pairExecutionPrice * totalQty
+                                        val pairTotalRub = pairTotalPoints * pairedPointValue
+                                        "${formatPrice(pairTotalPoints, pairedInstrumentType)}  ·  ${formatCurrency(pairTotalRub)}"
+                                    } else {
+                                        formatCurrency(pairExecutionPrice * totalQty)
+                                    }
                                 } else null
 
                                 M3TextField(
