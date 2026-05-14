@@ -47,11 +47,28 @@ class OrdersViewModel(
     private var pairSearchJob: Job? = null
     private var priceStreamJob: Job? = null
     private var positionStreamJob: Job? = null
-
+    private val prefs = ServiceLocator.getPrefs()
 
 
     companion object {
         private const val TAG = "OrdersViewModel"
+
+        private fun orderTypeToString(type: OrderTypeSelection): String = when (type) {
+            OrderTypeSelection.Market -> "Market"
+            OrderTypeSelection.Limit -> "Limit"
+            OrderTypeSelection.StopLoss -> "StopLoss"
+            OrderTypeSelection.TakeProfit -> "TakeProfit"
+            OrderTypeSelection.StopLimit -> "StopLimit"
+        }
+
+        private fun stringToOrderType(str: String): OrderTypeSelection = when (str) {
+            "Market" -> OrderTypeSelection.Market
+            "Limit" -> OrderTypeSelection.Limit
+            "StopLoss" -> OrderTypeSelection.StopLoss
+            "TakeProfit" -> OrderTypeSelection.TakeProfit
+            "StopLimit" -> OrderTypeSelection.StopLimit
+            else -> OrderTypeSelection.Market
+        }
 
         /**
          * Флаг, определяющий способ обновления P&L.
@@ -65,6 +82,7 @@ class OrdersViewModel(
         checkApiInitialization()
         // Фоновое обновление статусов каждые 5 минут
         viewModelScope.launch {
+            restoreState()
             while (isActive) {
                 delay(5 * 60 * 1000L)
                 val idsToUpdate = _uiState.value.tradingStatuses.keys.toList()
@@ -110,6 +128,60 @@ class OrdersViewModel(
                     isError = true
                 )
             }
+        }
+    }
+
+    private fun saveState() {
+        val state = _uiState.value
+        prefs.edit()
+            .putString("selected_instrument_uid", state.selectedInstrument?.tscalpInstrumentId)
+            .putString("paired_instrument_uid", state.pairedInstrument?.tscalpInstrumentId)
+            .putBoolean("pair_trading_enabled", state.pairTradingEnabled)
+            .putString("quantity", state.quantity)
+            .putString("paired_multiplier", state.pairedMultiplier)
+            .putString("order_type", orderTypeToString(state.orderType))   // ← исправлено
+            .apply()
+    }
+
+    private suspend fun restoreState() {
+        val repo = ServiceLocator.getInstrumentRepository()
+
+        // Восстановление основного инструмента
+        val uid = prefs.getString("selected_instrument_uid", null)
+        if (uid != null) {
+            val instrument = repo.getInstrument(uid)
+            if (instrument != null) {
+                _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
+                startPriceUpdates()
+                startPositionUpdates()
+            }
+        }
+
+        // Восстановление парного инструмента
+        val pairUid = prefs.getString("paired_instrument_uid", null)
+        if (pairUid != null) {
+            val pairInstrument = repo.getInstrument(pairUid)
+            if (pairInstrument != null) {
+                _uiState.update { it.copy(pairedInstrument = pairInstrument) }
+                // если не был запущен ценовой стрим для основного, запустим сейчас
+                if (_uiState.value.selectedInstrument != null) {
+                    startPriceUpdates()
+                }
+            }
+        }
+
+        val pairEnabled = prefs.getBoolean("pair_trading_enabled", false)
+        val savedQty = prefs.getString("quantity", "") ?: ""
+        val savedMultiplier = prefs.getString("paired_multiplier", "10") ?: "10"
+        val savedOrderType = prefs.getString("order_type", null)
+
+        _uiState.update { state ->
+            state.copy(
+                pairTradingEnabled = pairEnabled,
+                quantity = savedQty,
+                pairedMultiplier = savedMultiplier,
+                orderType = savedOrderType?.let { stringToOrderType(it) } ?: OrderTypeSelection.Market  // ← исправлено
+            )
         }
     }
 
@@ -257,6 +329,7 @@ class OrdersViewModel(
             // 5. Запускаем стрим для реактивного обновления цены
             startPriceUpdates()
             startPositionUpdates()
+            saveState()
         }
     }
 
@@ -278,7 +351,10 @@ class OrdersViewModel(
     }
 
     fun clearSearch() { _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), selectedInstrument = null, ticker = "", currentPrice = null, isPriceLoading = false, isSearchActive = false) } }
-    fun onQuantityChanged(quantity: String) { _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) } }
+    fun onQuantityChanged(quantity: String) {
+        _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) }
+        saveState()
+    }
     fun onAccountSelected(accountId: String) { _uiState.update { it.copy(selectedAccountId = accountId) } }
     fun onBuyClick() = viewModelScope.launch { postOrder(OrderDirection.BUY) }
     fun onSellClick() = viewModelScope.launch { postOrder(OrderDirection.SELL) }
@@ -716,6 +792,7 @@ fun openBrokerDialog(ticker: String) {
                 )
             }
         }
+        saveState()
     }
 
     fun onPairSearchQueryChanged(query: String) {
@@ -754,6 +831,7 @@ fun openBrokerDialog(ticker: String) {
             if (price != null) {
                 _uiState.update { it.copy(pairCurrentPrice = price) }
             }
+            saveState()
         }
     }
 
@@ -764,6 +842,7 @@ fun openBrokerDialog(ticker: String) {
     fun onPairedMultiplierChanged(value: String) {
         val filtered = value.filter { it.isDigit() || it == '.' }
         _uiState.update { it.copy(pairedMultiplier = filtered) }
+        saveState()
     }
 
     fun onOrderTypeChanged(type: OrderTypeSelection) {
@@ -772,16 +851,19 @@ fun openBrokerDialog(ticker: String) {
         if (type == OrderTypeSelection.Market) {
             _uiState.update { it.copy(limitPrice = "") }
         }
+        saveState()
     }
 
 
     fun onLimitPriceChanged(price: String) {
         val filtered = price.filter { it.isDigit() || it == '.' }
         _uiState.update { it.copy(limitPrice = filtered) }
+        saveState()
     }
 
     fun onStopPriceChanged(price: String) {
         _uiState.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
+        saveState()
     }
 
 //    fun onStopOrderTypeChanged(type: StopOrderType) {

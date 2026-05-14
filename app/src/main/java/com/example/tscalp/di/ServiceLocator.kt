@@ -14,6 +14,8 @@ object ServiceLocator {
 
     private lateinit var prefs: SharedPreferences
 
+    fun getPrefs(): SharedPreferences = prefs
+
     @Volatile
     private var brokerManager: BrokerManager? = null
 
