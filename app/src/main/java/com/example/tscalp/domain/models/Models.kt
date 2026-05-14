@@ -6,7 +6,9 @@ data class PositionStreamItem(
     val quantity: Long,
     val currentPrice: Double?,       // текущая цена (может быть null)
     val averagePositionPrice: Double?, // средняя цена позиции
-    val expectedYield: Double?       // ожидаемая доходность (абсолютная)
+    val expectedYield: Double?,       // ожидаемая доходность (абсолютная)
+    val pointValue: Double? = null,
+    val instrumentType: String = ""
 )
 
 data class PortfolioPosition(

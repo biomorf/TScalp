@@ -15,6 +15,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.shareIn
+
+import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
@@ -55,9 +61,9 @@ class PortfolioViewModel(
         val isApiInit = ServiceLocator.isAnyBrokerInitialized()
         _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = ServiceLocator.isSandboxMode()) }
         if (isApiInit) {
-            if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
+            //if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
                 viewModelScope.launch { loadPortfolio() }
-            }
+            //}
             startPriceUpdates()
         }
     }
@@ -66,27 +72,37 @@ class PortfolioViewModel(
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            val broker = ServiceLocator.getBrokerManager().getDefaultBroker()
+            val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: run {
+                _uiState.update { it.copy(isLoading = false, statusMessage = "Брокер не доступен", isError = true) }
+                return@launch
+            }
             val accountId = ServiceLocator.loadDefaultAccountId("TInvest") ?: run {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                 return@launch
             }
+
+            // Первичная загрузка через прямой запрос (чтобы сразу показать портфель)
             try {
-                broker.subscribePositions(accountId).collect { item ->
-                    updatePortfolioItem(item)
-                    // После первого обновления снимаем индикатор загрузки
-                    if (_uiState.value.isLoading) {
-                        _uiState.update { it.copy(isLoading = false) }
-                    }
-                    // (опционально) можно пересчитать totalValue
-                }
+                val sandbox = ServiceLocator.isSandboxMode()
+                val positions = broker.fetchPositionsRest(accountId, sandbox)
+                _uiState.update { it.copy(positions = positions, isLoading = false) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Ошибка подписки: ${e.message}", isError = true) }
+                _uiState.update { it.copy(isLoading = false, statusMessage = "Ошибка загрузки: ${e.message}", isError = true) }
+                return@launch
+            }
+
+            // Запускаем общий источник (если ещё не запущен)
+            broker.startSharedPositionStream(accountId)
+
+            // Подписываемся на обновления
+            broker.positionsSharedFlow.collect { item ->
+                updatePortfolioItem(item)
             }
         }
     }
 
     private fun updatePortfolioItem(item: PositionStreamItem) {
+        Log.d(TAG, "updatePortfolioItem: uid=${item.instrumentUid} type=${item.instrumentType} pointValue=${item.pointValue}")
         val current = _uiState.value.positions.toMutableList()
         val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
         if (index == -1) {
@@ -103,21 +119,24 @@ class PortfolioViewModel(
                 profitPercent = item.averagePositionPrice?.let { avg ->
                     if (avg > 0) ((item.currentPrice ?: 0.0) - avg) / avg * 100.0 else null
                 },
-                instrumentType = "" // TODO: заполнить из кэша инструментов
+                pointValue = item.pointValue,
+                instrumentType = item.instrumentType // TODO: заполнить из кэша инструментов
             ))
         } else {
             // Обновляем существующую позицию
-            val pos = current[index]
-            val newPrice = item.currentPrice ?: pos.currentPrice
-            current[index] = pos.copy(
+            val old = current[index]
+            val newPrice = item.currentPrice ?: old.currentPrice
+            current[index] = old.copy(
                 quantity = item.quantity,
                 currentPrice = newPrice,
-                averagePrice = item.averagePositionPrice ?: pos.averagePrice,
+                averagePrice = item.averagePositionPrice ?: old.averagePrice,
                 totalValue = newPrice * item.quantity,
                 profit = item.expectedYield,
                 profitPercent = item.averagePositionPrice?.let { avg ->
                     if (avg > 0) (newPrice - avg) / avg * 100.0 else null
-                }
+                },
+                pointValue = item.pointValue ?: old.pointValue,
+                instrumentType = item.instrumentType
             )
         }
         _uiState.update { it.copy(positions = current) }

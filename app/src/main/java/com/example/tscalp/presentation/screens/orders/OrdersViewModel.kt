@@ -84,7 +84,7 @@ class OrdersViewModel(
                 //viewModelScope.launch { startPositionUpdates() }
             }
             startPriceUpdates()
-            startPositionUpdates()
+            // startPositionUpdates() // удалить эту строку, если она дублирует вызов внутри loadAccounts()
         }
     }
 
@@ -117,40 +117,27 @@ class OrdersViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val sandboxMode = ServiceLocator.isSandboxMode()
-                // По умолчанию загружаем счета для Т-Инвестиций (основной брокер)
                 val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
-                //получения счетов добавьте автоматический выбор первого счёта, если ни один не выбран
                 if (_uiState.value.selectedAccountId == null && accounts.isNotEmpty()) {
                     _uiState.update { it.copy(selectedAccountId = accounts.first().id) }
                 }
                 val defaultAccount = accounts.firstOrNull()
-                val balance = if (defaultAccount != null) {
-                    try {
-                        repository.getBalance(defaultAccount.id)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Ошибка загрузки баланса", e)
-                        null
-                    }
-                } else null
                 _uiState.update {
                     it.copy(
                         accounts = accounts,
                         selectedAccountId = defaultAccount?.id,
                         isLoading = false,
-                        freeBalance = balance,
                         statusMessage = if (accounts.isEmpty()) "Нет доступных счетов"
                         else "Загружено ${accounts.size} счёт(ов)"
                     )
                 }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        statusMessage = "Ошибка загрузки счетов: ${e.message}",
-                        isError = true
-                    )
+                // Запускаем обновление позиций, если счёт выбран
+                if (_uiState.value.selectedAccountId != null) {
+                    startPositionUpdates()
                 }
+            } catch (e: Exception) {
+                // ...
             }
         }
     }
@@ -865,8 +852,9 @@ fun openBrokerDialog(ticker: String) {
         val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
         val accountId = _uiState.value.selectedAccountId ?: return
 
+        broker.startSharedPositionStream(accountId) // гарантируем, что источник запущен
         positionStreamJob = viewModelScope.launch {
-            broker.subscribePositions(accountId).collect { item ->
+            broker.positionsSharedFlow.collect { item ->
                 updatePositionPnl(item)
             }
         }
@@ -884,19 +872,44 @@ fun openBrokerDialog(ticker: String) {
         if (quantity == 0L) return
 
         Log.d(TAG, "updatePositionPnl: uid=${item.instrumentUid}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
-        val positions = _uiState.value.portfolioPositions
-        Log.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
+        //val positions = _uiState.value.portfolioPositions
+        //Log.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
 
         val profitPercent = if (avgPrice != 0.0) (yield / (avgPrice * quantity)) * 100.0 else 0.0
 
         _uiState.update { state ->
-            val updatedPositions = state.portfolioPositions.map { pos ->
-                if (pos.tscalpInstrumentId == item.instrumentUid) {
-                    Log.d(TAG, "Updating position ${pos.ticker}: profit=$yield, percent=$profitPercent")
-                    pos.copy(profit = yield, profitPercent = profitPercent)
-                } else pos
+            val positions = state.portfolioPositions.toMutableList()
+            Log.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
+            val index = positions.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
+            if (index == -1) {
+                // Добавляем новую позицию, если её нет
+                positions.add(PortfolioPosition(
+                    name = item.ticker,                // временно, позже можно загрузить полное имя из кэша
+                    tscalpInstrumentId = item.instrumentUid,
+                    ticker = item.ticker,
+                    quantity = quantity,
+                    currentPrice = item.currentPrice ?: 0.0,
+                    averagePrice = avgPrice,
+                    totalValue = (item.currentPrice ?: 0.0) * quantity,
+                    profit = yield,
+                    profitPercent = profitPercent,
+                    pointValue = item.pointValue,
+                    instrumentType = item.instrumentType
+                ))
+            } else {
+                val old = positions[index]
+                positions[index] = old.copy(
+                    quantity = quantity,
+                    currentPrice = item.currentPrice ?: old.currentPrice,
+                    averagePrice = avgPrice,
+                    totalValue = (item.currentPrice ?: old.currentPrice) * quantity,
+                    profit = yield,
+                    profitPercent = profitPercent,
+                    pointValue = item.pointValue ?: old.pointValue,
+                    instrumentType = item.instrumentType
+                )
             }
-            state.copy(portfolioPositions = updatedPositions)
+            state.copy(portfolioPositions = positions)
         }
     }
 
