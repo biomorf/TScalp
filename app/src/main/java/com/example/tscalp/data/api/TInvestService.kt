@@ -213,25 +213,25 @@ class TInvestInvestService : BrokerApi {
             Log.w(TAG, "Не удалось получить стартовый снапшот: ${e.message}")
         }
 
-//        // 2. Пробуем gRPC
-//        try {
-//            Log.d(TAG, "Пробуем gRPC PositionsStream")
+        // 2. Пробуем gRPC
+        try {
+            Log.d(TAG, "Пробуем gRPC PositionsStream")
 //            subscribePositionsGrpc(accountId).collect { item ->
 //                trySend(item)
 //            }
-//        } catch (e: Exception) {
-//            Log.w(TAG, "gRPC PositionsStream не удался: ${e.message}")
-//        }
-//
-//        // 3. Пробуем WebSocket
-//        try {
-//            Log.d(TAG, "Пробуем WebSocket PositionsStream")
+        } catch (e: Exception) {
+            Log.w(TAG, "gRPC PositionsStream не удался: ${e.message}")
+        }
+
+        // 3. Пробуем WebSocket
+        try {
+            Log.d(TAG, "Пробуем WebSocket PositionsStream")
 //            subscribePositionsWebSocket(accountId).collect { item ->
 //                trySend(item)
 //            }
-//        } catch (e: Exception) {
-//            Log.w(TAG, "WebSocket PositionsStream не удался: ${e.message}")
-//        }
+        } catch (e: Exception) {
+            Log.w(TAG, "WebSocket PositionsStream не удался: ${e.message}")
+        }
 
         // 4. Если всё предыдущее не сработало, переходим на polling
         Log.d(TAG, "Переключаемся на периодический опрос (polling)")
