@@ -215,9 +215,11 @@ fun OrdersScreen(
 
                     // Если позиция есть в портфеле – используем её целиком (единый источник)
                     val position = portfolioPos ?: PortfolioPosition(
-                        name = instrument.name,
-                        ticker = instrument.ticker,
                         tscalpInstrumentId = instrument.tscalpInstrumentId,
+                        name = instrument.name,
+                        isin = instrument.isin,
+                        ticker = instrument.ticker,
+                        classCode = instrument.classCode,
                         quantity = 0L,
                         currentPrice = uiState.currentPrice ?: 0.0,
                         totalValue = (uiState.currentPrice ?: 0.0) * 0L,
@@ -458,9 +460,11 @@ fun OrdersScreen(
                                 val pairPrice = uiState.pairCurrentPrice ?: 0.0
                                 // Единый источник: если позиция есть в портфеле – берём её целиком
                                 val position = portfolioPos ?: PortfolioPosition(
-                                    name = instrument.name,
-                                    ticker = instrument.ticker,
                                     tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                    name = instrument.name,
+                                    isin = instrument.isin,
+                                    ticker = instrument.ticker,
+                                    classCode = instrument.classCode,
                                     quantity = 0L,
                                     currentPrice = pairPrice,
                                     totalValue = pairPrice * 0L,

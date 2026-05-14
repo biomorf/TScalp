@@ -311,6 +311,8 @@ class TInvestInvestService : BrokerApi {
                 tscalpInstrumentId = instrumentUi?.tscalpInstrumentId ?: "",   // теперь uid
                 name = instrumentUi?.name ?: "",
                 ticker = instrumentUi?.ticker ?: "",
+                classCode = instrumentUi?.classCode ?: "",
+                isin = instrumentUi?.isin ?: "",
                 quantity = quantity,
                 currentPrice = currentPrice,
                 averagePrice = avgPrice,
@@ -1154,7 +1156,9 @@ class TInvestInvestService : BrokerApi {
             .getInstrument(pos.tscalpInstrumentId) as? FutureUi)?.pointValue
         return PositionStreamItem(
             instrumentUid = pos.tscalpInstrumentId,
+            isin = pos.isin,
             ticker = pos.ticker,
+            classCode = pos.classCode,
             quantity = pos.quantity,
             currentPrice = pos.currentPrice,
             averagePositionPrice = pos.averagePrice,

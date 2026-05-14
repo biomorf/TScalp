@@ -108,6 +108,8 @@ class PortfolioViewModel(
             current.add(PortfolioPosition(
                 tscalpInstrumentId = item.instrumentUid,
                 ticker = item.ticker,
+                isin = item.isin,
+                classCode = item.classCode,
                 name = item.ticker, // позже можно подгрузить полное имя
                 quantity = item.quantity,
                 currentPrice = item.currentPrice ?: 0.0,
@@ -134,7 +136,9 @@ class PortfolioViewModel(
                     if (avg > 0) (newPrice - avg) / avg * 100.0 else null
                 },
                 pointValue = item.pointValue ?: old.pointValue,
-                instrumentType = item.instrumentType
+                instrumentType = item.instrumentType,
+                isin = item.isin.ifBlank { old.isin },
+                classCode = item.classCode.ifBlank { old.classCode }
             )
         }
         _uiState.update { it.copy(positions = current) }

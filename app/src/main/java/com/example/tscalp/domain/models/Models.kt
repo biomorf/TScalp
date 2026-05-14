@@ -3,6 +3,8 @@ package com.example.tscalp.domain.models
 data class PositionStreamItem(
     val instrumentUid: String,
     val ticker: String,
+    val classCode: String = "",
+    val isin: String = "",
     val quantity: Long,
     val currentPrice: Double?,       // текущая цена (может быть null)
     val averagePositionPrice: Double?, // средняя цена позиции
@@ -17,6 +19,8 @@ data class PortfolioPosition(
     val instrumentType: String = "",
     val name: String,
     val ticker: String,
+    val classCode: String = "",
+    val isin: String = "",
     val quantity: Long,
     val currentPrice: Double,
     val averagePrice: Double? = null,

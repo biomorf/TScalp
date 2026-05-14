@@ -242,13 +242,22 @@ private fun PortfolioCardContent(
                             maxLines = 1,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        // Упрощённое нейтральное отображение идентификатора
-                        val displayId = if (tscalpInstrumentId.isNullOrBlank()) "000000" else tscalpInstrumentId
-                        Text(
-                            text = displayId,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // Отображение ISIN или fallback для фьючерсов
+                        if (instrumentType == "futures") {
+                            val futuresId = "${position.ticker}_${position.classCode.ifBlank { "SPBFUT" }}"
+                            Text(
+                                text = futuresId,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            val isinDisplay = position.isin.ifBlank { position.tscalpInstrumentId }
+                            Text(
+                                text = "ISIN: $isinDisplay",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         // Информационная строка о стоимости пункта цены (только для фьючерсов)
                         if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
                             Text(
