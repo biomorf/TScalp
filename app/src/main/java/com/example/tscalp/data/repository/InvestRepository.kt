@@ -88,4 +88,9 @@ class InvestRepository(
             ?: throw IllegalArgumentException("Брокер ${request.brokerName} не найден")
         broker.postStopOrder(request)
     }
+
+    suspend fun cancelStopOrder(accountId: String, orderId: String) = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getDefaultBroker()
+        broker.cancelStopOrder(accountId, orderId)
+    }
 }

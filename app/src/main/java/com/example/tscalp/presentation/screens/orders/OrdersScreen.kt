@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +51,7 @@ import com.example.tscalp.domain.models.*
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.ui.components.StopOrdersDialog
+import com.example.tscalp.ui.components.OrderCard
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
 import com.example.tscalp.domain.models.TradingAvailability
@@ -708,52 +710,49 @@ fun OrdersScreen(
             title = { Text("Подтверждение заявки") },
             text = {
                 Column {
-                    Text("Вы собираетесь ${pendingDirection.lowercase()} $quantity лотов $ticker")
+                    Text("Вы собираетесь совершить сделку:", fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OrderCard(
+                        ticker = ticker,
+                        direction = pendingDirection,
+                        orderType = uiState.orderType,
+                        status = null,
+                        quantity = quantity,
+                        price = executionPrice,
+                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+                        totalCost = executionPrice * quantity
+                    )
 
-                    // Триггер‑цена (для всех стоп‑заявок) выводится первой
-                    if (triggerPrice != null && triggerPrice > 0) {
-                        // Для стоп‑лимита триггер‑цена отдельно, для остальных уже выведена как executionPrice
-                        if (isStopLimit || isStopLoss || isTakeProfit) {
-                            Text("Триггер‑цена выставления заявки: ≈${formatPrice(triggerPrice, uiState.selectedInstrument?.instrumentType ?: "")}")
-                        }
-                    }
-
-                    // Цена исполнения и общая стоимость
-                    if (executionPrice > 0) {
-                        if (!(isStopLoss || isTakeProfit)) { // для этих типов не показываем текущую цену
-                            Text("$executionLabel: $priceSymbol${formatPrice(executionPrice, uiState.selectedInstrument?.instrumentType ?: "")}")
-                        }
-                        Text("Общая стоимость: $priceSymbol${formatPrice(executionPrice * quantity, uiState.selectedInstrument?.instrumentType ?: "")}")
-                    }
-
-                    // Контрсделка
                     if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("и парную сделку:", fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
-                        val pairDirection = if (pendingDirection == "Покупка") "продажа" else "покупка"
+                        val pairDirection = if (pendingDirection == "Покупка") "SELL" else "BUY"
                         val pairTicker = uiState.pairedInstrument?.ticker ?: ""
 
                         // Определяем цену для контрсделки
                         val pairExecPrice: Double
-                        val pairApprox: Boolean
                         when {
                             isLimit || isStopLimit -> {
-                                // для лимитных заявок – та же лимитная цена
                                 pairExecPrice = executionPrice
-                                pairApprox = false
                             }
                             else -> {
-                                // для рыночных, стоп‑лосс, тейк‑профит – рыночная цена парного инструмента
                                 pairExecPrice = uiState.pairCurrentPrice ?: 0.0
-                                pairApprox = true
                             }
                         }
-                        val pairSymbol = if (pairApprox) "≈" else ""
 
-                        Text("Контрсделка: $pairDirection $pairedQty лотов $pairTicker")
-                        if (pairExecPrice > 0) {
-                            Text("Цена исполнения: $pairSymbol${formatPrice(pairExecPrice, uiState.pairedInstrument?.instrumentType ?: "")}")
-                            Text("Общая стоимость: $pairSymbol${formatPrice(pairExecPrice * pairedQty, uiState.pairedInstrument?.instrumentType ?: "")}")
-                        }
+                        OrderCard(
+                            ticker = pairTicker,
+                            direction = pairDirection,
+                            orderType = uiState.orderType,
+                            status = null,
+                            quantity = pairedQty,
+                            price = pairExecPrice,
+                            instrumentType = uiState.pairedInstrument?.instrumentType ?: "",
+                            totalCost = pairExecPrice * pairedQty
+                        )
                     }
                 }
             },

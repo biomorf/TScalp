@@ -18,6 +18,7 @@ import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.presentation.screens.orders.StopOrdersViewModel
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
+import com.example.tscalp.util.TradePhrases
 
 @Composable
 fun StopOrdersDialog(
@@ -51,11 +52,20 @@ fun StopOrdersDialog(
                             .verticalScroll(scrollState)
                     ) {
                         state.orders.forEach { order ->
-                            OrderListItemRow(
-                                order = order,
-                                onCancel = { viewModel.cancelOrder(order) }
+                            OrderCard(
+                                ticker = order.ticker,
+                                direction = order.direction,
+                                orderType = TradePhrases.stringToOrderType(order.type),
+                                status = order.status,
+                                quantity = order.quantity,
+                                price = order.price,
+                                instrumentType = order.instrumentType,
+                                totalCost = if (order.stopPrice != null) order.stopPrice * order.quantity else null,
+                                onCancel = {
+                                    viewModel.cancelOrder(order)
+                                }
                             )
-                            HorizontalDivider()
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         }
                     }
 

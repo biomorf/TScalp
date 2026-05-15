@@ -82,11 +82,11 @@ class StopOrdersViewModel : ViewModel() {
                     ?: return@launch
 
                 if (order.isStopOrder) {
-                    broker.cancelStopOrder(accountId, order.orderId)
+                    repository.cancelStopOrder(accountId, order.orderId)
                 } else {
                     broker.cancelOrder(accountId, order.orderId)
                 }
-                loadOrders()  // обновить список после отмены
+                loadOrders()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(statusMessage = "Ошибка отмены: ${e.message}", isError = true)
@@ -95,6 +95,7 @@ class StopOrdersViewModel : ViewModel() {
             }
         }
     }
+
 
     class Factory : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
