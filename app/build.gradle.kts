@@ -1,3 +1,7 @@
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,23 +18,28 @@ android {
         minSdk = 30
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1." + buildTime()   // теперь buildTime() вызывается на этапе конфигурации,
+                                           // но при каждом новом запуске Gradle даст свежее время.
     }
 
     buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
+            debug {
+                //
+            }
+            release {
+                isMinifyEnabled = false
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro"
+                )
+            }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    // блок kotlin переносим наружу, здесь его быть не должно!
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -47,7 +56,7 @@ android {
             pickFirsts += listOf("**/com/google/protobuf/**")
         }
     }
-} // ←
+}
 
 // Теперь блок kotlin на верхнем уровне (вне android)
 kotlin {
@@ -144,4 +153,60 @@ dependencies {
 
     //Finam API SDK
 
+}
+
+fun buildTime(): String {
+    return LocalDateTime.now(ZoneId.of("UTC"))
+        .format(DateTimeFormatter.ofPattern("yy.MM.dd.HHmm"))
+}
+
+
+// Одна задача для переименования debug APK (запускается после каждой сборки debug)
+tasks.register("renameDebugApk") {
+    doLast {
+        val buildDir = layout.buildDirectory.get().asFile
+        val apkDir = File(buildDir, "outputs/apk/debug")
+        apkDir.listFiles()?.filter { it.name.startsWith("tscalp-debug-") }?.forEach { it.delete() }
+        val originalApk = File(apkDir, "app-debug.apk")
+        if (originalApk.exists()) {
+            val version = android.defaultConfig.versionName
+            val newName = "tscalp-debug-v${version}.apk"
+            val renamedApk = File(apkDir, newName)
+            originalApk.renameTo(renamedApk)
+            println("DEBUG APK переименован в: ${renamedApk.name}")
+        } else {
+            println("WARNING: app-debug.apk не найден по пути ${originalApk.absolutePath}")
+        }
+    }
+}
+
+afterEvaluate {
+    tasks.named("assembleDebug") {
+        finalizedBy("renameDebugApk")
+    }
+}
+
+// Задача переименования Release APK
+tasks.register("renameReleaseApk") {
+    doLast {
+        val buildDir = layout.buildDirectory.get().asFile
+        val apkDir = File(buildDir, "outputs/apk/release")
+        apkDir.listFiles()?.filter { it.name.startsWith("tscalp-release-") }?.forEach { it.delete() }
+        val originalApk = File(apkDir, "app-release.apk")
+        if (originalApk.exists()) {
+            val version = android.defaultConfig.versionName
+            val newName = "tscalp-release-v${version}.apk"
+            val renamedApk = File(apkDir, newName)
+            originalApk.renameTo(renamedApk)
+            println("RELEASE APK переименован в: ${renamedApk.name}")
+        } else {
+            println("WARNING: app-release.apk не найден по пути ${originalApk.absolutePath}")
+        }
+    }
+}
+
+afterEvaluate {
+    tasks.named("assembleRelease") {
+        finalizedBy("renameReleaseApk")
+    }
 }
