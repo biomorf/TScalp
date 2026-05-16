@@ -38,6 +38,7 @@ import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
+import com.example.tscalp.domain.usecases.PairOrderMapper
 
 
 class OrdersViewModel(
@@ -481,10 +482,7 @@ class OrdersViewModel(
                         val multiplier = state.pairedMultiplier.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
                         val pairedQuantity = (quantity * multiplier).toLong()
                         if (pairedQuantity > 0) {
-                            val pairedDirection = if (direction == OrderDirection.BUY)
-                                OrderDirection.SELL
-                            else
-                                OrderDirection.BUY
+                            val pairedDirection = if (direction == OrderDirection.BUY) OrderDirection.SELL else OrderDirection.BUY
 
                             val pairedCard = state.lastSelectedInstruments.find {
                                 it.instrument.ticker == state.pairedInstrument?.ticker
@@ -492,20 +490,55 @@ class OrdersViewModel(
                             val pairedBrokerName = pairedCard?.brokerName ?: brokerName
                             val pairedAccountId = pairedCard?.accountId ?: accountId
 
+                            // Определяем цену, которую будем использовать для маппинга
+                            val primaryPrice = when (state.orderType) {
+                                OrderTypeSelection.Limit,
+                                OrderTypeSelection.StopLimit -> state.limitPrice.toDoubleOrNull()
+                                OrderTypeSelection.StopLoss,
+                                OrderTypeSelection.TakeProfit -> state.stopPrice.toDoubleOrNull()
+                                else -> null
+                            }
+
+                            val pairedSpec = PairOrderMapper.map(state.orderType, direction, primaryPrice)
+
                             try {
-                                val pairedRequest = BrokerOrderRequest(
-                                    brokerName = pairedBrokerName,
-                                    ticker = state.pairedInstrument.ticker,
-                                    quantity = pairedQuantity,
-                                    direction = pairedDirection,
-                                    accountId = pairedAccountId,
-                                    sandboxMode = ServiceLocator.isSandboxMode(),
-                                    type = regularOrderType,
-                                    price = price,
-                                    instrumentUid = state.pairedInstrument?.tscalpInstrumentId
-                                )
-                                val pairedResult = repository.postOrder(pairedRequest)
-                                finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${pairedResult.orderId}"
+                                if (pairedSpec.isStopOrder) {
+                                    val stopPrice = pairedSpec.stopPrice
+                                    val stopOrderType = pairedSpec.stopOrderType
+                                    if (stopPrice != null && stopOrderType != null) {
+                                        val stopRequest = StopOrderRequest(
+                                            brokerName = pairedBrokerName,
+                                            ticker = state.pairedInstrument.ticker,
+                                            instrumentUid = state.pairedInstrument?.tscalpInstrumentId,
+                                            quantity = pairedQuantity,
+                                            direction = pairedDirection,
+                                            accountId = pairedAccountId,
+                                            sandboxMode = ServiceLocator.isSandboxMode(),
+                                            stopPrice = stopPrice,
+                                            price = pairedSpec.price,
+                                            stopOrderType = stopOrderType,
+                                            expirationType = state.expirationType
+                                        )
+                                        val stopId = repository.postStopOrder(stopRequest)
+                                        finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${stopId.take(8)}…"
+                                    } else {
+                                        finalMessage += "\n❌ Ошибка контрсделки: не указаны стоп-цена или тип стоп-заявки"
+                                    }
+                                } else {
+                                    val pairedRequest = BrokerOrderRequest(
+                                        brokerName = pairedBrokerName,
+                                        ticker = state.pairedInstrument.ticker,
+                                        instrumentUid = state.pairedInstrument?.tscalpInstrumentId,
+                                        quantity = pairedQuantity,
+                                        direction = pairedDirection,
+                                        accountId = pairedAccountId,
+                                        sandboxMode = ServiceLocator.isSandboxMode(),
+                                        type = pairedSpec.brokerOrderType ?: BrokerOrderType.MARKET,
+                                        price = pairedSpec.price
+                                    )
+                                    val pairedResult = repository.postOrder(pairedRequest)
+                                    finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${pairedResult.orderId}"
+                                }
                             } catch (e: Exception) {
                                 finalMessage += "\n❌ Ошибка контрсделки: ${e.message}"
                                 Log.e(TAG, "Ошибка контрсделки", e)
