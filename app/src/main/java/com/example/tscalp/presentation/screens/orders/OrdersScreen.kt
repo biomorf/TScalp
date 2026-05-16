@@ -149,34 +149,36 @@ fun OrdersScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
+                    // Основной поиск
                     if (uiState.selectedInstrument == null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            InstrumentSearchField(
-                                query = uiState.searchQuery,
-                                onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
-                                isSearching = uiState.isSearching,
-                                searchResults = uiState.searchResults,
-                                onInstrumentSelected = { instrument: InstrumentUi ->
-                                    viewModel.onInstrumentSelected(instrument)
-                                    focusManager.clearFocus()
-                                },
-                                onClear = { viewModel.clearSearch() },
-                                recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                                tradingStatuses = uiState.tradingStatuses,
-                                modifier = Modifier.weight(1f) // Занимает все доступное пространство
-                            )
-                            // Кнопка «Обновить»
-                            if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
-                                IconButton(onClick = { viewModel.refreshSearch() }) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                InstrumentSearchField(
+                                    query = uiState.searchQuery,
+                                    onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
+                                    isSearching = uiState.isSearching,
+                                    searchResults = uiState.searchResults,
+                                    onInstrumentSelected = { instrument: InstrumentUi ->
+                                        viewModel.onInstrumentSelected(instrument)
+                                        focusManager.clearFocus()
+                                    },
+                                    onClear = { viewModel.clearSearch() },
+                                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                                    tradingStatuses = uiState.tradingStatuses,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                // Кнопка «Обновить» (показывается, когда есть запрос)
+                                if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
+                                    IconButton(onClick = { viewModel.refreshSearch() }) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                                    }
                                 }
-                            }
-                            // Кнопка настроек поиска
-                            IconButton(onClick = { viewModel.openSearchBrokerSettings() }) {
-                                Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                                // Кнопка настроек поиска
+                                IconButton(onClick = { viewModel.openSearchBrokerSettings() }) {
+                                    Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                                }
                             }
                         }
                     } else {
@@ -434,33 +436,34 @@ fun OrdersScreen(
                     // Парный поиск
                     if (uiState.pairTradingEnabled) {
                         if (uiState.pairedInstrument == null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                InstrumentSearchField(
-                                    query = uiState.pairSearchQuery,
-                                    onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
-                                    isSearching = uiState.isPairSearching,
-                                    searchResults = uiState.pairSearchResults,
-                                    onInstrumentSelected = { instrument: InstrumentUi ->
-                                        viewModel.onPairedInstrumentSelected(instrument)
-                                        focusManager.clearFocus()
-                                    },
-                                    onClear = { viewModel.clearPairSearch() },
-                                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                                    tradingStatuses = uiState.tradingStatuses,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                // Кнопка «Обновить»
-                                if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
-                                    IconButton(onClick = { viewModel.refreshPairSearch() }) {
-                                        Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    InstrumentSearchField(
+                                        query = uiState.pairSearchQuery,
+                                        onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
+                                        isSearching = uiState.isPairSearching,
+                                        searchResults = uiState.pairSearchResults,
+                                        onInstrumentSelected = { instrument: InstrumentUi ->
+                                            viewModel.onPairedInstrumentSelected(instrument)
+                                            focusManager.clearFocus()
+                                        },
+                                        onClear = { viewModel.clearPairSearch() },
+                                        recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                                        tradingStatuses = uiState.tradingStatuses,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    // Кнопка «Обновить»
+                                    if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
+                                        IconButton(onClick = { viewModel.refreshPairSearch() }) {
+                                            Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                                        }
                                     }
-                                }
-                                // Кнопка настроек поиска
-                                IconButton(onClick = { viewModel.openPairSearchBrokerSettings() }) {
-                                    Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                                    // Кнопка настроек поиска
+                                    IconButton(onClick = { viewModel.openPairSearchBrokerSettings() }) {
+                                        Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                                    }
                                 }
                             }
                         } else {
