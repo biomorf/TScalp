@@ -23,6 +23,7 @@ import com.example.tscalp.util.formatCurrency
 
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.repository.InvestRepository
+import com.example.tscalp.data.repository.SearchCache
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
@@ -261,7 +262,9 @@ class OrdersViewModel(
                 try {
                     delay(500)
                     _uiState.update { it.copy(isSearching = true) }
-                    val results = repository.searchInstruments(query)
+                    val cache = ServiceLocator.getSearchCache()
+                    val brokerName = _uiState.value.searchBroker
+                    val results = cache.search(brokerName, query)
                     // Обновляем статусы доступности для найденных инструментов
                     if (results.isNotEmpty()) {
                         launch {
@@ -272,7 +275,14 @@ class OrdersViewModel(
                 } catch (ce: kotlinx.coroutines.CancellationException) {
                     _uiState.update { it.copy(isSearching = false) }
                 } catch (e: Exception) {
-                    _uiState.update { it.copy(searchResults = emptyList(), isSearching = false, statusMessage = "Ошибка поиска: ${e.message}", isError = true) }
+                    _uiState.update {
+                        it.copy(
+                            searchResults = emptyList(),
+                            isSearching = false,
+                            statusMessage = "Ошибка поиска: ${e.message}",
+                            isError = true
+                        )
+                    }
                 }
             }
         } else {
@@ -812,7 +822,9 @@ fun openBrokerDialog(ticker: String) {
                 delay(500)
                 _uiState.update { it.copy(isPairSearching = true) }
                 try {
-                    val results = repository.searchInstruments(query)
+                    val cache = ServiceLocator.getSearchCache()
+                    val brokerName = _uiState.value.pairSearchBroker
+                    val results = cache.search(brokerName, query)
                     // Обновляем статусы доступности для найденных инструментов
                     if (results.isNotEmpty()) {
                         launch {
@@ -823,7 +835,14 @@ fun openBrokerDialog(ticker: String) {
                 } catch (ce: CancellationException) {
                     _uiState.update { it.copy(isPairSearching = false) }
                 } catch (e: Exception) {
-                    _uiState.update { it.copy(pairSearchResults = emptyList(), isPairSearching = false, statusMessage = "Ошибка поиска: ${e.message}", isError = true) }
+                    _uiState.update {
+                        it.copy(
+                            pairSearchResults = emptyList(),
+                            isPairSearching = false,
+                            statusMessage = "Ошибка поиска: ${e.message}",
+                            isError = true
+                        )
+                    }
                 }
             }
         } else {
@@ -1021,6 +1040,22 @@ fun openBrokerDialog(ticker: String) {
 
     fun dismissSearchBrokerDialog() { showSearchBrokerDialog.value = false }
     fun dismissPairSearchBrokerDialog() { showPairSearchBrokerDialog.value = false }
+
+    fun refreshSearch() {
+        val state = _uiState.value
+        if (state.searchQuery.length >= 2) {
+            ServiceLocator.getSearchCache().invalidate(state.searchBroker, state.searchQuery)
+            onSearchQueryChanged(state.searchQuery)
+        }
+    }
+
+    fun refreshPairSearch() {
+        val state = _uiState.value
+        if (state.pairSearchQuery.length >= 2) {
+            ServiceLocator.getSearchCache().invalidate(state.pairSearchBroker, state.pairSearchQuery)
+            onPairSearchQueryChanged(state.pairSearchQuery)
+        }
+    }
 }
 
 class OrdersViewModelFactory : ViewModelProvider.Factory {

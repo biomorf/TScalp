@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
@@ -167,6 +168,13 @@ fun OrdersScreen(
                                 tradingStatuses = uiState.tradingStatuses,
                                 modifier = Modifier.weight(1f) // Занимает все доступное пространство
                             )
+                            // Кнопка «Обновить»
+                            if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
+                                IconButton(onClick = { viewModel.refreshSearch() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                                }
+                            }
+                            // Кнопка настроек поиска
                             IconButton(onClick = { viewModel.openSearchBrokerSettings() }) {
                                 Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
                             }
@@ -444,6 +452,13 @@ fun OrdersScreen(
                                     tradingStatuses = uiState.tradingStatuses,
                                     modifier = Modifier.weight(1f)
                                 )
+                                // Кнопка «Обновить»
+                                if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
+                                    IconButton(onClick = { viewModel.refreshPairSearch() }) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                                    }
+                                }
+                                // Кнопка настроек поиска
                                 IconButton(onClick = { viewModel.openPairSearchBrokerSettings() }) {
                                     Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
                                 }
