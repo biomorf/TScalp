@@ -1,4 +1,4 @@
-package com.example.tscalp.presentation.screens.orders
+package com.example.tscalp.ui.components
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class StopOrdersViewModel : ViewModel() {
+class OrdersListViewModel : ViewModel() {
 
     private val repository = InvestRepository(ServiceLocator.getBrokerManager())
 
@@ -99,9 +99,9 @@ class StopOrdersViewModel : ViewModel() {
 
     class Factory : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(StopOrdersViewModel::class.java)) {
+            if (modelClass.isAssignableFrom(OrdersListViewModel::class.java)) {
                 @Suppress("UNCHECKED_CAST")
-                return StopOrdersViewModel() as T
+                return OrdersListViewModel() as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

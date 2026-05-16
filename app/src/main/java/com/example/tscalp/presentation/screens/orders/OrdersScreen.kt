@@ -52,7 +52,9 @@ import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
-import com.example.tscalp.ui.components.StopOrdersDialog
+import com.example.tscalp.ui.components.ConfirmOrderDialog
+import com.example.tscalp.ui.components.OrdersListDialog
+import com.example.tscalp.ui.components.OrdersListViewModel
 import com.example.tscalp.ui.components.OrderCard
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
@@ -70,8 +72,8 @@ fun OrdersScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var showStopOrdersDialog by remember { mutableStateOf(false) }
-    val stopOrdersViewModel = remember { StopOrdersViewModel() }
+    var showOrdersListDialog by remember { mutableStateOf(false) }
+    val ordersListViewModel = remember { OrdersListViewModel() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -118,7 +120,7 @@ fun OrdersScreen(
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = { showStopOrdersDialog = true }) {
+                IconButton(onClick = { showOrdersListDialog = true }) {
                     Icon(Icons.Default.List, contentDescription = "Список заявок")
                 }
             }
@@ -224,13 +226,32 @@ fun OrdersScreen(
                     val currentQty = uiState.quantityAsLong ?: 0L
 
                     // Определяем цену исполнения в зависимости от типа заявки
-                    val executionPrice: Double = when (uiState.orderType) {
-                        is OrderTypeSelection.Market -> uiState.currentPrice ?: 0.0
-                        is OrderTypeSelection.Limit,
-                        is OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull() ?: 0.0
-                        is OrderTypeSelection.StopLoss,
-                        is OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull() ?: 0.0
+                    val executionPrice = when (uiState.orderType) {
+                        OrderTypeSelection.Market -> uiState.currentPrice ?: 0.0
+                        OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull() ?: 0.0
+                        OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull() ?: 0.0
                     }
+                    ConfirmOrderDialog(
+                        show = showConfirmDialog,
+                        ticker = uiState.selectedInstrument?.ticker ?: "",
+                        quantity = uiState.quantityAsLong ?: 0L,
+                        pendingDirection = pendingDirection,
+                        orderType = uiState.orderType,
+                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+                        executionPrice = executionPrice,
+                        pairTradingEnabled = uiState.pairTradingEnabled,
+                        pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
+                        pairedInstrumentType = uiState.pairedInstrument?.instrumentType,
+                        pairedMultiplier = uiState.pairedMultiplier,
+                        pairCurrentPrice = uiState.pairCurrentPrice,
+                        limitPrice = uiState.limitPrice,
+                        stopPrice = uiState.stopPrice,
+                        onDismiss = { showConfirmDialog = false },
+                        onConfirm = {
+                            if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
+                            showConfirmDialog = false
+                        }
+                    )
 
                     val instrumentType = uiState.selectedInstrument?.instrumentType ?: ""
 
@@ -689,113 +710,113 @@ fun OrdersScreen(
     }
 
     // ==================== ДИАЛОГИ ====================
-    if (showConfirmDialog) {
-        val ticker = uiState.selectedInstrument?.ticker ?: ""
-        val quantity = uiState.quantityAsLong ?: 0L
-
-        val isMarket = uiState.orderType is OrderTypeSelection.Market
-        val isLimit = uiState.orderType is OrderTypeSelection.Limit
-        val isStopLoss = uiState.orderType is OrderTypeSelection.StopLoss
-        val isTakeProfit = uiState.orderType is OrderTypeSelection.TakeProfit
-        val isStopLimit = uiState.orderType is OrderTypeSelection.StopLimit
-
-        // Цена исполнения и признак приблизительности
-        val executionPrice: Double
-        val executionLabel: String
-        val approximate: Boolean
-
-        when {
-            isLimit || isStopLimit -> {
-                executionPrice = uiState.limitPrice.toDoubleOrNull() ?: 0.0
-                executionLabel = "Лимитная цена"
-                approximate = false
-            }
-            isStopLoss || isTakeProfit -> {
-                // для стоп‑лосса/тейк‑профита исполнение по триггер‑цене
-                executionPrice = uiState.stopPrice.toDoubleOrNull() ?: 0.0
-                executionLabel = "Триггер‑цена"
-                approximate = true
-            }
-            else -> { // Market
-                executionPrice = uiState.currentPrice ?: 0.0
-                executionLabel = "Текущая цена (исполнение по рынку)"
-                approximate = true
-            }
-        }
-
-        // Триггер‑цена для стоп‑лимита (уже учтена выше как executionPrice для StopLoss/TakeProfit)
-        val triggerPrice: Double? = if (isStopLoss || isTakeProfit || isStopLimit) {
-            uiState.stopPrice.toDoubleOrNull()
-        } else null
-
-        val priceSymbol = if (approximate) "≈" else ""
-
-        AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = { Text("Подтверждение заявки") },
-            text = {
-                Column {
-                    Text("Вы собираетесь совершить сделку:", fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OrderCard(
-                        ticker = ticker,
-                        direction = pendingDirection,
-                        orderType = uiState.orderType,
-                        status = null,
-                        quantity = quantity,
-                        price = executionPrice,
-                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                        totalCost = executionPrice * quantity
-                    )
-
-                    if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("и парную сделку:", fontWeight = FontWeight.Medium)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
-                        val pairDirection = if (pendingDirection == "Покупка") "SELL" else "BUY"
-                        val pairTicker = uiState.pairedInstrument?.ticker ?: ""
-
-                        // Определяем цену для контрсделки
-                        val pairExecPrice: Double
-                        when {
-                            isLimit || isStopLimit -> {
-                                pairExecPrice = executionPrice
-                            }
-                            else -> {
-                                pairExecPrice = uiState.pairCurrentPrice ?: 0.0
-                            }
-                        }
-
-                        OrderCard(
-                            ticker = pairTicker,
-                            direction = pairDirection,
-                            orderType = uiState.orderType,
-                            status = null,
-                            quantity = pairedQty,
-                            price = pairExecPrice,
-                            instrumentType = uiState.pairedInstrument?.instrumentType ?: "",
-                            totalCost = pairExecPrice * pairedQty
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
-                    showConfirmDialog = false
-                }) {
-                    Text("Подтвердить")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
+//    if (showConfirmDialog) {
+//        val ticker = uiState.selectedInstrument?.ticker ?: ""
+//        val quantity = uiState.quantityAsLong ?: 0L
+//
+//        val isMarket = uiState.orderType is OrderTypeSelection.Market
+//        val isLimit = uiState.orderType is OrderTypeSelection.Limit
+//        val isStopLoss = uiState.orderType is OrderTypeSelection.StopLoss
+//        val isTakeProfit = uiState.orderType is OrderTypeSelection.TakeProfit
+//        val isStopLimit = uiState.orderType is OrderTypeSelection.StopLimit
+//
+//        // Цена исполнения и признак приблизительности
+//        val executionPrice: Double
+//        val executionLabel: String
+//        val approximate: Boolean
+//
+//        when {
+//            isLimit || isStopLimit -> {
+//                executionPrice = uiState.limitPrice.toDoubleOrNull() ?: 0.0
+//                executionLabel = "Лимитная цена"
+//                approximate = false
+//            }
+//            isStopLoss || isTakeProfit -> {
+//                // для стоп‑лосса/тейк‑профита исполнение по триггер‑цене
+//                executionPrice = uiState.stopPrice.toDoubleOrNull() ?: 0.0
+//                executionLabel = "Триггер‑цена"
+//                approximate = true
+//            }
+//            else -> { // Market
+//                executionPrice = uiState.currentPrice ?: 0.0
+//                executionLabel = "Текущая цена (исполнение по рынку)"
+//                approximate = true
+//            }
+//        }
+//
+//        // Триггер‑цена для стоп‑лимита (уже учтена выше как executionPrice для StopLoss/TakeProfit)
+//        val triggerPrice: Double? = if (isStopLoss || isTakeProfit || isStopLimit) {
+//            uiState.stopPrice.toDoubleOrNull()
+//        } else null
+//
+//        val priceSymbol = if (approximate) "≈" else ""
+//
+//        AlertDialog(
+//            onDismissRequest = { showConfirmDialog = false },
+//            title = { Text("Подтверждение заявки") },
+//            text = {
+//                Column {
+//                    Text("Вы собираетесь совершить сделку:", fontWeight = FontWeight.Medium)
+//                    Spacer(modifier = Modifier.height(8.dp))
+//                    OrderCard(
+//                        ticker = ticker,
+//                        direction = pendingDirection,
+//                        orderType = uiState.orderType,
+//                        status = null,
+//                        quantity = quantity,
+//                        price = executionPrice,
+//                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+//                        totalCost = executionPrice * quantity
+//                    )
+//
+//                    if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
+//                        Spacer(modifier = Modifier.height(16.dp))
+//                        Text("и парную сделку:", fontWeight = FontWeight.Medium)
+//                        Spacer(modifier = Modifier.height(8.dp))
+//
+//                        val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
+//                        val pairDirection = if (pendingDirection == "Покупка") "SELL" else "BUY"
+//                        val pairTicker = uiState.pairedInstrument?.ticker ?: ""
+//
+//                        // Определяем цену для контрсделки
+//                        val pairExecPrice: Double
+//                        when {
+//                            isLimit || isStopLimit -> {
+//                                pairExecPrice = executionPrice
+//                            }
+//                            else -> {
+//                                pairExecPrice = uiState.pairCurrentPrice ?: 0.0
+//                            }
+//                        }
+//
+//                        OrderCard(
+//                            ticker = pairTicker,
+//                            direction = pairDirection,
+//                            orderType = uiState.orderType,
+//                            status = null,
+//                            quantity = pairedQty,
+//                            price = pairExecPrice,
+//                            instrumentType = uiState.pairedInstrument?.instrumentType ?: "",
+//                            totalCost = pairExecPrice * pairedQty
+//                        )
+//                    }
+//                }
+//            },
+//            confirmButton = {
+//                Button(onClick = {
+//                    if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
+//                    showConfirmDialog = false
+//                }) {
+//                    Text("Подтвердить")
+//                }
+//            },
+//            dismissButton = {
+//                TextButton(onClick = { showConfirmDialog = false }) {
+//                    Text("Отмена")
+//                }
+//            }
+//        )
+//    }
 
     LaunchedEffect(uiState.statusMessage) {
         uiState.statusMessage?.let { message ->
@@ -826,10 +847,10 @@ fun OrdersScreen(
         )
     }
 
-    if (showStopOrdersDialog) {
-        StopOrdersDialog(
-            viewModel = stopOrdersViewModel,
-            onDismiss = { showStopOrdersDialog = false }
+    if (showOrdersListDialog) {
+        OrdersListDialog(
+            viewModel = ordersListViewModel,
+            onDismiss = { showOrdersListDialog = false }
         )
     }
     // Диалог выбора брокера для основного поиска
