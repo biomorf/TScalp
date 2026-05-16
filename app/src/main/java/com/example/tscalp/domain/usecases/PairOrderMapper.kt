@@ -46,23 +46,36 @@ object PairOrderMapper {
                     )
                 }
             }
+            // TODO inscpert the logic
+//            OrderTypeSelection.StopLoss,
+//            OrderTypeSelection.TakeProfit -> {
+//                PairedOrderSpec(
+//                    orderType = OrderTypeSelection.Limit,
+//                    brokerOrderType = BrokerOrderType.LIMIT,
+//                    price = primaryPrice,
+//                    stopPrice = null,
+//                    isStopOrder = false
+//                )
+//            }
+//            OrderTypeSelection.StopLimit -> {
+//                PairedOrderSpec(
+//                    orderType = OrderTypeSelection.StopLimit,
+//                    stopOrderType = StopOrderType.STOP_LIMIT,
+//                    stopPrice = primaryPrice,
+//                    price = primaryPrice,
+//                    isStopOrder = true
+//                )
+//            }
             OrderTypeSelection.StopLoss,
-            OrderTypeSelection.TakeProfit -> {
+            OrderTypeSelection.TakeProfit,
+            OrderTypeSelection.StopLimit -> {
+                // Временно отключены – вернуть позже
                 PairedOrderSpec(
-                    orderType = OrderTypeSelection.Limit,
-                    brokerOrderType = BrokerOrderType.LIMIT,
-                    price = primaryPrice,
+                    orderType = OrderTypeSelection.Market,
+                    brokerOrderType = BrokerOrderType.MARKET,
+                    price = null,
                     stopPrice = null,
                     isStopOrder = false
-                )
-            }
-            OrderTypeSelection.StopLimit -> {
-                PairedOrderSpec(
-                    orderType = OrderTypeSelection.StopLimit,
-                    stopOrderType = StopOrderType.STOP_LIMIT,
-                    stopPrice = primaryPrice,
-                    price = primaryPrice,
-                    isStopOrder = true
                 )
             }
             OrderTypeSelection.Market -> {
