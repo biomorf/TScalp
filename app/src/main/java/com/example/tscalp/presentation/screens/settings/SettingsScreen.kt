@@ -1,12 +1,16 @@
 package com.example.tscalp.presentation.screens.settings
 
 import android.util.Log
+import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -17,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 
 
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +50,7 @@ import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
 import com.example.tscalp.data.repository.InvestRepository
+import com.example.tscalp.BuildConfig
 
 
 @Composable
@@ -82,6 +88,17 @@ fun SettingsScreen() {
                 leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
                 modifier = Modifier.clickable { currentSection = "trade" }
             )
+            HorizontalDivider()
+
+            // Пункт «Информация»
+            ListItem(
+                headlineContent = { Text("Информация") },
+                supportingContent = { Text("Версия приложения, о разработчике") },
+                leadingContent = {
+                    Icon(Icons.Default.Info, contentDescription = null)
+                },
+                modifier = Modifier.clickable { currentSection = "info" }
+            )
         }
     } else {
         // Отображение выбранного подраздела
@@ -92,6 +109,7 @@ fun SettingsScreen() {
             "trade" -> TradeSettingsContent(
                 onBack = { currentSection = null }
             )
+            "info" -> InfoSettingsContent(onBack = { currentSection = null })
         }
     }
 }
@@ -848,5 +866,49 @@ fun TradeSettingsContent(onBack: () -> Unit) {
         }
 
         // Здесь можно добавить другие настройки торговли в будущем
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InfoSettingsContent(onBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("О приложении") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            Text("TScalp", style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Версия: ${BuildConfig.VERSION_NAME}")   // ← достаточно
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Разработчик: Масленников Андрей", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Репозиторий: github.com/biomorf/TScalp", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(8.dp))
+            val context = LocalContext.current
+            Text(
+                text = "Проверить обновления: https://github.com/biomorf/TScalp/releases",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                        data = android.net.Uri.parse("https://github.com/biomorf/TScalp/releases")
+                    }
+                    context.startActivity(intent)
+                }
+            )
+        }
     }
 }
