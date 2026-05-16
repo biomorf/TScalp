@@ -181,24 +181,24 @@ class OrdersViewModel(
             }
         }
 
-        // Гарантируем, что позиции загружены после восстановления инструмента
-        viewModelScope.launch {
-            // Ждём, пока счета загрузятся и selectedAccountId станет известен
-            while (_uiState.value.selectedAccountId == null) {
-                kotlinx.coroutines.delay(100)
-            }
-            // Принудительно загружаем портфель (прямой запрос)
-            try {
-                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
-                val accountId = _uiState.value.selectedAccountId
-                if (broker != null && accountId != null) {
-                    val positions = broker.fetchPositionsRest(accountId, ServiceLocator.isSandboxMode())
-                    _uiState.update { it.copy(portfolioPositions = positions) }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Ошибка первичной загрузки портфеля в restoreState", e)
-            }
-        }
+//        // Гарантируем, что позиции загружены после восстановления инструмента
+//        viewModelScope.launch {
+//            // Ждём, пока счета загрузятся и selectedAccountId станет известен
+//            while (_uiState.value.selectedAccountId == null) {
+//                kotlinx.coroutines.delay(100)
+//            }
+//            // Принудительно загружаем портфель (прямой запрос)
+//            try {
+//                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+//                val accountId = _uiState.value.selectedAccountId
+//                if (broker != null && accountId != null) {
+//                    val positions = broker.fetchPositionsRest(accountId, ServiceLocator.isSandboxMode())
+//                    _uiState.update { it.copy(portfolioPositions = positions) }
+//                }
+//            } catch (e: Exception) {
+//                Log.e(TAG, "Ошибка первичной загрузки портфеля в restoreState", e)
+//            }
+//        }
 
         val pairEnabled = prefs.getBoolean("pair_trading_enabled", false)
         val savedQty = prefs.getString("quantity", "") ?: ""
@@ -1013,11 +1013,24 @@ fun openBrokerDialog(ticker: String) {
     fun startPositionUpdates() {
         stopPositionUpdates()
         val accountId = _uiState.value.selectedAccountId ?: return
-        // Гарантируем, что общий поток позиций запущен
         SharedPositionStreamManager.start(accountId)
         positionStreamJob = viewModelScope.launch {
             SharedPositionStreamManager.flow.collect { item: PositionStreamItem ->
                 updatePositionPnl(item)
+            }
+        }
+        // Если позиции ещё не загружены (например, после восстановления состояния),
+        // делаем разовый прямой запрос, чтобы сразу заполнить карточку
+        if (_uiState.value.portfolioPositions.isEmpty()) {
+            viewModelScope.launch {
+                try {
+                    val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+                    val sandbox = ServiceLocator.isSandboxMode()
+                    val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
+                    _uiState.update { it.copy(portfolioPositions = positions) }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Не удалось получить начальный портфель", e)
+                }
             }
         }
     }
