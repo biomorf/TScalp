@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.mutableStateOf
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -19,16 +20,17 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.collect
 
 import com.example.tscalp.util.formatCurrency
-import com.example.tscalp.domain.models.InstrumentUi
-import com.example.tscalp.data.repository.InvestRepository
+
 import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.data.api.SharedPositionStreamManager
-import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.presentation.screens.orders.OrdersUiState
+import com.example.tscalp.domain.models.InstrumentUi
+import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderTypeSelection
 import com.example.tscalp.domain.models.BrokerOrderRequest
-//import com.example.tscalp.domain.models.OrderType
 import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.StopOrderType
 import com.example.tscalp.domain.models.StopOrderRequest
@@ -48,6 +50,13 @@ class OrdersViewModel(
     private var priceStreamJob: Job? = null
     private var positionStreamJob: Job? = null
     private val prefs = ServiceLocator.getPrefs()
+    // Флаги для отображения диалога выбора брокера для основного и парного поиска
+    val showSearchBrokerDialog = mutableStateOf(false)
+    val showPairSearchBrokerDialog = mutableStateOf(false)
+
+    // Текущий выбранный брокер для основного и парного поиска
+    val selectedSearchBroker = mutableStateOf("TInvest")
+    val selectedPairSearchBroker = mutableStateOf("TInvest")
 
 
     companion object {
@@ -992,6 +1001,26 @@ fun openBrokerDialog(ticker: String) {
         }
     }
 
+    fun openSearchBrokerSettings() {
+        showSearchBrokerDialog.value = true
+    }
+
+    fun openPairSearchBrokerSettings() {
+        showPairSearchBrokerDialog.value = true
+    }
+
+    fun saveSearchBrokerSettings(broker: String) {
+        selectedSearchBroker.value = broker
+        showSearchBrokerDialog.value = false
+    }
+
+    fun savePairSearchBrokerSettings(broker: String) {
+        selectedPairSearchBroker.value = broker
+        showPairSearchBrokerDialog.value = false
+    }
+
+    fun dismissSearchBrokerDialog() { showSearchBrokerDialog.value = false }
+    fun dismissPairSearchBrokerDialog() { showPairSearchBrokerDialog.value = false }
 }
 
 class OrdersViewModelFactory : ViewModelProvider.Factory {

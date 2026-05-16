@@ -17,7 +17,8 @@ fun BrokerAccountDialog(
     selectedAccountId: String?,
     onAccountSelected: (String) -> Unit,
     onDismiss: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    showAccountSelector: Boolean = true           // <-- новый параметр
 ) {
     // Устойчивое сравнение с trim, fallback на первый счёт
     val selectedAccountName = remember(accounts, selectedAccountId) {
@@ -28,7 +29,12 @@ fun BrokerAccountDialog(
             ?: "Счёт не найден"
     }
 
-    val isSaveEnabled = selectedAccountId != null && accounts.any { it.id.trim() == selectedAccountId.trim() }
+    // Кнопка активна, если выбран счёт ИЛИ если выбор счёта скрыт (тогда достаточно выбрать брокера)
+    val isSaveEnabled = if (showAccountSelector) {
+        selectedAccountId != null && accounts.any { it.id.trim() == selectedAccountId.trim() }
+    } else {
+        true   // сразу активна, как только показан диалог (пользователь может просто нажать "Сохранить")
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -65,34 +71,35 @@ fun BrokerAccountDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Выбор счёта
-                Text("Счёт", style = MaterialTheme.typography.titleSmall)
-                var accountExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = accountExpanded,
-                    onExpandedChange = { accountExpanded = it }
-                ) {
-                    TextField(
-                        value = selectedAccountName,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
+                // Выбор счёта – показываем только если showAccountSelector = true
+                if (showAccountSelector) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Счёт", style = MaterialTheme.typography.titleSmall)
+                    var accountExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
                         expanded = accountExpanded,
-                        onDismissRequest = { accountExpanded = false }
+                        onExpandedChange = { accountExpanded = it }
                     ) {
-                        accounts.forEach { account ->
-                            DropdownMenuItem(
-                                text = { Text(account.name.ifBlank { "Счёт ${account.id.take(8)}…" }) },
-                                onClick = {
-                                    onAccountSelected(account.id)
-                                    accountExpanded = false
-                                }
-                            )
+                        TextField(
+                            value = selectedAccountName,
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = accountExpanded,
+                            onDismissRequest = { accountExpanded = false }
+                        ) {
+                            accounts.forEach { account ->
+                                DropdownMenuItem(
+                                    text = { Text(account.name.ifBlank { "Счёт ${account.id.take(8)}…" }) },
+                                    onClick = {
+                                        onAccountSelected(account.id)
+                                        accountExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }

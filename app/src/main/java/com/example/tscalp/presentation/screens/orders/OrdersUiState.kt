@@ -57,6 +57,7 @@ data class OrdersUiState(
     val selectedBroker: String = "TInvest",         // выбранный брокер в диалоге
     val selectedAccountIdDialog: String? = null,     // выбранный счёт в диалоге
     val dialogAccounts: List<BrokerAccount> = emptyList(),     // счета для диалога
+    val searchBroker: String = "TInvest",               // брокер для основного поиска
     // Парная торговля
     val pairTradingEnabled: Boolean = false,
     val pairSearchQuery: String = "",                   // запрос второго поиска
@@ -65,6 +66,7 @@ data class OrdersUiState(
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
     val pairedMultiplier: String = "1",               // множитель (по умолчанию 10)
     val swipeResetTrigger: Boolean = false,
+    val pairSearchBroker: String = "TInvest",           // брокер для парного поиска
     // Стоп‑заявки
     val orderType: OrderTypeSelection = OrderTypeSelection.Market, // было BrokerOrderType.MARKET
     val stopPrice: String = "",

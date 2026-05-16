@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
@@ -148,20 +149,28 @@ fun OrdersScreen(
                 ) {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
                     if (uiState.selectedInstrument == null) {
-                        InstrumentSearchField(
-                            query = uiState.searchQuery,
-                            onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
-                            isSearching = uiState.isSearching,
-                            searchResults = uiState.searchResults,
-                            onInstrumentSelected = { instrument: InstrumentUi ->
-                                viewModel.onInstrumentSelected(instrument)
-                                focusManager.clearFocus()
-                            },
-                            onClear = { viewModel.clearSearch() },
-                            recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                            tradingStatuses = uiState.tradingStatuses,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            InstrumentSearchField(
+                                query = uiState.searchQuery,
+                                onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
+                                isSearching = uiState.isSearching,
+                                searchResults = uiState.searchResults,
+                                onInstrumentSelected = { instrument: InstrumentUi ->
+                                    viewModel.onInstrumentSelected(instrument)
+                                    focusManager.clearFocus()
+                                },
+                                onClear = { viewModel.clearSearch() },
+                                recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                                tradingStatuses = uiState.tradingStatuses,
+                                modifier = Modifier.weight(1f) // Занимает все доступное пространство
+                            )
+                            IconButton(onClick = { viewModel.openSearchBrokerSettings() }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                            }
+                        }
                     } else {
                         uiState.selectedInstrument?.let { instrument: InstrumentUi ->
                             val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
@@ -414,33 +423,31 @@ fun OrdersScreen(
                         }
                     //}
 
+                    // Парный поиск
                     if (uiState.pairTradingEnabled) {
                         if (uiState.pairedInstrument == null) {
-                            // Парный поиск с историей (общая с основным поиском)
-                            InstrumentSearchField(
-                                query = uiState.pairSearchQuery,
-                                onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
-                                isSearching = uiState.isPairSearching,
-                                searchResults = uiState.pairSearchResults,
-                                onInstrumentSelected = { instrument: InstrumentUi ->
-                                    viewModel.onPairedInstrumentSelected(instrument)
-                                    focusManager.clearFocus()
-                                },
-                                onClear = { viewModel.clearPairSearch() },
-                                recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                                tradingStatuses = uiState.tradingStatuses,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .onFocusChanged { focusState ->
-                                        if (focusState.isFocused) {
-                                            scope.launch {
-                                                // Небольшая задержка, чтобы клавиатура успела открыться
-                                                kotlinx.coroutines.delay(100)
-                                                scrollState.animateScrollTo(scrollState.maxValue)
-                                            }
-                                        }
-                                    }
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                InstrumentSearchField(
+                                    query = uiState.pairSearchQuery,
+                                    onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
+                                    isSearching = uiState.isPairSearching,
+                                    searchResults = uiState.pairSearchResults,
+                                    onInstrumentSelected = { instrument: InstrumentUi ->
+                                        viewModel.onPairedInstrumentSelected(instrument)
+                                        focusManager.clearFocus()
+                                    },
+                                    onClear = { viewModel.clearPairSearch() },
+                                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                                    tradingStatuses = uiState.tradingStatuses,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { viewModel.openPairSearchBrokerSettings() }) {
+                                    Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                                }
+                            }
                         } else {
                             // Карточка парного инструмента и множитель
                             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
@@ -805,6 +812,35 @@ fun OrdersScreen(
         StopOrdersDialog(
             viewModel = stopOrdersViewModel,
             onDismiss = { showStopOrdersDialog = false }
+        )
+    }
+    // Диалог выбора брокера для основного поиска
+    if (viewModel.showSearchBrokerDialog.value) {
+        BrokerAccountDialog(
+            availableBrokers = ServiceLocator.getBrokerManager().getAvailableBrokers(),
+            selectedBroker = viewModel.selectedSearchBroker.value,
+            onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
+            accounts = emptyList(),
+            selectedAccountId = null,
+            onAccountSelected = {},
+            onDismiss = { viewModel.dismissSearchBrokerDialog() },
+            onSave = { viewModel.dismissSearchBrokerDialog() },
+            showAccountSelector = false
+        )
+    }
+
+// Диалог выбора брокера для парного поиска
+    if (viewModel.showPairSearchBrokerDialog.value) {
+        BrokerAccountDialog(
+            availableBrokers = ServiceLocator.getBrokerManager().getAvailableBrokers(),
+            selectedBroker = viewModel.selectedPairSearchBroker.value,
+            onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
+            accounts = emptyList(),
+            selectedAccountId = null,
+            onAccountSelected = {},
+            onDismiss = { viewModel.showPairSearchBrokerDialog.value = false },
+            onSave = { viewModel.showPairSearchBrokerDialog.value = false },
+            showAccountSelector = false
         )
     }
 }
