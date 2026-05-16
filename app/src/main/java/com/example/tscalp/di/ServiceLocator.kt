@@ -8,6 +8,7 @@ import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.api.BcsBrokerApi
 import com.example.tscalp.data.api.FinamBrokerApi
 import com.example.tscalp.data.repository.InstrumentRepository
+import com.example.tscalp.data.repository.SearchCache
 
 
 object ServiceLocator {
@@ -120,6 +121,15 @@ object ServiceLocator {
             instrumentRepository ?: InstrumentRepository(
                 brokerManager = getBrokerManager()
             ).also { instrumentRepository = it }
+        }
+    }
+
+    @Volatile
+    private var searchCache: SearchCache? = null
+
+    fun getSearchCache(): SearchCache {
+        return searchCache ?: synchronized(this) {
+            searchCache ?: SearchCache(getBrokerManager()).also { searchCache = it }
         }
     }
 }
