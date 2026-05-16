@@ -164,7 +164,7 @@ class OrdersViewModel(
             if (instrument != null) {
                 _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
                 startPriceUpdates()
-                startPositionUpdates()
+                ///startPositionUpdates()
             }
         }
 
@@ -178,6 +178,25 @@ class OrdersViewModel(
                 if (_uiState.value.selectedInstrument != null) {
                     startPriceUpdates()
                 }
+            }
+        }
+
+        // Гарантируем, что позиции загружены после восстановления инструмента
+        viewModelScope.launch {
+            // Ждём, пока счета загрузятся и selectedAccountId станет известен
+            while (_uiState.value.selectedAccountId == null) {
+                kotlinx.coroutines.delay(100)
+            }
+            // Принудительно загружаем портфель (прямой запрос)
+            try {
+                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+                val accountId = _uiState.value.selectedAccountId
+                if (broker != null && accountId != null) {
+                    val positions = broker.fetchPositionsRest(accountId, ServiceLocator.isSandboxMode())
+                    _uiState.update { it.copy(portfolioPositions = positions) }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка первичной загрузки портфеля в restoreState", e)
             }
         }
 
