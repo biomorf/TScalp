@@ -993,6 +993,9 @@ fun openBrokerDialog(ticker: String) {
 
     fun startPositionUpdates() {
         stopPositionUpdates()
+        val accountId = _uiState.value.selectedAccountId ?: return
+        // Гарантируем, что общий поток позиций запущен
+        SharedPositionStreamManager.start(accountId)
         positionStreamJob = viewModelScope.launch {
             SharedPositionStreamManager.flow.collect { item: PositionStreamItem ->
                 updatePositionPnl(item)
