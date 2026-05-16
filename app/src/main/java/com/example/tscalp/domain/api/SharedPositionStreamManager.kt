@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 
 object SharedPositionStreamManager {
     private const val TAG = "SharedPositionStream"
-    private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 0)
+    private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)
     val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
 
     private var job: Job? = null
