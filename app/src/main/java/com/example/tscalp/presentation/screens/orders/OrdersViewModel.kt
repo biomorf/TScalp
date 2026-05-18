@@ -39,7 +39,8 @@ import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.usecases.PairOrderMapper
-
+import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
+import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 
 class OrdersViewModel(
     private val repository: InvestRepository
@@ -59,6 +60,9 @@ class OrdersViewModel(
     // Текущий выбранный брокер для основного и парного поиска
     val selectedSearchBroker = mutableStateOf("TInvest")
     val selectedPairSearchBroker = mutableStateOf("TInvest")
+
+    private val calculateTradeDetails = CalculateTradeDetailsUseCase()
+    private val prepareOrderRequest = PrepareOrderRequestUseCase()
 
 
     companion object {
@@ -213,6 +217,7 @@ class OrdersViewModel(
                 orderType = savedOrderType?.let { stringToOrderType(it) } ?: OrderTypeSelection.Market  // ← исправлено
             )
         }
+        updateTradeDetails()
     }
 
     fun loadAccounts() {
@@ -364,6 +369,7 @@ class OrdersViewModel(
                     lastSelectedInstruments = currentList.take(5)
                 )
             }
+            updateTradeDetails()
 
             // 5. Запускаем стрим для реактивного обновления цены
             startPriceUpdates()
@@ -392,6 +398,7 @@ class OrdersViewModel(
     fun clearSearch() { _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), selectedInstrument = null, ticker = "", currentPrice = null, isPriceLoading = false, isSearchActive = false) } }
     fun onQuantityChanged(quantity: String) {
         _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) }
+        updateTradeDetails()
         saveState()
     }
     fun onAccountSelected(accountId: String) { _uiState.update { it.copy(selectedAccountId = accountId) } }
@@ -434,18 +441,8 @@ class OrdersViewModel(
         }
 
         when (state.orderType) {
-            OrderTypeSelection.Market, OrderTypeSelection.Limit -> {
-                val regularOrderType = if (state.orderType == OrderTypeSelection.Market)
-                    BrokerOrderType.MARKET
-                else
-                    BrokerOrderType.LIMIT
-
-                val price = if (regularOrderType == BrokerOrderType.LIMIT)
-                    state.limitPrice.toDoubleOrNull()
-                else
-                    null
-
-                val request = BrokerOrderRequest(
+            OrderTypeSelection.Market, OrderTypeSelection.Limit, OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit, OrderTypeSelection.StopLimit -> {
+                val prepared = prepareOrderRequest.prepare(
                     brokerName = brokerName,
                     ticker = ticker,
                     instrumentUid = state.selectedInstrument?.tscalpInstrumentId,
@@ -453,213 +450,58 @@ class OrdersViewModel(
                     direction = direction,
                     accountId = accountId,
                     sandboxMode = ServiceLocator.isSandboxMode(),
-                    type = regularOrderType,
-                    price = price
+                    orderType = state.orderType,
+                    limitPrice = state.limitPrice,
+                    stopPrice = state.stopPrice,
+                    expirationType = state.expirationType,
+                    pairedInstrumentUid = state.pairedInstrument?.tscalpInstrumentId,
+                    pairedTicker = state.pairedInstrument?.ticker,
+                    pairedBrokerName = state.lastSelectedInstruments.find { it.instrument.ticker == state.pairedInstrument?.ticker }?.brokerName,
+                    pairedAccountId = state.lastSelectedInstruments.find { it.instrument.ticker == state.pairedInstrument?.ticker }?.accountId,
+                    pairedMultiplier = state.pairedMultiplier
                 )
 
                 _uiState.update { it.copy(isLoading = true, statusMessage = null) }
                 try {
-                    val result = repository.postOrder(request)
+                    var finalMessage = ""
+                    if (prepared.isPrimaryStop) {
+                        val stopId = repository.postStopOrder(prepared.primaryRequest as StopOrderRequest)
+                        finalMessage = "✅ Стоп‑заявка выставлена, ID: ${stopId.take(8)}…"
+                    } else {
+                        val result = repository.postOrder(prepared.primaryRequest as BrokerOrderRequest)
+                        finalMessage = "✅ Заявка выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов"
+                    }
 
-                    // Стрим исполнения
-                    viewModelScope.launch {
-                        try {
-                            broker.subscribeOrderState(accountId)
-                                .filter { state -> state.orderRequestId == result.orderRequestId }
-                                .collect { state ->
-                                    if (state.status in listOf("FILL", "PARTIALLYFILL")) {
-                                        val timeStr = state.updateTime?.let { seconds ->
-                                            java.time.Instant.ofEpochSecond(seconds)
-                                                .atZone(java.time.ZoneId.systemDefault())
-                                                .toLocalTime()
-                                                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
-                                        } ?: ""
-                                        val message = "✅ Заявка на покупка исполнена: " +
-                                                "${state.executedQuantity}/${state.quantity} лотов по цене " +
-                                                "${formatCurrency(state.executedPrice ?: 0.0)} в $timeStr"
-                                        _uiState.update { it.copy(statusMessage = message, isError = false) }
-                                        return@collect
-                                    }
-                                }
+                    if (prepared.pairedRequest != null) {
+                        val pairedMsg = try {
+                            if (prepared.isPairedStop!!) {
+                                val stopId = repository.postStopOrder(prepared.pairedRequest as StopOrderRequest)
+                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${(prepared.pairedRequest as StopOrderRequest).quantity} лотов, ID: ${stopId.take(8)}…"
+                            } else {
+                                val pairedResult = repository.postOrder(prepared.pairedRequest as BrokerOrderRequest)
+                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${(prepared.pairedRequest as BrokerOrderRequest).quantity} лотов, ID: ${pairedResult.orderId}"
+                            }
                         } catch (e: Exception) {
-                            Log.w(TAG, "OrderState stream error (может быть недоступен в sandbox)", e)
+                            "\n❌ Ошибка контрсделки: ${e.message}"
                         }
+                        finalMessage += pairedMsg
                     }
 
-                    val directionText = when (direction) {
-                        OrderDirection.BUY -> "покупка"
-                        OrderDirection.SELL -> "продажа"
-                        else -> "операция"
-                    }
-
-                    var finalMessage = "✅ Заявка на $directionText выполнена!\n" +
-                            "ID: ${result.orderId}\n" +
-                            "Исполнено: ${result.executedLots}/${result.totalLots} лотов"
-
-                    // Контрсделка
-                    if (state.pairTradingEnabled && state.pairedInstrument != null) {
-                        val multiplier = state.pairedMultiplier.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
-                        val pairedQuantity = (quantity * multiplier).toLong()
-                        if (pairedQuantity > 0) {
-                            val pairedDirection = if (direction == OrderDirection.BUY) OrderDirection.SELL else OrderDirection.BUY
-
-                            val pairedCard = state.lastSelectedInstruments.find {
-                                it.instrument.ticker == state.pairedInstrument?.ticker
-                            }
-                            val pairedBrokerName = pairedCard?.brokerName ?: brokerName
-                            val pairedAccountId = pairedCard?.accountId ?: accountId
-
-                            // Определяем цену, которую будем использовать для маппинга
-                            val primaryPrice = when (state.orderType) {
-                                OrderTypeSelection.Limit,
-                                OrderTypeSelection.StopLimit -> state.limitPrice.toDoubleOrNull()
-                                OrderTypeSelection.StopLoss,
-                                OrderTypeSelection.TakeProfit -> state.stopPrice.toDoubleOrNull()
-                                else -> null
-                            }
-
-                            val pairedSpec = PairOrderMapper.map(state.orderType, direction, primaryPrice)
-
-                            try {
-                                if (pairedSpec.isStopOrder) {
-                                    val stopPrice = pairedSpec.stopPrice
-                                    val stopOrderType = pairedSpec.stopOrderType
-                                    if (stopPrice != null && stopOrderType != null) {
-                                        val stopRequest = StopOrderRequest(
-                                            brokerName = pairedBrokerName,
-                                            ticker = state.pairedInstrument.ticker,
-                                            instrumentUid = state.pairedInstrument?.tscalpInstrumentId,
-                                            quantity = pairedQuantity,
-                                            direction = pairedDirection,
-                                            accountId = pairedAccountId,
-                                            sandboxMode = ServiceLocator.isSandboxMode(),
-                                            stopPrice = stopPrice,
-                                            price = pairedSpec.price,
-                                            stopOrderType = stopOrderType,
-                                            expirationType = state.expirationType
-                                        )
-                                        val stopId = repository.postStopOrder(stopRequest)
-                                        finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${stopId.take(8)}…"
-                                    } else {
-                                        finalMessage += "\n❌ Ошибка контрсделки: не указаны стоп-цена или тип стоп-заявки"
-                                    }
-                                } else {
-                                    val pairedRequest = BrokerOrderRequest(
-                                        brokerName = pairedBrokerName,
-                                        ticker = state.pairedInstrument.ticker,
-                                        instrumentUid = state.pairedInstrument?.tscalpInstrumentId,
-                                        quantity = pairedQuantity,
-                                        direction = pairedDirection,
-                                        accountId = pairedAccountId,
-                                        sandboxMode = ServiceLocator.isSandboxMode(),
-                                        type = pairedSpec.brokerOrderType ?: BrokerOrderType.MARKET,
-                                        price = pairedSpec.price
-                                    )
-                                    val pairedResult = repository.postOrder(pairedRequest)
-                                    finalMessage += "\n✅ Контрсделка: ${state.pairedInstrument.ticker} $pairedQuantity лотов, ID: ${pairedResult.orderId}"
-                                }
-                            } catch (e: Exception) {
-                                finalMessage += "\n❌ Ошибка контрсделки: ${e.message}"
-                                Log.e(TAG, "Ошибка контрсделки", e)
-                            }
-                        }
-                    }
-
-                    //loadPortfolio(brokerName, accountId)
                     refreshLastSelectedInstruments()
-                    var currentBalance = try {
-                        repository.getBalance(accountId)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Не удалось получить баланс", e)
-                        null
-                    }
-
-                    if (currentBalance != null && currentBalance < 1000.0) {
-                        finalMessage += "\n⚠️ Низкий свободный остаток: ${formatCurrency(currentBalance)}"
-                    }
-
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = finalMessage,
-                            isError = false,
-                            quantity = "",
-                            limitPrice = "",
-                            freeBalance = currentBalance
-                        )
-                    }
-                } catch (e: Exception) {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = "❌ Ошибка: ${e.message}",
-                            isError = true
-                        )
-                    }
-                }
-            }
-
-            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit, OrderTypeSelection.StopLimit -> {
-                val stopPrice = state.stopPrice.toDoubleOrNull() ?: return
-                if (stopPrice <= 0) return
-
-                val stopOrderType = state.orderType.stopOrderType ?: return
-
-                val limitPrice = if (stopOrderType == StopOrderType.STOP_LIMIT)
-                    state.limitPrice.toDoubleOrNull()
-                else
-                    null
-
-                val stopRequest = StopOrderRequest(
-                    brokerName = brokerName,
-                    ticker = ticker,
-                    instrumentUid = state.selectedInstrument?.tscalpInstrumentId,
-                    quantity = quantity,
-                    direction = direction,
-                    accountId = accountId,
-                    sandboxMode = ServiceLocator.isSandboxMode(),
-                    stopPrice = stopPrice,
-                    price = limitPrice,
-                    stopOrderType = stopOrderType,
-                    expirationType = state.expirationType
-                )
-
-                _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-                try {
-                    val stopId = repository.postStopOrder(stopRequest)
-                    //loadPortfolio(brokerName, accountId)
-                    refreshLastSelectedInstruments()
-
                     val currentBalance = try {
                         repository.getBalance(accountId)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Не удалось получить баланс", e)
-                        null
-                    }
+                    } catch (e: Exception) { null }
 
-                    var finalMessage = "✅ Стоп‑заявка выставлена, ID: ${stopId.take(8)}…"
                     if (currentBalance != null && currentBalance < 1000.0) {
                         finalMessage += "\n⚠️ Низкий свободный остаток: ${formatCurrency(currentBalance)}"
                     }
 
                     _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = finalMessage,
-                            isError = false,
-                            quantity = "",
-                            stopPrice = "",
-                            limitPrice = "",
-                            freeBalance = currentBalance
-                        )
+                        it.copy(isLoading = false, statusMessage = finalMessage, isError = false, quantity = "", limitPrice = "", stopPrice = "", freeBalance = currentBalance)
                     }
                 } catch (e: Exception) {
                     _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = "❌ Ошибка стоп‑заявки: ${e.message}",
-                            isError = true
-                        )
+                        it.copy(isLoading = false, statusMessage = "❌ Ошибка: ${e.message}", isError = true)
                     }
                 }
             }
@@ -910,6 +752,7 @@ fun openBrokerDialog(ticker: String) {
             val price = prices[instrument.tscalpInstrumentId]
             if (price != null) {
                 _uiState.update { it.copy(pairCurrentPrice = price) }
+                updateTradeDetails()
             }
             saveState()
         }
@@ -931,6 +774,7 @@ fun openBrokerDialog(ticker: String) {
         if (type == OrderTypeSelection.Market) {
             _uiState.update { it.copy(limitPrice = "") }
         }
+        updateTradeDetails()
         saveState()
     }
 
@@ -938,11 +782,13 @@ fun openBrokerDialog(ticker: String) {
     fun onLimitPriceChanged(price: String) {
         val filtered = price.filter { it.isDigit() || it == '.' }
         _uiState.update { it.copy(limitPrice = filtered) }
+        updateTradeDetails()
         saveState()
     }
 
     fun onStopPriceChanged(price: String) {
         _uiState.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
+        updateTradeDetails()
         saveState()
     }
 
@@ -1123,6 +969,22 @@ fun openBrokerDialog(ticker: String) {
             ServiceLocator.getSearchCache().invalidate(state.pairSearchBroker, state.pairSearchQuery)
             onPairSearchQueryChanged(state.pairSearchQuery)
         }
+    }
+
+    private fun updateTradeDetails() {
+        val state = _uiState.value
+        val details = calculateTradeDetails.calculate(
+            currentPrice = state.currentPrice,
+            limitPrice = state.limitPrice,
+            stopPrice = state.stopPrice,
+            orderType = state.orderType,
+            instrument = state.selectedInstrument,
+            pairedInstrument = state.pairedInstrument,
+            quantity = state.quantityAsLong ?: 0L,
+            pairedMultiplier = state.pairedMultiplier,
+            pairCurrentPrice = state.pairCurrentPrice
+        )
+        _uiState.update { it.copy(executionPrice = details.executionPrice, costOverlay = details.costOverlay, multiplierOverlay = details.multiplierOverlay) }
     }
 }
 

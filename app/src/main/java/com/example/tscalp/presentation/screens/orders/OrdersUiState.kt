@@ -74,7 +74,10 @@ data class OrdersUiState(
     val expireDate: String? = null,
     val tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
     // поле stopOrderType удалено, теперь берём из orderType.stopOrderType
-    val freeBalance: Double? = null
+    val freeBalance: Double? = null,
+    val executionPrice: Double = 0.0,
+    val costOverlay: String? = null,
+    val multiplierOverlay: String? = null
 
 ) {
     val isFormValid: Boolean

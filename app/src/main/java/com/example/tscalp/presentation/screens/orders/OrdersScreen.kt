@@ -199,13 +199,13 @@ fun OrdersScreen(
                                 totalValue = (uiState.currentPrice ?: 0.0) * 0L,
                                 profit = null,
                                 profitPercent = null,
-                                instrumentType = instrument.instrumentType,
+                                instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                 pointValue = (instrument as? FutureUi)?.pointValue
                             )
 
                             AssetPositionCard(
                                 position = position,
-                                instrumentType = instrument.instrumentType,
+                                instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                 pointValue = position.pointValue,   // теперь всегда валидный
                                 priceChangePercent = uiState.selectedPriceChangePercent,
                                 onDelete = { viewModel.clearSelectedInstrument() },
@@ -226,11 +226,7 @@ fun OrdersScreen(
                     val currentQty = uiState.quantityAsLong ?: 0L
 
                     // Определяем цену исполнения в зависимости от типа заявки
-                    val executionPrice = when (uiState.orderType) {
-                        OrderTypeSelection.Market -> uiState.currentPrice ?: 0.0
-                        OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull() ?: 0.0
-                        OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull() ?: 0.0
-                    }
+                    val executionPrice = uiState.executionPrice
                     ConfirmOrderDialog(
                         show = showConfirmDialog,
                         ticker = uiState.selectedInstrument?.ticker ?: "",
@@ -238,7 +234,7 @@ fun OrdersScreen(
                         pendingDirection = pendingDirection,
                         orderType = uiState.orderType,
                         instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                        executionPrice = executionPrice,
+                        executionPrice = uiState.executionPrice,
                         pairTradingEnabled = uiState.pairTradingEnabled,
                         pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
                         pairedInstrumentType = uiState.pairedInstrument?.instrumentType,
@@ -255,17 +251,7 @@ fun OrdersScreen(
 
                     val instrumentType = uiState.selectedInstrument?.instrumentType ?: ""
 
-                    val costOverlay: String? = if (currentQty > 0 && executionPrice > 0) {
-                        if (instrumentType == "futures") {
-                            val pointValue = (uiState.selectedInstrument as? FutureUi)?.pointValue ?: 1.0
-                            val totalPoints = executionPrice * currentQty
-                            val totalRub = totalPoints * pointValue
-                            // Формат как в карточке: "пункты · рубли"
-                            "${formatPrice(totalPoints, instrumentType)}  ·  ${formatCurrency(totalRub)}"
-                        } else {
-                            formatCurrency(executionPrice * currentQty)
-                        }
-                    } else null
+                    val costOverlay = uiState.costOverlay
 
                     Row(
                         modifier = Modifier
@@ -505,13 +491,13 @@ fun OrdersScreen(
                                     totalValue = pairPrice * 0L,
                                     profit = null,
                                     profitPercent = null,
-                                    instrumentType = instrument.instrumentType,
+                                    instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                     pointValue = pairedPointValue
                                 )
 
                                 AssetPositionCard(
                                     position = position,
-                                    instrumentType = instrument.instrumentType,
+                                    instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                     pointValue = position.pointValue,   // теперь всегда валидный
                                     priceChangePercent = uiState.selectedPriceChangePercent,
                                     onDelete = { viewModel.clearPairSearch() },
@@ -528,26 +514,7 @@ fun OrdersScreen(
                                 val totalQty = currentQty * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)
 
                                 // Определяем цену исполнения для парного инструмента по тому же принципу
-                                val pairExecutionPrice: Double = when (uiState.orderType) {
-                                    is OrderTypeSelection.Market -> uiState.pairCurrentPrice ?: 0.0
-                                    is OrderTypeSelection.Limit,
-                                    is OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull() ?: 0.0
-                                    is OrderTypeSelection.StopLoss,
-                                    is OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull() ?: 0.0
-                                }
-
-                                val pairedInstrumentType = uiState.pairedInstrument?.instrumentType ?: ""
-
-                                val multiplierOverlay: String? = if (totalQty > 0 && pairExecutionPrice > 0) {
-                                    if (pairedInstrumentType == "futures") {
-                                        val pairedPointValue = (uiState.pairedInstrument as? FutureUi)?.pointValue ?: 1.0
-                                        val pairTotalPoints = pairExecutionPrice * totalQty
-                                        val pairTotalRub = pairTotalPoints * pairedPointValue
-                                        "${formatPrice(pairTotalPoints, pairedInstrumentType)}  ·  ${formatCurrency(pairTotalRub)}"
-                                    } else {
-                                        formatCurrency(pairExecutionPrice * totalQty)
-                                    }
-                                } else null
+                                val multiplierOverlay = uiState.multiplierOverlay
 
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     OutlinedTextField(
