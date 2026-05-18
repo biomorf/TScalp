@@ -1,5 +1,8 @@
 package com.example.tscalp.ui.components
 
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -31,8 +34,7 @@ import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.TradingAvailability
-import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
+import com.example.tscalp.util.PositionFormatter
 
 @Composable
 fun AssetPositionCard(
@@ -82,7 +84,7 @@ fun AssetPositionCard(
                 .background(backgroundColor, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
         ) {
-            PortfolioCardContent(
+            AssetCardContent(
                 position = position,
                 instrumentType = instrumentType,
                 priceChangePercent = priceChangePercent,
@@ -169,7 +171,7 @@ fun AssetPositionCard(
 }
 
 @Composable
-private fun PortfolioCardContent(
+private fun AssetCardContent(
     position: PortfolioPosition,
     instrumentType: String,
     priceChangePercent: Double?,
@@ -181,11 +183,7 @@ private fun PortfolioCardContent(
     modifier: Modifier = Modifier
 ) {
     // --- Анимация цвета цены ---
-    val targetPriceColor = when {
-        priceChangePercent == null -> MaterialTheme.colorScheme.onSurface
-        priceChangePercent >= 0 -> Color(0xFF2E7D32)
-        else -> Color(0xFFC62828)
-    }
+    val targetPriceColor = PositionFormatter.priceChangeColor(priceChangePercent)
     val priceColor by animateColorAsState(targetPriceColor, animationSpec = tween(600))
 
     // --- Анимация масштаба при изменении цены ---
@@ -242,45 +240,27 @@ private fun PortfolioCardContent(
                             maxLines = 1,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        // Отображение ISIN или fallback для фьючерсов
-                        if (instrumentType == "futures") {
-                            val futuresId = "${position.ticker}_${position.classCode.ifBlank { "SPBFUT" }}"
-                            Text(
-                                text = futuresId,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            val isinDisplay = position.isin.ifBlank { position.tscalpInstrumentId }
-                            Text(
-                                text = "ISIN: $isinDisplay",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // Информационная строка о стоимости пункта цены (только для фьючерсов)
-                        if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
-                            Text(
-                                text = "Стоимость пункта цены: ${formatCurrency(pointValue)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // ==========================================
+                        // Упрощённое нейтральное отображение идентификатора
+                        val displayId = if (tscalpInstrumentId.isNullOrBlank()) "000000" else tscalpInstrumentId
+                        Text(
+                            text = displayId,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    if (position.currentPrice > 0) {
+                    val (priceStr, rubStr) = PositionFormatter.formatCurrentPrice(position, instrumentType, pointValue)
+                    if (priceStr != null) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                formatPrice(position.currentPrice, instrumentType),
+                                priceStr,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = priceColor,
                                 modifier = Modifier.scale(textScale)
                             )
-                            // --- Рублёвый эквивалент для фьючерсов ---
-                            if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
+                            if (rubStr != null) {
                                 Text(
-                                    formatCurrency(position.currentPrice * pointValue),
+                                    rubStr,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -291,13 +271,11 @@ private fun PortfolioCardContent(
                     }
                 }
 
-                //=============================================================
                 if (position.quantity != 0L || priceChangePercent != null) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
                         color = MaterialTheme.colorScheme.outline
                     )
-                    //=============================================================
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -306,22 +284,14 @@ private fun PortfolioCardContent(
                     ) {
                         // Левая часть: средняя стоимость + детали
                         Column {
-                            val avgPrice = position.averagePrice
-                            val avgTotal = if (avgPrice != null && avgPrice > 0) {
-                                position.quantity.toDouble() * avgPrice
-                            } else null
-
+                            val (totalStr, detailStr) = PositionFormatter.formatAverage(position, instrumentType)
                             Text(
-                                text = if (avgTotal != null) formatPrice(avgTotal, instrumentType) else "-",
+                                text = totalStr ?: "-",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = if (avgPrice != null && avgPrice > 0) {
-                                    "${position.quantity} лот  ·  ${formatPrice(avgPrice, instrumentType)}"
-                                } else {
-                                    "${position.quantity} лот  ·  -"
-                                },
+                                text = detailStr ?: "${position.quantity} лот  ·  -",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium
                             )
@@ -329,54 +299,22 @@ private fun PortfolioCardContent(
 
                         // Правая часть: прибыль / убыток
                         Column(horizontalAlignment = Alignment.End) {
-                            val profit = position.profit
-                            val profitPercent = position.profitPercent
-
-                            val profitColor = if (profit != null && profit >= 0) Color(0xFF2E7D32)
-                            else if (profit != null) Color(0xFFC62828)
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-
-                            profit?.let { p ->
-                                if (instrumentType == "futures") {
-                                    val pv = pointValue
-                                    //Text("pointValue=$pointValue", fontSize = 10.sp, color = Color.Gray)  // ← восстановлено
-                                    val pointsStr = "%.2f".format(p)
-                                    val sign = if (p >= 0) "+" else ""
-                                    if (pv != null && pv > 0) {
-                                        val profitRub = p * pv
-                                        val rubSign = if (profitRub >= 0) "+" else ""
-                                        Text(
-                                            text = "${sign}${pointsStr} пт  ·  ${rubSign}${formatCurrency(profitRub)}",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = profitColor,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    } else {
-                                        Text(
-                                            text = "${sign}${pointsStr} пт",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = profitColor,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                } else {
-                                    val sign = if (p >= 0) "+" else ""
-                                    Text(
-                                        text = sign + formatCurrency(p),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = profitColor,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-
-                            if (profitPercent != null) {
-                                val percentColor = if (profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
-                                val percentSign = if (profitPercent >= 0) "+" else ""
+                            val (profitStr, profitColor, percentStr) = PositionFormatter.formatProfit(position, instrumentType, pointValue)
+                            if (profitStr != null) {
                                 Text(
-                                    text = "${percentSign}${"%.2f".format(profitPercent)}%",
+                                    text = profitStr,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = profitColor,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            } else {
+                                Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (percentStr != null) {
+                                Text(
+                                    text = percentStr,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = percentColor
+                                    color = if (position.profitPercent != null && position.profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
                                 )
                             } else {
                                 Text("—", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
