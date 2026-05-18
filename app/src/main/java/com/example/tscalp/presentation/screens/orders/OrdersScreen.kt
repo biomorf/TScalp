@@ -1,6 +1,7 @@
 package com.example.tscalp.presentation.screens.orders
 
 import kotlinx.coroutines.launch
+import androidx.hilt.navigation.compose.hiltViewModel
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -64,8 +65,9 @@ import com.example.tscalp.domain.usecases.PairOrderMapper
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(
-    viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
+    //viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
 ) {
+    val viewModel: OrdersViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingDirection by remember { mutableStateOf("") }

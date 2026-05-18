@@ -3,8 +3,9 @@ package com.example.tscalp
 import android.app.Application
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.api.SharedPositionStreamManager
+import dagger.hilt.android.HiltAndroidApp
 
-
+@HiltAndroidApp
 class TScalpApplication : Application() {
     override fun onCreate() {
         super.onCreate()

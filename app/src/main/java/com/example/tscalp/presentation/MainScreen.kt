@@ -1,6 +1,7 @@
 package com.example.tscalp.presentation
 
 import androidx.navigation.compose.*
+import androidx.hilt.navigation.compose.hiltViewModel
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -25,7 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.tscalp.presentation.navigation.NavGraph
 import com.example.tscalp.presentation.navigation.NavRoutes
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
-import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
+//import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 data class BottomNavItem(
@@ -56,14 +57,13 @@ val bottomNavItems = listOf(
 fun MainScreen() {
     val navController = rememberNavController()
     /// Общая ViewModel для вкладок «Заявки» и «Настройки»
-    val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
+
 
     Scaffold(
         bottomBar = { TScalpBottomNavigation(navController = navController) }
     ) { paddingValues ->
         NavGraph(
             navController = navController,
-            ordersViewModel = ordersViewModel,   /// передаём общую ViewModel
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)

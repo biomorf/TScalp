@@ -39,6 +39,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
+import androidx.hilt.navigation.compose.hiltViewModel
+
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.api.BcsBrokerApi
@@ -47,7 +49,7 @@ import com.example.tscalp.data.api.FinamBrokerApi
 import com.example.tscalp.domain.models.BrokerAccount
 
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
-import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
+//import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.BuildConfig
@@ -117,7 +119,7 @@ fun SettingsScreen() {
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerSettingsContent(onBack: () -> Unit) {
-    val ordersViewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
+    val ordersViewModel: OrdersViewModel = hiltViewModel()
     val uiState by ordersViewModel.uiState.collectAsState()
 
     val brokerNames = remember { ServiceLocator.getBrokerManager().getAvailableBrokers() }

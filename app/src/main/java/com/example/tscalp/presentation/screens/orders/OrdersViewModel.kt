@@ -1,5 +1,6 @@
 package com.example.tscalp.presentation.screens.orders
 
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -12,20 +13,32 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CancellationException
 
+
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
+
+
+import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.SharedPositionStreamManager
+import com.example.tscalp.data.repository.InvestRepository
+import com.example.tscalp.data.repository.InstrumentRepository
+import com.example.tscalp.data.repository.SearchCache
+import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.domain.usecases.PairOrderMapper
+import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
+import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.example.tscalp.util.formatCurrency
 
 import com.example.tscalp.di.ServiceLocator
-import com.example.tscalp.data.repository.InvestRepository
-import com.example.tscalp.data.repository.SearchCache
-import com.example.tscalp.data.api.SharedPositionStreamManager
-import com.example.tscalp.data.api.TInvestInvestService
+
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -39,12 +52,18 @@ import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.FutureUi
-import com.example.tscalp.domain.usecases.PairOrderMapper
-import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
-import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 
-class OrdersViewModel(
-    private val repository: InvestRepository
+
+
+@HiltViewModel
+class OrdersViewModel @Inject constructor(
+    private val repository: InvestRepository,
+    private val instrumentRepo: InstrumentRepository,
+    private val searchCache: SearchCache,
+    private val sharedPrefs: SharedPreferences,
+    private val brokerManager: BrokerManager,
+    private val calculateTradeDetails: CalculateTradeDetailsUseCase,
+    private val prepareOrderRequest: PrepareOrderRequestUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrdersUiState())
@@ -53,7 +72,7 @@ class OrdersViewModel(
     private var pairSearchJob: Job? = null
     private var priceStreamJob: Job? = null
     private var positionStreamJob: Job? = null
-    private val prefs = ServiceLocator.getPrefs()
+    private val prefs = sharedPrefs
     // Флаги для отображения диалога выбора брокера для основного и парного поиска
     val showSearchBrokerDialog = mutableStateOf(false)
     val showPairSearchBrokerDialog = mutableStateOf(false)
@@ -62,8 +81,8 @@ class OrdersViewModel(
     val selectedSearchBroker = mutableStateOf("TInvest")
     val selectedPairSearchBroker = mutableStateOf("TInvest")
 
-    private val calculateTradeDetails = CalculateTradeDetailsUseCase()
-    private val prepareOrderRequest = PrepareOrderRequestUseCase()
+//    private val calculateTradeDetails = CalculateTradeDetailsUseCase()
+//    private val prepareOrderRequest = PrepareOrderRequestUseCase()
 
 
     companion object {
@@ -110,11 +129,13 @@ class OrdersViewModel(
     }
 
     fun checkApiInitialization() {
-        val isAnyApiInit = ServiceLocator.isAnyBrokerInitialized()
+        //val isAnyApiInit = ServiceLocator.isAnyBrokerInitialized()
+        val isAnyApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
         _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
         if (isAnyApiInit) {
             // Загружаем счета только если дефолтный брокер инициализирован
-            if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
+            //if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
+            if (brokerManager.getDefaultBroker().isInitialized) {
                 loadAccounts()
                 //viewModelScope.launch { startPositionUpdates() }
             }
@@ -126,7 +147,7 @@ class OrdersViewModel(
     fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
             ServiceLocator.saveBrokerCredentials("TInvest", token, sandboxMode)
-            (ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService)?.initializeFromSettings()
+            (brokerManager.getBroker("TInvest") as? TInvestInvestService)?.initializeFromSettings()
 
             _uiState.update {
                 it.copy(
@@ -160,7 +181,7 @@ class OrdersViewModel(
     }
 
     private suspend fun restoreState() {
-        val repo = ServiceLocator.getInstrumentRepository()
+        val repo = instrumentRepo
 
         // Восстановление основного инструмента
         val uid = prefs.getString("selected_instrument_uid", null)
@@ -296,7 +317,7 @@ class OrdersViewModel(
                 try {
                     delay(500)
                     _uiState.update { it.copy(isSearching = true) }
-                    val cache = ServiceLocator.getSearchCache()
+                    val cache = searchCache
                     val brokerName = _uiState.value.searchBroker
                     val results = cache.search(brokerName, query)
                     // Обновляем статусы доступности для найденных инструментов
@@ -729,7 +750,7 @@ fun openBrokerDialog(ticker: String) {
                 delay(500)
                 _uiState.update { it.copy(isPairSearching = true) }
                 try {
-                    val cache = ServiceLocator.getSearchCache()
+                    val cache = searchCache
                     val brokerName = _uiState.value.pairSearchBroker
                     val results = cache.search(brokerName, query)
                     // Обновляем статусы доступности для найденных инструментов
@@ -974,7 +995,7 @@ fun openBrokerDialog(ticker: String) {
     fun refreshSearch() {
         val state = _uiState.value
         if (state.searchQuery.length >= 2) {
-            ServiceLocator.getSearchCache().invalidate(state.searchBroker, state.searchQuery)
+            searchCache.invalidate(state.searchBroker, state.searchQuery)
             onSearchQueryChanged(state.searchQuery)
         }
     }
@@ -982,7 +1003,7 @@ fun openBrokerDialog(ticker: String) {
     fun refreshPairSearch() {
         val state = _uiState.value
         if (state.pairSearchQuery.length >= 2) {
-            ServiceLocator.getSearchCache().invalidate(state.pairSearchBroker, state.pairSearchQuery)
+            searchCache.invalidate(state.pairSearchBroker, state.pairSearchQuery)
             onPairSearchQueryChanged(state.pairSearchQuery)
         }
     }
@@ -1004,14 +1025,14 @@ fun openBrokerDialog(ticker: String) {
     }
 }
 
-class OrdersViewModelFactory : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(OrdersViewModel::class.java)) {
-            val brokerManager = ServiceLocator.getBrokerManager()
-            val repository = InvestRepository(brokerManager)
-            @Suppress("UNCHECKED_CAST")
-            return OrdersViewModel(repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}
+//class OrdersViewModelFactory : ViewModelProvider.Factory {
+//    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+//        if (modelClass.isAssignableFrom(OrdersViewModel::class.java)) {
+//            val brokerManager = ServiceLocator.getBrokerManager()
+//            val repository = InvestRepository(brokerManager)
+//            @Suppress("UNCHECKED_CAST")
+//            return OrdersViewModel(repository) as T
+//        }
+//        throw IllegalArgumentException("Unknown ViewModel class")
+//    }
+//}
