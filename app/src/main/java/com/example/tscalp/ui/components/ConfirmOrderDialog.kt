@@ -17,30 +17,21 @@ fun ConfirmOrderDialog(
     ticker: String,
     quantity: Long,
     pendingDirection: String,
-    orderType: OrderTypeSelection,
+    orderType: OrderTypeSelection,          // оставлен, он нужен для OrderCard основной сделки
     instrumentType: String,
     executionPrice: Double,
     pairTradingEnabled: Boolean,
     pairedInstrumentTicker: String?,
     pairedInstrumentType: String?,
     pairedMultiplier: String?,
-    pairCurrentPrice: Double?,
-    limitPrice: String?,
-    stopPrice: String?,
+    pairExecPrice: Double,                  // новое: цена исполнения контрсделки
+    pairedOrderType: OrderTypeSelection?,   // новое: тип контрсделки (может быть null, если парная отключена)
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
     if (!show) return
 
     val direction = if (pendingDirection == "Покупка") "BUY" else "SELL"
-
-    // Вычисляем тип контрсделки через PairOrderMapper
-    val primaryPrice = when (orderType) {
-        OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> limitPrice?.toDoubleOrNull()
-        OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> stopPrice?.toDoubleOrNull()
-        else -> null
-    }
-    val pairedSpec = PairOrderMapper.map(orderType, OrderDirection.valueOf(direction), primaryPrice)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -67,15 +58,11 @@ fun ConfirmOrderDialog(
 
                     val pairedQty = (quantity * (pairedMultiplier?.toDoubleOrNull() ?: 1.0)).toLong()
                     val pairDirection = if (direction == "BUY") "SELL" else "BUY"
-                    val pairExecPrice = when (orderType) {
-                        OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> executionPrice
-                        else -> pairCurrentPrice ?: 0.0
-                    }
 
                     OrderCard(
                         ticker = pairedInstrumentTicker,
                         direction = pairDirection,
-                        orderType = pairedSpec.orderType, // правильный тип контрсделки
+                        orderType = pairedOrderType ?: orderType,  // fallback на основной, если парный не задан
                         status = null,
                         quantity = pairedQty,
                         price = pairExecPrice,

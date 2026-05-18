@@ -67,6 +67,8 @@ data class OrdersUiState(
     val pairedMultiplier: String = "1",               // множитель (по умолчанию 10)
     val swipeResetTrigger: Boolean = false,
     val pairSearchBroker: String = "TInvest",           // брокер для парного поиска
+    val currentPointValue: Double? = null,
+    val pairedPointValue: Double? = null,
     // Стоп‑заявки
     val orderType: OrderTypeSelection = OrderTypeSelection.Market, // было BrokerOrderType.MARKET
     val stopPrice: String = "",

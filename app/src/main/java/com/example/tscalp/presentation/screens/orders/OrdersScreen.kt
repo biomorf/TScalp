@@ -59,6 +59,7 @@ import com.example.tscalp.ui.components.OrderCard
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
 import com.example.tscalp.domain.models.TradingAvailability
+import com.example.tscalp.domain.usecases.PairOrderMapper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,7 +201,7 @@ fun OrdersScreen(
                                 profit = null,
                                 profitPercent = null,
                                 instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                                pointValue = (instrument as? FutureUi)?.pointValue
+                                pointValue = uiState.currentPointValue
                             )
 
                             AssetPositionCard(
@@ -227,6 +228,25 @@ fun OrdersScreen(
 
                     // Определяем цену исполнения в зависимости от типа заявки
                     val executionPrice = uiState.executionPrice
+                    val pairExecPrice: Double
+                    val pairedOrderType: OrderTypeSelection?
+                    if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
+                        val primaryPrice = when (uiState.orderType) {
+                            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull()
+                            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
+                            else -> null
+                        }
+                        val direction = if (pendingDirection == "Покупка") "BUY" else "SELL"
+                        val pairedSpec = PairOrderMapper.map(uiState.orderType, OrderDirection.valueOf(direction), primaryPrice)
+                        pairedOrderType = pairedSpec.orderType
+                        pairExecPrice = when (uiState.orderType) {
+                            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.executionPrice
+                            else -> uiState.pairCurrentPrice ?: 0.0
+                        }
+                    } else {
+                        pairExecPrice = 0.0
+                        pairedOrderType = null
+                    }
                     ConfirmOrderDialog(
                         show = showConfirmDialog,
                         ticker = uiState.selectedInstrument?.ticker ?: "",
@@ -239,9 +259,8 @@ fun OrdersScreen(
                         pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
                         pairedInstrumentType = uiState.pairedInstrument?.instrumentType,
                         pairedMultiplier = uiState.pairedMultiplier,
-                        pairCurrentPrice = uiState.pairCurrentPrice,
-                        limitPrice = uiState.limitPrice,
-                        stopPrice = uiState.stopPrice,
+                        pairExecPrice = pairExecPrice,
+                        pairedOrderType = pairedOrderType,
                         onDismiss = { showConfirmDialog = false },
                         onConfirm = {
                             if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
@@ -477,7 +496,7 @@ fun OrdersScreen(
                             // Карточка парного инструмента и множитель
                             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                                val pairedPointValue = (instrument as? FutureUi)?.pointValue
+                                val pairedPointValue = uiState.pairedPointValue
                                 val pairPrice = uiState.pairCurrentPrice ?: 0.0
                                 // Единый источник: если позиция есть в портфеле – берём её целиком
                                 val position = portfolioPos ?: PortfolioPosition(

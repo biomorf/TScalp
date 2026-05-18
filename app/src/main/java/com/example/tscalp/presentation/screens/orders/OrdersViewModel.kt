@@ -38,6 +38,7 @@ import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
+import com.example.tscalp.domain.models.FutureUi
 import com.example.tscalp.domain.usecases.PairOrderMapper
 import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
@@ -167,6 +168,10 @@ class OrdersViewModel(
             val instrument = repo.getInstrument(uid)
             if (instrument != null) {
                 _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
+
+                val pointVal = (instrument as? FutureUi)?.pointValue
+                _uiState.update { it.copy(currentPointValue = pointVal) }
+
                 startPriceUpdates()
                 ///startPositionUpdates()
             }
@@ -178,6 +183,10 @@ class OrdersViewModel(
             val pairInstrument = repo.getInstrument(pairUid)
             if (pairInstrument != null) {
                 _uiState.update { it.copy(pairedInstrument = pairInstrument) }
+
+                val pairPointVal = (pairInstrument as? FutureUi)?.pointValue
+                _uiState.update { it.copy(pairedPointValue = pairPointVal) }
+
                 // если не был запущен ценовой стрим для основного, запустим сейчас
                 if (_uiState.value.selectedInstrument != null) {
                     startPriceUpdates()
@@ -369,6 +378,10 @@ class OrdersViewModel(
                     lastSelectedInstruments = currentList.take(5)
                 )
             }
+            // === НОВОЕ: сохраняем pointValue для UI ===
+            val pointVal = (actualInstrument as? FutureUi)?.pointValue
+            _uiState.update { it.copy(currentPointValue = pointVal) }
+
             updateTradeDetails()
 
             // 5. Запускаем стрим для реактивного обновления цены
@@ -752,8 +765,11 @@ fun openBrokerDialog(ticker: String) {
             val price = prices[instrument.tscalpInstrumentId]
             if (price != null) {
                 _uiState.update { it.copy(pairCurrentPrice = price) }
-                updateTradeDetails()
+                // === НОВОЕ: сохраняем pointValue парного инструмента ===
+                val pairedPointVal = (instrument as? FutureUi)?.pointValue
+                _uiState.update { it.copy(pairedPointValue = pairedPointVal) }
             }
+            updateTradeDetails()
             saveState()
         }
     }
