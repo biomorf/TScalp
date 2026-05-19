@@ -4,6 +4,7 @@ bin/
 gen/
 out/
 .navigation/
+.kotlin/
 
 
 # Gradle files
