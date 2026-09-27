@@ -143,6 +143,18 @@ class TInvestInvestService : BrokerApi {
         //tickerToFigiCache.clear()
     }
 
+    fun initialize(token: String, sandbox: Boolean) {
+        val target = if (sandbox) {
+            "sandbox-invest-public-api.tbank.ru:443"
+        } else {
+            "invest-public-api.tbank.ru:443"
+        }
+        grpcChannel = InvestApi.defaultChannel(token, target)
+        pricesStreamChannel = InvestApi.defaultChannel(token, target)
+        ordersStateChannel = InvestApi.defaultChannel(token, target)
+        api = InvestApi.createApi(grpcChannel)
+    }
+
     // ---------- Базовые методы ----------
     override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")

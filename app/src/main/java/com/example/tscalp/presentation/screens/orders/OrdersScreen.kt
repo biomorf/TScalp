@@ -55,7 +55,6 @@ import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
 import com.example.tscalp.ui.components.ConfirmOrderDialog
 import com.example.tscalp.ui.components.OrdersListDialog
-import com.example.tscalp.ui.components.OrdersListViewModel
 import com.example.tscalp.ui.components.OrderCard
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.formatPrice
@@ -76,7 +75,6 @@ fun OrdersScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showOrdersListDialog by remember { mutableStateOf(false) }
-    val ordersListViewModel = remember { OrdersListViewModel() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -837,7 +835,6 @@ fun OrdersScreen(
 
     if (showOrdersListDialog) {
         OrdersListDialog(
-            viewModel = ordersListViewModel,
             onDismiss = { showOrdersListDialog = false }
         )
     }

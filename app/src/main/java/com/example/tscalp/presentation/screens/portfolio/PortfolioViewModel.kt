@@ -1,44 +1,40 @@
 package com.example.tscalp.presentation.screens.portfolio
 
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.tscalp.di.ServiceLocator
-import com.example.tscalp.data.repository.InvestRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 import com.example.tscalp.data.api.TInvestInvestService
 import com.example.tscalp.data.api.SharedPositionStreamManager
+import com.example.tscalp.data.repository.InvestRepository
+import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.PositionStreamItem
 
-/**
- * ViewModel для экрана портфеля.
- * Получает InvestRepository через конструктор.
- */
-class PortfolioViewModel(
-    private val repository: InvestRepository
+@HiltViewModel
+class PortfolioViewModel @Inject constructor(
+    private val repository: InvestRepository,
+    private val brokerManager: BrokerManager,
+    private val sharedPrefs: SharedPreferences,
+    private val positionStreamManager: SharedPositionStreamManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
     private var priceUpdateJob: Job? = null
-    private var isPortfolioLoading = false
 
     companion object {
         private const val TAG = "PortfolioViewModel"
@@ -59,29 +55,27 @@ class PortfolioViewModel(
     }
 
     fun checkApiInitialization() {
-        val isApiInit = ServiceLocator.isAnyBrokerInitialized()
-        _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = ServiceLocator.isSandboxMode()) }
+        val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
+        val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
+        _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
         if (isApiInit) {
-            //if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
-                viewModelScope.launch { loadPortfolio() }
-            //}
+            viewModelScope.launch { loadPortfolio() }
             startPriceUpdates()
         }
     }
 
-
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
-            val accountId = ServiceLocator.loadDefaultAccountId("TInvest") ?: run {
+            val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
+            val accountId = sharedPrefs.getString("TInvest_default_account", null) ?: run {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                 return@launch
             }
 
             // Первичный запрос для немедленного отображения
             try {
-                val sandbox = ServiceLocator.isSandboxMode()
+                val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
                 val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
                 _uiState.update { it.copy(positions = positions, isLoading = false) }
             } catch (e: Exception) {
@@ -90,10 +84,10 @@ class PortfolioViewModel(
             }
 
             // Гарантируем, что общий поток запущен
-            SharedPositionStreamManager.start(accountId)
+            positionStreamManager.start(accountId)
 
             // Подписываемся на обновления
-            SharedPositionStreamManager.flow.collect { item ->
+            positionStreamManager.flow.collect { item ->
                 updatePortfolioItem(item)
             }
         }
@@ -104,13 +98,12 @@ class PortfolioViewModel(
         val current = _uiState.value.positions.toMutableList()
         val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
         if (index == -1) {
-            // Новая позиция (например, при первом снапшоте)
             current.add(PortfolioPosition(
                 tscalpInstrumentId = item.instrumentUid,
                 ticker = item.ticker,
                 isin = item.isin,
                 classCode = item.classCode,
-                name = item.ticker, // позже можно подгрузить полное имя
+                name = item.ticker,
                 quantity = item.quantity,
                 currentPrice = item.currentPrice ?: 0.0,
                 averagePrice = item.averagePositionPrice,
@@ -120,10 +113,9 @@ class PortfolioViewModel(
                     if (avg > 0) ((item.currentPrice ?: 0.0) - avg) / avg * 100.0 else null
                 },
                 pointValue = item.pointValue,
-                instrumentType = item.instrumentType // TODO: заполнить из кэша инструментов
+                instrumentType = item.instrumentType
             ))
         } else {
-            // Обновляем существующую позицию
             val old = current[index]
             val newPrice = item.currentPrice ?: old.currentPrice
             current[index] = old.copy(
@@ -145,11 +137,10 @@ class PortfolioViewModel(
     }
 
     private suspend fun updateTradingStatuses(positions: List<PortfolioPosition>) {
-        // Группируем позиции по брокеру
         val byBroker = positions.groupBy { it.brokerName }
         val allStatuses = mutableMapOf<String, TradingAvailability>()
         for ((brokerName, posList) in byBroker) {
-            val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: continue
+            val broker = brokerManager.getBroker(brokerName) ?: continue
             val ids = posList.map { it.tscalpInstrumentId }.filter { it.isNotBlank() }
             if (ids.isEmpty()) continue
             try {
@@ -168,12 +159,12 @@ class PortfolioViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val sandboxMode = ServiceLocator.isSandboxMode()
+                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
                 val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
 
-                val defaultAccountId = ServiceLocator.loadDefaultAccountId("TInvest")
+                val defaultAccountId = sharedPrefs.getString("TInvest_default_account", null)
                 val accountId = if (defaultAccountId != null && accounts.any { it.id == defaultAccountId }) {
                     defaultAccountId
                 } else {
@@ -183,10 +174,9 @@ class PortfolioViewModel(
 
                 repository.sandboxPayIn(
                     accountId = accountId,
-                    amount = SandboxMoney(currency = "RUB", units = 100_000) // пополняем на 100 000 рублей
+                    amount = SandboxMoney(currency = "RUB", units = 100_000)
                 )
                 Log.d(TAG, "Пополнение выполнено успешно")
-                // Обновляем портфель и баланс
                 loadPortfolio()
             } catch (e: Exception) {
                 Log.e(TAG, "Ошибка пополнения", e)
@@ -217,24 +207,20 @@ class PortfolioViewModel(
         val ids = positions
             .filter { it.ticker != "RUB000UTSTOM" }
             .map { it.tscalpInstrumentId }
-        if (ids.isEmpty()) return   // нечего обновлять, выходим без запроса
+        if (ids.isEmpty()) return
         try {
             val prices = repository.getLastPricesByTscalpInstrumentId(ids)
             val updatedPositions = positions.map { pos ->
-                // RUB000UTSTOM не обновится через API, оставляем старую цену (1.0)
                 if (pos.ticker == "RUB000UTSTOM") {
                     pos.copy(currentPrice = 1.0, totalValue = 1.0 * pos.quantity, priceChangePercent = null)
                 } else {
-                    val ticker = pos.ticker
                     val freshPrice = prices[pos.tscalpInstrumentId]
-                    /// Если свежая цена пришла и она > 0 – используем её, иначе оставляем старую
                     val newPrice = if (freshPrice != null && freshPrice > 0.0) {
                         freshPrice
                     } else {
-                        Log.w(TAG, "Нет цены для тикера $ticker")
-                        pos.currentPrice   /// сохраняем последнее известное значение
+                        Log.w(TAG, "Нет цены для тикера ${pos.ticker}")
+                        pos.currentPrice
                     }
-                    // Процент изменения считаем только когда есть и старая, и новая цена
                     val changePercent =
                         if (pos.currentPrice != 0.0 && newPrice != pos.currentPrice) {
                             ((newPrice - pos.currentPrice) / pos.currentPrice) * 100.0
@@ -258,19 +244,4 @@ class PortfolioViewModel(
 
     fun refresh() { viewModelScope.launch { loadPortfolio() } }
     fun clearStatus() { _uiState.update { it.copy(statusMessage = null, isError = false) } }
-}
-
-/**
- * ///Фабрика для создания PortfolioViewModel с внедрением InvestRepository.
- */
-class PortfolioViewModelFactory : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(PortfolioViewModel::class.java)) {
-            val brokerManager = ServiceLocator.getBrokerManager()
-            val repository = InvestRepository(brokerManager)
-            @Suppress("UNCHECKED_CAST")
-            return PortfolioViewModel(repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
 }

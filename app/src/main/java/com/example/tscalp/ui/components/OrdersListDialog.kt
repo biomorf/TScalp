@@ -1,5 +1,6 @@
 package com.example.tscalp.ui.components
 
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,8 +20,8 @@ import com.example.tscalp.domain.models.OrderListItem
 
 @Composable
 fun OrdersListDialog(
-    viewModel: OrdersListViewModel,   // временно, пока ViewModel не переименована
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    viewModel: OrdersListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 

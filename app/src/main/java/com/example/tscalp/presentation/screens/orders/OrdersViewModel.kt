@@ -37,8 +37,6 @@ import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.example.tscalp.util.formatCurrency
 
-import com.example.tscalp.di.ServiceLocator
-
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -63,7 +61,8 @@ class OrdersViewModel @Inject constructor(
     private val sharedPrefs: SharedPreferences,
     private val brokerManager: BrokerManager,
     private val calculateTradeDetails: CalculateTradeDetailsUseCase,
-    private val prepareOrderRequest: PrepareOrderRequestUseCase
+    private val prepareOrderRequest: PrepareOrderRequestUseCase,
+    private val positionStreamManager: SharedPositionStreamManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrdersUiState())
@@ -146,7 +145,10 @@ class OrdersViewModel @Inject constructor(
 
     fun initializeApi(token: String, sandboxMode: Boolean) {
         try {
-            ServiceLocator.saveBrokerCredentials("TInvest", token, sandboxMode)
+            sharedPrefs.edit()
+                .putString("TInvest_token", token)
+                .putBoolean("TInvest_sandbox", sandboxMode)
+                .apply()
             (brokerManager.getBroker("TInvest") as? TInvestInvestService)?.initializeFromSettings()
 
             _uiState.update {
@@ -254,7 +256,7 @@ class OrdersViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val sandboxMode = ServiceLocator.isSandboxMode()
+                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
                 val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
                 if (_uiState.value.selectedAccountId == null && accounts.isNotEmpty()) {
@@ -360,9 +362,7 @@ class OrdersViewModel @Inject constructor(
             _uiState.update { it.copy(isPriceLoading = true) }
 
             // 🔁 Загружаем актуальный InstrumentUi с pointValue
-            val repo = ServiceLocator.getInstrumentRepository()
-            val actualInstrument = repo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
-            _uiState.update { it.copy(selectedInstrument = actualInstrument, ticker = actualInstrument.ticker) }
+            val actualInstrument = instrumentRepo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
 
             // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
             val prices = repository.getLastPricesByTscalpInstrumentId(listOf(instrument.tscalpInstrumentId))
@@ -452,7 +452,7 @@ class OrdersViewModel @Inject constructor(
 
 // Проверка доступности через брокер-специфичный метод
         // Получаем брокера и проверяем доступность
-        val broker = (ServiceLocator.getBrokerManager().getBroker(brokerName) as? TInvestInvestService)
+        val broker = (brokerManager.getBroker(brokerName) as? TInvestInvestService)
             ?: run {
                 _uiState.update { it.copy(statusMessage = "❌ Брокер не найден", isError = true) }
                 return
@@ -483,7 +483,7 @@ class OrdersViewModel @Inject constructor(
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
-                    sandboxMode = ServiceLocator.isSandboxMode(),
+                    sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true),
                     orderType = state.orderType,
                     limitPrice = state.limitPrice,
                     stopPrice = state.stopPrice,
@@ -627,7 +627,7 @@ fun openBrokerDialog(ticker: String) {
         val brokerName = existingCard?.brokerName ?: "TInvest"
 
         val accounts = try {
-            repository.getAccounts(brokerName, ServiceLocator.isSandboxMode())
+            repository.getAccounts(brokerName, sharedPrefs.getBoolean("TInvest_sandbox", true))
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка загрузки счетов для $brokerName", e)
             emptyList()
@@ -683,7 +683,7 @@ fun openBrokerDialog(ticker: String) {
      */
     private suspend fun loadDialogAccounts(brokerName: String) {
         try {
-            val accounts = repository.getAccounts(brokerName, ServiceLocator.isSandboxMode())
+            val accounts = repository.getAccounts(brokerName, sharedPrefs.getBoolean("TInvest_sandbox", true))
             _uiState.update { state ->
                 val current = state.selectedAccountIdDialog?.trim()
                 val newSelected = if (current != null && accounts.any { it.id.trim() == current }) {
@@ -835,7 +835,7 @@ fun openBrokerDialog(ticker: String) {
 
     fun startPriceUpdates() {
         stopPriceUpdates()
-        val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService ?: return
+        val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService ?: return
         val state = _uiState.value
 
         val idToTicker = mutableMapOf<String, String>()       // tscalpInstrumentId → ticker
@@ -882,7 +882,7 @@ fun openBrokerDialog(ticker: String) {
 
     private suspend fun updateTradingStatuses(ids: List<String>) {
         if (ids.isEmpty()) return
-        val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") ?: return
+        val broker = brokerManager.getBroker("TInvest") ?: return
         try {
             val statuses = broker.getTradingStatuses(ids)
             _uiState.update { state ->
@@ -896,9 +896,9 @@ fun openBrokerDialog(ticker: String) {
     fun startPositionUpdates() {
         stopPositionUpdates()
         val accountId = _uiState.value.selectedAccountId ?: return
-        SharedPositionStreamManager.start(accountId)
+        positionStreamManager.start(accountId)
         positionStreamJob = viewModelScope.launch {
-            SharedPositionStreamManager.flow.collect { item: PositionStreamItem ->
+            positionStreamManager.flow.collect { item: PositionStreamItem ->
                 updatePositionPnl(item)
             }
         }
@@ -907,8 +907,8 @@ fun openBrokerDialog(ticker: String) {
         if (_uiState.value.portfolioPositions.isEmpty()) {
             viewModelScope.launch {
                 try {
-                    val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
-                    val sandbox = ServiceLocator.isSandboxMode()
+                    val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
+                    val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
                     val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
                     _uiState.update { it.copy(portfolioPositions = positions) }
                 } catch (e: Exception) {

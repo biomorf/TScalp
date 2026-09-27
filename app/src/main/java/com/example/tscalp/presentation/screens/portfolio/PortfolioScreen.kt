@@ -1,6 +1,7 @@
 package com.example.tscalp.presentation.screens.portfolio
 
 import android.util.Log
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,7 +24,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 
@@ -41,7 +41,7 @@ import com.example.tscalp.domain.models.TradingAvailability
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
-    viewModel: PortfolioViewModel = viewModel(factory = PortfolioViewModelFactory())
+    viewModel: PortfolioViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }

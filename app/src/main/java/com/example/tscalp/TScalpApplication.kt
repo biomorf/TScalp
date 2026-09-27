@@ -4,9 +4,14 @@ import android.app.Application
 import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
 @HiltAndroidApp
 class TScalpApplication : Application() {
+
+    @Inject
+    lateinit var positionStreamManager: SharedPositionStreamManager
+
     override fun onCreate() {
         super.onCreate()
         ServiceLocator.init(this)
@@ -24,7 +29,7 @@ class TScalpApplication : Application() {
                         // Запускаем единый поток позиций, если известен счёт по умолчанию
                         val accountId = ServiceLocator.loadDefaultAccountId("TInvest")
                         if (accountId != null) {
-                            SharedPositionStreamManager.start(accountId)
+                            positionStreamManager.start(accountId)
                         }
                     }
                     "bcs" -> {

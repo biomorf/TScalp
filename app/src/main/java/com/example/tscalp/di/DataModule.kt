@@ -32,7 +32,8 @@ object DataModule {
         val service = TInvestInvestService()
         val token = sharedPreferences.getString("TInvest_token", null)
         if (token != null) {
-            service.initializeFromSettings()
+            val sandbox = sharedPreferences.getBoolean("TInvest_sandbox", true)
+            service.initialize(token, sandbox)
         }
         return service
     }

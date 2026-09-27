@@ -1,22 +1,28 @@
 package com.example.tscalp.ui.components
 
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.tscalp.data.api.TInvestInvestService
-import com.example.tscalp.data.repository.InvestRepository
-import com.example.tscalp.di.ServiceLocator
-import com.example.tscalp.domain.models.OrderListItem
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class OrdersListViewModel : ViewModel() {
+import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.repository.InvestRepository
+import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.domain.models.OrderListItem
 
-    private val repository = InvestRepository(ServiceLocator.getBrokerManager())
+@HiltViewModel
+class OrdersListViewModel @Inject constructor(
+    private val repository: InvestRepository,
+    private val brokerManager: BrokerManager,
+    private val sharedPrefs: SharedPreferences
+) : ViewModel() {
 
     data class OrdersListState(
         val orders: List<OrderListItem> = emptyList(),
@@ -29,14 +35,14 @@ class OrdersListViewModel : ViewModel() {
     val uiState: StateFlow<OrdersListState> = _uiState.asStateFlow()
 
     companion object {
-        private const val TAG = "StopOrdersViewModel"
+        private const val TAG = "OrdersListViewModel"
     }
 
     fun loadOrders() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
             try {
-                val sandboxMode = ServiceLocator.isSandboxMode()
+                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
                 val accounts = repository.getAccounts("TInvest", sandboxMode)
                 if (accounts.isEmpty()) {
                     _uiState.update {
@@ -45,7 +51,7 @@ class OrdersListViewModel : ViewModel() {
                     return@launch
                 }
                 val accountId = accounts.first().id
-                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+                val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
                     ?: throw IllegalStateException("Брокер TInvest не найден")
 
                 val regularOrders = broker.getOrders(accountId)
@@ -74,11 +80,11 @@ class OrdersListViewModel : ViewModel() {
     fun cancelOrder(order: OrderListItem) {
         viewModelScope.launch {
             try {
-                val sandboxMode = ServiceLocator.isSandboxMode()
+                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
                 val accounts = repository.getAccounts("TInvest", sandboxMode)
                 if (accounts.isEmpty()) return@launch
                 val accountId = accounts.first().id
-                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+                val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
                     ?: return@launch
 
                 if (order.isStopOrder) {
@@ -93,17 +99,6 @@ class OrdersListViewModel : ViewModel() {
                 }
                 Log.e(TAG, "Ошибка отмены заявки", e)
             }
-        }
-    }
-
-
-    class Factory : ViewModelProvider.Factory {
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(OrdersListViewModel::class.java)) {
-                @Suppress("UNCHECKED_CAST")
-                return OrdersListViewModel() as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class")
         }
     }
 }
