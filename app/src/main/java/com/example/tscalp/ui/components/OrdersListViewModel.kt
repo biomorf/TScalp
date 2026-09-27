@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.OrderListItem
@@ -51,7 +51,7 @@ class OrdersListViewModel @Inject constructor(
                     return@launch
                 }
                 val accountId = accounts.first().id
-                val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
+                val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
                     ?: throw IllegalStateException("Брокер TInvest не найден")
 
                 val regularOrders = broker.getOrders(accountId)
@@ -84,7 +84,7 @@ class OrdersListViewModel @Inject constructor(
                 val accounts = repository.getAccounts("TInvest", sandboxMode)
                 if (accounts.isEmpty()) return@launch
                 val accountId = accounts.first().id
-                val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
+                val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
                     ?: return@launch
 
                 if (order.isStopOrder) {

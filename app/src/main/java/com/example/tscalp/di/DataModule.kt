@@ -2,7 +2,7 @@ package com.example.tscalp.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.api.FinamBrokerApi
 import com.example.tscalp.data.api.BcsBrokerApi
 import com.example.tscalp.domain.api.BrokerApi
@@ -25,11 +25,11 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideTInvestService(
+    fun provideTInvestBrokerAPI(
         @ApplicationContext context: Context,
         sharedPreferences: SharedPreferences
-    ): TInvestInvestService {
-        val service = TInvestInvestService()
+    ): TInvestBrokerAPI {
+        val service = TInvestBrokerAPI()
         val token = sharedPreferences.getString("TInvest_token", null)
         if (token != null) {
             val sandbox = sharedPreferences.getBoolean("TInvest_sandbox", true)
@@ -41,7 +41,7 @@ object DataModule {
     @Provides
     @Singleton
     fun provideBrokerManager(
-        tinvest: TInvestInvestService,
+        tinvest: TInvestBrokerAPI,
         finam: FinamBrokerApi,
         bcs: BcsBrokerApi
     ): BrokerManager {

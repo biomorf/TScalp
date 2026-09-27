@@ -17,7 +17,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
-import com.example.tscalp.di.ServiceLocator
+//import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.*
@@ -38,14 +38,12 @@ class FinamBrokerApi : BrokerApi {
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null
 
-    fun initializeFromSettings() {
-        val token = ServiceLocator.getToken("finam") ?: return
+    fun initialize(token: String) {
         client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
-        // Получение JWT будет реализовано при первой необходимости
-        jwtToken = "placeholder" // временно, чтобы не падало
+        jwtToken = token
     }
 
     // ---------- Вспомогательные методы для HTTP-запросов ----------

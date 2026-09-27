@@ -3,7 +3,6 @@ package com.example.tscalp.presentation.screens.orders
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableStateOf
 
@@ -14,8 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
@@ -26,27 +23,22 @@ import javax.inject.Inject
 
 
 
-import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.data.repository.InstrumentRepository
 import com.example.tscalp.data.repository.SearchCache
 import com.example.tscalp.di.BrokerManager
-import com.example.tscalp.domain.usecases.PairOrderMapper
 import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.example.tscalp.util.formatCurrency
 
-import com.example.tscalp.presentation.screens.orders.OrdersUiState
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
-import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderTypeSelection
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.OrderDirection
-import com.example.tscalp.domain.models.StopOrderType
 import com.example.tscalp.domain.models.StopOrderRequest
-import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.FutureUi
@@ -149,7 +141,7 @@ class OrdersViewModel @Inject constructor(
                 .putString("TInvest_token", token)
                 .putBoolean("TInvest_sandbox", sandboxMode)
                 .apply()
-            (brokerManager.getBroker("TInvest") as? TInvestInvestService)?.initializeFromSettings()
+            (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)?.initialize(token, sandboxMode)
 
             _uiState.update {
                 it.copy(
@@ -225,7 +217,7 @@ class OrdersViewModel @Inject constructor(
 //            }
 //            // Принудительно загружаем портфель (прямой запрос)
 //            try {
-//                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
+//                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestBrokerAPI
 //                val accountId = _uiState.value.selectedAccountId
 //                if (broker != null && accountId != null) {
 //                    val positions = broker.fetchPositionsRest(accountId, ServiceLocator.isSandboxMode())
@@ -452,7 +444,7 @@ class OrdersViewModel @Inject constructor(
 
 // Проверка доступности через брокер-специфичный метод
         // Получаем брокера и проверяем доступность
-        val broker = (brokerManager.getBroker(brokerName) as? TInvestInvestService)
+        val broker = (brokerManager.getBroker(brokerName) as? TInvestBrokerAPI)
             ?: run {
                 _uiState.update { it.copy(statusMessage = "❌ Брокер не найден", isError = true) }
                 return
@@ -563,6 +555,13 @@ class OrdersViewModel @Inject constructor(
     }
 
     fun clearStatus() { _uiState.update { it.clearStatus() } }
+
+    fun isConfirmOrdersEnabled(): Boolean =
+        sharedPrefs.getBoolean("confirm_orders_enabled", true)
+
+    fun getAvailableBrokers(): List<String> =
+        brokerManager.getAvailableBrokers()
+
     fun retryLoadAccounts() { loadAccounts() }
 
 //    fun startPriceUpdates() {
@@ -835,7 +834,7 @@ fun openBrokerDialog(ticker: String) {
 
     fun startPriceUpdates() {
         stopPriceUpdates()
-        val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService ?: return
+        val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI ?: return
         val state = _uiState.value
 
         val idToTicker = mutableMapOf<String, String>()       // tscalpInstrumentId → ticker
@@ -907,7 +906,7 @@ fun openBrokerDialog(ticker: String) {
         if (_uiState.value.portfolioPositions.isEmpty()) {
             viewModelScope.launch {
                 try {
-                    val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
+                    val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
                     val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
                     val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
                     _uiState.update { it.copy(portfolioPositions = positions) }

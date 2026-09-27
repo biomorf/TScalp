@@ -49,7 +49,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 
-import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
@@ -634,7 +633,7 @@ fun OrdersScreen(
                 ) {
                     Button(
                         onClick = {
-                            if (ServiceLocator.isConfirmOrdersEnabled()) {
+                            if (viewModel.isConfirmOrdersEnabled()) {
                                 pendingDirection = "Покупка"
                                 showConfirmDialog = true
                             } else {
@@ -648,7 +647,7 @@ fun OrdersScreen(
                     }
                     Button(
                         onClick = {
-                            if (ServiceLocator.isConfirmOrdersEnabled()) {
+                            if (viewModel.isConfirmOrdersEnabled()) {
                                 pendingDirection = "Продажа"
                                 showConfirmDialog = true
                             } else {
@@ -820,7 +819,7 @@ fun OrdersScreen(
     }
 
     if (uiState.showBrokerDialog) {
-        val availableBrokers = ServiceLocator.getBrokerManager().getAvailableBrokers()
+        val availableBrokers = viewModel.getAvailableBrokers()
         BrokerAccountDialog(
             availableBrokers = availableBrokers,
             selectedBroker = uiState.selectedBroker,
@@ -841,7 +840,7 @@ fun OrdersScreen(
     // Диалог выбора брокера для основного поиска
     if (viewModel.showSearchBrokerDialog.value) {
         BrokerAccountDialog(
-            availableBrokers = ServiceLocator.getBrokerManager().getAvailableBrokers(),
+            availableBrokers = viewModel.getAvailableBrokers(),
             selectedBroker = viewModel.selectedSearchBroker.value,
             onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
             accounts = emptyList(),
@@ -856,7 +855,7 @@ fun OrdersScreen(
 // Диалог выбора брокера для парного поиска
     if (viewModel.showPairSearchBrokerDialog.value) {
         BrokerAccountDialog(
-            availableBrokers = ServiceLocator.getBrokerManager().getAvailableBrokers(),
+            availableBrokers = viewModel.getAvailableBrokers(),
             selectedBroker = viewModel.selectedPairSearchBroker.value,
             onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
             accounts = emptyList(),

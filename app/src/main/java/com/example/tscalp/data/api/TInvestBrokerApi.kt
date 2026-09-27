@@ -7,26 +7,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.shareIn
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.Job
-
-import java.util.concurrent.ConcurrentHashMap
 
 import io.grpc.stub.StreamObserver
 
-import com.example.tscalp.di.ServiceLocator
+//import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.FutureUi
@@ -40,7 +30,6 @@ import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.OrderResult
 import com.example.tscalp.domain.models.OrderStatus
 import com.example.tscalp.domain.models.StopOrderRequest
-import com.example.tscalp.domain.models.StopOrderUi
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.domain.models.StopOrderType as DomainStopOrderType
@@ -48,7 +37,6 @@ import com.example.tscalp.domain.models.StopOrderExpirationType as DomainStopOrd
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.OrderState
-import com.example.tscalp.domain.models.TradingStatusDetails
 import com.example.tscalp.domain.models.PositionStreamItem
 
 import com.example.tscalp.util.formatCurrency
@@ -56,16 +44,11 @@ import com.example.tscalp.util.formatCurrency
 import ru.ttech.piapi.core.InvestApi
 import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
-import ru.tinkoff.piapi.contract.v1.OpenSandboxAccountRequest
-import ru.tinkoff.piapi.contract.v1.CloseSandboxAccountRequest
-import ru.tinkoff.piapi.contract.v1.Order
 import ru.tinkoff.piapi.contract.v1.PostStopOrderRequest
-import ru.tinkoff.piapi.contract.v1.StopOrderDirection
 import ru.tinkoff.piapi.contract.v1.StopOrderType as ProtoStopOrderType
 import ru.tinkoff.piapi.contract.v1.StopOrderExpirationType as ProtoStopOrderExpirationType
 import ru.tinkoff.piapi.contract.v1.OrderType
 import ru.tinkoff.piapi.contract.v1.PostOrderRequest
-import ru.tinkoff.piapi.contract.v1.OrderDirection as ProtoOrderDirection
 import ru.tinkoff.piapi.contract.v1.GetOrdersRequest
 import ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus
 import ru.tinkoff.piapi.contract.v1.CancelOrderRequest
@@ -76,7 +59,6 @@ import ru.tinkoff.piapi.contract.v1.MoneyValue
 import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
 import ru.tinkoff.piapi.contract.v1.InstrumentRequest
 import ru.tinkoff.piapi.contract.v1.InstrumentIdType
-import ru.tinkoff.piapi.contract.v1.InstrumentResponse
 import ru.tinkoff.piapi.contract.v1.InstrumentShort
 
 import ru.tinkoff.piapi.contract.v1.PortfolioRequest
@@ -84,7 +66,6 @@ import ru.tinkoff.piapi.contract.v1.PortfolioResponse
 import ru.tinkoff.piapi.contract.v1.GetLastPricesRequest
 import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
 import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
-import ru.tinkoff.piapi.contract.v1.MarketDataRequest
 import ru.tinkoff.piapi.contract.v1.MarketDataResponse
 import ru.tinkoff.piapi.contract.v1.SubscribeLastPriceRequest
 import ru.tinkoff.piapi.contract.v1.SubscriptionAction
@@ -105,10 +86,10 @@ import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
  * Хранит ticker→figi кэш, самостоятельно управляет своим экземпляром InvestApi.
  */
-class TInvestInvestService : BrokerApi {
+class TInvestBrokerAPI : BrokerApi {
 
     companion object {
-        private const val TAG = "TInvestInvestService"
+        private const val TAG = "TInvestBrokerAPI"
     }
 
     // Кэш ticker → figi для быстрой конвертации
@@ -124,26 +105,29 @@ class TInvestInvestService : BrokerApi {
     private lateinit var pricesStreamChannel: io.grpc.ManagedChannel
     @Volatile
     private lateinit var ordersStateChannel: io.grpc.ManagedChannel
+    @Volatile
+    private var sandboxMode: Boolean = true
 
     override val isInitialized: Boolean
         get() = api != null
 
-    fun initializeFromSettings() {
-        val token = ServiceLocator.getToken("TInvest") ?: return
-        val sandbox = ServiceLocator.isSandboxMode()
-        val target = if (sandbox) {
-            "sandbox-invest-public-api.tbank.ru:443"
-        } else {
-            "invest-public-api.tbank.ru:443"
-        }
-        grpcChannel = InvestApi.defaultChannel(token, target)
-        pricesStreamChannel = InvestApi.defaultChannel(token, target)
-        ordersStateChannel = InvestApi.defaultChannel(token, target)
-        api = InvestApi.createApi(grpcChannel)   // 👈 API привязан к основному каналу
-        //tickerToFigiCache.clear()
-    }
+//    fun initializeFromSettings() {
+//        val token = ServiceLocator.getToken("TInvest") ?: return
+//        val sandbox = ServiceLocator.isSandboxMode()
+//        val target = if (sandbox) {
+//            "sandbox-invest-public-api.tbank.ru:443"
+//        } else {
+//            "invest-public-api.tbank.ru:443"
+//        }
+//        grpcChannel = InvestApi.defaultChannel(token, target)
+//        pricesStreamChannel = InvestApi.defaultChannel(token, target)
+//        ordersStateChannel = InvestApi.defaultChannel(token, target)
+//        api = InvestApi.createApi(grpcChannel)   // 👈 API привязан к основному каналу
+//        //tickerToFigiCache.clear()
+//    }
 
     fun initialize(token: String, sandbox: Boolean) {
+        this.sandboxMode = sandbox
         val target = if (sandbox) {
             "sandbox-invest-public-api.tbank.ru:443"
         } else {
@@ -216,7 +200,7 @@ class TInvestInvestService : BrokerApi {
 
         // 1. Стартовый снапшот (всегда)
         try {
-            val sandbox = ServiceLocator.isSandboxMode()
+            val sandbox = sandboxMode
             val snapshot = fetchPositionsRest(accountId, sandbox)
             for (pos in snapshot) {
                 trySend(convertToStreamItem(pos))
@@ -250,7 +234,7 @@ class TInvestInvestService : BrokerApi {
         while (isActive) {
             delay(10_000)
             try {
-                val sandbox = ServiceLocator.isSandboxMode()
+                val sandbox = sandboxMode
                 val positions = fetchPositionsRest(accountId, sandbox)
                 Log.d(TAG, "Polling получил ${positions.size} позиций")
                 for (pos in positions) {
@@ -313,9 +297,9 @@ class TInvestInvestService : BrokerApi {
             }
 
             // Предзаполняем кэш инструментов, чтобы он был доступен другим экранам
-            if (instrumentUi != null) {
-                ServiceLocator.getInstrumentRepository().getInstrument(instrumentUi.tscalpInstrumentId)
-            }
+//            if (instrumentUi != null) {
+//                ServiceLocator.getInstrumentRepository().getInstrument(instrumentUi.tscalpInstrumentId)
+//            }
 
             Log.d(TAG, "Позиция $uid: expectedYield=$expectedYield, avgPrice=$avgPrice")
 
@@ -389,9 +373,11 @@ class TInvestInvestService : BrokerApi {
                     }
 
                     // Запускаем корутину для получения instrumentType и отправки
+                    // gRPC PositionsStream сейчас не используется (закомментирован в subscribePositions).
+                    // instrumentType подтянется через polling/fetchPositionsRest.
                     launch {
-                        val instrumentType = ServiceLocator.getInstrumentRepository()
-                            .getInstrument(uid)?.instrumentType ?: ""
+//                        val instrumentType = ServiceLocator.getInstrumentRepository()
+//                            .getInstrument(uid)?.instrumentType ?: ""
                         trySend(
                             PositionStreamItem(
                                 instrumentUid = uid,
@@ -400,7 +386,7 @@ class TInvestInvestService : BrokerApi {
                                 currentPrice = currentPrice,
                                 averagePositionPrice = avgPrice,
                                 expectedYield = yield,
-                                instrumentType = instrumentType,
+                                instrumentType = "",
                                 pointValue = null
                             )
                         )
@@ -433,7 +419,7 @@ class TInvestInvestService : BrokerApi {
 
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
-        if (ServiceLocator.isSandboxMode()) {
+        if (sandboxMode) {
             val portfolioRequest = PortfolioRequest.newBuilder().setAccountId(accountId).build()
             val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(portfolioRequest)
 
@@ -721,7 +707,7 @@ class TInvestInvestService : BrokerApi {
         val request = GetOrdersRequest.newBuilder()
             .setAccountId(accountId)
             .build()
-        val response = if (ServiceLocator.isSandboxMode()) {
+        val response = if (sandboxMode) {
             currentApi.sandboxServiceSync.getSandboxOrders(request)
         } else {
             currentApi.ordersServiceSync.getOrders(request)
@@ -814,7 +800,7 @@ class TInvestInvestService : BrokerApi {
                 .setAccountId(accountId)
                 .setOrderId(orderId)
                 .build()
-            if (ServiceLocator.isSandboxMode()) {
+            if (sandboxMode) {
                 currentApi.sandboxServiceSync.cancelSandboxOrder(request)
             } else {
                 currentApi.ordersServiceSync.cancelOrder(request)
@@ -866,7 +852,7 @@ class TInvestInvestService : BrokerApi {
         if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))
 
         val protoRequest = builder.build()
-        val response = if (ServiceLocator.isSandboxMode()) {
+        val response = if (sandboxMode) {
             currentApi.sandboxServiceSync.postSandboxStopOrder(protoRequest)
         } else {
             currentApi.stopOrdersServiceSync.postStopOrder(protoRequest)
@@ -877,7 +863,7 @@ class TInvestInvestService : BrokerApi {
     override suspend fun getStopOrders(accountId: String): List<OrderListItem> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = GetStopOrdersRequest.newBuilder().setAccountId(accountId).build()
-        val response = if (ServiceLocator.isSandboxMode()) {
+        val response = if (sandboxMode) {
             currentApi.sandboxServiceSync.getSandboxStopOrders(request)
         } else {
             currentApi.stopOrdersServiceSync.getStopOrders(request)
@@ -944,7 +930,7 @@ class TInvestInvestService : BrokerApi {
                 .setAccountId(accountId)
                 .setStopOrderId(stopOrderId)
                 .build()
-            if (ServiceLocator.isSandboxMode()) {
+            if (sandboxMode) {
                 currentApi.sandboxServiceSync.cancelSandboxStopOrder(request)
             } else {
                 currentApi.stopOrdersServiceSync.cancelStopOrder(request)
@@ -1158,14 +1144,12 @@ class TInvestInvestService : BrokerApi {
         }
     }
 
-    private suspend fun getPointValueFromCache(uid: String): Double? {
-        val instrument = ServiceLocator.getInstrumentRepository().getInstrument(uid)
-        return (instrument as? FutureUi)?.pointValue
-    }
+//    private suspend fun getPointValueFromCache(uid: String): Double? {
+//        val instrument = ServiceLocator.getInstrumentRepository().getInstrument(uid)
+//        return (instrument as? FutureUi)?.pointValue
+//    }
 
-    private suspend fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem {
-        val pv = pos.pointValue ?: (ServiceLocator.getInstrumentRepository()
-            .getInstrument(pos.tscalpInstrumentId) as? FutureUi)?.pointValue
+    private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem {
         return PositionStreamItem(
             instrumentUid = pos.tscalpInstrumentId,
             isin = pos.isin,
@@ -1176,7 +1160,7 @@ class TInvestInvestService : BrokerApi {
             averagePositionPrice = pos.averagePrice,
             expectedYield = pos.profit,
             instrumentType = pos.instrumentType,
-            pointValue = pv
+            pointValue = pos.pointValue
         )
     }
 }

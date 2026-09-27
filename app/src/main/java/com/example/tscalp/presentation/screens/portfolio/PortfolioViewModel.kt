@@ -15,7 +15,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-import com.example.tscalp.data.api.TInvestInvestService
+import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.BrokerManager
@@ -67,7 +67,7 @@ class PortfolioViewModel @Inject constructor(
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            val broker = brokerManager.getBroker("TInvest") as? TInvestInvestService
+            val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
             val accountId = sharedPrefs.getString("TInvest_default_account", null) ?: run {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                 return@launch

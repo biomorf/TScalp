@@ -41,17 +41,18 @@ import kotlinx.coroutines.launch
 
 import androidx.hilt.navigation.compose.hiltViewModel
 
-import com.example.tscalp.di.ServiceLocator
-import com.example.tscalp.data.api.TInvestInvestService
-import com.example.tscalp.data.api.BcsBrokerApi
-import com.example.tscalp.data.api.FinamBrokerApi
+//import com.example.tscalp.di.ServiceLocator
+//import com.example.tscalp.data.api.TInvestInvestService
+//import com.example.tscalp.data.api.BcsBrokerApi
+//import com.example.tscalp.data.api.FinamBrokerApi
+//import com.example.tscalp.data.repository.InvestRepository
 
 import com.example.tscalp.domain.models.BrokerAccount
 
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 //import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
-import com.example.tscalp.data.repository.InvestRepository
+import com.example.tscalp.presentation.screens.settings.SettingsViewModel
 import com.example.tscalp.BuildConfig
 
 
@@ -122,7 +123,9 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
     val ordersViewModel: OrdersViewModel = hiltViewModel()
     val uiState by ordersViewModel.uiState.collectAsState()
 
-    val brokerNames = remember { ServiceLocator.getBrokerManager().getAvailableBrokers() }
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+
+    val brokerNames = remember { settingsViewModel.getAvailableBrokers() }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(pageCount = { brokerNames.size })
 
@@ -181,16 +184,16 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiState) {
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
     var token by remember { mutableStateOf("") }
-    var sandboxMode by remember { mutableStateOf(ServiceLocator.isSandboxMode()) }
+    var sandboxMode by remember { mutableStateOf(settingsViewModel.isSandboxMode()) }
     var showToken by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    val repository: InvestRepository = remember { InvestRepository(ServiceLocator.getBrokerManager()) }
     var availableAccounts by remember { mutableStateOf<List<BrokerAccount>>(emptyList()) }
-    var defaultAccountId by remember { mutableStateOf(ServiceLocator.loadDefaultAccountId("TInvest") ?: "") }
+    var defaultAccountId by remember { mutableStateOf(settingsViewModel.loadDefaultAccountId("TInvest") ?: "") }
     var accountExpanded by remember { mutableStateOf(false) }
 
     var showCloseDialog by remember { mutableStateOf(false) }
@@ -198,20 +201,20 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
 
     // Загрузка сохранённых креденшелов
     LaunchedEffect(Unit) {
-        val creds = ServiceLocator.loadBrokerCredentials("TInvest")
+        val creds = settingsViewModel.loadBrokerCredentials("TInvest")
         if (creds != null) {
             token = creds.first
             sandboxMode = creds.second
         }
     }
 
-    val isConnected = uiState.isApiInitialized && ServiceLocator.loadBrokerCredentials("TInvest") != null
+    val isConnected = uiState.isApiInitialized && settingsViewModel.loadBrokerCredentials("TInvest") != null
 
     // При подключении/изменении режима перезагружаем счета
     LaunchedEffect(isConnected, sandboxMode) {
         if (isConnected) {
             try {
-                availableAccounts = repository.getAccounts("TInvest", sandboxMode)
+                availableAccounts = settingsViewModel.getAccounts("TInvest", sandboxMode)
             } catch (_: Exception) { }
         } else {
             availableAccounts = emptyList()
@@ -251,7 +254,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 if (isConnected) {
                     Button(
                         onClick = {
-                            ServiceLocator.clearBrokerCredentials("TInvest")
+                            settingsViewModel.clearBrokerCredentials("TInvest")
                             ordersViewModel.checkApiInitialization()
                             token = ""
                             statusMessage = "Подключение к Т‑Инвестициям разорвано"
@@ -264,17 +267,15 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 } else {
                     Button(
                         onClick = {
-                            scope.launch {
-                                try {
-                                    ServiceLocator.saveBrokerCredentials("TInvest", token, sandboxMode)
-                                    ordersViewModel.initializeApi(token, sandboxMode)
-                                    token = ""
-                                    statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
-                                    isError = false
-                                } catch (e: Exception) {
-                                    statusMessage = "Ошибка подключения: ${e.message}"
-                                    isError = true
-                                }
+                            try {
+                                settingsViewModel.initializeTInvest(token, sandboxMode)
+                                ordersViewModel.checkApiInitialization()
+                                token = ""
+                                statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
+                                isError = false
+                            } catch (e: Exception) {
+                                statusMessage = "Ошибка подключения: ${e.message}"
+                                isError = true
                             }
                         },
                         enabled = token.isNotBlank()
@@ -348,7 +349,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                             text = { Text("${account.name} (${account.id})") },
                             onClick = {
                                 defaultAccountId = account.id
-                                ServiceLocator.saveDefaultAccountId("TInvest", account.id)
+                                settingsViewModel.saveDefaultAccountId("TInvest", account.id)
                                 accountExpanded = false
                             }
                         )
@@ -364,16 +365,12 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                         scope.launch {
                             isRefreshing = true
                             try {
-                                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
-                                val newAccountId = broker?.openSandboxAccount()
-                                if (newAccountId != null) {
-                                    // Принудительно обновляем список счетов
-                                    availableAccounts = repository.getAccounts("TInvest", sandboxMode)
-                                    defaultAccountId = newAccountId
-                                    ServiceLocator.saveDefaultAccountId("TInvest", newAccountId)
-                                    statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
-                                    isError = false
-                                }
+                                val newAccountId = settingsViewModel.openSandboxAccount()
+                                availableAccounts = settingsViewModel.getAccounts("TInvest", sandboxMode)
+                                defaultAccountId = newAccountId
+                                settingsViewModel.saveDefaultAccountId("TInvest", newAccountId)
+                                statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
+                                isError = false
                             } catch (e: Exception) {
                                 statusMessage = "Ошибка открытия счёта: ${e.message}"
                                 isError = true
@@ -457,11 +454,10 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                         scope.launch {
                             isRefreshing = true
                             try {
-                                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestInvestService
-                                broker?.closeSandboxAccount(defaultAccountId)
-                                availableAccounts = repository.getAccounts("TInvest", sandboxMode)
+                                settingsViewModel.closeSandboxAccount(defaultAccountId)
+                                availableAccounts = settingsViewModel.getAccounts("TInvest", sandboxMode)
                                 defaultAccountId = ""
-                                ServiceLocator.saveDefaultAccountId("TInvest", "")
+                                settingsViewModel.saveDefaultAccountId("TInvest", "")
                                 statusMessage = "Счёт песочницы закрыт"
                                 isError = false
                             } catch (e: Exception) {
@@ -488,6 +484,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
 
 @Composable
 fun BcsSettingsPanel() {
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
     var refreshToken by remember { mutableStateOf("") }
     var isWriteMode by remember { mutableStateOf(true) }
     var connected by remember { mutableStateOf(false) }
@@ -497,7 +494,7 @@ fun BcsSettingsPanel() {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        val creds = ServiceLocator.loadBrokerCredentials("bcs")
+        val creds = settingsViewModel.loadBrokerCredentials("bcs")
         if (creds != null) {
             refreshToken = creds.first
             connected = true
@@ -533,7 +530,7 @@ fun BcsSettingsPanel() {
                 if (connected) {
                     Button(
                         onClick = {
-                            ServiceLocator.clearBrokerCredentials("bcs")
+                            settingsViewModel.clearBrokerCredentials("bcs")
                             connected = false
                             refreshToken = ""
                             showToken = false
@@ -591,7 +588,7 @@ fun BcsSettingsPanel() {
         if (connected) {
             Button(
                 onClick = {
-                    ServiceLocator.clearBrokerCredentials("bcs")
+                    settingsViewModel.clearBrokerCredentials("bcs")
                     connected = false
                     refreshToken = ""
                     showToken = false
@@ -606,19 +603,14 @@ fun BcsSettingsPanel() {
         } else {
             Button(
                 onClick = {
-                    scope.launch {
-                        val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                        try {
-                            val bcsApi = ServiceLocator.getBrokerManager().getBroker("bcs") as? BcsBrokerApi
-                            bcsApi?.initialize(refreshToken, clientId)
-                            ServiceLocator.saveBrokerCredentials("bcs", refreshToken, isWriteMode)
-                            connected = true
-                            statusMessage = "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
-                            isError = false
-                        } catch (e: Exception) {
-                            statusMessage = "Ошибка подключения: ${e.message}"
-                            isError = true
-                        }
+                    try {
+                        settingsViewModel.initializeBcs(refreshToken, isWriteMode)
+                        connected = true
+                        statusMessage = "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
+                        isError = false
+                    } catch (e: Exception) {
+                        statusMessage = "Ошибка подключения: ${e.message}"
+                        isError = true
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -671,6 +663,7 @@ fun BcsSettingsPanel() {
 
 @Composable
 fun FinamSettingsPanel() {
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
     var token by remember { mutableStateOf("") }
     var showToken by remember { mutableStateOf(false) }
     var connected by remember { mutableStateOf(false) }
@@ -680,7 +673,7 @@ fun FinamSettingsPanel() {
 
     // Загрузка сохранённых токенов
     LaunchedEffect(Unit) {
-        val savedToken = ServiceLocator.getToken("finam")
+        val savedToken = settingsViewModel.getToken("finam")
         if (savedToken != null) {
             token = savedToken
             connected = true
@@ -720,11 +713,11 @@ fun FinamSettingsPanel() {
                 if (connected) {
                     Button(
                         onClick = {
-                            ServiceLocator.clearBrokerCredentials("finam")
+                            settingsViewModel.clearBrokerCredentials("finam")
                             connected = false
                             token = ""
                             showToken = false
-                            statusMessage = "Подключение к Finnam разорвано"
+                            statusMessage = "Подключение к Finam разорвано"
                             isError = false
                         },
                         colors = ButtonDefaults.buttonColors(
@@ -742,7 +735,7 @@ fun FinamSettingsPanel() {
             value = token,
             onValueChange = { token = it },
             label = { Text("Токен доступа") },
-            placeholder = { Text("Введите секретный токен Finnam") },
+            placeholder = { Text("Введите секретный токен Finam") },
             visualTransformation = if (showToken)
                 VisualTransformation.None
             else
@@ -761,20 +754,15 @@ fun FinamSettingsPanel() {
         if (!connected) {
             Button(
                 onClick = {
-                    scope.launch {
                         try {
-                            ServiceLocator.saveToken("finam", token)
-                            val finamApi = ServiceLocator.getBrokerManager()
-                                .getBroker("finam") as? FinamBrokerApi
-                            finamApi?.initializeFromSettings()
+                            settingsViewModel.initializeFinam(token)
                             connected = true
-                            statusMessage = "Подключено к Finnam"
+                            statusMessage = "Подключено к Finam"
                             isError = false
                         } catch (e: Exception) {
                             statusMessage = "Ошибка подключения: ${e.message}"
                             isError = true
                         }
-                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = token.isNotBlank()
@@ -828,7 +816,8 @@ fun FinamSettingsPanel() {
 
 @Composable
 fun TradeSettingsContent(onBack: () -> Unit) {
-    var confirmOrdersEnabled by remember { mutableStateOf(ServiceLocator.isConfirmOrdersEnabled()) }
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val uiState by settingsViewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
@@ -859,10 +848,9 @@ fun TradeSettingsContent(onBack: () -> Unit) {
                 )
             }
             Switch(
-                checked = confirmOrdersEnabled,
+                checked = uiState.isConfirmOrdersEnabled,
                 onCheckedChange = { enabled ->
-                    confirmOrdersEnabled = enabled
-                    ServiceLocator.setConfirmOrdersEnabled(enabled)
+                    settingsViewModel.setConfirmOrdersEnabled(enabled)
                 }
             )
         }

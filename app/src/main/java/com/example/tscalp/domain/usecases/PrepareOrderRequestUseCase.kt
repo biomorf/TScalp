@@ -6,7 +6,7 @@ import com.example.tscalp.domain.models.OrderDirection
 import com.example.tscalp.domain.models.OrderTypeSelection
 import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.StopOrderType
-import com.example.tscalp.di.ServiceLocator
+//import com.example.tscalp.di.ServiceLocator
 
 class PrepareOrderRequestUseCase(
     private val pairOrderMapper: PairOrderMapper = PairOrderMapper
