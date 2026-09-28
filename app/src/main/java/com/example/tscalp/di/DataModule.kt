@@ -29,7 +29,7 @@ object DataModule {
         @ApplicationContext context: Context,
         sharedPreferences: SharedPreferences
     ): TInvestBrokerAPI {
-        val service = TInvestBrokerAPI()
+        val service = TInvestBrokerAPI(context)
         val token = sharedPreferences.getString("TInvest_token", null)
         if (token != null) {
             val sandbox = sharedPreferences.getBoolean("TInvest_sandbox", true)

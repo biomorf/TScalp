@@ -113,10 +113,11 @@ class SettingsViewModel @Inject constructor(
     // ---------- Инициализация брокеров ----------
 
     fun initializeTInvest(token: String, sandbox: Boolean) {
+        val cleanToken = token.trim()
         try {
-            settingsRepository.saveBrokerCredentials("TInvest", token, sandbox)
+            settingsRepository.saveBrokerCredentials("TInvest", cleanToken, sandbox)
             (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)
-                ?.initialize(token, sandbox)
+                ?.initialize(cleanToken, sandbox)
             _uiState.update {
                 it.copy(
                     statusMessage = "Подключено к Т‑Инвестициям (режим " +

@@ -3,6 +3,7 @@ package com.example.tscalp.data.api
 import android.content.Context
 import com.example.tscalp.R
 import java.security.KeyStore
+import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import javax.net.ssl.TrustManagerFactory
@@ -10,64 +11,58 @@ import javax.net.ssl.X509TrustManager
 
 class CustomTrustManager(context: Context) : X509TrustManager {
 
-    private val defaultTrustManager: X509TrustManager
-    private val trustedCerts: MutableSet<X509Certificate> = mutableSetOf()
+    private val systemTrustManager: X509TrustManager
+    private val customTrustManager: X509TrustManager
 
     init {
-        /// 1. Стандартный системный TrustManager
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-        tmf.init(null as KeyStore?)
-        defaultTrustManager = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
+        val systemTmf = TrustManagerFactory.getInstance(
+            TrustManagerFactory.getDefaultAlgorithm()
+        )
+        systemTmf.init(null as KeyStore?)
+        systemTrustManager = systemTmf.trustManagers
+            .first { it is X509TrustManager } as X509TrustManager
 
-        /// 2. Загружаем все резервные корневые сертификаты из raw
-        loadCertificate(context, R.raw.russian_trusted_root_ca)
-        loadCertificate(context, R.raw.russian_trusted_root_ca_gost_2025)
-        loadCertificate(context, R.raw.russian_trusted_sub_ca)
-        loadCertificate(context, R.raw.russian_trusted_sub_ca_2024)
-        loadCertificate(context, R.raw.russian_trusted_sub_ca_gost_2025)
-        /// пример второго сертификата
-        /// Добавьте сюда другие сертификаты по мере необходимости
+        // На Android используем "PKCS12", так как "JKS" недоступен
+        val keyStore = KeyStore.getInstance("PKCS12").apply { load(null, null) }
+        loadCertificateToKeyStore(context, R.raw.russian_trusted_root_ca, keyStore)
+        loadCertificateToKeyStore(context, R.raw.russian_trusted_root_ca_gost_2025, keyStore)
+        loadCertificateToKeyStore(context, R.raw.russian_trusted_sub_ca, keyStore)
+        loadCertificateToKeyStore(context, R.raw.russian_trusted_sub_ca_2024, keyStore)
+        loadCertificateToKeyStore(context, R.raw.russian_trusted_sub_ca_gost_2025, keyStore)
+
+        val customTmf = TrustManagerFactory.getInstance(
+            TrustManagerFactory.getDefaultAlgorithm()
+        )
+        customTmf.init(keyStore)
+        customTrustManager = customTmf.trustManagers
+            .first { it is X509TrustManager } as X509TrustManager
     }
 
-    private fun loadCertificate(context: Context, resId: Int) {
+    private fun loadCertificateToKeyStore(context: Context, resId: Int, keyStore: KeyStore) {
         try {
             val cf = CertificateFactory.getInstance("X.509")
             context.resources.openRawResource(resId).use { stream ->
                 val cert = cf.generateCertificate(stream) as X509Certificate
-                trustedCerts.add(cert)
+                keyStore.setCertificateEntry("cert_$resId", cert)
             }
         } catch (e: Exception) {
-            /// Логируем, но не прерываем инициализацию
             e.printStackTrace()
         }
     }
 
     override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-        defaultTrustManager.checkClientTrusted(chain, authType)
+        systemTrustManager.checkClientTrusted(chain, authType)
     }
 
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
         try {
-            defaultTrustManager.checkServerTrusted(chain, authType)
-        } catch (e: Exception) {
-            /// Пробуем проверить через любой из наших резервных сертификатов
-            if (chain != null && chain.isNotEmpty()) {
-                val serverCert = chain[0]
-                for (trustedCert in trustedCerts) {
-                    try {
-                        serverCert.verify(trustedCert.publicKey)
-                        /// Если верификация прошла – доверяем
-                        return
-                    } catch (verifyException: Exception) {
-                        /// Пробуем следующий сертификат
-                    }
-                }
-            }
-            throw e
+            systemTrustManager.checkServerTrusted(chain, authType)
+        } catch (e: CertificateException) {
+            customTrustManager.checkServerTrusted(chain, authType)
         }
     }
 
     override fun getAcceptedIssuers(): Array<X509Certificate> {
-        return defaultTrustManager.acceptedIssuers + trustedCerts.toTypedArray()
+        return systemTrustManager.acceptedIssuers + customTrustManager.acceptedIssuers
     }
 }

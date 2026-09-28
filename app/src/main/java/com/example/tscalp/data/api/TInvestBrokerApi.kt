@@ -15,6 +15,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 import io.grpc.stub.StreamObserver
+import io.grpc.stub.MetadataUtils
+import io.grpc.ManagedChannel
+import io.grpc.okhttp.OkHttpChannelBuilder
+import io.grpc.Metadata
+import java.util.concurrent.TimeUnit
 
 //import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
@@ -86,7 +91,10 @@ import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
  * Реализация BrokerApi для брокера Т‑Инвестиции (Kotlin SDK).
  * Хранит ticker→figi кэш, самостоятельно управляет своим экземпляром InvestApi.
  */
-class TInvestBrokerAPI : BrokerApi {
+class TInvestBrokerAPI(
+    private val context: android.content.Context
+) : BrokerApi {
+
 
     companion object {
         private const val TAG = "TInvestBrokerAPI"
@@ -133,10 +141,33 @@ class TInvestBrokerAPI : BrokerApi {
         } else {
             "invest-public-api.tbank.ru:443"
         }
-        grpcChannel = InvestApi.defaultChannel(token, target)
-        pricesStreamChannel = InvestApi.defaultChannel(token, target)
-        ordersStateChannel = InvestApi.defaultChannel(token, target)
+        grpcChannel = buildSecureChannel(target, token)
+        pricesStreamChannel = buildSecureChannel(target, token)
+        ordersStateChannel = buildSecureChannel(target, token)
         api = InvestApi.createApi(grpcChannel)
+    }
+
+    private fun buildSecureChannel(target: String, token: String): io.grpc.ManagedChannel {
+        val sslContext = javax.net.ssl.SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf(CustomTrustManager(context)), null)
+        }
+
+        val authInterceptor = io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(
+            io.grpc.Metadata().apply {
+                put(
+                    io.grpc.Metadata.Key.of("Authorization", io.grpc.Metadata.ASCII_STRING_MARSHALLER),
+                    "Bearer ${token.trim()}"
+                )
+            }
+        )
+
+        return io.grpc.okhttp.OkHttpChannelBuilder.forTarget(target)
+            .sslSocketFactory(sslContext.socketFactory)
+            .useTransportSecurity()
+            .keepAliveTime(30, java.util.concurrent.TimeUnit.SECONDS)
+            .keepAliveWithoutCalls(true)
+            .intercept(authInterceptor)
+            .build()
     }
 
     // ---------- Базовые методы ----------
