@@ -40,8 +40,8 @@ class SharedPositionStreamManager @Inject constructor(
         job?.cancel()
         job = scope.launch {
             val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
-            if (broker == null) {
-                Log.e(TAG, "TInvestBrokerAPI не доступен")
+            if (broker == null || !broker.isInitialized) {
+                Log.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
                 return@launch
             }
             broker.subscribePositions(accountId).collect { item ->

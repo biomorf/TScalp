@@ -176,10 +176,11 @@ class OrdersViewModel @Inject constructor(
 
     private suspend fun restoreState() {
         val repo = instrumentRepo
+        val brokerReady = brokerManager.getDefaultBroker().isInitialized
 
         // Восстановление основного инструмента
         val uid = prefs.getString("selected_instrument_uid", null)
-        if (uid != null) {
+        if (uid != null && brokerReady) {
             val instrument = repo.getInstrument(uid)
             if (instrument != null) {
                 _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
@@ -194,7 +195,7 @@ class OrdersViewModel @Inject constructor(
 
         // Восстановление парного инструмента
         val pairUid = prefs.getString("paired_instrument_uid", null)
-        if (pairUid != null) {
+        if (pairUid != null && brokerReady) {
             val pairInstrument = repo.getInstrument(pairUid)
             if (pairInstrument != null) {
                 _uiState.update { it.copy(pairedInstrument = pairInstrument) }
@@ -251,14 +252,14 @@ class OrdersViewModel @Inject constructor(
                 val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
                 val brokerName = "TInvest"
                 val accounts = repository.getAccounts(brokerName, sandboxMode)
-                if (_uiState.value.selectedAccountId == null && accounts.isNotEmpty()) {
-                    _uiState.update { it.copy(selectedAccountId = accounts.first().id) }
-                }
-                val defaultAccount = accounts.firstOrNull()
+                val savedAccountId = sharedPrefs.getString("TInvest_default_account", null)
+                val chosenAccount = accounts.firstOrNull { it.id == savedAccountId }
+                    ?: accounts.firstOrNull()
+
                 _uiState.update {
                     it.copy(
                         accounts = accounts,
-                        selectedAccountId = defaultAccount?.id,
+                        selectedAccountId = chosenAccount?.id,
                         isLoading = false,
                         statusMessage = if (accounts.isEmpty()) "Нет доступных счетов"
                         else "Загружено ${accounts.size} счёт(ов)"

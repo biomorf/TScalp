@@ -215,6 +215,11 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         if (isConnected) {
             try {
                 availableAccounts = settingsViewModel.getAccounts("TInvest", sandboxMode)
+                // Если счёт по умолчанию ещё не выбран — берём первый доступный
+                if (defaultAccountId.isBlank() && availableAccounts.isNotEmpty()) {
+                    defaultAccountId = availableAccounts.first().id
+                    settingsViewModel.saveDefaultAccountId("TInvest", defaultAccountId)
+                }
             } catch (_: Exception) { }
         } else {
             availableAccounts = emptyList()

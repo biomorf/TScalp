@@ -514,7 +514,10 @@ class TInvestBrokerAPI(
 
 
     private suspend fun fetchProtoInstrument(uid: String): Instrument? = withContext(Dispatchers.IO) {
-        val currentApi = api ?: throw IllegalStateException("API не инициализирован")
+        val currentApi = api ?: run {
+            Log.w(TAG, "fetchProtoInstrument: API не инициализирован, возвращаю null для uid=$uid")
+            return@withContext null
+        }
         val request = InstrumentRequest.newBuilder()
             .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_UID)
             .setId(uid)

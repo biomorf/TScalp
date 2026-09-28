@@ -65,6 +65,9 @@ class SettingsViewModel @Inject constructor(
 
     fun clearBrokerCredentials(brokerName: String) {
         settingsRepository.clearBrokerCredentials(brokerName)
+        if (brokerName == "TInvest") {
+            settingsRepository.clearTradingState(brokerName)
+        }
     }
 
     fun saveToken(brokerName: String, token: String) {
@@ -133,11 +136,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun initializeBcs(refreshToken: String, isWriteMode: Boolean) {
+        val cleanToken = refreshToken.trim()
         viewModelScope.launch {
             try {
                 val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                (brokerManager.getBroker("bcs") as? BcsBrokerApi)?.initialize(refreshToken, clientId)
-                settingsRepository.saveBrokerCredentials("bcs", refreshToken, isWriteMode)
+                (brokerManager.getBroker("bcs") as? BcsBrokerApi)?.initialize(cleanToken, clientId)
+                settingsRepository.saveBrokerCredentials("bcs", cleanToken, isWriteMode)
                 _uiState.update {
                     it.copy(
                         statusMessage = "Подключено к БКС " +
@@ -154,17 +158,16 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun initializeFinam(token: String) {
-        viewModelScope.launch {
-            try {
-                settingsRepository.saveToken("finam", token)
-                (brokerManager.getBroker("finam") as? FinamBrokerApi)?.initialize(token)
-                _uiState.update {
-                    it.copy(statusMessage = "Подключено к Finam", isError = false)
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
-                }
+        val cleanToken = token.trim()
+        try {
+            settingsRepository.saveToken("finam", cleanToken)
+            (brokerManager.getBroker("finam") as? FinamBrokerApi)?.initialize(cleanToken)
+            _uiState.update {
+                it.copy(statusMessage = "Подключено к Finam", isError = false)
+            }
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
             }
         }
     }

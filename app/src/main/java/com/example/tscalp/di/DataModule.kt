@@ -1,5 +1,6 @@
 package com.example.tscalp.di
 
+import android.util.Log
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.tscalp.data.api.TInvestBrokerAPI
@@ -31,9 +32,12 @@ object DataModule {
     ): TInvestBrokerAPI {
         val service = TInvestBrokerAPI(context)
         val token = sharedPreferences.getString("TInvest_token", null)
+        Log.d("DataModule", "provideTInvestBrokerAPI: token=" +
+                if (token.isNullOrBlank()) "null/blank" else "present, len=${token.length}")
         if (token != null) {
             val sandbox = sharedPreferences.getBoolean("TInvest_sandbox", true)
             service.initialize(token, sandbox)
+            Log.d("DataModule", "TInvestBrokerAPI initialized: isInitialized=${service.isInitialized}")
         }
         return service
     }

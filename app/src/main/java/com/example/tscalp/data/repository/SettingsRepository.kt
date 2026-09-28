@@ -23,7 +23,7 @@ class SettingsRepository @Inject constructor(
         prefs.edit()
             .putString("${brokerName}_token", token)
             .putBoolean("${brokerName}_sandbox", sandbox)
-            .apply()
+            .commit()  // синхронная запись — токен не потеряется при kill процесса
     }
 
     /**
@@ -42,11 +42,24 @@ class SettingsRepository @Inject constructor(
             .apply()
     }
 
+    fun clearTradingState(brokerName: String) {
+        prefs.edit()
+            .remove("selected_instrument_uid")
+            .remove("paired_instrument_uid")
+            .remove("pair_trading_enabled")
+            .remove("quantity")
+            .remove("paired_multiplier")
+            .remove("order_type")
+            .apply()
+    }
+
     /**
      * Сохраняет только токен для брокера (без sandbox-флага).
      */
     fun saveToken(brokerName: String, token: String) {
-        prefs.edit().putString("${brokerName}_token", token).apply()
+        prefs.edit()
+            .putString("${brokerName}_token", token)
+            .commit()  // синхронная запись — токен не потеряется при kill процесса
     }
 
     fun hasSavedToken(brokerName: String): Boolean =
