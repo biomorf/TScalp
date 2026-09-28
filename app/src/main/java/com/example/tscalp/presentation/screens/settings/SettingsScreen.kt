@@ -272,15 +272,17 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 } else {
                     Button(
                         onClick = {
-                            try {
-                                settingsViewModel.initializeTInvest(token, sandboxMode)
-                                ordersViewModel.checkApiInitialization()
-                                token = ""
-                                statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
-                                isError = false
-                            } catch (e: Exception) {
-                                statusMessage = "Ошибка подключения: ${e.message}"
-                                isError = true
+                            scope.launch {
+                                val success = settingsViewModel.initializeTInvest(token, sandboxMode)
+                                if (success) {
+                                    ordersViewModel.checkApiInitialization()
+                                    token = ""
+                                    statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
+                                    isError = false
+                                } else {
+                                    statusMessage = settingsViewModel.uiState.value.statusMessage ?: "Ошибка подключения"
+                                    isError = true
+                                }
                             }
                         },
                         enabled = token.isNotBlank()
@@ -622,22 +624,23 @@ fun BcsSettingsPanel() {
             }
         } else {
             Button(
-                onClick = {
-                    try {
-                        settingsViewModel.initializeBcs(refreshToken, isWriteMode)
-                        connected = true
-                        statusMessage = "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
-                        isError = false
-                    } catch (e: Exception) {
-                        statusMessage = "Ошибка подключения: ${e.message}"
-                        isError = true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = refreshToken.isNotBlank()
-            ) {
-                Text("Подключиться")
-            }
+                    onClick = {
+                        scope.launch {
+                            val success = settingsViewModel.initializeBcs(refreshToken, isWriteMode)
+                            connected = success
+                            statusMessage = if (success) {
+                                "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
+                            } else {
+                                "Ошибка подключения"
+                            }
+                            isError = !success
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = refreshToken.isNotBlank()
+                ) {
+                    Text("Подключиться")
+                }
         }
 
         // Инструкция
@@ -774,15 +777,12 @@ fun FinamSettingsPanel() {
         if (!connected) {
             Button(
                 onClick = {
-                        try {
-                            settingsViewModel.initializeFinam(token)
-                            connected = true
-                            statusMessage = "Подключено к Finam"
-                            isError = false
-                        } catch (e: Exception) {
-                            statusMessage = "Ошибка подключения: ${e.message}"
-                            isError = true
-                        }
+                    scope.launch {
+                        val success = settingsViewModel.initializeFinam(token)
+                        connected = success
+                        statusMessage = if (success) "Подключено к Finam" else "Ошибка подключения"
+                        isError = !success
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = token.isNotBlank()

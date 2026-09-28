@@ -135,32 +135,32 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    fun initializeApi(token: String, sandboxMode: Boolean) {
-        try {
-            sharedPrefs.edit()
-                .putString("TInvest_token", token)
-                .putBoolean("TInvest_sandbox", sandboxMode)
-                .apply()
-            (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)?.initialize(token, sandboxMode)
-
-            _uiState.update {
-                it.copy(
-                    isApiInitialized = true,
-                    statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})",
-                    isError = false
-                )
-            }
-            loadAccounts()
-            viewModelScope.launch { startPositionUpdates() }   // <-- обернули в корутину
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    statusMessage = "Ошибка подключения: ${e.message}",
-                    isError = true
-                )
-            }
-        }
-    }
+//    fun initializeApi(token: String, sandboxMode: Boolean) {
+//        try {
+//            sharedPrefs.edit()
+//                .putString("TInvest_token", token)
+//                .putBoolean("TInvest_sandbox", sandboxMode)
+//                .apply()
+//            (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)?.initialize(token, sandboxMode)
+//
+//            _uiState.update {
+//                it.copy(
+//                    isApiInitialized = true,
+//                    statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})",
+//                    isError = false
+//                )
+//            }
+//            loadAccounts()
+//            viewModelScope.launch { startPositionUpdates() }   // <-- обернули в корутину
+//        } catch (e: Exception) {
+//            _uiState.update {
+//                it.copy(
+//                    statusMessage = "Ошибка подключения: ${e.message}",
+//                    isError = true
+//                )
+//            }
+//        }
+//    }
 
     private fun saveState() {
         val state = _uiState.value

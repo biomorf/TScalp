@@ -115,12 +115,14 @@ class SettingsViewModel @Inject constructor(
 
     // ---------- Инициализация брокеров ----------
 
-    fun initializeTInvest(token: String, sandbox: Boolean) {
+    suspend fun initializeTInvest(token: String, sandbox: Boolean): Boolean {
         val cleanToken = token.trim()
-        try {
+        return try {
             settingsRepository.saveBrokerCredentials("TInvest", cleanToken, sandbox)
-            (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)
-                ?.initialize(cleanToken, sandbox)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)
+                    ?.initialize(cleanToken, sandbox)
+            }
             _uiState.update {
                 it.copy(
                     statusMessage = "Подключено к Т‑Инвестициям (режим " +
@@ -128,47 +130,51 @@ class SettingsViewModel @Inject constructor(
                     isError = false
                 )
             }
+            true
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
             }
+            false
         }
     }
 
-    fun initializeBcs(refreshToken: String, isWriteMode: Boolean) {
+    suspend fun initializeBcs(refreshToken: String, isWriteMode: Boolean): Boolean {
         val cleanToken = refreshToken.trim()
-        viewModelScope.launch {
-            try {
-                val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                (brokerManager.getBroker("bcs") as? BcsBrokerApi)?.initialize(cleanToken, clientId)
-                settingsRepository.saveBrokerCredentials("bcs", cleanToken, isWriteMode)
-                _uiState.update {
-                    it.copy(
-                        statusMessage = "Подключено к БКС " +
-                                "(${if (isWriteMode) "полный доступ" else "только чтение"})",
-                        isError = false
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
-                }
+        return try {
+            val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
+            (brokerManager.getBroker("bcs") as? BcsBrokerApi)?.initialize(cleanToken, clientId)
+            settingsRepository.saveBrokerCredentials("bcs", cleanToken, isWriteMode)
+            _uiState.update {
+                it.copy(
+                    statusMessage = "Подключено к БКС " +
+                            "(${if (isWriteMode) "полный доступ" else "только чтение"})",
+                    isError = false
+                )
             }
+            true
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
+            }
+            false
         }
     }
 
-    fun initializeFinam(token: String) {
+    suspend fun initializeFinam(token: String): Boolean {
         val cleanToken = token.trim()
-        try {
+        return try {
             settingsRepository.saveToken("finam", cleanToken)
             (brokerManager.getBroker("finam") as? FinamBrokerApi)?.initialize(cleanToken)
             _uiState.update {
                 it.copy(statusMessage = "Подключено к Finam", isError = false)
             }
+            true
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
             }
+            false
         }
     }
 
