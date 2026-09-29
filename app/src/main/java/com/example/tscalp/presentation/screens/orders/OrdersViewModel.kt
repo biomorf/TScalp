@@ -33,6 +33,7 @@ import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.example.tscalp.util.formatCurrency
 
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.OrderTypeSelection
@@ -443,9 +444,15 @@ class OrdersViewModel @Inject constructor(
 
         val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return
 
-// Проверка доступности через брокер-специфичный метод
+        // Проверка доступности через брокер-специфичный метод
         // Получаем брокера и проверяем доступность
-        val broker = (brokerManager.getBroker(brokerName) as? TInvestBrokerAPI)
+        val brokerKey = BrokerName.fromKey(brokerName)
+            ?: run {
+                _uiState.update { it.copy(statusMessage = "❌ Неизвестный брокер: $brokerName", isError = true) }
+                return
+            }
+
+        val broker = (brokerManager.getBroker(brokerKey) as? TInvestBrokerAPI)
             ?: run {
                 _uiState.update { it.copy(statusMessage = "❌ Брокер не найден", isError = true) }
                 return
@@ -837,7 +844,7 @@ fun openBrokerDialog(ticker: String) {
 
     fun startPriceUpdates() {
         stopPriceUpdates()
-        val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI ?: return
+        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI ?: return
         val state = _uiState.value
 
         val idToTicker = mutableMapOf<String, String>()       // tscalpInstrumentId → ticker
@@ -884,7 +891,7 @@ fun openBrokerDialog(ticker: String) {
 
     private suspend fun updateTradingStatuses(ids: List<String>) {
         if (ids.isEmpty()) return
-        val broker = brokerManager.getBroker("TInvest") ?: return
+        val broker = brokerManager.getBroker(BrokerName.TINVEST) ?: return
         try {
             val statuses = broker.getTradingStatuses(ids)
             _uiState.update { state ->
@@ -909,7 +916,7 @@ fun openBrokerDialog(ticker: String) {
         if (_uiState.value.portfolioPositions.isEmpty()) {
             viewModelScope.launch {
                 try {
-                    val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
+                    val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
                     val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
                     val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
                     _uiState.update { it.copy(portfolioPositions = positions) }
