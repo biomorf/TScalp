@@ -141,6 +141,12 @@ class TInvestBrokerAPI(
         } else {
             "invest-public-api.tbank.ru:443"
         }
+
+        // Закрываем старые каналы, если были — иначе будет утечка
+        if (::grpcChannel.isInitialized) grpcChannel.shutdownNow()
+        if (::pricesStreamChannel.isInitialized) pricesStreamChannel.shutdownNow()
+        if (::ordersStateChannel.isInitialized) ordersStateChannel.shutdownNow()
+
         grpcChannel = buildSecureChannel(target, token)
         pricesStreamChannel = buildSecureChannel(target, token)
         ordersStateChannel = buildSecureChannel(target, token)
@@ -272,7 +278,12 @@ class TInvestBrokerAPI(
                     trySend(convertToStreamItem(pos))
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Polling error: ${e.message}")
+                val msg = e.message ?: ""
+                if (msg.contains("NOT_FOUND")) {
+                    Log.w(TAG, "Счёт $accountId не найден, останавливаю polling")
+                    break
+                }
+                Log.w(TAG, "Polling error: $msg")
             }
         }
 
