@@ -1,12 +1,14 @@
 package com.example.tscalp.data.repository
 
 import android.util.Log
-import com.example.tscalp.di.BrokerManager
-import com.example.tscalp.domain.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerOrderRequest
+import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.domain.models.BrokerName
+import com.example.tscalp.domain.models.*
 
 
 /**
@@ -25,9 +27,11 @@ class InvestRepository(
      * Оставлен для совместимости с существующим кодом.
      */
     suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<BrokerAccount> = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(brokerName)
-            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
-        broker.getAccounts(sandboxMode)  // возвращает List<BrokerAccount> – просто возвращаем
+        val name = BrokerName.fromKey(brokerName)
+            ?: throw IllegalArgumentException("Неизвестный брокер: $brokerName")
+        val broker = brokerManager.getBroker(name)
+            ?: throw IllegalArgumentException("Брокер $brokerName не зарегистрирован")
+        broker.getAccounts(sandboxMode)
     }
 
 //     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
@@ -78,14 +82,18 @@ class InvestRepository(
      * Отправляет заявку (рыночную или лимитную) через указанного брокера.
      */
     suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(request.brokerName)
-            ?: throw IllegalArgumentException("Брокер ${request.brokerName} не найден")
+        val name = BrokerName.fromKey(request.brokerName)
+            ?: throw IllegalArgumentException("Неизвестный брокер: ${request.brokerName}")
+        val broker = brokerManager.getBroker(name)
+            ?: throw IllegalArgumentException("Брокер ${request.brokerName} не зарегистрирован")
         broker.postOrder(request)
     }
 
     suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getBroker(request.brokerName)
-            ?: throw IllegalArgumentException("Брокер ${request.brokerName} не найден")
+        val name = BrokerName.fromKey(request.brokerName)
+            ?: throw IllegalArgumentException("Неизвестный брокер: ${request.brokerName}")
+        val broker = brokerManager.getBroker(name)
+            ?: throw IllegalArgumentException("Брокер ${request.brokerName} не зарегистрирован")
         broker.postStopOrder(request)
     }
 
