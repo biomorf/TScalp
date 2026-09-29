@@ -66,9 +66,9 @@ kotlin {
     }
 }
 // Блок для опциональной конфигурации компилятора Compose
-composeCompiler {
-    enableStrongSkippingMode = true
-}
+//composeCompiler {
+//    enableStrongSkippingMode = true
+//}
 
 
 
@@ -82,6 +82,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.navigation:navigation-compose:2.9.8")    //for navigation using sealed classes
 
     // Core

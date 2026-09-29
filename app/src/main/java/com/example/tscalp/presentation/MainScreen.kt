@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,12 +39,12 @@ val bottomNavItems = listOf(
     BottomNavItem(
         route = NavRoutes.ORDERS,  /// Строка "orders"
         title = "Заявки",
-        icon = Icons.Default.List
+        icon = Icons.AutoMirrored.Filled.List
     ),
     BottomNavItem(
         route = NavRoutes.PORTFOLIO,  /// Строка "portfolio"
         title = "Портфель",
-        icon = Icons.Default.ShowChart
+        icon = Icons.AutoMirrored.Filled.ShowChart
     ),
     BottomNavItem(
         route = NavRoutes.SETTINGS,  /// Строка "settings"

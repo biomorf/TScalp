@@ -454,7 +454,7 @@ class OrdersViewModel @Inject constructor(
         val checkResult = broker.checkTradeAvailability(
             accountId,
             tscalpId,
-            uid = state.selectedInstrument?.tscalpInstrumentId,
+            uid = tscalpId,
             direction,
             quantity
         )
@@ -472,7 +472,7 @@ class OrdersViewModel @Inject constructor(
                 val prepared = prepareOrderRequest.prepare(
                     brokerName = brokerName,
                     ticker = ticker,
-                    instrumentUid = state.selectedInstrument?.tscalpInstrumentId,
+                    instrumentUid = tscalpId,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
@@ -501,12 +501,14 @@ class OrdersViewModel @Inject constructor(
 
                     if (prepared.pairedRequest != null) {
                         val pairedMsg = try {
-                            if (prepared.isPairedStop!!) {
-                                val stopId = repository.postStopOrder(prepared.pairedRequest as StopOrderRequest)
-                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${(prepared.pairedRequest as StopOrderRequest).quantity} лотов, ID: ${stopId.take(8)}…"
+                            if (prepared.isPairedStop == true) {
+                                val pairedStop = prepared.pairedRequest as StopOrderRequest
+                                val stopId = repository.postStopOrder(pairedStop)
+                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${pairedStop.quantity} лотов, ID: ${stopId.take(8)}…"
                             } else {
-                                val pairedResult = repository.postOrder(prepared.pairedRequest as BrokerOrderRequest)
-                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${(prepared.pairedRequest as BrokerOrderRequest).quantity} лотов, ID: ${pairedResult.orderId}"
+                                val pairedRegular = prepared.pairedRequest as BrokerOrderRequest
+                                val pairedResult = repository.postOrder(pairedRegular)
+                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${pairedRegular.quantity} лотов, ID: ${pairedResult.orderId}"
                             }
                         } catch (e: Exception) {
                             "\n❌ Ошибка контрсделки: ${e.message}"

@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
+import java.io.IOException
 
 //import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
@@ -71,7 +72,7 @@ class FinamBrokerApi : BrokerApi {
                 if (!resp.isSuccessful) {
                     throw Exception("HTTP ${resp.code}: ${resp.message}")
                 }
-                val body = resp.body?.string() ?: throw Exception("Пустой ответ")
+                val body = resp.body.string().ifBlank { throw IOException("Пустой ответ") }
                 parser(body)
             } ?: throw Exception("Клиент не инициализирован")
         }

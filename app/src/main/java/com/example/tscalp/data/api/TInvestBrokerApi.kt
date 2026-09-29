@@ -325,7 +325,7 @@ class TInvestBrokerAPI(
             val avgPrice = pos.averagePositionPrice?.let { it.units + it.nano / 1_000_000_000.0 }
 
             // Используем expectedYield, если он положительный, иначе считаем сами
-            val profit: Double? = if (expectedYield != null && expectedYield > 0.0) {
+            val profit: Double? = if (expectedYield > 0.0) {
                 expectedYield
             } else if (avgPrice != null && avgPrice > 0.0) {
                 (currentPrice - avgPrice) * quantity
@@ -542,6 +542,7 @@ class TInvestBrokerAPI(
      * Получает стоимость шага цены (min_price_increment_amount) для фьючерса по его figi.
      * Использует метод GetFuturesMargin из API Т‑Инвестиций.
      */
+    @Suppress("DEPRECATION")
     private suspend fun getFuturesMargin(figi: String): Double? {
         try {
             val currentApi = api ?: throw IllegalStateException("API не инициализирован")
@@ -804,8 +805,8 @@ class TInvestBrokerAPI(
 
 
                 Log.d(TAG, "Order ${order.orderId} rawStatusValue=${statusField?.let { order.getField(it) }}, mapped=$statusStr")
-                val orderIdStr: String = (order.orderId ?: "").toString()
-                val figiStr: String = (order.figi ?: "").toString()
+                val orderIdStr: String = order.orderId ?: ""
+                val figiStr: String = order.figi ?: ""
 
 
                 val priceField = order.descriptorForType.findFieldByName("initial_order_price")
@@ -918,7 +919,7 @@ class TInvestBrokerAPI(
             // Извлекаем instrument_uid через дескриптор
             val uidField = order.descriptorForType.findFieldByName("instrument_uid")
             val uid = uidField?.let { order.getField(it) } as? String ?: order.figi
-// Тикер берём напрямую из ответа API
+            // Тикер берём напрямую из ответа API
             val tickerField = order.descriptorForType.findFieldByName("ticker")
             val ticker = tickerField?.let { order.getField(it) } as? String ?: uid
 
@@ -938,12 +939,12 @@ class TInvestBrokerAPI(
 
 
             // Явное приведение String (убирает String!)
-            val orderIdStr = order.stopOrderId.toString()
-            val figiStr = order.figi.toString()
+            val orderIdStr: String = order.stopOrderId ?: ""
+            val figiStr: String = order.figi ?: ""
 
             // Направление и статус через enum (избавляемся от String!)
-            val directionStr: String = (order.direction as Enum<*>).name.removePrefix("STOP_ORDER_DIRECTION_")
-            val statusStr: String = (order.status as Enum<*>).name.removePrefix("STOP_ORDER_STATUS_")
+            val directionStr: String = order.direction.name.removePrefix("STOP_ORDER_DIRECTION_")
+            val statusStr: String = order.status.name.removePrefix("STOP_ORDER_STATUS_")
 
             // Явное извлечение MoneyValue с объявлением типа
             val sp: MoneyValue? = order.stopPrice

@@ -92,11 +92,11 @@ class BcsBrokerApi : BrokerApi {
         try {
             val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
             if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: ""
+                val errorBody = response.body.string()
                 Log.e("BcsBrokerApi", "Ошибка получения access-токена: ${response.code}, тело: $errorBody")
                 throw IOException("Ошибка получения access-токена: ${response.code}")
             }
-            val responseBody = response.body?.string() ?: throw IOException("Пустой ответ")
+            val responseBody = response.body.string().ifBlank { throw IOException("Пустой ответ") }
             val map: Map<String, Any> = gson.fromJson(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
             accessToken = map["access_token"] as? String ?: throw IOException("Не найден access_token в ответе")
             val expiresIn = (map["expires_in"] as? Double)?.toLong() ?: 3600
@@ -161,11 +161,12 @@ class BcsBrokerApi : BrokerApi {
      * Получает счета на основе ответа портфеля.
      * Используем первый элемент массива, чтобы извлечь номер счёта (поле "account").
      */
+    @Suppress("UNCHECKED_CAST")
     override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> {
         val response = makeRequest("GET", PORTFOLIO_PATH)
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
-        val json = response.body?.string() ?: throw IOException("Пустой ответ")
+        val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
         val portfolioData: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
 
         // Пытаемся найти массив счетов в ответе
@@ -251,7 +252,7 @@ class BcsBrokerApi : BrokerApi {
         val response = makeRequest("GET", PORTFOLIO_PATH)
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
-        val json = response.body?.string() ?: throw IOException("Пустой ответ")
+        val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
         Log.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
 
         val allPositions: List<Map<String, Any>> = gson.fromJson(
@@ -336,7 +337,7 @@ class BcsBrokerApi : BrokerApi {
         val response = makeRequest("POST", ORDERS_PATH, body)
         if (!response.isSuccessful) throw IOException("Ошибка выставления заявки: ${response.code}")
 
-        val json = response.body?.string() ?: throw IOException("Пустой ответ")
+        val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
         val orderMap: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
 
         return OrderResult(

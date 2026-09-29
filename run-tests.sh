@@ -25,8 +25,8 @@ fi
 
 if [ -z "$1" ]; then
     echo "==> Запуск всех unit-тестов"
-    ./gradlew :app:testDebugUnitTest
+    ./gradlew :app:clean :app:testDebugUnitTest
 else
     echo "==> Запуск тестов, matching '$1'"
-    ./gradlew :app:testDebugUnitTest --tests "*$1*"
+    ./gradlew :app:clean :app:testDebugUnitTest --tests "*$1*"
 fi
