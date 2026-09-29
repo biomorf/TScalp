@@ -17,6 +17,7 @@ import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.data.repository.SettingsRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.BrokerName
 
 /**
  * UI-состояние экрана настроек.
@@ -65,7 +66,7 @@ class SettingsViewModel @Inject constructor(
 
     fun clearBrokerCredentials(brokerName: String) {
         settingsRepository.clearBrokerCredentials(brokerName)
-        if (brokerName == "TInvest") {
+        if (brokerName == BrokerName.TINVEST.key) {
             settingsRepository.clearTradingState(brokerName)
         }
     }
@@ -118,9 +119,9 @@ class SettingsViewModel @Inject constructor(
     suspend fun initializeTInvest(token: String, sandbox: Boolean): Boolean {
         val cleanToken = token.trim()
         return try {
-            settingsRepository.saveBrokerCredentials("TInvest", cleanToken, sandbox)
+            settingsRepository.saveBrokerCredentials(BrokerName.TINVEST.key, cleanToken, sandbox)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)
+                (brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI)
                     ?.initialize(cleanToken, sandbox)
             }
             _uiState.update {
@@ -143,8 +144,8 @@ class SettingsViewModel @Inject constructor(
         val cleanToken = refreshToken.trim()
         return try {
             val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-            (brokerManager.getBroker("bcs") as? BcsBrokerApi)?.initialize(cleanToken, clientId)
-            settingsRepository.saveBrokerCredentials("bcs", cleanToken, isWriteMode)
+            (brokerManager.getBroker(BrokerName.BCS) as? BcsBrokerApi)?.initialize(cleanToken, clientId)
+            settingsRepository.saveBrokerCredentials(BrokerName.BCS.key, cleanToken, isWriteMode)
             _uiState.update {
                 it.copy(
                     statusMessage = "Подключено к БКС " +
@@ -164,8 +165,8 @@ class SettingsViewModel @Inject constructor(
     suspend fun initializeFinam(token: String): Boolean {
         val cleanToken = token.trim()
         return try {
-            settingsRepository.saveToken("finam", cleanToken)
-            (brokerManager.getBroker("finam") as? FinamBrokerApi)?.initialize(cleanToken)
+            settingsRepository.saveToken(BrokerName.FINAM.key, cleanToken)
+            (brokerManager.getBroker(BrokerName.FINAM) as? FinamBrokerApi)?.initialize(cleanToken)
             _uiState.update {
                 it.copy(statusMessage = "Подключено к Finam", isError = false)
             }
@@ -182,13 +183,13 @@ class SettingsViewModel @Inject constructor(
     // Бросают исключение при ошибке — обработка остаётся на стороне вызова (панели).
 
     suspend fun openSandboxAccount(): String {
-        val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
+        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
             ?: throw IllegalStateException("Брокер TInvest не найден")
         return broker.openSandboxAccount()
     }
 
     suspend fun closeSandboxAccount(accountId: String) {
-        val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
+        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
             ?: throw IllegalStateException("Брокер TInvest не найден")
         broker.closeSandboxAccount(accountId)
     }
