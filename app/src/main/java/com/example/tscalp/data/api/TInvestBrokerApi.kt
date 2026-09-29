@@ -12,14 +12,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+//import kotlinx.coroutines.launch
 
 import io.grpc.stub.StreamObserver
-//import io.grpc.stub.MetadataUtils
-//import io.grpc.ManagedChannel
-//import io.grpc.okhttp.OkHttpChannelBuilder
-//import io.grpc.Metadata
-//import java.util.concurrent.TimeUnit
 
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.BrokerName
@@ -81,8 +76,8 @@ import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
 import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
-import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
-import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
+//import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
+//import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
 import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
 
 
@@ -92,7 +87,7 @@ import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
  * Хранит ticker→figi кэш, самостоятельно управляет своим экземпляром InvestApi.
  */
 class TInvestBrokerAPI(
-    private val context: android.content.Context
+    private val channelFactory: TInvestChannelFactory
 ) : BrokerApi {
 
 
@@ -108,11 +103,7 @@ class TInvestBrokerAPI(
     @Volatile
     private var api: InvestApi? = null
     @Volatile
-    private lateinit var grpcChannel: io.grpc.ManagedChannel
-    @Volatile
-    private lateinit var pricesStreamChannel: io.grpc.ManagedChannel
-    @Volatile
-    private lateinit var ordersStateChannel: io.grpc.ManagedChannel
+    private var channels: TInvestChannelFactory.Channels? = null
     @Volatile
     private var sandboxMode: Boolean = true
 
@@ -120,61 +111,13 @@ class TInvestBrokerAPI(
     override val isInitialized: Boolean
         get() = api != null
 
-//    fun initializeFromSettings() {
-//        val token = ServiceLocator.getToken("TInvest") ?: return
-//        val sandbox = ServiceLocator.isSandboxMode()
-//        val target = if (sandbox) {
-//            "sandbox-invest-public-api.tbank.ru:443"
-//        } else {
-//            "invest-public-api.tbank.ru:443"
-//        }
-//        grpcChannel = InvestApi.defaultChannel(token, target)
-//        pricesStreamChannel = InvestApi.defaultChannel(token, target)
-//        ordersStateChannel = InvestApi.defaultChannel(token, target)
-//        api = InvestApi.createApi(grpcChannel)   // 👈 API привязан к основному каналу
-//        //tickerToFigiCache.clear()
-//    }
 
     fun initialize(token: String, sandbox: Boolean) {
         this.sandboxMode = sandbox
-        val target = if (sandbox) {
-            "sandbox-invest-public-api.tbank.ru:443"
-        } else {
-            "invest-public-api.tbank.ru:443"
-        }
-
-        // Закрываем старые каналы, если были — иначе будет утечка
-        if (::grpcChannel.isInitialized) grpcChannel.shutdownNow()
-        if (::pricesStreamChannel.isInitialized) pricesStreamChannel.shutdownNow()
-        if (::ordersStateChannel.isInitialized) ordersStateChannel.shutdownNow()
-
-        grpcChannel = buildSecureChannel(target, token)
-        pricesStreamChannel = buildSecureChannel(target, token)
-        ordersStateChannel = buildSecureChannel(target, token)
-        api = InvestApi.createApi(grpcChannel)
-    }
-
-    private fun buildSecureChannel(target: String, token: String): io.grpc.ManagedChannel {
-        val sslContext = javax.net.ssl.SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf(CustomTrustManager(context)), null)
-        }
-
-        val authInterceptor = io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(
-            io.grpc.Metadata().apply {
-                put(
-                    io.grpc.Metadata.Key.of("Authorization", io.grpc.Metadata.ASCII_STRING_MARSHALLER),
-                    "Bearer ${token.trim()}"
-                )
-            }
-        )
-
-        return io.grpc.okhttp.OkHttpChannelBuilder.forTarget(target)
-            .sslSocketFactory(sslContext.socketFactory)
-            .useTransportSecurity()
-            .keepAliveTime(30, java.util.concurrent.TimeUnit.SECONDS)
-            .keepAliveWithoutCalls(true)
-            .intercept(authInterceptor)
-            .build()
+        channels?.shutdownAll()
+        val newChannels = channelFactory.create(token, sandbox)
+        channels = newChannels
+        api = InvestApi.createApi(newChannels.api)
     }
 
     // ---------- Базовые методы ----------
@@ -298,7 +241,6 @@ class TInvestBrokerAPI(
     }
 
     override suspend fun fetchPositionsRest(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
-        //val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         Log.d(TAG, "fetchPositionsRest: accountId=$accountId, sandbox=$sandboxMode")
         val response = getPortfolio(accountId, sandboxMode)
 
@@ -343,11 +285,6 @@ class TInvestBrokerAPI(
                 else -> null
             }
 
-            // Предзаполняем кэш инструментов, чтобы он был доступен другим экранам
-//            if (instrumentUi != null) {
-//                ServiceLocator.getInstrumentRepository().getInstrument(instrumentUi.tscalpInstrumentId)
-//            }
-
             Log.d(TAG, "Позиция $uid: expectedYield=$expectedYield, avgPrice=$avgPrice")
 
             PortfolioPosition(
@@ -367,101 +304,6 @@ class TInvestBrokerAPI(
             )
         }
     }
-
-    private fun subscribePositionsGrpc(accountId: String): Flow<PositionStreamItem> = callbackFlow {
-        if (!::ordersStateChannel.isInitialized) {
-            throw IllegalStateException("Канал для PositionsStream не инициализирован")
-        }
-
-        val request = PositionsStreamRequest.newBuilder()
-            .addAccounts(accountId)
-            .build()
-
-        val methodDescriptor = io.grpc.MethodDescriptor.newBuilder<PositionsStreamRequest, PositionsStreamResponse>()
-            .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
-            .setFullMethodName("tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream")
-            .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamRequest.getDefaultInstance()))
-            .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(PositionsStreamResponse.getDefaultInstance()))
-            .build()
-
-        val call = ordersStateChannel.newCall(methodDescriptor, io.grpc.CallOptions.DEFAULT)
-
-        val scope = this  // CoroutineScope из callbackFlow
-
-        val responseObserver = object : io.grpc.ClientCall.Listener<PositionsStreamResponse>() {
-            override fun onMessage(response: PositionsStreamResponse) {
-                if (response.hasPosition()) {
-                    val pos = response.position
-
-                    val uidField = pos.descriptorForType.findFieldByName("instrument_uid")
-                    val uid = uidField?.let { pos.getField(it) } as? String ?: ""
-
-                    val tickerField = pos.descriptorForType.findFieldByName("ticker")
-                    val ticker = tickerField?.let { pos.getField(it) } as? String ?: uid
-
-                    val quantityField = pos.descriptorForType.findFieldByName("quantity")
-                    val quantity = (quantityField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }?.toLong() ?: 0L
-
-                    val currentPriceField = pos.descriptorForType.findFieldByName("current_price")
-                    val currentPrice = (currentPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }
-
-                    val avgPriceField = pos.descriptorForType.findFieldByName("average_position_price")
-                    val avgPrice = (avgPriceField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }
-
-                    val yieldField = pos.descriptorForType.findFieldByName("expected_yield")
-                    val yield = (yieldField?.let { pos.getField(it) } as? MoneyValue)?.let {
-                        it.units + it.nano / 1_000_000_000.0
-                    }
-
-                    // Запускаем корутину для получения instrumentType и отправки
-                    // gRPC PositionsStream сейчас не используется (закомментирован в subscribePositions).
-                    // instrumentType подтянется через polling/fetchPositionsRest.
-                    launch {
-//                        val instrumentType = ServiceLocator.getInstrumentRepository()
-//                            .getInstrument(uid)?.instrumentType ?: ""
-                        trySend(
-                            PositionStreamItem(
-                                instrumentUid = uid,
-                                ticker = ticker,
-                                quantity = quantity,
-                                currentPrice = currentPrice,
-                                averagePositionPrice = avgPrice,
-                                expectedYield = yield,
-                                instrumentType = "",
-                                pointValue = null
-                            )
-                        )
-                    }
-                }
-            }
-
-            override fun onClose(status: io.grpc.Status, trailers: io.grpc.Metadata) {
-                if (!status.isOk) {
-                    Log.w(TAG, "PositionsStream not available (sandbox?): $status")
-                } else {
-                    Log.d(TAG, "PositionsStream closed normally")
-                }
-            }
-        }
-
-        call.start(responseObserver, io.grpc.Metadata())
-        call.sendMessage(request)
-        call.halfClose()
-        call.request(1)
-
-        awaitClose {
-            Log.d(TAG, "Closing PositionsStream")
-            call.cancel("Cancelled by client", null)
-        }
-    }
-
-
 
 
     override suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
@@ -517,8 +359,6 @@ class TInvestBrokerAPI(
 
 
     // ---------- FIGI / Ticker ----------
-
-
     suspend fun fetchFullInstrument(uid: String): InstrumentUi? {
         val protoInstrument = fetchProtoInstrument(uid) ?: return null
         var marginAmount: Double? = null
@@ -750,9 +590,6 @@ class TInvestBrokerAPI(
     }
 
 
-
-
-
     override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext emptyMap()
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
@@ -764,10 +601,9 @@ class TInvestBrokerAPI(
     }
 
     fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> = callbackFlow {
-        if (!::pricesStreamChannel.isInitialized) {
-            throw IllegalStateException("gRPC-стрим не инициализирован")
-        }
-        val stub = MarketDataStreamServiceGrpc.newStub(pricesStreamChannel)
+        val channel = channels?.pricesStream
+            ?: throw IllegalStateException("gRPC-стрим не инициализирован")
+        val stub = MarketDataStreamServiceGrpc.newStub(channel)
 
         val instruments = uids.map { uid ->
             LastPriceInstrument.newBuilder().setInstrumentId(uid).build()
@@ -845,10 +681,9 @@ class TInvestBrokerAPI(
     }
 
     override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = callbackFlow {
-        if (!::ordersStateChannel.isInitialized) {
-            throw IllegalStateException("Канал для OrderState не инициализирован")
-        }
-        val stub = OrdersStreamServiceGrpc.newStub(ordersStateChannel)
+        val channel = channels?.ordersState
+            ?: throw IllegalStateException("Канал для OrderState не инициализирован")
+        val stub = OrdersStreamServiceGrpc.newStub(channel)
 
         val request = OrderStateStreamRequest.newBuilder()
             .addAccounts(accountId)

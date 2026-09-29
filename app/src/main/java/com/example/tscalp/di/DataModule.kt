@@ -14,6 +14,7 @@ import javax.inject.Singleton
 import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.api.FinamBrokerApi
 import com.example.tscalp.data.api.BcsBrokerApi
+import com.example.tscalp.data.api.TInvestChannelFactory
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.BrokerName
 
@@ -29,11 +30,17 @@ object DataModule {
 
     @Provides
     @Singleton
+    fun provideTInvestChannelFactory(
+        @ApplicationContext context: Context
+    ): TInvestChannelFactory = TInvestChannelFactory(context)
+
+    @Provides
+    @Singleton
     fun provideTInvestBrokerAPI(
-        @ApplicationContext context: Context,
+        channelFactory: TInvestChannelFactory,
         sharedPreferences: SharedPreferences
     ): TInvestBrokerAPI {
-        val service = TInvestBrokerAPI(context)
+        val service = TInvestBrokerAPI(channelFactory)
         val token = sharedPreferences.getString("TInvest_token", null)
         Log.d("DataModule", "provideTInvestBrokerAPI: token=" +
                 if (token.isNullOrBlank()) "null/blank" else "present, len=${token.length}")
