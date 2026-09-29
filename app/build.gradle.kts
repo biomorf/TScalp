@@ -173,7 +173,7 @@ tasks.register("renameDebugApk") {
             val version = android.defaultConfig.versionName
             val newName = "tscalp-debug-v${version}.apk"
             val renamedApk = File(apkDir, newName)
-            originalApk.renameTo(renamedApk)
+            originalApk.copyTo(renamedApk)
             println("DEBUG APK переименован в: ${renamedApk.name}")
         } else {
             println("WARNING: app-debug.apk не найден по пути ${originalApk.absolutePath}")
@@ -198,7 +198,7 @@ tasks.register("renameReleaseApk") {
             val version = android.defaultConfig.versionName
             val newName = "tscalp-release-v${version}.apk"
             val renamedApk = File(apkDir, newName)
-            originalApk.renameTo(renamedApk)
+            originalApk.copyTo(renamedApk)
             println("RELEASE APK переименован в: ${renamedApk.name}")
         } else {
             println("WARNING: app-release.apk не найден по пути ${originalApk.absolutePath}")

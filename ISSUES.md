@@ -323,6 +323,46 @@ text
 
 
 
+markdown
+# Автоматическая сборка `clean assembleDebug` перед запуском приложения в Android Studio
+
+## Проблема
+
+При нажатии **Shift+F10** Android Studio запускает `installDebug` без предварительной очистки. Из-за этого:
+
+- задачи вроде `renameDebugApk` / `copyDebugApk` не всегда отрабатывают (Gradle считает `assembleDebug` up-to-date);
+- APK остаётся старым, если не сделать чистую сборку;
+- приходится вручную запускать `./gradlew :app:clean :app:assembleDebug` из терминала.
+
+## Решение
+
+Настроить в Android Studio запуск задачи **`clean assembleDebug`** в секции **Before launch** конфигурации запуска.
+
+## Пошагово
+
+1. Открыть **Run → Edit Configurations…**
+2. Выбрать конфигурацию `app`.
+3. В разделе **Before launch** нажать **+**.
+4. Выбрать **Run Gradle Task**.
+5. В поле **Gradle project** указать директорию проекта (по умолчанию уже подставлена корневая папка проекта).
+6. В поле **Tasks** задать: `clean assembleDebug`
+7. Нажать **OK**.
+
+## Результат
+
+При каждом Shift+F10 Android Studio:
+
+1. Выполнит `clean assembleDebug` — то есть полностью пересоберёт APK с нуля.
+2. Установит свежий APK на устройство.
+3. Запустит приложение.
+
+Красивое имя APK (`tscalp-debug-v1.XXX.apk`) появляется автоматически, если настроена задача копирования (`copyDebugApk` через `finalizedBy` на `assembleDebug`).
+
+## Замечания
+
+- **Configuration cache:** если нужен флаг `--no-configuration-cache`, его нельзя передать через Run Gradle Task. Альтернатива — отключить configuration cache глобально в `gradle.properties` строкой `org.gradle.configuration-cache=false`.
+- **Время сборки:** `clean` каждый раз замедляет запуск. Если это мешает — уберите `clean` из задач и оставьте только `assembleDebug`, положившись на инкрементальную сборку Gradle.
+- **Другие варианты (release):** аналогично можно создать отдельную конфигурацию с задачей `clean assembleRelease` для запуска релизной сборки.
 
 
 
