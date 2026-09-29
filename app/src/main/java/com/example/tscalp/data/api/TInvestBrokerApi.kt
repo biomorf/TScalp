@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 
 //import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.FutureUi
 import com.example.tscalp.domain.models.ShareUi
@@ -116,6 +117,7 @@ class TInvestBrokerAPI(
     @Volatile
     private var sandboxMode: Boolean = true
 
+    override val name: BrokerName = BrokerName.TINVEST
     override val isInitialized: Boolean
         get() = api != null
 

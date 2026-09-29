@@ -20,6 +20,7 @@ import java.io.IOException
 
 //import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.*
 
@@ -36,6 +37,7 @@ class FinamBrokerApi : BrokerApi {
     @Volatile
     private var jwtToken: String? = null
 
+    override val name: BrokerName = BrokerName.FINAM
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null
 

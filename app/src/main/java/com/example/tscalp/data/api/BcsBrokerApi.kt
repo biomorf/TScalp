@@ -19,6 +19,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.*
 
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.SandboxMoney
@@ -62,6 +63,7 @@ class BcsBrokerApi : BrokerApi {
     private var accessToken: String? = null
     private var tokenExpiry: Long = 0
 
+    override val name: BrokerName = BrokerName.BCS
     // Флаг инициализации
     override val isInitialized: Boolean
         get() = accessToken != null || refreshToken != null

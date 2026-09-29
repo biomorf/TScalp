@@ -1,28 +1,34 @@
 package com.example.tscalp.di
 
 import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.BrokerName
 
 
-class BrokerManager(private val brokers: Map<String, BrokerApi>) {
-
-    /**
-     * Возвращает брокера по его уникальному имени.
-     * @param name имя брокера (например, "TInvest")
-     */
-    fun getBroker(name: String): BrokerApi? = brokers[name]
+class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
 
     /**
-     * Возвращает брокера по умолчанию (Т‑Инвестиции).
-     * В будущем можно будет сделать выбор активного брокера в настройках.
+     * Возвращает брокера по имени. Типобезопасный вариант.
      */
-    fun getDefaultBroker(): BrokerApi = brokers["TInvest"]
+    fun getBroker(name: BrokerName): BrokerApi? = brokers[name]
+
+    /**
+     * Возвращает брокера по строковому ключу.
+     * Оставлен для плавной миграции — постепенно заменяется на enum-версию.
+     */
+    fun getBroker(name: String): BrokerApi? =
+        BrokerName.fromKey(name)?.let { brokers[it] }
+
+    /**
+     * Брокер по умолчанию (Т‑Инвестиции).
+     */
+    fun getDefaultBroker(): BrokerApi = brokers[BrokerName.TINVEST]
         ?: throw IllegalStateException("Брокер TInvest не зарегистрирован")
 
+
     /**
-     * Возвращает список имён всех зарегистрированных брокеров.
-     * Сейчас – только "TInvest", в будущем пополнится.
+     * Список ключей брокеров — для отображения в UI.
      */
-    fun getAvailableBrokers(): List<String> = brokers.keys.toList()
+    fun getAvailableBrokers(): List<String> = brokers.keys.map { it.key }
 
     /**
      * Возвращает список всех брокеров (для массовых операций).

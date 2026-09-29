@@ -3,16 +3,19 @@ package com.example.tscalp.di
 import android.util.Log
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.tscalp.data.api.TInvestBrokerAPI
-import com.example.tscalp.data.api.FinamBrokerApi
-import com.example.tscalp.data.api.BcsBrokerApi
-import com.example.tscalp.domain.api.BrokerApi
+
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+
+import com.example.tscalp.data.api.TInvestBrokerAPI
+import com.example.tscalp.data.api.FinamBrokerApi
+import com.example.tscalp.data.api.BcsBrokerApi
+import com.example.tscalp.domain.api.BrokerApi
+import com.example.tscalp.domain.models.BrokerName
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -49,10 +52,10 @@ object DataModule {
         finam: FinamBrokerApi,
         bcs: BcsBrokerApi
     ): BrokerManager {
-        val brokers: Map<String, BrokerApi> = mapOf(
-            "TInvest" to tinvest,
-            "finam" to finam,
-            "bcs" to bcs
+        val brokers: Map<BrokerName, BrokerApi> = mapOf(
+            BrokerName.TINVEST to tinvest,
+            BrokerName.BCS to bcs,
+            BrokerName.FINAM to finam
         )
         return BrokerManager(brokers)
     }

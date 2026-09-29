@@ -3,11 +3,13 @@ package com.example.tscalp.domain.api
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.OrderState
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.*
 
 import kotlinx.coroutines.flow.Flow
 
 interface BrokerApi {
+    val name: BrokerName
     val isInitialized: Boolean
 
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
