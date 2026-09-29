@@ -19,6 +19,7 @@ import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
@@ -67,7 +68,7 @@ class PortfolioViewModel @Inject constructor(
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
+            val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
             val accountId = sharedPrefs.getString("TInvest_default_account", null) ?: run {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                 return@launch
@@ -140,7 +141,8 @@ class PortfolioViewModel @Inject constructor(
         val byBroker = positions.groupBy { it.brokerName }
         val allStatuses = mutableMapOf<String, TradingAvailability>()
         for ((brokerName, posList) in byBroker) {
-            val broker = brokerManager.getBroker(brokerName) ?: continue
+            val brokerKey = BrokerName.fromKey(brokerName) ?: continue
+            val broker = brokerManager.getBroker(brokerKey) ?: continue
             val ids = posList.map { it.tscalpInstrumentId }.filter { it.isNotBlank() }
             if (ids.isEmpty()) continue
             try {
