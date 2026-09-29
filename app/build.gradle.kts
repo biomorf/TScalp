@@ -148,6 +148,11 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.59.2")
     ksp("com.google.dagger:hilt-android-compiler:2.59.2")
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
+
+    // Unit-тесты
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("io.mockk:mockk:1.13.13")
 }
 
 fun buildTime(): String {
@@ -203,5 +208,12 @@ tasks.register("renameReleaseApk") {
 afterEvaluate {
     tasks.named("assembleRelease") {
         finalizedBy("renameReleaseApk")
+    }
+}
+
+tasks.withType<Test> {
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
     }
 }
