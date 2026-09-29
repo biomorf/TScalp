@@ -15,13 +15,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 import io.grpc.stub.StreamObserver
-import io.grpc.stub.MetadataUtils
-import io.grpc.ManagedChannel
-import io.grpc.okhttp.OkHttpChannelBuilder
-import io.grpc.Metadata
-import java.util.concurrent.TimeUnit
+//import io.grpc.stub.MetadataUtils
+//import io.grpc.ManagedChannel
+//import io.grpc.okhttp.OkHttpChannelBuilder
+//import io.grpc.Metadata
+//import java.util.concurrent.TimeUnit
 
-//import com.example.tscalp.di.ServiceLocator
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.InstrumentUi
@@ -53,7 +52,7 @@ import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
 import ru.tinkoff.piapi.contract.v1.PostStopOrderRequest
 import ru.tinkoff.piapi.contract.v1.StopOrderType as ProtoStopOrderType
 import ru.tinkoff.piapi.contract.v1.StopOrderExpirationType as ProtoStopOrderExpirationType
-import ru.tinkoff.piapi.contract.v1.OrderType
+//import ru.tinkoff.piapi.contract.v1.OrderType
 import ru.tinkoff.piapi.contract.v1.PostOrderRequest
 import ru.tinkoff.piapi.contract.v1.GetOrdersRequest
 import ru.tinkoff.piapi.contract.v1.OrderExecutionReportStatus
@@ -314,7 +313,11 @@ class TInvestBrokerAPI(
                 marginAmount = getFuturesMargin(protoInstrument.figi)
             }
 
-            val instrumentUi = protoInstrument?.let { mapProtoToDomain(it, marginAmount) }
+            val instrumentUi = protoInstrument?.let {
+                TInvestInstrumentMapper.mapProtoToDomain(
+                    it, marginAmount
+                )
+            }
 
             val pointVal = (instrumentUi as? FutureUi)?.pointValue
 
@@ -522,7 +525,7 @@ class TInvestBrokerAPI(
         if (protoInstrument.instrumentType == "futures" && protoInstrument.figi != null) {
             marginAmount = getFuturesMargin(protoInstrument.figi)
         }
-        return mapProtoToDomain(protoInstrument, marginAmount)
+        return TInvestInstrumentMapper.mapProtoToDomain(protoInstrument, marginAmount)
     }
 
 
@@ -557,123 +560,6 @@ class TInvestBrokerAPI(
         }
     }
 
-    /**
-     * Преобразует protobuf‑объект Instrument в универсальный InstrumentUi.
-     * tscalpInstrumentId заполняется из uid (рекомендованный идентификатор Т‑Инвестиций).
-     * Для фьючерсов возвращает FutureUi, для акций – ShareUi, для остальных – базовый InstrumentUi.
-     */
-    private fun mapProtoToDomain(
-        instrument: Instrument,
-        minPriceIncrementAmountOverride: Double? = null
-    ): InstrumentUi {
-        val uid = instrument.uid
-        val figi = instrument.figi ?: ""
-        val type = instrument.instrumentType ?: ""
-        val minInc = instrument.minPriceIncrement?.let { it.units + it.nano / 1_000_000_000.0 }
-        val tradingStatus = instrument.tradingStatus.name
-
-        return when {
-            type == "futures" -> FutureUi(
-                tscalpInstrumentId = uid,
-                ticker = instrument.ticker,
-                classCode = instrument.classCode ?: "",
-                isin = instrument.isin ?: "",
-                ttech_uid = uid,
-                ttech_figi = figi,
-                name = instrument.name,
-                currency = instrument.currency,
-                lot = instrument.lot,
-                exchange = instrument.exchange,
-                tradingStatus = tradingStatus,
-                apiTradeAvailableFlag = instrument.apiTradeAvailableFlag,
-                buyAvailableFlag = instrument.buyAvailableFlag,
-                sellAvailableFlag = instrument.sellAvailableFlag,
-                shortEnabledFlag = instrument.shortEnabledFlag,
-                minPriceIncrement = minInc,
-                minPriceIncrementAmount = minPriceIncrementAmountOverride,   // передаём то, что получили из getFuturesMargin
-                klong = null, kshort = null, dlong = null, dshort = null,
-                dlongMin = null, dshortMin = null,
-                first1minCandleDate = null,
-                first1dayCandleDate = null,
-                forIisFlag = instrument.forIisFlag,
-                forQualInvestorFlag = instrument.forQualInvestorFlag,
-                weekendFlag = instrument.weekendFlag,
-                blockedTcaFlag = instrument.blockedTcaFlag,
-                countryOfRisk = instrument.countryOfRisk,
-                countryOfRiskName = instrument.countryOfRiskName,
-                sector = null,
-                brand = null,
-                requiredTests = null,
-                expirationDate = null,
-                firstTradeDate = null,
-                lastTradeDate = null,
-                futuresType = null,
-                assetType = null,
-                basicAsset = null,
-                basicAssetSize = null,
-                positionUid = instrument.positionUid,
-                basicAssetPositionUid = null,
-                initialMarginOnBuy = null,
-                initialMarginOnSell = null,
-                dlongClient = null,
-                dshortClient = null
-            )
-            type == "share" -> ShareUi(
-                tscalpInstrumentId = uid,
-                ticker = instrument.ticker,
-                classCode = instrument.classCode ?: "",
-                isin = instrument.isin ?: "",
-                ttech_uid = uid,
-                ttech_figi = figi,
-                name = instrument.name,
-                currency = instrument.currency,
-                lot = instrument.lot,
-                exchange = instrument.exchange,
-                tradingStatus = tradingStatus,
-                apiTradeAvailableFlag = instrument.apiTradeAvailableFlag,
-                buyAvailableFlag = instrument.buyAvailableFlag,
-                sellAvailableFlag = instrument.sellAvailableFlag,
-                shortEnabledFlag = instrument.shortEnabledFlag,
-                minPriceIncrement = minInc,
-                minPriceIncrementAmount = null,
-                klong = null, kshort = null, dlong = null, dshort = null,
-                dlongMin = null, dshortMin = null,
-                first1minCandleDate = null,
-                first1dayCandleDate = null,
-                forIisFlag = instrument.forIisFlag,
-                forQualInvestorFlag = instrument.forQualInvestorFlag,
-                weekendFlag = instrument.weekendFlag,
-                blockedTcaFlag = instrument.blockedTcaFlag,
-                countryOfRisk = instrument.countryOfRisk,
-                countryOfRiskName = instrument.countryOfRiskName,
-                sector = null,
-                brand = null,
-                requiredTests = null,
-                ipoDate = null,
-                issueSize = null,
-                issueSizePlan = null,
-                nominal = null,
-                divYieldFlag = null,
-                shareType = null,
-                liquidityFlag = null,
-                assetUid = null,
-                instrumentExchange = null
-            )
-            else -> InstrumentUi(
-                tscalpInstrumentId = uid,
-                ticker = instrument.ticker,
-                classCode = instrument.classCode ?: "",
-                isin = instrument.isin ?: "",
-                ttech_uid = uid,
-                ttech_figi = figi,
-                name = instrument.name,
-                currency = instrument.currency,
-                lot = instrument.lot,
-                instrumentType = type
-            )
-        }
-    }
-
     private suspend fun findInstrumentShorts(query: String): List<InstrumentShort> = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
         val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
@@ -686,7 +572,7 @@ class TInvestBrokerAPI(
         shorts.mapNotNull { short ->
             try {
                 val instrument = fetchProtoInstrument(short.uid) ?: return@mapNotNull null
-                mapProtoToDomain(instrument)
+                TInvestInstrumentMapper.mapProtoToDomain(instrument)
             } catch (e: Exception) {
                 Log.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
                 null
@@ -704,9 +590,7 @@ class TInvestBrokerAPI(
                 "confirmMarginTrade=true, sandbox=${request.sandboxMode}")
 
         val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
-            val units = request.price.toLong()
-            val nano = ((request.price - units) * 1_000_000_000).toInt()
-            Quotation.newBuilder().setUnits(units).setNano(nano).build()
+            TInvestConverters.doubleToQuotation(request.price)
         } else {
             // Для рыночных заявок API требует ненулевое значение цены
             Quotation.newBuilder().setUnits(1).setNano(0).build()
@@ -768,77 +652,7 @@ class TInvestBrokerAPI(
 
         response.ordersList
             .filter { it.executionReportStatus in activeStatuses }
-            .map { order ->
-                // Извлекаем instrument_uid через дескриптор
-                val uidField = order.descriptorForType.findFieldByName("instrument_uid")
-                val uid = uidField?.let { order.getField(it) as? String } ?: order.figi
-// Тикер берём напрямую из ответа API
-                val tickerField = order.descriptorForType.findFieldByName("ticker")
-                val ticker = tickerField?.let { order.getField(it) } as? String ?: uid
-
-// Определяем instrumentType
-                val classCodeField = order.descriptorForType.findFieldByName("class_code")
-                val classCode = classCodeField?.let { order.getField(it) } as? String ?: ""
-                val instrumentType = classCodeToInstrumentType(classCode)
-
-                val orderType = when (order.orderType) {
-                    OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
-                    OrderType.ORDER_TYPE_MARKET -> "MARKET"
-                    else -> "UNKNOWN"
-                }
-
-                val direction = when (order.directionValue) {
-                    1 -> "BUY"
-                    2 -> "SELL"
-                    else -> "UNKNOWN"
-                }
-
-                val statusField = order.descriptorForType.findFieldByName("execution_report_status")
-                val statusStr: String = if (statusField != null) {
-                    val rawStatus = order.getField(statusField)
-                    if (rawStatus is com.google.protobuf.Descriptors.EnumValueDescriptor) {
-                        rawStatus.name.removePrefix("EXECUTION_REPORT_STATUS_")
-                    } else {
-                        "UNKNOWN"
-                    }
-                } else {
-                    "UNKNOWN"
-                }
-
-
-                Log.d(TAG, "Order ${order.orderId} rawStatusValue=${statusField?.let { order.getField(it) }}, mapped=$statusStr")
-                val orderIdStr: String = order.orderId ?: ""
-                val figiStr: String = order.figi ?: ""
-
-
-                val priceField = order.descriptorForType.findFieldByName("initial_order_price")
-                    ?: order.descriptorForType.findFieldByName("price")
-                val priceValue = priceField?.let { order.getField(it) }
-                val priceDouble = when (priceValue) {
-                    is MoneyValue -> priceValue.units + priceValue.nano / 1_000_000_000.0
-                    is Quotation -> priceValue.units + priceValue.nano / 1_000_000_000.0
-                    else -> 0.0
-                }
-
-                val dateField = order.descriptorForType.findFieldByName("create_date")
-                val dateValue = dateField?.let { order.getField(it) }
-                val orderDateLong = (dateValue as? com.google.protobuf.Timestamp)?.seconds
-
-                OrderListItem(
-                    orderId = orderIdStr,
-                    ticker = ticker,
-                    tscalpInstrumentId = uid,
-                    instrumentType = instrumentType,
-                    direction = direction,
-                    price = priceDouble,
-                    stopPrice = null,
-                    quantity = order.lotsRequested,
-                    type = orderType,
-                    status = statusStr,
-                    orderDate = orderDateLong,
-                    isStopOrder = false
-                )
-            }
+            .map { order -> TInvestOrdersMapper.mapOrder(order) }
     }
 
     override suspend fun cancelOrder(accountId: String, orderId: String) {
@@ -875,11 +689,6 @@ class TInvestBrokerAPI(
         DomainStopOrderExpirationType.GOOD_TILL_DATE -> ProtoStopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_DATE
     }
 
-    private fun quotationFromDouble(value: Double): Quotation {
-        val units = value.toLong()
-        val nano = ((value - units) * 1_000_000_000).toInt()
-        return Quotation.newBuilder().setUnits(units).setNano(nano).build()
-    }
 
     override suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
         val currentApi = api ?: throw IllegalStateException("API не инициализирован")
@@ -892,11 +701,11 @@ class TInvestBrokerAPI(
             .setQuantity(request.quantity)
             .setDirection(protoDirection(request.direction))
             .setAccountId(request.accountId)
-            .setStopPrice(quotationFromDouble(request.stopPrice))
+            .setStopPrice(TInvestConverters.doubleToQuotation(request.stopPrice))
             .setStopOrderType(protoStopOrderType(request.stopOrderType))
             .setExpirationType(protoExpirationType(request.expirationType))
             .setConfirmMarginTrade(true)
-        if (request.price != null) builder.setPrice(quotationFromDouble(request.price))
+        if (request.price != null) builder.setPrice(TInvestConverters.doubleToQuotation(request.price))
         if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))
 
         val protoRequest = builder.build()
@@ -917,58 +726,7 @@ class TInvestBrokerAPI(
             currentApi.stopOrdersServiceSync.getStopOrders(request)
         }
 
-        response.stopOrdersList.map { order ->
-            // Извлекаем instrument_uid через дескриптор
-            val uidField = order.descriptorForType.findFieldByName("instrument_uid")
-            val uid = uidField?.let { order.getField(it) } as? String ?: order.figi
-            // Тикер берём напрямую из ответа API
-            val tickerField = order.descriptorForType.findFieldByName("ticker")
-            val ticker = tickerField?.let { order.getField(it) } as? String ?: uid
-
-            // Определяем instrumentType
-            val classCodeField = order.descriptorForType.findFieldByName("class_code")
-            val classCode = classCodeField?.let { order.getField(it) } as? String ?: ""
-            val instrumentType = classCodeToInstrumentType(classCode)
-
-            // Тип стоп-заявки через дескриптор с явным кастом
-            val fieldDescriptor = order.descriptorForType.findFieldByName("order_type")
-            val type = if (fieldDescriptor != null) {
-                val enumValue = order.getField(fieldDescriptor) as? com.google.protobuf.Descriptors.EnumValueDescriptor
-                enumValue?.name?.removePrefix("STOP_ORDER_TYPE_") ?: "UNKNOWN"
-            } else {
-                "UNKNOWN"
-            }
-
-
-            // Явное приведение String (убирает String!)
-            val orderIdStr: String = order.stopOrderId ?: ""
-            val figiStr: String = order.figi ?: ""
-
-            // Направление и статус через enum (избавляемся от String!)
-            val directionStr: String = order.direction.name.removePrefix("STOP_ORDER_DIRECTION_")
-            val statusStr: String = order.status.name.removePrefix("STOP_ORDER_STATUS_")
-
-            // Явное извлечение MoneyValue с объявлением типа
-            val sp: MoneyValue? = order.stopPrice
-            val stopPriceDouble = sp?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-
-            val orderDateLong = order.getCreateDate()?.seconds
-
-            OrderListItem(
-                orderId = orderIdStr,
-                ticker = ticker,
-                tscalpInstrumentId = uid,   // напрямую, без figi,
-                direction = directionStr,
-                price = stopPriceDouble,
-                stopPrice = stopPriceDouble,
-                quantity = order.lotsRequested,
-                type = type,
-                status = statusStr,
-                orderDate = orderDateLong,
-                isStopOrder = true,
-                instrumentType = instrumentType
-            )
-        }
+        response.stopOrdersList.map { order -> TInvestOrdersMapper.mapStopOrder(order) }
     }
 
     override suspend fun cancelStopOrder(accountId: String, stopOrderId: String) {
@@ -1181,22 +939,6 @@ class TInvestBrokerAPI(
 
 
 ///======================UTILS================================
-    private fun classCodeToInstrumentType(classCode: String): String {
-        return when (classCode) {
-            "SPBFUT", "SPBOPT" -> "futures"   // срочный рынок
-            "TQBR", "TQBS", "TQIF", "TQIR" -> "share"   // акции
-            "TQOB", "TQCB", "TQRD" -> "bond"            // облигации
-            "TQTF" -> "etf"                             // фонды
-            "CETS" -> "currency"                        // валюта
-            else -> ""                                   // неизвестный
-        }
-    }
-
-//    private suspend fun getPointValueFromCache(uid: String): Double? {
-//        val instrument = ServiceLocator.getInstrumentRepository().getInstrument(uid)
-//        return (instrument as? FutureUi)?.pointValue
-//    }
-
     private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem {
         return PositionStreamItem(
             instrumentUid = pos.tscalpInstrumentId,
