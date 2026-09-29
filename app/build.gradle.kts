@@ -218,3 +218,23 @@ tasks.withType<Test> {
         showStandardStreams = false
     }
 }
+
+val copyDebugApk by tasks.registering(Copy::class) {
+    val apkDir = layout.buildDirectory.dir("outputs/apk/debug")
+    val version = android.defaultConfig.versionName
+
+    from(apkDir.map { it.file("app-debug.apk") })
+    into(apkDir)
+    rename { "tscalp-debug-v${version}.apk" }
+    dependsOn("assembleDebug")
+}
+
+val copyReleaseApk by tasks.registering(Copy::class) {
+    val apkDir = layout.buildDirectory.dir("outputs/apk/release")
+    val version = android.defaultConfig.versionName
+
+    from(apkDir.map { it.file("app-release.apk") })
+    into(apkDir)
+    rename { "tscalp-release-v${version}.apk" }
+    dependsOn("assembleRelease")
+}
