@@ -100,7 +100,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // T-Invest API SDK
-    implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.48.1") {
+    implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.51.0") {
         exclude(group = "io.grpc", module = "grpc-netty-shaded")
     }
 
