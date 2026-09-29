@@ -1,8 +1,6 @@
 package com.example.tscalp.data.api
 
 import android.util.Log
-import com.example.tscalp.di.BrokerManager
-import com.example.tscalp.domain.models.PositionStreamItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,6 +11,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+
+import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.domain.models.PositionStreamItem
+import com.example.tscalp.domain.models.BrokerName
 
 @Singleton
 class SharedPositionStreamManager @Inject constructor(
@@ -39,7 +41,7 @@ class SharedPositionStreamManager @Inject constructor(
         }
         job?.cancel()
         job = scope.launch {
-            val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
+            val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
             if (broker == null || !broker.isInitialized) {
                 Log.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
                 return@launch
