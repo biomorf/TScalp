@@ -1,7 +1,7 @@
 package com.example.tscalp.presentation.screens.orders
 
 import kotlinx.coroutines.launch
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn

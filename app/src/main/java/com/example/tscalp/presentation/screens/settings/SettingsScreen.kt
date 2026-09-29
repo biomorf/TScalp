@@ -5,7 +5,7 @@ import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Info
@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +30,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.runtime.mutableIntStateOf
 
 import androidx.compose.foundation.horizontalScroll
@@ -39,7 +40,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 //import com.example.tscalp.di.ServiceLocator
 //import com.example.tscalp.data.api.TInvestInvestService
@@ -143,7 +144,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 title = { Text("Подключение") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )
@@ -154,7 +155,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            TabRow(selectedTabIndex = selectedTabIndex) {
+            PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
                 brokerNames.forEach { broker ->
                     Tab(
                         selected = selectedTabIndex == brokerNames.indexOf(broker),
@@ -345,7 +346,12 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     readOnly = true,
                     label = { Text("Счёт по умолчанию") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(
+                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        )
                 )
                 ExposedDropdownMenu(
                     expanded = accountExpanded,
@@ -846,7 +852,7 @@ fun TradeSettingsContent(onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
         }
 
         Text(
@@ -888,7 +894,7 @@ fun InfoSettingsContent(onBack: () -> Unit) {
                 title = { Text("О приложении") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
             )

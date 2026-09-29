@@ -71,7 +71,7 @@ class SettingsRepository @Inject constructor(
     // ---------- Счёт по умолчанию ----------
 
     fun saveDefaultAccountId(brokerName: String, accountId: String) {
-        prefs.edit().putString("${brokerName}_default_account", accountId).apply()
+        prefs.edit().putString("${brokerName}_default_account", accountId).commit()
     }
 
     fun loadDefaultAccountId(brokerName: String): String? =

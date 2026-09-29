@@ -78,9 +78,13 @@ class TScalpApplication : Application() {
                     if (creds != null) {
                         val (refreshToken, isWriteMode) = creds
                         val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                        kotlinx.coroutines.runBlocking {
-                            (brokerManager.getBroker("bcs") as? BcsBrokerApi)
-                                ?.initialize(refreshToken, clientId)
+                        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+                            try {
+                                (brokerManager.getBroker("bcs") as? BcsBrokerApi)
+                                    ?.initialize(refreshToken, clientId)
+                            } catch (e: Exception) {
+                                Log.e("TScalpApplication", "Не удалось инициализировать BCS", e)
+                            }
                         }
                     }
                 }
