@@ -397,3 +397,21 @@ text
 
 
 ####################################################
+## Прямые вызовы брокера из ViewModel в обход InvestRepository
+
+**Статус:** известно, отложено.
+
+**Где:**
+- `PortfolioViewModel.loadPortfolio` — `broker.fetchPositionsRest(accountId, sandbox)`
+- `PortfolioViewModel.updateTradingStatuses` — `broker.getTradingStatuses(ids)`
+- `OrdersViewModel.startPriceUpdates` — `broker.subscribeLastPrices(ids)`
+
+**Проблема:** нарушает консистентность слоя данных. Часть методов идёт через `InvestRepository` (мигрированы на `AppResult`), часть — напрямую к брокеру (try/catch или без обработки). Это затрудняет тестирование, создаёт два пути получения данных, и мешает единой политике обработки ошибок.
+
+**Решение:** перенести `fetchPositionsRest`, `getTradingStatuses`, `subscribeLastPrices` в `InvestRepository` с `*Result`-вариантами на `AppResult`, переписать ViewModel на них. После этого `BrokerManager` не должен быть виден из ViewModel.
+
+**Когда вернуться:** отдельной задачей после завершения миграции 3.5, до релиза.
+
+
+
+#####################################################
