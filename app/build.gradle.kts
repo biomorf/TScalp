@@ -1,6 +1,13 @@
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Properties
+
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val appmetricaKey: String = localProps.getProperty("appmetrica.apiKey", "")
 
 plugins {
     id("com.android.application")
@@ -21,6 +28,7 @@ android {
         versionCode = 1
         versionName = "1." + buildTime()   // теперь buildTime() вызывается на этапе конфигурации,
                                            // но при каждом новом запуске Gradle даст свежее время.
+        buildConfigField("String", "APPMETRICA_API_KEY", "\"$appmetricaKey\"")
     }
 
     buildTypes {
@@ -131,7 +139,7 @@ dependencies {
     implementation("io.grpc:grpc-netty:1.80.0") // явно добавим Netty без shaded
 
     // Обязательно для SSL на Android
-    implementation("org.conscrypt:conscrypt-android:2.5.3")
+    implementation("org.conscrypt:conscrypt-android:2.6.3")
 
     // Обязательная зависимость для ManagedChannel
     //implementation("io.grpc:grpc-stub:1.57.2")
@@ -154,6 +162,10 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("io.mockk:mockk:1.13.13")
+
+    // AppMetrica SDK — crash reporting + analytics
+    implementation("io.appmetrica.analytics:analytics:8.5.1")
+
 }
 
 fun buildTime(): String {
