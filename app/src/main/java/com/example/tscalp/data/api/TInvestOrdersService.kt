@@ -1,6 +1,5 @@
 package com.example.tscalp.data.api
 
-import android.util.Log
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderDirection

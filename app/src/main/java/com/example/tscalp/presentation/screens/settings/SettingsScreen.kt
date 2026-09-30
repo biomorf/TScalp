@@ -1,6 +1,5 @@
 package com.example.tscalp.presentation.screens.settings
 
-import android.util.Log
 import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,7 +23,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 
-
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
@@ -42,12 +40,7 @@ import kotlinx.coroutines.launch
 
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
-//import com.example.tscalp.di.ServiceLocator
-//import com.example.tscalp.data.api.TInvestInvestService
-//import com.example.tscalp.data.api.BcsBrokerApi
-//import com.example.tscalp.data.api.FinamBrokerApi
-//import com.example.tscalp.data.repository.InvestRepository
-
+import com.example.tscalp.util.AppLogger
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.AppResult
 
@@ -225,7 +218,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     }
                 }
                 is AppResult.Failure -> {
-                    Log.w("TInvestSettingsPanel", "getAccounts failed: ${result.error.message}", result.error.cause)
+                    AppLogger.w("TInvestSettingsPanel", "getAccounts failed: ${result.error.message}", result.error.cause)
                     availableAccounts = emptyList()
                 }
             }
@@ -389,7 +382,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                                 when (val accountsResult = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
                                     is AppResult.Success -> availableAccounts = accountsResult.data
                                     is AppResult.Failure ->
-                                        Log.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                                        AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
                                 }
                                 defaultAccountId = newAccountId
                                 settingsViewModel.saveDefaultAccountId("TInvest", newAccountId)
@@ -497,7 +490,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                                 when (val accountsResult = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
                                     is AppResult.Success -> availableAccounts = accountsResult.data
                                     is AppResult.Failure ->
-                                        Log.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                                        AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
                                 }
                                 defaultAccountId = ""
                                 settingsViewModel.saveDefaultAccountId("TInvest", "")

@@ -1,9 +1,9 @@
 package com.example.tscalp.data.repository
 
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+import com.example.tscalp.util.AppLogger
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.di.BrokerManager
@@ -82,7 +82,7 @@ class InvestRepository(
         accountId: String,
         amount: SandboxMoney
     ): AppResult<Unit> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "sandboxPayIn: accountId=$accountId, amount=${amount.units} ${amount.currency}")
+        AppLogger.d(TAG, "sandboxPayIn: accountId=$accountId, amount=${amount.units} ${amount.currency}")
         val broker = brokerManager.getDefaultBroker()
         runCatchingAppResult { broker.sandboxPayIn(accountId, amount); Unit }
     }

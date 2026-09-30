@@ -1,6 +1,5 @@
 package com.example.tscalp.presentation.screens.orders
 
-import android.util.Log
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerAccountType
 import com.example.tscalp.domain.models.InstrumentUi
