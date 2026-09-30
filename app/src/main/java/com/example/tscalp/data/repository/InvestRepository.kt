@@ -96,21 +96,72 @@ class InvestRepository(
 
     /**
      * Отправляет заявку (рыночную или лимитную) через указанного брокера.
+     * Типизированный результат: AppResult.Success(OrderResult) или AppResult.Failure(AppError).
      */
-    suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
-        val name = BrokerName.fromKey(request.brokerName)
-            ?: throw IllegalArgumentException("Неизвестный брокер: ${request.brokerName}")
-        val broker = brokerManager.getBroker(name)
-            ?: throw IllegalArgumentException("Брокер ${request.brokerName} не зарегистрирован")
-        broker.postOrder(request)
+    suspend fun postOrderResult(request: BrokerOrderRequest): AppResult<OrderResult> =
+        withContext(Dispatchers.IO) {
+            val name = BrokerName.fromKey(request.brokerName)
+                ?: return@withContext AppResult.Failure(
+                    AppError.Unknown("Неизвестный брокер: ${request.brokerName}")
+                )
+            val broker = brokerManager.getBroker(name)
+                ?: return@withContext AppResult.Failure(
+                    AppError.Unknown("Брокер ${request.brokerName} не зарегистрирован")
+                )
+            runCatchingAppResult { broker.postOrder(request) }
+        }
+
+    /**
+     * Выставляет стоп-заявку (take-profit, stop-loss, stop-limit).
+     * Типизированный результат: AppResult.Success(stopOrderId) или AppResult.Failure(AppError).
+     */
+    suspend fun postStopOrderResult(request: StopOrderRequest): AppResult<String> =
+        withContext(Dispatchers.IO) {
+            val name = BrokerName.fromKey(request.brokerName)
+                ?: return@withContext AppResult.Failure(
+                    AppError.Unknown("Неизвестный брокер: ${request.brokerName}")
+                )
+            val broker = brokerManager.getBroker(name)
+                ?: return@withContext AppResult.Failure(
+                    AppError.Unknown("Брокер ${request.brokerName} не зарегистрирован")
+                )
+            runCatchingAppResult { broker.postStopOrder(request) }
+        }
+
+    /**
+     * Устаревшая версия: возвращает OrderResult или бросает исключение.
+     * Новый код должен использовать [postOrderResult].
+     */
+    @Deprecated(
+        message = "Use postOrderResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("postOrderResult(request)")
+    )
+    suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
+        return when (val result = postOrderResult(request)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
     }
 
-    suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
-        val name = BrokerName.fromKey(request.brokerName)
-            ?: throw IllegalArgumentException("Неизвестный брокер: ${request.brokerName}")
-        val broker = brokerManager.getBroker(name)
-            ?: throw IllegalArgumentException("Брокер ${request.brokerName} не зарегистрирован")
-        broker.postStopOrder(request)
+    /**
+     * Устаревшая версия: возвращает stopOrderId или бросает исключение.
+     * Новый код должен использовать [postStopOrderResult].
+     */
+    @Deprecated(
+        message = "Use postStopOrderResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("postStopOrderResult(request)")
+    )
+    suspend fun postStopOrder(request: StopOrderRequest): String {
+        return when (val result = postStopOrderResult(request)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
     }
 
     suspend fun cancelStopOrder(accountId: String, orderId: String) = withContext(Dispatchers.IO) {
