@@ -1,7 +1,6 @@
 package com.example.tscalp.presentation.screens.portfolio
 
 import android.content.SharedPreferences
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +24,7 @@ import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.AppResult
+import com.example.tscalp.util.AppLogger
 
 @HiltViewModel
 class PortfolioViewModel @Inject constructor(
@@ -96,7 +96,7 @@ class PortfolioViewModel @Inject constructor(
     }
 
     private fun updatePortfolioItem(item: PositionStreamItem) {
-        Log.d(TAG, "updatePortfolioItem: uid=${item.instrumentUid} type=${item.instrumentType} pointValue=${item.pointValue}")
+        AppLogger.d(TAG, "updatePortfolioItem: uid=${item.instrumentUid} type=${item.instrumentType} pointValue=${item.pointValue}")
         val current = _uiState.value.positions.toMutableList()
         val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
         if (index == -1) {
@@ -150,7 +150,7 @@ class PortfolioViewModel @Inject constructor(
                 val statuses = broker.getTradingStatuses(ids)
                 allStatuses.putAll(statuses)
             } catch (e: Exception) {
-                Log.e(TAG, "Ошибка обновления статусов для $brokerName", e)
+                AppLogger.e(TAG, "Ошибка обновления статусов для $brokerName", e)
             }
         }
         if (allStatuses.isNotEmpty()) {
@@ -169,7 +169,7 @@ class PortfolioViewModel @Inject constructor(
             val accounts = when (val result = repository.getAccountsResult(brokerName, sandboxMode)) {
                 is AppResult.Success -> result.data
                 is AppResult.Failure -> {
-                    Log.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
+                    AppLogger.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -198,7 +198,7 @@ class PortfolioViewModel @Inject constructor(
             } else {
                 accounts.first().id
             }
-            Log.d(TAG, "Пополнение счёта $accountId через $brokerName")
+            AppLogger.d(TAG, "Пополнение счёта $accountId через $brokerName")
 
             // Шаг 2: пополнить
             when (val result = repository.sandboxPayInResult(
@@ -206,11 +206,11 @@ class PortfolioViewModel @Inject constructor(
                 amount = SandboxMoney(currency = "RUB", units = 100_000)
             )) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "Пополнение выполнено успешно")
+                    AppLogger.d(TAG, "Пополнение выполнено успешно")
                     loadPortfolio()
                 }
                 is AppResult.Failure -> {
-                    Log.e(TAG, "payInSandbox: sandboxPayIn failed: ${result.error.message}", result.error.cause)
+                    AppLogger.e(TAG, "payInSandbox: sandboxPayIn failed: ${result.error.message}", result.error.cause)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -244,7 +244,7 @@ class PortfolioViewModel @Inject constructor(
         val prices = when (val result = repository.getLastPricesResult(ids)) {
             is AppResult.Success -> result.data
             is AppResult.Failure -> {
-                Log.w(TAG, "updatePrices failed: ${result.error.message}", result.error.cause)
+                AppLogger.w(TAG, "updatePrices failed: ${result.error.message}", result.error.cause)
                 return
             }
         }
@@ -257,7 +257,7 @@ class PortfolioViewModel @Inject constructor(
                 val newPrice = if (freshPrice != null && freshPrice > 0.0) {
                     freshPrice
                 } else {
-                    Log.w(TAG, "Нет цены для тикера ${pos.ticker}")
+                    AppLogger.w(TAG, "Нет цены для тикера ${pos.ticker}")
                     pos.currentPrice
                 }
                 val changePercent =
