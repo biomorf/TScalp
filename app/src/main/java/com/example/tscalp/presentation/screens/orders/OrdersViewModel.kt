@@ -43,7 +43,11 @@ import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.FutureUi
+
 import com.example.tscalp.domain.models.AppResult
+import com.example.tscalp.domain.models.AppError
+import com.example.tscalp.domain.models.map
+import com.example.tscalp.util.toAppError
 
 
 
@@ -381,11 +385,12 @@ class OrdersViewModel @Inject constructor(
 
         val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return
 
-        // Проверка доступности через брокер-специфичный метод
-        // Получаем брокера и проверяем доступность
+        // Резолвим брокера
         val brokerKey = BrokerName.fromKey(brokerName)
             ?: run {
-                _uiState.update { it.copy(statusMessage = "❌ Неизвестный брокер: $brokerName", isError = true) }
+                _uiState.update {
+                    it.copy(statusMessage = "❌ Неизвестный брокер: $brokerName", isError = true)
+                }
                 return
             }
 
@@ -395,89 +400,165 @@ class OrdersViewModel @Inject constructor(
                 return
             }
 
-        val checkResult = broker.checkTradeAvailability(
-            accountId,
-            tscalpId,
-            uid = tscalpId,
-            direction,
-            quantity
-        )
+        // Проверка доступности. Ошибки сети/API → понятное сообщение вместо краша.
+        val checkResult = try {
+            broker.checkTradeAvailability(
+                accountId,
+                tscalpId,
+                uid = tscalpId,
+                direction,
+                quantity
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val appError = e.toAppError()
+            Log.e(TAG, "checkTradeAvailability failed: ${appError.message}", e)
+            _uiState.update {
+                it.copy(statusMessage = "❌ ${appError.message}", isError = true)
+            }
+            return
+        }
 
         when (checkResult) {
             is TradeCheckResult.Success -> { /* продолжаем */ }
             is TradeCheckResult.Error -> {
-                _uiState.update { it.copy(statusMessage = "❌ ${checkResult.message}", isError = true) }
+                _uiState.update {
+                    it.copy(statusMessage = "❌ ${checkResult.message}", isError = true)
+                }
                 return
             }
         }
 
-        when (state.orderType) {
-            OrderTypeSelection.Market, OrderTypeSelection.Limit, OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit, OrderTypeSelection.StopLimit -> {
-                val prepared = prepareOrderRequest.prepare(
-                    brokerName = brokerName,
-                    ticker = ticker,
-                    instrumentUid = tscalpId,
-                    quantity = quantity,
-                    direction = direction,
-                    accountId = accountId,
-                    sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true),
-                    orderType = state.orderType,
-                    limitPrice = state.limitPrice,
-                    stopPrice = state.stopPrice,
-                    expirationType = state.expirationType,
-                    pairedInstrumentUid = state.pairedInstrument?.tscalpInstrumentId,
-                    pairedTicker = state.pairedInstrument?.ticker,
-                    pairedBrokerName = state.lastSelectedInstruments.find { it.instrument.ticker == state.pairedInstrument?.ticker }?.brokerName,
-                    pairedAccountId = state.lastSelectedInstruments.find { it.instrument.ticker == state.pairedInstrument?.ticker }?.accountId,
-                    pairedMultiplier = state.pairedMultiplier
+        // Готовим основную и контрсделку
+        val prepared = prepareOrderRequest.prepare(
+            brokerName = brokerName,
+            ticker = ticker,
+            instrumentUid = tscalpId,
+            quantity = quantity,
+            direction = direction,
+            accountId = accountId,
+            sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true),
+            orderType = state.orderType,
+            limitPrice = state.limitPrice,
+            stopPrice = state.stopPrice,
+            expirationType = state.expirationType,
+            pairedInstrumentUid = state.pairedInstrument?.tscalpInstrumentId,
+            pairedTicker = state.pairedInstrument?.ticker,
+            pairedBrokerName = state.lastSelectedInstruments
+                .find { it.instrument.ticker == state.pairedInstrument?.ticker }?.brokerName,
+            pairedAccountId = state.lastSelectedInstruments
+                .find { it.instrument.ticker == state.pairedInstrument?.ticker }?.accountId,
+            pairedMultiplier = state.pairedMultiplier
+        )
+
+        _uiState.update { it.copy(isLoading = true, statusMessage = null) }
+
+        // --- Основная заявка ---
+        val primaryOutcome: AppResult<String> = try {
+            if (prepared.isPrimaryStop) {
+                repository.postStopOrderResult(prepared.primaryRequest as StopOrderRequest)
+                    .map { id -> "✅ Стоп‑заявка выставлена, ID: ${id.take(8)}…" }
+            } else {
+                repository.postOrderResult(prepared.primaryRequest as BrokerOrderRequest)
+                    .map { r ->
+                        "✅ Заявка выполнена!\nID: ${r.orderId}\n" +
+                                "Исполнено: ${r.executedLots}/${r.totalLots} лотов"
+                    }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppResult.Failure(e.toAppError())
+        }
+
+        val primaryMessage = when (primaryOutcome) {
+            is AppResult.Success -> primaryOutcome.data
+            is AppResult.Failure -> {
+                Log.e(
+                    TAG,
+                    "primary order failed: ${primaryOutcome.error.message}",
+                    primaryOutcome.error.cause
                 )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "❌ ${primaryOutcome.error.message}",
+                        isError = true
+                    )
+                }
+                return
+            }
+        }
 
-                _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-                try {
-                    var finalMessage = ""
-                    if (prepared.isPrimaryStop) {
-                        val stopId = repository.postStopOrder(prepared.primaryRequest as StopOrderRequest)
-                        finalMessage = "✅ Стоп‑заявка выставлена, ID: ${stopId.take(8)}…"
-                    } else {
-                        val result = repository.postOrder(prepared.primaryRequest as BrokerOrderRequest)
-                        finalMessage = "✅ Заявка выполнена!\nID: ${result.orderId}\nИсполнено: ${result.executedLots}/${result.totalLots} лотов"
-                    }
-
-                    if (prepared.pairedRequest != null) {
-                        val pairedMsg = try {
-                            if (prepared.isPairedStop == true) {
-                                val pairedStop = prepared.pairedRequest as StopOrderRequest
-                                val stopId = repository.postStopOrder(pairedStop)
-                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${pairedStop.quantity} лотов, ID: ${stopId.take(8)}…"
-                            } else {
-                                val pairedRegular = prepared.pairedRequest as BrokerOrderRequest
-                                val pairedResult = repository.postOrder(pairedRegular)
-                                "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} ${pairedRegular.quantity} лотов, ID: ${pairedResult.orderId}"
-                            }
-                        } catch (e: Exception) {
-                            "\n❌ Ошибка контрсделки: ${e.message}"
+        // --- Контрсделка (опционально) ---
+        var finalMessage = primaryMessage
+        if (prepared.pairedRequest != null) {
+            finalMessage += try {
+                if (prepared.isPairedStop == true) {
+                    val pairedStop = prepared.pairedRequest as StopOrderRequest
+                    when (val r = repository.postStopOrderResult(pairedStop)) {
+                        is AppResult.Success ->
+                            "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
+                                    "${pairedStop.quantity} лотов, ID: ${r.data.take(8)}…"
+                        is AppResult.Failure -> {
+                            Log.e(
+                                TAG,
+                                "paired stop order failed: ${r.error.message}",
+                                r.error.cause
+                            )
+                            "\n❌ Ошибка контрсделки: ${r.error.message}"
                         }
-                        finalMessage += pairedMsg
                     }
-
-                    refreshLastSelectedInstruments()
-                    val currentBalance = try {
-                        repository.getBalance(accountId)
-                    } catch (e: Exception) { null }
-
-                    if (currentBalance != null && currentBalance < 1000.0) {
-                        finalMessage += "\n⚠️ Низкий свободный остаток: ${formatCurrency(currentBalance)}"
-                    }
-
-                    _uiState.update {
-                        it.copy(isLoading = false, statusMessage = finalMessage, isError = false, quantity = "", limitPrice = "", stopPrice = "", freeBalance = currentBalance)
-                    }
-                } catch (e: Exception) {
-                    _uiState.update {
-                        it.copy(isLoading = false, statusMessage = "❌ Ошибка: ${e.message}", isError = true)
+                } else {
+                    val pairedRegular = prepared.pairedRequest as BrokerOrderRequest
+                    when (val r = repository.postOrderResult(pairedRegular)) {
+                        is AppResult.Success ->
+                            "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
+                                    "${pairedRegular.quantity} лотов, ID: ${r.data.orderId}"
+                        is AppResult.Failure -> {
+                            Log.e(
+                                TAG,
+                                "paired order failed: ${r.error.message}",
+                                r.error.cause
+                            )
+                            "\n❌ Ошибка контрсделки: ${r.error.message}"
+                        }
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val appError = e.toAppError()
+                Log.e(TAG, "paired order unexpected error: ${appError.message}", e)
+                "\n❌ Ошибка контрсделки: ${appError.message}"
             }
+        }
+
+        // --- Пост-обработка: обновляем карточки и баланс ---
+        refreshLastSelectedInstruments()
+        val currentBalance = try {
+            repository.getBalance(accountId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+
+        if (currentBalance != null && currentBalance < 1000.0) {
+            finalMessage += "\n⚠️ Низкий свободный остаток: ${formatCurrency(currentBalance)}"
+        }
+
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                statusMessage = finalMessage,
+                isError = false,
+                quantity = "",
+                limitPrice = "",
+                stopPrice = "",
+                freeBalance = currentBalance
+            )
         }
     }
 

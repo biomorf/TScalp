@@ -53,3 +53,13 @@ sealed class AppError(open val message: String, open val cause: Throwable? = nul
         override val cause: Throwable? = null
     ) : AppError(message, cause)
 }
+
+/**
+ * Преобразует значение внутри Success, оставляя Failure без изменений.
+ * Удобно для преобразования сырых результатов в UI-сообщения.
+ */
+inline fun <T, R> AppResult<T>.map(transform: (T) -> R): AppResult<R> =
+    when (this) {
+        is AppResult.Success -> AppResult.Success(transform(data))
+        is AppResult.Failure -> this
+    }
