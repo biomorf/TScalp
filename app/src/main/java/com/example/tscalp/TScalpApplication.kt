@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineExceptionHandler
 
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.api.TInvestBrokerAPI
@@ -19,6 +20,12 @@ import com.example.tscalp.data.api.BcsBrokerApi
 import com.example.tscalp.data.repository.SettingsRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerName
+
+private val appScope = CoroutineScope(
+    Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler { _, e ->
+        Log.e("TScalpApplication", "Uncaught error in background scope", e)
+    }
+)
 
 @HiltAndroidApp
 class TScalpApplication : Application() {
@@ -47,7 +54,7 @@ class TScalpApplication : Application() {
                     // DataModule уже инициализировал TInvest через SharedPreferences.
                     // Запускаем общий поток позиций, если известен счёт по умолчанию.
                     val tInvest = broker as? TInvestBrokerAPI ?: continue
-                    CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+                    appScope.launch {
                         try {
                             val sandbox = settingsRepository.isSandboxMode()
                             val accounts = tInvest.getAccounts(sandbox)
@@ -83,7 +90,7 @@ class TScalpApplication : Application() {
                     if (creds != null) {
                         val (refreshToken, isWriteMode) = creds
                         val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+                        appScope.launch {
                             try {
                                 (broker as? BcsBrokerApi)?.initialize(refreshToken, clientId)
                             } catch (e: Exception) {

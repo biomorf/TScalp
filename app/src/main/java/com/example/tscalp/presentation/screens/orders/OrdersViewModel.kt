@@ -872,9 +872,9 @@ fun openBrokerDialog(ticker: String) {
         val accountId = _uiState.value.selectedAccountId ?: return
         positionStreamManager.start(accountId)
         positionStreamJob = viewModelScope.launch {
-            positionStreamManager.flow.collect { item: PositionStreamItem ->
-                updatePositionPnl(item)
-            }
+            positionStreamManager.flow
+                .catch { e -> Log.e(TAG, "Position stream error", e) }
+                .collect { item -> updatePositionPnl(item) }
         }
         // Если позиции ещё не загружены (например, после восстановления состояния),
         // делаем разовый прямой запрос, чтобы сразу заполнить карточку

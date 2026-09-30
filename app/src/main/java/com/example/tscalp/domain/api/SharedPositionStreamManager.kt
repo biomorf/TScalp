@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineExceptionHandler
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,7 +29,11 @@ class SharedPositionStreamManager @Inject constructor(
     val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
 
     private var job: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope = CoroutineScope(
+        Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler { _, e ->
+            Log.e(TAG, "Uncaught error in position stream", e)
+        }
+    )
 
     /**
      * Запускает единый источник обновлений позиций.
