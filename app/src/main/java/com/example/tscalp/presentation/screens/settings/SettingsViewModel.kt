@@ -122,23 +122,6 @@ class SettingsViewModel @Inject constructor(
     ): AppResult<List<BrokerAccount>> =
         repository.getAccountsResult(brokerName, sandboxMode)
 
-    /**
-     * Устаревшая версия: возвращает список или бросает исключение.
-     * Новый код должен использовать [getAccountsResult].
-     */
-    @Deprecated(
-        message = "Use getAccountsResult() to handle errors explicitly",
-        replaceWith = ReplaceWith("getAccountsResult(brokerName, sandboxMode)")
-    )
-    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<BrokerAccount> {
-        return when (val result = getAccountsResult(brokerName, sandboxMode)) {
-            is AppResult.Success -> result.data
-            is AppResult.Failure -> throw IllegalStateException(
-                result.error.message,
-                result.error.cause
-            )
-        }
-    }
 
     // ---------- Инициализация брокеров ----------
 
