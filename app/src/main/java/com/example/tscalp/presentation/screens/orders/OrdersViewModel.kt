@@ -604,11 +604,19 @@ fun openBrokerDialog(ticker: String) {
         val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
         val brokerName = existingCard?.brokerName ?: "TInvest"
 
-        val accounts = try {
-            repository.getAccounts(brokerName, sharedPrefs.getBoolean("TInvest_sandbox", true))
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка загрузки счетов для $brokerName", e)
-            emptyList()
+        val accounts = when (val result = repository.getAccountsResult(
+            brokerName,
+            sharedPrefs.getBoolean("TInvest_sandbox", true)
+        )) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> {
+                Log.e(
+                    TAG,
+                    "Ошибка загрузки счетов для $brokerName: ${result.error.message}",
+                    result.error.cause
+                )
+                emptyList()
+            }
         }
 
         val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
@@ -659,26 +667,36 @@ fun openBrokerDialog(ticker: String) {
      * Загружает счета для указанного брокера и сохраняет их во временный список (можно добавить поле в UIState).
      * Пока для простоты будем хранить список счетов в локальной переменной диалога.
      */
-    private suspend fun loadDialogAccounts(brokerName: String) {
-        try {
-            val accounts = repository.getAccounts(brokerName, sharedPrefs.getBoolean("TInvest_sandbox", true))
-            _uiState.update { state ->
-                val current = state.selectedAccountIdDialog?.trim()
-                val newSelected = if (current != null && accounts.any { it.id.trim() == current }) {
-                    state.selectedAccountIdDialog
-                } else {
-                    accounts.firstOrNull()?.id
-                }
-                state.copy(
-                    dialogAccounts = accounts,
-                    selectedAccountIdDialog = newSelected
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Ошибка загрузки счетов для $brokerName", e)
-            _uiState.update { it.copy(dialogAccounts = emptyList(), selectedAccountIdDialog = null) }
-        }
-    }
+     private suspend fun loadDialogAccounts(brokerName: String) {
+         when (val result = repository.getAccountsResult(
+             brokerName,
+             sharedPrefs.getBoolean("TInvest_sandbox", true)
+         )) {
+             is AppResult.Success -> {
+                 val accounts = result.data
+                 _uiState.update { state ->
+                     val current = state.selectedAccountIdDialog?.trim()
+                     val newSelected = if (current != null && accounts.any { it.id.trim() == current }) {
+                         state.selectedAccountIdDialog
+                     } else {
+                         accounts.firstOrNull()?.id
+                     }
+                     state.copy(
+                         dialogAccounts = accounts,
+                         selectedAccountIdDialog = newSelected
+                     )
+                 }
+             }
+             is AppResult.Failure -> {
+                 Log.e(
+                     TAG,
+                     "Ошибка загрузки счетов для $brokerName: ${result.error.message}",
+                     result.error.cause
+                 )
+                 _uiState.update { it.copy(dialogAccounts = emptyList(), selectedAccountIdDialog = null) }
+             }
+         }
+     }
 
     /**
      * Сохраняет выбранные настройки для инструмента и закрывает диалог.
