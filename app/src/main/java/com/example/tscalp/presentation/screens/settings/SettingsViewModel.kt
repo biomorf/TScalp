@@ -18,6 +18,7 @@ import com.example.tscalp.data.repository.SettingsRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerName
+import com.example.tscalp.domain.models.AppResult
 
 /**
  * UI-состояние экрана настроек.
@@ -111,8 +112,33 @@ class SettingsViewModel @Inject constructor(
 
     // ---------- Счета ----------
 
-    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<BrokerAccount> =
-        repository.getAccounts(brokerName, sandboxMode)
+    /**
+     * Список счетов брокера.
+     * Типизированный результат: AppResult.Success со списком или AppResult.Failure.
+     */
+    suspend fun getAccountsResult(
+        brokerName: String,
+        sandboxMode: Boolean
+    ): AppResult<List<BrokerAccount>> =
+        repository.getAccountsResult(brokerName, sandboxMode)
+
+    /**
+     * Устаревшая версия: возвращает список или бросает исключение.
+     * Новый код должен использовать [getAccountsResult].
+     */
+    @Deprecated(
+        message = "Use getAccountsResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("getAccountsResult(brokerName, sandboxMode)")
+    )
+    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<BrokerAccount> {
+        return when (val result = getAccountsResult(brokerName, sandboxMode)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
+    }
 
     // ---------- Инициализация брокеров ----------
 
