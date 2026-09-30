@@ -1,6 +1,5 @@
 package com.example.tscalp.data.api
 
-import android.util.Log
 import java.io.IOException
 
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +17,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.*
 
+import com.example.tscalp.util.AppLogger
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -74,7 +74,7 @@ class BcsBrokerApi : BrokerApi {
     suspend fun initialize(refreshToken: String, clientId: String) {
         this.refreshToken = refreshToken
         this.clientId = clientId
-        Log.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")
+        AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")
         obtainAccessToken()
     }
 
@@ -95,7 +95,7 @@ class BcsBrokerApi : BrokerApi {
             val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
             if (!response.isSuccessful) {
                 val errorBody = response.body.string()
-                Log.e("BcsBrokerApi", "Ошибка получения access-токена: ${response.code}, тело: $errorBody")
+                AppLogger.e("BcsBrokerApi", "Ошибка получения access-токена: ${response.code}, тело: $errorBody")
                 throw IOException("Ошибка получения access-токена: ${response.code}")
             }
             val responseBody = response.body.string().ifBlank { throw IOException("Пустой ответ") }
@@ -103,9 +103,9 @@ class BcsBrokerApi : BrokerApi {
             accessToken = map["access_token"] as? String ?: throw IOException("Не найден access_token в ответе")
             val expiresIn = (map["expires_in"] as? Double)?.toLong() ?: 3600
             tokenExpiry = System.currentTimeMillis() + expiresIn * 1000
-            Log.d("BcsBrokerApi", "Access-токен получен успешно, истекает через $expiresIn сек")
+            AppLogger.d("BcsBrokerApi", "Access-токен получен успешно, истекает через $expiresIn сек")
         } catch (e: Exception) {
-            Log.e("BcsBrokerApi", "Ошибка обмена токена", e)
+            AppLogger.e("BcsBrokerApi", "Ошибка обмена токена", e)
             throw e
         }
     }
@@ -133,7 +133,7 @@ class BcsBrokerApi : BrokerApi {
         val fullUrl = "$PROD_BASE_URL$path"
 
         // Временное логирование – увидим точный URL
-        Log.d("BcsBrokerApi", "Запрос: $method $fullUrl")
+        AppLogger.d("BcsBrokerApi", "Запрос: $method $fullUrl")
 
         val requestBuilder = Request.Builder()
             .url(fullUrl)
@@ -205,7 +205,7 @@ class BcsBrokerApi : BrokerApi {
     }
 
     override suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
-        Log.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
+        AppLogger.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
     }
 
     override suspend fun getBalance(accountId: String): Double {
@@ -223,7 +223,7 @@ class BcsBrokerApi : BrokerApi {
             val positions = fetchPositionsRest(accountId, false)
             positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
         } catch (e: Exception) {
-            Log.w(TAG, "BCS snapshot failed", e)
+            AppLogger.w(TAG, "BCS snapshot failed", e)
         }
 
         // Периодический опрос
@@ -233,7 +233,7 @@ class BcsBrokerApi : BrokerApi {
                 val positions = fetchPositionsRest(accountId, false)
                 positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
             } catch (e: Exception) {
-                Log.w(TAG, "BCS polling error", e)
+                AppLogger.w(TAG, "BCS polling error", e)
             }
         }
 
@@ -255,7 +255,7 @@ class BcsBrokerApi : BrokerApi {
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
         val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
-        Log.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
+        AppLogger.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
 
         val allPositions: List<Map<String, Any>> = gson.fromJson(
             json,

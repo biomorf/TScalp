@@ -1,7 +1,5 @@
 package com.example.tscalp.data.api
 
-import android.util.Log
-
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +16,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 import java.io.IOException
 
-//import com.example.tscalp.di.ServiceLocator
+import com.example.tscalp.util.AppLogger
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.PositionStreamItem
@@ -101,7 +99,7 @@ class FinamBrokerApi : BrokerApi {
             val positions = fetchPositionsRest(accountId, false)
             positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
         } catch (e: Exception) {
-            Log.w(TAG, "Finam snapshot failed", e)
+            AppLogger.w(TAG, "Finam snapshot failed", e)
         }
 
         // Периодический опрос
@@ -111,7 +109,7 @@ class FinamBrokerApi : BrokerApi {
                 val positions = fetchPositionsRest(accountId, false)
                 positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
             } catch (e: Exception) {
-                Log.w(TAG, "Finam polling error", e)
+                AppLogger.w(TAG, "Finam polling error", e)
             }
         }
 
