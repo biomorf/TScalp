@@ -1,5 +1,5 @@
 markdown
-
+#################################################
 \# ISSUES: protobuf-field-descriptors
 
 
@@ -122,7 +122,7 @@ val typeName = (value as? EnumValueDescriptor)?.name?.removePrefix("PREFIX\_")
 _Дата последнего обновления: 2026-05-07_
 
 
-
+#########################################################
 # ISSUE: PositionsStream не доставляет данные (P&L не обновляется)
 
 **Статус:** Отложен  
@@ -234,7 +234,7 @@ _Дата последнего обновления: 2026-05-07_
 
 
 
-markdown
+########################################################
 # ISSUE: Отсутствие данных стоимости одного пункта цены для фьючерсов в API Т-Инвестиций
 
 ## Описание проблемы
@@ -323,7 +323,7 @@ text
 
 
 
-markdown
+#####################################################
 # Автоматическая сборка `clean assembleDebug` перед запуском приложения в Android Studio
 
 ## Проблема
@@ -365,4 +365,35 @@ markdown
 - **Другие варианты (release):** аналогично можно создать отдельную конфигурацию с задачей `clean assembleRelease` для запуска релизной сборки.
 
 
+######################################################
+## GrpcExceptionGuard не установлен — известное ограничение
 
+**Симптом:** на эмуляторе без интернета приложение может падать с `FATAL EXCEPTION: main` без пользовательского стека в crash-буфере. На реальном устройстве не воспроизводится.
+
+**Причина:** `io.grpc.kotlin.ClientCalls` при ошибке канала доставляет `StatusException` через поздний callback в уже завершённую suspend-корутину. Доставить некому → исключение уходит в `Thread.getDefaultUncaughtExceptionHandler()` → kill process. `CoroutineExceptionHandler` и `.catch { }` не помогают — исключение не проходит через контекст корутины.
+
+**Решение (отложено осознанно):** глобальный `UncaughtExceptionHandler` в `TScalpApplication`, который проглатывает `io.grpc.StatusException` / `StatusRuntimeException` и пробрасывает всё остальное. Не применяем, потому что перехват gRPC-исключений скроет настоящие сетевые проблемы от AppMetrica.
+
+**Когда вернуться:** после завершения миграции на `AppResult` (см. roadmap). К этому моменту большинство gRPC-вызовов будет обёрнуто в `runCatchingAppResult`, и число «висячих» колбэков снизится. Оценить, стоит ли вводить guard для оставшихся.
+
+**Связанные логи:**
+19:55:30.743 AppMetrica: Unhandled exception received:
+at io.grpc.Status.asException(Status.java:547)
+at io.grpc.kotlin.ClientCalls$rpcImpl$1$1$1.onClose(ClientCalls.kt:264)
+at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
+at java.util.concurrent.ThreadPoolExecutor.runWorker
+
+text
+
+## Шаблон для новых записей
+
+## <Короткое название>
+
+**Статус:** известно / в работе / отложено.
+**Симптом:** ...
+**Причина:** ...
+**Решение:** ...
+**Когда вернуться:** ...
+
+
+####################################################
