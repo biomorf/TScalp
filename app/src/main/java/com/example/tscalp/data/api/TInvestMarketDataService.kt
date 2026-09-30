@@ -1,6 +1,5 @@
 package com.example.tscalp.data.api
 
-import android.util.Log
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerAccountType
 import com.example.tscalp.domain.models.FutureUi
@@ -13,6 +12,8 @@ import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.util.formatCurrency
+import com.example.tscalp.util.AppLogger
+
 import io.grpc.stub.StreamObserver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -96,7 +97,7 @@ class TInvestMarketDataService(
             .setAccountId(accountId)
             .build()
         currentApi.sandboxServiceSync.closeSandboxAccount(request)
-        Log.d(TAG, "Счёт песочницы $accountId закрыт")
+        AppLogger.d(TAG, "Счёт песочницы $accountId закрыт")
     }
 
     // ---------- Портфель ----------
@@ -172,7 +173,7 @@ class TInvestMarketDataService(
             val snapshot = fetchPositionsRest(accountId, sandbox)
             for (pos in snapshot) trySend(convertToStreamItem(pos))
         } catch (e: Exception) {
-            Log.w(TAG, "Не удалось получить стартовый снапшот: ${e.message}")
+            AppLogger.w(TAG, "Не удалось получить стартовый снапшот: ${e.message}")
         }
 
         while (isActive) {
@@ -184,10 +185,10 @@ class TInvestMarketDataService(
             } catch (e: Exception) {
                 val msg = e.message ?: ""
                 if (msg.contains("NOT_FOUND")) {
-                    Log.w(TAG, "Счёт $accountId не найден, останавливаю polling")
+                    AppLogger.w(TAG, "Счёт $accountId не найден, останавливаю polling")
                     break
                 }
-                Log.w(TAG, "Polling error: $msg")
+                AppLogger.w(TAG, "Polling error: $msg")
             }
         }
 
@@ -255,7 +256,7 @@ class TInvestMarketDataService(
 
     private suspend fun fetchProtoInstrument(uid: String): Instrument? = withContext(Dispatchers.IO) {
         val currentApi = state.api ?: run {
-            Log.w(TAG, "fetchProtoInstrument: API не инициализирован, uid=$uid")
+            AppLogger.w(TAG, "fetchProtoInstrument: API не инициализирован, uid=$uid")
             return@withContext null
         }
         val request = InstrumentRequest.newBuilder()
@@ -271,7 +272,7 @@ class TInvestMarketDataService(
         val response = currentApi.instrumentsServiceSync.getFuturesMargin(request)
         response.minPriceIncrementAmount?.let { it.units + it.nano / 1_000_000_000.0 }
     } catch (e: Exception) {
-        Log.w(TAG, "Не удалось получить стоимость шага цены для $figi: ${e.message}")
+        AppLogger.w(TAG, "Не удалось получить стоимость шага цены для $figi: ${e.message}")
         null
     }
 
@@ -288,7 +289,7 @@ class TInvestMarketDataService(
                 val instrument = fetchProtoInstrument(short.uid) ?: return@mapNotNull null
                 TInvestInstrumentMapper.mapProtoToDomain(instrument)
             } catch (e: Exception) {
-                Log.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
+                AppLogger.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
                 null
             }
         }
@@ -322,7 +323,7 @@ class TInvestMarketDataService(
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            Log.w(TAG, "Статус для $uid недоступен: ${e.message}")
+                            AppLogger.w(TAG, "Статус для $uid недоступен: ${e.message}")
                             uid to TradingAvailability.UNKNOWN
                         }
                     }
