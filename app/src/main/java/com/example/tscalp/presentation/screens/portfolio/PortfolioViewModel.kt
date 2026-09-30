@@ -240,38 +240,44 @@ class PortfolioViewModel @Inject constructor(
             .filter { it.ticker != "RUB000UTSTOM" }
             .map { it.tscalpInstrumentId }
         if (ids.isEmpty()) return
-        try {
-            val prices = repository.getLastPricesByTscalpInstrumentId(ids)
-            val updatedPositions = positions.map { pos ->
-                if (pos.ticker == "RUB000UTSTOM") {
-                    pos.copy(currentPrice = 1.0, totalValue = 1.0 * pos.quantity, priceChangePercent = null)
-                } else {
-                    val freshPrice = prices[pos.tscalpInstrumentId]
-                    val newPrice = if (freshPrice != null && freshPrice > 0.0) {
-                        freshPrice
-                    } else {
-                        Log.w(TAG, "Нет цены для тикера ${pos.ticker}")
-                        pos.currentPrice
-                    }
-                    val changePercent =
-                        if (pos.currentPrice != 0.0 && newPrice != pos.currentPrice) {
-                            ((newPrice - pos.currentPrice) / pos.currentPrice) * 100.0
-                        } else null
-                    pos.copy(
-                        currentPrice = newPrice,
-                        totalValue = newPrice * pos.quantity,
-                        priceChangePercent = changePercent
-                    )
-                }
+
+        val prices = when (val result = repository.getLastPricesResult(ids)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> {
+                Log.w(TAG, "updatePrices failed: ${result.error.message}", result.error.cause)
+                return
             }
-            val newTotalValue = updatedPositions.sumOf { it.totalValue }
-            _uiState.update {
-                it.copy(
-                    positions = updatedPositions,
-                    totalValue = newTotalValue
+        }
+
+        val updatedPositions = positions.map { pos ->
+            if (pos.ticker == "RUB000UTSTOM") {
+                pos.copy(currentPrice = 1.0, totalValue = 1.0 * pos.quantity, priceChangePercent = null)
+            } else {
+                val freshPrice = prices[pos.tscalpInstrumentId]
+                val newPrice = if (freshPrice != null && freshPrice > 0.0) {
+                    freshPrice
+                } else {
+                    Log.w(TAG, "Нет цены для тикера ${pos.ticker}")
+                    pos.currentPrice
+                }
+                val changePercent =
+                    if (pos.currentPrice != 0.0 && newPrice != pos.currentPrice) {
+                        ((newPrice - pos.currentPrice) / pos.currentPrice) * 100.0
+                    } else null
+                pos.copy(
+                    currentPrice = newPrice,
+                    totalValue = newPrice * pos.quantity,
+                    priceChangePercent = changePercent
                 )
             }
-        } catch (_: Exception) { }
+        }
+        val newTotalValue = updatedPositions.sumOf { it.totalValue }
+        _uiState.update {
+            it.copy(
+                positions = updatedPositions,
+                totalValue = newTotalValue
+            )
+        }
     }
 
     fun refresh() { viewModelScope.launch { loadPortfolio() } }
