@@ -415,3 +415,15 @@ text
 
 
 #####################################################
+**Где:**
+- `PortfolioViewModel.loadPortfolio` — `broker.fetchPositionsRest(accountId, sandbox)`
+- `PortfolioViewModel.updateTradingStatuses` — `broker.getTradingStatuses(ids)`
+- `OrdersViewModel.startPriceUpdates` — `broker.subscribeLastPrices(ids)`
+- `OrdersViewModel.startPositionUpdates` — `broker.fetchPositionsRest(accountId, sandbox)`
+- `OrdersViewModel.updateTradingStatuses` — `broker.getTradingStatuses(ids)`
+- `OrdersListViewModel.loadOrders` — `broker.getOrders`, `broker.getStopOrders`
+- `OrdersListViewModel.cancelOrder` — `broker.cancelOrder`
+
+
+
+######################################################
