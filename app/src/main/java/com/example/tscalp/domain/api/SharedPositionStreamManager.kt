@@ -1,6 +1,5 @@
 package com.example.tscalp.data.api
 
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,6 +15,7 @@ import javax.inject.Singleton
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.BrokerName
+import com.example.tscalp.util.AppLogger
 
 @Singleton
 class SharedPositionStreamManager @Inject constructor(
@@ -31,7 +31,7 @@ class SharedPositionStreamManager @Inject constructor(
     private var job: Job? = null
     private val scope = CoroutineScope(
         Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler { _, e ->
-            Log.e(TAG, "Uncaught error in position stream", e)
+            AppLogger.e(TAG, "Uncaught error in position stream", e)
         }
     )
 
@@ -41,18 +41,18 @@ class SharedPositionStreamManager @Inject constructor(
      */
     fun start(accountId: String) {
         if (job?.isActive == true) {
-            Log.d(TAG, "Поток позиций уже запущен")
+            AppLogger.d(TAG, "Поток позиций уже запущен")
             return
         }
         job?.cancel()
         job = scope.launch {
             val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
             if (broker == null || !broker.isInitialized) {
-                Log.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
+                AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
                 return@launch
             }
             broker.subscribePositions(accountId).collect { item ->
-                Log.d(TAG, "Элемент потока: ${item.instrumentUid}")
+                AppLogger.d(TAG, "Элемент потока: ${item.instrumentUid}")
                 _flow.emit(item)
             }
         }
