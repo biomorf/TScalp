@@ -1,7 +1,6 @@
 package com.example.tscalp.ui.components
 
 import android.content.SharedPreferences
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 import com.example.tscalp.data.api.TInvestBrokerAPI
@@ -19,7 +19,7 @@ import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.domain.models.AppResult
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.util.toAppError
-import kotlinx.coroutines.CancellationException
+import com.example.tscalp.util.AppLogger
 
 @HiltViewModel
 class OrdersListViewModel @Inject constructor(
@@ -52,7 +52,7 @@ class OrdersListViewModel @Inject constructor(
             val accounts = when (val result = repository.getAccountsResult("TInvest", sandboxMode)) {
                 is AppResult.Success -> result.data
                 is AppResult.Failure -> {
-                    Log.e(
+                    AppLogger.e(
                         TAG,
                         "loadOrders: getAccounts failed: ${result.error.message}",
                         result.error.cause
@@ -98,7 +98,7 @@ class OrdersListViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 val appError = e.toAppError()
-                Log.e(TAG, "loadOrders: broker call failed: ${appError.message}", e)
+                AppLogger.e(TAG, "loadOrders: broker call failed: ${appError.message}", e)
                 _uiState.update {
                     it.copy(isLoading = false, statusMessage = "Ошибка: ${appError.message}", isError = true)
                 }
@@ -114,7 +114,7 @@ class OrdersListViewModel @Inject constructor(
             val accounts = when (val result = repository.getAccountsResult("TInvest", sandboxMode)) {
                 is AppResult.Success -> result.data
                 is AppResult.Failure -> {
-                    Log.e(
+                    AppLogger.e(
                         TAG,
                         "cancelOrder: getAccounts failed: ${result.error.message}",
                         result.error.cause
@@ -142,7 +142,7 @@ class OrdersListViewModel @Inject constructor(
                 when (val result = repository.cancelStopOrderResult(accountId, order.orderId)) {
                     is AppResult.Success -> loadOrders()
                     is AppResult.Failure -> {
-                        Log.e(
+                        AppLogger.e(
                             TAG,
                             "cancelOrder: cancelStopOrder failed: ${result.error.message}",
                             result.error.cause
@@ -160,7 +160,7 @@ class OrdersListViewModel @Inject constructor(
                     throw e
                 } catch (e: Exception) {
                     val appError = e.toAppError()
-                    Log.e(TAG, "cancelOrder: broker.cancelOrder failed: ${appError.message}", e)
+                    AppLogger.e(TAG, "cancelOrder: broker.cancelOrder failed: ${appError.message}", e)
                     _uiState.update {
                         it.copy(statusMessage = "Ошибка отмены: ${appError.message}", isError = true)
                     }
