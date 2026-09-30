@@ -49,6 +49,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 //import com.example.tscalp.data.repository.InvestRepository
 
 import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.AppResult
 
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
 //import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
@@ -214,14 +215,20 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
     // При подключении/изменении режима перезагружаем счета
     LaunchedEffect(isConnected, sandboxMode) {
         if (isConnected) {
-            try {
-                availableAccounts = settingsViewModel.getAccounts("TInvest", sandboxMode)
-                // Если счёт по умолчанию ещё не выбран — берём первый доступный
-                if (defaultAccountId.isBlank() && availableAccounts.isNotEmpty()) {
-                    defaultAccountId = availableAccounts.first().id
-                    settingsViewModel.saveDefaultAccountId("TInvest", defaultAccountId)
+            when (val result = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
+                is AppResult.Success -> {
+                    availableAccounts = result.data
+                    // Если счёт по умолчанию ещё не выбран — берём первый доступный
+                    if (defaultAccountId.isBlank() && availableAccounts.isNotEmpty()) {
+                        defaultAccountId = availableAccounts.first().id
+                        settingsViewModel.saveDefaultAccountId("TInvest", defaultAccountId)
+                    }
                 }
-            } catch (_: Exception) { }
+                is AppResult.Failure -> {
+                    Log.w("TInvestSettingsPanel", "getAccounts failed: ${result.error.message}", result.error.cause)
+                    availableAccounts = emptyList()
+                }
+            }
         } else {
             availableAccounts = emptyList()
         }
@@ -379,7 +386,11 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                             isRefreshing = true
                             try {
                                 val newAccountId = settingsViewModel.openSandboxAccount()
-                                availableAccounts = settingsViewModel.getAccounts("TInvest", sandboxMode)
+                                when (val accountsResult = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
+                                    is AppResult.Success -> availableAccounts = accountsResult.data
+                                    is AppResult.Failure ->
+                                        Log.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                                }
                                 defaultAccountId = newAccountId
                                 settingsViewModel.saveDefaultAccountId("TInvest", newAccountId)
                                 statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
@@ -483,7 +494,11 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                             isRefreshing = true
                             try {
                                 settingsViewModel.closeSandboxAccount(defaultAccountId)
-                                availableAccounts = settingsViewModel.getAccounts("TInvest", sandboxMode)
+                                when (val accountsResult = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
+                                    is AppResult.Success -> availableAccounts = accountsResult.data
+                                    is AppResult.Failure ->
+                                        Log.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                                }
                                 defaultAccountId = ""
                                 settingsViewModel.saveDefaultAccountId("TInvest", "")
                                 statusMessage = "Счёт песочницы закрыт"
