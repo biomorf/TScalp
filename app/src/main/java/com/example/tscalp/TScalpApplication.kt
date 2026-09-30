@@ -3,7 +3,6 @@ package com.example.tscalp
 import io.appmetrica.analytics.AppMetrica
 import io.appmetrica.analytics.AppMetricaConfig
 
-import android.util.Log
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -20,10 +19,11 @@ import com.example.tscalp.data.api.BcsBrokerApi
 import com.example.tscalp.data.repository.SettingsRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerName
+import com.example.tscalp.util.AppLogger
 
 private val appScope = CoroutineScope(
     Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler { _, e ->
-        Log.e("TScalpApplication", "Uncaught error in background scope", e)
+        AppLogger.e("TScalpApplication", "Uncaught error in background scope", e)
     }
 )
 
@@ -77,10 +77,10 @@ class TScalpApplication : Application() {
                                 }
                                 positionStreamManager.start(accountId)
                             } else {
-                                Log.w("TScalpApplication", "Не удалось выбрать/создать TInvest-счёт")
+                                AppLogger.w("TScalpApplication", "Не удалось выбрать/создать TInvest-счёт")
                             }
                         } catch (e: Exception) {
-                            Log.e("TScalpApplication", "Не удалось подготовить TInvest-счёт", e)
+                            AppLogger.e("TScalpApplication", "Не удалось подготовить TInvest-счёт", e)
                         }
                     }
                 }
@@ -94,7 +94,7 @@ class TScalpApplication : Application() {
                             try {
                                 (broker as? BcsBrokerApi)?.initialize(refreshToken, clientId)
                             } catch (e: Exception) {
-                                Log.e("TScalpApplication", "Не удалось инициализировать BCS", e)
+                                AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS", e)
                             }
                         }
                     }
@@ -110,7 +110,7 @@ class TScalpApplication : Application() {
     private fun initAppMetrica() {
         val apiKey = BuildConfig.APPMETRICA_API_KEY
         if (apiKey.isBlank()) {
-            Log.w("TScalpApplication", "AppMetrica API key не задан, crash-репортинг отключён")
+            AppLogger.w("TScalpApplication", "AppMetrica API key не задан, crash-репортинг отключён")
             return
         }
 
@@ -120,6 +120,6 @@ class TScalpApplication : Application() {
         }
 
         AppMetrica.activate(this, configBuilder.build())
-        Log.d("TScalpApplication", "AppMetrica инициализирована (key.len=${apiKey.length})")
+        AppLogger.d("TScalpApplication", "AppMetrica инициализирована (key.len=${apiKey.length})")
     }
 }
