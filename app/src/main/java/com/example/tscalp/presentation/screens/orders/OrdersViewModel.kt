@@ -43,6 +43,7 @@ import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.FutureUi
+import com.example.tscalp.domain.models.AppResult
 
 
 
@@ -72,10 +73,6 @@ class OrdersViewModel @Inject constructor(
     // Текущий выбранный брокер для основного и парного поиска
     val selectedSearchBroker = mutableStateOf("TInvest")
     val selectedPairSearchBroker = mutableStateOf("TInvest")
-
-//    private val calculateTradeDetails = CalculateTradeDetailsUseCase()
-//    private val prepareOrderRequest = PrepareOrderRequestUseCase()
-
 
     companion object {
         private const val TAG = "OrdersViewModel"
@@ -136,33 +133,6 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-//    fun initializeApi(token: String, sandboxMode: Boolean) {
-//        try {
-//            sharedPrefs.edit()
-//                .putString("TInvest_token", token)
-//                .putBoolean("TInvest_sandbox", sandboxMode)
-//                .apply()
-//            (brokerManager.getBroker("TInvest") as? TInvestBrokerAPI)?.initialize(token, sandboxMode)
-//
-//            _uiState.update {
-//                it.copy(
-//                    isApiInitialized = true,
-//                    statusMessage = "API подключен (режим: ${if (sandboxMode) "песочница" else "боевой"})",
-//                    isError = false
-//                )
-//            }
-//            loadAccounts()
-//            viewModelScope.launch { startPositionUpdates() }   // <-- обернули в корутину
-//        } catch (e: Exception) {
-//            _uiState.update {
-//                it.copy(
-//                    statusMessage = "Ошибка подключения: ${e.message}",
-//                    isError = true
-//                )
-//            }
-//        }
-//    }
-
     private fun saveState() {
         val state = _uiState.value
         prefs.edit()
@@ -190,7 +160,6 @@ class OrdersViewModel @Inject constructor(
                 _uiState.update { it.copy(currentPointValue = pointVal) }
 
                 startPriceUpdates()
-                ///startPositionUpdates()
             }
         }
 
@@ -211,25 +180,6 @@ class OrdersViewModel @Inject constructor(
             }
         }
 
-//        // Гарантируем, что позиции загружены после восстановления инструмента
-//        viewModelScope.launch {
-//            // Ждём, пока счета загрузятся и selectedAccountId станет известен
-//            while (_uiState.value.selectedAccountId == null) {
-//                kotlinx.coroutines.delay(100)
-//            }
-//            // Принудительно загружаем портфель (прямой запрос)
-//            try {
-//                val broker = ServiceLocator.getBrokerManager().getBroker("TInvest") as? TInvestBrokerAPI
-//                val accountId = _uiState.value.selectedAccountId
-//                if (broker != null && accountId != null) {
-//                    val positions = broker.fetchPositionsRest(accountId, ServiceLocator.isSandboxMode())
-//                    _uiState.update { it.copy(portfolioPositions = positions) }
-//                }
-//            } catch (e: Exception) {
-//                Log.e(TAG, "Ошибка первичной загрузки портфеля в restoreState", e)
-//            }
-//        }
-
         val pairEnabled = prefs.getBoolean("pair_trading_enabled", false)
         val savedQty = prefs.getString("quantity", "") ?: ""
         val savedMultiplier = prefs.getString("paired_multiplier", "10") ?: "10"
@@ -249,61 +199,48 @@ class OrdersViewModel @Inject constructor(
     fun loadAccounts() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            try {
-                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
-                val brokerName = "TInvest"
-                val accounts = repository.getAccounts(brokerName, sandboxMode)
-                val savedAccountId = sharedPrefs.getString("TInvest_default_account", null)
-                val chosenAccount = accounts.firstOrNull { it.id == savedAccountId }
-                    ?: accounts.firstOrNull()
 
-                _uiState.update {
-                    it.copy(
-                        accounts = accounts,
-                        selectedAccountId = chosenAccount?.id,
-                        isLoading = false,
-                        statusMessage = if (accounts.isEmpty()) "Нет доступных счетов"
-                        else "Загружено ${accounts.size} счёт(ов)"
+            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
+            val brokerName = "TInvest"
+
+            when (val result = repository.getAccountsResult(brokerName, sandboxMode)) {
+                is AppResult.Success -> {
+                    val accounts = result.data
+                    val savedAccountId = sharedPrefs.getString("TInvest_default_account", null)
+                    val chosenAccount = accounts.firstOrNull { it.id == savedAccountId }
+                        ?: accounts.firstOrNull()
+
+                    _uiState.update {
+                        it.copy(
+                            accounts = accounts,
+                            selectedAccountId = chosenAccount?.id,
+                            isLoading = false,
+                            statusMessage = if (accounts.isEmpty()) "Нет доступных счетов"
+                            else "Загружено ${accounts.size} счёт(ов)"
+                        )
+                    }
+                    if (_uiState.value.selectedAccountId != null) {
+                        startPositionUpdates()
+                    }
+                }
+
+                is AppResult.Failure -> {
+                    Log.e(
+                        TAG,
+                        "loadAccounts failed: ${result.error.message}",
+                        result.error.cause
                     )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = "Ошибка загрузки счетов: ${result.error.message}",
+                            isError = true
+                        )
+                    }
                 }
-                // Запускаем обновление позиций, если счёт выбран
-                if (_uiState.value.selectedAccountId != null) {
-                    startPositionUpdates()
-                }
-            } catch (e: Exception) {
-                // ...
             }
         }
     }
-
-//    /**
-//     * Загружает портфель для первого счета и возвращает список позиций.
-//     * Теперь это suspend-функция, которую можно await'ить.
-//     */
-//    private suspend fun loadPortfolio(
-//        brokerName: String = "TInvest",
-//        accountId: String? = null
-//    ) {
-//        try {
-//            val sandboxMode = ServiceLocator.isSandboxMode()
-//            val broker = ServiceLocator.getBrokerManager().getBroker(brokerName) ?: return
-//            // Если accountId не передан, получаем его через getAccounts (только для TInvest)
-//            val actualAccountId = accountId ?: run {
-//                val accounts = broker.getAccounts(sandboxMode)
-//                accounts.firstOrNull()?.id ?: return
-//            }
-//            val newPositions = broker.getPositions(actualAccountId, sandboxMode)
-//            Log.d(TAG, "Позиции загружены: ${newPositions.map { "${it.ticker} profit=${it.profit} percent=${it.profitPercent}" }}")
-//
-//            // Обновляем portfolioPositions: удаляем старые позиции этого брокера и добавляем новые
-//            val currentPositions = _uiState.value.portfolioPositions.toMutableList()
-//            currentPositions.removeAll { it.brokerName == brokerName }
-//            currentPositions.addAll(newPositions.map { it.copy(brokerName = brokerName) })
-//            _uiState.update { it.copy(portfolioPositions = currentPositions) }
-//        } catch (e: Exception) {
-//            Log.e(TAG, "Ошибка загрузки портфеля для $brokerName", e)
-//        }
-//    }
 
     fun onSearchQueryChanged(query: String) {
         _uiState.update { it.copy(searchQuery = query, selectedInstrument = null, ticker = "") }
@@ -574,55 +511,6 @@ class OrdersViewModel @Inject constructor(
 
     fun retryLoadAccounts() { loadAccounts() }
 
-//    fun startPriceUpdates() {
-//        priceUpdateJob?.cancel()
-//        priceUpdateJob = viewModelScope.launch {
-//            while (isActive) {
-//                delay(5_000) // каждые 5 секунд
-//                updatePrices()
-//            }
-//        }
-//    }
-//
-//    private suspend fun updatePrices() {
-//        val state = _uiState.value
-//        // Собираем тикеры только из visible карточек
-//        val tickersToUpdate = state.lastSelectedInstruments.map { it.instrument.ticker }.toMutableSet()
-//        state.selectedInstrument?.ticker?.let { tickersToUpdate.add(it) }
-//        if (tickersToUpdate.isEmpty()) return
-//
-//        try {
-//            val prices = repository.getLastPricesByTicker(tickersToUpdate.toList())
-//
-//            // Обновляем lastSelectedInstruments
-//            val updatedLastSelected = state.lastSelectedInstruments.map { card ->
-//                val newPrice = prices[card.instrument.ticker] ?: card.currentPrice
-//                val changePercent = if (card.currentPrice != null && card.currentPrice != 0.0 && newPrice != null) {
-//                    ((newPrice - card.currentPrice) / card.currentPrice) * 100.0
-//                } else null
-//                card.copy(currentPrice = newPrice, priceChangePercent = changePercent)
-//            }
-//
-//            // Обновляем цену для выбранного инструмента
-//            val selectedTicker = state.selectedInstrument?.ticker
-//            val newSelectedPrice = selectedTicker?.let { prices[it] } ?: state.currentPrice
-//            val selectedChange = if (state.currentPrice != null && state.currentPrice != 0.0 && newSelectedPrice != null) {
-//                ((newSelectedPrice - state.currentPrice) / state.currentPrice) * 100.0
-//            } else null
-//
-//            _uiState.update {
-//                it.copy(
-//                    lastSelectedInstruments = updatedLastSelected,
-//                    currentPrice = newSelectedPrice,
-//                    selectedPriceChangePercent = selectedChange
-//                )
-//            }
-//        } catch (_: Exception) { }
-//    }
-
-//    fun stopPriceUpdates() {
-//        priceUpdateJob?.cancel()
-//    }
 
     /**
      * Открывает диалог настроек для указанного инструмента.
@@ -838,10 +726,6 @@ fun openBrokerDialog(ticker: String) {
         saveState()
     }
 
-//    fun onStopOrderTypeChanged(type: StopOrderType) {
-//        _uiState.update { it.copy(stopOrderType = type) }
-//    }
-
     fun startPriceUpdates() {
         stopPriceUpdates()
         val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI ?: return
@@ -1033,15 +917,3 @@ fun openBrokerDialog(ticker: String) {
         _uiState.update { it.copy(executionPrice = details.executionPrice, costOverlay = details.costOverlay, multiplierOverlay = details.multiplierOverlay) }
     }
 }
-
-//class OrdersViewModelFactory : ViewModelProvider.Factory {
-//    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-//        if (modelClass.isAssignableFrom(OrdersViewModel::class.java)) {
-//            val brokerManager = ServiceLocator.getBrokerManager()
-//            val repository = InvestRepository(brokerManager)
-//            @Suppress("UNCHECKED_CAST")
-//            return OrdersViewModel(repository) as T
-//        }
-//        throw IllegalArgumentException("Unknown ViewModel class")
-//    }
-//}

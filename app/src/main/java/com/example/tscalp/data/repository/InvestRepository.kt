@@ -8,7 +8,10 @@ import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerName
+import com.example.tscalp.domain.models.AppError
+import com.example.tscalp.domain.models.AppResult
 import com.example.tscalp.domain.models.*
+import com.example.tscalp.util.runCatchingAppResult
 
 
 /**
@@ -23,31 +26,44 @@ class InvestRepository(
     }
 
     /**
-     * Получает счета для брокера по умолчанию (TInvest).
-     * Оставлен для совместимости с существующим кодом.
+     * Получает счета для указанного брокера.
+     * Типизированный результат: AppResult.Success со списком или AppResult.Failure с AppError.
      */
-    suspend fun getAccounts(brokerName: String, sandboxMode: Boolean): List<BrokerAccount> = withContext(Dispatchers.IO) {
+    suspend fun getAccountsResult(
+        brokerName: String,
+        sandboxMode: Boolean
+    ): AppResult<List<BrokerAccount>> = withContext(Dispatchers.IO) {
         val name = BrokerName.fromKey(brokerName)
-            ?: throw IllegalArgumentException("Неизвестный брокер: $brokerName")
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Неизвестный брокер: $brokerName")
+            )
         val broker = brokerManager.getBroker(name)
-            ?: throw IllegalArgumentException("Брокер $brokerName не зарегистрирован")
-        broker.getAccounts(sandboxMode)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер $brokerName не зарегистрирован")
+            )
+        runCatchingAppResult { broker.getAccounts(sandboxMode) }
     }
 
-//     suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): List<PortfolioPosition> = withContext(Dispatchers.IO) {
-//        val broker = brokerManager.getDefaultBroker()
-//        broker.getPositions(accountId, sandboxMode)
-//    }
-
     /**
-     * Возвращает специфичный для брокера идентификатор (figi, uid и т.д.) по тикеру.
-     * @param brokerName имя брокера
-     * @param ticker тикер инструмента
+     * Устаревшая версия: возвращает список или бросает исключение.
+     * Новый код должен использовать [getAccountsResult].
      */
-//    suspend fun resolveBrokerTicker(brokerName: String, ticker: String): String? {
-//        val broker = brokerManager.getBroker(brokerName) ?: return null
-//        return broker.resolveTicker(ticker)
-//    }
+    @Deprecated(
+        message = "Use getAccountsResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("getAccountsResult(brokerName, sandboxMode)")
+    )
+    suspend fun getAccounts(
+        brokerName: String,
+        sandboxMode: Boolean
+    ): List<BrokerAccount> {
+        return when (val result = getAccountsResult(brokerName, sandboxMode)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
+    }
 
     /**
      * ///Поиск инструментов – возвращает список InstrumentUi, готовых для UI.

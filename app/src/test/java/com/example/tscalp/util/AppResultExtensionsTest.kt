@@ -69,4 +69,31 @@ class AppResultExtensionsTest {
         val result = runCatchingAppResult<Int> { throw IllegalStateException("something") }
         assertTrue((result as AppResult.Failure).error is AppError.Unknown)
     }
+
+    @Test
+    fun `grpc UNAUTHENTICATED maps to Auth`() {
+        val e = io.grpc.Status.UNAUTHENTICATED
+            .withDescription("token invalid")
+            .asException()
+        val result = runCatchingAppResult<Int> { throw e }
+        assertTrue((result as AppResult.Failure).error is AppError.Auth)
+    }
+
+    @Test
+    fun `grpc NOT_FOUND maps to NotFound`() {
+        val e = io.grpc.Status.NOT_FOUND
+            .withDescription("account not found")
+            .asException()
+        val result = runCatchingAppResult<Int> { throw e }
+        assertTrue((result as AppResult.Failure).error is AppError.NotFound)
+    }
+
+    @Test
+    fun `grpc UNAVAILABLE maps to Network`() {
+        val e = io.grpc.Status.UNAVAILABLE
+            .withDescription("server down")
+            .asException()
+        val result = runCatchingAppResult<Int> { throw e }
+        assertTrue((result as AppResult.Failure).error is AppError.Network)
+    }
 }
