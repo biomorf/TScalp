@@ -16,6 +16,10 @@ import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.OrderListItem
+import com.example.tscalp.domain.models.AppResult
+import com.example.tscalp.domain.models.BrokerName
+import com.example.tscalp.util.toAppError
+import kotlinx.coroutines.CancellationException
 
 @HiltViewModel
 class OrdersListViewModel @Inject constructor(
@@ -41,26 +45,48 @@ class OrdersListViewModel @Inject constructor(
     fun loadOrders() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            try {
-                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
-                val accounts = repository.getAccounts("TInvest", sandboxMode)
-                if (accounts.isEmpty()) {
+
+            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
+
+            // Шаг 1: получить счета через AppResult
+            val accounts = when (val result = repository.getAccountsResult("TInvest", sandboxMode)) {
+                is AppResult.Success -> result.data
+                is AppResult.Failure -> {
+                    Log.e(
+                        TAG,
+                        "loadOrders: getAccounts failed: ${result.error.message}",
+                        result.error.cause
+                    )
                     _uiState.update {
-                        it.copy(isLoading = false, statusMessage = "Нет доступных счетов", isError = true)
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = "Ошибка: ${result.error.message}",
+                            isError = true
+                        )
                     }
                     return@launch
                 }
-                val accountId = accounts.first().id
-                val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
-                    ?: throw IllegalStateException("Брокер TInvest не найден")
+            }
 
+            if (accounts.isEmpty()) {
+                _uiState.update {
+                    it.copy(isLoading = false, statusMessage = "Нет доступных счетов", isError = true)
+                }
+                return@launch
+            }
+            val accountId = accounts.first().id
+
+            // Шаг 2: получить заявки (напрямую у брокера — см. ISSUES.md,
+            //         методы getOrders / getStopOrders пока не в репозитории)
+            try {
+                val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
+                    ?: throw IllegalStateException("Брокер TInvest не найден")
                 val regularOrders = broker.getOrders(accountId)
                 val stopOrders = broker.getStopOrders(accountId)
                 val allOrders = (regularOrders + stopOrders).sortedWith(
                     compareBy<OrderListItem> { it.orderDate ?: Long.MAX_VALUE }
                         .thenBy { it.price }
                 )
-
                 _uiState.update {
                     it.copy(
                         orders = allOrders,
@@ -68,36 +94,77 @@ class OrdersListViewModel @Inject constructor(
                         statusMessage = if (allOrders.isEmpty()) "Нет активных заявок" else null
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                val appError = e.toAppError()
+                Log.e(TAG, "loadOrders: broker call failed: ${appError.message}", e)
                 _uiState.update {
-                    it.copy(isLoading = false, statusMessage = "Ошибка: ${e.message}", isError = true)
+                    it.copy(isLoading = false, statusMessage = "Ошибка: ${appError.message}", isError = true)
                 }
-                Log.e(TAG, "Ошибка загрузки заявок", e)
             }
         }
     }
 
     fun cancelOrder(order: OrderListItem) {
         viewModelScope.launch {
-            try {
-                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
-                val accounts = repository.getAccounts("TInvest", sandboxMode)
-                if (accounts.isEmpty()) return@launch
-                val accountId = accounts.first().id
-                val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI
-                    ?: return@launch
+            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
 
-                if (order.isStopOrder) {
-                    repository.cancelStopOrder(accountId, order.orderId)
-                } else {
-                    broker.cancelOrder(accountId, order.orderId)
+            // Шаг 1: счета
+            val accounts = when (val result = repository.getAccountsResult("TInvest", sandboxMode)) {
+                is AppResult.Success -> result.data
+                is AppResult.Failure -> {
+                    Log.e(
+                        TAG,
+                        "cancelOrder: getAccounts failed: ${result.error.message}",
+                        result.error.cause
+                    )
+                    _uiState.update {
+                        it.copy(statusMessage = "Ошибка отмены: ${result.error.message}", isError = true)
+                    }
+                    return@launch
                 }
-                loadOrders()
-            } catch (e: Exception) {
+            }
+            if (accounts.isEmpty()) return@launch
+            val accountId = accounts.first().id
+
+            val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
+            if (broker == null) {
                 _uiState.update {
-                    it.copy(statusMessage = "Ошибка отмены: ${e.message}", isError = true)
+                    it.copy(statusMessage = "Ошибка отмены: Брокер TInvest не найден", isError = true)
                 }
-                Log.e(TAG, "Ошибка отмены заявки", e)
+                return@launch
+            }
+
+            // Шаг 2: отмена. Стоп-заявки через репозиторий (AppResult),
+            //         обычные — напрямую у брокера (см. ISSUES.md).
+            if (order.isStopOrder) {
+                when (val result = repository.cancelStopOrderResult(accountId, order.orderId)) {
+                    is AppResult.Success -> loadOrders()
+                    is AppResult.Failure -> {
+                        Log.e(
+                            TAG,
+                            "cancelOrder: cancelStopOrder failed: ${result.error.message}",
+                            result.error.cause
+                        )
+                        _uiState.update {
+                            it.copy(statusMessage = "Ошибка отмены: ${result.error.message}", isError = true)
+                        }
+                    }
+                }
+            } else {
+                try {
+                    broker.cancelOrder(accountId, order.orderId)
+                    loadOrders()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val appError = e.toAppError()
+                    Log.e(TAG, "cancelOrder: broker.cancelOrder failed: ${appError.message}", e)
+                    _uiState.update {
+                        it.copy(statusMessage = "Ошибка отмены: ${appError.message}", isError = true)
+                    }
+                }
             }
         }
     }
