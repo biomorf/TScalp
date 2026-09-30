@@ -300,8 +300,17 @@ class OrdersViewModel @Inject constructor(
             val actualInstrument = instrumentRepo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
 
             // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
-            val prices = repository.getLastPricesByTscalpInstrumentId(listOf(instrument.tscalpInstrumentId))
-            val price = prices[instrument.tscalpInstrumentId]
+            val price = when (val pricesResult = repository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
+                is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
+                is AppResult.Failure -> {
+                    Log.w(
+                        TAG,
+                        "onInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
+                        pricesResult.error.cause
+                    )
+                    null
+                }
+            }
 
             // 2. Ищем позицию в портфеле
             val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
@@ -536,13 +545,18 @@ class OrdersViewModel @Inject constructor(
         }
 
         // --- Пост-обработка: обновляем карточки и баланс ---
+        // --- Пост-обработка: обновляем карточки и баланс ---
         refreshLastSelectedInstruments()
-        val currentBalance = try {
-            repository.getBalance(accountId)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            null
+        val currentBalance = when (val balanceResult = repository.getBalanceResult(accountId)) {
+            is AppResult.Success -> balanceResult.data
+            is AppResult.Failure -> {
+                Log.w(
+                    TAG,
+                    "postOrder: getBalance failed: ${balanceResult.error.message}",
+                    balanceResult.error.cause
+                )
+                null
+            }
         }
 
         if (currentBalance != null && currentBalance < 1000.0) {
@@ -778,8 +792,17 @@ fun openBrokerDialog(ticker: String) {
         _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
         startPriceUpdates()   // перезапускаем стрим для обновления цен обоих инструментов
         viewModelScope.launch {
-            val prices = repository.getLastPricesByTscalpInstrumentId(listOf(instrument.tscalpInstrumentId))
-            val price = prices[instrument.tscalpInstrumentId]
+            val price = when (val pricesResult = repository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
+                is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
+                is AppResult.Failure -> {
+                    Log.w(
+                        TAG,
+                        "onPairedInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
+                        pricesResult.error.cause
+                    )
+                    null
+                }
+            }
             if (price != null) {
                 _uiState.update { it.copy(pairCurrentPrice = price) }
                 // === НОВОЕ: сохраняем pointValue парного инструмента ===
