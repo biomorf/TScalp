@@ -66,32 +66,102 @@ class InvestRepository(
     }
 
     /**
-     * ///Поиск инструментов – возвращает список InstrumentUi, готовых для UI.
-     * ///Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
+     * Поиск инструментов у брокера по умолчанию.
+     * Типизированный результат: AppResult.Success со списком или AppResult.Failure.
      */
-    suspend fun searchInstruments(query: String): List<InstrumentUi> = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getDefaultBroker()
-        broker.findInstruments(query)
+    suspend fun searchInstrumentsResult(query: String): AppResult<List<InstrumentUi>> =
+        withContext(Dispatchers.IO) {
+            val broker = brokerManager.getDefaultBroker()
+            runCatchingAppResult { broker.findInstruments(query) }
+        }
+
+    @Deprecated(
+        message = "Use searchInstrumentsResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("searchInstrumentsResult(query)")
+    )
+    suspend fun searchInstruments(query: String): List<InstrumentUi> {
+        return when (val result = searchInstrumentsResult(query)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
     }
 
     /**
-     * Получает последние цены для списка тикеров.
-     * Внутри вызывает resolveBrokerTicker для каждого тикера и запрашивает цены через брокера.
+     * Последние цены по списку uid.
+     * Типизированный результат: AppResult.Success(Map<uid, price?>) или AppResult.Failure.
      */
-    suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getDefaultBroker()
-        broker.getLastPricesByTscalpInstrumentId(ids)
+    suspend fun getLastPricesResult(ids: List<String>): AppResult<Map<String, Double?>> =
+        withContext(Dispatchers.IO) {
+            val broker = brokerManager.getDefaultBroker()
+            runCatchingAppResult { broker.getLastPricesByTscalpInstrumentId(ids) }
+        }
+
+    @Deprecated(
+        message = "Use getLastPricesResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("getLastPricesResult(ids)")
+    )
+    suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> {
+        return when (val result = getLastPricesResult(ids)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
     }
 
-    suspend fun getBalance(accountId: String): Double = withContext(Dispatchers.IO) {
-        val broker = brokerManager.getDefaultBroker()
-        broker.getBalance(accountId)
+    /**
+     * Свободный остаток по счёту.
+     * Типизированный результат: AppResult.Success(баланс) или AppResult.Failure.
+     */
+    suspend fun getBalanceResult(accountId: String): AppResult<Double> =
+        withContext(Dispatchers.IO) {
+            val broker = brokerManager.getDefaultBroker()
+            runCatchingAppResult { broker.getBalance(accountId) }
+        }
+
+    @Deprecated(
+        message = "Use getBalanceResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("getBalanceResult(accountId)")
+    )
+    suspend fun getBalance(accountId: String): Double {
+        return when (val result = getBalanceResult(accountId)) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
     }
 
+    /**
+     * Пополнение счёта в песочнице.
+     * Типизированный результат: AppResult.Success(Unit) или AppResult.Failure.
+     */
+    suspend fun sandboxPayInResult(
+        accountId: String,
+        amount: SandboxMoney
+    ): AppResult<Unit> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "sandboxPayIn: accountId=$accountId, amount=${amount.units} ${amount.currency}")
+        val broker = brokerManager.getDefaultBroker()
+        runCatchingAppResult { broker.sandboxPayIn(accountId, amount); Unit }
+    }
+
+    @Deprecated(
+        message = "Use sandboxPayInResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("sandboxPayInResult(accountId, amount)")
+    )
     suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney) {
-        Log.d("InvestRepository", "Вызов sandboxPayIn для счета $accountId, сумма ${amount.units} ${amount.currency}")
-        val broker = brokerManager.getDefaultBroker()
-        broker.sandboxPayIn(accountId, amount)
+        when (val result = sandboxPayInResult(accountId, amount)) {
+            is AppResult.Success -> Unit
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
     }
 
     /**
@@ -164,8 +234,29 @@ class InvestRepository(
         }
     }
 
-    suspend fun cancelStopOrder(accountId: String, orderId: String) = withContext(Dispatchers.IO) {
+    /**
+     * Отмена стоп-заявки.
+     * Типизированный результат: AppResult.Success(Unit) или AppResult.Failure.
+     */
+    suspend fun cancelStopOrderResult(
+        accountId: String,
+        orderId: String
+    ): AppResult<Unit> = withContext(Dispatchers.IO) {
         val broker = brokerManager.getDefaultBroker()
-        broker.cancelStopOrder(accountId, orderId)
+        runCatchingAppResult { broker.cancelStopOrder(accountId, orderId); Unit }
+    }
+
+    @Deprecated(
+        message = "Use cancelStopOrderResult() to handle errors explicitly",
+        replaceWith = ReplaceWith("cancelStopOrderResult(accountId, orderId)")
+    )
+    suspend fun cancelStopOrder(accountId: String, orderId: String) {
+        when (val result = cancelStopOrderResult(accountId, orderId)) {
+            is AppResult.Success -> Unit
+            is AppResult.Failure -> throw IllegalStateException(
+                result.error.message,
+                result.error.cause
+            )
+        }
     }
 }
