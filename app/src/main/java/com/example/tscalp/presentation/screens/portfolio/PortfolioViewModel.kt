@@ -24,6 +24,7 @@ import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.PositionStreamItem
+import com.example.tscalp.domain.models.AppResult
 
 @HiltViewModel
 class PortfolioViewModel @Inject constructor(
@@ -160,34 +161,63 @@ class PortfolioViewModel @Inject constructor(
     fun payInSandbox() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            try {
-                val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
-                val brokerName = "TInvest"
-                val accounts = repository.getAccounts(brokerName, sandboxMode)
-                if (accounts.isEmpty()) throw Exception("Нет доступных счетов")
 
-                val defaultAccountId = sharedPrefs.getString("TInvest_default_account", null)
-                val accountId = if (defaultAccountId != null && accounts.any { it.id == defaultAccountId }) {
-                    defaultAccountId
-                } else {
-                    accounts.first().id
+            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
+            val brokerName = BrokerName.TINVEST.key
+
+            // Шаг 1: получить счета
+            val accounts = when (val result = repository.getAccountsResult(brokerName, sandboxMode)) {
+                is AppResult.Success -> result.data
+                is AppResult.Failure -> {
+                    Log.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = "Ошибка пополнения: ${result.error.message}",
+                            isError = true
+                        )
+                    }
+                    return@launch
                 }
-                Log.d(TAG, "Пополнение счёта $accountId через TInvest")
+            }
 
-                repository.sandboxPayIn(
-                    accountId = accountId,
-                    amount = SandboxMoney(currency = "RUB", units = 100_000)
-                )
-                Log.d(TAG, "Пополнение выполнено успешно")
-                loadPortfolio()
-            } catch (e: Exception) {
-                Log.e(TAG, "Ошибка пополнения", e)
+            if (accounts.isEmpty()) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Ошибка пополнения: ${e.message}",
+                        statusMessage = "Ошибка пополнения: Нет доступных счетов",
                         isError = true
                     )
+                }
+                return@launch
+            }
+
+            val defaultAccountId = sharedPrefs.getString("TInvest_default_account", null)
+            val accountId = if (defaultAccountId != null && accounts.any { it.id == defaultAccountId }) {
+                defaultAccountId
+            } else {
+                accounts.first().id
+            }
+            Log.d(TAG, "Пополнение счёта $accountId через $brokerName")
+
+            // Шаг 2: пополнить
+            when (val result = repository.sandboxPayInResult(
+                accountId = accountId,
+                amount = SandboxMoney(currency = "RUB", units = 100_000)
+            )) {
+                is AppResult.Success -> {
+                    Log.d(TAG, "Пополнение выполнено успешно")
+                    loadPortfolio()
+                }
+                is AppResult.Failure -> {
+                    Log.e(TAG, "payInSandbox: sandboxPayIn failed: ${result.error.message}", result.error.cause)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = "Ошибка пополнения: ${result.error.message}",
+                            isError = true
+                        )
+                    }
                 }
             }
         }
