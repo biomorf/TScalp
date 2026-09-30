@@ -1,7 +1,6 @@
 package com.example.tscalp.presentation.screens.orders
 
 import android.content.SharedPreferences
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableStateOf
@@ -17,11 +16,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
 
-
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-
-
 
 import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.api.SharedPositionStreamManager
@@ -31,7 +27,7 @@ import com.example.tscalp.data.repository.SearchCache
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
-import com.example.tscalp.util.formatCurrency
+
 
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.InstrumentUi
@@ -47,7 +43,10 @@ import com.example.tscalp.domain.models.FutureUi
 import com.example.tscalp.domain.models.AppResult
 import com.example.tscalp.domain.models.AppError
 import com.example.tscalp.domain.models.map
+
+import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.toAppError
+import com.example.tscalp.util.AppLogger
 
 
 
@@ -229,7 +228,7 @@ class OrdersViewModel @Inject constructor(
                 }
 
                 is AppResult.Failure -> {
-                    Log.e(
+                    AppLogger.e(
                         TAG,
                         "loadAccounts failed: ${result.error.message}",
                         result.error.cause
@@ -303,7 +302,7 @@ class OrdersViewModel @Inject constructor(
             val price = when (val pricesResult = repository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
                 is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
                 is AppResult.Failure -> {
-                    Log.w(
+                    AppLogger.w(
                         TAG,
                         "onInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
                         pricesResult.error.cause
@@ -422,7 +421,7 @@ class OrdersViewModel @Inject constructor(
             throw e
         } catch (e: Exception) {
             val appError = e.toAppError()
-            Log.e(TAG, "checkTradeAvailability failed: ${appError.message}", e)
+            AppLogger.e(TAG, "checkTradeAvailability failed: ${appError.message}", e)
             _uiState.update {
                 it.copy(statusMessage = "❌ ${appError.message}", isError = true)
             }
@@ -484,7 +483,7 @@ class OrdersViewModel @Inject constructor(
         val primaryMessage = when (primaryOutcome) {
             is AppResult.Success -> primaryOutcome.data
             is AppResult.Failure -> {
-                Log.e(
+                AppLogger.e(
                     TAG,
                     "primary order failed: ${primaryOutcome.error.message}",
                     primaryOutcome.error.cause
@@ -511,7 +510,7 @@ class OrdersViewModel @Inject constructor(
                             "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
                                     "${pairedStop.quantity} лотов, ID: ${r.data.take(8)}…"
                         is AppResult.Failure -> {
-                            Log.e(
+                            AppLogger.e(
                                 TAG,
                                 "paired stop order failed: ${r.error.message}",
                                 r.error.cause
@@ -526,7 +525,7 @@ class OrdersViewModel @Inject constructor(
                             "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
                                     "${pairedRegular.quantity} лотов, ID: ${r.data.orderId}"
                         is AppResult.Failure -> {
-                            Log.e(
+                            AppLogger.e(
                                 TAG,
                                 "paired order failed: ${r.error.message}",
                                 r.error.cause
@@ -539,7 +538,7 @@ class OrdersViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 val appError = e.toAppError()
-                Log.e(TAG, "paired order unexpected error: ${appError.message}", e)
+                AppLogger.e(TAG, "paired order unexpected error: ${appError.message}", e)
                 "\n❌ Ошибка контрсделки: ${appError.message}"
             }
         }
@@ -550,7 +549,7 @@ class OrdersViewModel @Inject constructor(
         val currentBalance = when (val balanceResult = repository.getBalanceResult(accountId)) {
             is AppResult.Success -> balanceResult.data
             is AppResult.Failure -> {
-                Log.w(
+                AppLogger.w(
                     TAG,
                     "postOrder: getBalance failed: ${balanceResult.error.message}",
                     balanceResult.error.cause
@@ -624,7 +623,7 @@ fun openBrokerDialog(ticker: String) {
         )) {
             is AppResult.Success -> result.data
             is AppResult.Failure -> {
-                Log.e(
+                AppLogger.e(
                     TAG,
                     "Ошибка загрузки счетов для $brokerName: ${result.error.message}",
                     result.error.cause
@@ -702,7 +701,7 @@ fun openBrokerDialog(ticker: String) {
                  }
              }
              is AppResult.Failure -> {
-                 Log.e(
+                 AppLogger.e(
                      TAG,
                      "Ошибка загрузки счетов для $brokerName: ${result.error.message}",
                      result.error.cause
@@ -795,7 +794,7 @@ fun openBrokerDialog(ticker: String) {
             val price = when (val pricesResult = repository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
                 is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
                 is AppResult.Failure -> {
-                    Log.w(
+                    AppLogger.w(
                         TAG,
                         "onPairedInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
                         pricesResult.error.cause
@@ -864,10 +863,10 @@ fun openBrokerDialog(ticker: String) {
         viewModelScope.launch {
             priceStreamJob = launch {
                 broker.subscribeLastPrices(ids)   // ids — это tscalpInstrumentId, которые для Т‑Инвестиций равны figi
-                    .catch { e -> Log.e(TAG, "Price stream error", e) }
+                    .catch { e -> AppLogger.e(TAG, "Price stream error", e) }
                     .collect { (id, price) ->
                         val ticker = idToTicker[id] ?: return@collect
-                        Log.d(TAG, "Цена для $ticker: $price")
+                        AppLogger.d(TAG, "Цена для $ticker: $price")
                         _uiState.update { state ->
                             val oldPrice = state.currentPrice
                             val newPercent = if (oldPrice != null && oldPrice != 0.0) {
@@ -904,7 +903,7 @@ fun openBrokerDialog(ticker: String) {
                 state.copy(tradingStatuses = state.tradingStatuses + statuses)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Ошибка обновления статусов доступности", e)
+            AppLogger.e(TAG, "Ошибка обновления статусов доступности", e)
         }
     }
 
@@ -914,7 +913,7 @@ fun openBrokerDialog(ticker: String) {
         positionStreamManager.start(accountId)
         positionStreamJob = viewModelScope.launch {
             positionStreamManager.flow
-                .catch { e -> Log.e(TAG, "Position stream error", e) }
+                .catch { e -> AppLogger.e(TAG, "Position stream error", e) }
                 .collect { item -> updatePositionPnl(item) }
         }
         // Если позиции ещё не загружены (например, после восстановления состояния),
@@ -927,7 +926,7 @@ fun openBrokerDialog(ticker: String) {
                     val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
                     _uiState.update { it.copy(portfolioPositions = positions) }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Не удалось получить начальный портфель", e)
+                    AppLogger.w(TAG, "Не удалось получить начальный портфель", e)
                 }
             }
         }
@@ -944,15 +943,13 @@ fun openBrokerDialog(ticker: String) {
         val quantity = item.quantity
         if (quantity == 0L) return
 
-        Log.d(TAG, "updatePositionPnl: uid=${item.instrumentUid}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
-        //val positions = _uiState.value.portfolioPositions
-        //Log.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
+        AppLogger.d(TAG, "updatePositionPnl: uid=${item.instrumentUid}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
 
         val profitPercent = if (avgPrice != 0.0) (yield / (avgPrice * quantity)) * 100.0 else 0.0
 
         _uiState.update { state ->
             val positions = state.portfolioPositions.toMutableList()
-            Log.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
+            AppLogger.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
             val index = positions.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
             if (index == -1) {
                 // Добавляем новую позицию, если её нет
