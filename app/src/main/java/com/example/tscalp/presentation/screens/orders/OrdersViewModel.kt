@@ -912,9 +912,13 @@ fun openBrokerDialog(ticker: String) {
         val accountId = _uiState.value.selectedAccountId ?: return
         positionStreamManager.start(accountId)
         positionStreamJob = viewModelScope.launch {
-            positionStreamManager.flow
-                .catch { e -> AppLogger.e(TAG, "Position stream error", e) }
-                .collect { item -> updatePositionPnl(item) }
+            // Ошибки потока логирует сам SharedPositionStreamManager
+            // через свой CoroutineExceptionHandler — сюда они не доходят.
+            // .catch на SharedFlow смысла не имеет: поток не завершается
+            // и не бросает исключения подписчику.
+            positionStreamManager.flow.collect { item ->
+                updatePositionPnl(item)
+            }
         }
         // Если позиции ещё не загружены (например, после восстановления состояния),
         // делаем разовый прямой запрос, чтобы сразу заполнить карточку
