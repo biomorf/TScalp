@@ -86,26 +86,6 @@ data class StopOrderRequest(
 
 
 enum class StopOrderExpirationType { GOOD_TILL_CANCEL, GOOD_TILL_DATE }
-
-data class StopOrdersUiState(
-    val orders: List<StopOrderUi> = emptyList(),
-    val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false
-)
-
-data class StopOrderUi(
-    val stopOrderId: String,
-    val ticker: String,
-    val figi: String,
-    val direction: String,          // "BUY" или "SELL"
-    val stopPrice: Double,
-    val limitPrice: Double?,        // цена для stop-limit
-    val quantity: Long,
-    val type: String,              // "TAKE_PROFIT", "STOP_LOSS", "STOP_LIMIT"
-    val status: String             // "ACTIVE", "EXECUTED", "CANCELLED"
-)
-
 /**
  * Универсальная модель заявки, не зависящая от protobuf.
  * @param type тип заявки: MARKET или LIMIT
