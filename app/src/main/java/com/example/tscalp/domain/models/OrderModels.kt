@@ -1,17 +1,5 @@
 package com.example.tscalp.domain.models
 
-sealed class TradeCheckResult {
-    data object Success : TradeCheckResult()
-    data class Error(val message: String) : TradeCheckResult()
-}
-
-data class TradingStatusDetails(
-    val isApiTradeAvailable: Boolean,
-    val buyAvailable: Boolean,
-    val sellAvailable: Boolean,
-    val tradingStatus: String   // например "SECURITY_TRADING_STATUS_NORMAL_TRADING"
-)
-
 data class OrderState(
     val orderId: String,
     val orderRequestId: String?,
@@ -47,12 +35,6 @@ data class OrderListItem(
     val orderDate: Long?,       // время создания (epoch seconds)
     val isStopOrder: Boolean    // true → отмена через cancelStopOrder, false → cancelOrder
 )
-
-enum class TradingAvailability {
-    AVAILABLE,
-    UNAVAILABLE,
-    UNKNOWN
-}
 
 enum class OrderStatus {
     NEW, PARTIALLY_FILLED, FILLED, REJECTED, CANCELLED
