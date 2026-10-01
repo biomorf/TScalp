@@ -42,6 +42,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 import com.example.tscalp.util.AppLogger
 import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.AppResult
 
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
@@ -120,7 +121,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 
     val settingsViewModel: SettingsViewModel = hiltViewModel()
 
-    val brokerNames = remember { settingsViewModel.getAvailableBrokers() }
+    val brokerNames = remember { settingsViewModel.getAvailableBrokerNames() }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(pageCount = { brokerNames.size })
 
@@ -150,11 +151,11 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 .fillMaxSize()
         ) {
             PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
-                brokerNames.forEach { broker ->
+                brokerNames.forEachIndexed { index, broker ->
                     Tab(
-                        selected = selectedTabIndex == brokerNames.indexOf(broker),
-                        onClick = { selectedTabIndex = brokerNames.indexOf(broker) },
-                        text = { Text(broker) }
+                        selected = selectedTabIndex == index,
+                        onClick = { selectedTabIndex = index },
+                        text = { Text(broker.displayName) }
                     )
                 }
             }
@@ -164,12 +165,10 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 modifier = Modifier.weight(1f),
                 userScrollEnabled = true
             ) { page ->
-                val brokerName = brokerNames[page]
-                when (brokerName) {
-                    "TInvest" -> TInvestSettingsPanel(ordersViewModel, uiState)
-                    "bcs" -> BcsSettingsPanel()
-                    "finam" -> FinamSettingsPanel()
-                    else -> Text("Настройки для $brokerName пока не реализованы")
+                when (brokerNames[page]) {
+                    BrokerName.TINVEST -> TInvestSettingsPanel(ordersViewModel, uiState)
+                    BrokerName.BCS -> BcsSettingsPanel()
+                    BrokerName.FINAM -> FinamSettingsPanel()
                 }
             }
         }

@@ -53,8 +53,8 @@ class SettingsViewModel @Inject constructor(
 
     // ---------- Список брокеров ----------
 
-    fun getAvailableBrokers(): List<String> =
-        brokerManager.getAvailableBrokers()
+    fun getAvailableBrokerNames(): List<BrokerName> =
+        brokerManager.getAvailableBrokerNames()
 
     // ---------- Учётные данные брокеров ----------
 

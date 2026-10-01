@@ -31,6 +31,12 @@ class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
     fun getAvailableBrokers(): List<String> = brokers.keys.map { it.key }
 
     /**
+     * Возвращает список ключей брокеров в типизированном виде — для UI и pager'а.
+     * Заменяет строковый [getAvailableBrokers] в новых вызовах.
+     */
+    fun getAvailableBrokerNames(): List<BrokerName> = brokers.keys.toList()
+
+    /**
      * Возвращает список всех брокеров (для массовых операций).
      */
     fun getAllBrokers(): List<BrokerApi> = brokers.values.toList()
