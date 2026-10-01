@@ -118,6 +118,7 @@ class FinamBrokerApi : BrokerApi {
 
     private fun convertToStreamItem(pos: PortfolioPosition) = PositionStreamItem(
         instrumentUid = pos.tscalpInstrumentId,
+        brokerName = BrokerName.FINAM,
         ticker = pos.ticker,
         quantity = pos.quantity,
         currentPrice = pos.currentPrice,

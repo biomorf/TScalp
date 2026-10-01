@@ -49,6 +49,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.ui.components.BrokerAccountDialog
@@ -188,7 +189,14 @@ fun OrdersScreen(
                             val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
 
                             // Если позиция есть в портфеле – используем её целиком (единый источник)
+                            // Превью-карточка, а не реальная позиция.
+                            // Поток Заявок сейчас работает только с TInvest.
+                            // При появлении мультиброкерности — брать brokerName
+                            // из lastSelectedInstruments по тикеру.
+
+
                             val position = portfolioPos ?: PortfolioPosition(
+                                brokerName = BrokerName.TINVEST,
                                 tscalpInstrumentId = instrument.tscalpInstrumentId,
                                 name = instrument.name,
                                 isin = instrument.isin,
@@ -498,7 +506,12 @@ fun OrdersScreen(
                                 val pairedPointValue = uiState.pairedPointValue
                                 val pairPrice = uiState.pairCurrentPrice ?: 0.0
                                 // Единый источник: если позиция есть в портфеле – берём её целиком
+                                // Превью-карточка, а не реальная позиция.
+                                // Поток Заявок сейчас работает только с TInvest.
+                                // При появлении мультиброкерности — брать brokerName
+                                // из lastSelectedInstruments по тикеру.
                                 val position = portfolioPos ?: PortfolioPosition(
+                                    brokerName = BrokerName.TINVEST,
                                     tscalpInstrumentId = instrument.tscalpInstrumentId,
                                     name = instrument.name,
                                     isin = instrument.isin,

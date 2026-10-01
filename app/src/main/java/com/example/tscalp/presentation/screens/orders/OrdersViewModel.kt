@@ -954,6 +954,7 @@ fun openBrokerDialog(ticker: String) {
             if (index == -1) {
                 // Добавляем новую позицию, если её нет
                 positions.add(PortfolioPosition(
+                    brokerName = item.brokerName,
                     name = item.ticker,                // временно, позже можно загрузить полное имя из кэша
                     tscalpInstrumentId = item.instrumentUid,
                     ticker = item.ticker,

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 import com.example.tscalp.data.api.TInvestBrokerAPI
@@ -102,6 +103,7 @@ class PortfolioViewModel @Inject constructor(
         if (index == -1) {
             current.add(PortfolioPosition(
                 tscalpInstrumentId = item.instrumentUid,
+                brokerName = item.brokerName,
                 ticker = item.ticker,
                 isin = item.isin,
                 classCode = item.classCode,
@@ -142,19 +144,23 @@ class PortfolioViewModel @Inject constructor(
         val byBroker = positions.groupBy { it.brokerName }
         val allStatuses = mutableMapOf<String, TradingAvailability>()
         for ((brokerName, posList) in byBroker) {
-            val brokerKey = BrokerName.fromKey(brokerName) ?: continue
-            val broker = brokerManager.getBroker(brokerKey) ?: continue
+            val broker = brokerManager.getBroker(brokerName) ?: continue
             val ids = posList.map { it.tscalpInstrumentId }.filter { it.isNotBlank() }
             if (ids.isEmpty()) continue
             try {
                 val statuses = broker.getTradingStatuses(ids)
                 allStatuses.putAll(statuses)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                AppLogger.e(TAG, "Ошибка обновления статусов для $brokerName", e)
+                AppLogger.e(TAG, "Ошибка обновления статусов для ${brokerName.displayName}", e)
             }
         }
         if (allStatuses.isNotEmpty()) {
-            _uiState.update { it.copy(tradingStatuses = allStatuses) }
+            // Merge: не теряем статусы, полученные из поиска
+            _uiState.update { state ->
+                state.copy(tradingStatuses = state.tradingStatuses + allStatuses)
+            }
         }
     }
 

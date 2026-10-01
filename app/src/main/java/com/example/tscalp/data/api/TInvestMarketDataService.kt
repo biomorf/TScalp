@@ -1,5 +1,6 @@
 package com.example.tscalp.data.api
 
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerAccountType
 import com.example.tscalp.domain.models.FutureUi
@@ -149,6 +150,7 @@ class TInvestMarketDataService(
 
                 PortfolioPosition(
                     tscalpInstrumentId = instrumentUi?.tscalpInstrumentId ?: "",
+                    brokerName = BrokerName.TINVEST,
                     name = instrumentUi?.name ?: "",
                     ticker = instrumentUi?.ticker ?: "",
                     classCode = instrumentUi?.classCode ?: "",
@@ -198,6 +200,7 @@ class TInvestMarketDataService(
     private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
         PositionStreamItem(
             instrumentUid = pos.tscalpInstrumentId,
+            brokerName = BrokerName.TINVEST,
             isin = pos.isin,
             ticker = pos.ticker,
             classCode = pos.classCode,

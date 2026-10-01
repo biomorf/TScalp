@@ -159,7 +159,7 @@ fun PortfolioScreen(
                     val grouped = uiState.positions.groupBy { it.brokerName }
                     for ((brokerName, positions) in grouped) {
                         Text(
-                            "--- $brokerName ---",
+                            "--- ${brokerName.displayName} ---",
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )

@@ -2,6 +2,7 @@ package com.example.tscalp.util
 
 import androidx.compose.ui.graphics.Color
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.BrokerName
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -43,6 +44,7 @@ class PositionFormatterTest {
         profitPercent: Double? = null
     ): PortfolioPosition = PortfolioPosition(
         tscalpInstrumentId = "uid_$ticker",
+        brokerName = BrokerName.TINVEST,
         ticker = ticker,
         name = "$ticker Inc.",
         quantity = quantity,

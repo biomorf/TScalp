@@ -242,6 +242,7 @@ class BcsBrokerApi : BrokerApi {
 
     private fun convertToStreamItem(pos: PortfolioPosition) = PositionStreamItem(
         instrumentUid = pos.tscalpInstrumentId,
+        brokerName = BrokerName.BCS,
         ticker = pos.ticker,
         quantity = pos.quantity,
         currentPrice = pos.currentPrice,
@@ -278,6 +279,8 @@ class BcsBrokerApi : BrokerApi {
             val totalValue = (posMap["currentValue"] as? Number)?.toDouble() ?: (currentPrice * quantity)
 
             PortfolioPosition(
+                tscalpInstrumentId = figi,
+                brokerName = BrokerName.BCS,
                 name = name,
                 ticker = ticker,
                 quantity = quantity,
@@ -285,8 +288,7 @@ class BcsBrokerApi : BrokerApi {
                 totalValue = totalValue,
                 profit = null,
                 profitPercent = null,
-                averagePrice = null,   // если нет
-                brokerName = "bcs"
+                averagePrice = null   // если нет
             )
         }.distinctBy { it.ticker } // убираем дубликаты по FIGI внутри одного брокера
     }

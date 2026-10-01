@@ -1,34 +1,39 @@
 package com.example.tscalp.domain.models
 
 data class PositionStreamItem(
+    // Обязательные: без них позицию нельзя идентифицировать
     val instrumentUid: String,
+    val brokerName: BrokerName,
     val ticker: String,
+    val quantity: Long,
+    // Опциональные: приходят не всегда
+    val currentPrice: Double? = null,
+    val averagePositionPrice: Double? = null,
+    val expectedYield: Double? = null,
     val classCode: String = "",
     val isin: String = "",
-    val quantity: Long,
-    val currentPrice: Double?,       // текущая цена (может быть null)
-    val averagePositionPrice: Double?, // средняя цена позиции
-    val expectedYield: Double?,       // ожидаемая доходность (абсолютная)
     val pointValue: Double? = null,
     val instrumentType: String = ""
 )
 
 data class PortfolioPosition(
-    val tscalpInstrumentId: String = "",
-    val brokerName: String = "",
-    val instrumentType: String = "",
+    // Обязательные: без них позицию нельзя корректно отрисовать
+    val tscalpInstrumentId: String,
+    val brokerName: BrokerName,
     val name: String,
     val ticker: String,
-    val classCode: String = "",
-    val isin: String = "",
     val quantity: Long,
     val currentPrice: Double,
-    val averagePrice: Double? = null,
     val totalValue: Double,
-    val profit: Double?,
-    val profitPercent: Double?,
+    // Опциональные: с разумными дефолтами
+    val instrumentType: String = "",
+    val classCode: String = "",
+    val isin: String = "",
+    val averagePrice: Double? = null,
+    val profit: Double? = null,
+    val profitPercent: Double? = null,
     val priceChangePercent: Double? = null,
-    val pointValue: Double? = null      // ← стоимость пункта для фьючерсов
+    val pointValue: Double? = null
 )
 
 /**
