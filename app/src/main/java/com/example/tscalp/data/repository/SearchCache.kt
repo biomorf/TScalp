@@ -2,8 +2,10 @@ package com.example.tscalp.data.repository
 
 import com.example.tscalp.domain.models.FutureUi
 import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.InstrumentUi
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -22,23 +24,22 @@ class SearchCache(private val brokerManager: BrokerManager) {
      * Выполняет поиск инструментов через указанного брокера, кеширует результат
      * и сортирует фьючерсы по дате экспирации (ближайшие сверху).
      */
-    suspend fun search(brokerName: String, query: String): List<InstrumentUi> {
+    suspend fun search(brokerName: BrokerName, query: String): List<InstrumentUi> {
         val normalizedQuery = query.trim().lowercase()
-        val key = "$brokerName:$normalizedQuery"
+        val key = "${brokerName.key}:$normalizedQuery"
 
         cache[key]?.let { return it }
 
         val broker = brokerManager.getBroker(brokerName)
-            ?: throw IllegalArgumentException("Брокер $brokerName не найден")
+            ?: throw IllegalArgumentException("Брокер ${brokerName.displayName} не найден")
 
         val results = withContext(Dispatchers.IO) {
             broker.findInstruments(query)
         }
 
-        // Сортировка: сначала обычные инструменты, затем фьючерсы по дате
         val sorted = results.sortedWith(
-            compareBy<InstrumentUi> { it !is FutureUi }       // обычные выше
-                .thenBy { (it as? FutureUi)?.expirationDate } // фьючерсы по дате
+            compareBy<InstrumentUi> { it !is FutureUi }
+                .thenBy { (it as? FutureUi)?.expirationDate }
         )
 
         cache[key] = sorted
@@ -49,9 +50,9 @@ class SearchCache(private val brokerManager: BrokerManager) {
      * Инвалидирует кеш для конкретного запроса и брокера.
      * Используется при нажатии кнопки "Обновить".
      */
-    fun invalidate(brokerName: String, query: String) {
+    fun invalidate(brokerName: BrokerName, query: String) {
         val normalizedQuery = query.trim().lowercase()
-        val key = "$brokerName:$normalizedQuery"
+        val key = "${brokerName.key}:$normalizedQuery"
         cache.remove(key)
     }
 }

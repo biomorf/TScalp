@@ -2,7 +2,9 @@ package com.example.tscalp.data.repository
 
 import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.InstrumentUi
+
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -31,7 +33,7 @@ class InstrumentRepository(
     }
 
     private suspend fun loadAndCache(uid: String): InstrumentUi? {
-        val broker = brokerManager.getBroker("TInvest") as? TInvestBrokerAPI ?: return null
+        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI ?: return null
         val instrument = broker.fetchFullInstrument(uid)
         if (instrument != null) {
             cache[uid] = instrument

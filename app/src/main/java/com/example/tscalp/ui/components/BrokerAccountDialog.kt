@@ -6,14 +6,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+
 import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.BrokerName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerAccountDialog(
-    availableBrokers: List<String>,
-    selectedBroker: String,
-    onBrokerSelected: (String) -> Unit,
+    availableBrokers: List<BrokerName>,
+    selectedBroker: BrokerName,
+    onBrokerSelected: (BrokerName) -> Unit,
     accounts: List<BrokerAccount>,
     selectedAccountId: String?,
     onAccountSelected: (String) -> Unit,
@@ -50,7 +52,7 @@ fun BrokerAccountDialog(
                     onExpandedChange = { brokerExpanded = it }
                 ) {
                     TextField(
-                        value = selectedBroker,
+                        value = selectedBroker.displayName,
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = brokerExpanded) },
@@ -67,7 +69,7 @@ fun BrokerAccountDialog(
                     ) {
                         availableBrokers.forEach { broker ->
                             DropdownMenuItem(
-                                text = { Text(broker) },
+                                text = { Text(broker.displayName) },
                                 onClick = {
                                     onBrokerSelected(broker)
                                     brokerExpanded = false

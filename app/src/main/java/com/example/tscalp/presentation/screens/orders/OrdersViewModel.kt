@@ -74,8 +74,8 @@ class OrdersViewModel @Inject constructor(
     val showPairSearchBrokerDialog = mutableStateOf(false)
 
     // Текущий выбранный брокер для основного и парного поиска
-    val selectedSearchBroker = mutableStateOf("TInvest")
-    val selectedPairSearchBroker = mutableStateOf("TInvest")
+    val selectedSearchBroker = mutableStateOf(BrokerName.TINVEST)
+    val selectedPairSearchBroker = mutableStateOf(BrokerName.TINVEST)
 
     companion object {
         private const val TAG = "OrdersViewModel"
@@ -253,9 +253,7 @@ class OrdersViewModel @Inject constructor(
                 try {
                     delay(500)
                     _uiState.update { it.copy(isSearching = true) }
-                    val cache = searchCache
-                    val brokerName = _uiState.value.searchBroker
-                    val results = cache.search(brokerName, query)
+                    val results = searchCache.search(_uiState.value.searchBroker, query)
                     // Обновляем статусы доступности для найденных инструментов
                     if (results.isNotEmpty()) {
                         launch {
@@ -600,8 +598,8 @@ class OrdersViewModel @Inject constructor(
     fun isConfirmOrdersEnabled(): Boolean =
         sharedPrefs.getBoolean("confirm_orders_enabled", true)
 
-    fun getAvailableBrokers(): List<String> =
-        brokerManager.getAvailableBrokers()
+    fun getAvailableBrokerNames(): List<BrokerName> =
+        brokerManager.getAvailableBrokerNames()
 
     fun retryLoadAccounts() { loadAccounts() }
 
@@ -615,17 +613,17 @@ class OrdersViewModel @Inject constructor(
 fun openBrokerDialog(ticker: String) {
     viewModelScope.launch {
         val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-        val brokerName = existingCard?.brokerName ?: "TInvest"
+        val broker = BrokerName.fromKey(existingCard?.brokerName ?: "") ?: BrokerName.TINVEST
 
         val accounts = when (val result = repository.getAccountsResult(
-            brokerName,
+            broker.key,
             sharedPrefs.getBoolean("TInvest_sandbox", true)
         )) {
             is AppResult.Success -> result.data
             is AppResult.Failure -> {
                 AppLogger.e(
                     TAG,
-                    "Ошибка загрузки счетов для $brokerName: ${result.error.message}",
+                    "Ошибка загрузки счетов для ${broker.displayName}: ${result.error.message}",
                     result.error.cause
                 )
                 emptyList()
@@ -643,7 +641,7 @@ fun openBrokerDialog(ticker: String) {
             it.copy(
                 showBrokerDialog = true,
                 dialogInstrumentTicker = ticker,
-                selectedBroker = brokerName,
+                selectedBroker = broker,
                 selectedAccountIdDialog = selectedId,
                 dialogAccounts = accounts
             )
@@ -662,7 +660,7 @@ fun openBrokerDialog(ticker: String) {
     /**
      * Обрабатывает выбор брокера в диалоге – загружает его счета.
      */
-    fun onBrokerSelected(brokerName: String) {
+    fun onBrokerSelected(brokerName: BrokerName) {
         _uiState.update { it.copy(selectedBroker = brokerName, selectedAccountIdDialog = null) }
         viewModelScope.launch {
             loadDialogAccounts(brokerName)
@@ -680,9 +678,9 @@ fun openBrokerDialog(ticker: String) {
      * Загружает счета для указанного брокера и сохраняет их во временный список (можно добавить поле в UIState).
      * Пока для простоты будем хранить список счетов в локальной переменной диалога.
      */
-     private suspend fun loadDialogAccounts(brokerName: String) {
+     private suspend fun loadDialogAccounts(brokerName: BrokerName) {
          when (val result = repository.getAccountsResult(
-             brokerName,
+             brokerName.key,
              sharedPrefs.getBoolean("TInvest_sandbox", true)
          )) {
              is AppResult.Success -> {
@@ -723,7 +721,7 @@ fun openBrokerDialog(ticker: String) {
             state.copy(
                 lastSelectedInstruments = state.lastSelectedInstruments.map { card ->
                     if (card.instrument.ticker == ticker) {
-                        card.copy(brokerName = broker, accountId = accountId)
+                        card.copy(brokerName = broker.key, accountId = accountId)
                     } else card
                 },
                 showBrokerDialog = false,
@@ -759,9 +757,7 @@ fun openBrokerDialog(ticker: String) {
                 delay(500)
                 _uiState.update { it.copy(isPairSearching = true) }
                 try {
-                    val cache = searchCache
-                    val brokerName = _uiState.value.pairSearchBroker
-                    val results = cache.search(brokerName, query)
+                    val results = searchCache.search(_uiState.value.pairSearchBroker, query)
                     // Обновляем статусы доступности для найденных инструментов
                     if (results.isNotEmpty()) {
                         launch {
@@ -996,12 +992,12 @@ fun openBrokerDialog(ticker: String) {
         showPairSearchBrokerDialog.value = true
     }
 
-    fun saveSearchBrokerSettings(broker: String) {
+    fun saveSearchBrokerSettings(broker: BrokerName) {
         selectedSearchBroker.value = broker
         showSearchBrokerDialog.value = false
     }
 
-    fun savePairSearchBrokerSettings(broker: String) {
+    fun savePairSearchBrokerSettings(broker: BrokerName) {
         selectedPairSearchBroker.value = broker
         showPairSearchBrokerDialog.value = false
     }

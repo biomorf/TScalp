@@ -12,23 +12,10 @@ class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
     fun getBroker(name: BrokerName): BrokerApi? = brokers[name]
 
     /**
-     * Возвращает брокера по строковому ключу.
-     * Оставлен для плавной миграции — постепенно заменяется на enum-версию.
-     */
-    fun getBroker(name: String): BrokerApi? =
-        BrokerName.fromKey(name)?.let { brokers[it] }
-
-    /**
      * Брокер по умолчанию (Т‑Инвестиции).
      */
     fun getDefaultBroker(): BrokerApi = brokers[BrokerName.TINVEST]
         ?: throw IllegalStateException("Брокер TInvest не зарегистрирован")
-
-
-    /**
-     * Список ключей брокеров — для отображения в UI.
-     */
-    fun getAvailableBrokers(): List<String> = brokers.keys.map { it.key }
 
     /**
      * Возвращает список ключей брокеров в типизированном виде — для UI и pager'а.

@@ -832,9 +832,9 @@ fun OrdersScreen(
     }
 
     if (uiState.showBrokerDialog) {
-        val availableBrokers = viewModel.getAvailableBrokers()
+        val availableBrokers = viewModel.getAvailableBrokerNames()
         BrokerAccountDialog(
-            availableBrokers = availableBrokers,
+            availableBrokers = viewModel.getAvailableBrokerNames(),
             selectedBroker = uiState.selectedBroker,
             onBrokerSelected = { viewModel.onBrokerSelected(it) },
             accounts = uiState.dialogAccounts,
@@ -853,7 +853,7 @@ fun OrdersScreen(
     // Диалог выбора брокера для основного поиска
     if (viewModel.showSearchBrokerDialog.value) {
         BrokerAccountDialog(
-            availableBrokers = viewModel.getAvailableBrokers(),
+            availableBrokers = viewModel.getAvailableBrokerNames(),
             selectedBroker = viewModel.selectedSearchBroker.value,
             onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
             accounts = emptyList(),
@@ -868,7 +868,7 @@ fun OrdersScreen(
 // Диалог выбора брокера для парного поиска
     if (viewModel.showPairSearchBrokerDialog.value) {
         BrokerAccountDialog(
-            availableBrokers = viewModel.getAvailableBrokers(),
+            availableBrokers = viewModel.getAvailableBrokerNames(),
             selectedBroker = viewModel.selectedPairSearchBroker.value,
             onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
             accounts = emptyList(),

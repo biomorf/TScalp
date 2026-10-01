@@ -1,6 +1,7 @@
 package com.example.tscalp.presentation.screens.orders
 
 import com.example.tscalp.domain.models.BrokerAccount
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.BrokerAccountType
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
@@ -53,10 +54,10 @@ data class OrdersUiState(
     // Диалог брокера
     val showBrokerDialog: Boolean = false,          // флаг открытия диалога
     val dialogInstrumentTicker: String? = null,
-    val selectedBroker: String = "TInvest",         // выбранный брокер в диалоге
+    val selectedBroker: BrokerName = BrokerName.TINVEST,         // выбранный брокер в диалоге
     val selectedAccountIdDialog: String? = null,     // выбранный счёт в диалоге
     val dialogAccounts: List<BrokerAccount> = emptyList(),     // счета для диалога
-    val searchBroker: String = "TInvest",               // брокер для основного поиска
+    val searchBroker: BrokerName = BrokerName.TINVEST,           // брокер для основного поиска
     // Парная торговля
     val pairTradingEnabled: Boolean = false,
     val pairSearchQuery: String = "",                   // запрос второго поиска
@@ -65,7 +66,7 @@ data class OrdersUiState(
     val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
     val pairedMultiplier: String = "1",               // множитель (по умолчанию 10)
     val swipeResetTrigger: Boolean = false,
-    val pairSearchBroker: String = "TInvest",           // брокер для парного поиска
+    val pairSearchBroker: BrokerName = BrokerName.TINVEST,       // брокер для парного поиска
     val currentPointValue: Double? = null,
     val pairedPointValue: Double? = null,
     // Стоп‑заявки
