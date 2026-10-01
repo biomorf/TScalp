@@ -427,3 +427,27 @@ text
 
 
 ######################################################
+## Довести BrokerManager до типизированного API
+
+**Статус:** запланировано, низкая срочность.
+
+**Что:** `BrokerManager.getBroker(name: String)` — последний строковый
+доступ к брокерам из ядра. Используется только в `SearchCache.kt:31`.
+
+**Действия:**
+1. `SearchCache.search(brokerName: BrokerName, query: String)` —
+   принимать enum вместо строки.
+2. `SearchCache.invalidate(brokerName: BrokerName, query: String)` — то же.
+3. `OrdersViewModel`: убрать `BrokerName.fromKey(...)` и строковые
+   `searchBroker`/`pairSearchBroker` из `OrdersUiState` — заменить на enum.
+4. Удалить `BrokerManager.getBroker(String)` целиком.
+5. Удалить `BrokerManager.getAvailableBrokers(): List<String>`
+   (после того как `OrdersViewModel.getAvailableBrokers` будет удалён
+   или переведён на enum).
+
+**Оценка:** ~30 минут.
+**Когда:** после текущего блока тикетов (портфель, settings, чистка OrderModels).
+
+
+
+##################################################
