@@ -26,14 +26,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
-//import java.util.*
 import androidx.compose.runtime.getValue
 
-import com.example.tscalp.domain.models.InstrumentUi
-import com.example.tscalp.domain.models.FutureUi
-import com.example.tscalp.domain.models.ShareUi
 import com.example.tscalp.util.formatCurrency
-import com.example.tscalp.util.formatPrice
 import com.example.tscalp.ui.components.AssetPositionCard
 import com.example.tscalp.domain.models.TradingAvailability
 

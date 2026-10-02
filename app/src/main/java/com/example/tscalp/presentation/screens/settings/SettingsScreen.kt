@@ -1,6 +1,5 @@
 package com.example.tscalp.presentation.screens.settings
 
-import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -8,8 +7,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -35,7 +32,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -46,9 +42,7 @@ import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.AppResult
 
 import com.example.tscalp.presentation.screens.orders.OrdersViewModel
-//import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
 import com.example.tscalp.presentation.screens.orders.OrdersUiState
-import com.example.tscalp.presentation.screens.settings.SettingsViewModel
 import com.example.tscalp.BuildConfig
 
 

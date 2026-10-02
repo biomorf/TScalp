@@ -1,8 +1,5 @@
 package com.example.tscalp.presentation
 
-import androidx.navigation.compose.*
-import androidx.hilt.navigation.compose.hiltViewModel
-
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
@@ -25,9 +22,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.tscalp.presentation.navigation.NavGraph
 import com.example.tscalp.presentation.navigation.NavRoutes
-import com.example.tscalp.presentation.screens.orders.OrdersViewModel
-//import com.example.tscalp.presentation.screens.orders.OrdersViewModelFactory
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 data class BottomNavItem(
     val route: String,
