@@ -15,7 +15,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -28,7 +27,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.runtime.mutableIntStateOf
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.input.VisualTransformation
@@ -121,7 +119,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 
     // Синхронизация вкладок и пейджера (мгновенный переход)
     LaunchedEffect(selectedTabIndex) {
-        pagerState.scrollToPage(selectedTabIndex)   // ← мгновенно, без анимации
+        pagerState.scrollToPage(selectedTabIndex)
     }
     LaunchedEffect(pagerState.currentPage) {
         selectedTabIndex = pagerState.currentPage
@@ -185,7 +183,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
     var accountExpanded by remember { mutableStateOf(false) }
 
     var showCloseDialog by remember { mutableStateOf(false) }
-    var isRefreshing by remember { mutableStateOf(false) }  // общий флаг загрузки
+    var isRefreshing by remember { mutableStateOf(false) }
 
     // Загрузка сохранённых креденшелов
     LaunchedEffect(Unit) {
@@ -228,7 +226,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
-        // --- Карточка статуса подключения (без изменений) ---
+        // --- Карточка статуса подключения ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -412,29 +410,13 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
             }
         }
 
-        // --- Инструкция (без изменений) ---
+        // --- Инструкция ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("📋 Как получить токен", style = MaterialTheme.typography.titleMedium)
-//                Text(
-//                    """
-//                    1. Зайдите в личный кабинет Т‑Инвестиций
-//                    2. Перейдите в раздел «Настройки» → «Токены API»
-//                    3. Нажмите «Создать новый токен»
-//                    4. Выберите права: чтение портфеля и совершение сделок
-//                    5. Скопируйте полученный токен
-//                    6. Вставьте его в поле выше
-//
-//                    ⚠️ Рекомендации по безопасности:
-//                    • Сначала тестируйте в режиме песочницы
-//                    • Не передавайте токен третьим лицам
-//                    • Токен хранится в зашифрованном виде
-//                    """.trimIndent(),
-//                    style = MaterialTheme.typography.bodySmall
-//                )
                 Text(
                     """
     1. Управляйте токенами с компьютера — с телефона может перекинуть в приложение, где этого раздела нет.
@@ -908,7 +890,7 @@ fun InfoSettingsContent(onBack: () -> Unit) {
         ) {
             Text("TScalp", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Версия: ${BuildConfig.VERSION_NAME}")   // ← достаточно
+            Text("Версия: ${BuildConfig.VERSION_NAME}")
             Spacer(modifier = Modifier.height(16.dp))
             Text("Разработчик: Масленников Андрей", style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(8.dp))
