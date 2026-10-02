@@ -936,42 +936,48 @@ fun InstrumentSearchField(
 
     Column(modifier = modifier) {
         DockedSearchBar(
-            query = inputText,
-            onQueryChange = { newText: String ->
-                inputText = newText
-                onQueryChanged(newText)
-                expanded = newText.isNotEmpty() || recentInstruments.isNotEmpty()
-            },
-            onSearch = { expanded = false },
-            active = expanded,
-            onActiveChange = { expanded = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = {
-                Text(
-                    "Введите тикер или название",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
+            inputField = {
+                SearchBarDefaults.InputField(
+                    query = inputText,
+                    onQueryChange = { newText: String ->
+                        inputText = newText
+                        onQueryChanged(newText)
+                        expanded = newText.isNotEmpty() || recentInstruments.isNotEmpty()
+                    },
+                    onSearch = { expanded = false },
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
+                    placeholder = {
+                        Text(
+                            "Введите тикер или название",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            )
+                        )
+                    },
+                    leadingIcon = {
+                        if (inputText.isNotEmpty()) {
+                            IconButton(onClick = {
+                                inputText = ""
+                                onClear()
+                                expanded = false
+                            }) {
+                                Icon(Icons.Default.Clear, "Очистить")
+                            }
+                        } else {
+                            Icon(Icons.Default.Search, "Поиск")
+                        }
+                    },
+                    trailingIcon = {
+                        if (isSearching) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                        }
+                    }
                 )
             },
-            leadingIcon = {
-                if (inputText.isNotEmpty()) {
-                    IconButton(onClick = {
-                        inputText = ""
-                        onClear()
-                        expanded = false
-                    }) {
-                        Icon(Icons.Default.Clear, "Очистить")
-                    }
-                } else {
-                    Icon(Icons.Default.Search, "Поиск")
-                }
-            },
-            trailingIcon = {
-                if (isSearching) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                }
-            }
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = Modifier.fillMaxWidth()
         ) {
             if (expanded && (searchResults.isNotEmpty() || (inputText.isEmpty() && recentInstruments.isNotEmpty()))) {
                 Column(
