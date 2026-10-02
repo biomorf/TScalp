@@ -21,6 +21,7 @@ import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.toPortfolioPosition
 import com.example.tscalp.domain.models.SandboxMoney
 import com.example.tscalp.domain.models.TradingAvailability
 import com.example.tscalp.domain.models.PositionStreamItem
@@ -101,24 +102,10 @@ class PortfolioViewModel @Inject constructor(
         val current = _uiState.value.positions.toMutableList()
         val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
         if (index == -1) {
-            current.add(PortfolioPosition(
-                tscalpInstrumentId = item.instrumentUid,
-                brokerName = item.brokerName,
-                ticker = item.ticker,
-                isin = item.isin,
-                classCode = item.classCode,
-                name = item.ticker,
-                quantity = item.quantity,
-                currentPrice = item.currentPrice ?: 0.0,
-                averagePrice = item.averagePositionPrice,
-                totalValue = (item.currentPrice ?: 0.0) * item.quantity,
-                profit = item.expectedYield,
-                profitPercent = item.averagePositionPrice?.let { avg ->
-                    if (avg > 0) ((item.currentPrice ?: 0.0) - avg) / avg * 100.0 else null
-                },
-                pointValue = item.pointValue,
-                instrumentType = item.instrumentType
-            ))
+            val profitPercent = item.averagePositionPrice?.let { avg ->
+                if (avg > 0) ((item.currentPrice ?: 0.0) - avg) / avg * 100.0 else null
+            }
+            current.add(item.toPortfolioPosition(profitPercent = profitPercent))
         } else {
             val old = current[index]
             val newPrice = item.currentPrice ?: old.currentPrice

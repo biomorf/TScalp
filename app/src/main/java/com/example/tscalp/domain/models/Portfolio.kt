@@ -35,3 +35,31 @@ data class PortfolioPosition(
     val priceChangePercent: Double? = null,
     val pointValue: Double? = null
 )
+
+/**
+ * Преобразует элемент потока позиций в доменную модель портфельной позиции.
+ *
+ * Заполняет все поля, кроме profitPercent: он передаётся вызывающей стороной,
+ * потому что формула отличается для разных потребителей
+ * (PortfolioViewModel считает от разницы цен, OrdersViewModel — от абсолютного дохода).
+ * Унификация формулы — отдельная задача (см. roadmap).
+ */
+fun PositionStreamItem.toPortfolioPosition(profitPercent: Double? = null): PortfolioPosition {
+    val price = currentPrice ?: 0.0
+    return PortfolioPosition(
+        tscalpInstrumentId = instrumentUid,
+        brokerName = brokerName,
+        name = ticker,
+        ticker = ticker,
+        quantity = quantity,
+        currentPrice = price,
+        averagePrice = averagePositionPrice,
+        totalValue = price * quantity,
+        profit = expectedYield,
+        profitPercent = profitPercent,
+        pointValue = pointValue,
+        instrumentType = instrumentType,
+        isin = isin,
+        classCode = classCode
+    )
+}

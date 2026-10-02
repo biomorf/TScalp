@@ -32,6 +32,7 @@ import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.InstrumentUi
 import com.example.tscalp.domain.models.PortfolioPosition
+import com.example.tscalp.domain.models.toPortfolioPosition
 import com.example.tscalp.domain.models.OrderTypeSelection
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.OrderDirection
@@ -940,24 +941,10 @@ fun openBrokerDialog(ticker: String) {
 
         _uiState.update { state ->
             val positions = state.portfolioPositions.toMutableList()
-            AppLogger.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
+            //AppLogger.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
             val index = positions.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
             if (index == -1) {
-                // Добавляем новую позицию, если её нет
-                positions.add(PortfolioPosition(
-                    brokerName = item.brokerName,
-                    name = item.ticker,                // временно, позже можно загрузить полное имя из кэша
-                    tscalpInstrumentId = item.instrumentUid,
-                    ticker = item.ticker,
-                    quantity = quantity,
-                    currentPrice = item.currentPrice ?: 0.0,
-                    averagePrice = avgPrice,
-                    totalValue = (item.currentPrice ?: 0.0) * quantity,
-                    profit = yield,
-                    profitPercent = profitPercent,
-                    pointValue = item.pointValue,
-                    instrumentType = item.instrumentType
-                ))
+                positions.add(item.toPortfolioPosition(profitPercent = profitPercent))
             } else {
                 val old = positions[index]
                 positions[index] = old.copy(
