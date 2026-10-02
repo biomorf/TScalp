@@ -17,8 +17,6 @@ import com.example.tscalp.domain.models.TradingAvailability
 data class SelectedInstrumentInfo(
     val instrument: InstrumentUi,
     val currentPrice: Double?,
-    val previousPrice: Double? = null,
-    val priceChange: Double?,
     val priceChangePercent: Double?,
     val quantity: Long,
     val averagePrice: Double?,

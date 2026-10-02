@@ -45,7 +45,7 @@ class SettingsRepository @Inject constructor(
     }
 
     //Параметр не используется по факту — но менять сигнатуру на «без параметра» пока не будем, вынесу в roadmap.
-    fun clearTradingState(brokerName: BrokerName) {
+    fun clearTradingState() {
         prefs.edit()
             .remove("selected_instrument_uid")
             .remove("paired_instrument_uid")

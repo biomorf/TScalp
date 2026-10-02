@@ -317,7 +317,6 @@ class OrdersViewModel @Inject constructor(
             val newCard = SelectedInstrumentInfo(
                 instrument = instrument,
                 currentPrice = price,
-                priceChange = null,
                 priceChangePercent = null,
                 quantity = portfolioPos?.quantity ?: 0L,
                 averagePrice = portfolioPos?.currentPrice,

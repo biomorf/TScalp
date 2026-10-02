@@ -105,3 +105,13 @@ sealed class OrderTypeSelection {
     val isRegular: Boolean
         get() = this is Market || this is Limit
 }
+
+/**
+ * Универсальное представление денежной суммы для пополнения песочницы.
+ * Не зависит от protobuf.
+ */
+data class SandboxMoney(
+    val currency: String,
+    val units: Long,
+    val nano: Int = 0
+)

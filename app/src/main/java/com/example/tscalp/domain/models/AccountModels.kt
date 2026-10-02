@@ -14,12 +14,4 @@ data class BrokerAccount(
     val type: BrokerAccountType
 )
 
-// Расширение для удобного отображения в UI
-val BrokerAccountType.displayName: String
-    get() = when (this) {
-        BrokerAccountType.BROKER -> "Брокерский"
-        BrokerAccountType.IIS -> "ИИС"
-        BrokerAccountType.INVEST_BOX -> "Invest Box"
-        BrokerAccountType.OTHER -> "Другой"
-    }
 

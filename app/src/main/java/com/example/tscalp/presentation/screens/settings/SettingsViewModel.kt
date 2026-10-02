@@ -68,7 +68,7 @@ class SettingsViewModel @Inject constructor(
     fun clearBrokerCredentials(brokerName: BrokerName) {
         settingsRepository.clearBrokerCredentials(brokerName)
         if (brokerName == BrokerName.TINVEST) {
-            settingsRepository.clearTradingState(brokerName)
+            settingsRepository.clearTradingState()
         }
     }
 
