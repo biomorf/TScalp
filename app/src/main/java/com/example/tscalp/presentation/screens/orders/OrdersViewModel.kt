@@ -27,11 +27,8 @@ import com.example.tscalp.data.repository.SearchCache
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
-
-
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.InstrumentUi
-import com.example.tscalp.domain.models.PortfolioPosition
 import com.example.tscalp.domain.models.toPortfolioPosition
 import com.example.tscalp.domain.models.OrderTypeSelection
 import com.example.tscalp.domain.models.BrokerOrderRequest
@@ -40,16 +37,11 @@ import com.example.tscalp.domain.models.StopOrderRequest
 import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.FutureUi
-
 import com.example.tscalp.domain.models.AppResult
-import com.example.tscalp.domain.models.AppError
 import com.example.tscalp.domain.models.map
-
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.toAppError
 import com.example.tscalp.util.AppLogger
-
-
 
 @HiltViewModel
 class OrdersViewModel @Inject constructor(
@@ -97,13 +89,6 @@ class OrdersViewModel @Inject constructor(
             "StopLimit" -> OrderTypeSelection.StopLimit
             else -> OrderTypeSelection.Market
         }
-
-        /**
-         * Флаг, определяющий способ обновления P&L.
-         * false → периодический опрос портфеля (loadPortfolio)
-         * true  → стрим PositionsStream (когда SDK будет совместим)
-         */
-        private const val USE_POSITION_STREAM = false
     }
 
     init {
@@ -590,47 +575,47 @@ class OrdersViewModel @Inject constructor(
     fun retryLoadAccounts() { loadAccounts() }
 
 
-/**
- * Открывает диалог настроек брокера/счёта для указанного тикера.
- */
-fun openBrokerDialog(ticker: String) {
-    viewModelScope.launch {
-        val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-        val broker = existingCard?.brokerName ?: BrokerName.TINVEST
+    /**
+     * Открывает диалог настроек брокера/счёта для указанного тикера.
+     */
+    fun openBrokerDialog(ticker: String) {
+        viewModelScope.launch {
+            val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
+            val broker = existingCard?.brokerName ?: BrokerName.TINVEST
 
-        val accounts = when (val result = repository.getAccountsResult(
-            broker,
-            sharedPrefs.getBoolean("TInvest_sandbox", true)
-        )) {
-            is AppResult.Success -> result.data
-            is AppResult.Failure -> {
-                AppLogger.e(
-                    TAG,
-                    "Ошибка загрузки счетов для ${broker.displayName}: ${result.error.message}",
-                    result.error.cause
+            val accounts = when (val result = repository.getAccountsResult(
+                broker,
+                sharedPrefs.getBoolean("TInvest_sandbox", true)
+            )) {
+                is AppResult.Success -> result.data
+                is AppResult.Failure -> {
+                    AppLogger.e(
+                        TAG,
+                        "Ошибка загрузки счетов для ${broker.displayName}: ${result.error.message}",
+                        result.error.cause
+                    )
+                    emptyList()
+                }
+            }
+
+            val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
+            val selectedId = if (savedAccountId != null && accounts.any { it.id.trim() == savedAccountId.trim() }) {
+                savedAccountId
+            } else {
+                accounts.firstOrNull()?.id
+            }
+
+            _uiState.update {
+                it.copy(
+                    showBrokerDialog = true,
+                    dialogInstrumentTicker = ticker,
+                    selectedBroker = broker,
+                    selectedAccountIdDialog = selectedId,
+                    dialogAccounts = accounts
                 )
-                emptyList()
             }
         }
-
-        val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
-        val selectedId = if (savedAccountId != null && accounts.any { it.id.trim() == savedAccountId.trim() }) {
-            savedAccountId
-        } else {
-            accounts.firstOrNull()?.id
-        }
-
-        _uiState.update {
-            it.copy(
-                showBrokerDialog = true,
-                dialogInstrumentTicker = ticker,
-                selectedBroker = broker,
-                selectedAccountIdDialog = selectedId,
-                dialogAccounts = accounts
-            )
-        }
     }
-}
 
     /**
      * Закрывает диалог без сохранения.
@@ -657,9 +642,8 @@ fun openBrokerDialog(ticker: String) {
         _uiState.update { it.copy(selectedAccountIdDialog = accountId) }
     }
 
-     /**
-     * Загружает счета для указанного брокера и сохраняет их во временный список (можно добавить поле в UIState).
-     * Пока для простоты будем хранить список счетов в локальной переменной диалога.
+    /**
+     * Загружает счета для указанного брокера в UIState диалога.
      */
      private suspend fun loadDialogAccounts(brokerName: BrokerName) {
          when (val result = repository.getAccountsResult(
@@ -721,11 +705,11 @@ fun openBrokerDialog(ticker: String) {
             } else {
                 it.copy(
                     pairTradingEnabled = false,
-                    pairCurrentPrice = null,         // сбрасываем цену парного инструмента
-                    pairedInstrument = null,         // можно заодно сбросить и выбранный парный инструмент
-                    pairedMultiplier = "10",         // и множитель вернуть в умолчание (опционально)
-                    pairSearchQuery = "",            // очищаем поисковую строку
-                    pairSearchResults = emptyList()  // и результаты поиска
+                    pairCurrentPrice = null,
+                    pairedInstrument = null,
+                    pairedMultiplier = "10",
+                    pairSearchQuery = "",
+                    pairSearchResults = emptyList()
                 )
             }
         }
@@ -804,7 +788,6 @@ fun openBrokerDialog(ticker: String) {
 
     fun onOrderTypeChanged(type: OrderTypeSelection) {
         _uiState.update { it.copy(orderType = type) }
-        // Если нужно сбросить лимитную цену при переходе на рыночную, можно добавить
         if (type == OrderTypeSelection.Market) {
             _uiState.update { it.copy(limitPrice = "") }
         }
