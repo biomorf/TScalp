@@ -107,3 +107,25 @@ PortfolioViewModel не учитывает pointValue.
 
 
 ##################################################
+## Переход на edge-to-edge (statusBarColor deprecated)
+
+**Статус:** запланировано, требует отдельной подготовки.
+
+**Что:** `window.statusBarColor` и `window.navigationBarColor` устарели.
+С Android 15 система применяет edge-to-edge принудительно для приложений
+с target SDK 35+.
+
+**Действия:**
+1. Убрать `window.statusBarColor = ...` из Theme.kt.
+2. Убедиться, что в MainActivity вызывается `enableEdgeToEdge()`.
+3. Проверить все 4 экрана (Заявки, Портфель, Настройки, MainScreen)
+   на Android 12, 13, 14, 15.
+4. При необходимости — добавить `WindowInsets` в Scaffold'ы.
+
+**Оценка:** ~2 часа + прогон на устройствах разных версий.
+**Когда:** при подготовке релиза под Android 15 или target SDK 36.
+
+
+
+
+###################################################
