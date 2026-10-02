@@ -47,12 +47,8 @@ class BcsBrokerApi : BrokerApi {
         // Точный путь авторизации, как в вашем примере
         private const val TOKEN_PATH = "/trade-api-keycloak/realms/tradeapi/protocol/openid-connect/token"
         // Остальные пути оставляем прежними (при необходимости их тоже можно будет заменить)
-        private const val ACCOUNTS_PATH = "/trade-api-bff-account/api/v1/accounts"
         private const val PORTFOLIO_PATH = "/trade-api-bff-portfolio/api/v1/portfolio"
         private const val ORDERS_PATH = "/api/v1/orders"
-        private const val INSTRUMENTS_PATH = "/api/v1/securities"
-        private const val MARKET_DATA_PATH = "/api/v1/marketdata"
-        private const val SANDBOX_PAY_IN_PATH = "/api/v1/sandbox/operations/deposit"
     }
 
     private val client = OkHttpClient()
@@ -132,13 +128,12 @@ class BcsBrokerApi : BrokerApi {
         ensureAccessToken()
         val fullUrl = "$PROD_BASE_URL$path"
 
-        // Временное логирование – увидим точный URL
         AppLogger.d("BcsBrokerApi", "Запрос: $method $fullUrl")
 
         val requestBuilder = Request.Builder()
             .url(fullUrl)
             .header("Authorization", "Bearer $accessToken")
-            .header("Content-Type", "application/json") // на случай POST/PUT, не помешает
+            .header("Content-Type", "application/json")
 
         when (method.uppercase()) {
             "GET" -> requestBuilder.get()
@@ -152,16 +147,9 @@ class BcsBrokerApi : BrokerApi {
     // ---------- Реализация интерфейса BrokerApi ----------
 
     /**
-     * Получаем счета через эндпоинт портфеля.
-     * Из ответа извлекаем accountId и название счета, чтобы создать список Account.
-     */
-    /**
-     * Получает счета. Сначала запрашивает портфель, чтобы извлечь accountId.
-     * Если ответ содержит массив "accounts" – использует его, иначе – создаёт один счёт из "brokerAccountId".
-     */
-    /**
      * Получает счета на основе ответа портфеля.
-     * Используем первый элемент массива, чтобы извлечь номер счёта (поле "account").
+     * Использует поле "accounts" из ответа, если оно есть,
+     * иначе — создаёт один счёт из первого элемента портфеля.
      */
     @Suppress("UNCHECKED_CAST")
     override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> {
@@ -294,34 +282,7 @@ class BcsBrokerApi : BrokerApi {
     }
 
 
-
-
-    // Старый getPortfolio можно оставить пустым или вовсе удалить, но для совместимости пусть возвращает пустой ответ.
-//    override suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse {
-//        return PortfolioResponse.newBuilder().build()
-//    }
-
     override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
-
-//    override suspend fun findInstrumentShorts(query: String): List<InstrumentShort> {
-//        // Аналогично, потребуется адаптация
-//        return emptyList()
-//    }
-
-//    override suspend fun resolveTicker(ticker: String): String? {
-//        // У БКС нет отдельного идентификатора, возвращаем ticker как есть
-//        return ticker
-//    }
-
-//    override suspend fun getInstrumentByTicker(ticker: String): InstrumentUi? {
-//        // Заглушка: можно реализовать через поиск в портфеле или отдельный запрос
-//        return null
-//    }
-
-//    override suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse {
-//        // Заглушка
-//        return GetMarginAttributesResponse.newBuilder().build()
-//    }
 
     override suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
         val side = if (request.direction == OrderDirection.BUY) "buy" else "sell"
@@ -351,11 +312,6 @@ class BcsBrokerApi : BrokerApi {
             status = OrderStatus.NEW
         )
     }
-
-//    suspend fun getSandboxAccounts(): List<Account> {
-//        // БКС может не иметь отдельного песочного API
-//        return getAccounts(sandboxMode = true)
-//    }
 
     override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
 

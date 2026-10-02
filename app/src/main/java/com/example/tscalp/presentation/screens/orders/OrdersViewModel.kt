@@ -122,18 +122,13 @@ class OrdersViewModel @Inject constructor(
     }
 
     fun checkApiInitialization() {
-        //val isAnyApiInit = ServiceLocator.isAnyBrokerInitialized()
         val isAnyApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
         _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
         if (isAnyApiInit) {
-            // Загружаем счета только если дефолтный брокер инициализирован
-            //if (ServiceLocator.getBrokerManager().getDefaultBroker().isInitialized) {
             if (brokerManager.getDefaultBroker().isInitialized) {
                 loadAccounts()
-                //viewModelScope.launch { startPositionUpdates() }
             }
             startPriceUpdates()
-            // startPositionUpdates() // удалить эту строку, если она дублирует вызов внутри loadAccounts()
         }
     }
 
@@ -145,7 +140,7 @@ class OrdersViewModel @Inject constructor(
             .putBoolean("pair_trading_enabled", state.pairTradingEnabled)
             .putString("quantity", state.quantity)
             .putString("paired_multiplier", state.pairedMultiplier)
-            .putString("order_type", orderTypeToString(state.orderType))   // ← исправлено
+            .putString("order_type", orderTypeToString(state.orderType))
             .apply()
     }
 
@@ -194,7 +189,7 @@ class OrdersViewModel @Inject constructor(
                 pairTradingEnabled = pairEnabled,
                 quantity = savedQty,
                 pairedMultiplier = savedMultiplier,
-                orderType = savedOrderType?.let { stringToOrderType(it) } ?: OrderTypeSelection.Market  // ← исправлено
+                orderType = savedOrderType?.let { stringToOrderType(it) } ?: OrderTypeSelection.Market
             )
         }
         updateTradeDetails()
@@ -293,7 +288,7 @@ class OrdersViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isPriceLoading = true) }
 
-            // 🔁 Загружаем актуальный InstrumentUi с pointValue
+            // Загружаем актуальный InstrumentUi с pointValue
             val actualInstrument = instrumentRepo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
 
             // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
@@ -339,7 +334,7 @@ class OrdersViewModel @Inject constructor(
                     lastSelectedInstruments = currentList.take(5)
                 )
             }
-            // === НОВОЕ: сохраняем pointValue для UI ===
+            // Сохраняем pointValue для UI
             val pointVal = (actualInstrument as? FutureUi)?.pointValue
             _uiState.update { it.copy(currentPointValue = pointVal) }
 
@@ -534,7 +529,6 @@ class OrdersViewModel @Inject constructor(
         }
 
         // --- Пост-обработка: обновляем карточки и баланс ---
-        // --- Пост-обработка: обновляем карточки и баланс ---
         refreshLastSelectedInstruments()
         val currentBalance = when (val balanceResult = repository.getBalanceResult(accountId)) {
             is AppResult.Success -> balanceResult.data
@@ -596,9 +590,6 @@ class OrdersViewModel @Inject constructor(
     fun retryLoadAccounts() { loadAccounts() }
 
 
-    /**
-     * Открывает диалог настроек для указанного инструмента.
-     */
 /**
  * Открывает диалог настроек брокера/счёта для указанного тикера.
  */
@@ -792,7 +783,7 @@ fun openBrokerDialog(ticker: String) {
             }
             if (price != null) {
                 _uiState.update { it.copy(pairCurrentPrice = price) }
-                // === НОВОЕ: сохраняем pointValue парного инструмента ===
+                // Сохраняем pointValue парного инструмента
                 val pairedPointVal = (instrument as? FutureUi)?.pointValue
                 _uiState.update { it.copy(pairedPointValue = pairedPointVal) }
             }
