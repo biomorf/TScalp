@@ -3,20 +3,17 @@ package com.example.tscalp.presentation.screens.orders
 import kotlinx.coroutines.launch
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -36,18 +33,12 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.*
@@ -63,9 +54,7 @@ import com.example.tscalp.domain.usecases.PairOrderMapper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrdersScreen(
-    //viewModel: OrdersViewModel = viewModel(factory = OrdersViewModelFactory())
-) {
+fun OrdersScreen() {
     val viewModel: OrdersViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     var showConfirmDialog by remember { mutableStateOf(false) }
@@ -230,11 +219,7 @@ fun OrdersScreen(
                     //Spacer(modifier = Modifier.height(1.dp))
 
                     // ========== Поле количества ==========
-                    // Ориентировочная стоимость
-                    val currentQty = uiState.quantityAsLong ?: 0L
-
                     // Определяем цену исполнения в зависимости от типа заявки
-                    val executionPrice = uiState.executionPrice
                     val pairExecPrice: Double
                     val pairedOrderType: OrderTypeSelection?
                     if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
@@ -380,11 +365,6 @@ fun OrdersScreen(
                     }
 
                     // ========== Ценовые поля (статическая высота) ==========
-//                    Box(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .height(130.dp)
-//                    ) {
                     // Ценовые поля – с плавной заменой без наложения
                     AnimatedContent(
                         targetState = uiState.orderType,
@@ -446,11 +426,8 @@ fun OrdersScreen(
                             else -> { /* Market – ничего не показываем */ }
                         }
                     }
-                    //}
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
-//                    if (uiState.orderType is OrderTypeSelection.Market ||
-//                        uiState.orderType is OrderTypeSelection.Limit) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -464,7 +441,6 @@ fun OrdersScreen(
                                 onCheckedChange = { viewModel.setPairTradingEnabled(it) }
                             )
                         }
-                    //}
 
                     // Парный поиск
                     if (uiState.pairTradingEnabled) {
@@ -708,114 +684,6 @@ fun OrdersScreen(
     }
 
     // ==================== ДИАЛОГИ ====================
-//    if (showConfirmDialog) {
-//        val ticker = uiState.selectedInstrument?.ticker ?: ""
-//        val quantity = uiState.quantityAsLong ?: 0L
-//
-//        val isMarket = uiState.orderType is OrderTypeSelection.Market
-//        val isLimit = uiState.orderType is OrderTypeSelection.Limit
-//        val isStopLoss = uiState.orderType is OrderTypeSelection.StopLoss
-//        val isTakeProfit = uiState.orderType is OrderTypeSelection.TakeProfit
-//        val isStopLimit = uiState.orderType is OrderTypeSelection.StopLimit
-//
-//        // Цена исполнения и признак приблизительности
-//        val executionPrice: Double
-//        val executionLabel: String
-//        val approximate: Boolean
-//
-//        when {
-//            isLimit || isStopLimit -> {
-//                executionPrice = uiState.limitPrice.toDoubleOrNull() ?: 0.0
-//                executionLabel = "Лимитная цена"
-//                approximate = false
-//            }
-//            isStopLoss || isTakeProfit -> {
-//                // для стоп‑лосса/тейк‑профита исполнение по триггер‑цене
-//                executionPrice = uiState.stopPrice.toDoubleOrNull() ?: 0.0
-//                executionLabel = "Триггер‑цена"
-//                approximate = true
-//            }
-//            else -> { // Market
-//                executionPrice = uiState.currentPrice ?: 0.0
-//                executionLabel = "Текущая цена (исполнение по рынку)"
-//                approximate = true
-//            }
-//        }
-//
-//        // Триггер‑цена для стоп‑лимита (уже учтена выше как executionPrice для StopLoss/TakeProfit)
-//        val triggerPrice: Double? = if (isStopLoss || isTakeProfit || isStopLimit) {
-//            uiState.stopPrice.toDoubleOrNull()
-//        } else null
-//
-//        val priceSymbol = if (approximate) "≈" else ""
-//
-//        AlertDialog(
-//            onDismissRequest = { showConfirmDialog = false },
-//            title = { Text("Подтверждение заявки") },
-//            text = {
-//                Column {
-//                    Text("Вы собираетесь совершить сделку:", fontWeight = FontWeight.Medium)
-//                    Spacer(modifier = Modifier.height(8.dp))
-//                    OrderCard(
-//                        ticker = ticker,
-//                        direction = pendingDirection,
-//                        orderType = uiState.orderType,
-//                        status = null,
-//                        quantity = quantity,
-//                        price = executionPrice,
-//                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-//                        totalCost = executionPrice * quantity
-//                    )
-//
-//                    if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
-//                        Spacer(modifier = Modifier.height(16.dp))
-//                        Text("и парную сделку:", fontWeight = FontWeight.Medium)
-//                        Spacer(modifier = Modifier.height(8.dp))
-//
-//                        val pairedQty = (quantity * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)).toLong()
-//                        val pairDirection = if (pendingDirection == "Покупка") "SELL" else "BUY"
-//                        val pairTicker = uiState.pairedInstrument?.ticker ?: ""
-//
-//                        // Определяем цену для контрсделки
-//                        val pairExecPrice: Double
-//                        when {
-//                            isLimit || isStopLimit -> {
-//                                pairExecPrice = executionPrice
-//                            }
-//                            else -> {
-//                                pairExecPrice = uiState.pairCurrentPrice ?: 0.0
-//                            }
-//                        }
-//
-//                        OrderCard(
-//                            ticker = pairTicker,
-//                            direction = pairDirection,
-//                            orderType = uiState.orderType,
-//                            status = null,
-//                            quantity = pairedQty,
-//                            price = pairExecPrice,
-//                            instrumentType = uiState.pairedInstrument?.instrumentType ?: "",
-//                            totalCost = pairExecPrice * pairedQty
-//                        )
-//                    }
-//                }
-//            },
-//            confirmButton = {
-//                Button(onClick = {
-//                    if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
-//                    showConfirmDialog = false
-//                }) {
-//                    Text("Подтвердить")
-//                }
-//            },
-//            dismissButton = {
-//                TextButton(onClick = { showConfirmDialog = false }) {
-//                    Text("Отмена")
-//                }
-//            }
-//        )
-//    }
-
     LaunchedEffect(uiState.statusMessage) {
         uiState.statusMessage?.let { message ->
             val visuals = object : SnackbarVisuals {
@@ -832,7 +700,6 @@ fun OrdersScreen(
     }
 
     if (uiState.showBrokerDialog) {
-        val availableBrokers = viewModel.getAvailableBrokerNames()
         BrokerAccountDialog(
             availableBrokers = viewModel.getAvailableBrokerNames(),
             selectedBroker = uiState.selectedBroker,
