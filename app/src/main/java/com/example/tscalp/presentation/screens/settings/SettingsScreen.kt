@@ -187,7 +187,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
     val scope = rememberCoroutineScope()
 
     var availableAccounts by remember { mutableStateOf<List<BrokerAccount>>(emptyList()) }
-    var defaultAccountId by remember { mutableStateOf(settingsViewModel.loadDefaultAccountId("TInvest") ?: "") }
+    var defaultAccountId by remember { mutableStateOf(settingsViewModel.loadDefaultAccountId(BrokerName.TINVEST) ?: "") }
     var accountExpanded by remember { mutableStateOf(false) }
 
     var showCloseDialog by remember { mutableStateOf(false) }
@@ -195,25 +195,25 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
 
     // Загрузка сохранённых креденшелов
     LaunchedEffect(Unit) {
-        val creds = settingsViewModel.loadBrokerCredentials("TInvest")
+        val creds = settingsViewModel.loadBrokerCredentials(BrokerName.TINVEST)
         if (creds != null) {
             token = creds.first
             sandboxMode = creds.second
         }
     }
 
-    val isConnected = uiState.isApiInitialized && settingsViewModel.loadBrokerCredentials("TInvest") != null
+    val isConnected = uiState.isApiInitialized && settingsViewModel.loadBrokerCredentials(BrokerName.TINVEST) != null
 
     // При подключении/изменении режима перезагружаем счета
     LaunchedEffect(isConnected, sandboxMode) {
         if (isConnected) {
-            when (val result = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
+            when (val result = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                 is AppResult.Success -> {
                     availableAccounts = result.data
                     // Если счёт по умолчанию ещё не выбран — берём первый доступный
                     if (defaultAccountId.isBlank() && availableAccounts.isNotEmpty()) {
                         defaultAccountId = availableAccounts.first().id
-                        settingsViewModel.saveDefaultAccountId("TInvest", defaultAccountId)
+                        settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, defaultAccountId)
                     }
                 }
                 is AppResult.Failure -> {
@@ -259,7 +259,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                 if (isConnected) {
                     Button(
                         onClick = {
-                            settingsViewModel.clearBrokerCredentials("TInvest")
+                            settingsViewModel.clearBrokerCredentials(BrokerName.TINVEST)
                             ordersViewModel.checkApiInitialization()
                             token = ""
                             statusMessage = "Подключение к Т‑Инвестициям разорвано"
@@ -361,7 +361,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                             text = { Text("${account.name} (${account.id})") },
                             onClick = {
                                 defaultAccountId = account.id
-                                settingsViewModel.saveDefaultAccountId("TInvest", account.id)
+                                settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, account.id)
                                 accountExpanded = false
                             }
                         )
@@ -378,13 +378,13 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                             isRefreshing = true
                             try {
                                 val newAccountId = settingsViewModel.openSandboxAccount()
-                                when (val accountsResult = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
+                                when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                                     is AppResult.Success -> availableAccounts = accountsResult.data
                                     is AppResult.Failure ->
                                         AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
                                 }
                                 defaultAccountId = newAccountId
-                                settingsViewModel.saveDefaultAccountId("TInvest", newAccountId)
+                                settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, newAccountId)
                                 statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
                                 isError = false
                             } catch (e: Exception) {
@@ -486,13 +486,13 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                             isRefreshing = true
                             try {
                                 settingsViewModel.closeSandboxAccount(defaultAccountId)
-                                when (val accountsResult = settingsViewModel.getAccountsResult("TInvest", sandboxMode)) {
+                                when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                                     is AppResult.Success -> availableAccounts = accountsResult.data
                                     is AppResult.Failure ->
                                         AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
                                 }
                                 defaultAccountId = ""
-                                settingsViewModel.saveDefaultAccountId("TInvest", "")
+                                settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, "")
                                 statusMessage = "Счёт песочницы закрыт"
                                 isError = false
                             } catch (e: Exception) {
@@ -529,7 +529,7 @@ fun BcsSettingsPanel() {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        val creds = settingsViewModel.loadBrokerCredentials("bcs")
+        val creds = settingsViewModel.loadBrokerCredentials(BrokerName.BCS)
         if (creds != null) {
             refreshToken = creds.first
             connected = true
@@ -565,7 +565,7 @@ fun BcsSettingsPanel() {
                 if (connected) {
                     Button(
                         onClick = {
-                            settingsViewModel.clearBrokerCredentials("bcs")
+                            settingsViewModel.clearBrokerCredentials(BrokerName.BCS)
                             connected = false
                             refreshToken = ""
                             showToken = false
@@ -623,7 +623,7 @@ fun BcsSettingsPanel() {
         if (connected) {
             Button(
                 onClick = {
-                    settingsViewModel.clearBrokerCredentials("bcs")
+                    settingsViewModel.clearBrokerCredentials(BrokerName.BCS)
                     connected = false
                     refreshToken = ""
                     showToken = false
@@ -709,7 +709,7 @@ fun FinamSettingsPanel() {
 
     // Загрузка сохранённых токенов
     LaunchedEffect(Unit) {
-        val savedToken = settingsViewModel.getToken("finam")
+        val savedToken = settingsViewModel.getToken(BrokerName.FINAM)
         if (savedToken != null) {
             token = savedToken
             connected = true
@@ -749,7 +749,7 @@ fun FinamSettingsPanel() {
                 if (connected) {
                     Button(
                         onClick = {
-                            settingsViewModel.clearBrokerCredentials("finam")
+                            settingsViewModel.clearBrokerCredentials(BrokerName.FINAM)
                             connected = false
                             token = ""
                             showToken = false

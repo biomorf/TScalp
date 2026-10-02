@@ -58,37 +58,37 @@ class SettingsViewModel @Inject constructor(
 
     // ---------- Учётные данные брокеров ----------
 
-    fun saveBrokerCredentials(brokerName: String, token: String, sandbox: Boolean) {
+    fun saveBrokerCredentials(brokerName: BrokerName, token: String, sandbox: Boolean) {
         settingsRepository.saveBrokerCredentials(brokerName, token, sandbox)
     }
 
-    fun loadBrokerCredentials(brokerName: String): Pair<String, Boolean>? =
+    fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? =
         settingsRepository.loadBrokerCredentials(brokerName)
 
-    fun clearBrokerCredentials(brokerName: String) {
+    fun clearBrokerCredentials(brokerName: BrokerName) {
         settingsRepository.clearBrokerCredentials(brokerName)
-        if (brokerName == BrokerName.TINVEST.key) {
+        if (brokerName == BrokerName.TINVEST) {
             settingsRepository.clearTradingState(brokerName)
         }
     }
 
-    fun saveToken(brokerName: String, token: String) {
+    fun saveToken(brokerName: BrokerName, token: String) {
         settingsRepository.saveToken(brokerName, token)
     }
 
-    fun getToken(brokerName: String): String? =
+    fun getToken(brokerName: BrokerName): String? =
         settingsRepository.getToken(brokerName)
 
-    fun hasSavedToken(brokerName: String): Boolean =
+    fun hasSavedToken(brokerName: BrokerName): Boolean =
         settingsRepository.hasSavedToken(brokerName)
 
     // ---------- Счёт по умолчанию ----------
 
-    fun saveDefaultAccountId(brokerName: String, accountId: String) {
+    fun saveDefaultAccountId(brokerName: BrokerName, accountId: String) {
         settingsRepository.saveDefaultAccountId(brokerName, accountId)
     }
 
-    fun loadDefaultAccountId(brokerName: String): String? =
+    fun loadDefaultAccountId(brokerName: BrokerName): String? =
         settingsRepository.loadDefaultAccountId(brokerName)
 
     // ---------- Режим песочницы ----------
@@ -117,7 +117,7 @@ class SettingsViewModel @Inject constructor(
      * Типизированный результат: AppResult.Success со списком или AppResult.Failure.
      */
     suspend fun getAccountsResult(
-        brokerName: String,
+        brokerName: BrokerName,
         sandboxMode: Boolean
     ): AppResult<List<BrokerAccount>> =
         repository.getAccountsResult(brokerName, sandboxMode)
@@ -128,7 +128,7 @@ class SettingsViewModel @Inject constructor(
     suspend fun initializeTInvest(token: String, sandbox: Boolean): Boolean {
         val cleanToken = token.trim()
         return try {
-            settingsRepository.saveBrokerCredentials(BrokerName.TINVEST.key, cleanToken, sandbox)
+            settingsRepository.saveBrokerCredentials(BrokerName.TINVEST, cleanToken, sandbox)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 (brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI)
                     ?.initialize(cleanToken, sandbox)
@@ -154,7 +154,7 @@ class SettingsViewModel @Inject constructor(
         return try {
             val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
             (brokerManager.getBroker(BrokerName.BCS) as? BcsBrokerApi)?.initialize(cleanToken, clientId)
-            settingsRepository.saveBrokerCredentials(BrokerName.BCS.key, cleanToken, isWriteMode)
+            settingsRepository.saveBrokerCredentials(BrokerName.BCS, cleanToken, isWriteMode)
             _uiState.update {
                 it.copy(
                     statusMessage = "Подключено к БКС " +
@@ -174,7 +174,7 @@ class SettingsViewModel @Inject constructor(
     suspend fun initializeFinam(token: String): Boolean {
         val cleanToken = token.trim()
         return try {
-            settingsRepository.saveToken(BrokerName.FINAM.key, cleanToken)
+            settingsRepository.saveToken(BrokerName.FINAM, cleanToken)
             (brokerManager.getBroker(BrokerName.FINAM) as? FinamBrokerApi)?.initialize(cleanToken)
             _uiState.update {
                 it.copy(statusMessage = "Подключено к Finam", isError = false)

@@ -30,16 +30,12 @@ class InvestRepository(
      * Типизированный результат: AppResult.Success со списком или AppResult.Failure с AppError.
      */
     suspend fun getAccountsResult(
-        brokerName: String,
+        brokerName: BrokerName,
         sandboxMode: Boolean
     ): AppResult<List<BrokerAccount>> = withContext(Dispatchers.IO) {
-        val name = BrokerName.fromKey(brokerName)
+        val broker = brokerManager.getBroker(brokerName)
             ?: return@withContext AppResult.Failure(
-                AppError.Unknown("Неизвестный брокер: $brokerName")
-            )
-        val broker = brokerManager.getBroker(name)
-            ?: return@withContext AppResult.Failure(
-                AppError.Unknown("Брокер $brokerName не зарегистрирован")
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
         runCatchingAppResult { broker.getAccounts(sandboxMode) }
     }

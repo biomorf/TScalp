@@ -204,9 +204,8 @@ class OrdersViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
 
             val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
-            val brokerName = "TInvest"
 
-            when (val result = repository.getAccountsResult(brokerName, sandboxMode)) {
+            when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                 is AppResult.Success -> {
                     val accounts = result.data
                     val savedAccountId = sharedPrefs.getString("TInvest_default_account", null)
@@ -609,7 +608,7 @@ fun openBrokerDialog(ticker: String) {
         val broker = existingCard?.brokerName ?: BrokerName.TINVEST
 
         val accounts = when (val result = repository.getAccountsResult(
-            broker.key,
+            broker,
             sharedPrefs.getBoolean("TInvest_sandbox", true)
         )) {
             is AppResult.Success -> result.data
@@ -673,7 +672,7 @@ fun openBrokerDialog(ticker: String) {
      */
      private suspend fun loadDialogAccounts(brokerName: BrokerName) {
          when (val result = repository.getAccountsResult(
-             brokerName.key,
+             brokerName,
              sharedPrefs.getBoolean("TInvest_sandbox", true)
          )) {
              is AppResult.Success -> {

@@ -169,10 +169,9 @@ class PortfolioViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
 
             val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
-            val brokerName = BrokerName.TINVEST.key
 
             // Шаг 1: получить счета
-            val accounts = when (val result = repository.getAccountsResult(brokerName, sandboxMode)) {
+            val accounts = when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                 is AppResult.Success -> result.data
                 is AppResult.Failure -> {
                     AppLogger.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
@@ -204,7 +203,7 @@ class PortfolioViewModel @Inject constructor(
             } else {
                 accounts.first().id
             }
-            AppLogger.d(TAG, "Пополнение счёта $accountId через $brokerName")
+            AppLogger.d(TAG, "Пополнение счёта $accountId через \${BrokerName.TINVEST.displayName}")
 
             // Шаг 2: пополнить
             when (val result = repository.sandboxPayInResult(

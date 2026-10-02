@@ -47,7 +47,7 @@ class TScalpApplication : Application() {
         // Восстанавливаем подключение каждого брокера, если сохранены учётные данные
         for (brokerName in BrokerName.entries) {
             val broker = brokerManager.getBroker(brokerName) ?: continue
-            if (!settingsRepository.hasSavedToken(brokerName.key)) continue
+            if (!settingsRepository.hasSavedToken(brokerName)) continue
 
             when (brokerName) {
                 BrokerName.TINVEST -> {
@@ -58,7 +58,7 @@ class TScalpApplication : Application() {
                         try {
                             val sandbox = settingsRepository.isSandboxMode()
                             val accounts = tInvest.getAccounts(sandbox)
-                            val savedAccountId = settingsRepository.loadDefaultAccountId(brokerName.key)
+                            val savedAccountId = settingsRepository.loadDefaultAccountId(brokerName)
 
                             // 1. Сохранённый счёт, если он ещё существует
                             // 2. Иначе — первый доступный счёт в аккаунте
@@ -73,7 +73,7 @@ class TScalpApplication : Application() {
 
                             if (accountId != null) {
                                 if (accountId != savedAccountId) {
-                                    settingsRepository.saveDefaultAccountId(brokerName.key, accountId)
+                                    settingsRepository.saveDefaultAccountId(brokerName, accountId)
                                 }
                                 positionStreamManager.start(accountId)
                             } else {
@@ -86,7 +86,7 @@ class TScalpApplication : Application() {
                 }
 
                 BrokerName.BCS -> {
-                    val creds = settingsRepository.loadBrokerCredentials(brokerName.key)
+                    val creds = settingsRepository.loadBrokerCredentials(brokerName)
                     if (creds != null) {
                         val (refreshToken, isWriteMode) = creds
                         val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"

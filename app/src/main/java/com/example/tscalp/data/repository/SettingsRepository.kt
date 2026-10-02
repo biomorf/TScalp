@@ -4,6 +4,8 @@ import android.content.SharedPreferences
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.example.tscalp.domain.models.BrokerName
+
 /**
  * Единый репозиторий для пользовательских настроек, хранящихся в SharedPreferences.
  * Заменяет собой работу с prefs из ServiceLocator.
@@ -19,30 +21,31 @@ class SettingsRepository @Inject constructor(
      * Сохраняет токен и режим sandbox для указанного брокера.
      * Для TInvest ключ "TInvest_token", для Finam "finam_token" и т.д.
      */
-    fun saveBrokerCredentials(brokerName: String, token: String, sandbox: Boolean) {
+    fun saveBrokerCredentials(brokerName: BrokerName, token: String, sandbox: Boolean) {
         prefs.edit()
-            .putString("${brokerName}_token", token)
-            .putBoolean("${brokerName}_sandbox", sandbox)
-            .commit()  // синхронная запись — токен не потеряется при kill процесса
+            .putString("${brokerName.key}_token", token)
+            .putBoolean("${brokerName.key}_sandbox", sandbox)
+            .commit()
     }
 
     /**
      * Возвращает пару (токен, sandbox) для указанного брокера или null.
      */
-    fun loadBrokerCredentials(brokerName: String): Pair<String, Boolean>? {
-        val token = prefs.getString("${brokerName}_token", null) ?: return null
-        val sandbox = prefs.getBoolean("${brokerName}_sandbox", true)
+    fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? {
+        val token = prefs.getString("${brokerName.key}_token", null) ?: return null
+        val sandbox = prefs.getBoolean("${brokerName.key}_sandbox", true)
         return Pair(token, sandbox)
     }
 
-    fun clearBrokerCredentials(brokerName: String) {
+    fun clearBrokerCredentials(brokerName: BrokerName) {
         prefs.edit()
-            .remove("${brokerName}_token")
-            .remove("${brokerName}_sandbox")
+            .remove("${brokerName.key}_token")
+            .remove("${brokerName.key}_sandbox")
             .apply()
     }
 
-    fun clearTradingState(brokerName: String) {
+    //Параметр не используется по факту — но менять сигнатуру на «без параметра» пока не будем, вынесу в roadmap.
+    fun clearTradingState(brokerName: BrokerName) {
         prefs.edit()
             .remove("selected_instrument_uid")
             .remove("paired_instrument_uid")
@@ -56,26 +59,26 @@ class SettingsRepository @Inject constructor(
     /**
      * Сохраняет только токен для брокера (без sandbox-флага).
      */
-    fun saveToken(brokerName: String, token: String) {
+    fun saveToken(brokerName: BrokerName, token: String) {
         prefs.edit()
-            .putString("${brokerName}_token", token)
-            .commit()  // синхронная запись — токен не потеряется при kill процесса
+            .putString("${brokerName.key}_token", token)
+            .commit()
     }
 
-    fun hasSavedToken(brokerName: String): Boolean =
-        prefs.contains("${brokerName}_token")
+    fun hasSavedToken(brokerName: BrokerName): Boolean =
+        prefs.contains("${brokerName.key}_token")
 
-    fun getToken(brokerName: String): String? =
-        prefs.getString("${brokerName}_token", null)
+    fun getToken(brokerName: BrokerName): String? =
+        prefs.getString("${brokerName.key}_token", null)
 
     // ---------- Счёт по умолчанию ----------
 
-    fun saveDefaultAccountId(brokerName: String, accountId: String) {
-        prefs.edit().putString("${brokerName}_default_account", accountId).commit()
+    fun saveDefaultAccountId(brokerName: BrokerName, accountId: String) {
+        prefs.edit().putString("${brokerName.key}_default_account", accountId).commit()
     }
 
-    fun loadDefaultAccountId(brokerName: String): String? =
-        prefs.getString("${brokerName}_default_account", null)
+    fun loadDefaultAccountId(brokerName: BrokerName): String? =
+        prefs.getString("${brokerName.key}_default_account", null)
 
     // ---------- Режим песочницы (для TInvest) ----------
 

@@ -49,7 +49,7 @@ class OrdersListViewModel @Inject constructor(
             val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
 
             // Шаг 1: получить счета через AppResult
-            val accounts = when (val result = repository.getAccountsResult("TInvest", sandboxMode)) {
+            val accounts = when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                 is AppResult.Success -> result.data
                 is AppResult.Failure -> {
                     AppLogger.e(
@@ -111,7 +111,7 @@ class OrdersListViewModel @Inject constructor(
             val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
 
             // Шаг 1: счета
-            val accounts = when (val result = repository.getAccountsResult("TInvest", sandboxMode)) {
+            val accounts = when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                 is AppResult.Success -> result.data
                 is AppResult.Failure -> {
                     AppLogger.e(
