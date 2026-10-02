@@ -81,3 +81,29 @@
 
 
 ######################################################
+## Унифицировать формулу profitPercent для PortfolioPosition
+
+**Статус:** запланировано, не блокирует.
+
+**Что:** profitPercent в PortfolioPosition вычисляется по-разному:
+- PortfolioViewModel.updatePortfolioItem:
+  (currentPrice − averagePrice) / averagePrice × 100
+- OrdersViewModel.updatePositionPnl:
+  expectedYield / (averagePrice × quantity) × 100
+
+Для акций формулы эквивалентны. Для фьючерсов расходятся: currentPrice
+в пунктах, yield в рублях, pointValue связывает их. Формула из
+PortfolioViewModel не учитывает pointValue.
+
+**Действия:**
+1. Определить единую формулу, корректно работающую для всех типов.
+2. Внести в extension toPortfolioPosition(), убрать параметр profitPercent.
+3. Обновить тесты и UI, если процент изменится.
+
+**Оценка:** ~40 минут + проверка на фьючерсных позициях.
+**Когда:** после остальных задач чистки.
+
+
+
+
+##################################################
