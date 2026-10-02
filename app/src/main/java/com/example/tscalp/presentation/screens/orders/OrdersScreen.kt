@@ -896,21 +896,6 @@ fun ApiNotInitializedCard() {
     }
 }
 
-@Composable
-fun StatusCard(message: String, isError: Boolean, onDismiss: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer
-        )
-    ) {
-        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(message, modifier = Modifier.weight(1f))
-            if (!isError) TextButton(onClick = onDismiss) { Text("OK") }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InstrumentSearchField(
