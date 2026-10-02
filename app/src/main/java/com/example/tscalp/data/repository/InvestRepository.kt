@@ -93,13 +93,9 @@ class InvestRepository(
      */
     suspend fun postOrderResult(request: BrokerOrderRequest): AppResult<OrderResult> =
         withContext(Dispatchers.IO) {
-            val name = BrokerName.fromKey(request.brokerName)
+            val broker = brokerManager.getBroker(request.brokerName)
                 ?: return@withContext AppResult.Failure(
-                    AppError.Unknown("Неизвестный брокер: ${request.brokerName}")
-                )
-            val broker = brokerManager.getBroker(name)
-                ?: return@withContext AppResult.Failure(
-                    AppError.Unknown("Брокер ${request.brokerName} не зарегистрирован")
+                    AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован")
                 )
             runCatchingAppResult { broker.postOrder(request) }
         }
@@ -110,13 +106,9 @@ class InvestRepository(
      */
     suspend fun postStopOrderResult(request: StopOrderRequest): AppResult<String> =
         withContext(Dispatchers.IO) {
-            val name = BrokerName.fromKey(request.brokerName)
+            val broker = brokerManager.getBroker(request.brokerName)
                 ?: return@withContext AppResult.Failure(
-                    AppError.Unknown("Неизвестный брокер: ${request.brokerName}")
-                )
-            val broker = brokerManager.getBroker(name)
-                ?: return@withContext AppResult.Failure(
-                    AppError.Unknown("Брокер ${request.brokerName} не зарегистрирован")
+                    AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован")
                 )
             runCatchingAppResult { broker.postStopOrder(request) }
         }

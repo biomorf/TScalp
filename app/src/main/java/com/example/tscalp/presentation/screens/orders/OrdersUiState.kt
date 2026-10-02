@@ -24,7 +24,7 @@ data class SelectedInstrumentInfo(
     val averagePrice: Double?,
     val profit: Double?,
     val profitPercent: Double?,
-    val brokerName: String = "TInvest",   // брокер по умолчанию
+    val brokerName: BrokerName = BrokerName.TINVEST,   // брокер по умолчанию
     val accountId: String? = null
 )
 

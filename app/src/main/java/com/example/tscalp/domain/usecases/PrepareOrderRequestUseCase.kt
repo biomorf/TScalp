@@ -1,5 +1,6 @@
 package com.example.tscalp.domain.usecases
 
+import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.BrokerOrderRequest
 import com.example.tscalp.domain.models.BrokerOrderType
 import com.example.tscalp.domain.models.OrderDirection
@@ -20,7 +21,7 @@ class PrepareOrderRequestUseCase(
     )
 
     fun prepare(
-        brokerName: String,
+        brokerName: BrokerName,
         ticker: String,
         instrumentUid: String?,
         quantity: Long,
@@ -33,7 +34,7 @@ class PrepareOrderRequestUseCase(
         expirationType: com.example.tscalp.domain.models.StopOrderExpirationType,
         pairedInstrumentUid: String?,
         pairedTicker: String?,
-        pairedBrokerName: String?,
+        pairedBrokerName: BrokerName?,
         pairedAccountId: String?,
         pairedMultiplier: String?
     ): PreparedOrders {
@@ -62,8 +63,20 @@ class PrepareOrderRequestUseCase(
                     accountId = accountId,
                     sandboxMode = sandboxMode,
                     stopPrice = stopPrice?.toDoubleOrNull() ?: return PreparedOrders(
-                        BrokerOrderRequest(brokerName, ticker, instrumentUid, quantity, direction, accountId, sandboxMode, BrokerOrderType.MARKET, null),
-                        null, true, null
+                        primaryRequest = BrokerOrderRequest(
+                            brokerName = brokerName,
+                            ticker = ticker,
+                            instrumentUid = instrumentUid,
+                            quantity = quantity,
+                            direction = direction,
+                            accountId = accountId,
+                            sandboxMode = sandboxMode,
+                            type = BrokerOrderType.MARKET,
+                            price = null
+                        ),
+                        pairedRequest = null,
+                        isPrimaryStop = true,
+                        isPairedStop = null
                     ),
                     price = if (orderType == OrderTypeSelection.StopLimit) limitPrice?.toDoubleOrNull() else null,
                     stopOrderType = orderType.stopOrderType ?: StopOrderType.STOP_LOSS,

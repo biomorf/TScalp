@@ -324,7 +324,7 @@ class OrdersViewModel @Inject constructor(
                 averagePrice = portfolioPos?.currentPrice,
                 profit = portfolioPos?.profit,
                 profitPercent = portfolioPos?.profitPercent,
-                brokerName = existingCard?.brokerName ?: "TInvest",
+                brokerName = existingCard?.brokerName ?: BrokerName.TINVEST,
                 accountId = existingCard?.accountId
             )
 
@@ -386,23 +386,16 @@ class OrdersViewModel @Inject constructor(
         val quantity = state.quantityAsLong ?: return
 
         val activeCard = state.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-        val brokerName = activeCard?.brokerName ?: "TInvest"
+        val brokerName = activeCard?.brokerName ?: BrokerName.TINVEST
         val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
 
         val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return
 
-        // Резолвим брокера
-        val brokerKey = BrokerName.fromKey(brokerName)
+        val broker = (brokerManager.getBroker(brokerName) as? TInvestBrokerAPI)
             ?: run {
                 _uiState.update {
-                    it.copy(statusMessage = "❌ Неизвестный брокер: $brokerName", isError = true)
+                    it.copy(statusMessage = "❌ Брокер ${brokerName.displayName} не найден", isError = true)
                 }
-                return
-            }
-
-        val broker = (brokerManager.getBroker(brokerKey) as? TInvestBrokerAPI)
-            ?: run {
-                _uiState.update { it.copy(statusMessage = "❌ Брокер не найден", isError = true) }
                 return
             }
 
@@ -613,7 +606,7 @@ class OrdersViewModel @Inject constructor(
 fun openBrokerDialog(ticker: String) {
     viewModelScope.launch {
         val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-        val broker = BrokerName.fromKey(existingCard?.brokerName ?: "") ?: BrokerName.TINVEST
+        val broker = existingCard?.brokerName ?: BrokerName.TINVEST
 
         val accounts = when (val result = repository.getAccountsResult(
             broker.key,
@@ -721,7 +714,7 @@ fun openBrokerDialog(ticker: String) {
             state.copy(
                 lastSelectedInstruments = state.lastSelectedInstruments.map { card ->
                     if (card.instrument.ticker == ticker) {
-                        card.copy(brokerName = broker.key, accountId = accountId)
+                        card.copy(brokerName = broker, accountId = accountId)
                     } else card
                 },
                 showBrokerDialog = false,
