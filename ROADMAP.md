@@ -1,86 +1,31 @@
 ###################################################
-## Мигрировать SettingsRepository/SettingsViewModel на BrokerName
+## Расшифровка кодов ошибок брокеров
 
-**Статус:** запланировано, не блокирует.
+**Статус:** начато, T-Invest таблица заведена.
 
-**Что:** методы `SettingsRepository` и `SettingsViewModel` принимают
-`brokerName: String`. Это последний блок строковых параметров
-брокеров в проекте после удаления `BrokerManager.getBroker(String)`.
+**Что:** числовые коды ошибок от брокеров (например, T-Invest 30079)
+приходят из gRPC как INVALID_ARGUMENT: <code>. UI показывает их как есть.
 
-**Где:**
-- `SettingsRepository`: `saveBrokerCredentials`, `loadBrokerCredentials`,
-  `clearBrokerCredentials`, `clearTradingState`, `saveToken`,
-  `hasSavedToken`, `getToken`, `saveDefaultAccountId`, `loadDefaultAccountId`
-- `SettingsViewModel`: тонкие обёртки над репозиторием
-- `TScalpApplication`: вызовы `settingsRepository.*(brokerName.key)`
-- `SettingsScreen`: вызовы `settingsViewModel.*("TInvest")`
+**Сделано:**
+- `util/BrokerErrorMessages.kt` — центральный реестр
+  Map<BrokerName, Map<code, msg>>.
+- `util/TInvestErrorMessages.kt` — ~130 кодов T-Invest по
+  официальной документации.
+- `AppError.Api` расширен полями `brokerName`, `brokerCode`.
+- `toAppError(brokerName)` и `runCatchingAppResult(brokerName, block)`.
+- `InvestRepository` передаёт `brokerName` во все вызовы.
 
-**Действия:**
-1. Заменить сигнатуры методов на `brokerName: BrokerName`.
-2. Внутри репозитория оставить `brokerName.key` только для построения
-   ключей SharedPreferences — совместимо с существующими данными.
-3. Обновить вызывающих, убрать строковые литералы.
+**Осталось:**
+- `BcsErrorMessages.kt` — заполнить по мере нахождения кодов BCS.
+- `FinamErrorMessages.kt` — то же.
+- Дополнять T-Invest таблицу новыми кодами по мере появления в логах.
 
-**Оценка:** ~40 минут.
-**Когда:** после текущего блока (BrokerManager / SearchCache / Orders).
+**Оценка:** 15 минут на нового брокера + 5 минут на новый код.
 
 
 
-####################################################
-## Довести BrokerManager до типизированного API
 
-**Статус:** запланировано, низкая срочность.
-
-**Что:** `BrokerManager.getBroker(name: String)` — последний строковый
-доступ к брокерам из ядра. Используется только в `SearchCache.kt:31`.
-
-**Действия:**
-1. `SearchCache.search(brokerName: BrokerName, query: String)` —
-   принимать enum вместо строки.
-2. `SearchCache.invalidate(brokerName: BrokerName, query: String)` — то же.
-3. `OrdersViewModel`: убрать `BrokerName.fromKey(...)` и строковые
-   `searchBroker`/`pairSearchBroker` из `OrdersUiState` — заменить на enum.
-4. Удалить `BrokerManager.getBroker(String)` целиком.
-5. Удалить `BrokerManager.getAvailableBrokers(): List<String>`
-   (после того как `OrdersViewModel.getAvailableBrokers` будет удалён
-   или переведён на enum).
-
-**Оценка:** ~30 минут.
-**Когда:** после текущего блока тикетов (портфель, settings, чистка OrderModels).
-
-
-
-##################################################
-## Прямые вызовы брокера из ViewModel в обход InvestRepository
-
-**Статус:** известно, отложено.
-
-**Где:**
-- `PortfolioViewModel.loadPortfolio` — `broker.fetchPositionsRest(accountId, sandbox)`
-- `PortfolioViewModel.updateTradingStatuses` — `broker.getTradingStatuses(ids)`
-- `OrdersViewModel.startPriceUpdates` — `broker.subscribeLastPrices(ids)`
-
-**Проблема:** нарушает консистентность слоя данных. Часть методов идёт через `InvestRepository` (мигрированы на `AppResult`), часть — напрямую к брокеру (try/catch или без обработки). Это затрудняет тестирование, создаёт два пути получения данных, и мешает единой политике обработки ошибок.
-
-**Решение:** перенести `fetchPositionsRest`, `getTradingStatuses`, `subscribeLastPrices` в `InvestRepository` с `*Result`-вариантами на `AppResult`, переписать ViewModel на них. После этого `BrokerManager` не должен быть виден из ViewModel.
-
-**Когда вернуться:** отдельной задачей после завершения миграции 3.5, до релиза.
-
-
-
-#####################################################
-**Где:**
-- `PortfolioViewModel.loadPortfolio` — `broker.fetchPositionsRest(accountId, sandbox)`
-- `PortfolioViewModel.updateTradingStatuses` — `broker.getTradingStatuses(ids)`
-- `OrdersViewModel.startPriceUpdates` — `broker.subscribeLastPrices(ids)`
-- `OrdersViewModel.startPositionUpdates` — `broker.fetchPositionsRest(accountId, sandbox)`
-- `OrdersViewModel.updateTradingStatuses` — `broker.getTradingStatuses(ids)`
-- `OrdersListViewModel.loadOrders` — `broker.getOrders`, `broker.getStopOrders`
-- `OrdersListViewModel.cancelOrder` — `broker.cancelOrder`
-
-
-
-######################################################
+###################################################
 ## Унифицировать формулу profitPercent для PortfolioPosition
 
 **Статус:** запланировано, не блокирует.
@@ -101,9 +46,6 @@ PortfolioViewModel не учитывает pointValue.
 3. Обновить тесты и UI, если процент изменится.
 
 **Оценка:** ~40 минут + проверка на фьючерсных позициях.
-**Когда:** после остальных задач чистки.
-
-
 
 
 ##################################################
@@ -126,14 +68,13 @@ PortfolioViewModel не учитывает pointValue.
 **Когда:** при подготовке релиза под Android 15 или target SDK 36.
 
 
-
-
 ###################################################
 ## Переход на DataStore
 
-**Статус:** запланировано, следующая крупная задача после текущего
-блока (архитектурный рефакторинг: убрать прямые вызовы брокера
-из ViewModel).
+**Статус:** текущая задача, следующая после закрытия архитектурного
+блока (прямые вызовы брокера из ViewModel — закрыто).
+Архитектурный блок закрыт в этой сессии: все прямые вызовы
+`broker.*` для получения данных ушли в InvestRepository.
 
 **Мотивация:**
 - SharedPreferences — deprecated в рекомендациях Google.
@@ -167,9 +108,6 @@ PortfolioViewModel не учитывает pointValue.
 **Связанный рефакторинг, полезный и без DataStore:**
 Вынести чтение настроек из remember { } в SettingsUiState.
 Улучшит тестируемость и подготовит почву для DataStore.
-Можно сделать раньше — как только архитектурный блок будет закрыт.
 
 
-
-
-#########################################################
+###################################################
