@@ -2,6 +2,9 @@ package com.example.tscalp.data.repository
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 
 import com.example.tscalp.util.AppLogger
 import com.example.tscalp.domain.models.BrokerAccount
@@ -119,5 +122,96 @@ class InvestRepository(
     ): AppResult<Unit> = withContext(Dispatchers.IO) {
         val broker = brokerManager.getDefaultBroker()
         runCatchingAppResult { broker.cancelStopOrder(accountId, orderId); Unit }
+    }
+
+    /**
+     * Позиции портфеля у указанного брокера.
+     * Типизированный результат: AppResult.Success(List<PortfolioPosition>) или AppResult.Failure.
+     */
+    suspend fun fetchPositionsResult(
+        brokerName: BrokerName,
+        accountId: String,
+        sandboxMode: Boolean
+    ): AppResult<List<PortfolioPosition>> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
+            )
+        runCatchingAppResult { broker.fetchPositionsRest(accountId, sandboxMode) }
+    }
+
+    /**
+     * Статусы доступности инструментов.
+     * Типизированный результат: AppResult.Success(Map<uid, TradingAvailability>) или AppResult.Failure.
+     */
+    suspend fun getTradingStatusesResult(
+        brokerName: BrokerName,
+        ids: List<String>
+    ): AppResult<Map<String, TradingAvailability>> = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext AppResult.Success(emptyMap())
+        val broker = brokerManager.getBroker(brokerName)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
+            )
+        runCatchingAppResult { broker.getTradingStatuses(ids) }
+    }
+
+    /**
+     * Все активные заявки (обычные + стоп) по счёту.
+     * Типизированный результат: AppResult.Success(List<OrderListItem>) или AppResult.Failure.
+     * Сортировка — задача вызывающего слоя (presentation).
+     */
+    suspend fun getAllOrdersResult(
+        brokerName: BrokerName,
+        accountId: String
+    ): AppResult<List<OrderListItem>> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
+            )
+        runCatchingAppResult {
+            broker.getOrders(accountId) + broker.getStopOrders(accountId)
+        }
+    }
+
+    /**
+     * Отмена обычной (не стоп) заявки.
+     * Типизированный результат: AppResult.Success(Unit) или AppResult.Failure.
+     */
+    suspend fun cancelOrderResult(
+        brokerName: BrokerName,
+        accountId: String,
+        orderId: String
+    ): AppResult<Unit> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
+            )
+        runCatchingAppResult { broker.cancelOrder(accountId, orderId); Unit }
+    }
+
+    /**
+     * Стрим последних цен. Ошибки (включая отсутствие брокера)
+     * идут через поток — вызывающий ловит их оператором .catch {}.
+     */
+    fun subscribeLastPrices(
+        brokerName: BrokerName,
+        ids: List<String>
+    ): Flow<Pair<String, Double>> = flow {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: throw IllegalStateException("Брокер ${brokerName.displayName} не зарегистрирован")
+        emitAll(broker.subscribeLastPrices(ids))
+    }
+
+    /**
+     * Стрим позиций. Ошибки идут через поток — вызывающий ловит их оператором .catch {}.
+     */
+    fun subscribePositions(
+        brokerName: BrokerName,
+        accountId: String
+    ): Flow<PositionStreamItem> = flow {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: throw IllegalStateException("Брокер ${brokerName.displayName} не зарегистрирован")
+        emitAll(broker.subscribePositions(accountId))
     }
 }

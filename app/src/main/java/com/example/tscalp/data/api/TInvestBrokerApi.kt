@@ -110,6 +110,6 @@ class TInvestBrokerAPI(
     /**
      * Стрим последних цен. Используется OrdersViewModel.startPriceUpdates().
      */
-    fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> =
+    override fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> =
         marketData.subscribeLastPrices(uids)
 }

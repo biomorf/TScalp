@@ -7,6 +7,7 @@ import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.*
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 interface BrokerApi {
     val name: BrokerName
@@ -35,6 +36,13 @@ interface BrokerApi {
      * а также при подписке сразу эмитит текущий снапшот портфеля.
      */
     fun subscribePositions(accountId: String): Flow<PositionStreamItem>
+
+    /**
+     * Стрим последних цен по списку uid.
+     * Реализации по умолчанию возвращает пустой поток — брокеры, не поддерживающие
+     * стрим (BCS, Finam), используют её без изменений. TInvest переопределяет.
+     */
+    fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> = emptyFlow()
 
     suspend fun getBalance(accountId: String): Double
     suspend fun sandboxPayIn(accountId: String, amount: SandboxMoney)
