@@ -397,3 +397,24 @@ text
 
 
 ####################################################
+## Прямые вызовы брокера из ViewModel в обход InvestRepository
+
+**Статус: решено** (кроме инициализации).
+
+Мигрировано в `InvestRepository`:
+- fetchPositions, getTradingStatuses, subscribeLastPrices,
+  subscribePositions, getAllOrders, cancelOrder, checkTradeAvailability,
+  openSandboxAccount, closeSandboxAccount
+
+Остаются в `SettingsViewModel` намеренно:
+- `initializeTInvest` / `initializeBcs` / `initializeFinam` —
+  конфигурация соединения, а не получение данных. Место в слое
+  настройки UI, не в InvestRepository.
+
+Если в будущем понадобится отделить инициализацию в отдельный
+сервис — можно создать `BrokerSessionManager` и вынести туда
+initialize-вызовы.
+
+
+
+##################################################
