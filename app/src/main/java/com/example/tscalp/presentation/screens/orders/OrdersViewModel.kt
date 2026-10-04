@@ -19,7 +19,6 @@ import kotlinx.coroutines.CancellationException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
-import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.data.repository.InstrumentRepository
@@ -370,32 +369,22 @@ class OrdersViewModel @Inject constructor(
 
         val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return
 
-        val broker = (brokerManager.getBroker(brokerName) as? TInvestBrokerAPI)
-            ?: run {
+        // Проверка доступности. Ошибки сети/API → понятное сообщение вместо краша.
+        val checkResult = when (val result = repository.checkTradeAvailabilityResult(
+            brokerName = brokerName,
+            accountId = accountId,
+            uid = tscalpId,
+            direction = direction,
+            quantity = quantity
+        )) {
+            is AppResult.Success -> result.data
+            is AppResult.Failure -> {
+                AppLogger.e(TAG, "checkTradeAvailability failed: ${result.error.message}", result.error.cause)
                 _uiState.update {
-                    it.copy(statusMessage = "❌ Брокер ${brokerName.displayName} не найден", isError = true)
+                    it.copy(statusMessage = "❌ ${result.error.message}", isError = true)
                 }
                 return
             }
-
-        // Проверка доступности. Ошибки сети/API → понятное сообщение вместо краша.
-        val checkResult = try {
-            broker.checkTradeAvailability(
-                accountId,
-                tscalpId,
-                uid = tscalpId,
-                direction,
-                quantity
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            val appError = e.toAppError()
-            AppLogger.e(TAG, "checkTradeAvailability failed: ${appError.message}", e)
-            _uiState.update {
-                it.copy(statusMessage = "❌ ${appError.message}", isError = true)
-            }
-            return
         }
 
         when (checkResult) {
@@ -811,7 +800,6 @@ class OrdersViewModel @Inject constructor(
 
     fun startPriceUpdates() {
         stopPriceUpdates()
-        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI ?: return
         val state = _uiState.value
 
         val idToTicker = mutableMapOf<String, String>()       // tscalpInstrumentId → ticker
@@ -824,7 +812,8 @@ class OrdersViewModel @Inject constructor(
 
         viewModelScope.launch {
             priceStreamJob = launch {
-                broker.subscribeLastPrices(ids)   // ids — это tscalpInstrumentId, которые для Т‑Инвестиций равны figi
+                repository.subscribeLastPrices(BrokerName.TINVEST, ids)
+                    // ids — это tscalpInstrumentId, которые для Т‑Инвестиций равны figi
                     .catch { e -> AppLogger.e(TAG, "Price stream error", e) }
                     .collect { (id, price) ->
                         val ticker = idToTicker[id] ?: return@collect
@@ -858,14 +847,19 @@ class OrdersViewModel @Inject constructor(
 
     private suspend fun updateTradingStatuses(ids: List<String>) {
         if (ids.isEmpty()) return
-        val broker = brokerManager.getBroker(BrokerName.TINVEST) ?: return
-        try {
-            val statuses = broker.getTradingStatuses(ids)
-            _uiState.update { state ->
-                state.copy(tradingStatuses = state.tradingStatuses + statuses)
+        when (val result = repository.getTradingStatusesResult(BrokerName.TINVEST, ids)) {
+            is AppResult.Success -> {
+                _uiState.update { state ->
+                    state.copy(tradingStatuses = state.tradingStatuses + result.data)
+                }
             }
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Ошибка обновления статусов доступности", e)
+            is AppResult.Failure -> {
+                AppLogger.e(
+                    TAG,
+                    "Ошибка обновления статусов: ${result.error.message}",
+                    result.error.cause
+                )
+            }
         }
     }
 
@@ -886,13 +880,16 @@ class OrdersViewModel @Inject constructor(
         // делаем разовый прямой запрос, чтобы сразу заполнить карточку
         if (_uiState.value.portfolioPositions.isEmpty()) {
             viewModelScope.launch {
-                try {
-                    val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
-                    val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
-                    val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
-                    _uiState.update { it.copy(portfolioPositions = positions) }
-                } catch (e: Exception) {
-                    AppLogger.w(TAG, "Не удалось получить начальный портфель", e)
+                val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
+                when (val result = repository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
+                    is AppResult.Success ->
+                        _uiState.update { it.copy(portfolioPositions = result.data) }
+                    is AppResult.Failure ->
+                        AppLogger.w(
+                            TAG,
+                            "Не удалось получить начальный портфель: ${result.error.message}",
+                            result.error.cause
+                        )
                 }
             }
         }
