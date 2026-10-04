@@ -81,6 +81,13 @@ kotlin {
 
 
 dependencies {
+    // Core
+    implementation("androidx.core:core:1.18.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
     // Jetpack Compose
     implementation(platform("androidx.compose:compose-bom:2025.12.00"))
     implementation("androidx.compose.ui:ui")
@@ -93,12 +100,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.navigation:navigation-compose:2.9.8")    //for navigation using sealed classes
 
-    // Core
-    implementation("androidx.core:core:1.18.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
+    // Hilt
+    implementation("com.google.dagger:hilt-android:2.59.2")
+    ksp("com.google.dagger:hilt-android-compiler:2.59.2")
+    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
 
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // DataStore (замена SharedPreferences)
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
     
     // Security for token storage
     implementation("androidx.security:security-crypto:1.1.0")
@@ -107,10 +115,13 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-    // T-Invest API SDK
-    implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.51.0") {
-        exclude(group = "io.grpc", module = "grpc-netty-shaded")
-    }
+    // Unit-тесты
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("io.mockk:mockk:1.13.13")
+
+    // AppMetrica SDK — crash reporting + analytics
+    implementation("io.appmetrica.analytics:analytics:8.5.1")
 
     // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
     implementation("com.google.protobuf:protobuf-java:3.25.8")
@@ -145,6 +156,11 @@ dependencies {
     //implementation("io.grpc:grpc-stub:1.57.2")
     implementation("io.grpc:grpc-stub:1.80.0")
 
+    // T-Invest API SDK
+    implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.51.0") {
+        exclude(group = "io.grpc", module = "grpc-netty-shaded")
+    }
+
     // BCS Broker
     //implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
@@ -152,19 +168,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.13.2")
 
     //Finam API SDK
-
-    // Hilt
-    implementation("com.google.dagger:hilt-android:2.59.2")
-    ksp("com.google.dagger:hilt-android-compiler:2.59.2")
-    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
-
-    // Unit-тесты
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    testImplementation("io.mockk:mockk:1.13.13")
-
-    // AppMetrica SDK — crash reporting + analytics
-    implementation("io.appmetrica.analytics:analytics:8.5.1")
 
 }
 

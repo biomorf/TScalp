@@ -2,6 +2,9 @@ package com.example.tscalp.di
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 
 import dagger.Module
 import dagger.Provides
@@ -26,6 +29,12 @@ object DataModule {
     @Singleton
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
         return context.getSharedPreferences("tinvest_prefs", Context.MODE_PRIVATE)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
+        return context.dataStore
     }
 
     @Provides
@@ -75,3 +84,7 @@ object DataModule {
     @Singleton
     fun provideBcsBrokerApi(): BcsBrokerApi = BcsBrokerApi()
 }
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "tinvest_prefs"
+)
