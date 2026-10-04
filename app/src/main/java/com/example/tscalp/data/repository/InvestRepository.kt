@@ -243,4 +243,33 @@ class InvestRepository(
             )
         }
     }
+
+    /**
+     * Открывает новый счёт в песочнице у указанного брокера.
+     * Типизированный результат: AppResult.Success(accountId) или AppResult.Failure.
+     */
+    suspend fun openSandboxAccountResult(
+        brokerName: BrokerName
+    ): AppResult<String> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
+            )
+        runCatchingAppResult { broker.openSandboxAccount() }
+    }
+
+    /**
+     * Закрывает счёт в песочнице у указанного брокера.
+     * Типизированный результат: AppResult.Success(Unit) или AppResult.Failure.
+     */
+    suspend fun closeSandboxAccountResult(
+        brokerName: BrokerName,
+        accountId: String
+    ): AppResult<Unit> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
+            )
+        runCatchingAppResult { broker.closeSandboxAccount(accountId); Unit }
+    }
 }
