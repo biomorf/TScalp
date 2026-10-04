@@ -13,6 +13,8 @@ import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerName
 import com.example.tscalp.domain.models.AppError
 import com.example.tscalp.domain.models.AppResult
+import com.example.tscalp.domain.models.OrderDirection
+import com.example.tscalp.domain.models.TradeCheckResult
 import com.example.tscalp.domain.models.*
 import com.example.tscalp.util.runCatchingAppResult
 
@@ -213,5 +215,32 @@ class InvestRepository(
         val broker = brokerManager.getBroker(brokerName)
             ?: throw IllegalStateException("Брокер ${brokerName.displayName} не зарегистрирован")
         emitAll(broker.subscribePositions(accountId))
+    }
+
+    /**
+     * Предварительная проверка возможности сделки: свободный остаток
+     * и наличие цены по инструменту. Реализуется брокером.
+     * Типизированный результат: AppResult.Success(TradeCheckResult) или AppResult.Failure.
+     */
+    suspend fun checkTradeAvailabilityResult(
+        brokerName: BrokerName,
+        accountId: String,
+        uid: String,
+        direction: OrderDirection,
+        quantity: Long
+    ): AppResult<TradeCheckResult> = withContext(Dispatchers.IO) {
+        val broker = brokerManager.getBroker(brokerName)
+            ?: return@withContext AppResult.Failure(
+                AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
+            )
+        runCatchingAppResult {
+            broker.checkTradeAvailability(
+                accountId = accountId,
+                tscalpInstrumentId = uid,
+                uid = uid,
+                direction = direction,
+                quantity = quantity
+            )
+        }
     }
 }
