@@ -368,20 +368,24 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     onClick = {
                         scope.launch {
                             isRefreshing = true
-                            try {
-                                val newAccountId = settingsViewModel.openSandboxAccount()
-                                when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                                    is AppResult.Success -> availableAccounts = accountsResult.data
-                                    is AppResult.Failure ->
-                                        AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                            // Кнопка «Открыть новый счёт песочницы»
+                            when (val openResult = settingsViewModel.openSandboxAccountResult()) {
+                                is AppResult.Success -> {
+                                    val newAccountId = openResult.data
+                                    when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                                        is AppResult.Success -> availableAccounts = accountsResult.data
+                                        is AppResult.Failure ->
+                                            AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                                    }
+                                    defaultAccountId = newAccountId
+                                    settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, newAccountId)
+                                    statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
+                                    isError = false
                                 }
-                                defaultAccountId = newAccountId
-                                settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, newAccountId)
-                                statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
-                                isError = false
-                            } catch (e: Exception) {
-                                statusMessage = "Ошибка открытия счёта: ${e.message}"
-                                isError = true
+                                is AppResult.Failure -> {
+                                    statusMessage = "Ошибка открытия счёта: ${openResult.error.message}"
+                                    isError = true
+                                }
                             }
                             isRefreshing = false
                         }
@@ -460,20 +464,22 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     onClick = {
                         scope.launch {
                             isRefreshing = true
-                            try {
-                                settingsViewModel.closeSandboxAccount(defaultAccountId)
-                                when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                                    is AppResult.Success -> availableAccounts = accountsResult.data
-                                    is AppResult.Failure ->
-                                        AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                            when (val closeResult = settingsViewModel.closeSandboxAccountResult(defaultAccountId)) {
+                                is AppResult.Success -> {
+                                    when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                                        is AppResult.Success -> availableAccounts = accountsResult.data
+                                        is AppResult.Failure ->
+                                            AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+                                    }
+                                    defaultAccountId = ""
+                                    settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, "")
+                                    statusMessage = "Счёт песочницы закрыт"
+                                    isError = false
                                 }
-                                defaultAccountId = ""
-                                settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, "")
-                                statusMessage = "Счёт песочницы закрыт"
-                                isError = false
-                            } catch (e: Exception) {
-                                statusMessage = "Ошибка закрытия счёта: ${e.message}"
-                                isError = true
+                                is AppResult.Failure -> {
+                                    statusMessage = "Ошибка закрытия счёта: ${closeResult.error.message}"
+                                    isError = true
+                                }
                             }
                             isRefreshing = false
                             showCloseDialog = false

@@ -191,17 +191,19 @@ class SettingsViewModel @Inject constructor(
     // ---------- Операции со счётом песочницы ----------
     // Бросают исключение при ошибке — обработка остаётся на стороне вызова (панели).
 
-    suspend fun openSandboxAccount(): String {
-        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
-            ?: throw IllegalStateException("Брокер TInvest не найден")
-        return broker.openSandboxAccount()
-    }
+    /**
+     * Открывает новый счёт в песочнице TInvest.
+     * Возвращает AppResult: Success(accountId) или Failure с причиной.
+     */
+    suspend fun openSandboxAccountResult(): AppResult<String> =
+        repository.openSandboxAccountResult(BrokerName.TINVEST)
 
-    suspend fun closeSandboxAccount(accountId: String) {
-        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
-            ?: throw IllegalStateException("Брокер TInvest не найден")
-        broker.closeSandboxAccount(accountId)
-    }
+    /**
+     * Закрывает счёт в песочнице TInvest.
+     * Возвращает AppResult: Success(Unit) или Failure с причиной.
+     */
+    suspend fun closeSandboxAccountResult(accountId: String): AppResult<Unit> =
+        repository.closeSandboxAccountResult(BrokerName.TINVEST, accountId)
 
     // ---------- Вспомогательные ----------
 
