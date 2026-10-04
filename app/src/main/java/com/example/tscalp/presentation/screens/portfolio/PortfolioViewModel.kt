@@ -59,6 +59,7 @@ class PortfolioViewModel @Inject constructor(
     }
 
     fun checkApiInitialization() {
+        // проверка «есть ли хоть один инициализированный брокер»
         val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
         val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
         _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
@@ -71,20 +72,33 @@ class PortfolioViewModel @Inject constructor(
     fun loadPortfolio() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
+
             val accountId = sharedPrefs.getString("TInvest_default_account", null) ?: run {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                 return@launch
             }
+            val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
 
             // Первичный запрос для немедленного отображения
-            try {
-                val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
-                val positions = broker?.fetchPositionsRest(accountId, sandbox) ?: emptyList()
-                _uiState.update { it.copy(positions = positions, isLoading = false) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Ошибка загрузки", isError = true) }
-                return@launch
+            when (val result = repository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
+                is AppResult.Success -> {
+                    _uiState.update { it.copy(positions = result.data, isLoading = false) }
+                }
+                is AppResult.Failure -> {
+                    AppLogger.e(
+                        TAG,
+                        "loadPortfolio: fetchPositions failed: ${result.error.message}",
+                        result.error.cause
+                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = "Ошибка загрузки: ${result.error.message}",
+                            isError = true
+                        )
+                    }
+                    return@launch
+                }
             }
 
             // Гарантируем, что общий поток запущен
@@ -131,16 +145,17 @@ class PortfolioViewModel @Inject constructor(
         val byBroker = positions.groupBy { it.brokerName }
         val allStatuses = mutableMapOf<String, TradingAvailability>()
         for ((brokerName, posList) in byBroker) {
-            val broker = brokerManager.getBroker(brokerName) ?: continue
             val ids = posList.map { it.tscalpInstrumentId }.filter { it.isNotBlank() }
             if (ids.isEmpty()) continue
-            try {
-                val statuses = broker.getTradingStatuses(ids)
-                allStatuses.putAll(statuses)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Ошибка обновления статусов для ${brokerName.displayName}", e)
+            when (val result = repository.getTradingStatusesResult(brokerName, ids)) {
+                is AppResult.Success -> allStatuses.putAll(result.data)
+                is AppResult.Failure -> {
+                    AppLogger.e(
+                        TAG,
+                        "Ошибка обновления статусов для ${brokerName.displayName}: ${result.error.message}",
+                        result.error.cause
+                    )
+                }
             }
         }
         if (allStatuses.isNotEmpty()) {
