@@ -45,6 +45,8 @@ sealed class AppError(open val message: String, open val cause: Throwable? = nul
     data class Api(
         override val message: String,
         val code: Int? = null,
+        val brokerName: BrokerName? = null,
+        val brokerCode: String? = null,
         override val cause: Throwable? = null
     ) : AppError(message, cause)
 

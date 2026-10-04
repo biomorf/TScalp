@@ -2,6 +2,7 @@ package com.example.tscalp.util
 
 import com.example.tscalp.domain.models.AppError
 import com.example.tscalp.domain.models.AppResult
+import com.example.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -11,20 +12,23 @@ import java.net.UnknownHostException
  * Оборачивает блок кода в AppResult.
  * CancellationException перебрасывается — она не ошибка, а отмена корутины.
  */
-inline fun <T> runCatchingAppResult(block: () -> T): AppResult<T> =
+inline fun <T> runCatchingAppResult(
+    brokerName: BrokerName? = null,
+    block: () -> T
+): AppResult<T> =
     try {
         AppResult.Success(block())
     } catch (e: CancellationException) {
         throw e
-    } catch (e: Throwable) {
-        AppResult.Failure(e.toAppError())
+    } catch (e: Exception) {
+        AppResult.Failure(e.toAppError(brokerName))
     }
 
 /**
  * Классификатор исключений → AppError.
  * Отдельно различаем сетевые ошибки, авторизацию и «не найдено».
  */
-fun Throwable.toAppError(): AppError {
+fun Throwable.toAppError(brokerName: BrokerName? = null): AppError {
     // 1. gRPC: отдельная ветка, у StatusException свой статус-код
     if (this is io.grpc.StatusException || this is io.grpc.StatusRuntimeException) {
         val status = (this as? io.grpc.StatusException)?.status
@@ -44,12 +48,20 @@ fun Throwable.toAppError(): AppError {
 
             io.grpc.Status.Code.INVALID_ARGUMENT,
             io.grpc.Status.Code.FAILED_PRECONDITION,
-            io.grpc.Status.Code.INTERNAL ->
+            io.grpc.Status.Code.INTERNAL -> {
+                val humanMessage = if (description.isNotBlank() && brokerName != null) {
+                    BrokerErrorMessages.translate(brokerName, description)
+                } else {
+                    description.ifBlank { "Ошибка API: ${status.code.name}" }
+                }
                 AppError.Api(
-                    message = description.ifBlank { "Ошибка API: ${status.code.name}" },
-                    code = null,
+                    message = humanMessage,
+                    code = description.toIntOrNull(),
+                    brokerName = brokerName,
+                    brokerCode = description.ifBlank { null },
                     cause = this
                 )
+            }
 
             else -> AppError.Unknown(
                 description.ifBlank { status?.code?.name ?: "Ошибка gRPC" },
@@ -78,7 +90,7 @@ fun Throwable.toAppError(): AppError {
                 msg.contains("400", ignoreCase = true) ||
                         msg.contains("500", ignoreCase = true) ||
                         msg.contains("HTTP", ignoreCase = true) ->
-                    AppError.Api(msg, code = extractHttpCode(msg), this)
+                    AppError.Api(msg, code = extractHttpCode(msg), cause = this)
 
                 else -> AppError.Network(msg.ifBlank { "Ошибка сети" }, this)
             }

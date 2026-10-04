@@ -42,7 +42,7 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult { broker.getAccounts(sandboxMode) }
+        runCatchingAppResult(brokerName) { broker.getAccounts(sandboxMode) }
     }
 
     /**
@@ -52,7 +52,7 @@ class InvestRepository(
     suspend fun searchInstrumentsResult(query: String): AppResult<List<InstrumentUi>> =
         withContext(Dispatchers.IO) {
             val broker = brokerManager.getDefaultBroker()
-            runCatchingAppResult { broker.findInstruments(query) }
+            runCatchingAppResult(BrokerName.TINVEST) { broker.findInstruments(query) }
         }
 
     /**
@@ -62,7 +62,7 @@ class InvestRepository(
     suspend fun getLastPricesResult(ids: List<String>): AppResult<Map<String, Double?>> =
         withContext(Dispatchers.IO) {
             val broker = brokerManager.getDefaultBroker()
-            runCatchingAppResult { broker.getLastPricesByTscalpInstrumentId(ids) }
+            runCatchingAppResult(BrokerName.TINVEST) { broker.getLastPricesByTscalpInstrumentId(ids) }
         }
 
     /**
@@ -72,7 +72,7 @@ class InvestRepository(
     suspend fun getBalanceResult(accountId: String): AppResult<Double> =
         withContext(Dispatchers.IO) {
             val broker = brokerManager.getDefaultBroker()
-            runCatchingAppResult { broker.getBalance(accountId) }
+            runCatchingAppResult(BrokerName.TINVEST) { broker.getBalance(accountId) }
         }
 
     /**
@@ -85,7 +85,7 @@ class InvestRepository(
     ): AppResult<Unit> = withContext(Dispatchers.IO) {
         AppLogger.d(TAG, "sandboxPayIn: accountId=$accountId, amount=${amount.units} ${amount.currency}")
         val broker = brokerManager.getDefaultBroker()
-        runCatchingAppResult { broker.sandboxPayIn(accountId, amount); Unit }
+        runCatchingAppResult(BrokerName.TINVEST) { broker.sandboxPayIn(accountId, amount); Unit }
     }
 
     /**
@@ -98,7 +98,7 @@ class InvestRepository(
                 ?: return@withContext AppResult.Failure(
                     AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован")
                 )
-            runCatchingAppResult { broker.postOrder(request) }
+            runCatchingAppResult(request.brokerName) { broker.postOrder(request) }
         }
 
     /**
@@ -111,7 +111,7 @@ class InvestRepository(
                 ?: return@withContext AppResult.Failure(
                     AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован")
                 )
-            runCatchingAppResult { broker.postStopOrder(request) }
+            runCatchingAppResult(request.brokerName) { broker.postStopOrder(request) }
         }
 
     /**
@@ -123,7 +123,7 @@ class InvestRepository(
         orderId: String
     ): AppResult<Unit> = withContext(Dispatchers.IO) {
         val broker = brokerManager.getDefaultBroker()
-        runCatchingAppResult { broker.cancelStopOrder(accountId, orderId); Unit }
+        runCatchingAppResult(BrokerName.TINVEST) { broker.cancelStopOrder(accountId, orderId); Unit }
     }
 
     /**
@@ -139,7 +139,7 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult { broker.fetchPositionsRest(accountId, sandboxMode) }
+        runCatchingAppResult(brokerName) { broker.fetchPositionsRest(accountId, sandboxMode) }
     }
 
     /**
@@ -155,7 +155,7 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult { broker.getTradingStatuses(ids) }
+        runCatchingAppResult(brokerName) { broker.getTradingStatuses(ids) }
     }
 
     /**
@@ -171,7 +171,7 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult {
+        runCatchingAppResult(brokerName) {
             broker.getOrders(accountId) + broker.getStopOrders(accountId)
         }
     }
@@ -189,7 +189,7 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult { broker.cancelOrder(accountId, orderId); Unit }
+        runCatchingAppResult(brokerName) { broker.cancelOrder(accountId, orderId); Unit }
     }
 
     /**
@@ -233,7 +233,7 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult {
+        runCatchingAppResult(brokerName) {
             broker.checkTradeAvailability(
                 accountId = accountId,
                 tscalpInstrumentId = uid,
@@ -255,7 +255,7 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult { broker.openSandboxAccount() }
+        runCatchingAppResult(brokerName) { broker.openSandboxAccount() }
     }
 
     /**
@@ -270,6 +270,6 @@ class InvestRepository(
             ?: return@withContext AppResult.Failure(
                 AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован")
             )
-        runCatchingAppResult { broker.closeSandboxAccount(accountId); Unit }
+        runCatchingAppResult(brokerName) { broker.closeSandboxAccount(accountId); Unit }
     }
 }
