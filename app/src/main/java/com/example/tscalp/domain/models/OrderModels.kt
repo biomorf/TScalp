@@ -106,6 +106,25 @@ sealed class OrderTypeSelection {
         get() = this is Market || this is Limit
 }
 
+/** Строковый ключ для хранения типа заявки в DataStore. */
+fun OrderTypeSelection.toStorageKey(): String = when (this) {
+    OrderTypeSelection.Market -> "Market"
+    OrderTypeSelection.Limit -> "Limit"
+    OrderTypeSelection.StopLoss -> "StopLoss"
+    OrderTypeSelection.TakeProfit -> "TakeProfit"
+    OrderTypeSelection.StopLimit -> "StopLimit"
+}
+
+/** Восстановление типа заявки из строкового ключа. Неизвестное значение → Market. */
+fun orderTypeFromStorageKey(key: String): OrderTypeSelection = when (key) {
+    "Market" -> OrderTypeSelection.Market
+    "Limit" -> OrderTypeSelection.Limit
+    "StopLoss" -> OrderTypeSelection.StopLoss
+    "TakeProfit" -> OrderTypeSelection.TakeProfit
+    "StopLimit" -> OrderTypeSelection.StopLimit
+    else -> OrderTypeSelection.Market
+}
+
 /**
  * Универсальное представление денежной суммы для пополнения песочницы.
  * Не зависит от protobuf.

@@ -38,6 +38,8 @@ import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.FutureUi
 import com.example.tscalp.domain.models.AppResult
 import com.example.tscalp.domain.models.map
+import com.example.tscalp.domain.models.orderTypeFromStorageKey
+import com.example.tscalp.domain.models.toStorageKey
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.toAppError
 import com.example.tscalp.util.AppLogger
@@ -71,23 +73,6 @@ class OrdersViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "OrdersViewModel"
-
-        private fun orderTypeToString(type: OrderTypeSelection): String = when (type) {
-            OrderTypeSelection.Market -> "Market"
-            OrderTypeSelection.Limit -> "Limit"
-            OrderTypeSelection.StopLoss -> "StopLoss"
-            OrderTypeSelection.TakeProfit -> "TakeProfit"
-            OrderTypeSelection.StopLimit -> "StopLimit"
-        }
-
-        private fun stringToOrderType(str: String): OrderTypeSelection = when (str) {
-            "Market" -> OrderTypeSelection.Market
-            "Limit" -> OrderTypeSelection.Limit
-            "StopLoss" -> OrderTypeSelection.StopLoss
-            "TakeProfit" -> OrderTypeSelection.TakeProfit
-            "StopLimit" -> OrderTypeSelection.StopLimit
-            else -> OrderTypeSelection.Market
-        }
     }
 
     init {
@@ -131,7 +116,7 @@ class OrdersViewModel @Inject constructor(
             .putBoolean("pair_trading_enabled", state.pairTradingEnabled)
             .putString("quantity", state.quantity)
             .putString("paired_multiplier", state.pairedMultiplier)
-            .putString("order_type", orderTypeToString(state.orderType))
+            .putString("order_type", state.orderType.toStorageKey())
             .apply()
     }
 
@@ -180,7 +165,7 @@ class OrdersViewModel @Inject constructor(
                 pairTradingEnabled = pairEnabled,
                 quantity = savedQty,
                 pairedMultiplier = savedMultiplier,
-                orderType = savedOrderType?.let { stringToOrderType(it) } ?: OrderTypeSelection.Market
+                orderType = savedOrderType?.let { orderTypeFromStorageKey(it) } ?: OrderTypeSelection.Market
             )
         }
         updateTradeDetails()
