@@ -2,9 +2,20 @@ package com.example.tscalp.di
 
 import com.example.tscalp.domain.api.BrokerApi
 import com.example.tscalp.domain.models.BrokerName
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 
 class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
+
+    /**
+     * Есть ли хотя бы один инициализированный брокер.
+     * Реактивный источник для ViewModel вместо синхронного опроса.
+     * Обновляется через [refreshInitializationState].
+     */
+    private val _anyInitialized = MutableStateFlow(computeAnyInitialized())
+    val anyInitialized: StateFlow<Boolean> = _anyInitialized.asStateFlow()
 
     /**
      * Возвращает брокера по имени. Типобезопасный вариант.
@@ -19,7 +30,6 @@ class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
 
     /**
      * Возвращает список ключей брокеров в типизированном виде — для UI и pager'а.
-     * Заменяет строковый [getAvailableBrokers] в новых вызовах.
      */
     fun getAvailableBrokerNames(): List<BrokerName> = brokers.keys.toList()
 
@@ -27,4 +37,16 @@ class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
      * Возвращает список всех брокеров (для массовых операций).
      */
     fun getAllBrokers(): List<BrokerApi> = brokers.values.toList()
+
+    /**
+     * Пересчитывает состояние инициализации.
+     * Вызывается после успешной инициализации любого брокера,
+     * чтобы ViewModel получили актуальное значение через StateFlow.
+     */
+    fun refreshInitializationState() {
+        _anyInitialized.value = computeAnyInitialized()
+    }
+
+    private fun computeAnyInitialized(): Boolean =
+        brokers.values.any { it.isInitialized }
 }
