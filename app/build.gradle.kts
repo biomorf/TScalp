@@ -18,11 +18,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.tscalp"
+    namespace = "com.gitlab.biomorf.tscalp"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.tscalp"
+        applicationId = "com.gitlab.biomorf.tscalp"
         minSdk = 30
         targetSdk = 36
         versionCode = 1
