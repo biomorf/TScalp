@@ -1,6 +1,5 @@
 package com.example.tscalp.ui.components
 
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -9,22 +8,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
-import com.example.tscalp.data.api.TInvestBrokerAPI
 import com.example.tscalp.data.repository.InvestRepository
-import com.example.tscalp.di.BrokerManager
+import com.example.tscalp.data.repository.SettingsRepository
 import com.example.tscalp.domain.models.OrderListItem
 import com.example.tscalp.domain.models.AppResult
 import com.example.tscalp.domain.models.BrokerName
-import com.example.tscalp.util.toAppError
 import com.example.tscalp.util.AppLogger
 
 @HiltViewModel
 class OrdersListViewModel @Inject constructor(
     private val repository: InvestRepository,
-    private val sharedPrefs: SharedPreferences
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     data class OrdersListState(
@@ -45,7 +41,7 @@ class OrdersListViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
 
-            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
+            val sandboxMode = settingsRepository.isSandboxMode()
 
             // Шаг 1: получить счета через AppResult
             val accounts = when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
@@ -110,7 +106,7 @@ class OrdersListViewModel @Inject constructor(
 
     fun cancelOrder(order: OrderListItem) {
         viewModelScope.launch {
-            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
+            val sandboxMode = settingsRepository.isSandboxMode()
 
             // Шаг 1: счета
             val accounts = when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
