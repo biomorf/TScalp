@@ -179,4 +179,28 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 - `SettingsViewModel.clearBrokerCredentials`
 
 ---
+## Накопление collect'ов на SharedPositionStreamManager.flow
+
+**Статус:** открыт. Низкий приоритет.
+
+**Симптом:** при каждом `loadPortfolio` (вызывается из
+checkApiInitialization, refresh из ON_RESUME, payInSandbox)
+создаётся новый коллектор `positionStreamManager.flow.collect { ... }`.
+Старые не отменяются. При длительной работе с частыми
+переключениями экрана количество коллекторов растёт.
+
+**Причина:** `loadPortfolio` — launch без сохранения Job'а и без
+отмены предыдущего; каждый вызов `positionStreamManager.flow.collect`
+запускает новую долгоживущую корутину.
+
+**Возможное решение:** хранить `portfolioStreamJob: Job?` как поле
+ViewModel и отменять его перед каждым `loadPortfolio`. Либо
+вынести collector из `loadPortfolio` в `startPositionUpdates`,
+симметрично OrdersViewModel.
+
+**Когда вернуться:** при следующем рефакторинге PortfolioViewModel.
+
+
+
+---
 
