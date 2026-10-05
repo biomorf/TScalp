@@ -74,6 +74,13 @@ class BcsBrokerApi : BrokerApi {
         obtainAccessToken()
     }
 
+    fun deinitialize() {
+        accessToken = null
+        refreshToken = null
+        clientId = null
+        tokenExpiry = 0
+    }
+
     private suspend fun obtainAccessToken() {
         val token = refreshToken ?: throw IllegalStateException("Refresh token not set")
         val cid = clientId ?: throw IllegalStateException("Client ID not set")

@@ -47,6 +47,11 @@ class FinamBrokerApi : BrokerApi {
         jwtToken = token
     }
 
+    fun deinitialize() {
+        jwtToken = null
+        client = null
+    }
+
     // ---------- Вспомогательные методы для HTTP-запросов ----------
     private fun buildGetRequest(path: String): Request {
         return Request.Builder()

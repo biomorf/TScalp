@@ -47,6 +47,17 @@ class TInvestBrokerAPI(
         state.api = InvestApi.createApi(newChannels.api)
     }
 
+    /**
+     * Сбрасывает состояние брокера: закрывает каналы, обнуляет api.
+     * После вызова isInitialized == false.
+     * Вызывается при logout через SettingsViewModel.
+     */
+    fun deinitialize() {
+        state.channels?.shutdownAll()
+        state.channels = null
+        state.api = null
+    }
+
     // ---------- BrokerApi: делегирование ----------
 
     override suspend fun getAccounts(sandboxMode: Boolean) = marketData.getAccounts(sandboxMode)

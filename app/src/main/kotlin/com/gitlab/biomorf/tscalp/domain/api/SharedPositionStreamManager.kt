@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -58,8 +59,12 @@ class SharedPositionStreamManager @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun stop() {
         job?.cancel()
         job = null
+        // Сбрасываем replay-кэш, чтобы новые подписчики
+        // не получили устаревший элемент от прошлой сессии.
+        _flow.resetReplayCache()
     }
 }

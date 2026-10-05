@@ -46,8 +46,8 @@ class PortfolioViewModel @Inject constructor(
         // Реагируем на изменение состояния инициализации брокеров.
         // StateFlow отдаёт текущее значение сразу при подписке.
         viewModelScope.launch {
-            brokerManager.anyInitialized.collect { isInit ->
-                if (isInit) checkApiInitialization()
+            brokerManager.anyInitialized.collect {
+                checkApiInitialization()
             }
         }
         // Обновление статусов каждые 5 минут
@@ -67,9 +67,23 @@ class PortfolioViewModel @Inject constructor(
         val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
         val sandbox = settingsRepository.isSandboxMode()
         _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
+
         if (isApiInit) {
             viewModelScope.launch { loadPortfolio() }
             startPriceUpdates()
+        } else {
+            // Logout: останавливаем фоновые задачи и очищаем состояние,
+            // чтобы UI не показывал устаревшие позиции.
+            priceUpdateJob?.cancel()
+            priceUpdateJob = null
+            positionStreamManager.stop()
+            _uiState.update {
+                it.copy(
+                    positions = emptyList(),
+                    totalValue = 0.0,
+                    tradingStatuses = emptyMap()
+                )
+            }
         }
     }
 

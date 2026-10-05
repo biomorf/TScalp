@@ -80,8 +80,8 @@ class OrdersViewModel @Inject constructor(
         // StateFlow отдаёт текущее значение сразу при подписке — аналог
         // прежнего прямого вызова checkApiInitialization() в init.
         viewModelScope.launch {
-            brokerManager.anyInitialized.collect { isInit ->
-                if (isInit) checkApiInitialization()
+            brokerManager.anyInitialized.collect {
+                checkApiInitialization()
             }
         }
         // Подписка на настройку «подтверждение заявок».
@@ -109,11 +109,29 @@ class OrdersViewModel @Inject constructor(
     fun checkApiInitialization() {
         val isAnyApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
         _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
+
         if (isAnyApiInit) {
             if (brokerManager.getDefaultBroker().isInitialized) {
                 loadAccounts()
             }
             startPriceUpdates()
+        } else {
+            // Logout: останавливаем фоновые задачи и очищаем состояние.
+            // stopPriceUpdates() уже вызывает stopPositionUpdates() внутри.
+            stopPriceUpdates()
+            positionStreamManager.stop()
+            _uiState.update {
+                it.copy(
+                    accounts = emptyList(),
+                    selectedAccountId = null,
+                    portfolioPositions = emptyList(),
+                    lastSelectedInstruments = emptyList(),
+                    currentPrice = null,
+                    pairCurrentPrice = null,
+                    freeBalance = null,
+                    tradingStatuses = emptyMap()
+                )
+            }
         }
     }
 

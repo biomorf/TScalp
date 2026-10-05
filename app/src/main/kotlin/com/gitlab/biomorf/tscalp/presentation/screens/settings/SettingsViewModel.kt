@@ -13,6 +13,7 @@ import javax.inject.Inject
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.SharedPositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
@@ -41,6 +42,7 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val tradingStateRepository: TradingStateRepository,
     private val brokerManager: BrokerManager,
+    private val positionStreamManager: SharedPositionStreamManager,
     private val repository: InvestRepository
 ) : ViewModel() {
 
@@ -87,6 +89,26 @@ class SettingsViewModel @Inject constructor(
             if (brokerName == BrokerName.TINVEST) {
                 tradingStateRepository.clear()
             }
+
+            // Деинициализируем брокера — иначе state.api остаётся non-null,
+            // isInitialized возвращает true, и anyInitialized не переключается.
+            when (brokerName) {
+                BrokerName.TINVEST ->
+                    (brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI)?.deinitialize()
+                BrokerName.BCS ->
+                    (brokerManager.getBroker(BrokerName.BCS) as? BcsBrokerApi)?.deinitialize()
+                BrokerName.FINAM ->
+                    (brokerManager.getBroker(BrokerName.FINAM) as? FinamBrokerApi)?.deinitialize()
+            }
+
+            // Останавливаем общий стрим позиций сразу, не дожидаясь,
+            // будет ли создан PortfolioViewModel.
+            if (brokerName == BrokerName.TINVEST) {
+                positionStreamManager.stop()
+            }
+
+            brokerManager.refreshInitializationState()
+
             _uiState.update {
                 when (brokerName) {
                     BrokerName.TINVEST -> it.copy(
