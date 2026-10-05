@@ -1,99 +1,125 @@
 package com.example.tscalp.data.repository
 
-import android.content.SharedPreferences
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
 import com.example.tscalp.domain.models.BrokerName
 
 /**
- * Единый репозиторий для пользовательских настроек, хранящихся в SharedPreferences.
- * Заменяет собой работу с prefs из ServiceLocator.
+ * Единый репозиторий пользовательских настроек на DataStore.
+ *
+ * Ключи сохранены в legacy-формате ("TInvest_token", "TInvest_sandbox" и т.д.),
+ * чтобы при необходимости можно было добавить SharedPreferencesMigration
+ * без конфликтов имён.
  */
 @Singleton
 class SettingsRepository @Inject constructor(
-    private val prefs: SharedPreferences
+    private val dataStore: DataStore<Preferences>
 ) {
 
     // ---------- Учётные данные брокеров ----------
 
-    /**
-     * Сохраняет токен и режим sandbox для указанного брокера.
-     * Для TInvest ключ "TInvest_token", для Finam "finam_token" и т.д.
-     */
-    fun saveBrokerCredentials(brokerName: BrokerName, token: String, sandbox: Boolean) {
-        prefs.edit()
-            .putString("${brokerName.key}_token", token)
-            .putBoolean("${brokerName.key}_sandbox", sandbox)
-            .commit()
+    suspend fun saveBrokerCredentials(brokerName: BrokerName, token: String, sandbox: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[tokenKey(brokerName)] = token
+            prefs[sandboxKey(brokerName)] = sandbox
+        }
     }
 
-    /**
-     * Возвращает пару (токен, sandbox) для указанного брокера или null.
-     */
-    fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? {
-        val token = prefs.getString("${brokerName.key}_token", null) ?: return null
-        val sandbox = prefs.getBoolean("${brokerName.key}_sandbox", true)
+    suspend fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? {
+        val snapshot = dataStore.data.first()
+        val token = snapshot[tokenKey(brokerName)] ?: return null
+        val sandbox = snapshot[sandboxKey(brokerName)] ?: true
         return Pair(token, sandbox)
     }
 
-    fun clearBrokerCredentials(brokerName: BrokerName) {
-        prefs.edit()
-            .remove("${brokerName.key}_token")
-            .remove("${brokerName.key}_sandbox")
-            .apply()
+    suspend fun clearBrokerCredentials(brokerName: BrokerName) {
+        dataStore.edit { prefs ->
+            prefs.remove(tokenKey(brokerName))
+            prefs.remove(sandboxKey(brokerName))
+        }
     }
 
-    //Параметр не используется по факту — но менять сигнатуру на «без параметра» пока не будем, вынесу в roadmap.
-    fun clearTradingState() {
-        prefs.edit()
-            .remove("selected_instrument_uid")
-            .remove("paired_instrument_uid")
-            .remove("pair_trading_enabled")
-            .remove("quantity")
-            .remove("paired_multiplier")
-            .remove("order_type")
-            .apply()
+    suspend fun clearTradingState() {
+        dataStore.edit { prefs ->
+            prefs.remove(SELECTED_INSTRUMENT_UID)
+            prefs.remove(PAIRED_INSTRUMENT_UID)
+            prefs.remove(PAIR_TRADING_ENABLED)
+            prefs.remove(QUANTITY)
+            prefs.remove(PAIRED_MULTIPLIER)
+            prefs.remove(ORDER_TYPE)
+        }
     }
 
-    /**
-     * Сохраняет только токен для брокера (без sandbox-флага).
-     */
-    fun saveToken(brokerName: BrokerName, token: String) {
-        prefs.edit()
-            .putString("${brokerName.key}_token", token)
-            .commit()
+    suspend fun saveToken(brokerName: BrokerName, token: String) {
+        dataStore.edit { prefs ->
+            prefs[tokenKey(brokerName)] = token
+        }
     }
 
-    fun hasSavedToken(brokerName: BrokerName): Boolean =
-        prefs.contains("${brokerName.key}_token")
+    suspend fun hasSavedToken(brokerName: BrokerName): Boolean =
+        dataStore.data.first()[tokenKey(brokerName)] != null
 
-    fun getToken(brokerName: BrokerName): String? =
-        prefs.getString("${brokerName.key}_token", null)
+    suspend fun getToken(brokerName: BrokerName): String? =
+        dataStore.data.first()[tokenKey(brokerName)]
 
     // ---------- Счёт по умолчанию ----------
 
-    fun saveDefaultAccountId(brokerName: BrokerName, accountId: String) {
-        prefs.edit().putString("${brokerName.key}_default_account", accountId).commit()
+    suspend fun saveDefaultAccountId(brokerName: BrokerName, accountId: String) {
+        dataStore.edit { prefs ->
+            prefs[defaultAccountKey(brokerName)] = accountId
+        }
     }
 
-    fun loadDefaultAccountId(brokerName: BrokerName): String? =
-        prefs.getString("${brokerName.key}_default_account", null)
+    suspend fun loadDefaultAccountId(brokerName: BrokerName): String? =
+        dataStore.data.first()[defaultAccountKey(brokerName)]
 
     // ---------- Режим песочницы (для TInvest) ----------
 
-    fun isSandboxMode(): Boolean = prefs.getBoolean("TInvest_sandbox", true)
+    suspend fun isSandboxMode(): Boolean =
+        dataStore.data.first()[sandboxKey(BrokerName.TINVEST)] ?: true
 
-    fun setSandboxMode(enabled: Boolean) {
-        prefs.edit().putBoolean("TInvest_sandbox", enabled).apply()
+    suspend fun setSandboxMode(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[sandboxKey(BrokerName.TINVEST)] = enabled
+        }
     }
 
     // ---------- Подтверждение заявок ----------
 
-    fun isConfirmOrdersEnabled(): Boolean =
-        prefs.getBoolean("confirm_orders_enabled", true)
+    suspend fun isConfirmOrdersEnabled(): Boolean =
+        dataStore.data.first()[CONFIRM_ORDERS_ENABLED] ?: true
 
-    fun setConfirmOrdersEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("confirm_orders_enabled", enabled).apply()
+    suspend fun setConfirmOrdersEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[CONFIRM_ORDERS_ENABLED] = enabled
+        }
+    }
+
+    // ---------- Ключи ----------
+
+    private fun tokenKey(brokerName: BrokerName) =
+        stringPreferencesKey("${brokerName.key}_token")
+
+    private fun sandboxKey(brokerName: BrokerName) =
+        booleanPreferencesKey("${brokerName.key}_sandbox")
+
+    private fun defaultAccountKey(brokerName: BrokerName) =
+        stringPreferencesKey("${brokerName.key}_default_account")
+
+    private companion object {
+        val SELECTED_INSTRUMENT_UID = stringPreferencesKey("selected_instrument_uid")
+        val PAIRED_INSTRUMENT_UID = stringPreferencesKey("paired_instrument_uid")
+        val PAIR_TRADING_ENABLED = booleanPreferencesKey("pair_trading_enabled")
+        val QUANTITY = stringPreferencesKey("quantity")
+        val PAIRED_MULTIPLIER = stringPreferencesKey("paired_multiplier")
+        val ORDER_TYPE = stringPreferencesKey("order_type")
+        val CONFIRM_ORDERS_ENABLED = booleanPreferencesKey("confirm_orders_enabled")
     }
 }

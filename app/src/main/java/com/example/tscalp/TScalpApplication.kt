@@ -44,17 +44,16 @@ class TScalpApplication : Application() {
 
         initAppMetrica()
 
-        // Восстанавливаем подключение каждого брокера, если сохранены учётные данные
-        for (brokerName in BrokerName.entries) {
-            val broker = brokerManager.getBroker(brokerName) ?: continue
-            if (!settingsRepository.hasSavedToken(brokerName)) continue
+        // Восстанавливаем подключение каждого брокера, если сохранены учётные данные.
+        // SettingsRepository работает на DataStore — все чтения suspend.
+        appScope.launch {
+            for (brokerName in BrokerName.entries) {
+                val broker = brokerManager.getBroker(brokerName) ?: continue
+                if (!settingsRepository.hasSavedToken(brokerName)) continue
 
-            when (brokerName) {
-                BrokerName.TINVEST -> {
-                    // DataModule уже инициализировал TInvest через SharedPreferences.
-                    // Запускаем общий поток позиций, если известен счёт по умолчанию.
-                    val tInvest = broker as? TInvestBrokerAPI ?: continue
-                    appScope.launch {
+                when (brokerName) {
+                    BrokerName.TINVEST -> {
+                        val tInvest = broker as? TInvestBrokerAPI ?: continue
                         try {
                             val sandbox = settingsRepository.isSandboxMode()
                             val accounts = tInvest.getAccounts(sandbox)
@@ -83,14 +82,12 @@ class TScalpApplication : Application() {
                             AppLogger.e("TScalpApplication", "Не удалось подготовить TInvest-счёт", e)
                         }
                     }
-                }
 
-                BrokerName.BCS -> {
-                    val creds = settingsRepository.loadBrokerCredentials(brokerName)
-                    if (creds != null) {
-                        val (refreshToken, isWriteMode) = creds
-                        val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                        appScope.launch {
+                    BrokerName.BCS -> {
+                        val creds = settingsRepository.loadBrokerCredentials(brokerName)
+                        if (creds != null) {
+                            val (refreshToken, isWriteMode) = creds
+                            val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
                             try {
                                 (broker as? BcsBrokerApi)?.initialize(refreshToken, clientId)
                             } catch (e: Exception) {
@@ -98,10 +95,10 @@ class TScalpApplication : Application() {
                             }
                         }
                     }
-                }
 
-                BrokerName.FINAM -> {
-                    // Finam инициализируется из UI настроек, при старте приложения ничего не делаем
+                    BrokerName.FINAM -> {
+                        // Finam инициализируется из UI настроек, при старте приложения ничего не делаем
+                    }
                 }
             }
         }

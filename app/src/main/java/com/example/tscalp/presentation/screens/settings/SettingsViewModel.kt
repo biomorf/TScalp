@@ -46,16 +46,18 @@ class SettingsViewModel @Inject constructor(
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
-        // Первичная синхронизация состояния с prefs
-        _uiState.update {
-            it.copy(
-                isSandboxMode = settingsRepository.isSandboxMode(),
-                isConfirmOrdersEnabled = settingsRepository.isConfirmOrdersEnabled(),
-                tInvestConnected = settingsRepository.hasSavedToken(BrokerName.TINVEST),
-                bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
-                finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
-                defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: ""
-            )
+        // Первичная синхронизация состояния с DataStore
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isSandboxMode = settingsRepository.isSandboxMode(),
+                    isConfirmOrdersEnabled = settingsRepository.isConfirmOrdersEnabled(),
+                    tInvestConnected = settingsRepository.hasSavedToken(BrokerName.TINVEST),
+                    bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
+                    finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
+                    defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: ""
+                )
+            }
         }
     }
 
@@ -66,69 +68,81 @@ class SettingsViewModel @Inject constructor(
 
     // ---------- Учётные данные брокеров ----------
 
-    fun saveBrokerCredentials(brokerName: BrokerName, token: String, sandbox: Boolean) {
+    suspend fun saveBrokerCredentials(brokerName: BrokerName, token: String, sandbox: Boolean) {
         settingsRepository.saveBrokerCredentials(brokerName, token, sandbox)
     }
 
-    fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? =
+    suspend fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? =
         settingsRepository.loadBrokerCredentials(brokerName)
 
+    /**
+     * Fire-and-forget: вызывается из синхронного onClick в UI.
+     * Запись в DataStore асинхронная, результат не нужен.
+     */
     fun clearBrokerCredentials(brokerName: BrokerName) {
-        settingsRepository.clearBrokerCredentials(brokerName)
-        if (brokerName == BrokerName.TINVEST) {
-            settingsRepository.clearTradingState()
-        }
-        _uiState.update {
-            when (brokerName) {
-                BrokerName.TINVEST -> it.copy(
-                    tInvestConnected = false,
-                    defaultAccountIdTInvest = ""
-                )
-                BrokerName.BCS -> it.copy(bcsConnected = false)
-                BrokerName.FINAM -> it.copy(finamConnected = false)
+        viewModelScope.launch {
+            settingsRepository.clearBrokerCredentials(brokerName)
+            if (brokerName == BrokerName.TINVEST) {
+                settingsRepository.clearTradingState()
+            }
+            _uiState.update {
+                when (brokerName) {
+                    BrokerName.TINVEST -> it.copy(
+                        tInvestConnected = false,
+                        defaultAccountIdTInvest = ""
+                    )
+                    BrokerName.BCS -> it.copy(bcsConnected = false)
+                    BrokerName.FINAM -> it.copy(finamConnected = false)
+                }
             }
         }
     }
 
-    fun saveToken(brokerName: BrokerName, token: String) {
+    suspend fun saveToken(brokerName: BrokerName, token: String) {
         settingsRepository.saveToken(brokerName, token)
     }
 
-    fun getToken(brokerName: BrokerName): String? =
+    suspend fun getToken(brokerName: BrokerName): String? =
         settingsRepository.getToken(brokerName)
 
-    fun hasSavedToken(brokerName: BrokerName): Boolean =
+    suspend fun hasSavedToken(brokerName: BrokerName): Boolean =
         settingsRepository.hasSavedToken(brokerName)
 
     // ---------- Счёт по умолчанию ----------
 
     fun saveDefaultAccountId(brokerName: BrokerName, accountId: String) {
-        settingsRepository.saveDefaultAccountId(brokerName, accountId)
-        if (brokerName == BrokerName.TINVEST) {
-            _uiState.update { it.copy(defaultAccountIdTInvest = accountId) }
+        viewModelScope.launch {
+            settingsRepository.saveDefaultAccountId(brokerName, accountId)
+            if (brokerName == BrokerName.TINVEST) {
+                _uiState.update { it.copy(defaultAccountIdTInvest = accountId) }
+            }
         }
     }
 
-    fun loadDefaultAccountId(brokerName: BrokerName): String? =
+    suspend fun loadDefaultAccountId(brokerName: BrokerName): String? =
         settingsRepository.loadDefaultAccountId(brokerName)
 
     // ---------- Режим песочницы ----------
 
-    fun isSandboxMode(): Boolean = settingsRepository.isSandboxMode()
+    suspend fun isSandboxMode(): Boolean = settingsRepository.isSandboxMode()
 
     fun setSandboxMode(enabled: Boolean) {
-        settingsRepository.setSandboxMode(enabled)
-        _uiState.update { it.copy(isSandboxMode = enabled) }
+        viewModelScope.launch {
+            settingsRepository.setSandboxMode(enabled)
+            _uiState.update { it.copy(isSandboxMode = enabled) }
+        }
     }
 
     // ---------- Подтверждение заявок ----------
 
-    fun isConfirmOrdersEnabled(): Boolean =
+    suspend fun isConfirmOrdersEnabled(): Boolean =
         settingsRepository.isConfirmOrdersEnabled()
 
     fun setConfirmOrdersEnabled(enabled: Boolean) {
-        settingsRepository.setConfirmOrdersEnabled(enabled)
-        _uiState.update { it.copy(isConfirmOrdersEnabled = enabled) }
+        viewModelScope.launch {
+            settingsRepository.setConfirmOrdersEnabled(enabled)
+            _uiState.update { it.copy(isConfirmOrdersEnabled = enabled) }
+        }
     }
 
     // ---------- Счета ----------
