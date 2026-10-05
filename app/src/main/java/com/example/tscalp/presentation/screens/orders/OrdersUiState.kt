@@ -35,6 +35,7 @@ data class OrdersUiState(
     val statusMessage: String? = null,
     val isError: Boolean = false,
     val isApiInitialized: Boolean = false,
+    val confirmOrdersEnabled: Boolean = true,
     val searchQuery: String = "",
     val searchResults: List<InstrumentUi> = emptyList(),
     val isSearching: Boolean = false,

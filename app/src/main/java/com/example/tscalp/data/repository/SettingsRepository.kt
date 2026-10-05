@@ -1,13 +1,16 @@
 package com.example.tscalp.data.repository
 
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import kotlinx.coroutines.flow.first
-import javax.inject.Inject
-import javax.inject.Singleton
 
 import com.example.tscalp.domain.models.BrokerName
 
@@ -100,6 +103,15 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs[CONFIRM_ORDERS_ENABLED] = enabled
         }
+    }
+
+    /**
+     * Поток значения «подтверждение заявок включено».
+     * Эмитит при каждом изменении в DataStore. ViewModel'и подписываются,
+     * чтобы держать кэшированное состояние актуальным.
+     */
+    val confirmOrdersEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[CONFIRM_ORDERS_ENABLED] ?: true
     }
 
     // ---------- Ключи ----------

@@ -1,6 +1,5 @@
 package com.example.tscalp.presentation.screens.orders
 
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +22,9 @@ import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.data.repository.InstrumentRepository
 import com.example.tscalp.data.repository.SearchCache
+import com.example.tscalp.data.repository.SettingsRepository
+import com.example.tscalp.data.repository.TradingStateRepository
+import com.example.tscalp.domain.models.TradingStateSnapshot
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.example.tscalp.domain.usecases.CalculateTradeDetailsUseCase
@@ -38,8 +40,6 @@ import com.example.tscalp.domain.models.PositionStreamItem
 import com.example.tscalp.domain.models.FutureUi
 import com.example.tscalp.domain.models.AppResult
 import com.example.tscalp.domain.models.map
-import com.example.tscalp.domain.models.orderTypeFromStorageKey
-import com.example.tscalp.domain.models.toStorageKey
 import com.example.tscalp.util.formatCurrency
 import com.example.tscalp.util.toAppError
 import com.example.tscalp.util.AppLogger
@@ -49,7 +49,8 @@ class OrdersViewModel @Inject constructor(
     private val repository: InvestRepository,
     private val instrumentRepo: InstrumentRepository,
     private val searchCache: SearchCache,
-    private val sharedPrefs: SharedPreferences,
+    private val settingsRepository: SettingsRepository,
+    private val tradingStateRepository: TradingStateRepository,
     private val brokerManager: BrokerManager,
     private val calculateTradeDetails: CalculateTradeDetailsUseCase,
     private val prepareOrderRequest: PrepareOrderRequestUseCase,
@@ -62,7 +63,6 @@ class OrdersViewModel @Inject constructor(
     private var pairSearchJob: Job? = null
     private var priceStreamJob: Job? = null
     private var positionStreamJob: Job? = null
-    private val prefs = sharedPrefs
     // Флаги для отображения диалога выбора брокера для основного и парного поиска
     val showSearchBrokerDialog = mutableStateOf(false)
     val showPairSearchBrokerDialog = mutableStateOf(false)
@@ -82,6 +82,15 @@ class OrdersViewModel @Inject constructor(
         viewModelScope.launch {
             brokerManager.anyInitialized.collect { isInit ->
                 if (isInit) checkApiInitialization()
+            }
+        }
+        // Подписка на настройку «подтверждение заявок».
+        // Значение в state всегда актуальное: при переключении тумблера
+        // в Настройках DataStore эмитит изменение, Flow доставляет,
+        // state обновляется, onClick видит свежее значение.
+        viewModelScope.launch {
+            settingsRepository.confirmOrdersEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(confirmOrdersEnabled = enabled) }
             }
         }
         // Фоновое обновление статусов каждые 5 минут
@@ -108,24 +117,28 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    private fun saveState() {
+    private suspend fun saveState() {
         val state = _uiState.value
-        prefs.edit()
-            .putString("selected_instrument_uid", state.selectedInstrument?.tscalpInstrumentId)
-            .putString("paired_instrument_uid", state.pairedInstrument?.tscalpInstrumentId)
-            .putBoolean("pair_trading_enabled", state.pairTradingEnabled)
-            .putString("quantity", state.quantity)
-            .putString("paired_multiplier", state.pairedMultiplier)
-            .putString("order_type", state.orderType.toStorageKey())
-            .apply()
+        tradingStateRepository.save(
+            TradingStateSnapshot(
+                selectedInstrumentUid = state.selectedInstrument?.tscalpInstrumentId,
+                pairedInstrumentUid = state.pairedInstrument?.tscalpInstrumentId,
+                pairTradingEnabled = state.pairTradingEnabled,
+                quantity = state.quantity,
+                pairedMultiplier = state.pairedMultiplier,
+                orderType = state.orderType
+            )
+        )
     }
 
     private suspend fun restoreState() {
         val repo = instrumentRepo
         val brokerReady = brokerManager.getDefaultBroker().isInitialized
 
+        val snapshot = tradingStateRepository.load()
+
         // Восстановление основного инструмента
-        val uid = prefs.getString("selected_instrument_uid", null)
+        val uid = snapshot.selectedInstrumentUid
         if (uid != null && brokerReady) {
             val instrument = repo.getInstrument(uid)
             if (instrument != null) {
@@ -139,7 +152,7 @@ class OrdersViewModel @Inject constructor(
         }
 
         // Восстановление парного инструмента
-        val pairUid = prefs.getString("paired_instrument_uid", null)
+        val pairUid = snapshot.pairedInstrumentUid
         if (pairUid != null && brokerReady) {
             val pairInstrument = repo.getInstrument(pairUid)
             if (pairInstrument != null) {
@@ -155,17 +168,12 @@ class OrdersViewModel @Inject constructor(
             }
         }
 
-        val pairEnabled = prefs.getBoolean("pair_trading_enabled", false)
-        val savedQty = prefs.getString("quantity", "") ?: ""
-        val savedMultiplier = prefs.getString("paired_multiplier", "10") ?: "10"
-        val savedOrderType = prefs.getString("order_type", null)
-
         _uiState.update { state ->
             state.copy(
-                pairTradingEnabled = pairEnabled,
-                quantity = savedQty,
-                pairedMultiplier = savedMultiplier,
-                orderType = savedOrderType?.let { orderTypeFromStorageKey(it) } ?: OrderTypeSelection.Market
+                pairTradingEnabled = snapshot.pairTradingEnabled,
+                quantity = snapshot.quantity,
+                pairedMultiplier = snapshot.pairedMultiplier,
+                orderType = snapshot.orderType
             )
         }
         updateTradeDetails()
@@ -175,12 +183,12 @@ class OrdersViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
-            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
+            val sandboxMode = settingsRepository.isSandboxMode()
 
             when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                 is AppResult.Success -> {
                     val accounts = result.data
-                    val savedAccountId = sharedPrefs.getString("TInvest_default_account", null)
+                    val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
                     val chosenAccount = accounts.firstOrNull { it.id == savedAccountId }
                         ?: accounts.firstOrNull()
 
@@ -344,7 +352,7 @@ class OrdersViewModel @Inject constructor(
     fun onQuantityChanged(quantity: String) {
         _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) }
         updateTradeDetails()
-        saveState()
+        viewModelScope.launch { saveState() }
     }
     fun onAccountSelected(accountId: String) { _uiState.update { it.copy(selectedAccountId = accountId) } }
     fun onBuyClick() = viewModelScope.launch { postOrder(OrderDirection.BUY) }
@@ -397,7 +405,7 @@ class OrdersViewModel @Inject constructor(
             quantity = quantity,
             direction = direction,
             accountId = accountId,
-            sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true),
+            sandboxMode = settingsRepository.isSandboxMode(),
             orderType = state.orderType,
             limitPrice = state.limitPrice,
             stopPrice = state.stopPrice,
@@ -548,7 +556,7 @@ class OrdersViewModel @Inject constructor(
     fun clearStatus() { _uiState.update { it.clearStatus() } }
 
     fun isConfirmOrdersEnabled(): Boolean =
-        sharedPrefs.getBoolean("confirm_orders_enabled", true)
+        _uiState.value.confirmOrdersEnabled
 
     fun getAvailableBrokerNames(): List<BrokerName> =
         brokerManager.getAvailableBrokerNames()
@@ -566,7 +574,7 @@ class OrdersViewModel @Inject constructor(
 
             val accounts = when (val result = repository.getAccountsResult(
                 broker,
-                sharedPrefs.getBoolean("TInvest_sandbox", true)
+                settingsRepository.isSandboxMode()
             )) {
                 is AppResult.Success -> result.data
                 is AppResult.Failure -> {
@@ -629,7 +637,7 @@ class OrdersViewModel @Inject constructor(
      private suspend fun loadDialogAccounts(brokerName: BrokerName) {
          when (val result = repository.getAccountsResult(
              brokerName,
-             sharedPrefs.getBoolean("TInvest_sandbox", true)
+             settingsRepository.isSandboxMode()
          )) {
              is AppResult.Success -> {
                  val accounts = result.data
@@ -694,7 +702,7 @@ class OrdersViewModel @Inject constructor(
                 )
             }
         }
-        saveState()
+        viewModelScope.launch { saveState() }
     }
 
     fun onPairSearchQueryChanged(query: String) {
@@ -764,7 +772,7 @@ class OrdersViewModel @Inject constructor(
     fun onPairedMultiplierChanged(value: String) {
         val filtered = value.filter { it.isDigit() || it == '.' }
         _uiState.update { it.copy(pairedMultiplier = filtered) }
-        saveState()
+        viewModelScope.launch { saveState() }
     }
 
     fun onOrderTypeChanged(type: OrderTypeSelection) {
@@ -773,7 +781,7 @@ class OrdersViewModel @Inject constructor(
             _uiState.update { it.copy(limitPrice = "") }
         }
         updateTradeDetails()
-        saveState()
+        viewModelScope.launch { saveState() }
     }
 
 
@@ -781,13 +789,13 @@ class OrdersViewModel @Inject constructor(
         val filtered = price.filter { it.isDigit() || it == '.' }
         _uiState.update { it.copy(limitPrice = filtered) }
         updateTradeDetails()
-        saveState()
+        viewModelScope.launch { saveState() }
     }
 
     fun onStopPriceChanged(price: String) {
         _uiState.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
         updateTradeDetails()
-        saveState()
+        viewModelScope.launch { saveState() }
     }
 
     fun startPriceUpdates() {
@@ -872,7 +880,7 @@ class OrdersViewModel @Inject constructor(
         // делаем разовый прямой запрос, чтобы сразу заполнить карточку
         if (_uiState.value.portfolioPositions.isEmpty()) {
             viewModelScope.launch {
-                val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
+                val sandbox = settingsRepository.isSandboxMode()
                 when (val result = repository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
                     is AppResult.Success ->
                         _uiState.update { it.copy(portfolioPositions = result.data) }
