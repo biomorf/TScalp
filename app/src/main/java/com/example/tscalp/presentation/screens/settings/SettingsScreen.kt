@@ -171,15 +171,17 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 @Composable
 fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiState) {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val settingsUiState by settingsViewModel.uiState.collectAsState()
+
     var token by remember { mutableStateOf("") }
-    var sandboxMode by remember { mutableStateOf(settingsViewModel.isSandboxMode()) }
+    var sandboxMode by remember { mutableStateOf(settingsUiState.isSandboxMode) }
     var showToken by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     var availableAccounts by remember { mutableStateOf<List<BrokerAccount>>(emptyList()) }
-    var defaultAccountId by remember { mutableStateOf(settingsViewModel.loadDefaultAccountId(BrokerName.TINVEST) ?: "") }
+    var defaultAccountId by remember { mutableStateOf(settingsUiState.defaultAccountIdTInvest) }
     var accountExpanded by remember { mutableStateOf(false) }
 
     var showCloseDialog by remember { mutableStateOf(false) }
@@ -194,7 +196,15 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         }
     }
 
-    val isConnected = uiState.isApiInitialized && settingsViewModel.loadBrokerCredentials(BrokerName.TINVEST) != null
+    // Синхронизируем локальные значения, если они изменились во ViewModel
+    LaunchedEffect(settingsUiState.isSandboxMode) {
+        sandboxMode = settingsUiState.isSandboxMode
+    }
+    LaunchedEffect(settingsUiState.defaultAccountIdTInvest) {
+        defaultAccountId = settingsUiState.defaultAccountIdTInvest
+    }
+
+    val isConnected = uiState.isApiInitialized && settingsUiState.tInvestConnected
 
     // При подключении/изменении режима перезагружаем счета
     LaunchedEffect(isConnected, sandboxMode) {
@@ -502,9 +512,11 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
 @Composable
 fun BcsSettingsPanel() {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val settingsUiState by settingsViewModel.uiState.collectAsState()
+
     var refreshToken by remember { mutableStateOf("") }
     var isWriteMode by remember { mutableStateOf(true) }
-    var connected by remember { mutableStateOf(false) }
+    var connected by remember { mutableStateOf(settingsUiState.bcsConnected) }
     var showToken by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
@@ -682,9 +694,11 @@ fun BcsSettingsPanel() {
 @Composable
 fun FinamSettingsPanel() {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val settingsUiState by settingsViewModel.uiState.collectAsState()
+
     var token by remember { mutableStateOf("") }
     var showToken by remember { mutableStateOf(false) }
-    var connected by remember { mutableStateOf(false) }
+    var connected by remember { mutableStateOf(settingsUiState.finamConnected) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()

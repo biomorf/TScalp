@@ -26,6 +26,10 @@ import com.example.tscalp.domain.models.AppResult
 data class SettingsUiState(
     val isSandboxMode: Boolean = true,
     val isConfirmOrdersEnabled: Boolean = true,
+    val tInvestConnected: Boolean = false,
+    val bcsConnected: Boolean = false,
+    val finamConnected: Boolean = false,
+    val defaultAccountIdTInvest: String = "",
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
     val isError: Boolean = false
@@ -46,7 +50,11 @@ class SettingsViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isSandboxMode = settingsRepository.isSandboxMode(),
-                isConfirmOrdersEnabled = settingsRepository.isConfirmOrdersEnabled()
+                isConfirmOrdersEnabled = settingsRepository.isConfirmOrdersEnabled(),
+                tInvestConnected = settingsRepository.hasSavedToken(BrokerName.TINVEST),
+                bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
+                finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
+                defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: ""
             )
         }
     }
@@ -70,6 +78,16 @@ class SettingsViewModel @Inject constructor(
         if (brokerName == BrokerName.TINVEST) {
             settingsRepository.clearTradingState()
         }
+        _uiState.update {
+            when (brokerName) {
+                BrokerName.TINVEST -> it.copy(
+                    tInvestConnected = false,
+                    defaultAccountIdTInvest = ""
+                )
+                BrokerName.BCS -> it.copy(bcsConnected = false)
+                BrokerName.FINAM -> it.copy(finamConnected = false)
+            }
+        }
     }
 
     fun saveToken(brokerName: BrokerName, token: String) {
@@ -86,6 +104,9 @@ class SettingsViewModel @Inject constructor(
 
     fun saveDefaultAccountId(brokerName: BrokerName, accountId: String) {
         settingsRepository.saveDefaultAccountId(brokerName, accountId)
+        if (brokerName == BrokerName.TINVEST) {
+            _uiState.update { it.copy(defaultAccountIdTInvest = accountId) }
+        }
     }
 
     fun loadDefaultAccountId(brokerName: BrokerName): String? =
@@ -137,7 +158,8 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     statusMessage = "Подключено к Т‑Инвестициям (режим " +
                             "${if (sandbox) "песочница" else "боевой"})",
-                    isError = false
+                    isError = false,
+                    tInvestConnected = true
                 )
             }
             true
@@ -159,7 +181,8 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     statusMessage = "Подключено к БКС " +
                             "(${if (isWriteMode) "полный доступ" else "только чтение"})",
-                    isError = false
+                    isError = false,
+                    bcsConnected = true
                 )
             }
             true
@@ -177,7 +200,11 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.saveToken(BrokerName.FINAM, cleanToken)
             (brokerManager.getBroker(BrokerName.FINAM) as? FinamBrokerApi)?.initialize(cleanToken)
             _uiState.update {
-                it.copy(statusMessage = "Подключено к Finam", isError = false)
+                it.copy(
+                    statusMessage = "Подключено к Finam",
+                    isError = false,
+                    finamConnected = true
+                )
             }
             true
         } catch (e: Exception) {
