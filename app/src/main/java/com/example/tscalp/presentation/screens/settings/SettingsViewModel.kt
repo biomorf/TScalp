@@ -170,6 +170,7 @@ class SettingsViewModel @Inject constructor(
                 (brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI)
                     ?.initialize(cleanToken, sandbox)
             }
+            brokerManager.refreshInitializationState()
             _uiState.update {
                 it.copy(
                     statusMessage = "Подключено к Т‑Инвестициям (режим " +
@@ -193,6 +194,7 @@ class SettingsViewModel @Inject constructor(
             val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
             (brokerManager.getBroker(BrokerName.BCS) as? BcsBrokerApi)?.initialize(cleanToken, clientId)
             settingsRepository.saveBrokerCredentials(BrokerName.BCS, cleanToken, isWriteMode)
+            brokerManager.refreshInitializationState()
             _uiState.update {
                 it.copy(
                     statusMessage = "Подключено к БКС " +
@@ -215,6 +217,7 @@ class SettingsViewModel @Inject constructor(
         return try {
             settingsRepository.saveToken(BrokerName.FINAM, cleanToken)
             (brokerManager.getBroker(BrokerName.FINAM) as? FinamBrokerApi)?.initialize(cleanToken)
+            brokerManager.refreshInitializationState()
             _uiState.update {
                 it.copy(
                     statusMessage = "Подключено к Finam",

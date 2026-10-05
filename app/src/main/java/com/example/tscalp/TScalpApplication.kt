@@ -55,7 +55,14 @@ class TScalpApplication : Application() {
                     BrokerName.TINVEST -> {
                         val tInvest = broker as? TInvestBrokerAPI ?: continue
                         try {
-                            val sandbox = settingsRepository.isSandboxMode()
+                            val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
+                            val (token, sandbox) = creds ?: run {
+                                AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
+                                continue
+                            }
+                            tInvest.initialize(token, sandbox)
+                            brokerManager.refreshInitializationState()
+
                             val accounts = tInvest.getAccounts(sandbox)
                             val savedAccountId = settingsRepository.loadDefaultAccountId(brokerName)
 
@@ -90,6 +97,7 @@ class TScalpApplication : Application() {
                             val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
                             try {
                                 (broker as? BcsBrokerApi)?.initialize(refreshToken, clientId)
+                                brokerManager.refreshInitializationState()
                             } catch (e: Exception) {
                                 AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS", e)
                             }
