@@ -91,7 +91,14 @@ class OrdersViewModel @Inject constructor(
     }
 
     init {
-        checkApiInitialization()
+        // Реагируем на изменение состояния инициализации брокеров.
+        // StateFlow отдаёт текущее значение сразу при подписке — аналог
+        // прежнего прямого вызова checkApiInitialization() в init.
+        viewModelScope.launch {
+            brokerManager.anyInitialized.collect { isInit ->
+                if (isInit) checkApiInitialization()
+            }
+        }
         // Фоновое обновление статусов каждые 5 минут
         viewModelScope.launch {
             restoreState()

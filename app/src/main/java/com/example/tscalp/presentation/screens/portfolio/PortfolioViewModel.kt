@@ -45,7 +45,13 @@ class PortfolioViewModel @Inject constructor(
     }
 
     init {
-        checkApiInitialization()
+        // Реагируем на изменение состояния инициализации брокеров.
+        // StateFlow отдаёт текущее значение сразу при подписке.
+        viewModelScope.launch {
+            brokerManager.anyInitialized.collect { isInit ->
+                if (isInit) checkApiInitialization()
+            }
+        }
         // Обновление статусов каждые 5 минут
         viewModelScope.launch {
             while (isActive) {
