@@ -1,6 +1,5 @@
 package com.example.tscalp.presentation.screens.portfolio
 
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,10 +11,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
-import com.example.tscalp.data.api.TInvestBrokerAPI
+import com.example.tscalp.data.repository.SettingsRepository
 import com.example.tscalp.data.api.SharedPositionStreamManager
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.di.BrokerManager
@@ -32,7 +30,7 @@ import com.example.tscalp.util.AppLogger
 class PortfolioViewModel @Inject constructor(
     private val repository: InvestRepository,
     private val brokerManager: BrokerManager,
-    private val sharedPrefs: SharedPreferences,
+    private val settingsRepository: SettingsRepository,
     private val positionStreamManager: SharedPositionStreamManager
 ) : ViewModel() {
 
@@ -64,10 +62,10 @@ class PortfolioViewModel @Inject constructor(
         }
     }
 
-    fun checkApiInitialization() {
+    suspend fun checkApiInitialization() {
         // проверка «есть ли хоть один инициализированный брокер»
         val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
-        val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
+        val sandbox = settingsRepository.isSandboxMode()
         _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
         if (isApiInit) {
             viewModelScope.launch { loadPortfolio() }
@@ -79,11 +77,11 @@ class PortfolioViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
 
-            val accountId = sharedPrefs.getString("TInvest_default_account", null) ?: run {
+            val accountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: run {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                 return@launch
             }
-            val sandbox = sharedPrefs.getBoolean("TInvest_sandbox", true)
+            val sandbox = settingsRepository.isSandboxMode()
 
             // Первичный запрос для немедленного отображения
             when (val result = repository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
@@ -176,7 +174,7 @@ class PortfolioViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
-            val sandboxMode = sharedPrefs.getBoolean("TInvest_sandbox", true)
+            val sandboxMode = settingsRepository.isSandboxMode()
 
             // Шаг 1: получить счета
             val accounts = when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
@@ -205,13 +203,13 @@ class PortfolioViewModel @Inject constructor(
                 return@launch
             }
 
-            val defaultAccountId = sharedPrefs.getString("TInvest_default_account", null)
+            val defaultAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
             val accountId = if (defaultAccountId != null && accounts.any { it.id == defaultAccountId }) {
                 defaultAccountId
             } else {
                 accounts.first().id
             }
-            AppLogger.d(TAG, "Пополнение счёта $accountId через \${BrokerName.TINVEST.displayName}")
+            AppLogger.d(TAG, "Пополнение счёта $accountId через ${BrokerName.TINVEST.displayName}")
 
             // Шаг 2: пополнить
             when (val result = repository.sandboxPayInResult(
