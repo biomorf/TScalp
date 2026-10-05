@@ -132,7 +132,7 @@
   записываем в `ROADMAP.md` / `ISSUES.md`.
 - Коммитить без проверки, что сборка проходит.
 - Использовать `android.util.Log` вместо `AppLogger`.
-- Использовать `SharedPreferences` напрямую — только через
+- Использовать `DataStore` напрямую — только через
   `SettingsRepository`.
 - Ходить из ViewModel к брокеру напрямую — только через
   `InvestRepository`.
