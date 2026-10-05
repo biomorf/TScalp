@@ -25,6 +25,9 @@ import com.example.tscalp.domain.models.BrokerName
 class SettingsRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
+    private companion object {
+        val CONFIRM_ORDERS_ENABLED = booleanPreferencesKey("confirm_orders_enabled")
+    }
 
     // ---------- Учётные данные брокеров ----------
 
@@ -46,17 +49,6 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs.remove(tokenKey(brokerName))
             prefs.remove(sandboxKey(brokerName))
-        }
-    }
-
-    suspend fun clearTradingState() {
-        dataStore.edit { prefs ->
-            prefs.remove(SELECTED_INSTRUMENT_UID)
-            prefs.remove(PAIRED_INSTRUMENT_UID)
-            prefs.remove(PAIR_TRADING_ENABLED)
-            prefs.remove(QUANTITY)
-            prefs.remove(PAIRED_MULTIPLIER)
-            prefs.remove(ORDER_TYPE)
         }
     }
 
@@ -124,14 +116,4 @@ class SettingsRepository @Inject constructor(
 
     private fun defaultAccountKey(brokerName: BrokerName) =
         stringPreferencesKey("${brokerName.key}_default_account")
-
-    private companion object {
-        val SELECTED_INSTRUMENT_UID = stringPreferencesKey("selected_instrument_uid")
-        val PAIRED_INSTRUMENT_UID = stringPreferencesKey("paired_instrument_uid")
-        val PAIR_TRADING_ENABLED = booleanPreferencesKey("pair_trading_enabled")
-        val QUANTITY = stringPreferencesKey("quantity")
-        val PAIRED_MULTIPLIER = stringPreferencesKey("paired_multiplier")
-        val ORDER_TYPE = stringPreferencesKey("order_type")
-        val CONFIRM_ORDERS_ENABLED = booleanPreferencesKey("confirm_orders_enabled")
-    }
 }

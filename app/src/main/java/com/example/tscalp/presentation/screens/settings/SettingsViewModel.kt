@@ -15,6 +15,7 @@ import com.example.tscalp.data.api.BcsBrokerApi
 import com.example.tscalp.data.api.FinamBrokerApi
 import com.example.tscalp.data.repository.InvestRepository
 import com.example.tscalp.data.repository.SettingsRepository
+import com.example.tscalp.data.repository.TradingStateRepository
 import com.example.tscalp.di.BrokerManager
 import com.example.tscalp.domain.models.BrokerAccount
 import com.example.tscalp.domain.models.BrokerName
@@ -38,6 +39,7 @@ data class SettingsUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
+    private val tradingStateRepository: TradingStateRepository,
     private val brokerManager: BrokerManager,
     private val repository: InvestRepository
 ) : ViewModel() {
@@ -83,7 +85,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.clearBrokerCredentials(brokerName)
             if (brokerName == BrokerName.TINVEST) {
-                settingsRepository.clearTradingState()
+                tradingStateRepository.clear()
             }
             _uiState.update {
                 when (brokerName) {
