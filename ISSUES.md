@@ -126,7 +126,57 @@ kill process. `CoroutineExceptionHandler` и `.catch { }` не
 at io.grpc.Status.asException(Status.java:547)
 at io.grpc.kotlin.ClientCalls$rpcImpl$1$1$1.onClose(ClientCalls.kt:264)
 at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
-at java.util.concurrent.ThreadPoolExecutor.runWorker```
+at java.util.concurrent.ThreadPoolExecutor.runWorker
+```
+
+---
+
+## Позиции портфеля не очищаются при выходе из аккаунта
+
+**Статус:** открыт. Низкий приоритет.
+
+**Симптом:** после «Отключить» в Настройках → Подключение → TInvest
+позиции в Портфеле продолжают отображаться. Цены по ним обновляются
+(polling раз в 5 секунд), P&L пересчитывается. При этом API уже
+не инициализирован — запросы уходят с невалидным токеном и падают
+в лог.
+
+**Причина:** при `clearBrokerCredentials(TINVEST)`:
+1. `SettingsRepository.clearBrokerCredentials` стирает токен из DataStore.
+2. `TradingStateRepository.clear()` стирает снимок торгового состояния.
+3. `OrdersViewModel.checkApiInitialization()` обновляет флаг
+   `isApiInitialized = false`.
+
+Но `PortfolioViewModel._uiState.positions` и `OrdersViewModel._uiState.portfolioPositions`
+**не сбрасываются**. Также не останавливаются активные корутины:
+- `PortfolioViewModel.priceUpdateJob` — цикл обновления цен.
+- `PortfolioViewModel` подписка на `SharedPositionStreamManager.flow`.
+- `OrdersViewModel.positionStreamJob` — то же.
+- `SharedPositionStreamManager.job` — общий стрим позиций продолжает
+  polling.
+
+**Последствия:**
+- Пользователь видит устаревшие данные с неверными ценами.
+- Лишняя нагрузка на сеть (запросы, которые всегда падают).
+- В логах — ошибки с невалидным токеном, шум.
+
+**Возможное решение:**
+1. `PortfolioViewModel` — при получении `anyInitialized == false`
+   очищать `positions`, `tradingStatuses`, `totalValue`, останавливать
+   `priceUpdateJob`.
+2. `OrdersViewModel` — аналогично очищать `portfolioPositions`, `lastSelectedInstruments`,
+   останавливать `positionStreamJob` и `priceStreamJob`.
+3. `SharedPositionStreamManager` — при получении пустого/невалидного
+   accountId останавливать polling. Возможно, нужен метод `reset()`,
+   который вызывается при logout.
+
+**Когда вернуться:** после DataStore/переименования. Не блокирует.
+
+**Связанные места:**
+- `PortfolioViewModel.checkApiInitialization`
+- `OrdersViewModel.checkApiInitialization`
+- `SharedPositionStreamManager.start` / `stop`
+- `SettingsViewModel.clearBrokerCredentials`
 
 ---
 
