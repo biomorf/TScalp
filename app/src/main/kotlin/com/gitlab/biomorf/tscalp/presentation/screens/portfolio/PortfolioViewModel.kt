@@ -17,6 +17,8 @@ import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.api.SharedPositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
+import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
@@ -32,12 +34,12 @@ class PortfolioViewModel @Inject constructor(
     private val repository: InvestRepository,
     private val brokerManager: BrokerManager,
     private val settingsRepository: SettingsRepository,
+    private val priceStreamManager: PriceStreamManager,
     private val positionStreamManager: SharedPositionStreamManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
-    private var priceUpdateJob: Job? = null
     private var positionStreamJob: Job? = null
 
     companion object {
@@ -50,6 +52,14 @@ class PortfolioViewModel @Inject constructor(
         viewModelScope.launch {
             brokerManager.anyInitialized.collect {
                 checkApiInitialization()
+            }
+        }
+        // Подписка на единый поток цен. Обновляет currentPrice / totalValue /
+        // priceChangePercent у соответствующей позиции. Набор uid задаётся
+        // через syncPriceInterest() после каждой загрузки портфеля.
+        viewModelScope.launch {
+            priceStreamManager.prices.collect { (uid, price) ->
+                updatePriceFromStream(uid, price)
             }
         }
         // Обновление статусов каждые 5 минут
@@ -72,13 +82,11 @@ class PortfolioViewModel @Inject constructor(
 
         if (isApiInit) {
             viewModelScope.launch { loadPortfolio() }
-            startPriceUpdates()
         } else {
-            // Logout: останавливаем фоновые задачи и очищаем состояние,
-            // чтобы UI не показывал устаревшие позиции.
-            priceUpdateJob?.cancel()
-            priceUpdateJob = null
+            // Logout: останавливаем фоновые задачи, снимаем интерес к ценам
+            // и очищаем состояние, чтобы UI не показывал устаревшие позиции.
             stopPositionUpdates()
+            priceStreamManager.clearInterest(PriceConsumer.PORTFOLIO)
             positionStreamManager.stop()
             _uiState.update {
                 it.copy(
@@ -124,6 +132,8 @@ class PortfolioViewModel @Inject constructor(
 
             // Запускаем (или перезапускаем) подписку на общий поток позиций
             startPositionUpdates(accountId)
+            // Обновляем интерес к ценам: набор uid мог измениться
+            syncPriceInterest()
         }
     }
 
@@ -146,6 +156,51 @@ class PortfolioViewModel @Inject constructor(
     private fun stopPositionUpdates() {
         positionStreamJob?.cancel()
         positionStreamJob = null
+    }
+
+    /**
+     * Собирает текущий набор uid из портфельных позиций и передаёт
+     * в PriceStreamManager. Рублёвый кэш (RUB000UTSTOM) исключается:
+     * его цена фиксирована на 1.0 и не идёт через биржевой стрим.
+     * Менеджер пересоздаст стрим только при фактическом изменении union.
+     */
+    private fun syncPriceInterest() {
+        val uids = _uiState.value.positions
+            .filter { it.ticker != "RUB000UTSTOM" }
+            .map { it.tscalpInstrumentId }
+            .toSet()
+        priceStreamManager.setInterest(PriceConsumer.PORTFOLIO, uids)
+    }
+
+    /**
+     * Применяет обновление цены из PriceStreamManager к позиции
+     * с соответствующим uid. Пересчитывает totalValue, priceChangePercent
+     * и суммарную стоимость портфеля. Для неизвестного uid — no-op.
+     */
+    private fun updatePriceFromStream(uid: String, price: Double) {
+        if (price <= 0.0) return
+        val current = _uiState.value.positions
+        val index = current.indexOfFirst { it.tscalpInstrumentId == uid }
+        if (index == -1) return
+        val old = current[index]
+        if (old.currentPrice == price) return  // нет изменений — не перерисовываем
+        val newPrice = price
+        val changePercent = if (old.currentPrice != 0.0) {
+            ((newPrice - old.currentPrice) / old.currentPrice) * 100.0
+        } else null
+        val updated = current.toMutableList()
+        updated[index] = old.copy(
+            currentPrice = newPrice,
+            totalValue = newPrice * old.quantity,
+            priceChangePercent = changePercent
+        )
+        val newTotalValue = updated.sumOf { it.totalValue }
+        _uiState.update { it.copy(positions = updated, totalValue = newTotalValue) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        priceStreamManager.clearInterest(PriceConsumer.PORTFOLIO)
     }
 
     private fun updatePortfolioItem(item: PositionStreamItem) {
@@ -266,63 +321,6 @@ class PortfolioViewModel @Inject constructor(
                     }
                 }
             }
-        }
-    }
-
-    private fun startPriceUpdates() {
-        priceUpdateJob?.cancel()
-        priceUpdateJob = viewModelScope.launch {
-            while (isActive) {
-                delay(5_000)
-                updatePrices()
-            }
-        }
-    }
-
-    private suspend fun updatePrices() {
-        val positions = _uiState.value.positions
-        if (positions.isEmpty()) return
-        val ids = positions
-            .filter { it.ticker != "RUB000UTSTOM" }
-            .map { it.tscalpInstrumentId }
-        if (ids.isEmpty()) return
-
-        val prices = when (val result = repository.getLastPricesResult(ids)) {
-            is AppResult.Success -> result.data
-            is AppResult.Failure -> {
-                AppLogger.w(TAG, "updatePrices failed: ${result.error.message}", result.error.cause)
-                return
-            }
-        }
-
-        val updatedPositions = positions.map { pos ->
-            if (pos.ticker == "RUB000UTSTOM") {
-                pos.copy(currentPrice = 1.0, totalValue = 1.0 * pos.quantity, priceChangePercent = null)
-            } else {
-                val freshPrice = prices[pos.tscalpInstrumentId]
-                val newPrice = if (freshPrice != null && freshPrice > 0.0) {
-                    freshPrice
-                } else {
-                    AppLogger.w(TAG, "Нет цены для тикера ${pos.ticker}")
-                    pos.currentPrice
-                }
-                val changePercent =
-                    if (pos.currentPrice != 0.0 && newPrice != pos.currentPrice) {
-                        ((newPrice - pos.currentPrice) / pos.currentPrice) * 100.0
-                    } else null
-                pos.copy(
-                    currentPrice = newPrice,
-                    totalValue = newPrice * pos.quantity,
-                    priceChangePercent = changePercent
-                )
-            }
-        }
-        val newTotalValue = updatedPositions.sumOf { it.totalValue }
-        _uiState.update {
-            it.copy(
-                positions = updatedPositions,
-                totalValue = newTotalValue
-            )
         }
     }
 

@@ -129,7 +129,10 @@ class PriceStreamManager @Inject constructor(
     private suspend fun runGrcpStream(union: Set<String>) {
         repository.subscribeLastPrices(BrokerName.TINVEST, union.toList())
             .catch { e -> AppLogger.e(TAG, "gRPC stream error", e) }
-            .collect { pair -> _prices.emit(pair) }
+            .collect { pair ->
+                AppLogger.d(TAG, "[gRPC] ${pair.first} = ${pair.second}")
+                _prices.emit(pair)
+            }
     }
 
     /**
@@ -150,7 +153,10 @@ class PriceStreamManager @Inject constructor(
             when (val result = repository.getLastPricesResult(union.toList())) {
                 is AppResult.Success -> {
                     result.data.forEach { (uid, price) ->
-                        if (price != null) _prices.emit(uid to price)
+                        if (price != null) {
+                            AppLogger.d(TAG, "[REST] $uid = $price")
+                            _prices.emit(uid to price)
+                        }
                     }
                 }
                 is AppResult.Failure -> {
