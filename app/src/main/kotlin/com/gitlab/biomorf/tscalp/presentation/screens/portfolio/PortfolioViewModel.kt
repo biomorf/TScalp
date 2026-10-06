@@ -38,6 +38,7 @@ class PortfolioViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PortfolioUiState())
     val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
     private var priceUpdateJob: Job? = null
+    private var positionStreamJob: Job? = null
 
     companion object {
         private const val TAG = "PortfolioViewModel"
@@ -77,6 +78,7 @@ class PortfolioViewModel @Inject constructor(
             // чтобы UI не показывал устаревшие позиции.
             priceUpdateJob?.cancel()
             priceUpdateJob = null
+            stopPositionUpdates()
             positionStreamManager.stop()
             _uiState.update {
                 it.copy(
@@ -120,14 +122,30 @@ class PortfolioViewModel @Inject constructor(
                 }
             }
 
-            // Гарантируем, что общий поток запущен
-            positionStreamManager.start(accountId)
+            // Запускаем (или перезапускаем) подписку на общий поток позиций
+            startPositionUpdates(accountId)
+        }
+    }
 
-            // Подписываемся на обновления
+    /**
+     * Запускает подписку на SharedPositionStreamManager.flow.
+     * Перед новой подпиской отменяет предыдущую — иначе каждый вызов
+     * loadPortfolio (init, refresh, payInSandbox) добавлял бы новый
+     * вечный коллектор к бесконечному SharedFlow.
+     */
+    private fun startPositionUpdates(accountId: String) {
+        stopPositionUpdates()
+        positionStreamManager.start(accountId)
+        positionStreamJob = viewModelScope.launch {
             positionStreamManager.flow.collect { item ->
                 updatePortfolioItem(item)
             }
         }
+    }
+
+    private fun stopPositionUpdates() {
+        positionStreamJob?.cancel()
+        positionStreamJob = null
     }
 
     private fun updatePortfolioItem(item: PositionStreamItem) {
