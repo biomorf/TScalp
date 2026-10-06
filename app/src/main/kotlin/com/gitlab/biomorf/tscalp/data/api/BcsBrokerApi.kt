@@ -346,7 +346,7 @@ class BcsBrokerApi : BrokerApi {
     override suspend fun checkTradeAvailability(
         accountId: String,
         tscalpInstrumentId: String,
-        uid: String?,
+        brokerUid: String?,
         direction: OrderDirection,
         quantity: Long
     ): TradeCheckResult = TradeCheckResult.Success

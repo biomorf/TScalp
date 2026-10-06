@@ -405,7 +405,7 @@ class OrdersViewModel @Inject constructor(
         val checkResult = when (val result = repository.checkTradeAvailabilityResult(
             brokerName = brokerName,
             accountId = accountId,
-            uid = tscalpId,
+            tscalpInstrumentId = tscalpId,
             direction = direction,
             quantity = quantity
         )) {

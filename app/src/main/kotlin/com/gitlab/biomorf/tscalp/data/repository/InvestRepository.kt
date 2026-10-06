@@ -56,8 +56,8 @@ class InvestRepository(
         }
 
     /**
-     * Последние цены по списку uid.
-     * Типизированный результат: AppResult.Success(Map<uid, price?>) или AppResult.Failure.
+     * Последние цены по списку tscalpInstrumentId.
+     * Типизированный результат: AppResult.Success(Map<tscalpInstrumentId, price?>) или AppResult.Failure.
      */
     suspend fun getLastPricesResult(ids: List<String>): AppResult<Map<String, Double?>> =
         withContext(Dispatchers.IO) {
@@ -144,7 +144,7 @@ class InvestRepository(
 
     /**
      * Статусы доступности инструментов.
-     * Типизированный результат: AppResult.Success(Map<uid, TradingAvailability>) или AppResult.Failure.
+     * Типизированный результат: AppResult.Success(Map<tscalpInstrumentId, TradingAvailability>) или AppResult.Failure.
      */
     suspend fun getTradingStatusesResult(
         brokerName: BrokerName,
@@ -225,7 +225,7 @@ class InvestRepository(
     suspend fun checkTradeAvailabilityResult(
         brokerName: BrokerName,
         accountId: String,
-        uid: String,
+        tscalpInstrumentId: String,
         direction: OrderDirection,
         quantity: Long
     ): AppResult<TradeCheckResult> = withContext(Dispatchers.IO) {
@@ -236,8 +236,8 @@ class InvestRepository(
         runCatchingAppResult(brokerName) {
             broker.checkTradeAvailability(
                 accountId = accountId,
-                tscalpInstrumentId = uid,
-                uid = uid,
+                tscalpInstrumentId = tscalpInstrumentId,
+                brokerUid = tscalpInstrumentId,
                 direction = direction,
                 quantity = quantity
             )

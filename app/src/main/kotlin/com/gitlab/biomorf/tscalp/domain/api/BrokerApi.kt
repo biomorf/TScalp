@@ -106,10 +106,16 @@ interface BrokerApi {
 
     suspend fun subscribeOrderState(accountId: String): Flow<OrderState>
 
+    /**
+     * @param tscalpInstrumentId универсальный идентификатор инструмента.
+     * @param brokerUid идентификатор инструмента в формате брокера
+     *        (для T-Invest равен tscalpInstrumentId; для других брокеров
+     *        может отличаться, например figi у BCS).
+     */
     suspend fun checkTradeAvailability(
         accountId: String,
         tscalpInstrumentId: String,
-        uid: String? = null,
+        brokerUid: String?,
         direction: OrderDirection,
         quantity: Long
     ): TradeCheckResult

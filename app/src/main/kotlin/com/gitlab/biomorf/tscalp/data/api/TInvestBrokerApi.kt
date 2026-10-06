@@ -100,12 +100,12 @@ class TInvestBrokerAPI(
     override suspend fun checkTradeAvailability(
         accountId: String,
         tscalpInstrumentId: String,
-        uid: String?,
+        brokerUid: String?,
         direction: OrderDirection,
         quantity: Long
     ): TradeCheckResult {
-        val resolvedUid = uid
-            ?: return TradeCheckResult.Error("Нет uid")
+        val resolvedUid = brokerUid
+            ?: return TradeCheckResult.Error("Нет brokerUid")
         return marketData.checkTradeAvailability(accountId, resolvedUid, direction, quantity)
     }
 
