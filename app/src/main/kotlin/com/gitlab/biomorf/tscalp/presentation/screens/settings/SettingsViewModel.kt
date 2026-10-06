@@ -13,7 +13,7 @@ import javax.inject.Inject
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.SharedPositionStreamManager
+import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
@@ -42,7 +42,7 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val tradingStateRepository: TradingStateRepository,
     private val brokerManager: BrokerManager,
-    private val positionStreamManager: SharedPositionStreamManager,
+    private val positionStreamManager: PositionStreamManager,
     private val repository: InvestRepository
 ) : ViewModel() {
 

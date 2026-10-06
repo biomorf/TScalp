@@ -13,7 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineExceptionHandler
 
-import com.gitlab.biomorf.tscalp.data.api.SharedPositionStreamManager
+import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
@@ -31,7 +31,7 @@ private val appScope = CoroutineScope(
 class TScalpApplication : Application() {
 
     @Inject
-    lateinit var positionStreamManager: SharedPositionStreamManager
+    lateinit var positionStreamManager: PositionStreamManager
 
     @Inject
     lateinit var brokerManager: BrokerManager

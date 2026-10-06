@@ -19,11 +19,11 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
 
 @Singleton
-class SharedPositionStreamManager @Inject constructor(
+class PositionStreamManager @Inject constructor(
     private val brokerManager: BrokerManager
 ) {
     companion object {
-        private const val TAG = "SharedPositionStream"
+        private const val TAG = "PositionStream"
     }
 
     private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)

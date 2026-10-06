@@ -18,7 +18,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 import com.gitlab.biomorf.tscalp.di.BrokerManager
-import com.gitlab.biomorf.tscalp.data.api.SharedPositionStreamManager
+import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.data.repository.SearchCache
@@ -57,7 +57,7 @@ class OrdersViewModel @Inject constructor(
     private val priceStreamManager: PriceStreamManager,
     private val calculateTradeDetails: CalculateTradeDetailsUseCase,
     private val prepareOrderRequest: PrepareOrderRequestUseCase,
-    private val positionStreamManager: SharedPositionStreamManager
+    private val positionStreamManager: PositionStreamManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrdersUiState())
@@ -854,7 +854,7 @@ class OrdersViewModel @Inject constructor(
         val accountId = _uiState.value.selectedAccountId ?: return
         positionStreamManager.start(accountId)
         positionStreamJob = viewModelScope.launch {
-            // Ошибки потока логирует сам SharedPositionStreamManager
+            // Ошибки потока логирует сам PositionStreamManager
             // через свой CoroutineExceptionHandler — сюда они не доходят.
             // .catch на SharedFlow смысла не имеет: поток не завершается
             // и не бросает исключения подписчику.

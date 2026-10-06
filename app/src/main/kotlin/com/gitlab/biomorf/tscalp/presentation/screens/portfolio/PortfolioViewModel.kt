@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
-import com.gitlab.biomorf.tscalp.data.api.SharedPositionStreamManager
+import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
@@ -35,7 +35,7 @@ class PortfolioViewModel @Inject constructor(
     private val brokerManager: BrokerManager,
     private val settingsRepository: SettingsRepository,
     private val priceStreamManager: PriceStreamManager,
-    private val positionStreamManager: SharedPositionStreamManager
+    private val positionStreamManager: PositionStreamManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PortfolioUiState())
@@ -138,7 +138,7 @@ class PortfolioViewModel @Inject constructor(
     }
 
     /**
-     * Запускает подписку на SharedPositionStreamManager.flow.
+     * Запускает подписку на PositionStreamManager.flow.
      * Перед новой подпиской отменяет предыдущую — иначе каждый вызов
      * loadPortfolio (init, refresh, payInSandbox) добавлял бы новый
      * вечный коллектор к бесконечному SharedFlow.
