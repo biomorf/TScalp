@@ -944,7 +944,7 @@ class OrdersViewModel @Inject constructor(
         val quantity = item.quantity
         if (quantity == 0L) return
 
-        AppLogger.d(TAG, "updatePositionPnl: uid=${item.instrumentUid}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
+        AppLogger.d(TAG, "updatePositionPnl: id=${item.tscalpInstrumentId}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
 
         val profitPercent = calculateProfitPercent(
             yield = yield,
@@ -955,7 +955,7 @@ class OrdersViewModel @Inject constructor(
 
         _uiState.update { state ->
             val positions = state.portfolioPositions.toMutableList()
-            val index = positions.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
+            val index = positions.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }
             if (index == -1) {
                 positions.add(item.toPortfolioPosition())
             } else {

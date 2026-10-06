@@ -53,7 +53,7 @@ class PositionStreamManager @Inject constructor(
                 return@launch
             }
             broker.subscribePositions(accountId).collect { item ->
-                AppLogger.d(TAG, "Элемент потока: ${item.instrumentUid}")
+                AppLogger.d(TAG, "Элемент потока: ${item.tscalpInstrumentId}")
                 _flow.emit(item)
             }
         }

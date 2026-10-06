@@ -2,7 +2,7 @@ package com.gitlab.biomorf.tscalp.domain.models
 
 data class PositionStreamItem(
     // Обязательные: без них позицию нельзя идентифицировать
-    val instrumentUid: String,
+    val tscalpInstrumentId: String,
     val brokerName: BrokerName,
     val ticker: String,
     val quantity: Long,
@@ -69,7 +69,7 @@ fun calculateProfitPercent(
 fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
     val price = currentPrice ?: 0.0
     return PortfolioPosition(
-        tscalpInstrumentId = instrumentUid,
+        tscalpInstrumentId = this.tscalpInstrumentId,
         brokerName = brokerName,
         name = ticker,
         ticker = ticker,

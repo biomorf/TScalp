@@ -236,7 +236,7 @@ class BcsBrokerApi : BrokerApi {
     }
 
     private fun convertToStreamItem(pos: PortfolioPosition) = PositionStreamItem(
-        instrumentUid = pos.tscalpInstrumentId,
+        tscalpInstrumentId = pos.tscalpInstrumentId,
         brokerName = BrokerName.BCS,
         ticker = pos.ticker,
         quantity = pos.quantity,

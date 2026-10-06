@@ -199,7 +199,7 @@ class TInvestMarketDataService(
 
     private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
         PositionStreamItem(
-            instrumentUid = pos.tscalpInstrumentId,
+            tscalpInstrumentId = pos.tscalpInstrumentId,
             brokerName = BrokerName.TINVEST,
             isin = pos.isin,
             ticker = pos.ticker,

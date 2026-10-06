@@ -210,9 +210,9 @@ class PortfolioViewModel @Inject constructor(
     }
 
     private fun updatePortfolioItem(item: PositionStreamItem) {
-        AppLogger.d(TAG, "updatePortfolioItem: tscalpInstrumentId=${item.instrumentUid} type=${item.instrumentType} pointValue=${item.pointValue}")
+        AppLogger.d(TAG, "updatePortfolioItem: id=${item.tscalpInstrumentId} type=${item.instrumentType} pointValue=${item.pointValue}")
         val current = _uiState.value.positions.toMutableList()
-        val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
+        val index = current.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }
         if (index == -1) {
             current.add(item.toPortfolioPosition())
         } else {
