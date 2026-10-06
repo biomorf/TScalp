@@ -20,6 +20,7 @@ import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.calculateProfitPercent
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -134,23 +135,25 @@ class PortfolioViewModel @Inject constructor(
         val current = _uiState.value.positions.toMutableList()
         val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
         if (index == -1) {
-            val profitPercent = item.averagePositionPrice?.let { avg ->
-                if (avg > 0) ((item.currentPrice ?: 0.0) - avg) / avg * 100.0 else null
-            }
-            current.add(item.toPortfolioPosition(profitPercent = profitPercent))
+            current.add(item.toPortfolioPosition())
         } else {
             val old = current[index]
             val newPrice = item.currentPrice ?: old.currentPrice
+            val newAvgPrice = item.averagePositionPrice ?: old.averagePrice
+            val newPointValue = item.pointValue ?: old.pointValue
             current[index] = old.copy(
                 quantity = item.quantity,
                 currentPrice = newPrice,
-                averagePrice = item.averagePositionPrice ?: old.averagePrice,
+                averagePrice = newAvgPrice,
                 totalValue = newPrice * item.quantity,
                 profit = item.expectedYield,
-                profitPercent = item.averagePositionPrice?.let { avg ->
-                    if (avg > 0) (newPrice - avg) / avg * 100.0 else null
-                },
-                pointValue = item.pointValue ?: old.pointValue,
+                profitPercent = calculateProfitPercent(
+                    yield = item.expectedYield,
+                    avgPrice = newAvgPrice,
+                    quantity = item.quantity,
+                    pointValue = newPointValue
+                ),
+                pointValue = newPointValue,
                 instrumentType = item.instrumentType,
                 isin = item.isin.ifBlank { old.isin },
                 classCode = item.classCode.ifBlank { old.classCode }

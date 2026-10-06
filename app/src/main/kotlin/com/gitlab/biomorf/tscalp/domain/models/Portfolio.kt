@@ -37,14 +37,36 @@ data class PortfolioPosition(
 )
 
 /**
- * Преобразует элемент потока позиций в доменную модель портфельной позиции.
+ * Прибыль/убыток в процентах от вложенных средств.
  *
- * Заполняет все поля, кроме profitPercent: он передаётся вызывающей стороной,
- * потому что формула отличается для разных потребителей
- * (PortfolioViewModel считает от разницы цен, OrdersViewModel — от абсолютного дохода).
- * Унификация формулы — отдельная задача (см. roadmap).
+ * Формула: yield / (avgPrice × quantity × pointValue) × 100.
+ *  - Для акций pointValue = 1 (или null → считаем 1.0),
+ *    знаменатель — avgPrice × quantity в рублях.
+ *  - Для фьючерсов avgPrice в пунктах, pointValue переводит
+ *    вложение в рубли; серверный yield уже в рублях.
+ *
+ * Возвращает null, если данных недостаточно для расчёта.
  */
-fun PositionStreamItem.toPortfolioPosition(profitPercent: Double? = null): PortfolioPosition {
+fun calculateProfitPercent(
+    yield: Double?,
+    avgPrice: Double?,
+    quantity: Long,
+    pointValue: Double?
+): Double? {
+    if (yield == null) return null
+    if (avgPrice == null || avgPrice <= 0.0) return null
+    if (quantity <= 0L) return null
+    val point = pointValue?.takeIf { it > 0.0 } ?: 1.0
+    val invested = avgPrice * quantity * point
+    if (invested <= 0.0) return null
+    return yield / invested * 100.0
+}
+
+/**
+ * Преобразует элемент потока позиций в доменную модель портфельной позиции.
+ * profitPercent считается универсально — см. calculateProfitPercent.
+ */
+fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
     val price = currentPrice ?: 0.0
     return PortfolioPosition(
         tscalpInstrumentId = instrumentUid,
@@ -56,7 +78,12 @@ fun PositionStreamItem.toPortfolioPosition(profitPercent: Double? = null): Portf
         averagePrice = averagePositionPrice,
         totalValue = price * quantity,
         profit = expectedYield,
-        profitPercent = profitPercent,
+        profitPercent = calculateProfitPercent(
+            yield = expectedYield,
+            avgPrice = averagePositionPrice,
+            quantity = quantity,
+            pointValue = pointValue
+        ),
         pointValue = pointValue,
         instrumentType = instrumentType,
         isin = isin,

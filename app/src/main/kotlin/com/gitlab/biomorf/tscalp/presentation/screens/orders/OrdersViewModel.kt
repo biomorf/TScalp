@@ -37,6 +37,7 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.calculateProfitPercent
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.map
@@ -926,16 +927,21 @@ class OrdersViewModel @Inject constructor(
 
         AppLogger.d(TAG, "updatePositionPnl: uid=${item.instrumentUid}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
 
-        val profitPercent = if (avgPrice != 0.0) (yield / (avgPrice * quantity)) * 100.0 else 0.0
+        val profitPercent = calculateProfitPercent(
+            yield = yield,
+            avgPrice = avgPrice,
+            quantity = quantity,
+            pointValue = item.pointValue
+        )
 
         _uiState.update { state ->
             val positions = state.portfolioPositions.toMutableList()
-            //AppLogger.d(TAG, "Current positions: ${positions.map { it.tscalpInstrumentId }}")
             val index = positions.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
             if (index == -1) {
-                positions.add(item.toPortfolioPosition(profitPercent = profitPercent))
+                positions.add(item.toPortfolioPosition())
             } else {
                 val old = positions[index]
+                val newPointValue = item.pointValue ?: old.pointValue
                 positions[index] = old.copy(
                     quantity = quantity,
                     currentPrice = item.currentPrice ?: old.currentPrice,
@@ -943,7 +949,7 @@ class OrdersViewModel @Inject constructor(
                     totalValue = (item.currentPrice ?: old.currentPrice) * quantity,
                     profit = yield,
                     profitPercent = profitPercent,
-                    pointValue = item.pointValue ?: old.pointValue,
+                    pointValue = newPointValue,
                     instrumentType = item.instrumentType
                 )
             }
