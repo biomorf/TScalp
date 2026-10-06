@@ -160,9 +160,9 @@ class PortfolioViewModel @Inject constructor(
     }
 
     /**
-     * Собирает текущий набор tscalpInstrumentId из портфельных позиций и передаёт
-     * в PriceStreamManager. Рублёвый кэш (RUB000UTSTOM) исключается:
-     * его цена фиксирована на 1.0 и не идёт через биржевой стрим.
+     * Собирает текущий набор tscalpInstrumentId из портфельных позиций
+     * и передаёт в PriceStreamManager. Рублёвый кэш (RUB000UTSTOM)
+     * исключается: его цена фиксирована на 1.0 и не идёт через биржевой стрим.
      * Менеджер пересоздаст стрим только при фактическом изменении union.
      */
     private fun syncPriceInterest() {
@@ -175,8 +175,9 @@ class PortfolioViewModel @Inject constructor(
 
     /**
      * Применяет обновление цены из PriceStreamManager к позиции
-     * с соответствующим tscalpInstrumentId. Пересчитывает totalValue, priceChangePercent
-     * и суммарную стоимость портфеля. Для неизвестного tscalpInstrumentId — no-op.
+     * с соответствующим tscalpInstrumentId. Пересчитывает totalValue,
+     * priceChangePercent и суммарную стоимость портфеля. Для
+     * неизвестного tscalpInstrumentId — no-op.
      */
     private fun updatePriceFromStream(update: PriceUpdate) {
         if (update.price <= 0.0) return

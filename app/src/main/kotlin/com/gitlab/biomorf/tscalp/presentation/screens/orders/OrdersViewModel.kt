@@ -905,7 +905,7 @@ class OrdersViewModel @Inject constructor(
     /**
      * Применяет обновление цены из PriceStreamManager к соответствующему
      * инструменту в UI: selectedInstrument или pairedInstrument.
-     * Для неизвестного uid — no-op.
+     * Для неизвестного tscalpInstrumentId — no-op.
      */
     private fun updateInstrumentPrice(update: PriceUpdate) {
         // Пока активен только TInvest — фильтрация по брокеру не нужна.

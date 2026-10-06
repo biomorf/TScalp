@@ -74,7 +74,7 @@ class PriceStreamManager @Inject constructor(
     /**
      * Регистрирует или обновляет интерес потребителя.
      * tscalpIds — набор `tscalpInstrumentId` (универсальные ключи
-     * инструментов, не брокерские uid).
+     * инструментов, не брокерские идентификаторы).
      * Если фактический union не изменился — стрим не трогаем.
      */
     fun setInterest(consumer: PriceConsumer, tscalpIds: Set<String>) {
@@ -90,7 +90,7 @@ class PriceStreamManager @Inject constructor(
     /**
      * Снимает интерес потребителя.
      * Если union опустел — останавливает стрим.
-     * uids — набор `tscalpInstrumentId`, а не брокерских uid.
+     * tscalpIds — набор `tscalpInstrumentId`, а не брокерских идентификаторов.
      */
     fun clearInterest(consumer: PriceConsumer) {
         val oldUnion = currentUnion()
@@ -149,7 +149,7 @@ class PriceStreamManager @Inject constructor(
      * стрим молчит, а polling продолжает доставлять последнюю
      * известную биржевую цену.
      *
-     * Null-значения отфильтровываем — если по какому-то uid цены
+     * Null-значения отфильтровываем — если по какому-то tscalpInstrumentId цены
      * нет, не эмитим. Ошибки логируем и продолжаем цикл: одна
      * неудачная итерация не должна останавливать polling.
      */
