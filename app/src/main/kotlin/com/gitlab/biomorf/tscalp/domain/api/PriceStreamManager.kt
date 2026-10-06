@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -12,13 +14,15 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Singleton
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
 
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
+import com.gitlab.biomorf.tscalp.domain.models.AppResult
 
 /**
  * Единый источник рыночных цен для всего приложения.
@@ -55,6 +59,9 @@ class PriceStreamManager @Inject constructor(
 
     /** Job gRPC-стрима. Пересоздаётся при изменении union. */
     private var streamJob: Job? = null
+
+    /** Job REST-polling. Пересоздаётся при изменении union. */
+    private var pollingJob: Job? = null
 
     private val scope = CoroutineScope(
         Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler { _, e ->
@@ -101,12 +108,15 @@ class PriceStreamManager @Inject constructor(
     private fun restart(union: Set<String>) {
         streamJob?.cancel()
         streamJob = null
+        pollingJob?.cancel()
+        pollingJob = null
         if (union.isEmpty()) {
             AppLogger.d(TAG, "Union empty, gRPC stream stopped")
             return
         }
         AppLogger.d(TAG, "Starting gRPC stream for ${union.size} uid(s)")
         streamJob = scope.launch { runGrcpStream(union) }
+        pollingJob = scope.launch { runPolling(union) }
     }
 
     /**
@@ -120,5 +130,33 @@ class PriceStreamManager @Inject constructor(
         repository.subscribeLastPrices(BrokerName.TINVEST, union.toList())
             .catch { e -> AppLogger.e(TAG, "gRPC stream error", e) }
             .collect { pair -> _prices.emit(pair) }
+    }
+
+    /**
+     * REST-опрос цен раз в 5 секунд.
+     *
+     * Работает параллельно с gRPC-стримом и служит fallback'ом,
+     * когда тиков от биржи нет (ночь, выходные, пауза торгов):
+     * стрим молчит, а polling продолжает доставлять последнюю
+     * известную биржевую цену.
+     *
+     * Null-значения отфильтровываем — если по какому-то uid цены
+     * нет, не эмитим. Ошибки логируем и продолжаем цикл: одна
+     * неудачная итерация не должна останавливать polling.
+     */
+    private suspend fun runPolling(union: Set<String>) {
+        while (currentCoroutineContext().isActive) {
+            delay(5_000)
+            when (val result = repository.getLastPricesResult(union.toList())) {
+                is AppResult.Success -> {
+                    result.data.forEach { (uid, price) ->
+                        if (price != null) _prices.emit(uid to price)
+                    }
+                }
+                is AppResult.Failure -> {
+                    AppLogger.w(TAG, "REST poll failed: ${result.error.message}", result.error.cause)
+                }
+            }
+        }
     }
 }
