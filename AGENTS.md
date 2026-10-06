@@ -103,6 +103,10 @@
   исключения на границах слоёв. Ошибки брокеров расшифровываются
   через `BrokerErrorMessages`.
 - **Логирование:** `AppLogger`, не `android.util.Log`.
+- **Цены** — только через `PriceStreamManager`. Не вызывать
+  `broker.subscribeLastPrices` и `repository.getLastPricesResult`
+  из ViewModel напрямую. Регистрировать интерес через
+  `setInterest(PriceConsumer, uids)`.
 
 ### Перед правками
 

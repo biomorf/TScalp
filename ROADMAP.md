@@ -97,83 +97,26 @@ PortfolioViewModel не учитывает pointValue.
 
 
 ---
-##################################################
 ###################################################
-## Единый источник цен (PriceStreamManager)
+## ✅ Единый источник цен (PriceStreamManager) — закрыто
 
-**Статус:** в работе. Разбито на 6 подкоммитов.
+Реализовано в серии из 6 подкоммитов:
+1. PriceConsumer enum + скелет PriceStreamManager
+2. Union + gRPC-стрим с пересозданием при смене union
+3. REST-fallback раз в 5 секунд
+4. Миграция OrdersViewModel
+5. Миграция PortfolioViewModel (+ фикс карточек в OrdersScreen:
+   цена берётся из uiState.currentPrice, а не из медленного
+   portfolioPositions)
+6. Переименование SharedPositionStreamManager → PositionStreamManager
 
-**Проблема:**
-Цена одного и того же инструмента обновляется на разных экранах
-по-разному:
-- Портфель: REST-polling `updatePrices` каждые 5 сек.
-- Заявки (выбранный инструмент): gRPC-стрим `subscribeLastPrices`
-  только при тиках биржи; в паузах замирает.
-- Оба экрана: `SharedPositionStreamManager` раз в 10 сек (позиции).
+Результат: единый SoT цен, обе ViewModel получают обновления
+из одного потока, gRPC для мгновенных тиков, REST-fallback для
+пауз биржи. Устраняет расхождение «Портфель живой, Заявки спят».
 
-Три источника, три частоты, дублирование логики в двух ViewModel.
-Визуально расходится: Портфель живой, Заявки спят.
-
-**Цель:** единый SoT цен. Один менеджер, одна частота, одна политика.
-Все ViewModel получают цены из `PriceStreamManager`.
-
-**Дизайн (утверждён):**
-
-Два независимых менеджера в `domain/api/`:
-- `PositionStreamManager` (текущий `SharedPositionStreamManager`)
-  — поток позиций по счёту.
-- `PriceStreamManager` (новый) — поток цен по набору инструментов.
-
-`PriceStreamManager` — модель потребителей:
-- `enum class PriceConsumer { PORTFOLIO, ORDERS }`
-- `Map<PriceConsumer, Set<uid>>` — интересы подписчиков
-- union пересчитывается при каждом `setInterest` / `clearInterest`
-- при фактическом изменении union — пересоздание gRPC-стрима
-  (не дельта-подписки: проще и работает у всех брокеров)
-- API: `prices: SharedFlow<Pair<uid, price>>` (replay=0),
-  `setInterest(consumer, uids)`, `clearInterest(consumer)`
-
-Два канала данных от брокера, оба эмитят в один `_prices`:
-1. gRPC-стрим `broker.subscribeLastPrices(union.toList())` — мгновенно.
-2. REST-fallback `delay(5_000) + repository.getLastPricesResult(union)`
-   — работает всегда, закрывает паузы биржи.
-
-**Что удаляется:**
-- `PortfolioViewModel`: поле `priceUpdateJob`, методы `updatePrices` /
-  `startPriceUpdates`, цикл `while (isActive) { delay(5_000); ... }`.
-- `OrdersViewModel`: поле `priceStreamJob`, методы `startPriceUpdates` /
-  `stopPriceUpdates`, прямой вызов `repository.subscribeLastPrices`.
-
-**Что добавляется в ViewModel:**
-- `init` — подписка на `priceStreamManager.prices.collect { (uid, price)
-  -> updatePrice(...) }`.
-- `syncPriceInterest()` — вызывает `setInterest` при изменении
-  релевантного набора uid.
-- `onCleared()` — `clearInterest`.
-
-**Что не делаем сейчас:**
-- Дельта-подписки (subscribe/unsubscribe без пересоздания стрима).
-- Дедупликация REST + gRPC (если цена совпала — не проблема).
-- Управление фоном (Doze сам справляется).
-
-**План подкоммитов:**
-
-| # | Что | Файлы |
-|---|---|---|
-| 1 | `PriceConsumer` enum + скелет `PriceStreamManager` (заглушки) | 2 новых файла |
-| 2 | Union + gRPC-стрим, пересоздание при смене union | PriceStreamManager |
-| 3 | REST-fallback в параллельном цикле | PriceStreamManager |
-| 4 | Миграция `OrdersViewModel` | OrdersViewModel |
-| 5 | Миграция `PortfolioViewModel` | PortfolioViewModel |
-| 6 | Переименовать `SharedPositionStreamManager` → `PositionStreamManager` | 1 файл |
-
-Каждый подкоммит — зелёная сборка, 74 теста.
-
-**Когда:** до релиза. После завершения — обновить эту запись
-(удалить или пометить «закрыто»).
-
-**Причина приоритета:** устраняет архитектурное расхождение и утечку
-логики обновления по двум ViewModel.
+Осталось на потом (ISSUES.md):
+- брокер в логах PriceStreamManager
+- рефкаунт и lifecycle-политика при сворачивании
 
 
 

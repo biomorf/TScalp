@@ -223,39 +223,6 @@ ViewModel и отменять его перед каждым `loadPortfolio`. Л
 
 
 
----
-#################################################
-## Polling позиций не останавливается при уходе приложения в фон
-
-**Статус:** открыт. Средний приоритет.
-
-**Симптом:** `SharedPositionStreamManager` продолжает polling
-(positionStreamManager.flow эмитит элементы, PortfolioViewModel
-и OrdersViewModel получают их и обновляют свои state) даже
-когда приложение свёрнуто. Logcat показывает `updatePortfolioItem`
-в фоне.
-
-**Причина:**
-- SharedPositionStreamManager — @Singleton, живёт в собственном
-  CoroutineScope, не привязан к lifecycle.
-- PortfolioScreen не останавливает подписку при ON_PAUSE
-  (в OrdersScreen есть DisposableEffect с ON_PAUSE → stopPriceUpdates,
-  но он не трогает positionStreamManager, потому что тот общий).
-
-**Возможное решение:**
-- Подписаться на ProcessLifecycleOwner (androidx.lifecycle:lifecycle-process).
-  ON_STOP → positionStreamManager.stop().
-  ON_START → перезапустить стрим, если есть активный accountId.
-- В SharedPositionStreamManager хранить последний accountId,
-  чтобы рестарт шёл на тот же счёт.
-- Альтернатива: refcounting подписчиков + Lifecycle.repeatOnLifecycle(STARTED)
-  в каждом ViewModel — сложнее, но точнее (см. задачу «Единый источник
-  цен» в ROADMAP).
-
-**Когда вернуться:** вместе с задачей «Единый источник цен» — там
-всё равно будет переработка SharedPositionStreamManager и Lifecycle.
-
-
 
 ---
 #################################################
