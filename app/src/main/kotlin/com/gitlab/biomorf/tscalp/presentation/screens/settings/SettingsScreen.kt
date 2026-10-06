@@ -39,8 +39,6 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrdersViewModel
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrdersUiState
 import com.gitlab.biomorf.tscalp.BuildConfig
 
 
@@ -108,9 +106,6 @@ fun SettingsScreen() {
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerSettingsContent(onBack: () -> Unit) {
-    val ordersViewModel: OrdersViewModel = hiltViewModel()
-    val uiState by ordersViewModel.uiState.collectAsState()
-
     val settingsViewModel: SettingsViewModel = hiltViewModel()
 
     val brokerNames = remember { settingsViewModel.getAvailableBrokerNames() }
@@ -158,7 +153,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 userScrollEnabled = true
             ) { page ->
                 when (brokerNames[page]) {
-                    BrokerName.TINVEST -> TInvestSettingsPanel(ordersViewModel, uiState)
+                    BrokerName.TINVEST -> TInvestSettingsPanel()
                     BrokerName.BCS -> BcsSettingsPanel()
                     BrokerName.FINAM -> FinamSettingsPanel()
                 }
@@ -169,7 +164,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiState) {
+fun TInvestSettingsPanel() {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()
 
@@ -204,7 +199,7 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
         defaultAccountId = settingsUiState.defaultAccountIdTInvest
     }
 
-    val isConnected = uiState.isApiInitialized && settingsUiState.tInvestConnected
+    val isConnected = settingsUiState.anyApiInitialized && settingsUiState.tInvestConnected
 
     // При подключении/изменении режима перезагружаем счета
     LaunchedEffect(isConnected, sandboxMode) {
@@ -262,7 +257,6 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                     Button(
                         onClick = {
                             settingsViewModel.clearBrokerCredentials(BrokerName.TINVEST)
-                            ordersViewModel.checkApiInitialization()
                             token = ""
                             statusMessage = "Подключение к Т‑Инвестициям разорвано"
                             isError = false
@@ -277,7 +271,6 @@ fun TInvestSettingsPanel(ordersViewModel: OrdersViewModel, uiState: OrdersUiStat
                             scope.launch {
                                 val success = settingsViewModel.initializeTInvest(token, sandboxMode)
                                 if (success) {
-                                    ordersViewModel.checkApiInitialization()
                                     token = ""
                                     statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
                                     isError = false

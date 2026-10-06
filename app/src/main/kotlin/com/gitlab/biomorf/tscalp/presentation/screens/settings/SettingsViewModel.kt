@@ -31,6 +31,7 @@ data class SettingsUiState(
     val tInvestConnected: Boolean = false,
     val bcsConnected: Boolean = false,
     val finamConnected: Boolean = false,
+    val anyApiInitialized: Boolean = false,
     val defaultAccountIdTInvest: String = "",
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
@@ -61,6 +62,26 @@ class SettingsViewModel @Inject constructor(
                     finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
                     defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: ""
                 )
+            }
+        }
+    }init {
+        // Первичная синхронизация состояния с DataStore
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isSandboxMode = settingsRepository.isSandboxMode(),
+                    isConfirmOrdersEnabled = settingsRepository.isConfirmOrdersEnabled(),
+                    tInvestConnected = settingsRepository.hasSavedToken(BrokerName.TINVEST),
+                    bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
+                    finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
+                    defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: ""
+                )
+            }
+        }
+        // Реактивный флаг «есть ли хотя бы один инициализированный брокер»
+        viewModelScope.launch {
+            brokerManager.anyInitialized.collect { isInit ->
+                _uiState.update { it.copy(anyApiInitialized = isInit) }
             }
         }
     }
