@@ -36,9 +36,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.*
@@ -64,19 +61,6 @@ fun OrdersScreen() {
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showOrdersListDialog by remember { mutableStateOf(false) }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.startPriceUpdates()
-            } else if (event == Lifecycle.Event.ON_PAUSE) {
-                viewModel.stopPriceUpdates()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     LaunchedEffect(uiState.statusMessage) {
         if (uiState.statusMessage != null && !uiState.isError) {

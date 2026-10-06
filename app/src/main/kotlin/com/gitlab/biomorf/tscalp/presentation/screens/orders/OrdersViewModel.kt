@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
@@ -18,14 +17,15 @@ import kotlinx.coroutines.CancellationException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
+import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.data.api.SharedPositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.data.repository.SearchCache
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
-import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
+import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -36,6 +36,7 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
+import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.calculateProfitPercent
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
@@ -53,6 +54,7 @@ class OrdersViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val tradingStateRepository: TradingStateRepository,
     private val brokerManager: BrokerManager,
+    private val priceStreamManager: PriceStreamManager,
     private val calculateTradeDetails: CalculateTradeDetailsUseCase,
     private val prepareOrderRequest: PrepareOrderRequestUseCase,
     private val positionStreamManager: SharedPositionStreamManager
@@ -62,7 +64,6 @@ class OrdersViewModel @Inject constructor(
     val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
     private var searchJob: Job? = null
     private var pairSearchJob: Job? = null
-    private var priceStreamJob: Job? = null
     private var positionStreamJob: Job? = null
     // Флаги для отображения диалога выбора брокера для основного и парного поиска
     val showSearchBrokerDialog = mutableStateOf(false)
@@ -94,6 +95,15 @@ class OrdersViewModel @Inject constructor(
                 _uiState.update { it.copy(confirmOrdersEnabled = enabled) }
             }
         }
+        // Подписка на единый поток цен. Обновляет currentPrice /
+        // pairCurrentPrice / selectedPriceChangePercent. Набор инструментов
+        // задаётся через syncPriceInterest() при изменении
+        // selectedInstrument / pairedInstrument.
+        viewModelScope.launch {
+            priceStreamManager.prices.collect { (uid, price) ->
+                updateInstrumentPrice(uid, price)
+            }
+        }
         // Фоновое обновление статусов каждые 5 минут
         viewModelScope.launch {
             restoreState()
@@ -115,11 +125,12 @@ class OrdersViewModel @Inject constructor(
             if (brokerManager.getDefaultBroker().isInitialized) {
                 loadAccounts()
             }
-            startPriceUpdates()
+            syncPriceInterest()
         } else {
-            // Logout: останавливаем фоновые задачи и очищаем состояние.
-            // stopPriceUpdates() уже вызывает stopPositionUpdates() внутри.
-            stopPriceUpdates()
+            // Logout: останавливаем фоновые задачи, снимаем интерес к ценам
+            // и очищаем состояние.
+            stopPositionUpdates()
+            priceStreamManager.clearInterest(PriceConsumer.ORDERS)
             positionStreamManager.stop()
             _uiState.update {
                 it.copy(
@@ -166,7 +177,7 @@ class OrdersViewModel @Inject constructor(
                 val pointVal = (instrument as? FutureUi)?.pointValue
                 _uiState.update { it.copy(currentPointValue = pointVal) }
 
-                startPriceUpdates()
+                syncPriceInterest()
             }
         }
 
@@ -182,7 +193,7 @@ class OrdersViewModel @Inject constructor(
 
                 // если не был запущен ценовой стрим для основного, запустим сейчас
                 if (_uiState.value.selectedInstrument != null) {
-                    startPriceUpdates()
+                    syncPriceInterest()
                 }
             }
         }
@@ -344,7 +355,7 @@ class OrdersViewModel @Inject constructor(
             updateTradeDetails()
 
             // 5. Запускаем стрим для реактивного обновления цены
-            startPriceUpdates()
+            syncPriceInterest()
             startPositionUpdates()
             saveState()
         }
@@ -360,6 +371,7 @@ class OrdersViewModel @Inject constructor(
                 isPriceLoading = false
             )
         }
+        syncPriceInterest()
     }
 
     fun setSearchActive(active: Boolean) {
@@ -722,6 +734,7 @@ class OrdersViewModel @Inject constructor(
             }
         }
         viewModelScope.launch { saveState() }
+        syncPriceInterest()
     }
 
     fun onPairSearchQueryChanged(query: String) {
@@ -760,7 +773,7 @@ class OrdersViewModel @Inject constructor(
 
     fun onPairedInstrumentSelected(instrument: InstrumentUi) {
         _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
-        startPriceUpdates()   // перезапускаем стрим для обновления цен обоих инструментов
+        syncPriceInterest()   // обновляем интерес к ценам обоих инструментов
         viewModelScope.launch {
             val price = when (val pricesResult = repository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
                 is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
@@ -786,6 +799,7 @@ class OrdersViewModel @Inject constructor(
 
     fun clearPairSearch() {
         _uiState.update { it.copy(pairSearchQuery = "", pairSearchResults = emptyList(), pairedInstrument = null) }
+        syncPriceInterest()
     }
 
     fun onPairedMultiplierChanged(value: String) {
@@ -815,53 +829,6 @@ class OrdersViewModel @Inject constructor(
         _uiState.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
         updateTradeDetails()
         viewModelScope.launch { saveState() }
-    }
-
-    fun startPriceUpdates() {
-        stopPriceUpdates()
-        val state = _uiState.value
-
-        val idToTicker = mutableMapOf<String, String>()       // tscalpInstrumentId → ticker
-        state.selectedInstrument?.let { idToTicker[it.tscalpInstrumentId] = it.ticker }
-        state.pairedInstrument?.let { idToTicker[it.tscalpInstrumentId] = it.ticker }
-
-        if (idToTicker.isEmpty()) return
-
-        val ids = idToTicker.keys.toList()
-
-        viewModelScope.launch {
-            priceStreamJob = launch {
-                repository.subscribeLastPrices(BrokerName.TINVEST, ids)
-                    // ids — это tscalpInstrumentId, которые для Т‑Инвестиций равны figi
-                    .catch { e -> AppLogger.e(TAG, "Price stream error", e) }
-                    .collect { (id, price) ->
-                        val ticker = idToTicker[id] ?: return@collect
-                        AppLogger.d(TAG, "Цена для $ticker: $price")
-                        _uiState.update { state ->
-                            val oldPrice = state.currentPrice
-                            val newPercent = if (oldPrice != null && oldPrice != 0.0) {
-                                ((price - oldPrice) / oldPrice) * 100.0
-                            } else null
-                            when (ticker) {
-                                state.selectedInstrument?.ticker -> state.copy(
-                                    currentPrice = price,
-                                    selectedPriceChangePercent = newPercent
-                                )
-                                state.pairedInstrument?.ticker -> state.copy(
-                                    pairCurrentPrice = price
-                                )
-                                else -> state
-                            }
-                        }
-                    }
-            }
-        }
-    }
-
-    fun stopPriceUpdates() {
-        priceStreamJob?.cancel()
-        priceStreamJob = null
-        stopPositionUpdates()
     }
 
     private suspend fun updateTradingStatuses(ids: List<String>) {
@@ -917,6 +884,51 @@ class OrdersViewModel @Inject constructor(
     fun stopPositionUpdates() {
         positionStreamJob?.cancel()
         positionStreamJob = null
+    }
+
+    /**
+     * Собирает текущий набор uid (selectedInstrument + pairedInstrument)
+     * и передаёт в PriceStreamManager. Менеджер пересоздаст стрим только
+     * при фактическом изменении union.
+     */
+    private fun syncPriceInterest() {
+        val state = _uiState.value
+        val uids = buildSet {
+            state.selectedInstrument?.let { add(it.tscalpInstrumentId) }
+            state.pairedInstrument?.let { add(it.tscalpInstrumentId) }
+        }
+        priceStreamManager.setInterest(PriceConsumer.ORDERS, uids)
+    }
+
+    /**
+     * Применяет обновление цены из PriceStreamManager к соответствующему
+     * инструменту в UI: selectedInstrument или pairedInstrument.
+     * Для неизвестного uid — no-op.
+     */
+    private fun updateInstrumentPrice(uid: String, price: Double) {
+        _uiState.update { state ->
+            when (uid) {
+                state.selectedInstrument?.tscalpInstrumentId -> {
+                    val oldPrice = state.currentPrice
+                    val newPercent = if (oldPrice != null && oldPrice != 0.0) {
+                        ((price - oldPrice) / oldPrice) * 100.0
+                    } else null
+                    state.copy(
+                        currentPrice = price,
+                        selectedPriceChangePercent = newPercent
+                    )
+                }
+                state.pairedInstrument?.tscalpInstrumentId -> {
+                    state.copy(pairCurrentPrice = price)
+                }
+                else -> state
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        priceStreamManager.clearInterest(PriceConsumer.ORDERS)
     }
 
     private fun updatePositionPnl(item: PositionStreamItem) {
