@@ -1,5 +1,18 @@
 # ISSUES
 
+Известные проблемы и отложенные решения проекта TScalp.
+
+**Формат записи:**
+- **Статус:** открыт / отложен / решён
+- **Симптом:** краткое описание
+- **Причина:** почему возникает
+- **Решение:** что делать / что сделано
+- **Когда вернуться:** триггер для возврата
+
+Справочные документы:
+- `docs/streams.md` — работа со стримами T-Invest API
+- `docs/gradle-setup.md` — настройка Gradle в Android Studio
+
 ---
 
 ## Шаблон для новых записей
@@ -12,20 +25,7 @@
 **Причина:** ...
 **Решение:** ...
 **Когда вернуться:** ...
-
-Известные проблемы и отложенные решения проекта TScalp.
 ```
-
-**Формат записи:**
-- **Статус:** открыт / отложен / решён
-- **Симптом:** краткое описание
-- **Причина:** почему возникает
-- **Решение:** что делать / что сделано
-- **Когда вернуться:** триггер для возврата
-
-Справочные документы:
-- `docs/streams.md` — работа со стримами T-Invest API
-- `docs/gradle-setup.md` — настройка Gradle в Android Studio
 
 ---
 
@@ -56,8 +56,8 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
    (лог `postOrder request fields`). Разницы нет.
 
 **Вывод:** клиентский код корректен, ошибка на стороне API —
-сервер не возвращает `postOrder response` (запрос отклоняется до
-обработки).
+сервер не возвращает `postOrder response` (запрос отклоняется
+до обработки).
 
 **Дальнейшие шаги:**
 - Обратиться в поддержку Т-Инвестиций с дампом `PostOrderRequest`
@@ -83,7 +83,7 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 отсутствует в `kotlin-sdk-grpc-core:1.48.1`, либо метод требует
 отдельных прав.
 
-**Текущее решение:** polling через `SharedPositionStreamManager`
+**Текущее решение:** polling через `PositionStreamManager`
 с периодом 10 секунд. P&L корректно отображается с задержкой.
 
 **Детали реализации и попыток:** `docs/streams.md`.
@@ -116,101 +116,27 @@ kill process. `CoroutineExceptionHandler` и `.catch { }` не
 **Почему отложено:** перехват gRPC-исключений скроет настоящие
 сетевые проблемы от AppMetrica.
 
-**Когда вернуться:** после завершения миграции на `AppResult`
-(закрыто). Большинство gRPC-вызовов обёрнуто в
-`runCatchingAppResult`, число «висячих» колбэков снизилось.
-Оценить необходимость guard для оставшихся.
+**Когда вернуться:** если такие падения начнут появляться в
+AppMetrica на реальных устройствах. Пока статистика чистая —
+не трогаем.
 
 **Связанные логи:**
-```19:55:30.743 AppMetrica: Unhandled exception received:
+19:55:30.743 AppMetrica: Unhandled exception received:
 at io.grpc.Status.asException(Status.java:547)
 at io.grpc.kotlin.ClientCalls$rpcImpl$1$1$1.onClose(ClientCalls.kt:264)
 at io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:133)
 at java.util.concurrent.ThreadPoolExecutor.runWorker
-```
 
 ---
 
-## Позиции портфеля не очищаются при выходе из аккаунта
+## PositionStreamManager игнорирует смену accountId
 
 **Статус:** открыт. Низкий приоритет.
 
-**Симптом:** после «Отключить» в Настройках → Подключение → TInvest
-позиции в Портфеле продолжают отображаться. Цены по ним обновляются
-(polling раз в 5 секунд), P&L пересчитывается. При этом API уже
-не инициализирован — запросы уходят с невалидным токеном и падают
-в лог.
-
-**Причина:** при `clearBrokerCredentials(TINVEST)`:
-1. `SettingsRepository.clearBrokerCredentials` стирает токен из DataStore.
-2. `TradingStateRepository.clear()` стирает снимок торгового состояния.
-3. `OrdersViewModel.checkApiInitialization()` обновляет флаг
-   `isApiInitialized = false`.
-
-Но `PortfolioViewModel._uiState.positions` и `OrdersViewModel._uiState.portfolioPositions`
-**не сбрасываются**. Также не останавливаются активные корутины:
-- `PortfolioViewModel.priceUpdateJob` — цикл обновления цен.
-- `PortfolioViewModel` подписка на `SharedPositionStreamManager.flow`.
-- `OrdersViewModel.positionStreamJob` — то же.
-- `SharedPositionStreamManager.job` — общий стрим позиций продолжает
-  polling.
-
-**Последствия:**
-- Пользователь видит устаревшие данные с неверными ценами.
-- Лишняя нагрузка на сеть (запросы, которые всегда падают).
-- В логах — ошибки с невалидным токеном, шум.
-
-**Возможное решение:**
-1. `PortfolioViewModel` — при получении `anyInitialized == false`
-   очищать `positions`, `tradingStatuses`, `totalValue`, останавливать
-   `priceUpdateJob`.
-2. `OrdersViewModel` — аналогично очищать `portfolioPositions`, `lastSelectedInstruments`,
-   останавливать `positionStreamJob` и `priceStreamJob`.
-3. `SharedPositionStreamManager` — при получении пустого/невалидного
-   accountId останавливать polling. Возможно, нужен метод `reset()`,
-   который вызывается при logout.
-
-**Когда вернуться:** после DataStore/переименования. Не блокирует.
-
-**Связанные места:**
-- `PortfolioViewModel.checkApiInitialization`
-- `OrdersViewModel.checkApiInitialization`
-- `SharedPositionStreamManager.start` / `stop`
-- `SettingsViewModel.clearBrokerCredentials`
-
----
-## Накопление collect'ов на SharedPositionStreamManager.flow
-
-**Статус:** открыт. Низкий приоритет.
-
-**Симптом:** при каждом `loadPortfolio` (вызывается из
-checkApiInitialization, refresh из ON_RESUME, payInSandbox)
-создаётся новый коллектор `positionStreamManager.flow.collect { ... }`.
-Старые не отменяются. При длительной работе с частыми
-переключениями экрана количество коллекторов растёт.
-
-**Причина:** `loadPortfolio` — launch без сохранения Job'а и без
-отмены предыдущего; каждый вызов `positionStreamManager.flow.collect`
-запускает новую долгоживущую корутину.
-
-**Возможное решение:** хранить `portfolioStreamJob: Job?` как поле
-ViewModel и отменять его перед каждым `loadPortfolio`. Либо
-вынести collector из `loadPortfolio` в `startPositionUpdates`,
-симметрично OrdersViewModel.
-
-**Когда вернуться:** при следующем рефакторинге PortfolioViewModel.
-
-
-
----
-## SharedPositionStreamManager игнорирует смену accountId
-
-**Статус:** открыт. Низкий приоритет.
-
-**Симптом:** `SharedPositionStreamManager.start(accountId)` возвращается
+**Симптом:** `PositionStreamManager.start(accountId)` возвращается
 сразу, если job уже активен (`if (job?.isActive == true) return`).
-При переключении на другой счёт в настройках поток продолжает polling
-старый accountId.
+При переключении на другой счёт в настройках поток продолжает
+polling старый accountId.
 
 **Причина:** метод идемпотентен, но не различает «тот же счёт» и
 «другой счёт».
@@ -218,14 +144,11 @@ ViewModel и отменять его перед каждым `loadPortfolio`. Л
 **Возможное решение:** запоминать текущий accountId в поле и
 перезапускать job при его смене.
 
-**Когда вернуться:** при работе над единым источником цен для
-всех вкладок (см. ROADMAP).
-
-
-
+**Когда вернуться:** при работе над мультисчётностью (если
+появится UI для переключения между счетами одного брокера).
 
 ---
-#################################################
+
 ## Показывать брокера в логах PriceStreamManager
 
 **Статус:** открыт. Низкий приоритет.
@@ -247,8 +170,4 @@ ViewModel и отменять его перед каждым `loadPortfolio`. Л
 **Когда вернуться:** при переходе на мультиброкерность в
 заявках/портфеле.
 
-
-
-
 ---
-###################################################
