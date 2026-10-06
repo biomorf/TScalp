@@ -30,6 +30,7 @@ class PositionStreamManager @Inject constructor(
     val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
 
     private var job: Job? = null
+    private var currentAccountId: String? = null
     private val scope = CoroutineScope(
         Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler { _, e ->
             AppLogger.e(TAG, "Uncaught error in position stream", e)
@@ -38,14 +39,19 @@ class PositionStreamManager @Inject constructor(
 
     /**
      * Запускает единый источник обновлений позиций.
-     * Вызывается один раз при инициализации приложения или после смены счёта.
+     * Идемпотентен для одного и того же accountId. При смене счёта —
+     * перезапускает поток (иначе polling продолжит ходить по старому счёту).
      */
     fun start(accountId: String) {
-        if (job?.isActive == true) {
-            AppLogger.d(TAG, "Поток позиций уже запущен")
+        if (job?.isActive == true && currentAccountId == accountId) {
+            AppLogger.d(TAG, "Поток позиций уже запущен для $accountId")
             return
         }
+        if (currentAccountId != accountId) {
+            AppLogger.d(TAG, "Перезапуск потока позиций: $currentAccountId → $accountId")
+        }
         job?.cancel()
+        currentAccountId = accountId
         job = scope.launch {
             val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
             if (broker == null || !broker.isInitialized) {
@@ -63,6 +69,7 @@ class PositionStreamManager @Inject constructor(
     fun stop() {
         job?.cancel()
         job = null
+        currentAccountId = null
         // Сбрасываем replay-кэш, чтобы новые подписчики
         // не получили устаревший элемент от прошлой сессии.
         _flow.resetReplayCache()
