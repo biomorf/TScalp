@@ -9,6 +9,28 @@ val localProps = Properties().apply {
 }
 val appmetricaKey: String = localProps.getProperty("appmetrica.apiKey", "")
 
+// Keystore для подписи release. Файл не в git; в CI генерируется job'ом.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val hasReleaseSigning: Boolean = keystoreProps.getProperty("storeFile") != null
+
+// versionName для релиза — из -PreleaseVersionName=1.0.0 (CI).
+// Локально null → debug и экспериментальные release получают timestamp-версию.
+val releaseVersionName: String? = project.findProperty("releaseVersionName") as String?
+
+// versionCode из semver: 1.2.3 → 10203. Для сборок без явной версии — 1.
+val computedVersionCode: Int = releaseVersionName
+    ?.split(".")
+    ?.takeIf { it.size == 3 }
+    ?.let { (major, minor, patch) ->
+        (major.toIntOrNull() ?: 0) * 10_000 +
+                (minor.toIntOrNull() ?: 0) * 100 +
+                (patch.toIntOrNull() ?: 0)
+    }
+    ?: 1
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -21,13 +43,25 @@ android {
     namespace = "com.gitlab.biomorf.tscalp"
     compileSdk = 36
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.gitlab.biomorf.tscalp"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "1." + buildTime()   // теперь buildTime() вызывается на этапе конфигурации,
-                                           // но при каждом новом запуске Gradle даст свежее время.
+        versionCode = computedVersionCode
+        // теперь buildTime() вызывается на этапе конфигурации,
+        // но при каждом новом запуске Gradle даст свежее время.
+        versionName = releaseVersionName ?: ("1." + buildTime())
         buildConfigField("String", "APPMETRICA_API_KEY", "\"$appmetricaKey\"")
     }
 
@@ -41,6 +75,9 @@ android {
                     getDefaultProguardFile("proguard-android-optimize.txt"),
                     "proguard-rules.pro"
                 )
+                if (hasReleaseSigning) {
+                    signingConfig = signingConfigs.getByName("release")
+                }
             }
     }
 

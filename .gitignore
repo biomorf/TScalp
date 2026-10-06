@@ -49,6 +49,8 @@ deploymentTargetDropDown.xml
 render.experimental.xml
 
 # Keystore files
+# Signing (никогда не коммитим)
+keystore.properties
 *.jks
 *.keystore
 
