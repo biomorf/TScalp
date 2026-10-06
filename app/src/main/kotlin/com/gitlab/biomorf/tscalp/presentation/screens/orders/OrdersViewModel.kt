@@ -42,6 +42,7 @@ import com.gitlab.biomorf.tscalp.domain.models.calculateProfitPercent
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.map
+import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.util.formatCurrency
 import com.gitlab.biomorf.tscalp.util.toAppError
 import com.gitlab.biomorf.tscalp.util.AppLogger
@@ -100,8 +101,8 @@ class OrdersViewModel @Inject constructor(
         // задаётся через syncPriceInterest() при изменении
         // selectedInstrument / pairedInstrument.
         viewModelScope.launch {
-            priceStreamManager.prices.collect { (uid, price) ->
-                updateInstrumentPrice(uid, price)
+            priceStreamManager.prices.collect { update ->
+                updateInstrumentPrice(update)
             }
         }
         // Фоновое обновление статусов каждые 5 минут
@@ -887,9 +888,10 @@ class OrdersViewModel @Inject constructor(
     }
 
     /**
-     * Собирает текущий набор uid (selectedInstrument + pairedInstrument)
-     * и передаёт в PriceStreamManager. Менеджер пересоздаст стрим только
-     * при фактическом изменении union.
+     * Собирает текущий набор tscalpInstrumentId
+     * (selectedInstrument + pairedInstrument) и передаёт в
+     * PriceStreamManager. Менеджер пересоздаст стрим только при
+     * фактическом изменении union.
      */
     private fun syncPriceInterest() {
         val state = _uiState.value
@@ -905,9 +907,14 @@ class OrdersViewModel @Inject constructor(
      * инструменту в UI: selectedInstrument или pairedInstrument.
      * Для неизвестного uid — no-op.
      */
-    private fun updateInstrumentPrice(uid: String, price: Double) {
+    private fun updateInstrumentPrice(update: PriceUpdate) {
+        // Пока активен только TInvest — фильтрация по брокеру не нужна.
+        // При мультиброкерности здесь появится сравнение с brokerName
+        // соответствующего инструмента.
+        val tscalpId = update.tscalpInstrumentId
+        val price = update.price
         _uiState.update { state ->
-            when (uid) {
+            when (tscalpId) {
                 state.selectedInstrument?.tscalpInstrumentId -> {
                     val oldPrice = state.currentPrice
                     val newPercent = if (oldPrice != null && oldPrice != 0.0) {

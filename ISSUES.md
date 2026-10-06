@@ -148,26 +148,3 @@ polling старый accountId.
 появится UI для переключения между счетами одного брокера).
 
 ---
-
-## Показывать брокера в логах PriceStreamManager
-
-**Статус:** открыт. Низкий приоритет.
-
-**Симптом:** `PriceStreamManager` логирует источник цены
-(`[gRPC] uid = price`, `[REST] uid = price`), но не указывает
-брокера. Сейчас активен только TInvest, при мультиброкерности
-логи станут двусмысленными.
-
-**Возможное решение:**
-- Расширить `_prices: SharedFlow<Pair<String, Double>>` до
-  `SharedFlow<PriceUpdate>` с data class
-  `PriceUpdate(brokerName: BrokerName, uid: String, price: Double)`.
-- В логе: `[gRPC/TINVEST] uid = price`, `[REST/TINVEST] uid = price`.
-- В consumer'ах при мультиброкерности фильтровать по брокеру.
-
-**Оценка:** ~30 минут.
-
-**Когда вернуться:** при переходе на мультиброкерность в
-заявках/портфеле.
-
----

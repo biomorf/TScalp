@@ -108,6 +108,21 @@
   из ViewModel напрямую. Регистрировать интерес через
   `setInterest(PriceConsumer, uids)`.
 
+### Идентификаторы инструментов
+
+- **Domain-слой** оперирует `tscalpInstrumentId` — универсальным
+  идентификатором инструмента. В domain-моделях, usecase'ах и
+  domain-API (`PriceStreamManager`, `PositionStreamManager`)
+  ключ инструмента называется `tscalpInstrumentId`, а не `uid`
+  и не `figi`.
+- **Data-слой** (`data/api/*`, `data/repository/*`) — на границе
+  с брокером. Здесь `uid` (T-Invest), `figi` (BCS),
+  `ticker` + `exchange` (Finam) честно отражают формат брокера.
+- **Трансляция** `tscalpInstrumentId ↔ broker-specific-id`
+  происходит в репозитории или в брокере.
+- **`InstrumentUi.ttech_uid`** — исключение: специфика T-Invest,
+  задокументирована в KDoc поля.
+
 ### Перед правками
 
 - Ассистент запрашивает актуальные версии файлов, которые

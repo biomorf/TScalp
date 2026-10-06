@@ -23,13 +23,15 @@ import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 
 /**
  * Единый источник рыночных цен для всего приложения.
  *
  * ViewModel декларируют интерес через [setInterest] / [clearInterest].
- * Менеджер держит объединение всех активных наборов uid и работает
- * по нему — gRPC-стрим плюс REST-fallback (см. подкоммит 3).
+ * Менеджер держит объединение всех активных наборов
+ * `tscalpInstrumentId` и работает по нему — gRPC-стрим плюс
+ * REST-fallback.
  *
  * Жизненный цикл стрима:
  * - пустой union → ничего не запущено;
@@ -50,12 +52,12 @@ class PriceStreamManager @Inject constructor(
         private const val TAG = "PriceStreamManager"
     }
 
-    /** Текущие интересы: ключ потребителя → набор uid. */
+    /** Текущие интересы: ключ потребителя → набор tscalpInstrumentId. */
     private val interests = MutableStateFlow<Map<PriceConsumer, Set<String>>>(emptyMap())
 
     /** Единый поток цен для всех потребителей. */
-    private val _prices = MutableSharedFlow<Pair<String, Double>>(replay = 0)
-    val prices: SharedFlow<Pair<String, Double>> = _prices.asSharedFlow()
+    private val _prices = MutableSharedFlow<PriceUpdate>(replay = 0)
+    val prices: SharedFlow<PriceUpdate> = _prices.asSharedFlow()
 
     /** Job gRPC-стрима. Пересоздаётся при изменении union. */
     private var streamJob: Job? = null
@@ -71,14 +73,16 @@ class PriceStreamManager @Inject constructor(
 
     /**
      * Регистрирует или обновляет интерес потребителя.
+     * tscalpIds — набор `tscalpInstrumentId` (универсальные ключи
+     * инструментов, не брокерские uid).
      * Если фактический union не изменился — стрим не трогаем.
      */
-    fun setInterest(consumer: PriceConsumer, uids: Set<String>) {
+    fun setInterest(consumer: PriceConsumer, tscalpIds: Set<String>) {
         val oldUnion = currentUnion()
-        interests.update { it + (consumer to uids) }
+        interests.update { it + (consumer to tscalpIds) }
         val newUnion = currentUnion()
         if (newUnion != oldUnion) {
-            AppLogger.d(TAG, "setInterest($consumer, size=${uids.size}), union changed: ${oldUnion.size} → ${newUnion.size}")
+            AppLogger.d(TAG, "setInterest($consumer, size=${tscalpIds.size}), union changed: ${oldUnion.size} → ${newUnion.size}")
             restart(newUnion)
         }
     }
@@ -86,6 +90,7 @@ class PriceStreamManager @Inject constructor(
     /**
      * Снимает интерес потребителя.
      * Если union опустел — останавливает стрим.
+     * uids — набор `tscalpInstrumentId`, а не брокерских uid.
      */
     fun clearInterest(consumer: PriceConsumer) {
         val oldUnion = currentUnion()
@@ -97,12 +102,12 @@ class PriceStreamManager @Inject constructor(
         }
     }
 
-    /** Объединение всех активных наборов uid. */
+    /** Объединение всех активных наборов tscalpInstrumentId. */
     private fun currentUnion(): Set<String> =
         interests.value.values.flatten().toSet()
 
     /**
-     * Пересоздаёт gRPC-стрим под новый набор uid.
+     * Пересоздаёт gRPC-стрим под новый набор tscalpInstrumentId.
      * Пустой union → стрим остановлен, ничего не запускаем.
      */
     private fun restart(union: Set<String>) {
@@ -114,7 +119,7 @@ class PriceStreamManager @Inject constructor(
             AppLogger.d(TAG, "Union empty, gRPC stream stopped")
             return
         }
-        AppLogger.d(TAG, "Starting gRPC stream for ${union.size} uid(s)")
+        AppLogger.d(TAG, "Starting gRPC stream for ${union.size} tscalpInstrumentId(s)")
         streamJob = scope.launch { runGrcpStream(union) }
         pollingJob = scope.launch { runPolling(union) }
     }
@@ -127,11 +132,12 @@ class PriceStreamManager @Inject constructor(
      * не делаем — REST-fallback (подкоммит 3) закроет паузы.
      */
     private suspend fun runGrcpStream(union: Set<String>) {
-        repository.subscribeLastPrices(BrokerName.TINVEST, union.toList())
+        val broker = BrokerName.TINVEST
+        repository.subscribeLastPrices(broker, union.toList())
             .catch { e -> AppLogger.e(TAG, "gRPC stream error", e) }
-            .collect { pair ->
-                AppLogger.d(TAG, "[gRPC] ${pair.first} = ${pair.second}")
-                _prices.emit(pair)
+            .collect { (tscalpId, price) ->
+                AppLogger.d(TAG, "[gRPC/${broker.key}] $tscalpId = $price")
+                _prices.emit(PriceUpdate(broker, tscalpId, price))
             }
     }
 
@@ -148,14 +154,15 @@ class PriceStreamManager @Inject constructor(
      * неудачная итерация не должна останавливать polling.
      */
     private suspend fun runPolling(union: Set<String>) {
+        val broker = BrokerName.TINVEST
         while (currentCoroutineContext().isActive) {
             delay(5_000)
             when (val result = repository.getLastPricesResult(union.toList())) {
                 is AppResult.Success -> {
-                    result.data.forEach { (uid, price) ->
+                    result.data.forEach { (tscalpId, price) ->
                         if (price != null) {
-                            AppLogger.d(TAG, "[REST] $uid = $price")
-                            _prices.emit(uid to price)
+                            AppLogger.d(TAG, "[REST/${broker.key}] $tscalpId = $price")
+                            _prices.emit(PriceUpdate(broker, tscalpId, price))
                         }
                     }
                 }

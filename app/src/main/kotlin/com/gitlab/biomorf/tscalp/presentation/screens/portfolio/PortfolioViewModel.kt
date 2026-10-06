@@ -27,6 +27,7 @@ import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.util.AppLogger
 
 @HiltViewModel
@@ -55,11 +56,11 @@ class PortfolioViewModel @Inject constructor(
             }
         }
         // Подписка на единый поток цен. Обновляет currentPrice / totalValue /
-        // priceChangePercent у соответствующей позиции. Набор uid задаётся
+        // priceChangePercent у соответствующей позиции. Набор tscalpInstrumentId задаётся
         // через syncPriceInterest() после каждой загрузки портфеля.
         viewModelScope.launch {
-            priceStreamManager.prices.collect { (uid, price) ->
-                updatePriceFromStream(uid, price)
+            priceStreamManager.prices.collect { update ->
+                updatePriceFromStream(update)
             }
         }
         // Обновление статусов каждые 5 минут
@@ -132,7 +133,7 @@ class PortfolioViewModel @Inject constructor(
 
             // Запускаем (или перезапускаем) подписку на общий поток позиций
             startPositionUpdates(accountId)
-            // Обновляем интерес к ценам: набор uid мог измениться
+            // Обновляем интерес к ценам: набор tscalpInstrumentId мог измениться
             syncPriceInterest()
         }
     }
@@ -159,28 +160,33 @@ class PortfolioViewModel @Inject constructor(
     }
 
     /**
-     * Собирает текущий набор uid из портфельных позиций и передаёт
+     * Собирает текущий набор tscalpInstrumentId из портфельных позиций и передаёт
      * в PriceStreamManager. Рублёвый кэш (RUB000UTSTOM) исключается:
      * его цена фиксирована на 1.0 и не идёт через биржевой стрим.
      * Менеджер пересоздаст стрим только при фактическом изменении union.
      */
     private fun syncPriceInterest() {
-        val uids = _uiState.value.positions
+        val tscalpInstrumentIds = _uiState.value.positions
             .filter { it.ticker != "RUB000UTSTOM" }
             .map { it.tscalpInstrumentId }
             .toSet()
-        priceStreamManager.setInterest(PriceConsumer.PORTFOLIO, uids)
+        priceStreamManager.setInterest(PriceConsumer.PORTFOLIO, tscalpInstrumentIds)
     }
 
     /**
      * Применяет обновление цены из PriceStreamManager к позиции
-     * с соответствующим uid. Пересчитывает totalValue, priceChangePercent
-     * и суммарную стоимость портфеля. Для неизвестного uid — no-op.
+     * с соответствующим tscalpInstrumentId. Пересчитывает totalValue, priceChangePercent
+     * и суммарную стоимость портфеля. Для неизвестного tscalpInstrumentId — no-op.
      */
-    private fun updatePriceFromStream(uid: String, price: Double) {
-        if (price <= 0.0) return
+    private fun updatePriceFromStream(update: PriceUpdate) {
+        if (update.price <= 0.0) return
+        // Пока активен только TInvest — фильтрация по брокеру не нужна.
+        // При мультиброкерности здесь появится сравнение с brokerName
+        // соответствующей позиции.
+        val tscalpId = update.tscalpInstrumentId
+        val price = update.price
         val current = _uiState.value.positions
-        val index = current.indexOfFirst { it.tscalpInstrumentId == uid }
+        val index = current.indexOfFirst { it.tscalpInstrumentId == tscalpId }
         if (index == -1) return
         val old = current[index]
         if (old.currentPrice == price) return  // нет изменений — не перерисовываем
@@ -204,7 +210,7 @@ class PortfolioViewModel @Inject constructor(
     }
 
     private fun updatePortfolioItem(item: PositionStreamItem) {
-        AppLogger.d(TAG, "updatePortfolioItem: uid=${item.instrumentUid} type=${item.instrumentType} pointValue=${item.pointValue}")
+        AppLogger.d(TAG, "updatePortfolioItem: tscalpInstrumentId=${item.instrumentUid} type=${item.instrumentType} pointValue=${item.pointValue}")
         val current = _uiState.value.positions.toMutableList()
         val index = current.indexOfFirst { it.tscalpInstrumentId == item.instrumentUid }
         if (index == -1) {
