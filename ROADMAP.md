@@ -96,3 +96,13 @@
 `DataStore<Preferences>`. `SharedPreferences` удалён из проекта
 полностью. Все методы стали `suspend`, ViewModel'и обновляют
 кэшированное состояние в `uiState` реактивно.
+
+### ✅ Защита ветки master
+
+В GitLab (Settings → Repository → Protected branches):
+- `master` защищён, прямой push запрещён, только через MR;
+- force push запрещён;
+- CI-проверка в `build-release` (`git merge-base --is-ancestor`)
+  остаётся как вторая линия обороны — тег обязан стоять
+  на коммите из master.
+
