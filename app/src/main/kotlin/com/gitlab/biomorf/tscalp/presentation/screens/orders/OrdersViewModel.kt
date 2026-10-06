@@ -152,8 +152,8 @@ class OrdersViewModel @Inject constructor(
         val state = _uiState.value
         tradingStateRepository.save(
             TradingStateSnapshot(
-                selectedInstrumentUid = state.selectedInstrument?.tscalpInstrumentId,
-                pairedInstrumentUid = state.pairedInstrument?.tscalpInstrumentId,
+                selectedTscalpInstrumentId = state.selectedInstrument?.tscalpInstrumentId,
+                pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
                 pairTradingEnabled = state.pairTradingEnabled,
                 quantity = state.quantity,
                 pairedMultiplier = state.pairedMultiplier,
@@ -169,9 +169,9 @@ class OrdersViewModel @Inject constructor(
         val snapshot = tradingStateRepository.load()
 
         // Восстановление основного инструмента
-        val uid = snapshot.selectedInstrumentUid
-        if (uid != null && brokerReady) {
-            val instrument = repo.getInstrument(uid)
+        val tscalpId = snapshot.selectedTscalpInstrumentId
+        if (tscalpId != null && brokerReady) {
+            val instrument = repo.getInstrument(tscalpId)
             if (instrument != null) {
                 _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
 
@@ -183,9 +183,9 @@ class OrdersViewModel @Inject constructor(
         }
 
         // Восстановление парного инструмента
-        val pairUid = snapshot.pairedInstrumentUid
-        if (pairUid != null && brokerReady) {
-            val pairInstrument = repo.getInstrument(pairUid)
+        val pairedTscalpId = snapshot.pairedTscalpInstrumentId
+        if (pairedTscalpId != null && brokerReady) {
+            val pairInstrument = repo.getInstrument(pairedTscalpId)
             if (pairInstrument != null) {
                 _uiState.update { it.copy(pairedInstrument = pairInstrument) }
 
@@ -433,7 +433,7 @@ class OrdersViewModel @Inject constructor(
         val prepared = prepareOrderRequest.prepare(
             brokerName = brokerName,
             ticker = ticker,
-            instrumentUid = tscalpId,
+            tscalpInstrumentId = tscalpId,
             quantity = quantity,
             direction = direction,
             accountId = accountId,
@@ -442,7 +442,7 @@ class OrdersViewModel @Inject constructor(
             limitPrice = state.limitPrice,
             stopPrice = state.stopPrice,
             expirationType = state.expirationType,
-            pairedInstrumentUid = state.pairedInstrument?.tscalpInstrumentId,
+            pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
             pairedTicker = state.pairedInstrument?.ticker,
             pairedBrokerName = state.lastSelectedInstruments
                 .find { it.instrument.ticker == state.pairedInstrument?.ticker }?.brokerName,

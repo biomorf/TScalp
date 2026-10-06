@@ -54,7 +54,7 @@ enum class OrderDirection { BUY, SELL }
 data class StopOrderRequest(
     val brokerName: BrokerName,
     val ticker: String,
-    val instrumentUid: String? = null,   // uid инструмента (для акций)
+    val tscalpInstrumentId: String? = null,
     val quantity: Long,
     val direction: OrderDirection,
     val accountId: String,
@@ -76,7 +76,7 @@ enum class StopOrderExpirationType { GOOD_TILL_CANCEL, GOOD_TILL_DATE }
 data class BrokerOrderRequest(
     val brokerName: BrokerName,
     val ticker: String,
-    val instrumentUid: String? = null,   // uid инструмента (для акций)
+    val tscalpInstrumentId: String? = null,
     val quantity: Long,
     val direction: OrderDirection,
     val accountId: String,

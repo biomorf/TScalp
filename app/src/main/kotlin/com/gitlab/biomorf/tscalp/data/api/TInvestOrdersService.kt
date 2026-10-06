@@ -38,8 +38,8 @@ class TInvestOrdersService(
 
     suspend fun postOrder(request: BrokerOrderRequest): OrderResult = withContext(Dispatchers.IO) {
         val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-        val uid = request.instrumentUid
-            ?: throw IllegalArgumentException("BrokerOrderRequest.instrumentUid не может быть null")
+        val uid = request.tscalpInstrumentId
+            ?: throw IllegalArgumentException("BrokerOrderRequest.tscalpInstrumentId не может быть null")
 
         val price = if (request.type == BrokerOrderType.LIMIT && request.price != null) {
             TInvestConverters.doubleToQuotation(request.price)
@@ -111,8 +111,8 @@ class TInvestOrdersService(
 
     suspend fun postStopOrder(request: StopOrderRequest): String = withContext(Dispatchers.IO) {
         val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-        val uid = request.instrumentUid
-            ?: throw IllegalArgumentException("StopOrderRequest.instrumentUid не может быть null")
+        val uid = request.tscalpInstrumentId
+            ?: throw IllegalArgumentException("StopOrderRequest.tscalpInstrumentId не может быть null")
 
         val builder = PostStopOrderRequest.newBuilder()
             .setInstrumentId(uid)

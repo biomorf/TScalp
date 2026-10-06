@@ -23,7 +23,7 @@ class PrepareOrderRequestUseCase(
     fun prepare(
         brokerName: BrokerName,
         ticker: String,
-        instrumentUid: String?,
+        tscalpInstrumentId: String?,
         quantity: Long,
         direction: OrderDirection,
         accountId: String,
@@ -32,7 +32,7 @@ class PrepareOrderRequestUseCase(
         limitPrice: String?,
         stopPrice: String?,
         expirationType: com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType,
-        pairedInstrumentUid: String?,
+        pairedTscalpInstrumentId: String?,
         pairedTicker: String?,
         pairedBrokerName: BrokerName?,
         pairedAccountId: String?,
@@ -44,7 +44,7 @@ class PrepareOrderRequestUseCase(
                 BrokerOrderRequest(
                     brokerName = brokerName,
                     ticker = ticker,
-                    instrumentUid = instrumentUid,
+                    tscalpInstrumentId = tscalpInstrumentId,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
@@ -57,7 +57,7 @@ class PrepareOrderRequestUseCase(
                 StopOrderRequest(
                     brokerName = brokerName,
                     ticker = ticker,
-                    instrumentUid = instrumentUid,
+                    tscalpInstrumentId = tscalpInstrumentId,
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
@@ -66,7 +66,7 @@ class PrepareOrderRequestUseCase(
                         primaryRequest = BrokerOrderRequest(
                             brokerName = brokerName,
                             ticker = ticker,
-                            instrumentUid = instrumentUid,
+                            tscalpInstrumentId = tscalpInstrumentId,
                             quantity = quantity,
                             direction = direction,
                             accountId = accountId,
@@ -88,7 +88,7 @@ class PrepareOrderRequestUseCase(
         val isPrimaryStop = primaryRequest is StopOrderRequest
 
         // Парная сделка
-        if (pairedInstrumentUid == null || pairedTicker == null || pairedBrokerName == null || pairedAccountId == null) {
+        if (pairedTscalpInstrumentId == null || pairedTicker == null || pairedBrokerName == null || pairedAccountId == null) {
             return PreparedOrders(primaryRequest, null, isPrimaryStop, null)
         }
 
@@ -106,7 +106,7 @@ class PrepareOrderRequestUseCase(
             StopOrderRequest(
                 brokerName = pairedBrokerName,
                 ticker = pairedTicker,
-                instrumentUid = pairedInstrumentUid,
+                tscalpInstrumentId = pairedTscalpInstrumentId,
                 quantity = pairedQuantity,
                 direction = pairedDirection,
                 accountId = pairedAccountId,
@@ -120,7 +120,7 @@ class PrepareOrderRequestUseCase(
             BrokerOrderRequest(
                 brokerName = pairedBrokerName,
                 ticker = pairedTicker,
-                instrumentUid = pairedInstrumentUid,
+                tscalpInstrumentId = pairedTscalpInstrumentId,
                 quantity = pairedQuantity,
                 direction = pairedDirection,
                 accountId = pairedAccountId,

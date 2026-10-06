@@ -30,11 +30,11 @@ class TradingStateRepository @Inject constructor(
 
     suspend fun save(snapshot: TradingStateSnapshot) {
         dataStore.edit { prefs ->
-            snapshot.selectedInstrumentUid?.let {
+            snapshot.selectedTscalpInstrumentId?.let {
                 prefs[SELECTED_INSTRUMENT_UID] = it
             } ?: prefs.remove(SELECTED_INSTRUMENT_UID)
 
-            snapshot.pairedInstrumentUid?.let {
+            snapshot.pairedTscalpInstrumentId?.let {
                 prefs[PAIRED_INSTRUMENT_UID] = it
             } ?: prefs.remove(PAIRED_INSTRUMENT_UID)
 
@@ -48,8 +48,8 @@ class TradingStateRepository @Inject constructor(
     suspend fun load(): TradingStateSnapshot {
         val prefs = dataStore.data.first()
         return TradingStateSnapshot(
-            selectedInstrumentUid = prefs[SELECTED_INSTRUMENT_UID],
-            pairedInstrumentUid = prefs[PAIRED_INSTRUMENT_UID],
+            selectedTscalpInstrumentId = prefs[SELECTED_INSTRUMENT_UID],
+            pairedTscalpInstrumentId = prefs[PAIRED_INSTRUMENT_UID],
             pairTradingEnabled = prefs[PAIR_TRADING_ENABLED] ?: false,
             quantity = prefs[QUANTITY] ?: "",
             pairedMultiplier = prefs[PAIRED_MULTIPLIER] ?: "10",
