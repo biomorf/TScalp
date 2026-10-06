@@ -24,7 +24,7 @@ object TInvestInstrumentMapper {
         instrument: Instrument,
         minPriceIncrementAmountOverride: Double? = null
     ): InstrumentUi {
-        val uid = instrument.uid
+        val brokerUid = instrument.uid
         val figi = instrument.figi ?: ""
         val type = instrument.instrumentType ?: ""
         val minInc = TInvestConverters.quotationToDouble(instrument.minPriceIncrement)
@@ -32,11 +32,11 @@ object TInvestInstrumentMapper {
 
         return when (type) {
             "futures" -> FutureUi(
-                tscalpInstrumentId = uid,
+                tscalpInstrumentId = brokerUid,
                 ticker = instrument.ticker,
                 classCode = instrument.classCode ?: "",
                 isin = instrument.isin ?: "",
-                ttech_uid = uid,
+                ttech_uid = brokerUid,
                 ttech_figi = figi,
                 name = instrument.name,
                 currency = instrument.currency,
@@ -78,11 +78,11 @@ object TInvestInstrumentMapper {
             )
 
             "share" -> ShareUi(
-                tscalpInstrumentId = uid,
+                tscalpInstrumentId = brokerUid,
                 ticker = instrument.ticker,
                 classCode = instrument.classCode ?: "",
                 isin = instrument.isin ?: "",
-                ttech_uid = uid,
+                ttech_uid = brokerUid,
                 ttech_figi = figi,
                 name = instrument.name,
                 currency = instrument.currency,
@@ -120,11 +120,11 @@ object TInvestInstrumentMapper {
             )
 
             else -> InstrumentUi(
-                tscalpInstrumentId = uid,
+                tscalpInstrumentId = brokerUid,
                 ticker = instrument.ticker,
                 classCode = instrument.classCode ?: "",
                 isin = instrument.isin ?: "",
-                ttech_uid = uid,
+                ttech_uid = brokerUid,
                 ttech_figi = figi,
                 name = instrument.name,
                 currency = instrument.currency,

@@ -38,9 +38,11 @@ interface BrokerApi {
     fun subscribePositions(accountId: String): Flow<PositionStreamItem>
 
     /**
-     * Стрим последних цен по списку uid.
-     * Реализации по умолчанию возвращает пустой поток — брокеры, не поддерживающие
-     * стрим (BCS, Finam), используют её без изменений. TInvest переопределяет.
+     * Стрим последних цен по списку идентификаторов инструментов
+     * в формате брокера (для T-Invest — это uid).
+     * Реализация по умолчанию возвращает пустой поток — брокеры, не
+     * поддерживающие стрим (BCS, Finam), используют её без изменений.
+     * TInvest переопределяет.
      */
     fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> = emptyFlow()
 

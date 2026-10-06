@@ -17,37 +17,37 @@ import java.util.concurrent.ConcurrentHashMap
 class InstrumentRepository(
     private val brokerManager: BrokerManager
 ) {
-    // Ключ — tscalpInstrumentId (uid)
+    // Ключ — tscalpInstrumentId
     private val cache = ConcurrentHashMap<String, InstrumentUi>()
     private val mutex = Mutex()
 
     /**
-     * Возвращает актуальный InstrumentUi по uid.
-     * Если в кэше нет, загружает через TInvest-сервис и кэширует.
+     * Возвращает актуальный InstrumentUi по tscalpInstrumentId.
+     * Если в кэше нет, загружает через брокера и кэширует.
      */
-    suspend fun getInstrument(uid: String): InstrumentUi? {
-        cache[uid]?.let { return it }
+    suspend fun getInstrument(tscalpInstrumentId: String): InstrumentUi? {
+        cache[tscalpInstrumentId]?.let { return it }
         return mutex.withLock {
-            cache[uid] ?: loadAndCache(uid)
+            cache[tscalpInstrumentId] ?: loadAndCache(tscalpInstrumentId)
         }
     }
 
-    private suspend fun loadAndCache(uid: String): InstrumentUi? {
+    private suspend fun loadAndCache(tscalpInstrumentId: String): InstrumentUi? {
         val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI ?: return null
-        val instrument = broker.fetchFullInstrument(uid)
+        val instrument = broker.fetchFullInstrument(tscalpInstrumentId)
         if (instrument != null) {
-            cache[uid] = instrument
+            cache[tscalpInstrumentId] = instrument
         }
         return instrument
     }
 
     /**
-     * Принудительно обновляет кэш для указанного uid.
+     * Принудительно обновляет кэш для указанного tscalpInstrumentId.
      */
-    suspend fun refreshInstrument(uid: String) {
+    suspend fun refreshInstrument(tscalpInstrumentId: String) {
         mutex.withLock {
-            cache.remove(uid)
-            loadAndCache(uid)
+            cache.remove(tscalpInstrumentId)
+            loadAndCache(tscalpInstrumentId)
         }
     }
 }
