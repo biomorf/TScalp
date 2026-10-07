@@ -76,20 +76,18 @@
 
 ## Продвижение master
 
-Релиз делается **через fast-forward**:
+Ветка `master` защищена: прямой push запрещён, продвижение
+идёт **только через MR из `dev`** (см. «Настройка GitLab»).
+Локальный `git merge --ff-only dev` не используется — его
+заменяет MR.
 
-    git checkout master
-    git merge --ff-only dev
-    git tag -a vX.Y.Z -m "Release vX.Y.Z"
+Политика — **fast-forward**: после merge `master` указывает
+ровно на HEAD `dev`. Это позволяет проверить вручную, что
+зарелизили именно то, что было на dev.
 
-После этого `master`, `dev` и тег указывают на один и тот же
-коммит — легко проверить вручную, что зарелизили именно то,
-что было на dev.
-
-Полный `git merge dev` (создание merge-коммита) не используется:
+Полный merge с созданием merge-коммита не используется:
 merge-коммит существует только на master, и тег на нём сложнее
-сверить с состоянием dev. Если когда-нибудь появится требование
-аудита через merge-коммиты — пересмотреть.
+сверить с состоянием dev.
 
 ### Настройка GitLab
 
@@ -115,18 +113,26 @@ merge-коммит существует только на master, и тег на
 
 ## Релиз через GitLab CI
 
-1. Убедиться, что нужный коммит в `master`.
-2. Поставить тег `vX.Y.Z` и запушить:
+Порядок — в чек-листе ниже. Полный цикл:
 
-       git tag v1.0.0
-       git push origin v1.0.0
+1. Продвинуть `master` через MR из `dev` (см. «Продвижение
+   master»).
+2. Поставить **аннотированный** тег `vX.Y.Z` и запушить:
+
+       git tag -a vX.Y.Z -m "Release vX.Y.Z"
+       git push origin vX.Y.Z
 
 3. CI собирает pipeline:
-    - `unit-tests` — прогон на всех ветках + тегах;
+    - `unit-tests`, `lint`, `assemble-debug` — на всех ветках
+      и тегах;
     - `build-release` — проверяет, что тег стоит на `master`,
       расшифровывает keystore из `KEYSTORE_BASE64`, собирает
       `assembleRelease -PreleaseVersionName=X.Y.Z`;
-    - `publish-release` — создаёт GitLab Release с APK в assets.
+    - `publish-release` — создаёт GitLab Release с APK в assets
+      и release notes из коммитов между предыдущим и текущим
+      тегом. В notes попадают только `feat` и `fix`;
+      инфраструктурные (`chore`, `docs`, `refactor`, `test`)
+      отфильтровываются по типу коммита.
 
 ---
 
@@ -140,6 +146,8 @@ merge-коммит существует только на master, и тег на
 4. Дождаться зелёного пайплайна на MR.
 5. Смерджить MR.
 6. Локально: `git checkout master && git pull --ff-only origin master`.
+   Если `--ff-only` падает — значит `dev` и `master` разошлись,
+   разобраться до продолжения.
 7. Проверить, что `origin/master` содержит нужный коммит:
    `git log origin/master -1 --oneline`.
 
