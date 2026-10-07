@@ -34,7 +34,7 @@ val computedVersionCode: Int = releaseVersionName
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    kotlin("plugin.serialization") version "2.3.21"  //for navigation using sealed class
+    kotlin("plugin.serialization") version "2.4.20"  //for navigation using sealed class
     id("dagger.hilt.android.plugin")
     id("com.google.devtools.ksp")
 }
@@ -138,8 +138,8 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.8")    //for navigation using sealed classes
 
     // Hilt
-    implementation("com.google.dagger:hilt-android:2.59.2")
-    ksp("com.google.dagger:hilt-android-compiler:2.59.2")
+    implementation("com.google.dagger:hilt-android:2.60.1")
+    ksp("com.google.dagger:hilt-android-compiler:2.60.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
 
     // DataStore (замена SharedPreferences)
