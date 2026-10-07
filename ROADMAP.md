@@ -96,6 +96,32 @@ ktlint, detekt. Отдельно от unit-тестов, чтобы падени
 зафиксировать baseline (`lint.xml`, `detekt-baseline.xml`),
 запретить новые.
 **Оценка:** ~40 мин.
+**Сделано:**
+- Lint job в стадии `test` (только Android Lint).
+  Baseline `app/lint-baseline.xml`, `warningsAsErrors = true`,
+  `disable += "AndroidGradlePluginVersion"` (динамический
+  detector, несовместим с baseline). HTML/XML-отчёты в
+  артефактах CI.
+- Build cache: стабильный ключ `gradle-cache-v1`, `.gradle/jdks`
+  в paths.
+
+**Запланировано** (в порядке приоритета):
+
+### 1b. ktlint
+
+**Что:** плагин `org.jlleitschuh.gradle.ktlint`, job
+`:app:ktlintCheck`, baseline через `.editorconfig`.
+**Зачем:** стиль Kotlin в CI.
+**Риск:** совместимость плагина с Kotlin 2.4.20 / AGP 9.0.0.
+**Оценка:** ~30 мин + первый прогон.
+
+### 1c. detekt
+
+**Что:** плагин `io.gitlab.arturbosch.detekt`, job
+`:app:detekt`, baseline.
+**Зачем:** статический анализ сложности/запахов кода.
+**Риск:** из коробки много замечаний, нужен baseline.
+**Оценка:** ~30 мин + первый прогон.
 
 ### 2. Build cache для Gradle
 
@@ -157,6 +183,23 @@ git log <prev>..HEAD --pretty=format:"%s" --no-merges \
   при первом релизе в Play.
 - AAB как артефакт релиза — отменено. При необходимости
   публикации в Play вернуться к вопросу отдельно.
+
+---
+
+## Удаление legacy mipmap-папок
+
+**Статус:** запланировано.
+
+**Что:** удалить
+`app/src/main/res/mipmap-{hdpi,mdpi,xhdpi,xxhdpi,xxxhdpi}/`.
+При `minSdk=30` они не используются: адаптивные иконки из
+`mipmap-anydpi` покрывают все поддерживаемые устройства.
+
+**Проверить:** установка на реальном устройстве — иконка в
+лаунчере и в списке недавних приложений отображается корректно.
+
+**Оценка:** ~10 минут.
+**Когда:** после завершения CI-задач (3, 4, 5, 6).
 
 ---
 
