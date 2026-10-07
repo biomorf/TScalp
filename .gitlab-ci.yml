@@ -108,30 +108,22 @@ publish-release:
   variables:
     GIT_DEPTH: 0
   script:
-    - APK_FILE=$(ls app/build/outputs/apk/release/tscalp-release-*.apk | head -1)
-    - APK_NAME=$(basename "$APK_FILE")
-    - ARTIFACT_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/artifacts/${CI_COMMIT_TAG}/raw/app/build/outputs/apk/release/${APK_NAME}?job=build-release"
-    - echo "Publishing $APK_NAME → $ARTIFACT_URL"
-    - PREV_TAG=$(git describe --tags --abbrev=0 "${CI_COMMIT_TAG}^" 2>/dev/null || echo "")
-    - echo "Previous tag: ${PREV_TAG:-<none>}"
     - |
+      APK_FILE=$(ls app/build/outputs/apk/release/tscalp-release-*.apk | head -1)
+      APK_NAME=$(basename "$APK_FILE")
+      ARTIFACT_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/artifacts/${CI_COMMIT_TAG}/raw/app/build/outputs/apk/release/${APK_NAME}?job=build-release"
+      PREV_TAG=$(git describe --tags --abbrev=0 "${CI_COMMIT_TAG}^" 2>/dev/null || echo "")
+      echo "Previous tag: ${PREV_TAG:-none}"
       if [ -z "$PREV_TAG" ]; then
-        NOTES=$(git log --pretty=format:"- %s" --no-merges "$CI_COMMIT_TAG" \
-          | grep -E '^- (feat|fix)(\([^)]+\))?:' || true)
+        RANGE="$CI_COMMIT_TAG"
       else
-        NOTES=$(git log --pretty=format:"- %s" --no-merges "${PREV_TAG}..${CI_COMMIT_TAG}" \
-          | grep -E '^- (feat|fix)(\([^)]+\))?:' || true)
+        RANGE="${PREV_TAG}..${CI_COMMIT_TAG}"
       fi
-    - |
+      NOTES=$(git log --pretty=format:"* %s" --no-merges "$RANGE" | grep -E '^\* (feat|fix)' || true)
       if [ -z "$NOTES" ]; then
-        NOTES="- No user-facing changes"
+        NOTES="* No user-facing changes"
       fi
-    - printf '%s\n' "$NOTES"
-    - |
-      release-cli create \
-        --name "Release $CI_COMMIT_TAG" \
-        --tag-name "$CI_COMMIT_TAG" \
-        --description "$NOTES" \
-        --assets-link "{\"name\":\"$APK_NAME\",\"url\":\"$ARTIFACT_URL\"}"
+      echo "$NOTES"
+      release-cli create --name "Release $CI_COMMIT_TAG" --tag-name "$CI_COMMIT_TAG" --description "$NOTES" --assets-link "{\"name\":\"$APK_NAME\",\"url\":\"$ARTIFACT_URL\"}"
   timeout: 10m
   
