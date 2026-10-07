@@ -9,16 +9,11 @@ before_script:
   - chmod +x ./gradlew
 
 cache:
-  key:
-    files:
-      - gradle/wrapper/gradle-wrapper.properties
-      - gradle.properties
-      - settings.gradle.kts
-      - build.gradle.kts
-      - app/build.gradle.kts
-  paths:
-    - .gradle/wrapper
-    - .gradle/caches
+    key: gradle-cache-v1
+    paths:
+      - .gradle/wrapper
+      - .gradle/caches
+      - .gradle/jdks
 
 stages:
   - test
