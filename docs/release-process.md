@@ -91,9 +91,27 @@ merge-коммит существует только на master, и тег на
 сверить с состоянием dev. Если когда-нибудь появится требование
 аудита через merge-коммиты — пересмотреть.
 
-**Тип тега на стратегию merge не влияет.** Annotated tag создаёт
-отдельный tag-объект, ссылающийся на коммит, но не новый коммит.
-`--ff-only` работает одинаково с lightweight и annotated тегами.
+### Настройка GitLab
+
+Ветка `master` защищена (см. ROADMAP → «Защита ветки master»),
+прямой push в неё запрещён. Продвижение идёт через MR из `dev`.
+
+Чтобы MR **не создавал merge-коммит**, в GitLab включён режим
+**Fast-forward merge**:
+
+    Settings → Merge requests → Merge method → Fast-forward merge
+
+Без этой настройки GitLab по умолчанию создаёт коммит
+`Merge branch 'dev' into 'master'`, и тег ставится не на HEAD dev,
+а на merge-коммит — политика ff-only нарушается.
+
+Проверка после merge:
+
+    git fetch origin
+    git log origin/master -1 --oneline
+
+Коммит на `origin/master` должен совпадать с последним
+коммитом `dev` на момент merge.
 
 ## Релиз через GitLab CI
 
