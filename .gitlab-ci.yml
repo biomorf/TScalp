@@ -37,25 +37,25 @@ unit-tests:
     paths:
       - app/build/reports/tests/testDebugUnitTest/
     expire_in: 1 week
-    timeout: 30m
+  timeout: 30m
 
-  lint:
-    interruptible: true
-    stage: test
-    script:
-      - ./gradlew :app:lintDebug --no-daemon --stacktrace
-    rules:
-      - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      - if: '$CI_COMMIT_BRANCH == "dev"'
-      - if: '$CI_COMMIT_BRANCH == "master"'
-      - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
-    artifacts:
-      when: always
-      paths:
-        - app/build/reports/lint-results-debug.html
-        - app/build/reports/lint-results-debug.xml
-      expire_in: 1 week
-    timeout: 30m
+lint:
+  interruptible: true
+  stage: test
+  script:
+    - ./gradlew :app:lintDebug --no-daemon --stacktrace
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  artifacts:
+    when: always
+    paths:
+      - app/build/reports/lint-results-debug.html
+      - app/build/reports/lint-results-debug.xml
+    expire_in: 1 week
+  timeout: 30m
 
 build-release:
   stage: build
