@@ -102,6 +102,17 @@ android {
             pickFirsts += listOf("**/com/google/protobuf/**")
         }
     }
+
+    lint {
+        baseline = file("lint-baseline.xml")
+        warningsAsErrors = true
+        abortOnError = true
+        checkDependencies = false
+        checkReleaseBuilds = false
+        htmlReport = true
+        xmlReport = true
+        textReport = false
+    }
 }
 
 // Теперь блок kotlin на верхнем уровне (вне android)
