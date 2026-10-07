@@ -47,72 +47,47 @@
 
 ---
 
-## CI/CD для релизов через GitLab
-
-**Статус:** запланировано.
-
-**Что:** настроить GitLab CI для сборки и публикации APK/AAB
-в GitLab Releases при пуше тега (`v1.0.0` и т.п.).
-
-**Зачем:** сейчас APK собирается локально и вручную; release-канал
-для пользователей не автоматизирован.
-
-**Объём:**
-- `.gitlab-ci.yml`: build job для `assembleRelease`.
-- Подпись APK через CI variables (keystore, пароли).
-- Загрузка артефакта в GitLab Releases через `release-cli`.
-- Опционально: unit-тесты как отдельный job.
-- Опционально: `versionName` из тега.
-
-**Оценка:** ~2 часа (при наличии keystore).
-**Когда:** перед первым публичным релизом.
-
----
-
 ## CI/CD улучшения
 
 **Статус:** частично сделано, остальное в плане.
 
-**Уже работает:**
+**Уже работает (инфраструктура):**
 - `.gitlab-ci.yml`: стадии `test → build → release`.
-- `unit-tests` на MR, `dev`, `master`, тегах; `interruptible: true`.
-- `build-release` на тегах `vX.Y.Z`: проверка `git merge-base`,
-  подпись из `KEYSTORE_BASE64` + `keystore.properties`, сборка
+- Три job'а в стадии `test`: `unit-tests`, `lint`, `assemble-debug`.
+- `build-release` на тегах `vX.Y.Z`: проверка
+  `git merge-base`, подпись из `KEYSTORE_BASE64` +
+  `keystore.properties`, сборка
   `assembleRelease -PreleaseVersionName=X.Y.Z`.
-- `publish-release`: GitLab Release с APK в assets.
-- Кэш Gradle по хэшу конфигурационных файлов.
-- master защищён (см. «Закрытые задачи»).
-
-**Запланировано** (в порядке приоритета):
-
-### 1. Отдельный lint job
-
-**Что:** параллельный job в стадии `test` — `:app:lintDebug`,
-ktlint, detekt. Отдельно от unit-тестов, чтобы падения не
-смешивались.
-**Зачем:** ловить проблемы стиля и потенциальные баги до review;
-пайплайн падает раньше unit-тестов (они дольше).
-**Подводный камень:** первый прогон выдаст много warning'ов —
-зафиксировать baseline (`lint.xml`, `detekt-baseline.xml`),
-запретить новые.
-**Оценка:** ~40 мин.
-**Сделано:**
-- Lint job в стадии `test` (только Android Lint).
-  Baseline `app/lint-baseline.xml`, `warningsAsErrors = true`,
-  `disable += "AndroidGradlePluginVersion"` (динамический
-  detector, несовместим с baseline). HTML/XML-отчёты в
-  артефактах CI.
-- Build cache: стабильный ключ `gradle-cache-v1`, `.gradle/jdks`
+- `publish-release`: GitLab Release с APK в assets и release
+  notes из git log (только `feat`/`fix`).
+- Кэш Gradle: стабильный ключ `gradle-cache-v1`, `.gradle/jdks`
   в paths.
+- master защищён; MR через fast-forward merge
+  (`Settings → Merge requests → Merge method`).
+- Protected Tags `v*`.
+
+**Сделано:**
+- Lint job в стадии `test`. Baseline `app/lint-baseline.xml`,
+  `warningsAsErrors = true`, `disable` для динамических
+  детекторов (`AndroidGradlePluginVersion`, `GradleDependency`,
+  `NewerVersionAvailable`) — несовместимы с baseline, так как
+  сообщение зависит от последней версии в Maven Central.
+  HTML/XML-отчёты в артефактах CI.
 - Smoke-сборка `assembleDebug` в стадии `test`, параллельно
   `unit-tests` и `lint`. Ловит ошибки, которые не покрывают
   тесты и lint: битые ресурсы, конфликты в `packaging {}`,
-  `AndroidManifest.xml`, а также `renameDebugApk`, который в
-  остальных job'ах не отрабатывает.
+  `AndroidManifest.xml`, а также `renameDebugApk`.
+- Release notes из git log между предыдущим и текущим тегом.
+  Фильтр по типу коммита: только `feat` и `fix`. Fallback
+  «No user-facing changes».
+- Build cache: стабильный ключ вместо хэша конфигурационных
+  файлов.
+- `versionName` в имени release APK — через задачу
+  `renameReleaseApk` в `build.gradle.kts`.
 
 **Запланировано** (в порядке приоритета):
 
-### 1b. ktlint
+### ktlint
 
 **Что:** плагин `org.jlleitschuh.gradle.ktlint`, job
 `:app:ktlintCheck`, baseline через `.editorconfig`.
@@ -120,7 +95,7 @@ ktlint, detekt. Отдельно от unit-тестов, чтобы падени
 **Риск:** совместимость плагина с Kotlin 2.4.20 / AGP 9.0.0.
 **Оценка:** ~30 мин + первый прогон.
 
-### 1c. detekt
+### detekt
 
 **Что:** плагин `io.gitlab.arturbosch.detekt`, job
 `:app:detekt`, baseline.
@@ -128,67 +103,42 @@ ktlint, detekt. Отдельно от unit-тестов, чтобы падени
 **Риск:** из коробки много замечаний, нужен baseline.
 **Оценка:** ~30 мин + первый прогон.
 
-### 2. Build cache для Gradle
+### Renovate для обновлений зависимостей
 
-**Что:** включить `--build-cache` в CI-вызовах, добавить
-`$GRADLE_USER_HOME/jdks` в кэш.
-**Зачем:** переиспользование результатов задач между джобами
-(`compileDebugKotlin` из `unit-tests` → `lint`). Экономия
-30–50% на инкрементальных пайплайнах.
-**Оценка:** ~10 мин.
-**Риск:** проверить, что кастомные задачи `rename*Apk` не дают
-warning'ов cacheability.
+**Что:** подключить Renovate (или Dependabot) для
+автоматического отслеживания обновлений Gradle-зависимостей.
 
-### 3. Smoke-сборка assembleDebug
+**Зачем:** динамические lint-детекторы `GradleDependency` и
+`NewerVersionAvailable` отключены — несовместимы с baseline.
+Renovate делает то же самое, но правильно: открывает MR
+с обновлением и не блокирует чужие сборки.
 
-**Что:** job, собирающий debug APK на MR/push.
-**Зачем:** ловить ошибки компиляции/ресурсов до локального запуска.
-`unit-tests` компилирует test-сорцы, но не обязательно полный
-`assembleDebug` (например, ошибки в `renameDebugApk` или в
-ресурсах проскочат).
-**Опция:** `rules: changes` на `.kt`/`.xml`/gradle-файлы, чтобы
-не гонять на чистой документации.
-**Оценка:** ~15 мин (+2–4 мин к пайплайну).
+**Оценка:** ~1 час на настройку.
+**Когда:** при следующем апгрейде зависимостей.
 
-### 4. Release notes из git log
+### versionName в GitLab Release description
 
-**Что:** генерировать описание релиза из коммитов между предыдущим
-и текущим тегом, вместо «Релиз vX.Y.Z. APK: ...».
-**Фильтрация:** в notes включаются только `feat` и `fix`.
-Инфраструктурные изменения (`chore`, `docs`, `refactor`, `test`)
-исключаются по типу коммита — это надёжнее фильтра по путям,
-т.к. не зависит от того, какие файлы тронул коммит.
-**Команда (черновик):**
-```bash
-git log <prev>..HEAD --pretty=format:"%s" --no-merges \
-  | grep -E '^(feat|fix)(\([^)]+\))?:'
-```
-**Зачем:** пользователи видят только то, что изменилось в
-приложении, без шума про документацию и CI.
-**Оценка:** ~1 час.
+**Что:** добавить строку `Release vX.Y.Z` перед списком
+release notes. Сейчас description содержит только список
+`feat`/`fix`, без явного указания версии.
 
-### 5. versionName в имени артефакта и release description
+**Зачем:** при просмотре списка релизов сразу видно версию.
 
-**Что:** `tscalp-release-<VERSION>.apk` вместо wildcard; версия
-в описании релиза.
-**Зачем:** при скачивании нескольких релизов не путаешься.
-**Когда:** когда релизов станет больше 3–4.
-**Оценка:** ~10 мин.
+**Оценка:** ~5 мин.
+**Когда:** при следующем релизе.
 
-### 6. Coverage в unit-tests
+### Coverage в unit-tests
 
 **Что:** JaCoCo/Kover coverage, публикация отчёта в MR.
 **Зачем:** видно, какие строки не покрыты.
-**Когда:** когда тестов станет заметно больше 63 и появятся
-сомнения в покрытии.
+**Когда:** когда тестов станет заметно больше 63.
 **Оценка:** ~1–2 часа.
 
 **Отложено (без триггера):**
 - Google Play публикация из CI (fastlane / play-console-cli) —
   при первом релизе в Play.
 - AAB как артефакт релиза — отменено. При необходимости
-  публикации в Play вернуться к вопросу отдельно.
-
+  публикации в Play вернуться отдельно.
 ---
 
 ## Удаление legacy mipmap-папок
