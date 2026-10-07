@@ -1,5 +1,9 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.settings
 
+import kotlinx.coroutines.launch
+
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.core.net.toUri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -30,9 +34,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.input.VisualTransformation
-import kotlinx.coroutines.launch
 
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
@@ -911,12 +913,12 @@ fun InfoSettingsContent(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
             val context = LocalContext.current
             Text(
-                text = "Проверить обновления: https://github.com/biomorf/TScalp/releases",
+                text = "Проверить обновления: https://gitlab.com/biomorf/tscalp/-/releases",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable {
                     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                        data = android.net.Uri.parse("https://github.com/biomorf/TScalp/releases")
+                        data = "https://gitlab.com/biomorf/tscalp/-/releases".toUri()
                     }
                     context.startActivity(intent)
                 }

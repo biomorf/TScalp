@@ -52,8 +52,8 @@ fun AssetPositionCard(
     modifier: Modifier = Modifier
 ) {
     // --- Цветовая индикация изменения цены (состояния) ---
-    var previousPrice by remember { mutableStateOf(position.currentPrice) }
-    var priceDelta by remember { mutableStateOf(0.0) }
+    var previousPrice by remember { mutableDoubleStateOf(position.currentPrice) }
+    var priceDelta by remember { mutableDoubleStateOf(0.0) }
 
 
     val isPriceUp = position.currentPrice > previousPrice
