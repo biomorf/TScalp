@@ -2,24 +2,13 @@
 <issues format="6" by="lint 9.0.0" type="baseline" client="gradle" dependencies="false" name="AGP (9.0.0)" variant="all" version="9.0.0">
 
     <issue
-        id="AndroidGradlePluginVersion"
-        message="A newer version of Gradle than 9.3.1 is available: 9.8.0"
-        errorLine1="distributionUrl=https\://services.gradle.org/distributions/gradle-9.3.1-bin.zip"
-        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="$HOME/AndroidStudioProjects/TScalp/gradle/wrapper/gradle-wrapper.properties"
-            line="3"
-            column="17"/>
-    </issue>
-
-    <issue
         id="GradleDependency"
         message="A newer version of androidx.core:core than 1.18.0 is available: 1.19.1"
         errorLine1="    implementation(&quot;androidx.core:core:1.18.0&quot;)"
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="133"
+            line="134"
             column="20"/>
     </issue>
 
@@ -30,7 +19,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="134"
+            line="135"
             column="20"/>
     </issue>
 
@@ -41,7 +30,7 @@
         errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="140"
+            line="141"
             column="29"/>
     </issue>
 
@@ -52,7 +41,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="146"
+            line="147"
             column="20"/>
     </issue>
 
@@ -63,7 +52,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="147"
+            line="148"
             column="20"/>
     </issue>
 
@@ -74,7 +63,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="148"
+            line="149"
             column="20"/>
     </issue>
 
@@ -85,7 +74,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="149"
+            line="150"
             column="20"/>
     </issue>
 
@@ -96,7 +85,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="154"
+            line="155"
             column="20"/>
     </issue>
 
@@ -107,7 +96,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="137"
+            line="138"
             column="20"/>
     </issue>
 
@@ -118,7 +107,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="168"
+            line="169"
             column="24"/>
     </issue>
 
@@ -129,7 +118,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="169"
+            line="170"
             column="24"/>
     </issue>
 
@@ -140,7 +129,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="172"
+            line="173"
             column="20"/>
     </issue>
 
@@ -151,7 +140,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="175"
+            line="176"
             column="20"/>
     </issue>
 
@@ -162,7 +151,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="176"
+            line="177"
             column="20"/>
     </issue>
 
@@ -173,7 +162,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="194"
+            line="195"
             column="20"/>
     </issue>
 
@@ -184,7 +173,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="196"
+            line="197"
             column="20"/>
     </issue>
 
@@ -195,7 +184,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="197"
+            line="198"
             column="20"/>
     </issue>
 
@@ -206,7 +195,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="198"
+            line="199"
             column="20"/>
     </issue>
 
@@ -217,7 +206,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="201"
+            line="202"
             column="20"/>
     </issue>
 
@@ -228,7 +217,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="205"
+            line="206"
             column="20"/>
     </issue>
 
@@ -239,7 +228,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="214"
+            line="215"
             column="20"/>
     </issue>
 
@@ -250,7 +239,7 @@
         errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="build.gradle.kts"
-            line="216"
+            line="217"
             column="20"/>
     </issue>
 

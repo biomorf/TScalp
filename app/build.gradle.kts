@@ -112,6 +112,7 @@ android {
         htmlReport = true
         xmlReport = true
         textReport = false
+        disable += "AndroidGradlePluginVersion"
     }
 }
 
