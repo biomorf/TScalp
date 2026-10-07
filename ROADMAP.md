@@ -104,6 +104,11 @@ ktlint, detekt. Отдельно от unit-тестов, чтобы падени
   артефактах CI.
 - Build cache: стабильный ключ `gradle-cache-v1`, `.gradle/jdks`
   в paths.
+- Smoke-сборка `assembleDebug` в стадии `test`, параллельно
+  `unit-tests` и `lint`. Ловит ошибки, которые не покрывают
+  тесты и lint: битые ресурсы, конфликты в `packaging {}`,
+  `AndroidManifest.xml`, а также `renameDebugApk`, который в
+  остальных job'ах не отрабатывает.
 
 **Запланировано** (в порядке приоритета):
 
