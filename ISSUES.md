@@ -129,3 +129,24 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 
 ---
 
+## Kotlin compiler warning: statusBarColor deprecated
+
+**Статус:** отложен. Связано с ROADMAP → «Переход на edge-to-edge».
+
+**Симптом:** при сборке Kotlin compiler выдаёт:
+
+    Theme.kt:45:20-14 DEPRECATION: 'var statusBarColor: Int'
+    is deprecated. Deprecated in Java.
+
+**Причина:** `window.statusBarColor` устарел с API 35. С Android 15
+система применяет edge-to-edge принудительно для target SDK 35+.
+
+**Решение:** см. ROADMAP → «Переход на edge-to-edge». Требует
+правки `Theme.kt`, проверки `enableEdgeToEdge()` в `MainActivity`,
+прогона на Android 12–15.
+
+**Когда вернуться:** при подготовке релиза под Android 15 /
+target SDK 36, либо раньше — если решишь не накапливать warning'и.
+
+---
+

@@ -9,10 +9,11 @@ before_script:
   - chmod +x ./gradlew
 
 cache:
-  key: "$CI_COMMIT_REF_NAME"
-  paths:
-    - .gradle/wrapper
-    - .gradle/caches
+    key: gradle-cache-v1
+    paths:
+      - .gradle/wrapper
+      - .gradle/caches
+      - .gradle/jdks
 
 stages:
   - test
@@ -20,6 +21,7 @@ stages:
   - release
 
 unit-tests:
+  interruptible: true
   stage: test
   script:
     - ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
@@ -36,6 +38,37 @@ unit-tests:
       - app/build/reports/tests/testDebugUnitTest/
     expire_in: 1 week
   timeout: 30m
+
+lint:
+  interruptible: true
+  stage: test
+  script:
+    - ./gradlew :app:lintDebug --no-daemon --stacktrace
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  artifacts:
+    when: always
+    paths:
+      - app/build/reports/lint-results-debug.html
+      - app/build/reports/lint-results-debug.xml
+    expire_in: 1 week
+  timeout: 30m
+
+assemble-debug:
+  interruptible: true
+  stage: test
+  script:
+    - ./gradlew :app:assembleDebug --no-daemon --stacktrace
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  timeout: 30m
+
 
 build-release:
   stage: build
@@ -72,16 +105,25 @@ publish-release:
       artifacts: true
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  variables:
+    GIT_DEPTH: 0
   script:
-    - APK_FILE=$(ls app/build/outputs/apk/release/tscalp-release-*.apk | head -1)
-    - APK_NAME=$(basename "$APK_FILE")
-    - ARTIFACT_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/artifacts/${CI_COMMIT_TAG}/raw/app/build/outputs/apk/release/${APK_NAME}?job=build-release"
-    - echo "Publishing $APK_NAME → $ARTIFACT_URL"
     - |
-      release-cli create \
-        --name "Release $CI_COMMIT_TAG" \
-        --tag-name "$CI_COMMIT_TAG" \
-        --description "Релиз $CI_COMMIT_TAG. APK: $APK_NAME" \
-        --assets-link "{\"name\":\"$APK_NAME\",\"url\":\"$ARTIFACT_URL\"}"
+      APK_FILE=$(ls app/build/outputs/apk/release/tscalp-release-*.apk | head -1)
+      APK_NAME=$(basename "$APK_FILE")
+      ARTIFACT_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/artifacts/${CI_COMMIT_TAG}/raw/app/build/outputs/apk/release/${APK_NAME}?job=build-release"
+      PREV_TAG=$(git describe --tags --abbrev=0 "${CI_COMMIT_TAG}^" 2>/dev/null || echo "")
+      echo "Previous tag: ${PREV_TAG:-none}"
+      if [ -z "$PREV_TAG" ]; then
+        RANGE="$CI_COMMIT_TAG"
+      else
+        RANGE="${PREV_TAG}..${CI_COMMIT_TAG}"
+      fi
+      NOTES=$(git log --pretty=format:"* %s" --no-merges "$RANGE" | grep -E '^\* (feat|fix)' || true)
+      if [ -z "$NOTES" ]; then
+        NOTES="* No user-facing changes"
+      fi
+      echo "$NOTES"
+      release-cli create --name "Release $CI_COMMIT_TAG" --tag-name "$CI_COMMIT_TAG" --description "$NOTES" --assets-link "{\"name\":\"$APK_NAME\",\"url\":\"$ARTIFACT_URL\"}"
   timeout: 10m
   
