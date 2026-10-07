@@ -128,6 +128,35 @@ merge-коммит существует только на master, и тег на
       `assembleRelease -PreleaseVersionName=X.Y.Z`;
     - `publish-release` — создаёт GitLab Release с APK в assets.
 
+---
+
+### Чек-лист релиза
+
+Перед созданием тега:
+
+1. Убедиться, что `dev` содержит все нужные коммиты.
+2. Запушить `dev`: `git push origin dev`.
+3. Создать MR `dev → master` в GitLab UI.
+4. Дождаться зелёного пайплайна на MR.
+5. Смерджить MR.
+6. Локально: `git checkout master && git pull --ff-only origin master`.
+7. Проверить, что `origin/master` содержит нужный коммит:
+   `git log origin/master -1 --oneline`.
+
+Создание тега:
+
+8. `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
+9. **Проверить перед пушем**:
+   `git branch -r --contains vX.Y.Z`.
+   В выводе **обязан** быть `origin/master`. Если нет — тег
+   создан не на том коммите, удалить и повторить с шага 6.
+10. `git push origin vX.Y.Z`.
+
+Пуш только тега, без `--tags`: `git push --tags` отправит все
+локальные теги, включая случайные.
+
+---
+
 ## CI-переменные
 
 Все задаются в GitLab → Settings → CI/CD → Variables.
