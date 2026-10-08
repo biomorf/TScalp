@@ -61,7 +61,7 @@ android {
         versionCode = computedVersionCode
         // теперь buildTime() вызывается на этапе конфигурации,
         // но при каждом новом запуске Gradle даст свежее время.
-        versionName = releaseVersionName ?: ("1." + buildTime())
+        versionName = releaseVersionName ?: ("${lastReleaseVersion()}-dev." + buildTime())
         buildConfigField("String", "APPMETRICA_API_KEY", "\"$appmetricaKey\"")
     }
 
@@ -229,6 +229,24 @@ fun buildTime(): String {
         .format(DateTimeFormatter.ofPattern("yy.MM.dd.HHmm"))
 }
 
+// Последний релизный тег (vX.Y.Z) из локального git.
+// Fallback — "0.0.0", если тегов нет или git недоступен
+// (shallow clone без GIT_DEPTH: 0, отсутствие git в PATH).
+fun lastReleaseVersion(): String {
+    return try {
+        val process = ProcessBuilder("git", "tag", "--sort=-v:refname", "--list", "v*")
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText()
+        process.waitFor()
+        output.lineSequence()
+            .firstOrNull { it.isNotBlank() }
+            ?.removePrefix("v")
+            ?: "0.0.0"
+    } catch (e: Exception) {
+        "0.0.0"
+    }
+}
 
 // Одна задача для переименования debug APK (запускается после каждой сборки debug)
 tasks.register("renameDebugApk") {
