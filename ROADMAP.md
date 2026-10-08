@@ -118,14 +118,16 @@ Renovate делает то же самое, но правильно: откры�
 
 ### versionName в GitLab Release description
 
+**Статус:** в работе.
+
 **Что:** добавить строку `Release vX.Y.Z` перед списком
 release notes. Сейчас description содержит только список
 `feat`/`fix`, без явного указания версии.
 
-**Зачем:** при просмотре списка релизов сразу видно версию.
+**Как:** в `publish-release` формируется `DESCRIPTION` через
+`printf -v DESCRIPTION 'Release %s\n\n%s' "$CI_COMMIT_TAG" "$NOTES"`.
 
 **Оценка:** ~5 мин.
-**Когда:** при следующем релизе.
 
 ### Coverage в unit-tests
 
