@@ -141,20 +141,28 @@ release notes. Сейчас description содержит только списо
   публикации в Play вернуться отдельно.
 ---
 
-## Удаление legacy mipmap-папок
+## Удаление legacy `.webp`-иконок
 
-**Статус:** запланировано.
+**Статус:** в работе.
 
-**Что:** удалить
-`app/src/main/res/mipmap-{hdpi,mdpi,xhdpi,xxhdpi,xxxhdpi}/`.
-При `minSdk=30` они не используются: адаптивные иконки из
-`mipmap-anydpi` покрывают все поддерживаемые устройства.
+**Что:** удалить `ic_launcher.webp` и `ic_launcher_round.webp`
+из `mipmap-{hdpi,mdpi,xhdpi,xxhdpi,xxxhdpi}/`. При `minSdk=30`
+они не используются: adaptive-иконки из `mipmap-anydpi`
+покрывают все поддерживаемые устройства.
+
+**Важно:** файлы `ic_launcher_foreground.webp` в тех же папках
+**остаются**. На них ссылается adaptive XML:
+`mipmap-anydpi/ic_launcher.xml` → `@mipmap/ic_launcher_foreground`.
+Удаление папок целиком сломает иконку.
 
 **Проверить:** установка на реальном устройстве — иконка в
 лаунчере и в списке недавних приложений отображается корректно.
 
+**Возможное улучшение в будущем:** перенести
+`ic_launcher_foreground` в `drawable-{density}/` или заменить
+векторным foreground. Отдельная задача, не в этой.
+
 **Оценка:** ~10 минут.
-**Когда:** после завершения CI-задач (3, 4, 5, 6).
 
 ---
 
