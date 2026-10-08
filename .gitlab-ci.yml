@@ -2,6 +2,7 @@ image: mobiledevops/android-sdk-image:36.1.0
 
 variables:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  GIT_DEPTH: 0
 
 before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
