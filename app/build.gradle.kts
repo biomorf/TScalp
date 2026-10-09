@@ -137,7 +137,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // Jetpack Compose
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
@@ -168,7 +168,7 @@ dependencies {
 
     // Unit-тесты
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("io.mockk:mockk:1.13.13")
 
     // AppMetrica SDK — crash reporting + analytics
@@ -194,18 +194,18 @@ dependencies {
     //implementation("io.grpc:grpc-stub:1.68.1")
     //implementation("io.grpc:grpc-protobuf-lite:1.68.1")
     //implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
-    implementation("io.grpc:grpc-okhttp:1.80.0")
+    implementation("io.grpc:grpc-okhttp:1.84.1")
     implementation("io.grpc:grpc-kotlin-stub:1.5.0")
-    implementation("io.grpc:grpc-stub:1.80.0")
-    implementation("io.grpc:grpc-protobuf-lite:1.80.0")
-    implementation("io.grpc:grpc-netty:1.80.0") // явно добавим Netty без shaded
+    implementation("io.grpc:grpc-stub:1.84.1")
+    implementation("io.grpc:grpc-protobuf-lite:1.84.1")
+    implementation("io.grpc:grpc-netty:1.84.1") // явно добавим Netty без shaded
 
     // Обязательно для SSL на Android
     implementation("org.conscrypt:conscrypt-android:2.6.3")
 
     // Обязательная зависимость для ManagedChannel
     //implementation("io.grpc:grpc-stub:1.57.2")
-    implementation("io.grpc:grpc-stub:1.80.0")
+    //implementation("io.grpc:grpc-stub:1.84.1")
 
     // T-Invest API SDK
     implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.51.0") {
@@ -214,9 +214,9 @@ dependencies {
 
     // BCS Broker
     //implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
     //implementation("com.google.code.gson:gson:2.10.1")
-    implementation("com.google.code.gson:gson:2.13.2")
+    implementation("com.google.code.gson:gson:2.14.0")
 
     //Finam API SDK
 
