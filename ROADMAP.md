@@ -355,6 +355,33 @@ License 2.0.
 
 ---
 
+## Обновление зависимостей до актуальных версий
+
+**Статус:** запланировано.
+
+**Что:** обновить AndroidX, Compose и сетевые библиотеки до
+последних стабильных версий.
+
+**Группа 1 (AndroidX и Compose):**
+- `androidx.core:core`: 1.18.0 → 1.19.1
+- `androidx.lifecycle:*`: 2.9.4 → 2.11.0
+- `androidx.compose:compose-bom`: 2025.12.00 → 2026.09.00
+- `androidx.navigation:navigation-compose`: 2.9.8 → 2.10.2
+- Удалить явные версии у Compose-зависимостей (управляются BOM).
+
+**Группа 2 (сетевые):**
+- `io.grpc:grpc-*`: 1.80.0 → 1.84.1
+- `com.squareup.okhttp3:okhttp`: 5.3.2 → 5.4.0
+- `com.google.code.gson:gson`: 2.13.2 → 2.14.0
+
+**Не трогать:**
+- `com.google.protobuf:protobuf-*` — оставить 3.25.8 из-за
+  совместимости с gRPC и T-Invest SDK.
+
+**Оценка:** ~20 минут.
+
+---
+
 ## Закрытые задачи
 
 ### ✅ Единый источник цен (PriceStreamManager)
