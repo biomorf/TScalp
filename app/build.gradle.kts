@@ -149,7 +149,7 @@ dependencies {
     implementation("androidx.activity:activity-compose")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
     implementation("androidx.lifecycle:lifecycle-runtime-compose")
-    implementation("androidx.navigation:navigation-compose:2.10.2")    //for navigation using sealed classes
+    implementation("androidx.navigation:navigation-compose:2.10.2") //for navigation using sealed classes
 
     // Hilt
     implementation("com.google.dagger:hilt-android:2.60.1")
