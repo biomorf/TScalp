@@ -41,7 +41,7 @@ plugins {
 
 android {
     namespace = "com.gitlab.biomorf.tscalp"
-    compileSdk = 36
+    compileSdk = 37
 
     signingConfigs {
         if (hasReleaseSigning) {
@@ -57,6 +57,7 @@ android {
     defaultConfig {
         applicationId = "com.gitlab.biomorf.tscalp"
         minSdk = 30
+        //noinspection OldTargetApi
         targetSdk = 36
         versionCode = computedVersionCode
         // теперь buildTime() вызывается на этапе конфигурации,
@@ -109,9 +110,6 @@ android {
         abortOnError = true
         checkDependencies = false
         checkReleaseBuilds = false
-        htmlReport = true
-        xmlReport = true
-        textReport = false
         disable += setOf(
             "AndroidGradlePluginVersion",
             "GradleDependency",
