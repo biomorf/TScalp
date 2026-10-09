@@ -364,10 +364,17 @@ License 2.0.
 
 **Группа 1 (AndroidX и Compose):**
 - `androidx.core:core`: 1.18.0 → 1.19.1
-- `androidx.lifecycle:*`: 2.9.4 → 2.11.0
+- `androidx.lifecycle:lifecycle-runtime-ktx`: 2.9.4 → 2.11.0
 - `androidx.compose:compose-bom`: 2025.12.00 → 2026.09.00
 - `androidx.navigation:navigation-compose`: 2.9.8 → 2.10.2
-- Удалить явные версии у Compose-зависимостей (управляются BOM).
+- Убрать явные версии у зависимостей, управляемых BOM:
+  `activity-compose`, `lifecycle-viewmodel-compose`,
+  `lifecycle-runtime-compose`. После этого их версии
+  подтягиваются из BOM автоматически.
+
+  `androidx.navigation:navigation-compose` и
+  `androidx.lifecycle:lifecycle-runtime-ktx` в BOM **не входят** —
+  у них версии указываются явно.
 
 **Группа 2 (сетевые):**
 - `io.grpc:grpc-*`: 1.80.0 → 1.84.1
