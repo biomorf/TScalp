@@ -129,24 +129,28 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 
 ---
 
-## Kotlin compiler warning: statusBarColor deprecated
+## Gradle 10: устаревшие API в сторонних плагинах
 
-**Статус:** отложен. Связано с ROADMAP → «Переход на edge-to-edge».
+**Статус:** отложен. Не наш код.
 
-**Симптом:** при сборке Kotlin compiler выдаёт:
+**Симптом:** при сборке (Gradle 9.8.1) в конце выводится
+предупреждение:
 
-    Theme.kt:45:20-14 DEPRECATION: 'var statusBarColor: Int'
-    is deprecated. Deprecated in Java.
+    Deprecated Gradle features were used in this build, making it
+    incompatible with Gradle 10.
 
-**Причина:** `window.statusBarColor` устарел с API 35. С Android 15
-система применяет edge-to-edge принудительно для target SDK 35+.
+**Причина:** один или несколько сторонних плагинов (Hilt, KSP,
+AGP) используют API, запланированные к удалению в Gradle 10.
+`--warning-mode all` не показывает источников из наших скриптов —
+значит, предупреждение приходит от плагинов.
 
-**Решение:** см. ROADMAP → «Переход на edge-to-edge». Требует
-правки `Theme.kt`, проверки `enableEdgeToEdge()` в `MainActivity`,
-прогона на Android 12–15.
+**Решение:** ожидать обновлений плагинов. Отслеживать через
+release notes Hilt, KSP, AGP. Перед апгрейдом до Gradle 10 —
+проверить, что все плагины поддерживают.
 
-**Когда вернуться:** при подготовке релиза под Android 15 /
-target SDK 36, либо раньше — если решишь не накапливать warning'и.
+**Когда вернуться:** при подготовке к апгрейду Gradle 10
+(ожидается в 2027+), либо если предупреждение начнёт
+накапливаться с новыми source-локациями.
 
 ---
 
