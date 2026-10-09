@@ -305,7 +305,7 @@ tasks.withType<Test> {
     }
 }
 
-val copyDebugApk by tasks.registering(Copy::class) {
+val copyDebugApk = tasks.register<Copy>("copyDebugApk") {
     val apkDir = layout.buildDirectory.dir("outputs/apk/debug")
     val version = android.defaultConfig.versionName
 
@@ -315,7 +315,7 @@ val copyDebugApk by tasks.registering(Copy::class) {
     dependsOn("assembleDebug")
 }
 
-val copyReleaseApk by tasks.registering(Copy::class) {
+val copyReleaseApk = tasks.register<Copy>("copyReleaseApk") {
     val apkDir = layout.buildDirectory.dir("outputs/apk/release")
     val version = android.defaultConfig.versionName
 
