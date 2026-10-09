@@ -327,7 +327,31 @@ License 2.0.
 
 ---
 
+## Обновление compileSdk до 37
 
+**Статус:** запланировано.
+
+**Что:** обновить `compileSdk` с 36 до 37, оставив
+`targetSdk = 36`.
+
+**Зачем:** доступ к новым API Android 17 без активации
+изменений поведения. Google Play пока требует только
+`targetSdk 36`[reference:5], обновление `targetSdk` до 37
+не обязательно.
+
+**Риски `targetSdk 37`:**
+- Игнорирование ограничений ориентации и изменения размера
+  на больших экранах (sw > 600dp)[reference:6].
+- Новые лимиты памяти для Bitmap/Icons в RemoteViews[reference:7].
+- Возможные баги эмулятора для API 37[reference:8].
+
+**План:**
+1. Обновить `compileSdk` до 37 в `app/build.gradle.kts`.
+2. Локальная сборка: `./gradlew :app:clean :app:testDebugUnitTest --rerun-tasks`.
+3. Если зелено — коммит.
+4. `targetSdk` оставить 36 до отдельного решения.
+
+**Оценка:** ~10 минут.
 
 ---
 
