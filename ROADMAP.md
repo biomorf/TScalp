@@ -355,37 +355,7 @@ License 2.0.
 
 ---
 
-## Обновление зависимостей до актуальных версий
 
-**Статус:** запланировано.
-
-**Что:** обновить AndroidX, Compose и сетевые библиотеки до
-последних стабильных версий.
-
-**Группа 1 (AndroidX и Compose):**
-- `androidx.core:core`: 1.18.0 → 1.19.1
-- `androidx.lifecycle:lifecycle-runtime-ktx`: 2.9.4 → 2.11.0
-- `androidx.compose:compose-bom`: 2025.12.00 → 2026.09.00
-- `androidx.navigation:navigation-compose`: 2.9.8 → 2.10.2
-- Убрать явные версии у зависимостей, управляемых BOM:
-  `activity-compose`, `lifecycle-viewmodel-compose`,
-  `lifecycle-runtime-compose`. После этого их версии
-  подтягиваются из BOM автоматически.
-
-  `androidx.navigation:navigation-compose` и
-  `androidx.lifecycle:lifecycle-runtime-ktx` в BOM **не входят** —
-  у них версии указываются явно.
-
-**Группа 2 (сетевые):**
-- `io.grpc:grpc-*`: 1.80.0 → 1.84.1
-- `com.squareup.okhttp3:okhttp`: 5.3.2 → 5.4.0
-- `com.google.code.gson:gson`: 2.13.2 → 2.14.0
-
-**Не трогать:**
-- `com.google.protobuf:protobuf-*` — оставить 3.25.8 из-за
-  совместимости с gRPC и T-Invest SDK.
-
-**Оценка:** ~20 минут.
 
 ---
 
@@ -470,5 +440,32 @@ JDK 17+ (у нас 25). Kotlin 2.4.20 и KSP 2.3.12 совместимы.
 build-скрипте. AGP 9.x его не требует, но и не конфликтует с ним —
 сборка проходит с обоими. Удаление плагина — отдельная задача
 по чистке, не часть этого апгрейда.
+
+### ✅ Обновление зависимостей до актуальных версий
+
+Обновлены:
+
+- `androidx.core:core` 1.18.0 → 1.19.1
+- `androidx.lifecycle:lifecycle-runtime-ktx` 2.9.4 → 2.11.0
+- Compose BOM 2025.12.00 → 2026.09.00
+- `androidx.navigation:navigation-compose` 2.9.8 → 2.10.2
+- `kotlinx-coroutines-android` 1.10.2 → 1.11.0
+- `kotlinx-coroutines-test` 1.10.2 → 1.11.0
+- `io.grpc:*` 1.80.0 → 1.84.1
+- `com.squareup.okhttp3:okhttp` 5.3.2 → 5.4.0
+- `com.google.code.gson:gson` 2.13.2 → 2.14.0
+
+Попутно:
+
+- Убраны явные версии у `activity-compose`,
+  `lifecycle-viewmodel-compose`, `lifecycle-runtime-compose` —
+  управляются Compose BOM.
+- Удалён дублирующий `grpc-stub` из блока «ManagedChannel»;
+  он и так приходит транзитивно через `grpc-kotlin-stub` и
+  `grpc-protobuf-lite`.
+
+**Не трогали:** `protobuf-java` и `protobuf-kotlin` остаются
+`3.25.8` — намеренный pin для совместимости с gRPC и
+T-Invest SDK.
 
 ---
