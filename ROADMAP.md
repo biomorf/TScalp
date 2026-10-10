@@ -343,26 +343,62 @@ approval, per-environment значения. Всё остальное совпа
 ---
 
 
-## Coverage (JaCoCo) в unit-tests
+### Coverage в unit-tests
 
 **Статус:** в работе.
 
-**Что:** генерировать отчёт о покрытии кода юнит-тестами
-в GitHub Actions и публиковать как артефакт.
+**Инструмент:** **Kover** (не JaCoCo).
 
-**Зачем:** видно, какие строки не покрыты. Полезно при
-увеличении тестов за пределы текущих 63.
+**Почему Kover, а не JaCoCo:**
 
-**Как:**
-- `build.gradle.kts`: `debug { enableUnitTestCoverage = true }`.
-  JaCoCo встроен в AGP, отдельный плагин не нужен.
-- `ci.yml`: шаг `:app:createDebugUnitTestCoverageReport` и
-  загрузка `app/build/reports/coverage/test/debug/` как
-  артефакта.
-- Enforcement (минимальный % покрытия, падение сборки) —
-  не включаем. Только отчёт.
+- **Enforcement из коробки.** `koverVerify` — декларативный блок
+  в `build.gradle.kts`, 10 строк. JaCoCo в Android-проекте
+  не имеет verification-задачи, пришлось бы писать ручную
+  задачу на `JacocoTaskExtension`.
+- **Kotlin-first.** Лучше обрабатывает inline-функции,
+  корутины, `when` по sealed-классам. JaCoCo считает их
+  покрытие неточно.
+- **Совместимость с AGP 9.4.** Плагин `jacoco-android` давно
+  не обновлялся; официальной поддержки AGP 9.x нет. Kover —
+  официальный инструмент JetBrains, обновляется.
+- **Один инструмент.** Отчёты (XML в формате JaCoCo, HTML) и
+  verification — всё в Kover.
 
-**Оценка:** ~30 минут.
+**Текущее покрытие (JaCoCo-отчёт до миграции):** 4.5% инструкций
+(2 286 / 50 598). По слоям:
+
+| Слой | Покрытие |
+|------|----------|
+| `util/PositionFormatter`, `CurrencyUtils` | ~100% |
+| `domain/models/Portfolio` | ~100% |
+| `domain/usecases/CalculateTradeDetailsUseCase` | ~70% |
+| `domain/usecases/PairOrderMapper` | ~100% |
+| Остальное (UI, data, di) | ~0% |
+
+**План миграции:**
+
+1. Подключить Kover: `org.jetbrains.kotlinx.kover` в
+   `build.gradle.kts`.
+2. Убрать `enableUnitTestCoverage = true` из debug build type
+   (JaCoCo больше не нужен).
+3. Убрать задачу `createDebugUnitTestCoverageReport` из `ci.yml`.
+4. Настроить `kover { }`: исключить UI/data/di из проверки.
+5. Поставить **гибридные пороги** (ниже текущего покрытия —
+   сборка не падает сразу):
+   - общий по модулю: 3%;
+   - `util/PositionFormatter`: 70%;
+   - `util/CurrencyUtils`: 70%;
+   - `domain/models/Portfolio`: 70%;
+   - `domain/usecases/CalculateTradeDetailsUseCase`: 50%;
+   - `domain/usecases/PairOrderMapper`: 70%.
+6. Добавить `koverVerify` в `ci.yml`.
+7. Публиковать `koverXmlReport` и `koverHtmlReport` как артефакты.
+
+**Отложено:** жёсткие пороги (30–50% по слою `domain/`,
+70–80% по `util/`) — после того как гибридные подтвердят
+работоспособность и появится рост покрытия.
+
+**Оценка:** ~1 час.
 
 
 ---
