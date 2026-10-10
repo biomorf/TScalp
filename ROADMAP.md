@@ -252,6 +252,29 @@ GitLab-аккаунт для бота (например, `tscalp-renovate-bot`),
 отдельного пользователя — единственный доступный способ:
 service accounts доступны только на Premium/Ultimate.
 
+
+## Renovate: self-hosted через GitHub Actions
+
+**Статус:** в работе.
+
+**Что:** автоматическое отслеживание обновлений Gradle-зависимостей
+через self-hosted Renovate в GitHub Actions.
+
+**Зачем:** `GradleDependency` и `NewerVersionAvailable` отключены
+в lint (несовместимы с baseline). Renovate открывает PR с
+обновлениями и не блокирует чужие сборки.
+
+**Компоненты:**
+- `renovate.json` — конфиг с группировкой Kotlin/KSP/Compose
+  Compiler, AndroidX Compose, gRPC. `protobuf-*` отключены
+  (намеренный pin 3.25.8).
+- `.github/workflows/renovate.yml` — запуск раз в неделю по
+  расписанию + `workflow_dispatch` для ручного теста.
+- PAT бот-аккаунта с scope `repo` + `workflow`, сохранён как
+  Secret `RENOVATE_TOKEN`.
+
+**Оценка:** ~1 час.
+
 ---
 
 ## Смена лицензии GPL v3 → Apache 2.0
