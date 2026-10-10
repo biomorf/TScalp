@@ -123,21 +123,6 @@
 
 **Запланировано** (в порядке приоритета):
 
-### versionName в GitLab Release description
-
-**Статус:** в работе.
-
-**Что:** добавить строку `Release vX.Y.Z` перед списком
-release notes. Сейчас description содержит только список
-`feat`/`fix`, без явного указания версии.
-
-**Как:** в `publish-release` формируется `DESCRIPTION` через
-`printf -v DESCRIPTION 'Release %s\n\n%s' "$CI_COMMIT_TAG" "$NOTES"`.
-
-**Оценка:** ~5 мин.
-
----
-
 ## Self-hosted GitLab Runner через Ansible + Podman
 
 **Статус:** запланировано.
@@ -409,6 +394,13 @@ adaptive XML `mipmap-anydpi/ic_launcher.xml`. Иконка
 **Возможное улучшение в будущем:** перенести
 `ic_launcher_foreground` в `drawable-{density}/` или заменить
 векторным foreground. Отдельная задача, не в этой.
+
+### ✅ versionName в GitHub Release (отменено)
+
+Исходная задача из эпохи GitLab CI: добавить `Release vX.Y.Z`
+в description. В GitHub это решено через `name: Release
+${{ inputs.tag }}` в `release.yml` — версия видна в заголовке
+релиза, дублирование в body не нужно
 
 ### ✅ Смена лицензии GPL v3 → Apache 2.0
 
