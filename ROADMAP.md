@@ -404,7 +404,8 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 ## Переезд CI на GitHub Actions
 
-**Статус:** в работе.
+**Статус:** частично сделано. CI (`ci.yml`) работает на push
+и MR. Release (`release.yml`) ещё не проверен на реальном теге.
 
 **Что:** Перенести CI/CD с GitLab CI на GitHub Actions.
 
@@ -420,26 +421,6 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 **Оценка:** ~2-3 часа.
 
-
-### Обновление actions до Node.js 24
-
-**Статус:** в работе.
-
-**Что:** обновить GitHub Actions, которые ещё используют
-Node.js 20, до версий с поддержкой Node.js 24.
-
-**Причина:** GitHub форсит Node.js 24 с 2 июня 2026.
-Node.js 20 будет удалён с раннеров 16 сентября 2026.
-Сейчас в warning'ах: `actions/checkout@v4`,
-`actions/upload-artifact@v4`.
-
-**Обновления:**
-- `actions/checkout`: v4 → v6
-- `actions/upload-artifact`: v4 → v7
-- `actions/setup-java@v5` и `gradle/actions/setup-gradle@v5` —
-  уже Node 24, не трогаем.
-
-**Оценка:** ~10 минут.
 
 
 ---
@@ -598,5 +579,15 @@ build-скрипте. AGP 9.x его не требует, но и не конф�
 **Не трогали:** `protobuf-java` и `protobuf-kotlin` остаются
 `3.25.8` — намеренный pin для совместимости с gRPC и
 T-Invest SDK.
+
+### ✅ Обновление GitHub Actions до Node.js 24
+
+- `actions/checkout`: v4 → v6
+- `actions/upload-artifact`: v4 → v7
+
+GitHub форсит Node.js 24 для actions с 2 июня 2026;
+Node.js 20 будет удалён с раннеров 16 сентября 2026.
+`actions/setup-java@v5` и `gradle/actions/setup-gradle@v5`
+уже были на Node.js 24.
 
 ---
