@@ -343,6 +343,27 @@ approval, per-environment значения. Всё остальное совпа
 ---
 
 
+## Coverage (JaCoCo) в unit-tests
+
+**Статус:** в работе.
+
+**Что:** генерировать отчёт о покрытии кода юнит-тестами
+в GitHub Actions и публиковать как артефакт.
+
+**Зачем:** видно, какие строки не покрыты. Полезно при
+увеличении тестов за пределы текущих 63.
+
+**Как:**
+- `build.gradle.kts`: `debug { enableUnitTestCoverage = true }`.
+  JaCoCo встроен в AGP, отдельный плагин не нужен.
+- `ci.yml`: шаг `:app:createDebugUnitTestCoverageReport` и
+  загрузка `app/build/reports/coverage/test/debug/` как
+  артефакта.
+- Enforcement (минимальный % покрытия, падение сборки) —
+  не включаем. Только отчёт.
+
+**Оценка:** ~30 минут.
+
 
 ---
 ## Закрытые задачи
