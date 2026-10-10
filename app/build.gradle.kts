@@ -41,7 +41,7 @@ plugins {
 
 android {
     namespace = "com.gitlab.biomorf.tscalp"
-    compileSdk = 36
+    compileSdk = 37
 
     signingConfigs {
         if (hasReleaseSigning) {
@@ -57,6 +57,7 @@ android {
     defaultConfig {
         applicationId = "com.gitlab.biomorf.tscalp"
         minSdk = 30
+        //noinspection OldTargetApi
         targetSdk = 36
         versionCode = computedVersionCode
         // теперь buildTime() вызывается на этапе конфигурации,
@@ -109,9 +110,6 @@ android {
         abortOnError = true
         checkDependencies = false
         checkReleaseBuilds = false
-        htmlReport = true
-        xmlReport = true
-        textReport = false
         disable += setOf(
             "AndroidGradlePluginVersion",
             "GradleDependency",
@@ -135,23 +133,23 @@ kotlin {
 
 dependencies {
     // Core
-    implementation("androidx.core:core:1.18.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
+    implementation("androidx.core:core:1.19.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // Jetpack Compose
-    implementation(platform("androidx.compose:compose-bom:2025.12.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.activity:activity-compose:1.12.4")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
-    implementation("androidx.navigation:navigation-compose:2.9.8")    //for navigation using sealed classes
+    implementation("androidx.activity:activity-compose")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose")
+    implementation("androidx.navigation:navigation-compose:2.10.2") //for navigation using sealed classes
 
     // Hilt
     implementation("com.google.dagger:hilt-android:2.60.1")
@@ -170,7 +168,7 @@ dependencies {
 
     // Unit-тесты
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("io.mockk:mockk:1.13.13")
 
     // AppMetrica SDK — crash reporting + analytics
@@ -196,18 +194,18 @@ dependencies {
     //implementation("io.grpc:grpc-stub:1.68.1")
     //implementation("io.grpc:grpc-protobuf-lite:1.68.1")
     //implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
-    implementation("io.grpc:grpc-okhttp:1.80.0")
+    implementation("io.grpc:grpc-okhttp:1.84.1")
     implementation("io.grpc:grpc-kotlin-stub:1.5.0")
-    implementation("io.grpc:grpc-stub:1.80.0")
-    implementation("io.grpc:grpc-protobuf-lite:1.80.0")
-    implementation("io.grpc:grpc-netty:1.80.0") // явно добавим Netty без shaded
+    implementation("io.grpc:grpc-stub:1.84.1")
+    implementation("io.grpc:grpc-protobuf-lite:1.84.1")
+    implementation("io.grpc:grpc-netty:1.84.1") // явно добавим Netty без shaded
 
     // Обязательно для SSL на Android
     implementation("org.conscrypt:conscrypt-android:2.6.3")
 
     // Обязательная зависимость для ManagedChannel
     //implementation("io.grpc:grpc-stub:1.57.2")
-    implementation("io.grpc:grpc-stub:1.80.0")
+    //implementation("io.grpc:grpc-stub:1.84.1")
 
     // T-Invest API SDK
     implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.51.0") {
@@ -216,9 +214,9 @@ dependencies {
 
     // BCS Broker
     //implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
     //implementation("com.google.code.gson:gson:2.10.1")
-    implementation("com.google.code.gson:gson:2.13.2")
+    implementation("com.google.code.gson:gson:2.14.0")
 
     //Finam API SDK
 
@@ -305,7 +303,7 @@ tasks.withType<Test> {
     }
 }
 
-val copyDebugApk by tasks.registering(Copy::class) {
+val copyDebugApk = tasks.register<Copy>("copyDebugApk") {
     val apkDir = layout.buildDirectory.dir("outputs/apk/debug")
     val version = android.defaultConfig.versionName
 
@@ -315,7 +313,7 @@ val copyDebugApk by tasks.registering(Copy::class) {
     dependsOn("assembleDebug")
 }
 
-val copyReleaseApk by tasks.registering(Copy::class) {
+val copyReleaseApk = tasks.register<Copy>("copyReleaseApk") {
     val apkDir = layout.buildDirectory.dir("outputs/apk/release")
     val version = android.defaultConfig.versionName
 

@@ -206,7 +206,6 @@ class PortfolioViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
         priceStreamManager.clearInterest(PriceConsumer.PORTFOLIO)
     }
 
