@@ -343,62 +343,7 @@ approval, per-environment значения. Всё остальное совпа
 ---
 
 
-### Coverage в unit-tests
 
-**Статус:** в работе.
-
-**Инструмент:** **Kover** (не JaCoCo).
-
-**Почему Kover, а не JaCoCo:**
-
-- **Enforcement из коробки.** `koverVerify` — декларативный блок
-  в `build.gradle.kts`, 10 строк. JaCoCo в Android-проекте
-  не имеет verification-задачи, пришлось бы писать ручную
-  задачу на `JacocoTaskExtension`.
-- **Kotlin-first.** Лучше обрабатывает inline-функции,
-  корутины, `when` по sealed-классам. JaCoCo считает их
-  покрытие неточно.
-- **Совместимость с AGP 9.4.** Плагин `jacoco-android` давно
-  не обновлялся; официальной поддержки AGP 9.x нет. Kover —
-  официальный инструмент JetBrains, обновляется.
-- **Один инструмент.** Отчёты (XML в формате JaCoCo, HTML) и
-  verification — всё в Kover.
-
-**Текущее покрытие (JaCoCo-отчёт до миграции):** 4.5% инструкций
-(2 286 / 50 598). По слоям:
-
-| Слой | Покрытие |
-|------|----------|
-| `util/PositionFormatter`, `CurrencyUtils` | ~100% |
-| `domain/models/Portfolio` | ~100% |
-| `domain/usecases/CalculateTradeDetailsUseCase` | ~70% |
-| `domain/usecases/PairOrderMapper` | ~100% |
-| Остальное (UI, data, di) | ~0% |
-
-**План миграции:**
-
-1. Подключить Kover: `org.jetbrains.kotlinx.kover` в
-   `build.gradle.kts`.
-2. Убрать `enableUnitTestCoverage = true` из debug build type
-   (JaCoCo больше не нужен).
-3. Убрать задачу `createDebugUnitTestCoverageReport` из `ci.yml`.
-4. Настроить `kover { }`: исключить UI/data/di из проверки.
-5. Поставить **гибридные пороги** (ниже текущего покрытия —
-   сборка не падает сразу):
-   - общий по модулю: 3%;
-   - `util/PositionFormatter`: 70%;
-   - `util/CurrencyUtils`: 70%;
-   - `domain/models/Portfolio`: 70%;
-   - `domain/usecases/CalculateTradeDetailsUseCase`: 50%;
-   - `domain/usecases/PairOrderMapper`: 70%.
-6. Добавить `koverVerify` в `ci.yml`.
-7. Публиковать `koverXmlReport` и `koverHtmlReport` как артефакты.
-
-**Отложено:** жёсткие пороги (30–50% по слою `domain/`,
-70–80% по `util/`) — после того как гибридные подтвердят
-работоспособность и появится рост покрытия.
-
-**Оценка:** ~1 час.
 
 
 ---
@@ -564,5 +509,25 @@ CI/CD перенесён с GitLab на GitHub Actions.
   Срок действия 90 дней — обновлять по уведомлению.
 - Default branch в GitHub переключён с `master` на `dev`:
   workflows индексируются только из default branch.
+
+### ✅ Coverage в unit-tests
+
+Инструмент — **Kover** (не JaCoCo). Миграция выполнена.
+
+- `kover {}` в `app/build.gradle.kts`: exclusions для Hilt,
+  Compose, BuildConfig, Dagger; порог `minBound(3)` по инструкциям.
+- CI: `koverXmlReportDebug`, `koverHtmlReportDebug`,
+  `koverVerifyDebug` в `ci.yml`.
+- Итоговое покрытие: **4.53%** инструкций, 7.86% веток.
+- Отчёт сохраняется в артефактах CI, HTML доступен в браузере.
+
+**Отложено:** per-class пороги (`PositionFormatter` 70%,
+`CurrencyUtils` 70%, `CalculateTradeDetailsUseCase` 50% и т.д.).
+Синтаксис per-class правил в Kover требует проверки — сначала
+работает общий порог. Вернуться при следующей итерации по
+покрытию.
+
+**Итог:** JaCoCo полностью удалён из проекта, Kover единственный
+инструмент покрытия.
 
 ---
