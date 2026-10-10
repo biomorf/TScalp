@@ -46,6 +46,16 @@ jobs:
       - name: Run Lint
         run: ./gradlew :app:lintDebug
 
+      - name: Run detekt
+        run: ./gradlew :app:detekt
+      
+      - name: Upload detekt report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: detekt-report
+          path: app/build/reports/detekt/
+
       - name: Assemble Debug APK
         run: ./gradlew :app:assembleDebug
 

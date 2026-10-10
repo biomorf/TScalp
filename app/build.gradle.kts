@@ -38,6 +38,7 @@ plugins {
     id("dagger.hilt.android.plugin")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.kover")
+    id("io.gitlab.arturbosch.detekt")
 }
 
 android {
@@ -354,5 +355,11 @@ kover {
             }
         }
     }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    ignoreFailures = true
+    baseline = file("detekt-baseline.xml")
 }
 
