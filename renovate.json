@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "groupName": "Kotlin, KSP and Compose Compiler",
+      "matchPackageNames": [
+        "org.jetbrains.kotlin",
+        "org.jetbrains.kotlin.android",
+        "org.jetbrains.kotlin.plugin.compose",
+        "org.jetbrains.kotlin.plugin.serialization",
+        "org.jetbrains.kotlin.kapt",
+        "com.google.devtools.ksp"
+      ]
+    },
+    {
+      "groupName": "Hilt",
+      "matchPackagePrefixes": ["com.google.dagger:hilt"]
+    },
+    {
+      "groupName": "AndroidX Compose",
+      "matchPackagePrefixes": ["androidx.compose."]
+    },
+    {
+      "groupName": "gRPC",
+      "matchPackagePrefixes": ["io.grpc:"]
+    },
+    {
+      "matchPackageNames": [
+        "com.google.protobuf:protobuf-java",
+        "com.google.protobuf:protobuf-kotlin"
+      ],
+      "enabled": false
+    }
+  ]
+}
