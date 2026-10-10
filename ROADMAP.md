@@ -314,6 +314,50 @@ License 2.0.
 
 ---
 
+## Self-hosted GitLab Runner через Ansible + Podman
+
+**Статус:** запланировано.
+
+**Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
+64 ГБ RAM, Bluefin 44) через Ansible, используя Podman как
+executor. Предусмотреть возможность переключения на удалённый
+сервер через inventory.
+
+**Зачем:** квота GitLab Free Tier (400 минут/мес) исчерпана.
+Self-hosted даёт бесплатные сборки, полный контроль над
+окружением и лучшую производительность.
+
+**Технические детали:**
+- Podman как drop-in замена Docker в GitLab Runner 15.1+.
+  В `config.toml`: `executor = "docker"`,
+  `host = "unix:///run/user/<uid>/podman/podman.sock"`.
+- Rootless Podman: без root, без демона, безопаснее.
+- Ansible роль: создание пользователя `gitlab-runner`,
+  `loginctl enable-linger`, `systemctl --user enable podman.socket`,
+  регистрация раннера, настройка `config.toml`.
+- Ограничения ресурсов: `--memory=16g`, `--cpus=8` (с запасом,
+  начать с 8g/4).
+- Кэш Gradle монтируется с хоста для ускорения сборок.
+
+**Бесшовное переключение:**
+- Inventory с двумя хостами: `local` и `remote`.
+- Раннеры регистрируются с разными тегами (`home`, `remote`).
+- Переключение — смена тега в `.gitlab-ci.yml` или через
+  переменную CI/CD.
+
+**План:**
+1. Написать Ansible роль для GitLab Runner + Podman.
+2. Протестировать на домашней машине (`ansible-playbook -i inventory.yml playbook.yml`).
+3. Зарегистрировать раннер в проекте.
+4. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
+5. `build-release` и `publish-release` оставить на GitLab SaaS
+   или перенести после проверки.
+
+**Оценка:** ~2–3 часа на написание роли и отладку.
+**Когда:** после решения вопроса с Gradle upgrade.
+
+---
+
 ## Переезд CI на GitHub Actions
 
 **Статус:** запланировано. Блокер: квота GitLab Free Tier
