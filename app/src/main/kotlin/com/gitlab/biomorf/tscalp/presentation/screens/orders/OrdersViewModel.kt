@@ -934,7 +934,6 @@ class OrdersViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
         priceStreamManager.clearInterest(PriceConsumer.ORDERS)
     }
 
