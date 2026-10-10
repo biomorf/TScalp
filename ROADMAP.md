@@ -123,14 +123,6 @@
 
 **Запланировано** (в порядке приоритета):
 
-### ktlint
-
-**Что:** плагин `org.jlleitschuh.gradle.ktlint`, job
-`:app:ktlintCheck`, baseline через `.editorconfig`.
-**Зачем:** стиль Kotlin в CI.
-**Риск:** совместимость плагина с Kotlin 2.4.20 / AGP 9.0.0.
-**Оценка:** ~30 мин + первый прогон.
-
 ### detekt
 
 **Что:** плагин `io.gitlab.arturbosch.detekt`, job
@@ -343,7 +335,37 @@ approval, per-environment значения. Всё остальное совпа
 ---
 
 
+### ktlint
 
+**Статус:** в работе, отложено до работы с десктопа.
+
+**Сделано:**
+- Плагин `org.jlleitschuh.gradle.ktlint` 14.2.0 подключён
+  в root и app `build.gradle.kts`.
+- `ktlint {}` в `app/build.gradle.kts` с `ignoreFailures = true`
+  и HTML-репортёром (soft mode — violations собираются, CI
+  не падает).
+- Шаги `Run ktlint` + `Upload ktlint report` в
+  `.github/workflows/ci.yml`.
+- CI на ветке `feat/ktlint` зелёный, отчёт в артефактах.
+
+**Осталось (с десктопа):**
+1. Скачать HTML-отчёт из артефактов, оценить объём
+   violations.
+2. Выбрать путь: либо `./gradlew :app:ktlintGenerateBaseline`
+   с последующим `ignoreFailures = false`, либо `.editorconfig`
+   с отключёнными правилами (wildcard imports — сейчас
+   используются повсеместно).
+3. Убрать `ignoreFailures = true`, включить enforcement.
+4. Смержить `feat/ktlint` в `dev`.
+5. Обновить ROADMAP — перенести в «Закрытые задачи».
+
+**Ветка:** `feat/ktlint` на origin (не смерджена).
+
+**Совместимость:** подтверждена — плагин 14.2.0 работает
+с Kotlin 2.4.20 и AGP 9.4.0. Исходный риск снят.
+
+**Оценка оставшихся работ:** ~20 мин на десктопе.
 
 
 ---
