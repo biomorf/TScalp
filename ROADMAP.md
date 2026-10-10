@@ -358,69 +358,6 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 ---
 
-## Переезд CI на GitHub Actions
-
-**Статус:** запланировано. Блокер: квота GitLab Free Tier
-исчерпана.
-
-**Ситуация:** GitLab Free Tier даёт 400 compute-минут в месяц.
-Квота обновляется ежемесячно, но текущий объём пайплайнов
-(4 job'а на каждый push, 2–4 минуты каждый) упирается в лимит
-задолго до конца месяца. Пайплайны зависают в очереди.
-
-**Решение:** перенести CI/CD на GitHub Actions.
-
-- GitHub Actions для **публичных** репозиториев — бесплатно,
-  без лимита минут на стандартных раннерах.
-- Репозиторий уже зеркалируется на GitHub (`github` remote).
-- Деплой релизов остаётся на GitLab Releases (там Protected
-  Tags, переменные keystore).
-
-**Объём:**
-1. Создать `.github/workflows/ci.yml` — три job'а:
-   `unit-tests`, `lint`, `assemble-debug` на push/MR.
-2. Создать `.github/workflows/release.yml` — сборка и подпись
-   release APK на тег `v*`.
-3. Переменные: keystore и пароли через GitHub Secrets.
-4. Публикация релиза: либо в GitHub Releases, либо триггерить
-   GitLab pipeline через API (сложнее).
-5. Решить, что делать с `.gitlab-ci.yml`: удалить, оставить
-   как backup, или отключить через `workflow: rules`.
-
-**Альтернативы:**
-- **Self-hosted runner на GitLab** — бесплатно, но нужна
-  машина и настройка.
-- **Купить минуты GitLab** — ~$10 за 1000 минут.
-- **Сделать GitLab-репозиторий публичным** — снимает лимит,
-  но код становится открытым.
-
-**Оценка:** ~2–3 часа на настройку GitHub Actions
-(без учёта переписывания publish-release).
-
-**Когда:** при первой необходимости в CI
-(текущие локальные проверки покрывают основное).
-
----
-
-## Переезд CI на GitHub Actions
-
-**Статус:** частично сделано. CI (`ci.yml`) работает на push
-и MR. Release (`release.yml`) ещё не проверен на реальном теге.
-
-**Что:** Перенести CI/CD с GitLab CI на GitHub Actions.
-
-**Зачем:** Исчерпана квота GitLab Free Tier. GitHub Actions
-бесплатен и безлимитен для публичных репозиториев.
-
-**План:**
-1. Настроить секреты (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`).
-2. Создать workflow `.github/workflows/ci.yml` для тестов, lint и сборки debug APK.
-3. Создать workflow `.github/workflows/release.yml` для сборки и публикации release APK.
-4. Протестировать на тестовом теге.
-5. Отключить `.gitlab-ci.yml` (опционально).
-
-**Оценка:** ~2-3 часа.
-
 
 
 ---
@@ -589,5 +526,31 @@ GitHub форсит Node.js 24 для actions с 2 июня 2026;
 Node.js 20 будет удалён с раннеров 16 сентября 2026.
 `actions/setup-java@v5` и `gradle/actions/setup-gradle@v5`
 уже были на Node.js 24.
+
+### ✅ Переезд CI на GitHub Actions
+
+CI/CD перенесён с GitLab на GitHub Actions.
+
+- `ci.yml` — `testDebugUnitTest`, `lintDebug`,
+  `assembleDebug` на push и PR в `dev` / `master`.
+- `release.yml` — сборка и публикация release APK на тег
+  `v*`, плюс ручной запуск через `workflow_dispatch` с
+  input `tag` для повторных релизов существующих тегов.
+- Repository secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
+  `KEY_ALIAS`, `KEY_PASSWORD`.
+- Rulesets: `Protect master` (PR, status checks, restrict
+  deletions, block force pushes), `Protect release tags`
+  (restrict updates, restrict deletions; для создания —
+  bypass для Repository admin).
+- Стратегия merge для PR `dev → master` — **Merge commit**
+  (не squash, не rebase: они переписывают SHA и вызывают
+  расхождение веток).
+
+Первый релиз: `v1.0.3` — успешно собран и опубликован
+в GitHub Releases.
+
+`.gitlab-ci.yml` сохранён для будущего восстановления
+пайплайна через self-hosted runner (см. ROADMAP →
+«Self-hosted GitLab Runner через Ansible + Podman»).
 
 ---
