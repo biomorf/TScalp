@@ -139,19 +139,6 @@
 **Риск:** из коробки много замечаний, нужен baseline.
 **Оценка:** ~30 мин + первый прогон.
 
-### Renovate для обновлений зависимостей
-
-**Что:** подключить Renovate (или Dependabot) для
-автоматического отслеживания обновлений Gradle-зависимостей.
-
-**Зачем:** динамические lint-детекторы `GradleDependency` и
-`NewerVersionAvailable` отключены — несовместимы с baseline.
-Renovate делает то же самое, но правильно: открывает MR
-с обновлением и не блокирует чужие сборки.
-
-**Оценка:** ~1 час на настройку.
-**Когда:** при следующем апгрейде зависимостей.
-
 ### versionName в GitLab Release description
 
 **Статус:** в работе.
@@ -272,6 +259,32 @@ service accounts доступны только на Premium/Ultimate.
   расписанию + `workflow_dispatch` для ручного теста.
 - PAT бот-аккаунта с scope `repo` + `workflow`, сохранён как
   Secret `RENOVATE_TOKEN`.
+
+**Оценка:** ~1 час.
+
+
+## Renovate: self-hosted через GitHub Actions
+
+**Статус:** в работе.
+
+**Что:** автоматическое отслеживание обновлений Gradle-зависимостей
+через self-hosted Renovate в GitHub Actions.
+
+**Зачем:** `GradleDependency` и `NewerVersionAvailable` отключены
+в lint (несовместимы с baseline). Renovate открывает PR с
+обновлениями и не блокирует чужие сборки.
+
+**Компоненты:**
+- `renovate.json` — конфиг с группировкой Kotlin/KSP/Compose
+  Compiler, Hilt, AndroidX Compose, gRPC. `protobuf-*` отключены
+  (намеренный pin 3.25.8).
+- `.github/workflows/renovate.yml` — запуск раз в неделю по
+  расписанию (суббота 00:00 UTC) + `workflow_dispatch` для
+  ручного теста. Расписание задаётся только в cron; внутри
+  `renovate.json` блоки `schedule` и `timezone` отсутствуют.
+- PAT бот-аккаунта `tscalp-renovate-bot` с scope `repo` +
+  `workflow`, сохранён как Secret `RENOVATE_TOKEN`.
+  Срок действия 90 дней — обновлять по уведомлению.
 
 **Оценка:** ~1 час.
 
