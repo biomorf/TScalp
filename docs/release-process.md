@@ -190,35 +190,46 @@ ruleset'а: один для `master`, второй для тегов `v*`.
 Локальный `git merge --ff-only dev` не используется — его
 заменяет MR.
 
-Политика — **fast-forward**: после merge `master` указывает
-ровно на HEAD `dev`. Это позволяет проверить вручную, что
-зарелизили именно то, что было на dev.
+Ветка `master` защищена: прямой push запрещён, продвижение
+идёт **только через Pull Request из `dev`**.
 
-Полный merge с созданием merge-коммита не используется:
-merge-коммит существует только на master, и тег на нём сложнее
-сверить с состоянием dev.
+### Стратегия merge
 
-### Настройка GitLab
+Используется **Merge commit** (`Create a merge commit`).
 
-Ветка `master` защищена (см. ROADMAP → «Защита ветки master»),
-прямой push в неё запрещён. Продвижение идёт через MR из `dev`.
+Почему не squash и не rebase:
 
-Чтобы MR **не создавал merge-коммит**, в GitLab включён режим
-**Fast-forward merge**:
+- **Squash** создаёт новый коммит с другим SHA. Ветки `dev`
+  и `master` расходятся. При следующем PR GitHub видит
+  «конфликт» в файлах, которые не менялись, — потому что
+  SHA у параллельных версий разные. Приходится разрешать
+  вручную каждый раз.
+- **Rebase** сохраняет линейную историю, но переписывает SHA
+  всех коммитов PR. Та же проблема с расхождением веток
+  после нескольких циклов.
+- **Merge commit** сохраняет SHA коммитов из `dev`. Ветки
+  не расходятся, конфликты почти исключены, история честно
+  отражает, что был PR.
 
-    Settings → Merge requests → Merge method → Fast-forward merge
+Минус Merge commit — нелинейная история с отдельным
+merge-коммитом на каждый PR. Для одиночного проекта это
+приемлемо.
 
-Без этой настройки GitLab по умолчанию создаёт коммит
-`Merge branch 'dev' into 'master'`, и тег ставится не на HEAD dev,
-а на merge-коммит — политика ff-only нарушается.
+### Настройка GitHub
+
+- `Settings → General → Pull requests` → `Allow merge commits`
+  включено.
+- `Settings → Rules → Rulesets → Protect master` →
+  `Require linear history` **выключено** (иначе Merge commit
+  недоступен, только Squash и Rebase).
 
 Проверка после merge:
 
     git fetch origin
     git log origin/master -1 --oneline
 
-Коммит на `origin/master` должен совпадать с последним
-коммитом `dev` на момент merge.
+Верхний коммит — merge-коммит с сообщением вида
+`Merge pull request #N from biomorf/dev`.
 
 ## Релиз через GitHub Actions
 
