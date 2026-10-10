@@ -191,105 +191,6 @@ release notes. Сейчас description содержит только списо
 
 ---
 
-
-### Renovate / Dependabot
-
-**Статус:** запланировано.
-
-**Контекст:** `GradleDependency` и `NewerVersionAvailable`
-отключены в lint. Замена — Renovate или Dependabot.
-
-**Варианты:**
-1. **Mend Developer Platform (hosted Renovate)** —
-   `developer.mend.io` → Profile → Integrations → GitLab.com.
-   Работает через OAuth app, не требует CI. Free Community
-   Cloud tier: неограниченные публичные и приватные репозитории,
-   один concurrent job на 4-часовом цикле.
-2. **Self-hosted Renovate** — Docker-контейнер
-   `ghcr.io/renovatebot/renovate` + cron на локальной машине.
-   Требует PAT с scope `api`, машина должна быть включена в
-   момент запуска cron. Полностью бесплатно, но требует
-   администрирования.
-3. **Dependabot на GitHub** — встроен, включается в настройках
-   репозитория. Полная автоматизация с проверками в GitHub
-   Actions.
-
-**Рекомендация:** начать с варианта 1 (10 минут на установку,
-бесплатно, без администрирования). Если недоступен —
-вариант 2.
-
-**Оценка:** ~15 мин (hosted) / ~1 час (self-hosted) /
-~15 мин (Dependabot).
-
-**Установка hosted-варианта — через отдельного пользователя.**
-
-Mend и документация Renovate рекомендуют создавать отдельный
-GitLab-аккаунт для бота (например, `tscalp-renovate-bot`),
-а не использовать личный аккаунт:
-
-- действия бота не смешиваются с человеческими коммитами
-  и MR в истории проекта;
-- OAuth-доступ Mend ограничивается только теми репозиториями,
-  где бот является участником;
-- при работе под личным аккаунтом Mend получает доступ ко
-  всем проектам пользователя — известный риск.
-
-Бот приглашается в проект с ролью **Developer** (минимально
-достаточно для создания MR). На GitLab.com регистрация
-отдельного пользователя — единственный доступный способ:
-service accounts доступны только на Premium/Ultimate.
-
-
-## Renovate: self-hosted через GitHub Actions
-
-**Статус:** в работе.
-
-**Что:** автоматическое отслеживание обновлений Gradle-зависимостей
-через self-hosted Renovate в GitHub Actions.
-
-**Зачем:** `GradleDependency` и `NewerVersionAvailable` отключены
-в lint (несовместимы с baseline). Renovate открывает PR с
-обновлениями и не блокирует чужие сборки.
-
-**Компоненты:**
-- `renovate.json` — конфиг с группировкой Kotlin/KSP/Compose
-  Compiler, AndroidX Compose, gRPC. `protobuf-*` отключены
-  (намеренный pin 3.25.8).
-- `.github/workflows/renovate.yml` — запуск раз в неделю по
-  расписанию + `workflow_dispatch` для ручного теста.
-- PAT бот-аккаунта с scope `repo` + `workflow`, сохранён как
-  Secret `RENOVATE_TOKEN`.
-
-**Оценка:** ~1 час.
-
-
-## Renovate: self-hosted через GitHub Actions
-
-**Статус:** в работе.
-
-**Что:** автоматическое отслеживание обновлений Gradle-зависимостей
-через self-hosted Renovate в GitHub Actions.
-
-**Зачем:** `GradleDependency` и `NewerVersionAvailable` отключены
-в lint (несовместимы с baseline). Renovate открывает PR с
-обновлениями и не блокирует чужие сборки.
-
-**Компоненты:**
-- `renovate.json` — конфиг с группировкой Kotlin/KSP/Compose
-  Compiler, Hilt, AndroidX Compose, gRPC. `protobuf-*` отключены
-  (намеренный pin 3.25.8).
-- `.github/workflows/renovate.yml` — запуск раз в неделю по
-  расписанию (суббота 00:00 UTC) + `workflow_dispatch` для
-  ручного теста. Расписание задаётся только в cron; внутри
-  `renovate.json` блоки `schedule` и `timezone` отсутствуют.
-- PAT бот-аккаунта `tscalp-renovate-bot` с scope `repo` +
-  `workflow`, сохранён как Secret `RENOVATE_TOKEN`.
-  Срок действия 90 дней — обновлять по уведомлению.
-
-**Оценка:** ~1 час.
-
----
-
 ## Смена лицензии GPL v3 → Apache 2.0
 
 **Статус:** в работе.
@@ -394,10 +295,6 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 ---
 
-
-
----
-
 ## Переход на GitHub Environment secrets
 
 **Статус:** запланировано. Отложено до появления триггера.
@@ -442,6 +339,10 @@ approval, per-environment значения. Всё остальное совпа
 - при разделении staging/production окружений.
 
 **Оценка:** ~15 минут.
+
+---
+
+
 
 ---
 ## Закрытые задачи
@@ -588,5 +489,23 @@ CI/CD перенесён с GitLab на GitHub Actions.
 `.gitlab-ci.yml` сохранён для будущего восстановления
 пайплайна через self-hosted runner (см. ROADMAP →
 «Self-hosted GitLab Runner через Ansible + Podman»).
+
+### ✅ Renovate: self-hosted через GitHub Actions
+
+Автоматическое отслеживание обновлений Gradle-зависимостей
+через self-hosted Renovate в GitHub Actions.
+
+- `renovate.json` — группировка Kotlin/KSP/Compose Compiler,
+  Hilt, AndroidX Compose, gRPC. `protobuf-*` отключены
+  (намеренный pin 3.25.8 для GeneratedMessageV3).
+- `.github/workflows/renovate.yml` — запуск раз в неделю по
+  расписанию (суббота 00:00 UTC) + `workflow_dispatch` для
+  ручного теста. Расписание только в cron; в `renovate.json`
+  блоки `schedule` и `timezone` отсутствуют.
+- PAT бот-аккаунта `tscalp-renovate-bot` (scope `repo` +
+  `workflow`), хранится как Secret `RENOVATE_TOKEN`.
+  Срок действия 90 дней — обновлять по уведомлению.
+- Default branch в GitHub переключён с `master` на `dev`:
+  workflows индексируются только из default branch.
 
 ---
