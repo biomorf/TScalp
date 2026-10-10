@@ -420,6 +420,51 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 **Оценка:** ~2-3 часа.
 
+## Переход на GitHub Environment secrets
+
+**Статус:** запланировано. Отложено до появления триггера.
+
+**Что:** перенести 4 секрета release-сборки
+(`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
+`KEY_PASSWORD`) из **Repository secrets** в
+**Environment secrets**.
+
+**Чем отличаются Environment secrets:**
+
+- **Required reviewers** — job не стартует, пока человек не
+  одобрит. Для одиночного проекта бесполезно: GitHub, как и
+  GitLab, не даёт approve свой же workflow. Работает только
+  при наличии второго Maintainer'а.
+- **Wait timer** — принудительная задержка перед запуском.
+  Защита от случайного нажатия.
+- **Deployment branches and tags** — секрет доступен только
+  для указанных веток или тегов (например, `v*`).
+  Repository secrets, наоборот, доступны любому workflow в
+  любой момент.
+- **Разделение окружений** — если появится staging/production,
+  разные значения для каждого.
+
+**Что Repository secrets НЕ умеют:** ограничение по веткам,
+approval, per-environment значения. Всё остальное совпадает —
+оба варианта хранят значения в зашифрованном виде, оба
+доступны в `${{ secrets.NAME }}` без изменений в синтаксисе.
+
+**Как перейти (когда наступит триггер):**
+
+1. `Settings → Environments` → создать environment
+   `release`.
+2. Добавить 4 секрета туда.
+3. Удалить их из Repository secrets.
+4. В `release.yml` добавить `environment: release` в job
+   `build-and-release`.
+
+**Когда вернуться:**
+- при появлении второго Maintainer'а;
+- при первом релизе, требующем approval-гейта;
+- при разделении staging/production окружений.
+
+**Оценка:** ~15 минут.
+
 
 ---
 ## Закрытые задачи
