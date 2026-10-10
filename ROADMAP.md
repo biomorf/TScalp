@@ -420,6 +420,30 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 **Оценка:** ~2-3 часа.
 
+
+### Обновление actions до Node.js 24
+
+**Статус:** в работе.
+
+**Что:** обновить GitHub Actions, которые ещё используют
+Node.js 20, до версий с поддержкой Node.js 24.
+
+**Причина:** GitHub форсит Node.js 24 с 2 июня 2026.
+Node.js 20 будет удалён с раннеров 16 сентября 2026.
+Сейчас в warning'ах: `actions/checkout@v4`,
+`actions/upload-artifact@v4`.
+
+**Обновления:**
+- `actions/checkout`: v4 → v6
+- `actions/upload-artifact`: v4 → v7
+- `actions/setup-java@v5` и `gradle/actions/setup-gradle@v5` —
+  уже Node 24, не трогаем.
+
+**Оценка:** ~10 минут.
+
+
+---
+
 ## Переход на GitHub Environment secrets
 
 **Статус:** запланировано. Отложено до появления триггера.
@@ -464,7 +488,6 @@ approval, per-environment значения. Всё остальное совпа
 - при разделении staging/production окружений.
 
 **Оценка:** ~15 минут.
-
 
 ---
 ## Закрытые задачи
