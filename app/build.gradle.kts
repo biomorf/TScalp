@@ -37,6 +37,7 @@ plugins {
     kotlin("plugin.serialization") version "2.4.20"  //for navigation using sealed class
     id("dagger.hilt.android.plugin")
     id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlinx.kover")
 }
 
 android {
@@ -68,7 +69,7 @@ android {
 
     buildTypes {
             debug {
-		enableUnitTestCoverage = true
+		//
             }
             release {
                 isMinifyEnabled = false
@@ -322,3 +323,36 @@ val copyReleaseApk = tasks.register<Copy>("copyReleaseApk") {
     rename { "tscalp-release-v${version}.apk" }
     dependsOn("assembleRelease")
 }
+
+kover {
+    reports {
+        filters {
+            excludes {
+                androidGeneratedClasses()
+                classes(
+                    "*Fragment",
+                    "*Fragment\$*",
+                    "*Activity",
+                    "*Activity\$*",
+                    "*ComposableSingletons*",
+                    "*_Factory",
+                    "*_HiltModules*",
+                    "*_MembersInjector",
+                    "*_GeneratedInjector",
+                    "*Hilt_*",
+                    "dagger.hilt.internal.aggregatedroot.codegen.*",
+                    "hilt_aggregated_deps.*",
+                    "*Dagger*",
+                    "*BuildConfig",
+                    "*Compose*"
+                )
+            }
+        }
+        verify {
+            rule {
+                minBound(3)
+            }
+        }
+    }
+}
+
