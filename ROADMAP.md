@@ -348,35 +348,29 @@ approval, per-environment значения. Всё остальное совпа
 **Оценка оставшихся работ:** ~20 мин на десктопе.
 
 
+
 ### detekt
 
-**Статус:** в работе, отложено до работы с десктопа.
+**Статус:** soft mode сделан, ждёт доработки на десктопе.
 
-**Что:** плагин `io.gitlab.arturbosch.detekt` 1.23.8,
-задача `:app:detekt`, baseline.
-
-**Зачем:** статический анализ сложности/запахов кода
-(в отличие от ktlint, который про стиль).
-
-**Риск:** из коробки много замечаний — нужен baseline.
-
-**План (soft mode):**
-- Плагин 1.23.8 в root и app `build.gradle.kts`.
+**Сделано:**
+- Плагин `io.gitlab.arturbosch.detekt` 1.23.8 подключён
+  в root и app `build.gradle.kts`.
 - `detekt {}` с `ignoreFailures = true`,
   `buildUponDefaultConfig = true`.
-- Шаг `Run detekt` + `Upload detekt report` в
+- Шаги `Run detekt` + `Upload detekt report` в
   `.github/workflows/ci.yml`.
-- CI зелёный, отчёт в артефактах.
+- CI на ветке `feat/detekt` зелёный, HTML-отчёт
+  в артефактах.
 
 **Осталось (с десктопа):**
-1. `./gradlew :app:detektBaseline` — сгенерировать baseline.
-2. `ignoreFailures = false` — включить enforcement.
-3. Смержить `feat/detekt` в `dev`.
-4. Обновить ROADMAP — перенести в «Закрытые задачи».
+1. Скачать HTML-отчёт, оценить объём violations.
+2. `./gradlew :app:detektBaseline` — сгенерировать baseline.
+3. Убрать `ignoreFailures = true` — включить enforcement.
+4. Смержить `feat/detekt` в `dev`.
+5. Обновить ROADMAP — перенести в «Закрытые задачи».
 
-**Ветка:** `feat/detekt`.
-
-**Оценка оставшихся работ:** ~20 мин на десктопе.
+**Ветка:** `feat/detekt` на origin (не смерджена).
 
 
 ---
