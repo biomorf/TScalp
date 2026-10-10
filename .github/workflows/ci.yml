@@ -32,14 +32,17 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest
 
       - name: Generate coverage report
-        run: ./gradlew :app:createDebugUnitTestCoverageReport
-
+        run: ./gradlew :app:koverXmlReportDebug :app:koverHtmlReportDebug
+      
+      - name: Verify coverage
+        run: ./gradlew :app:koverVerifyDebug
+      
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
-          path: app/build/reports/coverage/test/debug/
+          path: app/build/reports/kover/
 
       - name: Run Lint
         run: ./gradlew :app:lintDebug
