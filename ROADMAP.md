@@ -274,6 +274,294 @@ approval, per-environment значения. Всё остальное совпа
 
 
 ---
+
+## Каскад обновления позиций
+
+**Статус:** запланировано.
+
+**Контекст:** сейчас `TInvestMarketDataService.subscribePositions`
+реализует polling через `fetchPositionsRest` раз в 10 секунд.
+gRPC-стрим не подключён. Официальная документация T-Invest
+рекомендует переподключаться при отсутствии данных.
+`PositionsStream` живёт в `OperationsStreamService`
+(`PositionsStreamServiceGrpc` не существует).
+
+**Предусловия:**
+- SDK `kotlin-sdk-grpc-core:1.51.0` (уже в проекте).
+- Проверить в артефакте наличие `OperationsStreamServiceCoroutineStub`
+  и классов `PositionsStreamRequest` / `PositionsStreamResponse`.
+
+**Файлы:**
+- `data/api/TInvestMarketDataService.kt` — основной файл.
+- `data/api/TInvestChannelFactory.kt` — возможно, добавить
+  канал `operationsStream` в `Channels`.
+- `domain/models/Portfolio.kt` — модель `PositionStreamItem`
+  (уже есть, не менять без причины).
+
+**Шаги:**
+
+1. Рефакторинг: переименовать текущий `subscribePositions`
+   → `subscribePositionsPolling` (private). Сборка.
+2. Добавить заглушки `subscribePositionsGrpc(accountId): Flow<PositionStreamItem>?`
+   и `subscribePositionsWebSocket(accountId): Flow<PositionStreamItem>?`,
+   обе возвращают `null`. Сборка.
+3. Реализовать `subscribePositions(accountId)` как циклический
+   каскад в `channelFlow`:
+   - gRPC-уровень → при ошибке/завершении → WS-уровень;
+   - WS-уровень → при ошибке/завершении → polling один раз;
+   - polling → `delay(RETRY_DELAY_MS = 10_000)` → повтор цикла.
+   - `LevelOutcome { Ended, Cancelled, Fatal }` для управления.
+   - Fatal (`NOT_FOUND` по счёту) останавливает каскад.
+   Сборка.
+4. Реализовать gRPC-уровень через
+   `OperationsStreamServiceCoroutineStub(channel).positionsStream(flowOf(request))`.
+   - `request = PositionsStreamRequest.newBuilder()
+     .addAccounts(accountId)
+     .setWithInitialPositions(true)
+     .build()`.
+   - Конвертеры `V1PositionsSecurities` → `PositionStreamItem`
+     и `V1PositionsFutures` → `PositionStreamItem`.
+   - Поле `balance` — **String**, конвертировать через `toLongOrNull()`.
+   Сборка.
+5. Реализовать WebSocket-уровень (после получения схемы сообщений).
+   - OkHttp 5.4.0 (уже в зависимостях).
+   - URL: `wss://invest-public-api.tbank.ru/ws/`.
+   - Заголовки: `Authorization: Bearer <token>`, `Web-Socket-Protocol: json`.
+   Сборка.
+6. Реализовать `subscribePositionsPolling` как одиночный
+   `fetchPositionsRest` (без внутреннего `while` и `delay`).
+   Сборка.
+7. Debug-логи с префиксом `[positions]` на каждом переходе
+   (уровни D/I/W/E — см. «Референсы»).
+
+**Референсы:**
+- `RussianInvestments/invest-api-kotlin-sdk` →
+  `kotlin-sdk-grpc-example/src/main/kotlin/ru/ttech/piapi/example/`
+  → `OperationStreamServiceExample.kt`, метод `examplePositionsStream`.
+- `operations.proto` в пакете `ru.tinkoff.piapi.contract.v1` —
+  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
+- `docs/streams.md` → раздел «PositionsStream» — история попыток.
+
+**Ограничения:**
+- **Не использовать** `PositionsStreamServiceGrpc` — класса не существует.
+- **Не переподключаться чаще, чем раз в 3 секунды** —
+  документация T-Invest предупреждает: «не пытайтесь
+  переподключаться слишком часто — это может усугубить ситуацию».
+- **Не использовать `retryWhen`** — цикл сам управляет
+  переподключениями.
+- **Не унифицировать** с каскадом цен — семантика разная
+  (sequential vs parallel sources).
+- Polling не должен «подниматься» обратно на gRPC внутри
+  одной итерации — только через cooldown и полный повтор.
+
+**Критерий готовности:**
+- При обрыве gRPC-стрима каскад переходит на WS без паузы.
+- При обрыве WS — один polling-fetch, затем `delay(10s)`, затем
+  повтор с gRPC.
+- `NOT_FOUND` по счёту останавливает каскад.
+- В `logcat` видны `[positions]`-сообщения на каждом переходе.
+- Unit-тесты (при наличии) зелёные, сборка зелёная.
+
+**Оценка:** ~4 часа (рефакторинг 30 мин, gRPC 2 ч, WS 1.5 ч).
+
+**Зависимости:** нет. Блокирует «StreamState в data-слое»
+и «UI-индикатор состояния стримов».
+
+**Открытые вопросы:**
+- Точная схема WebSocket-сообщения для подписки на позиции.
+  Где искать: Dart-SDK `tbank_invest_websocket.dart`, поддержка T-Invest.
+- Точный состав полей `V1PositionsSecurities` / `V1PositionsFutures`
+  в proto-контракте. Где искать: распаковать AAR 1.51.0.
+
+
+## Reconnect-loop для gRPC-стрима цен
+
+**Статус:** запланировано.
+
+**Контекст:** `PriceStreamManager.runGrcpStream` при ошибке
+логирует и завершается. Переподключения нет. Polling (раз в 5 с)
+продолжает работать параллельно, но до следующего `setInterest`
+со сменой union gRPC-стрим мёртв. При длинной сессии пользователь
+видит задержку до 5 секунд на каждой цене.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/api/PriceStreamManager.kt` — метод `runGrcpStream`.
+
+**Шаги:**
+
+1. Обернуть `repository.subscribeLastPrices(...).collect { ... }`
+   в цикл `while (currentCoroutineContext().isActive)` с `try/catch`.
+2. При `CancellationException` — пробросить (штатное завершение).
+3. При прочих исключениях — увеличить `attempt`, вычислить
+   `delayMs` по backoff `[1s, 5s, 15s, 30s, 60s]`, cap 60 с,
+   залогировать `W [prices] gRPC error (attempt=$n), retry in ${ms}ms: ${msg}`,
+   затем `delay(delayMs)`.
+4. При нормальном завершении `collect` — сбросить `attempt = 0`.
+5. Polling (`runPolling`) **не трогать** — он работает параллельно
+   как есть.
+
+**Референсы:**
+- `docs/streams.md` → раздел «Общие принципы» — про разделение
+  каналов и поведение стримов.
+- Официальная документация T-Invest → «Stream-соединения» →
+  «Что делать при разрыве стрима» (экспоненциальная задержка
+  1/10/60 с).
+
+**Ограничения:**
+- **Не унифицировать** с каскадом позиций — семантика разная.
+- **Не подключать** WebSocket — он не нужен, polling дешёв
+  и работает параллельно.
+- **Не менять** сигнатуру `prices: SharedFlow<PriceUpdate>`.
+
+**Критерий готовности:**
+- При искусственном обрыве gRPC-стрима (например, отключить
+  сеть на 10 секунд) стрим переподключается автоматически,
+  в логах видны `W [prices] gRPC error` и повторная подписка.
+- Polling во время паузы продолжает эмитить цены.
+
+**Оценка:** ~30 минут + 15 минут на тест.
+
+**Зависимости:** нет.
+
+
+## StreamState в data-слое
+
+**Статус:** запланировано.
+
+**Контекст:** для UI-индикатора деградации стримов нужен
+реактивный источник состояния. Полезен и без UI — для логов,
+AppMetrica, отладки.
+
+**Предусловия:** имеет смысл делать после каскада позиций
+(иначе состояние не будет отражать все уровни).
+
+**Файлы:**
+- `domain/models/StreamState.kt` — новый файл.
+- `domain/api/PriceStreamManager.kt` — добавить
+  `connectionState: StateFlow<StreamState>`.
+- `domain/api/PositionStreamManager.kt` — то же.
+
+**Шаги:**
+
+1. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`.
+2. В `PriceStreamManager` завести `private val _connectionState =
+   MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
+   Обновлять при переходе между gRPC и polling, при ошибках,
+   при отсутствии обновлений > 15 секунд (→ STALE).
+3. В `PositionStreamManager` — аналогично. Порог STALE — 30 секунд.
+4. «Биржа закрыта» ≠ STALE: если polling возвращает цену
+   (пусть и неизменную), состояние остаётся POLLING.
+
+**Референсы:** нет.
+
+**Ограничения:**
+- **Не менять** публичный контракт `prices: SharedFlow<...>`.
+- Не путать STALE с отсутствием интереса — STOPPED при пустом union.
+
+**Критерий готовности:**
+- `connectionState` реактивно меняется при переключении
+  источников и при отсутствии данных.
+- В `logcat` при смене состояния видно `[stream] state: LIVE → POLLING`
+  (или аналогичное).
+
+**Оценка:** ~30 минут.
+
+**Зависимости:** блокируется каскадом позиций
+и reconnect-loop для цен.
+
+
+## UI-индикатор состояния стримов
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** пользователь не может оценить на глаз,
+актуальны ли данные. Индикатор снимает вопрос
+«это задержка или данные устарели».
+
+**Предусловия:** StreamState реализован в обоих менеджерах.
+
+**Файлы:**
+- `presentation/.../MainScreen.kt` (или где определён NavBar) —
+  бейдж-точка на иконке вкладки.
+- `presentation/.../SettingsScreen.kt` — раздел «Диагностика».
+- `presentation/.../MainViewModel.kt` (или соответствующие
+  ViewModels) — проброс `StreamState` в UI.
+
+**UI-описание:**
+
+- **Бейдж-точка** на иконке вкладки:
+  - Заявки → `PriceStreamManager.connectionState`;
+  - Портфель → `PositionStreamManager.connectionState`;
+  - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
+  - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
+  - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
+- **Snackbar** при переходе в деградацию:
+  - debounce 3 секунды;
+  - тексты: см. п. «Тексты» ниже;
+  - восстановление в LIVE — без Snackbar.
+- **Раздел «Диагностика»** в Настройках:
+  - текущее состояние обоих стримов;
+  - время последнего обновления;
+  - источник (gRPC/REST/WS);
+  - расшифровка цветов бейджа.
+
+**Тексты:**
+- POLLING (цены): «Стрим цен: резервный режим. Обновление раз в 5 секунд.»
+- POLLING (позиции): «Стрим позиций: резервный режим. Обновление раз в 10 секунд.»
+- STALE (цены): «Стрим цен: нет данных. Проверьте соединение.»
+- STALE (позиции): «Стрим позиций: нет данных. Проверьте соединение.»
+
+**Ограничения:**
+- **Не менять** цвет текста NavBar — конфликт с семантикой
+  selected/unselected.
+- **Не делать** long-press на вкладке — не discoverable,
+  конфликт с системным long-press. Подсказка доступна через
+  раздел «Диагностика».
+
+**Критерий готовности:**
+- При переходе стрима в POLLING появляется жёлтая точка
+  и один Snackbar (не повторяется каждые N секунд).
+- При STALE — красная точка и Snackbar.
+- Раздел «Диагностика» показывает актуальное состояние.
+
+**Оценка:** ~2 часа.
+
+**Зависимости:** блокируется StreamState.
+
+
+## Унификация каскадов стримов
+
+**Статус:** отложено.
+
+**Контекст:** два каскада — цены (параллельные источники)
+и позиции (последовательный каскад). Возник вопрос: выделить
+общий движок.
+
+**Предусловия:** каскад позиций и reconnect-loop для цен
+должны быть реализованы и обкатаны.
+
+**Решение:** **не унифицировать.** Семантики принципиально
+разные. Преждевременная абстракция рискует усложнить оба каскада.
+
+**Что можно выделить без унификации:**
+- reconnect-loop с backoff (см. отдельную задачу для цен);
+- единый формат `[stream]`-логов;
+- health-check как отдельный wrapper.
+
+**Когда вернуться:** после того, как оба каскада заработают.
+Тогда станет видно, есть ли реально общий код, достойный выделения.
+
+**Оценка:** ~1 час на анализ, ~2 часа на рефакторинг,
+если решение окажется положительным.
+
+
+
+
+---
+---
+
 ## Закрытые задачи
 
 ### ✅ Единый источник цен (PriceStreamManager)
