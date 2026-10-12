@@ -1,8 +1,8 @@
 package com.gitlab.biomorf.tscalp.presentation
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -26,44 +26,46 @@ import com.gitlab.biomorf.tscalp.presentation.navigation.NavRoutes
 data class BottomNavItem(
     val route: String,
     val title: String,
-    val icon: ImageVector
+    val icon: ImageVector,
 )
 
-val bottomNavItems = listOf(
-    BottomNavItem(
-        route = NavRoutes.ORDERS,  /// Строка "orders"
-        title = "Заявки",
-        icon = Icons.AutoMirrored.Filled.List
-    ),
-    BottomNavItem(
-        route = NavRoutes.PORTFOLIO,  /// Строка "portfolio"
-        title = "Портфель",
-        icon = Icons.AutoMirrored.Filled.ShowChart
-    ),
-    BottomNavItem(
-        route = NavRoutes.SETTINGS,  /// Строка "settings"
-        title = "Настройки",
-        icon = Icons.Default.Settings
+val bottomNavItems =
+    listOf(
+        BottomNavItem(
+            route = NavRoutes.ORDERS, // / Строка "orders"
+            title = "Заявки",
+            icon = Icons.AutoMirrored.Filled.List,
+        ),
+        BottomNavItem(
+            route = NavRoutes.PORTFOLIO, // / Строка "portfolio"
+            title = "Портфель",
+            icon = Icons.AutoMirrored.Filled.ShowChart,
+        ),
+        BottomNavItem(
+            route = NavRoutes.SETTINGS, // / Строка "settings"
+            title = "Настройки",
+            icon = Icons.Default.Settings,
+        ),
     )
-)
 
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    /// Общая ViewModel для вкладок «Заявки» и «Настройки»
-
+    // / Общая ViewModel для вкладок «Заявки» и «Настройки»
 
     Scaffold(
-        bottomBar = { TScalpBottomNavigation(navController = navController) }
+        bottomBar = { TScalpBottomNavigation(navController = navController) },
     ) { paddingValues ->
         NavGraph(
             navController = navController,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
         )
     }
 }
+
 @Composable
 fun TScalpBottomNavigation(navController: NavHostController) {
     NavigationBar(
@@ -73,23 +75,23 @@ fun TScalpBottomNavigation(navController: NavHostController) {
         val currentDestination = navBackStackEntry?.destination
 
         bottomNavItems.forEach { item ->
-            val isSelected = currentDestination?.hierarchy?.any {
-                it.hasRoute(item.route::class)
-            } == true
+            val isSelected =
+                currentDestination?.hierarchy?.any {
+                    it.hasRoute(item.route::class)
+                } == true
 
             NavigationBarItem(
-
                 icon = {
                     Icon(
                         imageVector = item.icon,
                         contentDescription = item.title,
-                        modifier = Modifier.size(24.dp) // Стандартный размер иконки M3
+                        modifier = Modifier.size(24.dp), // Стандартный размер иконки M3
                     )
                 },
                 label = {
                     Text(
                         text = item.title,
-                        style = MaterialTheme.typography.labelMedium // Рекомендованный стиль текста M3
+                        style = MaterialTheme.typography.labelMedium, // Рекомендованный стиль текста M3
                     )
                 },
                 selected = isSelected,
@@ -101,7 +103,7 @@ fun TScalpBottomNavigation(navController: NavHostController) {
                         launchSingleTop = true
                         restoreState = true
                     }
-                }
+                },
             )
         }
     }

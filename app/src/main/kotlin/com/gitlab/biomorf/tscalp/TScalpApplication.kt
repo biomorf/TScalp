@@ -1,35 +1,33 @@
 package com.gitlab.biomorf.tscalp
 
-import io.appmetrica.analytics.AppMetrica
-import io.appmetrica.analytics.AppMetricaConfig
-
 import android.app.Application
-import dagger.hilt.android.HiltAndroidApp
-import javax.inject.Inject
-
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineExceptionHandler
-
+import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
-import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
+import dagger.hilt.android.HiltAndroidApp
+import io.appmetrica.analytics.AppMetrica
+import io.appmetrica.analytics.AppMetricaConfig
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-private val appScope = CoroutineScope(
-    Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler { _, e ->
-        AppLogger.e("TScalpApplication", "Uncaught error in background scope", e)
-    }
-)
+private val appScope =
+    CoroutineScope(
+        Dispatchers.IO + SupervisorJob() +
+            CoroutineExceptionHandler { _, e ->
+                AppLogger.e("TScalpApplication", "Uncaught error in background scope", e)
+            },
+    )
 
 @HiltAndroidApp
 class TScalpApplication : Application() {
-
     @Inject
     lateinit var positionStreamManager: PositionStreamManager
 
@@ -56,10 +54,11 @@ class TScalpApplication : Application() {
                         val tInvest = broker as? TInvestBrokerAPI ?: continue
                         try {
                             val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
-                            val (token, sandbox) = creds ?: run {
-                                AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
-                                continue
-                            }
+                            val (token, sandbox) =
+                                creds ?: run {
+                                    AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
+                                    continue
+                                }
                             tInvest.initialize(token, sandbox)
                             brokerManager.refreshInitializationState()
 
@@ -70,12 +69,13 @@ class TScalpApplication : Application() {
                             // 2. Иначе — первый доступный счёт в аккаунте
                             // 3. Иначе, если песочница — создаём новый
                             // 4. Иначе (боевой и пусто) — null
-                            val accountId = when {
-                                savedAccountId != null && accounts.any { it.id == savedAccountId } -> savedAccountId
-                                accounts.isNotEmpty() -> accounts.first().id
-                                sandbox -> tInvest.openSandboxAccount()
-                                else -> null
-                            }
+                            val accountId =
+                                when {
+                                    savedAccountId != null && accounts.any { it.id == savedAccountId } -> savedAccountId
+                                    accounts.isNotEmpty() -> accounts.first().id
+                                    sandbox -> tInvest.openSandboxAccount()
+                                    else -> null
+                                }
 
                             if (accountId != null) {
                                 if (accountId != savedAccountId) {
@@ -121,7 +121,7 @@ class TScalpApplication : Application() {
 
         val configBuilder = AppMetricaConfig.newConfigBuilder(apiKey)
         if (BuildConfig.DEBUG) {
-            configBuilder.withLogs()   // включает логирование SDK AppMetrica
+            configBuilder.withLogs() // включает логирование SDK AppMetrica
         }
 
         AppMetrica.activate(this, configBuilder.build())

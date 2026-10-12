@@ -1,7 +1,7 @@
 // Top-level build file
 plugins {
-    id("com.android.application") version "9.4.0" apply false
-    id("org.jetbrains.kotlin.android") version "2.4.20" apply false
+    id("org.jetbrains.kotlin.android") version "2.4.21" apply false
+    id("com.android.application") version "9.4.1" apply false
     // Версия плагина не указывается отдельно, она будет взята из версии Kotlin
     //
     kotlin("plugin.serialization") version "2.4.20"
@@ -11,5 +11,6 @@ plugins {
     id("com.google.devtools.ksp") version "2.3.12" apply false
     id("org.jetbrains.kotlinx.kover") version "0.9.9" apply false
     id("io.gitlab.arturbosch.detekt") version "1.23.8" apply false
+    id("org.jlleitschuh.gradle.ktlint") version "14.2.0" apply false
 }
 

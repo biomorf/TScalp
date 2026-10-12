@@ -4,7 +4,12 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-
+import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
+import com.gitlab.biomorf.tscalp.data.api.TInvestChannelFactory
+import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,33 +17,25 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
-import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.TInvestChannelFactory
-import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-
 @Module
 @InstallIn(SingletonComponent::class)
 object DataModule {
-
     @Provides
     @Singleton
-    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
-        return context.dataStore
-    }
+    fun provideDataStore(
+        @ApplicationContext context: Context,
+    ): DataStore<Preferences> = context.dataStore
 
     @Provides
     @Singleton
     fun provideTInvestChannelFactory(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
     ): TInvestChannelFactory = TInvestChannelFactory(context)
 
     @Provides
     @Singleton
     fun provideTInvestBrokerAPI(
-        channelFactory: TInvestChannelFactory
+        channelFactory: TInvestChannelFactory,
     ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory)
 
     @Provides
@@ -46,13 +43,14 @@ object DataModule {
     fun provideBrokerManager(
         tinvest: TInvestBrokerAPI,
         finam: FinamBrokerApi,
-        bcs: BcsBrokerApi
+        bcs: BcsBrokerApi,
     ): BrokerManager {
-        val brokers: Map<BrokerName, BrokerApi> = mapOf(
-            BrokerName.TINVEST to tinvest,
-            BrokerName.BCS to bcs,
-            BrokerName.FINAM to finam
-        )
+        val brokers: Map<BrokerName, BrokerApi> =
+            mapOf(
+                BrokerName.TINVEST to tinvest,
+                BrokerName.BCS to bcs,
+                BrokerName.FINAM to finam,
+            )
         return BrokerManager(brokers)
     }
 
@@ -66,5 +64,5 @@ object DataModule {
 }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "tinvest_prefs"
+    name = "tinvest_prefs",
 )

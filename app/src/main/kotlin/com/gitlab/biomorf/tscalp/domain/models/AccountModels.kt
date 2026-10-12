@@ -11,7 +11,5 @@ enum class BrokerAccountType { BROKER, IIS, INVEST_BOX, OTHER }
 data class BrokerAccount(
     val id: String,
     val name: String,
-    val type: BrokerAccountType
+    val type: BrokerAccountType,
 )
-
-

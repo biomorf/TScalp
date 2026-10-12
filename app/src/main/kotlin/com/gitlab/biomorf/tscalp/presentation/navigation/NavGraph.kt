@@ -8,10 +8,9 @@ import androidx.navigation.compose.composable
 import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrdersScreen
 import com.gitlab.biomorf.tscalp.presentation.screens.portfolio.PortfolioScreen
 import com.gitlab.biomorf.tscalp.presentation.screens.settings.SettingsScreen
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrdersViewModel
 
 // Константы маршрутов как строки
-/// Константы маршрутов как строки
+// / Константы маршрутов как строки
 object NavRoutes {
     const val ORDERS = "orders"
     const val PORTFOLIO = "portfolio"
@@ -21,19 +20,18 @@ object NavRoutes {
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     NavHost(
         navController = navController,
         startDestination = NavRoutes.ORDERS,
-        modifier = modifier
+        modifier = modifier,
     ) {
         composable(NavRoutes.ORDERS) {
-            OrdersScreen()   // используем общую ViewModel
-
+            OrdersScreen() // используем общую ViewModel
         }
         composable(NavRoutes.PORTFOLIO) {
-            PortfolioScreen()   // пока без изменений
+            PortfolioScreen() // пока без изменений
         }
         composable(NavRoutes.SETTINGS) {
             SettingsScreen()

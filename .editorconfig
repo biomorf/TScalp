@@ -1,0 +1,29 @@
+# Корневой конфиг для ktlint.
+# Документация: https://pinterest.github.io/ktlint/latest/rules/
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+# Compose-функции по соглашению начинаются с большой буквы —
+# стандартное правило function-naming даёт ложные срабатывания.
+ktlint_standard_function-naming = disabled
+
+# Wildcard-импорты используются в проекте повсеместно
+# (см. ROADMAP → «ktlint»). Отключаем правило.
+ktlint_standard_no-wildcard-imports = disabled
+
+# max-line-length по умолчанию 140 — узко для Compose-экранов.
+# Увеличиваем до 160.
+ktlint_standard_max-line-length = disabled
+
+# filename: правило про соответствие имени файла классу.
+# Не критично для проекта — отключаем.
+ktlint_standard_filename = disabled

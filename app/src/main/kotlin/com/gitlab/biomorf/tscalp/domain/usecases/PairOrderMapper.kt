@@ -14,36 +14,37 @@ data class PairedOrderSpec(
     val stopOrderType: StopOrderType? = null,
     val price: Double?,
     val stopPrice: Double?,
-    val isStopOrder: Boolean
+    val isStopOrder: Boolean,
 )
 
 /**
  * Use case, определяющий тип и параметры парного ордера на основе основного.
  */
 object PairOrderMapper {
-
     fun map(
         primaryType: OrderTypeSelection,
         primaryDirection: OrderDirection,
-        primaryPrice: Double?
-    ): PairedOrderSpec {
-        return when (primaryType) {
+        primaryPrice: Double?,
+    ): PairedOrderSpec =
+        when (primaryType) {
             OrderTypeSelection.Limit -> {
                 when (primaryDirection) {
-                    OrderDirection.BUY -> PairedOrderSpec(
-                        orderType = OrderTypeSelection.StopLoss,
-                        stopOrderType = StopOrderType.STOP_LOSS,
-                        stopPrice = primaryPrice,
-                        price = null,
-                        isStopOrder = true
-                    )
-                    OrderDirection.SELL -> PairedOrderSpec(
-                        orderType = OrderTypeSelection.TakeProfit,
-                        stopOrderType = StopOrderType.TAKE_PROFIT,
-                        stopPrice = primaryPrice,
-                        price = null,
-                        isStopOrder = true
-                    )
+                    OrderDirection.BUY ->
+                        PairedOrderSpec(
+                            orderType = OrderTypeSelection.StopLoss,
+                            stopOrderType = StopOrderType.STOP_LOSS,
+                            stopPrice = primaryPrice,
+                            price = null,
+                            isStopOrder = true,
+                        )
+                    OrderDirection.SELL ->
+                        PairedOrderSpec(
+                            orderType = OrderTypeSelection.TakeProfit,
+                            stopOrderType = StopOrderType.TAKE_PROFIT,
+                            stopPrice = primaryPrice,
+                            price = null,
+                            isStopOrder = true,
+                        )
                 }
             }
             // TODO inscpert the logic
@@ -68,14 +69,15 @@ object PairOrderMapper {
 //            }
             OrderTypeSelection.StopLoss,
             OrderTypeSelection.TakeProfit,
-            OrderTypeSelection.StopLimit -> {
+            OrderTypeSelection.StopLimit,
+            -> {
                 // Временно отключены – вернуть позже
                 PairedOrderSpec(
                     orderType = OrderTypeSelection.Market,
                     brokerOrderType = BrokerOrderType.MARKET,
                     price = null,
                     stopPrice = null,
-                    isStopOrder = false
+                    isStopOrder = false,
                 )
             }
             OrderTypeSelection.Market -> {
@@ -84,9 +86,8 @@ object PairOrderMapper {
                     brokerOrderType = BrokerOrderType.MARKET,
                     price = null,
                     stopPrice = null,
-                    isStopOrder = false
+                    isStopOrder = false,
                 )
             }
         }
-    }
 }

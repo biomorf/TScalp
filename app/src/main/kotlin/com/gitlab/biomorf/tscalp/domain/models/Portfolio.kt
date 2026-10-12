@@ -13,7 +13,7 @@ data class PositionStreamItem(
     val classCode: String = "",
     val isin: String = "",
     val pointValue: Double? = null,
-    val instrumentType: String = ""
+    val instrumentType: String = "",
 )
 
 data class PortfolioPosition(
@@ -33,7 +33,7 @@ data class PortfolioPosition(
     val profit: Double? = null,
     val profitPercent: Double? = null,
     val priceChangePercent: Double? = null,
-    val pointValue: Double? = null
+    val pointValue: Double? = null,
 )
 
 /**
@@ -51,7 +51,7 @@ fun calculateProfitPercent(
     yield: Double?,
     avgPrice: Double?,
     quantity: Long,
-    pointValue: Double?
+    pointValue: Double?,
 ): Double? {
     if (yield == null) return null
     if (avgPrice == null || avgPrice <= 0.0) return null
@@ -78,15 +78,16 @@ fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
         averagePrice = averagePositionPrice,
         totalValue = price * quantity,
         profit = expectedYield,
-        profitPercent = calculateProfitPercent(
-            yield = expectedYield,
-            avgPrice = averagePositionPrice,
-            quantity = quantity,
-            pointValue = pointValue
-        ),
+        profitPercent =
+            calculateProfitPercent(
+                yield = expectedYield,
+                avgPrice = averagePositionPrice,
+                quantity = quantity,
+                pointValue = pointValue,
+            ),
         pointValue = pointValue,
         instrumentType = instrumentType,
         isin = isin,
-        classCode = classCode
+        classCode = classCode,
     )
 }
