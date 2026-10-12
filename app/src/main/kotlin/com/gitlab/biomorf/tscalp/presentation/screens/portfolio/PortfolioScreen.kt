@@ -29,6 +29,9 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.ui.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.util.formatCurrency
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-экранов».
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
