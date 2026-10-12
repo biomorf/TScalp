@@ -27,6 +27,84 @@
 
 ---
 
+## Реализация Finam Broker API
+
+**Статус:** запланировано.
+
+**Контекст:** `FinamBrokerApi` — заглушка. Все методы
+`BrokerApi` либо возвращают пустые значения (`emptyList`,
+`emptyMap`, `0.0`), либо бросают `NotImplementedError` через
+`TODO("Not yet implemented")`. Брокер зарегистрирован
+в `DataModule` наравне с T-Invest и BCS, но фактически
+не работает.
+
+**Предусловия:**
+- Доступ к Finam API (документация, тестовый токен).
+- Выбор HTTP-клиента: OkHttp (уже в зависимостях,
+  используется BCS) или Ktor. Рекомендуется OkHttp для
+  консистентности с BCS.
+
+**Файлы:**
+- `data/api/FinamBrokerApi.kt` — основная реализация.
+- `util/FinamErrorMessages.kt` — расшифровка кодов ошибок
+  (может не существовать, см. ROADMAP → «Расшифровка
+  кодов ошибок брокеров»).
+- `data/api/FinamModels.kt` (новый) — data-классы для
+  JSON-ответов API.
+- `data/api/FinamConverters.kt` (новый) — конвертеры
+  JSON ↔ доменные модели.
+
+**Шаги:**
+
+1. Изучить документацию Finam API: базовый URL
+   (боевой и sandbox), авторизация, формат запросов
+   и ответов.
+2. Реализовать `getAccounts(sandboxMode)`.
+3. Реализовать `fetchPositionsRest(accountId, sandboxMode)`.
+4. Реализовать `getBalance(accountId)`.
+5. Реализовать `findInstruments(query)`.
+6. Реализовать `postOrder` / `postStopOrder` /
+   `cancelOrder` / `cancelStopOrder`.
+7. Реализовать `getOrders` / `getStopOrders`.
+8. Реализовать `getLastPricesByTscalpInstrumentId`.
+9. Реализовать `getTradingStatuses`.
+10. Реализовать стримы (`subscribePositions`,
+    `subscribeOrderState`, `subscribeLastPrices`) —
+    если Finam поддерживает; иначе polling с fallback.
+11. Заполнить `FinamErrorMessages.kt` по мере
+    появления кодов ошибок.
+12. Покрыть unit-тестами (моки OkHttp).
+
+**Референсы:**
+- Официальная документация Finam API (URL уточнить).
+- Существующая реализация `BcsBrokerApi` — образец
+  REST-клиента на OkHttp.
+
+**Ограничения:**
+- **Не оставлять `TODO("Not yet implemented")`** в коде,
+  который может быть вызван: заменять на явный
+  `AppResult.Failure` или `emptyList` с KDoc, если операция
+  не поддерживается.
+- Логирование — через `AppLogger`, не `printStackTrace`.
+- Идентификаторы инструментов — через `tscalpInstrumentId`
+  в domain-слое (см. AGENTS.md).
+
+**Критерий готовности:**
+- Все методы `BrokerApi` реализованы через REST-запросы
+  к Finam API.
+- `TODO("Not yet implemented")` в `FinamBrokerApi.kt`
+  отсутствуют.
+- В UI Finam выбирается наравне с T-Invest и BCS,
+  выполняет базовые операции (счёт, портфель, заявка).
+
+**Оценка:** ~8–12 часов (зависит от документации
+и наличия тестового доступа).
+
+**Зависимости:** нет. Блокирует полноценное использование
+Finam в UI.
+
+---
+
 ## Переход на edge-to-edge (statusBarColor deprecated)
 
 **Статус:** запланировано, требует отдельной подготовки.
