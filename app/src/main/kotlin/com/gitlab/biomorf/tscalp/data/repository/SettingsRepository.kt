@@ -19,6 +19,8 @@ import javax.inject.Singleton
  * чтобы при необходимости можно было добавить SharedPreferencesMigration
  * без конфликтов имён.
  */
+// Архитектурный долг: 15 функций в классе. См. ROADMAP → «Рефакторинг репозиториев».
+@Suppress("TooManyFunctions")
 @Singleton
 class SettingsRepository
     @Inject
