@@ -11,5 +11,6 @@ plugins {
     id("com.google.devtools.ksp") version "2.3.12" apply false
     id("org.jetbrains.kotlinx.kover") version "0.9.9" apply false
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0" apply false
+    id("dev.detekt") version "2.0.0-alpha.6" apply false
 }
 

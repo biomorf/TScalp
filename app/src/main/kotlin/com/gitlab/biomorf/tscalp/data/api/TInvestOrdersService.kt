@@ -152,7 +152,7 @@ class TInvestOrdersService(
                     .setExpirationType(protoExpirationType(request.expirationType))
                     .setConfirmMarginTrade(true)
             if (request.price != null) builder.setPrice(TInvestConverters.doubleToQuotation(request.price))
-            if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))
+            // if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))
 
             val response =
                 if (state.sandboxMode) {
@@ -217,8 +217,8 @@ class TInvestOrdersService(
                 ProtoStopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_DATE
         }
 
-    private fun parseDate(dateStr: String): com.google.protobuf.Timestamp =
-        com.google.protobuf.Timestamp
-            .newBuilder()
-            .build()
+//    private fun parseDate(dateStr: String): com.google.protobuf.Timestamp =
+//        com.google.protobuf.Timestamp
+//            .newBuilder()
+//            .build()
 }

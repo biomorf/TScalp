@@ -20,6 +20,25 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * REST-клиент Finam Broker API.
+ *
+ * **Статус: заглушка.** Методы `BrokerApi` пока не реализованы:
+ * часть возвращает пустые значения (`emptyList`, `emptyMap`,
+ * `0.0`, `OrderResult` с заглушечными полями), часть бросает
+ * `NotImplementedError` через `TODO("Not yet implemented")`.
+ *
+ * Брокер зарегистрирован в `DataModule` и отображается в UI
+ * наравне с T-Invest и BCS, но фактически не работает.
+ *
+ * Реализация всех методов — отдельная задача.
+ * См. ROADMAP → «Реализация Finam Broker API».
+ *
+ * Каркас: базовый URL `https://api.finam.ru/v1/`,
+ * JWT-авторизация, OkHttp-клиент.
+ * Архитектурный долг: 24 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+ */
+@Suppress("TooManyFunctions")
 class FinamBrokerApi : BrokerApi {
     companion object {
         private const val TAG = "FinamBrokerApi"
@@ -92,7 +111,6 @@ class FinamBrokerApi : BrokerApi {
 
     override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> =
         withContext(Dispatchers.IO) {
-            // TODO: запрос к /accounts
             emptyList()
         }
 
@@ -145,13 +163,11 @@ class FinamBrokerApi : BrokerApi {
         sandboxMode: Boolean,
     ): List<PortfolioPosition> =
         withContext(Dispatchers.IO) {
-            // TODO: запрос портфеля
             emptyList()
         }
 
     override suspend fun getBalance(accountId: String): Double =
         withContext(Dispatchers.IO) {
-            // TODO: запрос баланса
             0.0
         }
 
@@ -162,14 +178,10 @@ class FinamBrokerApi : BrokerApi {
         TODO("Not yet implemented")
     }
 
-    override suspend fun findInstruments(query: String): List<InstrumentUi> {
-        // TODO: поиск инструментов
-        return emptyList()
-    }
+    override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
 
     override suspend fun postOrder(request: BrokerOrderRequest): OrderResult =
         withContext(Dispatchers.IO) {
-            // TODO: выставление заявки
             OrderResult("", 0L, 0L, OrderStatus.NEW)
         }
 
@@ -195,10 +207,7 @@ class FinamBrokerApi : BrokerApi {
         TODO("Not yet implemented")
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> {
-        // TODO: запрос последних цен через REST
-        return emptyMap()
-    }
+    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
 
     override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = emptyMap()
 

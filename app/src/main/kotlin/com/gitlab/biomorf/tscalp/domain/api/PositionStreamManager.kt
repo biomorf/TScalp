@@ -1,5 +1,6 @@
-package com.gitlab.biomorf.tscalp.data.api
+package com.gitlab.biomorf.tscalp.domain.api
 
+import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem

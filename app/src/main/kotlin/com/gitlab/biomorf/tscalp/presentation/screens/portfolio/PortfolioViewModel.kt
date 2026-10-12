@@ -2,10 +2,10 @@ package com.gitlab.biomorf.tscalp.presentation.screens.portfolio
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -29,6 +29,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Архитектурный долг: 12 функций в классе. См. ROADMAP → «Рефакторинг ViewModel-слоя».
+@Suppress("TooManyFunctions")
 @HiltViewModel
 class PortfolioViewModel
     @Inject
@@ -275,6 +277,9 @@ class PortfolioViewModel
             }
         }
 
+        // Архитектурный долг: функция требует декомпозиции.
+        // См. ROADMAP → «Рефакторинг ViewModel-слоя».
+        @Suppress("LongMethod")
         fun payInSandbox() {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }

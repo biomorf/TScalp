@@ -13,6 +13,9 @@ data class TradeDetails(
 )
 
 class CalculateTradeDetailsUseCase {
+    // Архитектурный долг: функция требует декомпозиции.
+    // См. ROADMAP → «Рефакторинг UseCase-слоя».
+    @Suppress("CyclomaticComplexMethod")
     fun calculate(
         currentPrice: Double?,
         limitPrice: String?,

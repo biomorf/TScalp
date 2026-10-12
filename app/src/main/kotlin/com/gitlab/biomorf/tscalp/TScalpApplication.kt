@@ -2,10 +2,11 @@ package com.gitlab.biomorf.tscalp
 
 import android.app.Application
 import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import dagger.hilt.android.HiltAndroidApp
@@ -46,69 +47,84 @@ class TScalpApplication : Application() {
         // SettingsRepository работает на DataStore — все чтения suspend.
         appScope.launch {
             for (brokerName in BrokerName.entries) {
-                val broker = brokerManager.getBroker(brokerName) ?: continue
-                if (!settingsRepository.hasSavedToken(brokerName)) continue
-
-                when (brokerName) {
-                    BrokerName.TINVEST -> {
-                        val tInvest = broker as? TInvestBrokerAPI ?: continue
-                        try {
-                            val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
-                            val (token, sandbox) =
-                                creds ?: run {
-                                    AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
-                                    continue
-                                }
-                            tInvest.initialize(token, sandbox)
-                            brokerManager.refreshInitializationState()
-
-                            val accounts = tInvest.getAccounts(sandbox)
-                            val savedAccountId = settingsRepository.loadDefaultAccountId(brokerName)
-
-                            // 1. Сохранённый счёт, если он ещё существует
-                            // 2. Иначе — первый доступный счёт в аккаунте
-                            // 3. Иначе, если песочница — создаём новый
-                            // 4. Иначе (боевой и пусто) — null
-                            val accountId =
-                                when {
-                                    savedAccountId != null && accounts.any { it.id == savedAccountId } -> savedAccountId
-                                    accounts.isNotEmpty() -> accounts.first().id
-                                    sandbox -> tInvest.openSandboxAccount()
-                                    else -> null
-                                }
-
-                            if (accountId != null) {
-                                if (accountId != savedAccountId) {
-                                    settingsRepository.saveDefaultAccountId(brokerName, accountId)
-                                }
-                                positionStreamManager.start(accountId)
-                            } else {
-                                AppLogger.w("TScalpApplication", "Не удалось выбрать/создать TInvest-счёт")
-                            }
-                        } catch (e: Exception) {
-                            AppLogger.e("TScalpApplication", "Не удалось подготовить TInvest-счёт", e)
-                        }
-                    }
-
-                    BrokerName.BCS -> {
-                        val creds = settingsRepository.loadBrokerCredentials(brokerName)
-                        if (creds != null) {
-                            val (refreshToken, isWriteMode) = creds
-                            val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                            try {
-                                (broker as? BcsBrokerApi)?.initialize(refreshToken, clientId)
-                                brokerManager.refreshInitializationState()
-                            } catch (e: Exception) {
-                                AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS", e)
-                            }
-                        }
-                    }
-
-                    BrokerName.FINAM -> {
-                        // Finam инициализируется из UI настроек, при старте приложения ничего не делаем
-                    }
-                }
+                restoreBrokerConnection(brokerName)
             }
+        }
+    }
+
+    /**
+     * Восстанавливает подключение одного брокера, если есть сохранённый токен.
+     * Диспатчит на конкретный метод по имени брокера.
+     */
+    private suspend fun restoreBrokerConnection(brokerName: BrokerName) {
+        val broker = brokerManager.getBroker(brokerName) ?: return
+        if (!settingsRepository.hasSavedToken(brokerName)) return
+
+        when (brokerName) {
+            BrokerName.TINVEST -> restoreTInvest(broker)
+            BrokerName.BCS -> restoreBcs(broker)
+            BrokerName.FINAM -> Unit // Finam инициализируется из UI настроек
+        }
+    }
+
+    /**
+     * Инициализирует TInvestBrokerAPI и запускает стрим позиций
+     * по сохранённому счёту (или создаёт новый в песочнице).
+     *
+     * Выбор счёта:
+     * 1. Сохранённый счёт, если он ещё существует.
+     * 2. Иначе — первый доступный счёт в аккаунте.
+     * 3. Иначе, если песочница — создаём новый.
+     * 4. Иначе (боевой и пусто) — ничего не делаем.
+     */
+    private suspend fun restoreTInvest(broker: BrokerApi) {
+        val tInvest = broker as? TInvestBrokerAPI ?: return
+        try {
+            val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
+            if (creds == null) {
+                AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
+                return
+            }
+            val (token, sandbox) = creds
+            tInvest.initialize(token, sandbox)
+            brokerManager.refreshInitializationState()
+
+            val accounts = tInvest.getAccounts(sandbox)
+            val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
+
+            val accountId =
+                when {
+                    savedAccountId != null && accounts.any { it.id == savedAccountId } -> savedAccountId
+                    accounts.isNotEmpty() -> accounts.first().id
+                    sandbox -> tInvest.openSandboxAccount()
+                    else -> null
+                }
+
+            if (accountId != null) {
+                if (accountId != savedAccountId) {
+                    settingsRepository.saveDefaultAccountId(BrokerName.TINVEST, accountId)
+                }
+                positionStreamManager.start(accountId)
+            } else {
+                AppLogger.w("TScalpApplication", "Не удалось выбрать/создать TInvest-счёт")
+            }
+        } catch (e: Exception) {
+            AppLogger.e("TScalpApplication", "Не удалось подготовить TInvest-счёт", e)
+        }
+    }
+
+    /**
+     * Инициализирует BcsBrokerApi по сохранённым refresh-токену и режиму записи.
+     */
+    private suspend fun restoreBcs(broker: BrokerApi) {
+        val creds = settingsRepository.loadBrokerCredentials(BrokerName.BCS) ?: return
+        val (refreshToken, isWriteMode) = creds
+        val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
+        try {
+            (broker as? BcsBrokerApi)?.initialize(refreshToken, clientId)
+            brokerManager.refreshInitializationState()
+        } catch (e: Exception) {
+            AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS", e)
         }
     }
 

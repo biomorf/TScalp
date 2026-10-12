@@ -37,6 +37,9 @@ class OrdersListViewModel
             private const val TAG = "OrdersListViewModel"
         }
 
+        // Архитектурный долг: функция требует декомпозиции.
+        // См. ROADMAP → «Рефакторинг Compose-компонентов».
+        @Suppress("LongMethod")
         fun loadOrders() {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true, statusMessage = null) }

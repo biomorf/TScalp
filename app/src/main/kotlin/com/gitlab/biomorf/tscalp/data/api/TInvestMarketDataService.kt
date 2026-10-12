@@ -52,7 +52,9 @@ import ru.tinkoff.piapi.contract.v1.SubscriptionAction
 /**
  * Маркет-данные, портфель, стримы и счета T-Invest.
  * Работает на разделяемом TInvestApiState.
+ * // Архитектурный долг: 19 функций в классе. См. ROADMAP → «Рефакторинг data-слоя T-Invest».
  */
+@Suppress("TooManyFunctions")
 class TInvestMarketDataService(
     private val state: TInvestApiState,
 ) {
@@ -125,6 +127,9 @@ class TInvestMarketDataService(
             }
         }
 
+    // Архитектурный долг: функция требует декомпозиции.
+    // См. ROADMAP → «Рефакторинг data-слоя T-Invest».
+    @Suppress("CyclomaticComplexMethod")
     suspend fun fetchPositionsRest(
         accountId: String,
         sandboxMode: Boolean,
@@ -501,6 +506,15 @@ class TInvestMarketDataService(
 
     // ---------- Проверка доступности сделки ----------
 
+    /**
+     * Проверяет, хватает ли свободных средств на сделку.
+     *
+     * [direction] в текущей реализации не используется: проверка
+     * симметрична для buy и sell (сравнивается требуемая сумма
+     * с балансом). Параметр зарезервирован для будущих
+     * направленно-специфичных проверок (например, учёт позиции
+     * при продаже).
+     */
     suspend fun checkTradeAvailability(
         accountId: String,
         uid: String,

@@ -18,7 +18,9 @@ import ru.ttech.piapi.core.InvestApi
  * Держит состояние (api, channels, sandboxMode), делегирует в два сервиса:
  *  - TInvestMarketDataService — счета, портфель, инструменты, цены, стримы, баланс;
  *  - TInvestOrdersService — заявки, стоп-заявки, отмена.
+ *  // Архитектурный долг: 22 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
  */
+@Suppress("TooManyFunctions")
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
 ) : BrokerApi {

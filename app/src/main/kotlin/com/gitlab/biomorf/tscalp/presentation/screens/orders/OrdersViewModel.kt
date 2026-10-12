@@ -3,13 +3,13 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.data.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SearchCache
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -44,6 +44,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Архитектурный долг: 49 функций, класс слишком большой.
+// См. ROADMAP → «Рефакторинг ViewModel-слоя».
+@Suppress("TooManyFunctions", "LargeClass")
 @HiltViewModel
 class OrdersViewModel
     @Inject
@@ -409,6 +412,9 @@ class OrdersViewModel
 
         fun onSellClick() = viewModelScope.launch { postOrder(OrderDirection.SELL) }
 
+        // Архитектурный долг: функция требует декомпозиции.
+        // См. ROADMAP → «Рефакторинг ViewModel-слоя».
+        @Suppress("LongMethod", "CyclomaticComplexMethod")
         private suspend fun postOrder(direction: OrderDirection) {
             val state = _uiState.value
             val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return

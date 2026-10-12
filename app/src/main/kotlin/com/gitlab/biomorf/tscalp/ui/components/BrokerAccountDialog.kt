@@ -9,6 +9,9 @@ import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-компонентов».
+@Suppress("LongMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerAccountDialog(

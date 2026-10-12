@@ -27,6 +27,250 @@
 
 ---
 
+## Реализация Finam Broker API
+
+**Статус:** запланировано.
+
+**Контекст:** `FinamBrokerApi` — заглушка. Все методы
+`BrokerApi` либо возвращают пустые значения (`emptyList`,
+`emptyMap`, `0.0`), либо бросают `NotImplementedError` через
+`TODO("Not yet implemented")`. Брокер зарегистрирован
+в `DataModule` наравне с T-Invest и BCS, но фактически
+не работает.
+
+**Предусловия:**
+- Доступ к Finam API (документация, тестовый токен).
+- Выбор HTTP-клиента: OkHttp (уже в зависимостях,
+  используется BCS) или Ktor. Рекомендуется OkHttp для
+  консистентности с BCS.
+
+**Файлы:**
+- `data/api/FinamBrokerApi.kt` — основная реализация.
+- `util/FinamErrorMessages.kt` — расшифровка кодов ошибок
+  (может не существовать, см. ROADMAP → «Расшифровка
+  кодов ошибок брокеров»).
+- `data/api/FinamModels.kt` (новый) — data-классы для
+  JSON-ответов API.
+- `data/api/FinamConverters.kt` (новый) — конвертеры
+  JSON ↔ доменные модели.
+
+**Шаги:**
+
+1. Изучить документацию Finam API: базовый URL
+   (боевой и sandbox), авторизация, формат запросов
+   и ответов.
+2. Реализовать `getAccounts(sandboxMode)`.
+3. Реализовать `fetchPositionsRest(accountId, sandboxMode)`.
+4. Реализовать `getBalance(accountId)`.
+5. Реализовать `findInstruments(query)`.
+6. Реализовать `postOrder` / `postStopOrder` /
+   `cancelOrder` / `cancelStopOrder`.
+7. Реализовать `getOrders` / `getStopOrders`.
+8. Реализовать `getLastPricesByTscalpInstrumentId`.
+9. Реализовать `getTradingStatuses`.
+10. Реализовать стримы (`subscribePositions`,
+    `subscribeOrderState`, `subscribeLastPrices`) —
+    если Finam поддерживает; иначе polling с fallback.
+11. Заполнить `FinamErrorMessages.kt` по мере
+    появления кодов ошибок.
+12. Покрыть unit-тестами (моки OkHttp).
+
+**Референсы:**
+- Официальная документация Finam API (URL уточнить).
+- Существующая реализация `BcsBrokerApi` — образец
+  REST-клиента на OkHttp.
+
+**Ограничения:**
+- **Не оставлять `TODO("Not yet implemented")`** в коде,
+  который может быть вызван: заменять на явный
+  `AppResult.Failure` или `emptyList` с KDoc, если операция
+  не поддерживается.
+- Логирование — через `AppLogger`, не `printStackTrace`.
+- Идентификаторы инструментов — через `tscalpInstrumentId`
+  в domain-слое (см. AGENTS.md).
+
+**Критерий готовности:**
+- Все методы `BrokerApi` реализованы через REST-запросы
+  к Finam API.
+- `TODO("Not yet implemented")` в `FinamBrokerApi.kt`
+  отсутствуют.
+- В UI Finam выбирается наравне с T-Invest и BCS,
+  выполняет базовые операции (счёт, портфель, заявка).
+
+**Оценка:** ~8–12 часов (зависит от документации
+и наличия тестового доступа).
+
+**Зависимости:** нет. Блокирует полноценное использование
+Finam в UI.
+
+---
+
+## Рефакторинг архитектурного долга (detekt-группа 3)
+
+**Статус:** запланировано.
+
+**Контекст:** при внедрении detekt 2.0.0-alpha.6 (см. задачу
+`detekt` в разделе выше) выявлены 10 групп архитектурного
+долга. Правила `LongMethod`, `CyclomaticComplexMethod`,
+`TooManyFunctions`, `LargeClass` подавлены в коде через
+`@Suppress` со ссылкой на эту секцию. `MagicNumber` (45
+записей) зафиксирован в `app/detekt-baseline.xml`.
+
+**Общие предусловия:**
+- Перед рефакторингом каждой группы — прогнать тесты,
+  зафиксировать текущее поведение.
+- Разбивать на подзадачи: один класс / одна функция за раз,
+  коммит после каждого шага (правило 4b AGENTS.md).
+- После рефакторинга — снять `@Suppress`, убедиться что
+  detekt проходит без него.
+
+**Общие ограничения:**
+- Не менять UI без санкции (правило 1 AGENTS.md).
+- Не ломать публичные контракты без миграции вызывающих.
+- Тесты (63 unit) должны оставаться зелёными.
+
+**Общий критерий готовности:** все `@Suppress` из этой секции
+сняты; `:app:detekt` проходит без новых подавлений; тесты
+зелёные.
+
+**Оценка:** ~15–20 часов суммарно.
+
+**Зависимости:** нет.
+
+### BrokerApi-реализации
+
+**Файлы:** `data/api/BcsBrokerApi.kt` (25 функций),
+`data/api/FinamBrokerApi.kt` (24), `data/api/TInvestBrokerApi.kt`
+(22), `domain/api/BrokerApi.kt` (интерфейс, 19).
+
+**Пути решения:**
+- Разделить `BrokerApi` на ролевые интерфейсы (`AccountsApi`,
+  `OrdersApi`, `MarketDataApi`, `StreamsApi`) с агрегацией.
+- Разбить реализации на сервисы по образцу
+  `TInvestMarketDataService` / `TInvestOrdersService`.
+
+**Оценка:** ~3 часа.
+
+### Репозитории
+
+**Файлы:** `data/repository/InvestRepository.kt` (17 функций),
+`data/repository/SettingsRepository.kt` (15).
+
+**Пути решения:** разбить по доменным областям (аккаунты,
+заявки, портфель, стримы — для `InvestRepository`; токены,
+настройки UI, режим sandbox — для `SettingsRepository`).
+
+**Оценка:** ~2 часа.
+
+### ViewModel-слой
+
+**Файлы:**
+- `presentation/screens/orders/OrdersViewModel.kt` — 49 функций,
+  LargeClass; `postOrder` (172 строки, complexity 28).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` —
+  12 функций; `payInSandbox` (61 строка).
+- `presentation/screens/settings/SettingsViewModel.kt` —
+  20 функций.
+
+**Пути решения:** вынести бизнес-логику в UseCase,
+оставить во ViewModel только состояние и делегирование.
+Для `OrdersViewModel` — возможно разделение на
+`OrderFormViewModel` / `OrderListViewModel`.
+
+**Оценка:** ~5 часов.
+
+### UseCase-слой
+
+**Файлы:**
+- `domain/usecases/CalculateTradeDetailsUseCase.kt` —
+  `calculate` (complexity 25).
+- `domain/usecases/PrepareOrderRequestUseCase.kt` —
+  `prepare` (92 строки, complexity 20).
+
+**Пути решения:** разбить `calculate` на отдельные функции
+по типу заявки (market/limit/stop). `prepare` — вынести
+валидацию, сборку request, разрешение uid в отдельные шаги.
+
+**Оценка:** ~2 часа.
+
+### Data-слой T-Invest
+
+**Файлы:**
+- `data/api/TInvestMarketDataService.kt` — 19 функций;
+  `fetchPositionsRest` (complexity 26).
+- `data/api/TInvestInstrumentMapper.kt` — `mapProtoToDomain`
+  (118 строк).
+
+**Пути решения:** `fetchPositionsRest` разбить на
+`fetchPositions` + `enrichWithInstrumentData` +
+`enrichWithMarginData`. `mapProtoToDomain` — на
+`mapFutures` / `mapShares` / `mapDefault`.
+
+**Оценка:** ~2 часа.
+
+### Compose-экраны
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — `OrdersScreen`
+  (646 строк, complexity 69), `InstrumentSearchField`
+  (130 строк, complexity 16).
+- `presentation/screens/portfolio/PortfolioScreen.kt` (161 строка,
+  complexity 19).
+- `presentation/screens/settings/SettingsScreen.kt` —
+  `TInvestSettingsPanel` (324 строки, complexity 35),
+  `BcsSettingsPanel` (182), `FinamSettingsPanel` (149).
+
+**Пути решения:** вынести секции экрана в приватные
+composables. Для `OrdersScreen` — отдельно форма заявки,
+список, поиск, диалоги.
+
+**Оценка:** ~6 часов.
+
+### Compose-компоненты
+
+**Файлы:**
+- `ui/components/AssetPositionCard.kt` — `AssetPositionCard`
+  (109 строк), `AssetCardContent` (136 строк, complexity 20).
+- `ui/components/BrokerAccountDialog.kt` (105 строк).
+- `ui/components/OrdersListViewModel.kt` — `loadOrders`
+  (62 строки).
+
+**Оценка:** ~2 часа.
+
+### Классификатор ошибок
+
+**Файлы:**
+- `util/AppResultExtensions.kt` — `Throwable.toAppError`
+  (66 строк, complexity 26).
+
+**Пути решения:** разбить на per-broker обработчики
+(`toTInvestError`, `toBcsError`, `toFinamError`) с
+диспетчеризацией по `BrokerName`.
+
+**Оценка:** ~1 час.
+
+### Индикатор доступности инструмента в карточке позиции
+
+**Файлы:**
+- `ui/components/AssetPositionCard.kt` — параметр
+  `tradingAvailability` объявлен, но не используется.
+
+**Контекст:** данные передаются из UI (`PortfolioScreen`,
+`OrdersScreen`), но визуальный индикатор не реализован.
+UI-изменение требует санкции (правило 1 AGENTS.md).
+
+**Пути решения:** добавить в карточку бейдж или цветовой
+индикатор статуса. Тексты и иконки согласовать заранее.
+
+**Оценка:** ~1 час (после санкции на UI).
+
+**Когда вернуться:** при следующей итерации по UI портфеля.
+
+---
+
+---
+---
+
 ## Переход на edge-to-edge (statusBarColor deprecated)
 
 **Статус:** запланировано, требует отдельной подготовки.
@@ -548,6 +792,52 @@ AppMetrica, отладки.
 если решение окажется положительным.
 
 
+## Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
+
+**Статус:** запланировано. Потерянная логика.
+
+**Контекст:** в `TInvestOrdersService.kt:155` устанавливался
+`expireDate` через `parseDate(request.expireDate)`, но метод
+`parseDate` возвращал пустой `com.google.protobuf.Timestamp` —
+то есть фактически ничего не парсил. Это была недописанная
+логика. При чистке detekt-issues (UnusedParameter) метод
+и его вызов удалены, чтобы не оставлять сломанный код.
+
+**Последствие:** при создании stop-order с типом экспирации
+`GOOD_TILL_DATE` поле `expireDate` в `PostStopOrderRequest`
+не устанавливается. Такие заявки либо отклоняются биржей,
+либо обрабатываются некорректно.
+
+**Файлы:**
+- `data/api/TInvestOrdersService.kt` — восстановить парсинг.
+- `domain/models/OrderModels.kt` — `expireDate` в
+  `StopOrderRequest` (нужно уточнить формат — String?).
+
+**Шаги:**
+1. Уточнить формат `expireDate`, приходящего из UI
+   (ISO-8601? unix timestamp? yyyy-MM-dd?).
+2. Уточнить формат, ожидаемый T-Invest API:
+   `com.google.protobuf.Timestamp` (секунды + наносекунды
+   от epoch UTC).
+3. Реализовать парсер с обработкой ошибок
+   (невалидный формат → возвращать `AppResult.Failure`).
+4. Восстановить вызов `builder.setExpireDate(...)` при
+   `expirationType == GOOD_TILL_DATE`.
+5. Покрыть unit-тестом.
+
+**Референс:**
+- Документация T-Invest API → PostStopOrder → expireDate.
+- `com.google.protobuf.Timestamp` — стандартный proto-тип,
+  поля `seconds` (int64), `nanos` (int32).
+
+**Критерий готовности:**
+- Stop-order с `GOOD_TILL_DATE` создаётся и принимается
+  биржей; `expireDate` в запросе совпадает с UI-значением.
+- Покрыто тестом.
+
+**Оценка:** ~1 час.
+
+**Зависимости:** нет.
 
 
 ---

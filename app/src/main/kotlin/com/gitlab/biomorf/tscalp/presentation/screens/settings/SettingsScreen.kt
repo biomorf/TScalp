@@ -37,6 +37,9 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.launch
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-экранов».
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun SettingsScreen() {
     // Хаб: показываем список подразделов или содержимое подраздела
@@ -161,6 +164,9 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
     }
 }
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-экранов».
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TInvestSettingsPanel() {
@@ -518,6 +524,9 @@ fun TInvestSettingsPanel() {
     }
 }
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-экранов».
+@Suppress("LongMethod")
 @Composable
 fun BcsSettingsPanel() {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -685,7 +694,7 @@ fun BcsSettingsPanel() {
                     4. Выберите права: чтение портфеля и совершение сделок
                     5. Скопируйте полученный refresh‑токен
                     6. Вставьте его в поле выше
-                    
+
                     ⚠️ Рекомендации по безопасности:
                     • Сначала тестируйте в режиме песочницы
                     • Не передавайте токен третьим лицам
@@ -716,6 +725,9 @@ fun BcsSettingsPanel() {
     }
 }
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-экранов».
+@Suppress("LongMethod")
 @Composable
 fun FinamSettingsPanel() {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -850,7 +862,7 @@ fun FinamSettingsPanel() {
                     3. Создайте новый токен с правами на торговлю и чтение
                     4. Скопируйте секретный токен
                     5. Вставьте его в поле выше
-                    
+
                     ⚠️ Рекомендации:
                     • Храните токен в безопасном месте
                     • Не передавайте третьим лицам

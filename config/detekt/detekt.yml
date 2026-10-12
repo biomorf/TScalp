@@ -1,0 +1,90 @@
+# Конфигурация detekt. Загружается поверх встроенных правил
+# (buildUponDefaultConfig = true).
+#
+# Отключены правила, конфликтующие со стилем проекта или
+# дающие ложные срабатывания на Compose/Android-коде.
+# Пороги LongMethod / CyclomaticComplexMethod / TooManyFunctions
+# не тронуты — это реальный архитектурный долг (см. ROADMAP).
+
+naming:
+    # Compose-функции по соглашению начинаются с большой буквы.
+    FunctionNaming:
+        active: false
+
+    # Отключено по аналогии с ktlint filename — не критично.
+    MatchingDeclarationName:
+        active: false
+    # Поля `ttech_uid` и `ttech_figi` в InstrumentUi — осознанное
+    # исключение T-Invest (см. AGENTS.md → «Идентификаторы
+    # инструментов»). Правило исключает семейство InstrumentUi
+    # через regex по имени класса; остальные конструкторы
+    # остаются под проверкой.
+    ConstructorParameterNaming:
+        excludeClassPattern: 'InstrumentUi$|FutureUi$|ShareUi$'
+
+style:
+    # Разрешены .editorconfig для ktlint. Detekt не читает
+    # .editorconfig, но правило конфликтует с принятым стилем.
+    WildcardImport:
+        active: false
+
+    # Отключено в ktlint через .editorconfig. Узко для Compose.
+    MaxLineLength:
+        active: false
+
+    # Много тривиальных срабатываний. Разрешены 0, 1, 2, -1
+    # и значения в enum / companion object.
+    MagicNumber:
+        active: true
+        ignoreNumbers:
+            # Базовые
+            - '-1'
+            - '0'
+            - '1'
+            - '2'
+            # Проценты, доли
+            - '100'
+            # Таймауты и интервалы (мс, сек)
+            - '30'
+            - '60'
+            - '1000'
+            - '5000'
+            - '10000'
+            # Конвертация nano (1e9)
+            - '1_000_000'
+            - '1_000_000_000'
+        ignoreEnums: true
+        ignoreCompanionObjectPropertyDeclaration: true
+
+    # Early-return читается лучше, чем вложенные ветвления.
+    ReturnCount:
+        active: false
+    # Detekt 2.x alpha игнорирует @Suppress("UnusedParameter")
+    # на функциях, поэтому точечно подавить предупреждение
+    # невозможно. Реальные мёртвые параметры находим вручную
+    # при рефакторинге. Правило отключено, чтобы избежать
+    # ложных срабатываний на зарезервированных параметрах
+    # (direction в checkTradeAvailability, tradingAvailability
+    # в AssetCardContent).
+    UnusedParameter:
+        active: false
+
+exceptions:
+    # На границах слоёв используется AppResult<T>, широкий
+    # catch (Exception) — часть стратегии fallback.
+    TooGenericExceptionCaught:
+        active: false
+
+    # То же — исключения оборачиваются в AppError на границе.
+    TooGenericExceptionThrown:
+        active: false
+
+    # Проглатывание исключения — осознанное решение
+    # (логирование + продолжение работы).
+    SwallowedException:
+        active: false
+
+complexity:
+    # Лимит 3 слишком жёсткий для композитных условий.
+    ComplexCondition:
+        allowedConditions: 4

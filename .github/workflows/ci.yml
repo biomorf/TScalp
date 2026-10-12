@@ -32,10 +32,10 @@ jobs:
 
       - name: Generate coverage report
         run: ./gradlew :app:koverXmlReportDebug :app:koverHtmlReportDebug
-      
+
       - name: Verify coverage
         run: ./gradlew :app:koverVerifyDebug
-      
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v7
@@ -48,13 +48,23 @@ jobs:
 
       - name: Run ktlint
         run: ./gradlew :app:ktlintCheck
-      
+
       - name: Upload ktlint report
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ktlint-report
           path: app/build/reports/ktlint/
+
+      - name: Run detekt
+        run: ./gradlew :app:detekt
+
+      - name: Upload detekt report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+            name: detekt-report
+            path: app/build/reports/detekt/
 
       - name: Assemble Debug APK
         run: ./gradlew :app:assembleDebug
