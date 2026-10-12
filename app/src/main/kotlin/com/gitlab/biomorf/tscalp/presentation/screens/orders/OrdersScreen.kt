@@ -45,6 +45,9 @@ import com.gitlab.biomorf.tscalp.ui.components.OrdersListDialog
 import com.gitlab.biomorf.tscalp.util.formatCurrency
 import kotlinx.coroutines.launch
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг OrdersScreen».
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen() {
@@ -775,6 +778,9 @@ fun ApiNotInitializedCard() {
     }
 }
 
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг OrdersScreen».
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InstrumentSearchField(
