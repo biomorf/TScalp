@@ -37,6 +37,8 @@ data class SettingsUiState(
     val isError: Boolean = false,
 )
 
+// Архитектурный долг: 20 функций в классе. См. ROADMAP → «Рефакторинг ViewModel-слоя».
+@Suppress("TooManyFunctions")
 @HiltViewModel
 class SettingsViewModel
     @Inject

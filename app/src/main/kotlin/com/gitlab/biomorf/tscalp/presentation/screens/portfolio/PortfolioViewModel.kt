@@ -29,6 +29,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Архитектурный долг: 12 функций в классе. См. ROADMAP → «Рефакторинг ViewModel-слоя».
+@Suppress("TooManyFunctions")
 @HiltViewModel
 class PortfolioViewModel
     @Inject

@@ -44,6 +44,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Архитектурный долг: 49 функций, класс слишком большой.
+// См. ROADMAP → «Рефакторинг ViewModel-слоя».
+@Suppress("TooManyFunctions", "LargeClass")
 @HiltViewModel
 class OrdersViewModel
     @Inject
