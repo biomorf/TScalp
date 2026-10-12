@@ -28,6 +28,9 @@ inline fun <T> runCatchingAppResult(
  * Классификатор исключений → AppError.
  * Отдельно различаем сетевые ошибки, авторизацию и «не найдено».
  */
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг классификатора ошибок».
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 fun Throwable.toAppError(brokerName: BrokerName? = null): AppError {
     // 1. gRPC: отдельная ветка, у StatusException свой статус-код
     if (this is io.grpc.StatusException || this is io.grpc.StatusRuntimeException) {
