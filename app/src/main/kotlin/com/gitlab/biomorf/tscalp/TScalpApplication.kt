@@ -127,7 +127,7 @@ class TScalpApplication : Application() {
             AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS", e)
         }
     }
-    
+
 
     private fun initAppMetrica() {
         val apiKey = BuildConfig.APPMETRICA_API_KEY
