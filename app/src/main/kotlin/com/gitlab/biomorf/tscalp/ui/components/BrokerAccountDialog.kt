@@ -20,7 +20,7 @@ fun BrokerAccountDialog(
     onAccountSelected: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
-    showAccountSelector: Boolean = true, // <-- новый параметр
+    showAccountSelector: Boolean = true,
 ) {
     // Устойчивое сравнение с trim, fallback на первый счёт
     val selectedAccountName =

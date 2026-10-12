@@ -6,11 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.models.ShareUi
 import ru.tinkoff.piapi.contract.v1.Instrument
 
 /**
- * Преобразование protobuf-инструмента T-Invest в доменную модель.
- */
-
-/**
- * Преобразует protobuf‑объект Instrument в универсальный InstrumentUi.
+ * Преобразует protobuf‑объект Instrument в доменный универсальный InstrumentUi.
  * tscalpInstrumentId заполняется из uid (рекомендованный идентификатор Т‑Инвестиций).
  * Для фьючерсов возвращает FutureUi, для акций – ShareUi, для остальных – базовый InstrumentUi.
  */

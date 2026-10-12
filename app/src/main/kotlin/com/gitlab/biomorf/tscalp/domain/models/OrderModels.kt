@@ -4,13 +4,18 @@ data class OrderState(
     val orderId: String,
     val orderRequestId: String?,
     val ticker: String,
-    val direction: String, // "BUY" / "SELL"
-    val limitPrice: Double?, // начальная лимитная цена (если лимитный)
-    val executedPrice: Double?, // цена исполнения
+    // "BUY" / "SELL"
+    val direction: String,
+    // начальная лимитная цена (если лимитный)
+    val limitPrice: Double?,
+    // цена исполнения
+    val executedPrice: Double?,
     val quantity: Long,
     val executedQuantity: Long,
-    val status: String, // "NEW", "FILL", "PARTIALLYFILL" и т.д.
-    val updateTime: Long?, // epoch seconds
+    // "NEW", "FILL", "PARTIALLYFILL" и т.д.
+    val status: String,
+    // epoch seconds
+    val updateTime: Long?,
 )
 
 data class OrderResult(
@@ -26,14 +31,20 @@ data class OrderListItem(
     val ticker: String,
     val tscalpInstrumentId: String,
     val instrumentType: String = "",
-    val direction: String, // "BUY" / "SELL"
-    val price: Double, // лимитная цена (для обычных) или стоп-цена
-    val stopPrice: Double?, // null для обычных
+    // "BUY" / "SELL"
+    val direction: String,
+    // лимитная цена (для обычных) или стоп-цена
+    val price: Double,
+    // null для обычных
+    val stopPrice: Double?,
     val quantity: Long,
-    val type: String, // "LIMIT", "MARKET", "STOP_LOSS", "TAKE_PROFIT", "STOP_LIMIT"
+    // "LIMIT", "MARKET", "STOP_LOSS", "TAKE_PROFIT", "STOP_LIMIT"
+    val type: String,
     val status: String,
-    val orderDate: Long?, // время создания (epoch seconds)
-    val isStopOrder: Boolean, // true → отмена через cancelStopOrder, false → cancelOrder
+    // время создания (epoch seconds)
+    val orderDate: Long?,
+    // true → отмена через cancelStopOrder, false → cancelOrder
+    val isStopOrder: Boolean,
 )
 
 enum class OrderStatus {
@@ -66,10 +77,13 @@ data class StopOrderRequest(
     val accountId: String,
     val sandboxMode: Boolean,
     val stopPrice: Double,
-    val price: Double?, // для stop-limit, иначе null
-    val stopOrderType: StopOrderType, // TAKE_PROFIT, STOP_LOSS, STOP_LIMIT
+    // для stop-limit, иначе null
+    val price: Double?,
+    // TAKE_PROFIT, STOP_LOSS, STOP_LIMIT
+    val stopOrderType: StopOrderType,
     val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
-    val expireDate: String? = null, // если нужна конкретная дата
+    // если нужна конкретная дата
+    val expireDate: String? = null,
 )
 
 enum class StopOrderExpirationType { GOOD_TILL_CANCEL, GOOD_TILL_DATE }

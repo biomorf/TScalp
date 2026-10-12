@@ -12,7 +12,8 @@ data class TradingStatusDetails(
     val isApiTradeAvailable: Boolean,
     val buyAvailable: Boolean,
     val sellAvailable: Boolean,
-    val tradingStatus: String, // например "SECURITY_TRADING_STATUS_NORMAL_TRADING"
+    // например "SECURITY_TRADING_STATUS_NORMAL_TRADING"
+    val tradingStatus: String,
 )
 
 enum class TradingAvailability {

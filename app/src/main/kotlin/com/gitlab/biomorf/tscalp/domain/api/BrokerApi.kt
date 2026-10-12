@@ -19,14 +19,11 @@ interface BrokerApi {
     suspend fun closeSandboxAccount(accountId: String)
 
     /**
+     * Прямой запрос позиций (REST / gRPC-unary).
      * Возвращает позиции портфеля для указанного счёта в виде списка доменных объектов.
      * Каждый брокер реализует по‑своему: Т‑Инвестиции – через getPortfolio, БКС – парсинг JSON.
-     */
-    // Прямой запрос позиций (REST / gRPC-unary) – используется в polling и при первой загрузке
-
-    /**
-     * Прямой запрос позиций (REST / gRPC-unary).
-     * Используется только внутри сервисных реализаций, не должен вызываться Presentation или Repository.
+     * Используется в polling и при первой загрузке только внутри сервисных реализаций,
+     * не должен вызываться Presentation или Repository.
      */
     suspend fun fetchPositionsRest(
         accountId: String,
@@ -59,21 +56,12 @@ interface BrokerApi {
         amount: SandboxMoney,
     )
 
-    // suspend fun getPortfolio(accountId: String, sandboxMode: Boolean): PortfolioResponse
-
     /**
      * Возвращает специфичный для брокера идентификатор инструмента по тикеру.
      * Для Т-Инвестиций это figi, для БКС — bscticker (пока просто ticker).
      * Может вернуть null, если инструмент не найден.
      */
-    // suspend fun resolveTicker(ticker: String): String?
-
-    // Опционально: если нужно получать полный InstrumentUi по тикеру
-    // suspend fun getInstrumentByTicker(ticker: String): InstrumentUi?
     suspend fun findInstruments(query: String): List<InstrumentUi>
-    // suspend fun findInstrumentShorts(query: String): List<InstrumentShort>
-    // suspend fun getLastPrices(figis: List<String>): Map<String, Double?>
-    // suspend fun getMarginAttributes(accountId: String): GetMarginAttributesResponse
 
     /**
      * Выставляет заявку (рыночную или лимитную) через брокера.
