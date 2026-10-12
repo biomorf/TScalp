@@ -176,9 +176,7 @@ class FinamBrokerApi : BrokerApi {
         TODO("Not yet implemented")
     }
 
-    override suspend fun findInstruments(query: String): List<InstrumentUi> {
-        return emptyList()
-    }
+    override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
 
     override suspend fun postOrder(request: BrokerOrderRequest): OrderResult =
         withContext(Dispatchers.IO) {
@@ -207,9 +205,7 @@ class FinamBrokerApi : BrokerApi {
         TODO("Not yet implemented")
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> {
-        return emptyMap()
-    }
+    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
 
     override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = emptyMap()
 

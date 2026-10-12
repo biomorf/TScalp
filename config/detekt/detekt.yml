@@ -21,7 +21,7 @@ naming:
     # остаются под проверкой.
     ConstructorParameterNaming:
         excludeClassPattern: 'InstrumentUi$|FutureUi$|ShareUi$'
-        
+
 style:
     # Разрешены .editorconfig для ktlint. Detekt не читает
     # .editorconfig, но правило конфликтует с принятым стилем.

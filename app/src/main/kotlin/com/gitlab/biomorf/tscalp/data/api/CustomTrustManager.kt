@@ -10,8 +10,9 @@ import java.security.cert.X509Certificate
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
-class CustomTrustManager(context: Context) : X509TrustManager {
-
+class CustomTrustManager(
+    context: Context,
+) : X509TrustManager {
     private companion object {
         private const val TAG = "CustomTrustManager"
     }
@@ -47,7 +48,11 @@ class CustomTrustManager(context: Context) : X509TrustManager {
                 .first { it is X509TrustManager } as X509TrustManager
     }
 
-    private fun loadCertificateToKeyStore(context: Context, resId: Int, keyStore: KeyStore) {
+    private fun loadCertificateToKeyStore(
+        context: Context,
+        resId: Int,
+        keyStore: KeyStore,
+    ) {
         try {
             val cf = CertificateFactory.getInstance("X.509")
             context.resources.openRawResource(resId).use { stream ->
