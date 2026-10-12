@@ -37,6 +37,8 @@ import java.util.concurrent.TimeUnit
  * Каркас: базовый URL `https://api.finam.ru/v1/`,
  * JWT-авторизация, OkHttp-клиент.
  */
+// Архитектурный долг: 24 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+@Suppress("TooManyFunctions")
 class FinamBrokerApi : BrokerApi {
     companion object {
         private const val TAG = "FinamBrokerApi"

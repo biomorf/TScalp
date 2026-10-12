@@ -36,6 +36,8 @@ import java.io.IOException
  * Реализация BrokerApi для брокера БКС (Мир Инвестиций).
  * Использует HTTP REST API с авторизацией OAuth2.
  */
+// Архитектурный долг: 25 функций в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+@Suppress("TooManyFunctions")
 class BcsBrokerApi : BrokerApi {
     companion object {
         private const val TAG = "BcsBrokerApi"

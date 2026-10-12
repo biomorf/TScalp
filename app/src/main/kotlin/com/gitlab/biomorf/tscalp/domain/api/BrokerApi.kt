@@ -8,6 +8,8 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
+// Архитектурный долг: 19 функций в интерфейсе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+@Suppress("TooManyFunctions")
 interface BrokerApi {
     val name: BrokerName
     val isInitialized: Boolean
