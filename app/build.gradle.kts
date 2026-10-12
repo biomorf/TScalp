@@ -363,7 +363,7 @@ kover {
 }
 
 ktlint {
-    ignoreFailures = true
+    ignoreFailures = false
     reporters {
         reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.HTML)
     }
