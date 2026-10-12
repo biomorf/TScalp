@@ -18,8 +18,9 @@ import javax.inject.Singleton
  * Ключи сохранены в legacy-формате ("TInvest_token", "TInvest_sandbox" и т.д.),
  * чтобы при необходимости можно было добавить SharedPreferencesMigration
  * без конфликтов имён.
+ * // Архитектурный долг: 15 функций в классе. См. ROADMAP → «Рефакторинг репозиториев».
  */
-// Архитектурный долг: 15 функций в классе. См. ROADMAP → «Рефакторинг репозиториев».
+
 @Suppress("TooManyFunctions")
 @Singleton
 class SettingsRepository

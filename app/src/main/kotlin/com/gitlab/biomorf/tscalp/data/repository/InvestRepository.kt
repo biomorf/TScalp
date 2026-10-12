@@ -19,8 +19,10 @@ import kotlinx.coroutines.withContext
 
 /**
  * ///Репозиторий – преобразует контракты API в доменные модели приложения.
+ *
+ * Архитектурный долг: 17 функций в классе.
+ * См. ROADMAP → «Рефакторинг репозиториев».
  */
-// Архитектурный долг: 17 функций в классе. См. ROADMAP → «Рефакторинг репозиториев».
 @Suppress("TooManyFunctions")
 class InvestRepository(
     private val brokerManager: BrokerManager,

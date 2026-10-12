@@ -12,12 +12,13 @@ import ru.tinkoff.piapi.contract.v1.Instrument
  */
 object TInvestInstrumentMapper {
     /**
+     * Архитектурный долг: функция требует декомпозиции.
+     * См. ROADMAP → «Рефакторинг data-слоя T-Invest».
+     *
      * @param instrument             protobuf-объект из T-Invest SDK
      * @param minPriceIncrementAmountOverride стоимость пункта для фьючерсов,
      *        полученная из getFuturesMargin. Для не-фьючерсов игнорируется.
      */
-    // Архитектурный долг: функция требует декомпозиции.
-    // См. ROADMAP → «Рефакторинг data-слоя T-Invest».
     @Suppress("LongMethod")
     fun mapProtoToDomain(
         instrument: Instrument,

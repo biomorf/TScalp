@@ -164,7 +164,6 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
     }
 }
 
-
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-экранов».
 @Suppress("LongMethod", "CyclomaticComplexMethod")
