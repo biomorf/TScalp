@@ -2,13 +2,10 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
-import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderType
-import com.gitlab.biomorf.tscalp.domain.models.StopOrderType
-import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 
 /**
@@ -22,8 +19,8 @@ data class SelectedInstrumentInfo(
     val averagePrice: Double?,
     val profit: Double?,
     val profitPercent: Double?,
-    val brokerName: BrokerName = BrokerName.TINVEST,   // брокер по умолчанию
-    val accountId: String? = null
+    val brokerName: BrokerName = BrokerName.TINVEST, // брокер по умолчанию
+    val accountId: String? = null,
 )
 
 data class OrdersUiState(
@@ -46,26 +43,26 @@ data class OrdersUiState(
     val isPriceLoading: Boolean = false,
     val portfolioPositions: List<PortfolioPosition> = emptyList(),
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),
-    val isSearchActive: Boolean = false,          // <-- для управления SearchBar
-    //val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)
-    val limitPrice: String = "",                                // цена для лимитной заявки
-    val selectedPriceChangePercent: Double? = null,   // изменение цены выбранного инструмента
+    val isSearchActive: Boolean = false, // <-- для управления SearchBar
+    // val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)
+    val limitPrice: String = "", // цена для лимитной заявки
+    val selectedPriceChangePercent: Double? = null, // изменение цены выбранного инструмента
     // Диалог брокера
-    val showBrokerDialog: Boolean = false,          // флаг открытия диалога
+    val showBrokerDialog: Boolean = false, // флаг открытия диалога
     val dialogInstrumentTicker: String? = null,
-    val selectedBroker: BrokerName = BrokerName.TINVEST,         // выбранный брокер в диалоге
-    val selectedAccountIdDialog: String? = null,     // выбранный счёт в диалоге
-    val dialogAccounts: List<BrokerAccount> = emptyList(),     // счета для диалога
-    val searchBroker: BrokerName = BrokerName.TINVEST,           // брокер для основного поиска
+    val selectedBroker: BrokerName = BrokerName.TINVEST, // выбранный брокер в диалоге
+    val selectedAccountIdDialog: String? = null, // выбранный счёт в диалоге
+    val dialogAccounts: List<BrokerAccount> = emptyList(), // счета для диалога
+    val searchBroker: BrokerName = BrokerName.TINVEST, // брокер для основного поиска
     // Парная торговля
     val pairTradingEnabled: Boolean = false,
-    val pairSearchQuery: String = "",                   // запрос второго поиска
+    val pairSearchQuery: String = "", // запрос второго поиска
     val pairSearchResults: List<InstrumentUi> = emptyList(), // результаты второго поиска
-    val isPairSearching: Boolean = false,               // индикатор загрузки второго поиска
-    val pairedInstrument: InstrumentUi? = null,         // выбранный парный инструмент
-    val pairedMultiplier: String = "1",               // множитель (по умолчанию 10)
+    val isPairSearching: Boolean = false, // индикатор загрузки второго поиска
+    val pairedInstrument: InstrumentUi? = null, // выбранный парный инструмент
+    val pairedMultiplier: String = "1", // множитель (по умолчанию 10)
     val swipeResetTrigger: Boolean = false,
-    val pairSearchBroker: BrokerName = BrokerName.TINVEST,       // брокер для парного поиска
+    val pairSearchBroker: BrokerName = BrokerName.TINVEST, // брокер для парного поиска
     val currentPointValue: Double? = null,
     val pairedPointValue: Double? = null,
     // Стоп‑заявки
@@ -78,27 +75,38 @@ data class OrdersUiState(
     val freeBalance: Double? = null,
     val executionPrice: Double = 0.0,
     val costOverlay: String? = null,
-    val multiplierOverlay: String? = null
-
+    val multiplierOverlay: String? = null,
 ) {
     val isFormValid: Boolean
         get() {
-            val basicValid = selectedInstrument != null &&
+            val basicValid =
+                selectedInstrument != null &&
                     quantity.toLongOrNull()?.let { it > 0 } == true &&
                     isApiInitialized
-            val limitPriceValid = if (orderType is OrderTypeSelection.Limit || orderType is OrderTypeSelection.StopLimit) {
-                limitPrice.toDoubleOrNull() != null
-            } else true
-            val stopPriceValid = if (orderType is OrderTypeSelection.StopLoss ||
-                orderType is OrderTypeSelection.TakeProfit ||
-                orderType is OrderTypeSelection.StopLimit) {
-                stopPrice.toDoubleOrNull()?.let { it > 0 } == true
-            } else true
-            val pairValid = if (pairTradingEnabled) {
-                pairedInstrument != null && pairedMultiplier.toDoubleOrNull()?.let { it > 0.0 } == true
-            } else true
+            val limitPriceValid =
+                if (orderType is OrderTypeSelection.Limit || orderType is OrderTypeSelection.StopLimit) {
+                    limitPrice.toDoubleOrNull() != null
+                } else {
+                    true
+                }
+            val stopPriceValid =
+                if (orderType is OrderTypeSelection.StopLoss ||
+                    orderType is OrderTypeSelection.TakeProfit ||
+                    orderType is OrderTypeSelection.StopLimit
+                ) {
+                    stopPrice.toDoubleOrNull()?.let { it > 0 } == true
+                } else {
+                    true
+                }
+            val pairValid =
+                if (pairTradingEnabled) {
+                    pairedInstrument != null && pairedMultiplier.toDoubleOrNull()?.let { it > 0.0 } == true
+                } else {
+                    true
+                }
             return basicValid && limitPriceValid && stopPriceValid && pairValid
         }
     val quantityAsLong: Long? get() = quantity.toLongOrNull()
+
     fun clearStatus(): OrdersUiState = copy(statusMessage = null, isError = false)
 }

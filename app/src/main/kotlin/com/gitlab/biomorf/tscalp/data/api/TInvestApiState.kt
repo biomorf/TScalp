@@ -13,6 +13,8 @@ import ru.ttech.piapi.core.InvestApi
  */
 class TInvestApiState {
     @Volatile var api: InvestApi? = null
+
     @Volatile var channels: TInvestChannelFactory.Channels? = null
+
     @Volatile var sandboxMode: Boolean = true
 }

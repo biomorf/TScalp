@@ -1,48 +1,41 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.settings
 
-import kotlinx.coroutines.launch
-
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.core.net.toUri
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
-
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Tab
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.runtime.mutableIntStateOf
-
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-
-
-import com.gitlab.biomorf.tscalp.util.AppLogger
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.gitlab.biomorf.tscalp.BuildConfig
+import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.AppResult
-
-import com.gitlab.biomorf.tscalp.BuildConfig
-
+import com.gitlab.biomorf.tscalp.util.AppLogger
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen() {
@@ -52,15 +45,16 @@ fun SettingsScreen() {
     if (currentSection == null) {
         // Список подразделов
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 "Настройки",
                 style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 16.dp),
             )
 
             // Пункт «Подключение»
@@ -68,7 +62,7 @@ fun SettingsScreen() {
                 headlineContent = { Text("Подключение") },
                 supportingContent = { Text("Выбор брокера, токены, режим песочницы") },
                 leadingContent = { Icon(Icons.Default.SwapHoriz, contentDescription = null) },
-                modifier = Modifier.clickable { currentSection = "broker" }
+                modifier = Modifier.clickable { currentSection = "broker" },
             )
             HorizontalDivider()
 
@@ -77,7 +71,7 @@ fun SettingsScreen() {
                 headlineContent = { Text("Торговля") },
                 supportingContent = { Text("Подтверждение сделок и другие параметры") },
                 leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
-                modifier = Modifier.clickable { currentSection = "trade" }
+                modifier = Modifier.clickable { currentSection = "trade" },
             )
             HorizontalDivider()
 
@@ -88,18 +82,20 @@ fun SettingsScreen() {
                 leadingContent = {
                     Icon(Icons.Default.Info, contentDescription = null)
                 },
-                modifier = Modifier.clickable { currentSection = "info" }
+                modifier = Modifier.clickable { currentSection = "info" },
             )
         }
     } else {
         // Отображение выбранного подраздела
         when (currentSection) {
-            "broker" -> BrokerSettingsContent(
-                onBack = { currentSection = null }
-            )
-            "trade" -> TradeSettingsContent(
-                onBack = { currentSection = null }
-            )
+            "broker" ->
+                BrokerSettingsContent(
+                    onBack = { currentSection = null },
+                )
+            "trade" ->
+                TradeSettingsContent(
+                    onBack = { currentSection = null },
+                )
             "info" -> InfoSettingsContent(onBack = { currentSection = null })
         }
     }
@@ -130,21 +126,22 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
-                }
+                },
             )
-        }
+        },
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
+            modifier =
+                Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize(),
         ) {
             PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
                 brokerNames.forEachIndexed { index, broker ->
                     Tab(
                         selected = selectedTabIndex == index,
                         onClick = { selectedTabIndex = index },
-                        text = { Text(broker.displayName) }
+                        text = { Text(broker.displayName) },
                     )
                 }
             }
@@ -152,7 +149,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f),
-                userScrollEnabled = true
+                userScrollEnabled = true,
             ) { page ->
                 when (brokerNames[page]) {
                     BrokerName.TINVEST -> TInvestSettingsPanel()
@@ -226,33 +223,40 @@ fun TInvestSettingsPanel() {
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
         verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.Start
+        horizontalAlignment = Alignment.Start,
     ) {
         // --- Карточка статуса подключения ---
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isConnected) MaterialTheme.colorScheme.tertiaryContainer
-                else MaterialTheme.colorScheme.errorContainer
-            )
+            colors =
+                CardDefaults.cardColors(
+                    containerColor =
+                        if (isConnected) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        },
+                ),
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
                         if (isConnected) "✅ Подключено" else "❌ Не подключено",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 if (isConnected) {
@@ -263,7 +267,7 @@ fun TInvestSettingsPanel() {
                             statusMessage = "Подключение к Т‑Инвестициям разорвано"
                             isError = false
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text("Отключить")
                     }
@@ -282,7 +286,7 @@ fun TInvestSettingsPanel() {
                                 }
                             }
                         },
-                        enabled = token.isNotBlank()
+                        enabled = token.isNotBlank(),
                     ) {
                         Text("Подключиться")
                     }
@@ -296,8 +300,12 @@ fun TInvestSettingsPanel() {
             onValueChange = { token = it },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите токен из личного кабинета") },
-            visualTransformation = if (showToken) VisualTransformation.None
-            else PasswordVisualTransformation(),
+            visualTransformation =
+                if (showToken) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
             trailingIcon = {
                 TextButton(onClick = { showToken = !showToken }) {
                     Text(if (showToken) "Скрыть" else "Показать")
@@ -305,27 +313,27 @@ fun TInvestSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !isConnected
+            enabled = !isConnected,
         )
 
         // --- Переключатель песочницы ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
                 Text("Режим песочницы", style = MaterialTheme.typography.titleSmall)
                 Text(
                     "Используйте для тестирования без реальных денег",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Switch(
                 checked = sandboxMode,
                 onCheckedChange = { sandboxMode = it },
-                enabled = !isConnected
+                enabled = !isConnected,
             )
         }
 
@@ -333,7 +341,7 @@ fun TInvestSettingsPanel() {
         if (isConnected) {
             ExposedDropdownMenuBox(
                 expanded = accountExpanded,
-                onExpandedChange = { accountExpanded = it }
+                onExpandedChange = { accountExpanded = it },
             ) {
                 val selectedAccount = availableAccounts.find { it.id == defaultAccountId }
                 TextField(
@@ -342,16 +350,17 @@ fun TInvestSettingsPanel() {
                     readOnly = true,
                     label = { Text("Счёт по умолчанию") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(
-                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                            enabled = true
-                        )
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(
+                                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                enabled = true,
+                            ),
                 )
                 ExposedDropdownMenu(
                     expanded = accountExpanded,
-                    onDismissRequest = { accountExpanded = false }
+                    onDismissRequest = { accountExpanded = false },
                 ) {
                     availableAccounts.forEach { account: BrokerAccount ->
                         DropdownMenuItem(
@@ -360,7 +369,7 @@ fun TInvestSettingsPanel() {
                                 defaultAccountId = account.id
                                 settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, account.id)
                                 accountExpanded = false
-                            }
+                            },
                         )
                     }
                 }
@@ -384,7 +393,7 @@ fun TInvestSettingsPanel() {
                                     }
                                     defaultAccountId = newAccountId
                                     settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, newAccountId)
-                                    statusMessage = "Новый счёт песочницы открыт (ID: ${newAccountId})"
+                                    statusMessage = "Новый счёт песочницы открыт (ID: $newAccountId)"
                                     isError = false
                                 }
                                 is AppResult.Failure -> {
@@ -396,7 +405,7 @@ fun TInvestSettingsPanel() {
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isRefreshing
+                    enabled = !isRefreshing,
                 ) {
                     if (isRefreshing) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp))
@@ -412,7 +421,7 @@ fun TInvestSettingsPanel() {
                 Button(
                     onClick = { showCloseDialog = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 ) {
                     Text("Закрыть счёт песочницы")
                 }
@@ -422,24 +431,24 @@ fun TInvestSettingsPanel() {
         // --- Инструкция ---
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("📋 Как получить токен", style = MaterialTheme.typography.titleMedium)
                 Text(
                     """
-    1. Управляйте токенами с компьютера — с телефона может перекинуть в приложение, где этого раздела нет.
-    2. Откройте https://www.tbank.ru/invest/settings/ и войдите в личный кабинет Т-Инвестиций.
-    3. Убедитесь, что функция «Подтверждение сделок кодом» отключена. Иначе API не сможет выставлять заявки. Крупные сделки (>30 млн ₽) через API недоступны в любом случае.
-    4. Найдите подраздел «Токены T-Bank Invest API» и нажмите кнопку "Создать токен". Токен — это просто очень длинный специальный пароль для доступа к брокеру.
-    5. Выберите тип, нажав кнопку в соответствующем разделе на странице: песочница (для тестов, безопасно) или биржа (реальная торговля). Для биржи настройте права: только чтение / торговля, и доступ: все счета / конкретный счёт. Рекомендуем сначала потренироваться в песочнице.
-    6. Пройдите доп. авторизацию, если система попросит.
-    7. Скопируйте токен сразу — он показывается только один раз. Сохраните в надёжном месте (менеджер паролей).
-    8. Токен действует 3 месяца с последнего использования. Если перестал работать — выпустите новый.
-    9. Отозвать старый токен можно на https://id.tbank.ru/account в подразделе "Приложения, у которых есть доступ к данным для входа".
-    10. Никому не передавайте токен. Если он попал в логи или в публичные источники — немедленно отзовите и создайте новый.
-    """.trimIndent(),
-                    style = MaterialTheme.typography.bodySmall
+                    1. Управляйте токенами с компьютера — с телефона может перекинуть в приложение, где этого раздела нет.
+                    2. Откройте https://www.tbank.ru/invest/settings/ и войдите в личный кабинет Т-Инвестиций.
+                    3. Убедитесь, что функция «Подтверждение сделок кодом» отключена. Иначе API не сможет выставлять заявки. Крупные сделки (>30 млн ₽) через API недоступны в любом случае.
+                    4. Найдите подраздел «Токены T-Bank Invest API» и нажмите кнопку "Создать токен". Токен — это просто очень длинный специальный пароль для доступа к брокеру.
+                    5. Выберите тип, нажав кнопку в соответствующем разделе на странице: песочница (для тестов, безопасно) или биржа (реальная торговля). Для биржи настройте права: только чтение / торговля, и доступ: все счета / конкретный счёт. Рекомендуем сначала потренироваться в песочнице.
+                    6. Пройдите доп. авторизацию, если система попросит.
+                    7. Скопируйте токен сразу — он показывается только один раз. Сохраните в надёжном месте (менеджер паролей).
+                    8. Токен действует 3 месяца с последнего использования. Если перестал работать — выпустите новый.
+                    9. Отозвать старый токен можно на https://id.tbank.ru/account в подразделе "Приложения, у которых есть доступ к данным для входа".
+                    10. Никому не передавайте токен. Если он попал в логи или в публичные источники — немедленно отзовите и создайте новый.
+                    """.trimIndent(),
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
@@ -448,10 +457,15 @@ fun TInvestSettingsPanel() {
         statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isError) MaterialTheme.colorScheme.errorContainer
-                    else MaterialTheme.colorScheme.tertiaryContainer
-                )
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            if (isError) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                MaterialTheme.colorScheme.tertiaryContainer
+                            },
+                    ),
             ) {
                 Text(message, modifier = Modifier.padding(16.dp))
             }
@@ -490,7 +504,7 @@ fun TInvestSettingsPanel() {
                             showCloseDialog = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 ) {
                     Text("Закрыть")
                 }
@@ -499,7 +513,7 @@ fun TInvestSettingsPanel() {
                 TextButton(onClick = { showCloseDialog = false }) {
                     Text("Отмена")
                 }
-            }
+            },
         )
     }
 }
@@ -526,29 +540,35 @@ fun BcsSettingsPanel() {
     }
 
     Column(
-        modifier = Modifier
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier =
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (connected) MaterialTheme.colorScheme.tertiaryContainer
-                else MaterialTheme.colorScheme.errorContainer
-            )
+            colors =
+                CardDefaults.cardColors(
+                    containerColor =
+                        if (connected) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        },
+                ),
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
                         if (connected) "✅ Подключено" else "❌ Не подключено",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 if (connected) {
@@ -561,7 +581,7 @@ fun BcsSettingsPanel() {
                             statusMessage = "Подключение к БКС разорвано"
                             isError = false
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text("Отключить")
                     }
@@ -575,8 +595,12 @@ fun BcsSettingsPanel() {
             onValueChange = { refreshToken = it },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите refresh‑токен из личного кабинета") },
-            visualTransformation = if (showToken) VisualTransformation.None
-            else PasswordVisualTransformation(),
+            visualTransformation =
+                if (showToken) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
             trailingIcon = {
                 TextButton(onClick = { showToken = !showToken }) {
                     Text(if (showToken) "Скрыть" else "Показать")
@@ -584,27 +608,27 @@ fun BcsSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !connected
+            enabled = !connected,
         )
 
         // Права доступа
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
                 Text("Права доступа", style = MaterialTheme.typography.titleSmall)
                 Text(
                     if (isWriteMode) "Полный доступ (торговля)" else "Только чтение",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Switch(
                 checked = isWriteMode,
                 onCheckedChange = { isWriteMode = it },
-                enabled = !connected
+                enabled = !connected,
             )
         }
 
@@ -620,35 +644,36 @@ fun BcsSettingsPanel() {
                     isError = false
                 },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             ) {
                 Text("Отключить")
             }
         } else {
             Button(
-                    onClick = {
-                        scope.launch {
-                            val success = settingsViewModel.initializeBcs(refreshToken, isWriteMode)
-                            connected = success
-                            statusMessage = if (success) {
+                onClick = {
+                    scope.launch {
+                        val success = settingsViewModel.initializeBcs(refreshToken, isWriteMode)
+                        connected = success
+                        statusMessage =
+                            if (success) {
                                 "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
                             } else {
                                 "Ошибка подключения"
                             }
-                            isError = !success
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = refreshToken.isNotBlank()
-                ) {
-                    Text("Подключиться")
-                }
+                        isError = !success
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = refreshToken.isNotBlank(),
+            ) {
+                Text("Подключиться")
+            }
         }
 
         // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("📋 Как получить токен", style = MaterialTheme.typography.titleMedium)
@@ -666,7 +691,7 @@ fun BcsSettingsPanel() {
                     • Не передавайте токен третьим лицам
                     • Токен хранится в зашифрованном виде
                     """.trimIndent(),
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
@@ -675,10 +700,15 @@ fun BcsSettingsPanel() {
         statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isError) MaterialTheme.colorScheme.errorContainer
-                    else MaterialTheme.colorScheme.tertiaryContainer
-                )
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            if (isError) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                MaterialTheme.colorScheme.tertiaryContainer
+                            },
+                    ),
             ) {
                 Text(message, modifier = Modifier.padding(16.dp))
             }
@@ -708,33 +738,38 @@ fun FinamSettingsPanel() {
     }
 
     Column(
-        modifier = Modifier
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier =
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (connected)
-                    MaterialTheme.colorScheme.tertiaryContainer
-                else
-                    MaterialTheme.colorScheme.errorContainer
-            )
+            colors =
+                CardDefaults.cardColors(
+                    containerColor =
+                        if (connected) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        },
+                ),
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
                         if (connected) "✅ Подключено" else "❌ Не подключено",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 if (connected) {
@@ -747,9 +782,10 @@ fun FinamSettingsPanel() {
                             statusMessage = "Подключение к Finam разорвано"
                             isError = false
                         },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                            ),
                     ) {
                         Text("Отключить")
                     }
@@ -763,10 +799,12 @@ fun FinamSettingsPanel() {
             onValueChange = { token = it },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите секретный токен Finam") },
-            visualTransformation = if (showToken)
-                VisualTransformation.None
-            else
-                PasswordVisualTransformation(),
+            visualTransformation =
+                if (showToken) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
             trailingIcon = {
                 TextButton(onClick = { showToken = !showToken }) {
                     Text(if (showToken) "Скрыть" else "Показать")
@@ -774,7 +812,7 @@ fun FinamSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !connected
+            enabled = !connected,
         )
 
         // Кнопка подключения
@@ -789,7 +827,7 @@ fun FinamSettingsPanel() {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = token.isNotBlank()
+                enabled = token.isNotBlank(),
             ) {
                 Text("Подключиться")
             }
@@ -798,9 +836,10 @@ fun FinamSettingsPanel() {
         // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                ),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Как получить токен", style = MaterialTheme.typography.titleMedium)
@@ -816,7 +855,7 @@ fun FinamSettingsPanel() {
                     • Храните токен в безопасном месте
                     • Не передавайте третьим лицам
                     """.trimIndent(),
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
@@ -825,12 +864,15 @@ fun FinamSettingsPanel() {
         statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isError)
-                        MaterialTheme.colorScheme.errorContainer
-                    else
-                        MaterialTheme.colorScheme.tertiaryContainer
-                )
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            if (isError) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                MaterialTheme.colorScheme.tertiaryContainer
+                            },
+                    ),
             ) {
                 Text(message, modifier = Modifier.padding(16.dp))
             }
@@ -844,10 +886,11 @@ fun TradeSettingsContent(onBack: () -> Unit) {
     val uiState by settingsViewModel.uiState.collectAsState()
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
@@ -855,27 +898,27 @@ fun TradeSettingsContent(onBack: () -> Unit) {
 
         Text(
             "Настройки торговли",
-            style = MaterialTheme.typography.headlineSmall
+            style = MaterialTheme.typography.headlineSmall,
         )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
                 Text("Подтверждение заявок", style = MaterialTheme.typography.titleSmall)
                 Text(
                     "Показывать диалог перед отправкой",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Switch(
                 checked = uiState.isConfirmOrdersEnabled,
                 onCheckedChange = { enabled ->
                     settingsViewModel.setConfirmOrdersEnabled(enabled)
-                }
+                },
             )
         }
 
@@ -894,14 +937,15 @@ fun InfoSettingsContent(onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
-                }
+                },
             )
-        }
+        },
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .padding(16.dp)
+            modifier =
+                Modifier
+                    .padding(paddingValues)
+                    .padding(16.dp),
         ) {
             Text("TScalp", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(8.dp))
@@ -916,12 +960,14 @@ fun InfoSettingsContent(onBack: () -> Unit) {
                 text = "Проверить обновления: https://gitlab.com/biomorf/tscalp/-/releases",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable {
-                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                        data = "https://gitlab.com/biomorf/tscalp/-/releases".toUri()
-                    }
-                    context.startActivity(intent)
-                }
+                modifier =
+                    Modifier.clickable {
+                        val intent =
+                            android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                data = "https://gitlab.com/biomorf/tscalp/-/releases".toUri()
+                            }
+                        context.startActivity(intent)
+                    },
             )
         }
     }

@@ -6,10 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
-import com.gitlab.biomorf.tscalp.util.TradePhrases
 
 @Composable
 fun ConfirmOrderDialog(
@@ -17,17 +14,17 @@ fun ConfirmOrderDialog(
     ticker: String,
     quantity: Long,
     pendingDirection: String,
-    orderType: OrderTypeSelection,          // оставлен, он нужен для OrderCard основной сделки
+    orderType: OrderTypeSelection, // оставлен, он нужен для OrderCard основной сделки
     instrumentType: String,
     executionPrice: Double,
     pairTradingEnabled: Boolean,
     pairedInstrumentTicker: String?,
     pairedInstrumentType: String?,
     pairedMultiplier: String?,
-    pairExecPrice: Double,                  // новое: цена исполнения контрсделки
-    pairedOrderType: OrderTypeSelection?,   // новое: тип контрсделки (может быть null, если парная отключена)
+    pairExecPrice: Double, // новое: цена исполнения контрсделки
+    pairedOrderType: OrderTypeSelection?, // новое: тип контрсделки (может быть null, если парная отключена)
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
 ) {
     if (!show) return
 
@@ -48,7 +45,7 @@ fun ConfirmOrderDialog(
                     quantity = quantity,
                     price = executionPrice,
                     instrumentType = instrumentType,
-                    totalCost = executionPrice * quantity
+                    totalCost = executionPrice * quantity,
                 )
 
                 if (pairTradingEnabled && pairedInstrumentTicker != null) {
@@ -62,12 +59,12 @@ fun ConfirmOrderDialog(
                     OrderCard(
                         ticker = pairedInstrumentTicker,
                         direction = pairDirection,
-                        orderType = pairedOrderType ?: orderType,  // fallback на основной, если парный не задан
+                        orderType = pairedOrderType ?: orderType, // fallback на основной, если парный не задан
                         status = null,
                         quantity = pairedQty,
                         price = pairExecPrice,
                         instrumentType = pairedInstrumentType ?: "",
-                        totalCost = pairExecPrice * pairedQty
+                        totalCost = pairExecPrice * pairedQty,
                     )
                 }
             }
@@ -81,6 +78,6 @@ fun ConfirmOrderDialog(
             TextButton(onClick = onDismiss) {
                 Text("Отмена")
             }
-        }
+        },
     )
 }

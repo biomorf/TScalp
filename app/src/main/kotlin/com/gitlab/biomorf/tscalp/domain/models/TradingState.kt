@@ -13,5 +13,5 @@ data class TradingStateSnapshot(
     val pairTradingEnabled: Boolean = false,
     val quantity: String = "",
     val pairedMultiplier: String = "10",
-    val orderType: OrderTypeSelection = OrderTypeSelection.Market
+    val orderType: OrderTypeSelection = OrderTypeSelection.Market,
 )

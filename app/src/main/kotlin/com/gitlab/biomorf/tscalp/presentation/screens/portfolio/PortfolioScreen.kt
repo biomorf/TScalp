@@ -1,41 +1,38 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.portfolio
 
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarVisuals
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-
-import androidx.compose.runtime.getValue
-
-import com.gitlab.biomorf.tscalp.util.formatCurrency
-import com.gitlab.biomorf.tscalp.ui.components.AssetPositionCard
+import androidx.lifecycle.repeatOnLifecycle
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.ui.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.util.formatCurrency
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
-    viewModel: PortfolioViewModel = hiltViewModel()
+    viewModel: PortfolioViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }
@@ -64,13 +61,13 @@ fun PortfolioScreen(
                 actions = {
                     IconButton(
                         onClick = { viewModel.refresh() },
-                        enabled = !uiState.isLoading && uiState.isApiInitialized
+                        enabled = !uiState.isLoading && uiState.isApiInitialized,
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                     }
-                }
+                },
             )
-        }
+        },
     ) { paddingValues ->
         if (!uiState.isApiInitialized) {
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
@@ -83,16 +80,18 @@ fun PortfolioScreen(
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refresh() },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Индикатор загрузки (показываем, если не используется pull-to-refresh)
                 if (uiState.isLoading && !isRefreshing) {
@@ -104,19 +103,19 @@ fun PortfolioScreen(
                 // Свободные средства и кнопка пополнения
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
-                        //horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        // horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column {
                             Text("Баланс", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 formatCurrency(uiState.balance),
                                 style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
                             )
                         }
                         Spacer(Modifier.weight(1f))
@@ -131,14 +130,18 @@ fun PortfolioScreen(
                 // Сообщение об ошибке
                 LaunchedEffect(uiState.statusMessage) {
                     uiState.statusMessage?.let { message ->
-                        val visuals = object : SnackbarVisuals {
-                            override val message: String = message
-                            override val actionLabel: String? = if (uiState.isError) "OK" else null
-                            override val withDismissAction: Boolean = false
-                            override val duration: SnackbarDuration =
-                                if (uiState.isError) SnackbarDuration.Indefinite
-                                else SnackbarDuration.Short
-                        }
+                        val visuals =
+                            object : SnackbarVisuals {
+                                override val message: String = message
+                                override val actionLabel: String? = if (uiState.isError) "OK" else null
+                                override val withDismissAction: Boolean = false
+                                override val duration: SnackbarDuration =
+                                    if (uiState.isError) {
+                                        SnackbarDuration.Indefinite
+                                    } else {
+                                        SnackbarDuration.Short
+                                    }
+                            }
                         // Скрыть предыдущий снекбар, если висит
                         snackbarHostState.currentSnackbarData?.dismiss()
                         snackbarHostState.showSnackbar(visuals)
@@ -156,7 +159,7 @@ fun PortfolioScreen(
                         Text(
                             "--- ${brokerName.displayName} ---",
                             style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(vertical = 8.dp)
+                            modifier = Modifier.padding(vertical = 8.dp),
                         )
                         positions.forEach { position ->
                             AssetPositionCard(
@@ -165,7 +168,7 @@ fun PortfolioScreen(
                                 pointValue = position.pointValue,
                                 priceChangePercent = position.priceChangePercent,
                                 tscalpInstrumentId = position.tscalpInstrumentId,
-                                tradingAvailability = uiState.tradingStatuses[position.tscalpInstrumentId] ?: TradingAvailability.UNKNOWN
+                                tradingAvailability = uiState.tradingStatuses[position.tscalpInstrumentId] ?: TradingAvailability.UNKNOWN,
                             )
                         }
                         if (brokerName != grouped.keys.last()) {
@@ -177,27 +180,32 @@ fun PortfolioScreen(
             }
             SnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(8.dp)
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(8.dp),
             ) { data ->
                 val label = data.visuals.actionLabel
                 Snackbar(
-                    containerColor = if (uiState.isError)
-                        MaterialTheme.colorScheme.errorContainer
-                    else
-                        MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = if (uiState.isError)
-                        MaterialTheme.colorScheme.onErrorContainer
-                    else
-                        MaterialTheme.colorScheme.onTertiaryContainer,
+                    containerColor =
+                        if (uiState.isError) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        },
+                    contentColor =
+                        if (uiState.isError) {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        } else {
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                        },
                     action = {
                         if (label != null) {
                             TextButton(onClick = { data.dismiss() }) {
                                 Text(label)
                             }
                         }
-                    }
+                    },
                 ) {
                     Text(data.visuals.message)
                 }
@@ -210,22 +218,23 @@ fun PortfolioScreen(
 fun ApiNotInitializedCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
-        )
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+            ),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 text = "⚠️ API не подключен",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
             )
             Text(
                 text = "Перейдите в Настройки и введите токен доступа",
                 style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
         }
     }
@@ -235,22 +244,23 @@ fun ApiNotInitializedCard() {
 fun EmptyPortfolioCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            ),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 text = "📊 Портфель пуст",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
             )
             Text(
                 text = "У вас нет активных позиций",
                 style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
         }
     }

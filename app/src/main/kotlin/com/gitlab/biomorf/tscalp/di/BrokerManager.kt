@@ -6,9 +6,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-
-class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
-
+class BrokerManager(
+    private val brokers: Map<BrokerName, BrokerApi>,
+) {
     /**
      * Есть ли хотя бы один инициализированный брокер.
      * Реактивный источник для ViewModel вместо синхронного опроса.
@@ -25,8 +25,9 @@ class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
     /**
      * Брокер по умолчанию (Т‑Инвестиции).
      */
-    fun getDefaultBroker(): BrokerApi = brokers[BrokerName.TINVEST]
-        ?: throw IllegalStateException("Брокер TInvest не зарегистрирован")
+    fun getDefaultBroker(): BrokerApi =
+        brokers[BrokerName.TINVEST]
+            ?: throw IllegalStateException("Брокер TInvest не зарегистрирован")
 
     /**
      * Возвращает список ключей брокеров в типизированном виде — для UI и pager'а.
@@ -47,6 +48,5 @@ class BrokerManager(private val brokers: Map<BrokerName, BrokerApi>) {
         _anyInitialized.value = computeAnyInitialized()
     }
 
-    private fun computeAnyInitialized(): Boolean =
-        brokers.values.any { it.isInitialized }
+    private fun computeAnyInitialized(): Boolean = brokers.values.any { it.isInitialized }
 }

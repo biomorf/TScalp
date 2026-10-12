@@ -7,10 +7,13 @@ package com.gitlab.biomorf.tscalp.domain.models
  * Все слои (data → repository → ViewModel → UI) общаются через этот контракт.
  */
 sealed class AppResult<out T> {
+    data class Success<T>(
+        val data: T,
+    ) : AppResult<T>()
 
-    data class Success<T>(val data: T) : AppResult<T>()
-
-    data class Failure(val error: AppError) : AppResult<Nothing>()
+    data class Failure(
+        val error: AppError,
+    ) : AppResult<Nothing>()
 
     val isSuccess: Boolean get() = this is Success
     val isFailure: Boolean get() = this is Failure
@@ -26,20 +29,23 @@ sealed class AppResult<out T> {
  *  - NotFound — не повторять, а показать пустое состояние;
  *  - Api/Unknown — логировать и отправлять в AppMetrica.
  */
-sealed class AppError(open val message: String, open val cause: Throwable? = null) {
+sealed class AppError(
+    open val message: String,
+    open val cause: Throwable? = null,
+) {
     data class Network(
         override val message: String = "Ошибка сети",
-        override val cause: Throwable? = null
+        override val cause: Throwable? = null,
     ) : AppError(message, cause)
 
     data class Auth(
         override val message: String = "Ошибка авторизации",
-        override val cause: Throwable? = null
+        override val cause: Throwable? = null,
     ) : AppError(message, cause)
 
     data class NotFound(
         override val message: String = "Не найдено",
-        override val cause: Throwable? = null
+        override val cause: Throwable? = null,
     ) : AppError(message, cause)
 
     data class Api(
@@ -47,12 +53,12 @@ sealed class AppError(open val message: String, open val cause: Throwable? = nul
         val code: Int? = null,
         val brokerName: BrokerName? = null,
         val brokerCode: String? = null,
-        override val cause: Throwable? = null
+        override val cause: Throwable? = null,
     ) : AppError(message, cause)
 
     data class Unknown(
         override val message: String = "Неизвестная ошибка",
-        override val cause: Throwable? = null
+        override val cause: Throwable? = null,
     ) : AppError(message, cause)
 }
 

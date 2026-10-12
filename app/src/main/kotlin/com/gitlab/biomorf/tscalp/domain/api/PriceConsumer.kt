@@ -9,5 +9,5 @@ package com.gitlab.biomorf.tscalp.domain.api
  */
 enum class PriceConsumer {
     PORTFOLIO,
-    ORDERS
+    ORDERS,
 }

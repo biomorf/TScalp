@@ -1,12 +1,11 @@
 package com.gitlab.biomorf.tscalp.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.*
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 
@@ -21,23 +20,25 @@ fun BrokerAccountDialog(
     onAccountSelected: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
-    showAccountSelector: Boolean = true           // <-- новый параметр
+    showAccountSelector: Boolean = true, // <-- новый параметр
 ) {
     // Устойчивое сравнение с trim, fallback на первый счёт
-    val selectedAccountName = remember(accounts, selectedAccountId) {
-        val trimmedSelected = selectedAccountId?.trim()
-        val account = accounts.firstOrNull { it.id.trim() == trimmedSelected }
-        account?.name?.ifBlank { "Счёт ${account.id.take(8)}…" }
-            ?: accounts.firstOrNull()?.name?.ifBlank { "Счёт ${accounts.first().id.take(8)}…" }
-            ?: "Счёт не найден"
-    }
+    val selectedAccountName =
+        remember(accounts, selectedAccountId) {
+            val trimmedSelected = selectedAccountId?.trim()
+            val account = accounts.firstOrNull { it.id.trim() == trimmedSelected }
+            account?.name?.ifBlank { "Счёт ${account.id.take(8)}…" }
+                ?: accounts.firstOrNull()?.name?.ifBlank { "Счёт ${accounts.first().id.take(8)}…" }
+                ?: "Счёт не найден"
+        }
 
     // Кнопка активна, если выбран счёт ИЛИ если выбор счёта скрыт (тогда достаточно выбрать брокера)
-    val isSaveEnabled = if (showAccountSelector) {
-        selectedAccountId != null && accounts.any { it.id.trim() == selectedAccountId.trim() }
-    } else {
-        true   // сразу активна, как только показан диалог (пользователь может просто нажать "Сохранить")
-    }
+    val isSaveEnabled =
+        if (showAccountSelector) {
+            selectedAccountId != null && accounts.any { it.id.trim() == selectedAccountId.trim() }
+        } else {
+            true // сразу активна, как только показан диалог (пользователь может просто нажать "Сохранить")
+        }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -49,23 +50,24 @@ fun BrokerAccountDialog(
                 var brokerExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
                     expanded = brokerExpanded,
-                    onExpandedChange = { brokerExpanded = it }
+                    onExpandedChange = { brokerExpanded = it },
                 ) {
                     TextField(
                         value = selectedBroker.displayName,
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = brokerExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(
-                                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                enabled = true
-                            )
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(
+                                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                    enabled = true,
+                                ),
                     )
                     ExposedDropdownMenu(
                         expanded = brokerExpanded,
-                        onDismissRequest = { brokerExpanded = false }
+                        onDismissRequest = { brokerExpanded = false },
                     ) {
                         availableBrokers.forEach { broker ->
                             DropdownMenuItem(
@@ -73,7 +75,7 @@ fun BrokerAccountDialog(
                                 onClick = {
                                     onBrokerSelected(broker)
                                     brokerExpanded = false
-                                }
+                                },
                             )
                         }
                     }
@@ -86,23 +88,24 @@ fun BrokerAccountDialog(
                     var accountExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = accountExpanded,
-                        onExpandedChange = { accountExpanded = it }
+                        onExpandedChange = { accountExpanded = it },
                     ) {
                         TextField(
                             value = selectedAccountName,
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(
-                                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                    enabled = true
-                                )
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(
+                                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                        enabled = true,
+                                    ),
                         )
                         ExposedDropdownMenu(
                             expanded = accountExpanded,
-                            onDismissRequest = { accountExpanded = false }
+                            onDismissRequest = { accountExpanded = false },
                         ) {
                             accounts.forEach { account ->
                                 DropdownMenuItem(
@@ -110,7 +113,7 @@ fun BrokerAccountDialog(
                                     onClick = {
                                         onAccountSelected(account.id)
                                         accountExpanded = false
-                                    }
+                                    },
                                 )
                             }
                         }
@@ -127,6 +130,6 @@ fun BrokerAccountDialog(
             TextButton(onClick = onDismiss) {
                 Text("Отмена")
             }
-        }
+        },
     )
 }
