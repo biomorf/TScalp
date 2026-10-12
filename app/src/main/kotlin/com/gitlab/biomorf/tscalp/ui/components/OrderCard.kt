@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,23 +41,25 @@ fun OrderCard(
     instrumentType: String = "",
     totalCost: Double? = null,
     onCancel: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val orderColor = TradePhrases.orderTypeColor(orderType)
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         // Цветовая полоска слева (как в оригинальном списке заявок)
         Box(
-            modifier = Modifier
-                .width(4.dp)
-                .fillMaxHeight()
-                .background(orderColor)
+            modifier =
+                Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(orderColor),
         )
 
         Spacer(modifier = Modifier.width(8.dp))
@@ -66,14 +67,14 @@ fun OrderCard(
         // Основной текст слева
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(ticker, fontWeight = FontWeight.Bold)
             Text(TradePhrases.directionText(direction))
             Text(
                 text = TradePhrases.orderTypeDescription(orderType),
                 color = orderColor,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
             )
             if (status != null) {
                 Text(TradePhrases.statusLabel(status))
@@ -85,9 +86,9 @@ fun OrderCard(
         // Детали справа (прижаты к правому краю)
         Column(
             horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text("${quantity} лотов")
+            Text("$quantity лотов")
             Text(formatPrice(price, instrumentType))
             if (totalCost != null) {
                 Text(formatPrice(totalCost, instrumentType))
@@ -99,9 +100,9 @@ fun OrderCard(
             Spacer(modifier = Modifier.width(4.dp))
             IconButton(onClick = onCancel, modifier = Modifier.size(24.dp)) {
                 Icon(
-                    Icons.Default.Delete,               // ← мусорная корзина
+                    Icons.Default.Delete, // ← мусорная корзина
                     contentDescription = "Отменить заявку",
-                    tint = Color(0xFFC62828)             // красный, как было раньше
+                    tint = Color(0xFFC62828), // красный, как было раньше
                 )
             }
         }

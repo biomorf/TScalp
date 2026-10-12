@@ -3,17 +3,19 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Properties
 
-val localProps = Properties().apply {
-    val f = rootProject.file("local.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
+val localProps =
+    Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
 val appmetricaKey: String = localProps.getProperty("appmetrica.apiKey", "")
 
 // Keystore для подписи release. Файл не в git; в CI генерируется job'ом.
-val keystoreProps = Properties().apply {
-    val f = rootProject.file("keystore.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
+val keystoreProps =
+    Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
 val hasReleaseSigning: Boolean = keystoreProps.getProperty("storeFile") != null
 
 // versionName для релиза — из -PreleaseVersionName=1.0.0 (CI).
@@ -21,23 +23,25 @@ val hasReleaseSigning: Boolean = keystoreProps.getProperty("storeFile") != null
 val releaseVersionName: String? = project.findProperty("releaseVersionName") as String?
 
 // versionCode из semver: 1.2.3 → 10203. Для сборок без явной версии — 1.
-val computedVersionCode: Int = releaseVersionName
-    ?.split(".")
-    ?.takeIf { it.size == 3 }
-    ?.let { (major, minor, patch) ->
-        (major.toIntOrNull() ?: 0) * 10_000 +
+val computedVersionCode: Int =
+    releaseVersionName
+        ?.split(".")
+        ?.takeIf { it.size == 3 }
+        ?.let { (major, minor, patch) ->
+            (major.toIntOrNull() ?: 0) * 10_000 +
                 (minor.toIntOrNull() ?: 0) * 100 +
                 (patch.toIntOrNull() ?: 0)
-    }
-    ?: 1
+        }
+        ?: 1
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    kotlin("plugin.serialization") version "2.4.20"  //for navigation using sealed class
+    kotlin("plugin.serialization") version "2.4.20" // for navigation using sealed class
     id("dagger.hilt.android.plugin")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.kover")
+    id("org.jlleitschuh.gradle.ktlint")
 }
 
 android {
@@ -68,19 +72,19 @@ android {
     }
 
     buildTypes {
-            debug {
-		//
+        debug {
+            //
+        }
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
             }
-            release {
-                isMinifyEnabled = false
-                proguardFiles(
-                    getDefaultProguardFile("proguard-android-optimize.txt"),
-                    "proguard-rules.pro"
-                )
-                if (hasReleaseSigning) {
-                    signingConfig = signingConfigs.getByName("release")
-                }
-            }
+        }
     }
 
     compileOptions {
@@ -95,12 +99,13 @@ android {
 
     packaging {
         resources {
-            excludes += setOf(
-                "META-INF/INDEX.LIST",
-                "META-INF/io.netty.versions.properties",
-                "META-INF/AL2.0",
-                "META-INF/LGPL2.1"
-            )
+            excludes +=
+                setOf(
+                    "META-INF/INDEX.LIST",
+                    "META-INF/io.netty.versions.properties",
+                    "META-INF/AL2.0",
+                    "META-INF/LGPL2.1",
+                )
             pickFirsts += listOf("**/com/google/protobuf/**")
         }
     }
@@ -111,11 +116,12 @@ android {
         abortOnError = true
         checkDependencies = false
         checkReleaseBuilds = false
-        disable += setOf(
-            "AndroidGradlePluginVersion",
-            "GradleDependency",
-            "NewerVersionAvailable"
-        )
+        disable +=
+            setOf(
+                "AndroidGradlePluginVersion",
+                "GradleDependency",
+                "NewerVersionAvailable",
+            )
     }
 }
 
@@ -126,11 +132,9 @@ kotlin {
     }
 }
 // Блок для опциональной конфигурации компилятора Compose
-//composeCompiler {
+// composeCompiler {
 //    enableStrongSkippingMode = true
-//}
-
-
+// }
 
 dependencies {
     // Core
@@ -150,7 +154,7 @@ dependencies {
     implementation("androidx.activity:activity-compose")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
     implementation("androidx.lifecycle:lifecycle-runtime-compose")
-    implementation("androidx.navigation:navigation-compose:2.10.2") //for navigation using sealed classes
+    implementation("androidx.navigation:navigation-compose:2.10.2") // for navigation using sealed classes
 
     // Hilt
     implementation("com.google.dagger:hilt-android:2.60.1")
@@ -159,10 +163,10 @@ dependencies {
 
     // DataStore (замена SharedPreferences)
     implementation("androidx.datastore:datastore-preferences:1.2.1")
-    
+
     // Security for token storage
     implementation("androidx.security:security-crypto:1.1.0")
-    
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -178,7 +182,7 @@ dependencies {
     // Явно добавляем полную версию Protobuf, которая содержит GeneratedMessageV3
     implementation("com.google.protobuf:protobuf-java:3.25.8")
     implementation("com.google.protobuf:protobuf-kotlin:3.25.8")
-    //implementation("com.google.protobuf:protobuf-java:4.34.1")
+    // implementation("com.google.protobuf:protobuf-java:4.34.1")
 
     // Исключаем конфликтующий модуль из всех конфигураций
     configurations.all {
@@ -191,10 +195,10 @@ dependencies {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")
     }
 
-    //implementation("io.grpc:grpc-okhttp:1.68.1")
-    //implementation("io.grpc:grpc-stub:1.68.1")
-    //implementation("io.grpc:grpc-protobuf-lite:1.68.1")
-    //implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
+    // implementation("io.grpc:grpc-okhttp:1.68.1")
+    // implementation("io.grpc:grpc-stub:1.68.1")
+    // implementation("io.grpc:grpc-protobuf-lite:1.68.1")
+    // implementation("io.grpc:grpc-netty:1.57.2") // явно добавим Netty без shaded
     implementation("io.grpc:grpc-okhttp:1.84.1")
     implementation("io.grpc:grpc-kotlin-stub:1.5.0")
     implementation("io.grpc:grpc-stub:1.84.1")
@@ -205,8 +209,8 @@ dependencies {
     implementation("org.conscrypt:conscrypt-android:2.6.3")
 
     // Обязательная зависимость для ManagedChannel
-    //implementation("io.grpc:grpc-stub:1.57.2")
-    //implementation("io.grpc:grpc-stub:1.84.1")
+    // implementation("io.grpc:grpc-stub:1.57.2")
+    // implementation("io.grpc:grpc-stub:1.84.1")
 
     // T-Invest API SDK
     implementation("ru.t-technologies.invest.piapi.kotlin:kotlin-sdk-grpc-core:1.51.0") {
@@ -214,38 +218,38 @@ dependencies {
     }
 
     // BCS Broker
-    //implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
-    //implementation("com.google.code.gson:gson:2.10.1")
+    // implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.google.code.gson:gson:2.14.0")
 
-    //Finam API SDK
-
+    // Finam API SDK
 }
 
-fun buildTime(): String {
-    return LocalDateTime.now(ZoneId.of("UTC"))
+fun buildTime(): String =
+    LocalDateTime
+        .now(ZoneId.of("UTC"))
         .format(DateTimeFormatter.ofPattern("yy.MM.dd.HHmm"))
-}
 
 // Последний релизный тег (vX.Y.Z) из локального git.
 // Fallback — "0.0.0", если тегов нет или git недоступен
 // (shallow clone без GIT_DEPTH: 0, отсутствие git в PATH).
-fun lastReleaseVersion(): String {
-    return try {
-        val process = ProcessBuilder("git", "tag", "--sort=-v:refname", "--list", "v*")
-            .redirectErrorStream(true)
-            .start()
+fun lastReleaseVersion(): String =
+    try {
+        val process =
+            ProcessBuilder("git", "tag", "--sort=-v:refname", "--list", "v*")
+                .redirectErrorStream(true)
+                .start()
         val output = process.inputStream.bufferedReader().readText()
         process.waitFor()
-        output.lineSequence()
+        output
+            .lineSequence()
             .firstOrNull { it.isNotBlank() }
             ?.removePrefix("v")
             ?: "0.0.0"
     } catch (e: Exception) {
         "0.0.0"
     }
-}
 
 // Одна задача для переименования debug APK (запускается после каждой сборки debug)
 tasks.register("renameDebugApk") {
@@ -256,7 +260,7 @@ tasks.register("renameDebugApk") {
         val originalApk = File(apkDir, "app-debug.apk")
         if (originalApk.exists()) {
             val version = android.defaultConfig.versionName
-            val newName = "tscalp-debug-v${version}.apk"
+            val newName = "tscalp-debug-v$version.apk"
             val renamedApk = File(apkDir, newName)
             originalApk.copyTo(renamedApk)
             println("DEBUG APK переименован в: ${renamedApk.name}")
@@ -281,7 +285,7 @@ tasks.register("renameReleaseApk") {
         val originalApk = File(apkDir, "app-release.apk")
         if (originalApk.exists()) {
             val version = android.defaultConfig.versionName
-            val newName = "tscalp-release-v${version}.apk"
+            val newName = "tscalp-release-v$version.apk"
             val renamedApk = File(apkDir, newName)
             originalApk.copyTo(renamedApk)
             println("RELEASE APK переименован в: ${renamedApk.name}")
@@ -304,25 +308,27 @@ tasks.withType<Test> {
     }
 }
 
-val copyDebugApk = tasks.register<Copy>("copyDebugApk") {
-    val apkDir = layout.buildDirectory.dir("outputs/apk/debug")
-    val version = android.defaultConfig.versionName
+val copyDebugApk =
+    tasks.register<Copy>("copyDebugApk") {
+        val apkDir = layout.buildDirectory.dir("outputs/apk/debug")
+        val version = android.defaultConfig.versionName
 
-    from(apkDir.map { it.file("app-debug.apk") })
-    into(apkDir)
-    rename { "tscalp-debug-v${version}.apk" }
-    dependsOn("assembleDebug")
-}
+        from(apkDir.map { it.file("app-debug.apk") })
+        into(apkDir)
+        rename { "tscalp-debug-v$version.apk" }
+        dependsOn("assembleDebug")
+    }
 
-val copyReleaseApk = tasks.register<Copy>("copyReleaseApk") {
-    val apkDir = layout.buildDirectory.dir("outputs/apk/release")
-    val version = android.defaultConfig.versionName
+val copyReleaseApk =
+    tasks.register<Copy>("copyReleaseApk") {
+        val apkDir = layout.buildDirectory.dir("outputs/apk/release")
+        val version = android.defaultConfig.versionName
 
-    from(apkDir.map { it.file("app-release.apk") })
-    into(apkDir)
-    rename { "tscalp-release-v${version}.apk" }
-    dependsOn("assembleRelease")
-}
+        from(apkDir.map { it.file("app-release.apk") })
+        into(apkDir)
+        rename { "tscalp-release-v$version.apk" }
+        dependsOn("assembleRelease")
+    }
 
 kover {
     reports {
@@ -344,7 +350,7 @@ kover {
                     "hilt_aggregated_deps.*",
                     "*Dagger*",
                     "*BuildConfig",
-                    "*Compose*"
+                    "*Compose*",
                 )
             }
         }
@@ -356,3 +362,9 @@ kover {
     }
 }
 
+ktlint {
+    ignoreFailures = false
+    reporters {
+        reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.HTML)
+    }
+}

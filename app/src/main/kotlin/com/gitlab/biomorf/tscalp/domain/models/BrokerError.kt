@@ -6,5 +6,5 @@ package com.gitlab.biomorf.tscalp.domain.models
  */
 data class BrokerError(
     val brokerName: BrokerName,
-    val code: String
+    val code: String,
 )

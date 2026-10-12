@@ -11,7 +11,6 @@ import ru.tinkoff.piapi.contract.v1.StopOrder
  * Использует прямые геттеры proto-классов вместо рефлексии по дескрипторам.
  */
 object TInvestOrdersMapper {
-
     /**
      * Обычная заявка (LIMIT / MARKET).
      *
@@ -23,16 +22,18 @@ object TInvestOrdersMapper {
         val classCode = order.classCode
         val instrumentType = TInvestConverters.classCodeToInstrumentType(classCode)
 
-        val orderType = when (order.orderType) {
-            OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
-            OrderType.ORDER_TYPE_MARKET -> "MARKET"
-            else -> "UNKNOWN"
-        }
+        val orderType =
+            when (order.orderType) {
+                OrderType.ORDER_TYPE_LIMIT -> "LIMIT"
+                OrderType.ORDER_TYPE_MARKET -> "MARKET"
+                else -> "UNKNOWN"
+            }
 
         val direction = order.direction.name.removePrefix("ORDER_DIRECTION_")
 
-        val statusStr = order.executionReportStatus.name
-            .removePrefix("EXECUTION_REPORT_STATUS_")
+        val statusStr =
+            order.executionReportStatus.name
+                .removePrefix("EXECUTION_REPORT_STATUS_")
 
         val orderIdStr: String = order.orderId
 
@@ -52,7 +53,7 @@ object TInvestOrdersMapper {
             type = orderType,
             status = statusStr,
             orderDate = orderDateLong,
-            isStopOrder = false
+            isStopOrder = false,
         )
     }
 
@@ -86,7 +87,7 @@ object TInvestOrdersMapper {
             status = statusStr,
             orderDate = orderDateLong,
             isStopOrder = true,
-            instrumentType = instrumentType
+            instrumentType = instrumentType,
         )
     }
 }

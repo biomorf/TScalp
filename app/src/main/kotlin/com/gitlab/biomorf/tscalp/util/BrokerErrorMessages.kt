@@ -13,18 +13,21 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
  *  2. Добавьте его в [tables] ниже.
  */
 object BrokerErrorMessages {
-
-    private val tables: Map<BrokerName, Map<String, String>> = mapOf(
-        BrokerName.TINVEST to TInvestErrorMessages.messages
-        // BrokerName.BCS to BcsErrorMessages.messages,   // TODO
-        // BrokerName.FINAM to FinamErrorMessages.messages // TODO
-    )
+    private val tables: Map<BrokerName, Map<String, String>> =
+        mapOf(
+            BrokerName.TINVEST to TInvestErrorMessages.messages,
+            // BrokerName.BCS to BcsErrorMessages.messages,   // TODO
+            // BrokerName.FINAM to FinamErrorMessages.messages // TODO
+        )
 
     /**
      * Расшифровывает код ошибки брокера в человекочитаемое сообщение.
      * Возвращает fallback с кодом, если брокер/код не заведены.
      */
-    fun translate(brokerName: BrokerName, code: String): String {
+    fun translate(
+        brokerName: BrokerName,
+        code: String,
+    ): String {
         val mapped = tables[brokerName]?.get(code)
         if (mapped != null) return mapped
 
@@ -35,6 +38,8 @@ object BrokerErrorMessages {
      * Проверяет, известен ли код для брокера.
      * Полезно для аналитики и логов: подсветить незнакомые коды.
      */
-    fun isKnown(brokerName: BrokerName, code: String): Boolean =
-        tables[brokerName]?.containsKey(code) == true
+    fun isKnown(
+        brokerName: BrokerName,
+        code: String,
+    ): Boolean = tables[brokerName]?.containsKey(code) == true
 }

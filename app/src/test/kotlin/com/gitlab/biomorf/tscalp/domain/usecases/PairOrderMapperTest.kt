@@ -11,16 +11,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PairOrderMapperTest {
-
     // ---------- Limit + BUY → StopLoss ----------
 
     @Test
     fun `limit buy produces stop-loss paired order`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.Limit,
-            primaryDirection = OrderDirection.BUY,
-            primaryPrice = 250.5
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.Limit,
+                primaryDirection = OrderDirection.BUY,
+                primaryPrice = 250.5,
+            )
 
         assertEquals(OrderTypeSelection.StopLoss, spec.orderType)
         assertEquals(StopOrderType.STOP_LOSS, spec.stopOrderType)
@@ -34,11 +34,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `limit sell produces take-profit paired order`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.Limit,
-            primaryDirection = OrderDirection.SELL,
-            primaryPrice = 310.0
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.Limit,
+                primaryDirection = OrderDirection.SELL,
+                primaryPrice = 310.0,
+            )
 
         assertEquals(OrderTypeSelection.TakeProfit, spec.orderType)
         assertEquals(StopOrderType.TAKE_PROFIT, spec.stopOrderType)
@@ -52,11 +53,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `limit buy with null price keeps null stop-price`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.Limit,
-            primaryDirection = OrderDirection.BUY,
-            primaryPrice = null
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.Limit,
+                primaryDirection = OrderDirection.BUY,
+                primaryPrice = null,
+            )
 
         assertEquals(OrderTypeSelection.StopLoss, spec.orderType)
         assertNull(spec.stopPrice)
@@ -65,11 +67,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `limit buy with zero price keeps zero stop-price`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.Limit,
-            primaryDirection = OrderDirection.BUY,
-            primaryPrice = 0.0
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.Limit,
+                primaryDirection = OrderDirection.BUY,
+                primaryPrice = 0.0,
+            )
 
         assertEquals(0.0, spec.stopPrice!!, 0.0)
         assertTrue(spec.isStopOrder)
@@ -79,11 +82,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `market buy produces market paired order`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.Market,
-            primaryDirection = OrderDirection.BUY,
-            primaryPrice = null
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.Market,
+                primaryDirection = OrderDirection.BUY,
+                primaryPrice = null,
+            )
 
         assertEquals(OrderTypeSelection.Market, spec.orderType)
         assertEquals(BrokerOrderType.MARKET, spec.brokerOrderType)
@@ -95,11 +99,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `market sell produces market paired order`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.Market,
-            primaryDirection = OrderDirection.SELL,
-            primaryPrice = null
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.Market,
+                primaryDirection = OrderDirection.SELL,
+                primaryPrice = null,
+            )
 
         assertEquals(OrderTypeSelection.Market, spec.orderType)
         assertEquals(BrokerOrderType.MARKET, spec.brokerOrderType)
@@ -112,11 +117,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `stop-loss primary falls back to market paired (temporary)`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.StopLoss,
-            primaryDirection = OrderDirection.SELL,
-            primaryPrice = 100.0
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.StopLoss,
+                primaryDirection = OrderDirection.SELL,
+                primaryPrice = 100.0,
+            )
 
         assertEquals(OrderTypeSelection.Market, spec.orderType)
         assertEquals(BrokerOrderType.MARKET, spec.brokerOrderType)
@@ -125,11 +131,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `take-profit primary falls back to market paired (temporary)`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.TakeProfit,
-            primaryDirection = OrderDirection.BUY,
-            primaryPrice = 100.0
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.TakeProfit,
+                primaryDirection = OrderDirection.BUY,
+                primaryPrice = 100.0,
+            )
 
         assertEquals(OrderTypeSelection.Market, spec.orderType)
         assertFalse(spec.isStopOrder)
@@ -137,11 +144,12 @@ class PairOrderMapperTest {
 
     @Test
     fun `stop-limit primary falls back to market paired (temporary)`() {
-        val spec = PairOrderMapper.map(
-            primaryType = OrderTypeSelection.StopLimit,
-            primaryDirection = OrderDirection.BUY,
-            primaryPrice = 100.0
-        )
+        val spec =
+            PairOrderMapper.map(
+                primaryType = OrderTypeSelection.StopLimit,
+                primaryDirection = OrderDirection.BUY,
+                primaryPrice = 100.0,
+            )
 
         assertEquals(OrderTypeSelection.Market, spec.orderType)
         assertFalse(spec.isStopOrder)

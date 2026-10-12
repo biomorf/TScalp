@@ -11,5 +11,5 @@ package com.gitlab.biomorf.tscalp.domain.models
 data class PriceUpdate(
     val brokerName: BrokerName,
     val tscalpInstrumentId: String,
-    val price: Double
+    val price: Double,
 )

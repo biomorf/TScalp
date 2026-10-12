@@ -4,7 +4,6 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
-
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -15,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
  * в in‑memory кэше и предоставляет их по требованию.
  */
 class InstrumentRepository(
-    private val brokerManager: BrokerManager
+    private val brokerManager: BrokerManager,
 ) {
     // Ключ — tscalpInstrumentId
     private val cache = ConcurrentHashMap<String, InstrumentUi>()

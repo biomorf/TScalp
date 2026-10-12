@@ -4,13 +4,18 @@ data class OrderState(
     val orderId: String,
     val orderRequestId: String?,
     val ticker: String,
-    val direction: String,          // "BUY" / "SELL"
-    val limitPrice: Double?,        // начальная лимитная цена (если лимитный)
-    val executedPrice: Double?,     // цена исполнения
+    // "BUY" / "SELL"
+    val direction: String,
+    // начальная лимитная цена (если лимитный)
+    val limitPrice: Double?,
+    // цена исполнения
+    val executedPrice: Double?,
     val quantity: Long,
     val executedQuantity: Long,
-    val status: String,             // "NEW", "FILL", "PARTIALLYFILL" и т.д.
-    val updateTime: Long?           // epoch seconds
+    // "NEW", "FILL", "PARTIALLYFILL" и т.д.
+    val status: String,
+    // epoch seconds
+    val updateTime: Long?,
 )
 
 data class OrderResult(
@@ -18,7 +23,7 @@ data class OrderResult(
     val executedLots: Long,
     val totalLots: Long,
     val status: OrderStatus,
-    val orderRequestId: String? = null
+    val orderRequestId: String? = null,
 )
 
 data class OrderListItem(
@@ -26,26 +31,38 @@ data class OrderListItem(
     val ticker: String,
     val tscalpInstrumentId: String,
     val instrumentType: String = "",
-    val direction: String,      // "BUY" / "SELL"
-    val price: Double,          // лимитная цена (для обычных) или стоп-цена
-    val stopPrice: Double?,     // null для обычных
+    // "BUY" / "SELL"
+    val direction: String,
+    // лимитная цена (для обычных) или стоп-цена
+    val price: Double,
+    // null для обычных
+    val stopPrice: Double?,
     val quantity: Long,
-    val type: String,           // "LIMIT", "MARKET", "STOP_LOSS", "TAKE_PROFIT", "STOP_LIMIT"
+    // "LIMIT", "MARKET", "STOP_LOSS", "TAKE_PROFIT", "STOP_LIMIT"
+    val type: String,
     val status: String,
-    val orderDate: Long?,       // время создания (epoch seconds)
-    val isStopOrder: Boolean    // true → отмена через cancelStopOrder, false → cancelOrder
+    // время создания (epoch seconds)
+    val orderDate: Long?,
+    // true → отмена через cancelStopOrder, false → cancelOrder
+    val isStopOrder: Boolean,
 )
 
 enum class OrderStatus {
-    NEW, PARTIALLY_FILLED, FILLED, REJECTED, CANCELLED
+    NEW,
+    PARTIALLY_FILLED,
+    FILLED,
+    REJECTED,
+    CANCELLED,
 }
 
-//enum class OrderType { MARKET, LIMIT }
+// enum class OrderType { MARKET, LIMIT }
 enum class BrokerOrderType {
     MARKET,
-    LIMIT
+    LIMIT,
 }
+
 enum class StopOrderType { TAKE_PROFIT, STOP_LOSS, STOP_LIMIT }
+
 enum class OrderDirection { BUY, SELL }
 
 /**
@@ -60,14 +77,17 @@ data class StopOrderRequest(
     val accountId: String,
     val sandboxMode: Boolean,
     val stopPrice: Double,
-    val price: Double?,                // для stop-limit, иначе null
-    val stopOrderType: StopOrderType,  // TAKE_PROFIT, STOP_LOSS, STOP_LIMIT
+    // для stop-limit, иначе null
+    val price: Double?,
+    // TAKE_PROFIT, STOP_LOSS, STOP_LIMIT
+    val stopOrderType: StopOrderType,
     val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
-    val expireDate: String? = null     // если нужна конкретная дата
+    // если нужна конкретная дата
+    val expireDate: String? = null,
 )
 
-
 enum class StopOrderExpirationType { GOOD_TILL_CANCEL, GOOD_TILL_DATE }
+
 /**
  * Универсальная модель заявки, не зависящая от protobuf.
  * @param type тип заявки: MARKET или LIMIT
@@ -82,24 +102,29 @@ data class BrokerOrderRequest(
     val accountId: String,
     val sandboxMode: Boolean,
     val type: BrokerOrderType = BrokerOrderType.MARKET,
-    val price: Double? = null
+    val price: Double? = null,
 )
 
 sealed class OrderTypeSelection {
     object Market : OrderTypeSelection()
+
     object Limit : OrderTypeSelection()
+
     object StopLoss : OrderTypeSelection()
+
     object TakeProfit : OrderTypeSelection()
+
     object StopLimit : OrderTypeSelection()
 
     /** Преобразует выбранный тип в StopOrderType, если это стоп-заявка */
     val stopOrderType: StopOrderType?
-        get() = when (this) {
-            is StopLoss -> StopOrderType.STOP_LOSS
-            is TakeProfit -> StopOrderType.TAKE_PROFIT
-            is StopLimit -> StopOrderType.STOP_LIMIT
-            else -> null
-        }
+        get() =
+            when (this) {
+                is StopLoss -> StopOrderType.STOP_LOSS
+                is TakeProfit -> StopOrderType.TAKE_PROFIT
+                is StopLimit -> StopOrderType.STOP_LIMIT
+                else -> null
+            }
 
     /** Является ли тип обычной заявкой (Market/Limit) */
     val isRegular: Boolean
@@ -107,23 +132,25 @@ sealed class OrderTypeSelection {
 }
 
 /** Строковый ключ для хранения типа заявки в DataStore. */
-fun OrderTypeSelection.toStorageKey(): String = when (this) {
-    OrderTypeSelection.Market -> "Market"
-    OrderTypeSelection.Limit -> "Limit"
-    OrderTypeSelection.StopLoss -> "StopLoss"
-    OrderTypeSelection.TakeProfit -> "TakeProfit"
-    OrderTypeSelection.StopLimit -> "StopLimit"
-}
+fun OrderTypeSelection.toStorageKey(): String =
+    when (this) {
+        OrderTypeSelection.Market -> "Market"
+        OrderTypeSelection.Limit -> "Limit"
+        OrderTypeSelection.StopLoss -> "StopLoss"
+        OrderTypeSelection.TakeProfit -> "TakeProfit"
+        OrderTypeSelection.StopLimit -> "StopLimit"
+    }
 
 /** Восстановление типа заявки из строкового ключа. Неизвестное значение → Market. */
-fun orderTypeFromStorageKey(key: String): OrderTypeSelection = when (key) {
-    "Market" -> OrderTypeSelection.Market
-    "Limit" -> OrderTypeSelection.Limit
-    "StopLoss" -> OrderTypeSelection.StopLoss
-    "TakeProfit" -> OrderTypeSelection.TakeProfit
-    "StopLimit" -> OrderTypeSelection.StopLimit
-    else -> OrderTypeSelection.Market
-}
+fun orderTypeFromStorageKey(key: String): OrderTypeSelection =
+    when (key) {
+        "Market" -> OrderTypeSelection.Market
+        "Limit" -> OrderTypeSelection.Limit
+        "StopLoss" -> OrderTypeSelection.StopLoss
+        "TakeProfit" -> OrderTypeSelection.TakeProfit
+        "StopLimit" -> OrderTypeSelection.StopLimit
+        else -> OrderTypeSelection.Market
+    }
 
 /**
  * Универсальное представление денежной суммы для пополнения песочницы.
@@ -132,5 +159,5 @@ fun orderTypeFromStorageKey(key: String): OrderTypeSelection = when (key) {
 data class SandboxMoney(
     val currency: String,
     val units: Long,
-    val nano: Int = 0
+    val nano: Int = 0,
 )

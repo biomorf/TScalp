@@ -1,32 +1,29 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
-import kotlinx.coroutines.launch
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -36,18 +33,17 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
 import com.gitlab.biomorf.tscalp.ui.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.ui.components.BrokerAccountDialog
 import com.gitlab.biomorf.tscalp.ui.components.ConfirmOrderDialog
 import com.gitlab.biomorf.tscalp.ui.components.OrdersListDialog
-import com.gitlab.biomorf.tscalp.ui.components.OrderCard
 import com.gitlab.biomorf.tscalp.util.formatCurrency
-import com.gitlab.biomorf.tscalp.util.formatPrice
-import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,25 +70,27 @@ fun OrdersScreen() {
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ========== ЗАГОЛОВОК ==========
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "Выставление заявки",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = { showOrdersListDialog = true }) {
                     Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Список заявок")
@@ -106,8 +104,6 @@ fun OrdersScreen() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-
-
             // ========== СКРОЛЛИРУЕМЫЙ БЛОК с индикаторами прокрутки ==========
             val scrollState = rememberScrollState()
             val scope = rememberCoroutineScope()
@@ -118,18 +114,19 @@ fun OrdersScreen() {
 
             Box(modifier = Modifier.weight(1f)) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
                     // Основной поиск
                     if (uiState.selectedInstrument == null) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 InstrumentSearchField(
                                     query = uiState.searchQuery,
@@ -143,7 +140,7 @@ fun OrdersScreen() {
                                     onClear = { viewModel.clearSearch() },
                                     recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                                     tradingStatuses = uiState.tradingStatuses,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f),
                                 )
                                 // Кнопка «Обновить» (показывается, когда есть запрос)
                                 if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
@@ -158,7 +155,7 @@ fun OrdersScreen() {
                             }
                         }
                     } else {
-                            uiState.selectedInstrument?.let { instrument: InstrumentUi ->
+                        uiState.selectedInstrument?.let { instrument: InstrumentUi ->
                             val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
 
                             // Цену берём из PriceStreamManager (uiState.currentPrice) —
@@ -167,33 +164,34 @@ fun OrdersScreen() {
                             // его currentPrice перезаписываем свежим значением.
                             val currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0
 
-                            val position = if (portfolioPos != null) {
-                                portfolioPos.copy(
-                                    currentPrice = currentPrice,
-                                    totalValue = currentPrice * portfolioPos.quantity
-                                )
-                            } else {
-                                PortfolioPosition(
-                                    brokerName = BrokerName.TINVEST,
-                                    tscalpInstrumentId = instrument.tscalpInstrumentId,
-                                    name = instrument.name,
-                                    isin = instrument.isin,
-                                    ticker = instrument.ticker,
-                                    classCode = instrument.classCode,
-                                    quantity = 0L,
-                                    currentPrice = currentPrice,
-                                    totalValue = currentPrice * 0L,
-                                    profit = null,
-                                    profitPercent = null,
-                                    instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                                    pointValue = uiState.currentPointValue
-                                )
-                            }
+                            val position =
+                                if (portfolioPos != null) {
+                                    portfolioPos.copy(
+                                        currentPrice = currentPrice,
+                                        totalValue = currentPrice * portfolioPos.quantity,
+                                    )
+                                } else {
+                                    PortfolioPosition(
+                                        brokerName = BrokerName.TINVEST,
+                                        tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                        name = instrument.name,
+                                        isin = instrument.isin,
+                                        ticker = instrument.ticker,
+                                        classCode = instrument.classCode,
+                                        quantity = 0L,
+                                        currentPrice = currentPrice,
+                                        totalValue = currentPrice * 0L,
+                                        profit = null,
+                                        profitPercent = null,
+                                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+                                        pointValue = uiState.currentPointValue,
+                                    )
+                                }
 
                             AssetPositionCard(
                                 position = position,
                                 instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                                pointValue = position.pointValue,   // теперь всегда валидный
+                                pointValue = position.pointValue, // теперь всегда валидный
                                 priceChangePercent = uiState.selectedPriceChangePercent,
                                 onDelete = { viewModel.clearSelectedInstrument() },
                                 onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
@@ -201,30 +199,32 @@ fun OrdersScreen() {
                                 isSelected = false,
                                 resetSwipe = uiState.swipeResetTrigger,
                                 tscalpInstrumentId = instrument.tscalpInstrumentId,
-                                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId]
+                                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
                             )
                         }
                     }
 
-                    //Spacer(modifier = Modifier.height(1.dp))
+                    // Spacer(modifier = Modifier.height(1.dp))
 
                     // ========== Поле количества ==========
                     // Определяем цену исполнения в зависимости от типа заявки
                     val pairExecPrice: Double
                     val pairedOrderType: OrderTypeSelection?
                     if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
-                        val primaryPrice = when (uiState.orderType) {
-                            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull()
-                            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
-                            else -> null
-                        }
+                        val primaryPrice =
+                            when (uiState.orderType) {
+                                OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull()
+                                OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
+                                else -> null
+                            }
                         val direction = if (pendingDirection == "Покупка") "BUY" else "SELL"
                         val pairedSpec = PairOrderMapper.map(uiState.orderType, OrderDirection.valueOf(direction), primaryPrice)
                         pairedOrderType = pairedSpec.orderType
-                        pairExecPrice = when (uiState.orderType) {
-                            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.executionPrice
-                            else -> uiState.pairCurrentPrice ?: 0.0
-                        }
+                        pairExecPrice =
+                            when (uiState.orderType) {
+                                OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.executionPrice
+                                else -> uiState.pairCurrentPrice ?: 0.0
+                            }
                     } else {
                         pairExecPrice = 0.0
                         pairedOrderType = null
@@ -247,7 +247,7 @@ fun OrdersScreen() {
                         onConfirm = {
                             if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
                             showConfirmDialog = false
-                        }
+                        },
                     )
 
                     val instrumentType = uiState.selectedInstrument?.instrumentType ?: ""
@@ -255,11 +255,12 @@ fun OrdersScreen() {
                     val costOverlay = uiState.costOverlay
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         IconButton(
                             onClick = {
@@ -267,11 +268,10 @@ fun OrdersScreen() {
                                 if (currentQty > 0) viewModel.onQuantityChanged((currentQty - 1).toString())
                             },
                             enabled = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(48.dp),
                         ) {
                             Icon(Icons.Default.Remove, "Уменьшить", modifier = Modifier.size(24.dp))
                         }
-
 
                         Box(modifier = Modifier.weight(1f)) {
                             OutlinedTextField(
@@ -281,25 +281,26 @@ fun OrdersScreen() {
                                 textStyle = MaterialTheme.typography.bodyLarge,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
                             )
                             if (costOverlay != null) {
                                 Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .padding(end = 12.dp, top = 8.dp),
-                                    contentAlignment = Alignment.CenterEnd
+                                    modifier =
+                                        Modifier
+                                            .matchParentSize()
+                                            .padding(end = 12.dp, top = 8.dp),
+                                    contentAlignment = Alignment.CenterEnd,
                                 ) {
                                     Text(
                                         text = costOverlay,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier
-                                            .background(
-                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                                RoundedCornerShape(4.dp)
-                                            )
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        modifier =
+                                            Modifier
+                                                .background(
+                                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                                    RoundedCornerShape(4.dp),
+                                                ).padding(horizontal = 6.dp, vertical = 2.dp),
                                     )
                                 }
                             }
@@ -311,45 +312,44 @@ fun OrdersScreen() {
                                 viewModel.onQuantityChanged((currentQty + 1).toString())
                             },
                             enabled = uiState.selectedInstrument != null,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(48.dp),
                         ) {
                             Icon(Icons.Default.Add, "Увеличить", modifier = Modifier.size(24.dp))
                         }
                     }
 
-
                     // ========== Выбор типа заявки ==========
                     Column(
                         modifier = Modifier.wrapContentWidth(),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = uiState.orderType == OrderTypeSelection.Market,
                                 onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Market) },
-                                label = { Text("Рын.") }
+                                label = { Text("Рын.") },
                             )
                             FilterChip(
                                 selected = uiState.orderType == OrderTypeSelection.Limit,
                                 onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Limit) },
-                                label = { Text("Лим.") }
+                                label = { Text("Лим.") },
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = uiState.orderType == OrderTypeSelection.StopLoss,
                                 onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLoss) },
-                                label = { Text("Stop‑Loss") }
+                                label = { Text("Stop‑Loss") },
                             )
                             FilterChip(
                                 selected = uiState.orderType == OrderTypeSelection.TakeProfit,
                                 onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.TakeProfit) },
-                                label = { Text("Take‑Profit") }
+                                label = { Text("Take‑Profit") },
                             )
                             FilterChip(
                                 selected = uiState.orderType == OrderTypeSelection.StopLimit,
                                 onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLimit) },
-                                label = { Text("Stop‑Limit") }
+                                label = { Text("Stop‑Limit") },
                             )
                         }
                     }
@@ -360,9 +360,9 @@ fun OrdersScreen() {
                         targetState = uiState.orderType,
                         transitionSpec = {
                             fadeIn(animationSpec = tween(200)) togetherWith
-                                    fadeOut(animationSpec = tween(200))
+                                fadeOut(animationSpec = tween(200))
                         },
-                        label = "price_fields"
+                        label = "price_fields",
                     ) { orderType: OrderTypeSelection ->
                         when (orderType) {
                             OrderTypeSelection.Limit -> {
@@ -373,11 +373,12 @@ fun OrdersScreen() {
                                     textStyle = MaterialTheme.typography.bodyLarge,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
                                 )
                             }
                             OrderTypeSelection.StopLoss,
-                            OrderTypeSelection.TakeProfit -> {
+                            OrderTypeSelection.TakeProfit,
+                            -> {
                                 Column {
                                     OutlinedTextField(
                                         value = uiState.stopPrice,
@@ -386,7 +387,7 @@ fun OrdersScreen() {
                                         textStyle = MaterialTheme.typography.bodyLarge,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
                                     )
                                 }
                             }
@@ -399,7 +400,7 @@ fun OrdersScreen() {
                                         textStyle = MaterialTheme.typography.bodyLarge,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     OutlinedTextField(
@@ -409,7 +410,7 @@ fun OrdersScreen() {
                                         textStyle = MaterialTheme.typography.bodyLarge,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
                                     )
                                 }
                             }
@@ -418,26 +419,27 @@ fun OrdersScreen() {
                     }
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
-                        Row(
-                            modifier = Modifier
+                    Row(
+                        modifier =
+                            Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 0.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
-                            Switch(
-                                checked = uiState.pairTradingEnabled,
-                                onCheckedChange = { viewModel.setPairTradingEnabled(it) }
-                            )
-                        }
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
+                        Switch(
+                            checked = uiState.pairTradingEnabled,
+                            onCheckedChange = { viewModel.setPairTradingEnabled(it) },
+                        )
+                    }
 
                     // Парный поиск
                     if (uiState.pairTradingEnabled) {
                         if (uiState.pairedInstrument == null) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     InstrumentSearchField(
                                         query = uiState.pairSearchQuery,
@@ -451,7 +453,7 @@ fun OrdersScreen() {
                                         onClear = { viewModel.clearPairSearch() },
                                         recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                                         tradingStatuses = uiState.tradingStatuses,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f),
                                     )
                                     // Кнопка «Обновить»
                                     if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
@@ -471,37 +473,39 @@ fun OrdersScreen() {
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
                                 val pairedPointValue = uiState.pairedPointValue
                                 // Цену берём из PriceStreamManager (uiState.pairCurrentPrice).
-                                val pairPrice = uiState.pairCurrentPrice
-                                    ?: portfolioPos?.currentPrice
-                                    ?: 0.0
+                                val pairPrice =
+                                    uiState.pairCurrentPrice
+                                        ?: portfolioPos?.currentPrice
+                                        ?: 0.0
 
-                                val position = if (portfolioPos != null) {
-                                    portfolioPos.copy(
-                                        currentPrice = pairPrice,
-                                        totalValue = pairPrice * portfolioPos.quantity
-                                    )
-                                } else {
-                                    PortfolioPosition(
-                                        brokerName = BrokerName.TINVEST,
-                                        tscalpInstrumentId = instrument.tscalpInstrumentId,
-                                        name = instrument.name,
-                                        isin = instrument.isin,
-                                        ticker = instrument.ticker,
-                                        classCode = instrument.classCode,
-                                        quantity = 0L,
-                                        currentPrice = pairPrice,
-                                        totalValue = pairPrice * 0L,
-                                        profit = null,
-                                        profitPercent = null,
-                                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                                        pointValue = pairedPointValue
-                                    )
-                                }
+                                val position =
+                                    if (portfolioPos != null) {
+                                        portfolioPos.copy(
+                                            currentPrice = pairPrice,
+                                            totalValue = pairPrice * portfolioPos.quantity,
+                                        )
+                                    } else {
+                                        PortfolioPosition(
+                                            brokerName = BrokerName.TINVEST,
+                                            tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                            name = instrument.name,
+                                            isin = instrument.isin,
+                                            ticker = instrument.ticker,
+                                            classCode = instrument.classCode,
+                                            quantity = 0L,
+                                            currentPrice = pairPrice,
+                                            totalValue = pairPrice * 0L,
+                                            profit = null,
+                                            profitPercent = null,
+                                            instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+                                            pointValue = pairedPointValue,
+                                        )
+                                    }
 
                                 AssetPositionCard(
                                     position = position,
                                     instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                                    pointValue = position.pointValue,   // теперь всегда валидный
+                                    pointValue = position.pointValue, // теперь всегда валидный
                                     priceChangePercent = uiState.selectedPriceChangePercent,
                                     onDelete = { viewModel.clearPairSearch() },
                                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
@@ -509,7 +513,7 @@ fun OrdersScreen() {
                                     isSelected = false,
                                     resetSwipe = uiState.swipeResetTrigger,
                                     tscalpInstrumentId = instrument.tscalpInstrumentId,
-                                    tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId]
+                                    tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
                                 )
 
                                 // Оверлей стоимости для множителя
@@ -527,33 +531,35 @@ fun OrdersScreen() {
                                         textStyle = MaterialTheme.typography.bodyLarge,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         singleLine = true,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .onFocusChanged { focusState ->
-                                                if (focusState.isFocused) {
-                                                    scope.launch {
-                                                        scrollState.animateScrollTo(scrollState.maxValue)
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .onFocusChanged { focusState ->
+                                                    if (focusState.isFocused) {
+                                                        scope.launch {
+                                                            scrollState.animateScrollTo(scrollState.maxValue)
+                                                        }
                                                     }
-                                                }
-                                            }
+                                                },
                                     )
                                     if (multiplierOverlay != null) {
                                         Box(
-                                            modifier = Modifier
-                                                .matchParentSize()
-                                                .padding(end = 12.dp, top = 8.dp),
-                                            contentAlignment = Alignment.CenterEnd
+                                            modifier =
+                                                Modifier
+                                                    .matchParentSize()
+                                                    .padding(end = 12.dp, top = 8.dp),
+                                            contentAlignment = Alignment.CenterEnd,
                                         ) {
                                             Text(
                                                 text = multiplierOverlay,
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier
-                                                    .background(
-                                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                                        RoundedCornerShape(4.dp)
-                                                    )
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                modifier =
+                                                    Modifier
+                                                        .background(
+                                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                                            RoundedCornerShape(4.dp),
+                                                        ).padding(horizontal = 6.dp, vertical = 2.dp),
                                             )
                                         }
                                     }
@@ -566,40 +572,43 @@ fun OrdersScreen() {
                 // === ИНДИКАТОРЫ ПРОКРУТКИ ===
                 if (showTopShadow) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(12.dp)
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(Color.Black.copy(alpha = 0.08f), Color.Transparent)
-                                )
-                            )
-                            .align(Alignment.TopCenter)
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(12.dp)
+                                .background(
+                                    brush =
+                                        Brush.verticalGradient(
+                                            colors = listOf(Color.Black.copy(alpha = 0.08f), Color.Transparent),
+                                        ),
+                                ).align(Alignment.TopCenter),
                     )
                 }
                 if (showBottomShadow) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(12.dp)
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.08f))
-                                )
-                            )
-                            .align(Alignment.BottomCenter)
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(12.dp)
+                                .background(
+                                    brush =
+                                        Brush.verticalGradient(
+                                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.08f)),
+                                        ),
+                                ).align(Alignment.BottomCenter),
                     )
                 }
             }
 
             // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // Кнопки КУПИТЬ / ПРОДАТЬ
                 val balance = uiState.freeBalance
@@ -607,14 +616,15 @@ fun OrdersScreen() {
                     Text(
                         text = "Свободно: ${formatCurrency(balance)}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Button(
                         onClick = {
@@ -626,7 +636,7 @@ fun OrdersScreen() {
                             }
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = uiState.isFormValid && !uiState.isLoading
+                        enabled = uiState.isFormValid && !uiState.isLoading,
                     ) {
                         Text("КУПИТЬ")
                     }
@@ -641,7 +651,7 @@ fun OrdersScreen() {
                         },
                         modifier = Modifier.weight(1f),
                         enabled = uiState.isFormValid && !uiState.isLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text("ПРОДАТЬ")
                     }
@@ -652,19 +662,24 @@ fun OrdersScreen() {
         // Снекбар поверх всего
         SnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(8.dp)
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(8.dp),
         ) { data ->
             Snackbar(
-                containerColor = if (uiState.isError)
-                    MaterialTheme.colorScheme.errorContainer
-                else
-                    MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = if (uiState.isError)
-                    MaterialTheme.colorScheme.onErrorContainer
-                else
-                    MaterialTheme.colorScheme.onTertiaryContainer,
+                containerColor =
+                    if (uiState.isError) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    },
+                contentColor =
+                    if (uiState.isError) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    },
                 action = {
                     val label = data.visuals.actionLabel
                     if (label != null) {
@@ -672,7 +687,7 @@ fun OrdersScreen() {
                             Text(label)
                         }
                     }
-                }
+                },
             ) {
                 Text(data.visuals.message)
             }
@@ -682,13 +697,14 @@ fun OrdersScreen() {
     // ==================== ДИАЛОГИ ====================
     LaunchedEffect(uiState.statusMessage) {
         uiState.statusMessage?.let { message ->
-            val visuals = object : SnackbarVisuals {
-                override val message: String = message
-                override val actionLabel: String? = if (uiState.isError) "OK" else null
-                override val withDismissAction: Boolean = false
-                override val duration: SnackbarDuration =
-                    if (uiState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
-            }
+            val visuals =
+                object : SnackbarVisuals {
+                    override val message: String = message
+                    override val actionLabel: String? = if (uiState.isError) "OK" else null
+                    override val withDismissAction: Boolean = false
+                    override val duration: SnackbarDuration =
+                        if (uiState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
+                }
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(visuals)
             viewModel.clearStatus()
@@ -704,13 +720,13 @@ fun OrdersScreen() {
             selectedAccountId = uiState.selectedAccountIdDialog,
             onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
             onDismiss = { viewModel.closeBrokerDialog() },
-            onSave = { viewModel.saveBrokerSettings() }
+            onSave = { viewModel.saveBrokerSettings() },
         )
     }
 
     if (showOrdersListDialog) {
         OrdersListDialog(
-            onDismiss = { showOrdersListDialog = false }
+            onDismiss = { showOrdersListDialog = false },
         )
     }
     // Диалог выбора брокера для основного поиска
@@ -724,7 +740,7 @@ fun OrdersScreen() {
             onAccountSelected = {},
             onDismiss = { viewModel.dismissSearchBrokerDialog() },
             onSave = { viewModel.dismissSearchBrokerDialog() },
-            showAccountSelector = false
+            showAccountSelector = false,
         )
     }
 
@@ -739,7 +755,7 @@ fun OrdersScreen() {
             onAccountSelected = {},
             onDismiss = { viewModel.showPairSearchBrokerDialog.value = false },
             onSave = { viewModel.showPairSearchBrokerDialog.value = false },
-            showAccountSelector = false
+            showAccountSelector = false,
         )
     }
 }
@@ -750,7 +766,7 @@ fun OrdersScreen() {
 fun ApiNotInitializedCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
     ) {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("⚠️ API не подключен", style = MaterialTheme.typography.titleMedium)
@@ -770,7 +786,7 @@ fun InstrumentSearchField(
     onClear: () -> Unit,
     recentInstruments: List<InstrumentUi> = emptyList(),
     tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf(query) }
     var expanded by remember { mutableStateOf(false) }
@@ -798,9 +814,10 @@ fun InstrumentSearchField(
                     placeholder = {
                         Text(
                             "Введите тикер или название",
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                            )
+                            style =
+                                MaterialTheme.typography.bodyLarge.copy(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                ),
                         )
                     },
                     leadingIcon = {
@@ -820,18 +837,19 @@ fun InstrumentSearchField(
                         if (isSearching) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         }
-                    }
+                    },
                 )
             },
             expanded = expanded,
             onExpandedChange = { expanded = it },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             if (expanded && (searchResults.isNotEmpty() || (inputText.isEmpty() && recentInstruments.isNotEmpty()))) {
                 Column(
-                    modifier = Modifier
-                        .heightIn(max = 300.dp)
-                        .verticalScroll(rememberScrollState())
+                    modifier =
+                        Modifier
+                            .heightIn(max = 300.dp)
+                            .verticalScroll(rememberScrollState()),
                 ) {
                     if (inputText.isEmpty() && recentInstruments.isNotEmpty()) {
                         recentInstruments.forEach { instrument ->
@@ -845,22 +863,24 @@ fun InstrumentSearchField(
                                     Text(
                                         text = instrument.tscalpInstrumentId,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 },
                                 leadingContent = {
                                     Box(
-                                        modifier = Modifier
-                                            .width(4.dp)
-                                            .height(36.dp)
-                                            .background(typeColor)
+                                        modifier =
+                                            Modifier
+                                                .width(4.dp)
+                                                .height(36.dp)
+                                                .background(typeColor),
                                     )
                                 },
-                                modifier = Modifier.clickable {
-                                    onInstrumentSelected(instrument)
-                                    inputText = "${instrument.ticker} - ${instrument.name}"
-                                    expanded = false
-                                }
+                                modifier =
+                                    Modifier.clickable {
+                                        onInstrumentSelected(instrument)
+                                        inputText = "${instrument.ticker} - ${instrument.name}"
+                                        expanded = false
+                                    },
                             )
                         }
                     } else {
@@ -875,22 +895,24 @@ fun InstrumentSearchField(
                                     Text(
                                         text = instrument.tscalpInstrumentId,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 },
                                 leadingContent = {
                                     Box(
-                                        modifier = Modifier
-                                            .width(4.dp)
-                                            .height(36.dp)
-                                            .background(typeColor)
+                                        modifier =
+                                            Modifier
+                                                .width(4.dp)
+                                                .height(36.dp)
+                                                .background(typeColor),
                                     )
                                 },
-                                modifier = Modifier.clickable {
-                                    onInstrumentSelected(instrument)
-                                    inputText = "${instrument.ticker} - ${instrument.name}"
-                                    expanded = false
-                                }
+                                modifier =
+                                    Modifier.clickable {
+                                        onInstrumentSelected(instrument)
+                                        inputText = "${instrument.ticker} - ${instrument.name}"
+                                        expanded = false
+                                    },
                             )
                         }
                     }
@@ -900,12 +922,11 @@ fun InstrumentSearchField(
     }
 }
 
-fun getInstrumentTypeColor(instrumentType: String): Color {
-    return when (instrumentType) {
+fun getInstrumentTypeColor(instrumentType: String): Color =
+    when (instrumentType) {
         "share" -> Color(0xFF1565C0)
         "bond" -> Color(0xFFE65100)
         "etf" -> Color(0xFF2E7D32)
         "currency" -> Color(0xFF6A1B9A)
         else -> Color(0xFF757575)
     }
-}

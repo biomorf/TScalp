@@ -1,8 +1,5 @@
 package com.gitlab.biomorf.tscalp.ui.components
 
-import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
-
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -29,12 +26,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.gitlab.biomorf.tscalp.util.formatCurrency
-import com.gitlab.biomorf.tscalp.util.formatPrice
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.util.PositionFormatter
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 @Composable
 fun AssetPositionCard(
@@ -49,24 +45,24 @@ fun AssetPositionCard(
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
     pointValue: Double? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     // --- Цветовая индикация изменения цены (состояния) ---
     var previousPrice by remember { mutableDoubleStateOf(position.currentPrice) }
     var priceDelta by remember { mutableDoubleStateOf(0.0) }
-
 
     val isPriceUp = position.currentPrice > previousPrice
     val isPriceDown = position.currentPrice < previousPrice
 
     // Фон карточки подсвечивается при изменении
     val backgroundColor by animateColorAsState(
-        targetValue = when {
-            isPriceUp && previousPrice != 0.0 -> Color(0x2200C853)
-            isPriceDown && previousPrice != 0.0 -> Color(0x22FF1744)
-            else -> Color.Transparent
-        },
-        animationSpec = tween(durationMillis = 300)
+        targetValue =
+            when {
+                isPriceUp && previousPrice != 0.0 -> Color(0x2200C853)
+                isPriceDown && previousPrice != 0.0 -> Color(0x22FF1744)
+                else -> Color.Transparent
+            },
+        animationSpec = tween(durationMillis = 300),
     )
 
     // Единый LaunchedEffect: и запоминание цены, и показ popup
@@ -80,9 +76,10 @@ fun AssetPositionCard(
     // Содержимое карточки (общее для всех случаев)
     val cardContent = @Composable {
         Box(
-            modifier = Modifier
-                .background(backgroundColor, RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp))
+            modifier =
+                Modifier
+                    .background(backgroundColor, RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp)),
         ) {
             AssetCardContent(
                 position = position,
@@ -92,7 +89,7 @@ fun AssetPositionCard(
                 isSelected = isSelected,
                 tscalpInstrumentId = tscalpInstrumentId,
                 tradingAvailability = tradingAvailability,
-                pointValue = pointValue
+                pointValue = pointValue,
             )
         }
     }
@@ -116,7 +113,7 @@ fun AssetPositionCard(
             androidx.compose.animation.core.animate(
                 initialValue = offsetX,
                 targetValue = target,
-                animationSpec = tween(300)
+                animationSpec = tween(300),
             ) { value, _ -> offsetX = value }
         }
     }
@@ -124,18 +121,20 @@ fun AssetPositionCard(
     Box(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
         // Кнопки подложки
         Row(
-            modifier = Modifier
-                .matchParentSize()
-                .wrapContentSize(Alignment.CenterEnd)
-                .width(buttonWidth * 2),
-            horizontalArrangement = Arrangement.End
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .wrapContentSize(Alignment.CenterEnd)
+                    .width(buttonWidth * 2),
+            horizontalArrangement = Arrangement.End,
         ) {
             if (onDelete != null) {
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier
-                        .size(buttonWidth)
-                        .background(Color(0xFFC62828), shape = CircleShape)
+                    modifier =
+                        Modifier
+                            .size(buttonWidth)
+                            .background(Color(0xFFC62828), shape = CircleShape),
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
                 }
@@ -143,9 +142,10 @@ fun AssetPositionCard(
             if (onSettings != null) {
                 IconButton(
                     onClick = onSettings,
-                    modifier = Modifier
-                        .size(buttonWidth)
-                        .background(Color(0xFF757575), shape = CircleShape)
+                    modifier =
+                        Modifier
+                            .size(buttonWidth)
+                            .background(Color(0xFF757575), shape = CircleShape),
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
                 }
@@ -154,16 +154,20 @@ fun AssetPositionCard(
 
         // Перетаскиваемая карточка (внутри неё анимации и popup)
         Box(
-            modifier = Modifier
-                .offset { IntOffset(offsetX.roundToInt(), 0) }
-                .draggable(
-                    state = rememberDraggableState { delta ->
-                        offsetX = (offsetX + delta).coerceIn(
-                            -with(density) { threshold.toPx() }, 0f
-                        )
-                    },
-                    orientation = Orientation.Horizontal
-                )
+            modifier =
+                Modifier
+                    .offset { IntOffset(offsetX.roundToInt(), 0) }
+                    .draggable(
+                        state =
+                            rememberDraggableState { delta ->
+                                offsetX =
+                                    (offsetX + delta).coerceIn(
+                                        -with(density) { threshold.toPx() },
+                                        0f,
+                                    )
+                            },
+                        orientation = Orientation.Horizontal,
+                    ),
         ) {
             cardContent()
         }
@@ -180,7 +184,7 @@ private fun AssetCardContent(
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
     pointValue: Double? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     // --- Анимация цвета цены ---
     val targetPriceColor = PositionFormatter.priceChangeColor(priceChangePercent)
@@ -195,42 +199,46 @@ private fun AssetCardContent(
     }
     val textScale by animateFloatAsState(
         targetValue = if (priceChanged) 1.05f else 1f,
-        animationSpec = spring()
+        animationSpec = spring(),
     )
 
-    val typeColor = when (instrumentType) {
-        "share" -> Color(0xFF1565C0)
-        "bond" -> Color(0xFFE65100)
-        "etf" -> Color(0xFF2E7D32)
-        "currency" -> Color(0xFF6A1B9A)
-        else -> Color(0xFF757575)
-    }
+    val typeColor =
+        when (instrumentType) {
+            "share" -> Color(0xFF1565C0)
+            "bond" -> Color(0xFFE65100)
+            "etf" -> Color(0xFF2E7D32)
+            "currency" -> Color(0xFF6A1B9A)
+            else -> Color(0xFF757575)
+        }
 
-    val backgroundColor = if (isSelected) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
+    val backgroundColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        }
 
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
     ) {
         Row(modifier = Modifier.height(IntrinsicSize.Max).padding(start = 4.dp)) {
             Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(typeColor)
+                modifier =
+                    Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(typeColor),
             )
 
             Column(modifier = Modifier.padding(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(position.ticker, fontWeight = FontWeight.Bold)
@@ -238,14 +246,14 @@ private fun AssetCardContent(
                             position.name,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         // Упрощённое нейтральное отображение идентификатора
                         val displayId = if (tscalpInstrumentId.isNullOrBlank()) "000000" else tscalpInstrumentId
                         Text(
                             text = displayId,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     val (priceStr, rubStr) = PositionFormatter.formatCurrentPrice(position, instrumentType, pointValue)
@@ -256,13 +264,13 @@ private fun AssetCardContent(
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = priceColor,
-                                modifier = Modifier.scale(textScale)
+                                modifier = Modifier.scale(textScale),
                             )
                             if (rubStr != null) {
                                 Text(
                                     rubStr,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -274,13 +282,13 @@ private fun AssetCardContent(
                 if (position.quantity != 0L || priceChangePercent != null) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.outline,
                     )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.Top,
                     ) {
                         // Левая часть: средняя стоимость + детали
                         Column {
@@ -288,12 +296,12 @@ private fun AssetCardContent(
                             Text(
                                 text = totalStr ?: "-",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
                                 text = detailStr ?: "${position.quantity} лот  ·  -",
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
                             )
                         }
 
@@ -305,7 +313,7 @@ private fun AssetCardContent(
                                     text = profitStr,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = profitColor,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
                                 )
                             } else {
                                 Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -314,7 +322,7 @@ private fun AssetCardContent(
                                 Text(
                                     text = percentStr,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (position.profitPercent != null && position.profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                    color = if (position.profitPercent != null && position.profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
                                 )
                             } else {
                                 Text("—", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

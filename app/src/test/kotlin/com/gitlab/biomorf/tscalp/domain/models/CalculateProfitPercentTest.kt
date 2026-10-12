@@ -5,30 +5,31 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class CalculateProfitPercentTest {
-
     // ---------- Share (pointValue = null / 1.0) ----------
 
     @Test
     fun `share profit percent uses yield over avg times quantity`() {
         // yield=1000, avg=100, qty=10 → 1000/1000*100 = 100%
-        val result = calculateProfitPercent(
-            yield = 1000.0,
-            avgPrice = 100.0,
-            quantity = 10L,
-            pointValue = null
-        )
+        val result =
+            calculateProfitPercent(
+                yield = 1000.0,
+                avgPrice = 100.0,
+                quantity = 10L,
+                pointValue = null,
+            )
         assertEquals(100.0, result!!, 0.0001)
     }
 
     @Test
     fun `share profit percent negative`() {
         // yield=-50, avg=100, qty=10 → -50/1000*100 = -5%
-        val result = calculateProfitPercent(
-            yield = -50.0,
-            avgPrice = 100.0,
-            quantity = 10L,
-            pointValue = null
-        )
+        val result =
+            calculateProfitPercent(
+                yield = -50.0,
+                avgPrice = 100.0,
+                quantity = 10L,
+                pointValue = null,
+            )
         assertEquals(-5.0, result!!, 0.0001)
     }
 
@@ -45,12 +46,13 @@ class CalculateProfitPercentTest {
     fun `futures profit percent uses pointValue in denominator`() {
         // yield=1000, avg=100 (пунктов), qty=10, pointValue=5
         // invested = 100 * 10 * 5 = 5000, percent = 1000/5000*100 = 20%
-        val result = calculateProfitPercent(
-            yield = 1000.0,
-            avgPrice = 100.0,
-            quantity = 10L,
-            pointValue = 5.0
-        )
+        val result =
+            calculateProfitPercent(
+                yield = 1000.0,
+                avgPrice = 100.0,
+                quantity = 10L,
+                pointValue = 5.0,
+            )
         assertEquals(20.0, result!!, 0.0001)
     }
 
