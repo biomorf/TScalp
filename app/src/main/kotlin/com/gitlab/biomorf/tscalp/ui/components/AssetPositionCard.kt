@@ -41,6 +41,9 @@ import kotlin.math.roundToInt
  * не реализован. См. ROADMAP → «Индикатор доступности
  * инструмента в карточке позиции».
  */
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-компонентов».
+@Suppress("LongMethod")
 @Composable
 fun AssetPositionCard(
     position: PortfolioPosition,
@@ -183,6 +186,10 @@ fun AssetPositionCard(
     }
 }
 
+
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг Compose-компонентов».
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun AssetCardContent(
     position: PortfolioPosition,
