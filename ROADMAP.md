@@ -47,39 +47,6 @@
 
 ---
 
-## PositionsStreamServiceGrpc — вернуться к стриму позиций
-
-**Статус:** запланировано. Связано с ISSUES.md → «PositionsStream
-не доставляет данные».
-
-**Контекст:** сейчас P&L через polling `PositionStreamManager`
-раз в 10 секунд. Официальный стрим не работал на
-`kotlin-sdk-grpc-core:1.48.1`; были подозрения, что
-`PositionsStreamServiceGrpc` отсутствует в SDK или требует
-отдельных прав.
-
-**Что изменилось:** SDK обновлён 1.48.1 → 1.51.0. Есть шанс,
-что нужный сервис появился.
-
-**Шаги при возврате:**
-1. Проверить наличие `PositionsStreamServiceGrpc` в артефакте
-   `kotlin-sdk-grpc-core:1.51.0` (распаковать jar/AAR,
-   `grep -r PositionsStreamServiceGrpc`).
-2. Если есть — написать минимальный тест-подписки вне
-   приложения (отдельный `main`, не трогая `PositionStreamManager`).
-3. Песочница: проверить `UNAUTHENTICATED: 40003` — воспроизводится
-   ли на 1.51.0.
-4. Боевой: проверить, приходит ли `hasPosition()`.
-5. Если работает — перевести `PositionStreamManager` на стрим,
-   polling оставить как fallback на случай разрыва.
-6. Если не работает — обновить ISSUES.md с новыми деталями и
-   оставить polling.
-
-**Оценка:** ~2 часа на проверку + ~2 часа на миграцию, если
-сервис рабочий.
-
-**Когда вернуться:** сразу после CI-задач 1–3 (быстрые победы),
-до задач 4, 5, 6.
 
 ---
 
@@ -123,233 +90,6 @@
 
 **Запланировано** (в порядке приоритета):
 
-### ktlint
-
-**Что:** плагин `org.jlleitschuh.gradle.ktlint`, job
-`:app:ktlintCheck`, baseline через `.editorconfig`.
-**Зачем:** стиль Kotlin в CI.
-**Риск:** совместимость плагина с Kotlin 2.4.20 / AGP 9.0.0.
-**Оценка:** ~30 мин + первый прогон.
-
-### detekt
-
-**Что:** плагин `io.gitlab.arturbosch.detekt`, job
-`:app:detekt`, baseline.
-**Зачем:** статический анализ сложности/запахов кода.
-**Риск:** из коробки много замечаний, нужен baseline.
-**Оценка:** ~30 мин + первый прогон.
-
-### versionName в GitLab Release description
-
-**Статус:** в работе.
-
-**Что:** добавить строку `Release vX.Y.Z` перед списком
-release notes. Сейчас description содержит только список
-`feat`/`fix`, без явного указания версии.
-
-**Как:** в `publish-release` формируется `DESCRIPTION` через
-`printf -v DESCRIPTION 'Release %s\n\n%s' "$CI_COMMIT_TAG" "$NOTES"`.
-
-**Оценка:** ~5 мин.
-
-### Coverage в unit-tests
-
-**Что:** JaCoCo/Kover coverage, публикация отчёта в MR.
-**Зачем:** видно, какие строки не покрыты.
-**Когда:** когда тестов станет заметно больше 63.
-**Оценка:** ~1–2 часа.
-
-**Отложено (без триггера):**
-- Google Play публикация из CI (fastlane / play-console-cli) —
-  при первом релизе в Play.
-- AAB как артефакт релиза — отменено. При необходимости
-  публикации в Play вернуться отдельно.
----
-
-## Удаление legacy `.webp`-иконок
-
-**Статус:** в работе.
-
-**Что:** удалить `ic_launcher.webp` и `ic_launcher_round.webp`
-из `mipmap-{hdpi,mdpi,xhdpi,xxhdpi,xxxhdpi}/`. При `minSdk=30`
-они не используются: adaptive-иконки из `mipmap-anydpi`
-покрывают все поддерживаемые устройства.
-
-**Важно:** файлы `ic_launcher_foreground.webp` в тех же папках
-**остаются**. На них ссылается adaptive XML:
-`mipmap-anydpi/ic_launcher.xml` → `@mipmap/ic_launcher_foreground`.
-Удаление папок целиком сломает иконку.
-
-**Проверить:** установка на реальном устройстве — иконка в
-лаунчере и в списке недавних приложений отображается корректно.
-
-**Возможное улучшение в будущем:** перенести
-`ic_launcher_foreground` в `drawable-{density}/` или заменить
-векторным foreground. Отдельная задача, не в этой.
-
-**Оценка:** ~10 минут.
-
----
-
-
-### Renovate / Dependabot
-
-**Статус:** запланировано.
-
-**Контекст:** `GradleDependency` и `NewerVersionAvailable`
-отключены в lint. Замена — Renovate или Dependabot.
-
-**Варианты:**
-1. **Mend Developer Platform (hosted Renovate)** —
-   `developer.mend.io` → Profile → Integrations → GitLab.com.
-   Работает через OAuth app, не требует CI. Free Community
-   Cloud tier: неограниченные публичные и приватные репозитории,
-   один concurrent job на 4-часовом цикле.
-2. **Self-hosted Renovate** — Docker-контейнер
-   `ghcr.io/renovatebot/renovate` + cron на локальной машине.
-   Требует PAT с scope `api`, машина должна быть включена в
-   момент запуска cron. Полностью бесплатно, но требует
-   администрирования.
-3. **Dependabot на GitHub** — встроен, включается в настройках
-   репозитория. Полная автоматизация с проверками в GitHub
-   Actions.
-
-**Рекомендация:** начать с варианта 1 (10 минут на установку,
-бесплатно, без администрирования). Если недоступен —
-вариант 2.
-
-**Оценка:** ~15 мин (hosted) / ~1 час (self-hosted) /
-~15 мин (Dependabot).
-
-**Установка hosted-варианта — через отдельного пользователя.**
-
-Mend и документация Renovate рекомендуют создавать отдельный
-GitLab-аккаунт для бота (например, `tscalp-renovate-bot`),
-а не использовать личный аккаунт:
-
-- действия бота не смешиваются с человеческими коммитами
-  и MR в истории проекта;
-- OAuth-доступ Mend ограничивается только теми репозиториями,
-  где бот является участником;
-- при работе под личным аккаунтом Mend получает доступ ко
-  всем проектам пользователя — известный риск.
-
-Бот приглашается в проект с ролью **Developer** (минимально
-достаточно для создания MR). На GitLab.com регистрация
-отдельного пользователя — единственный доступный способ:
-service accounts доступны только на Premium/Ultimate.
-
-
-## Renovate: self-hosted через GitHub Actions
-
-**Статус:** в работе.
-
-**Что:** автоматическое отслеживание обновлений Gradle-зависимостей
-через self-hosted Renovate в GitHub Actions.
-
-**Зачем:** `GradleDependency` и `NewerVersionAvailable` отключены
-в lint (несовместимы с baseline). Renovate открывает PR с
-обновлениями и не блокирует чужие сборки.
-
-**Компоненты:**
-- `renovate.json` — конфиг с группировкой Kotlin/KSP/Compose
-  Compiler, AndroidX Compose, gRPC. `protobuf-*` отключены
-  (намеренный pin 3.25.8).
-- `.github/workflows/renovate.yml` — запуск раз в неделю по
-  расписанию + `workflow_dispatch` для ручного теста.
-- PAT бот-аккаунта с scope `repo` + `workflow`, сохранён как
-  Secret `RENOVATE_TOKEN`.
-
-**Оценка:** ~1 час.
-
-
-## Renovate: self-hosted через GitHub Actions
-
-**Статус:** в работе.
-
-**Что:** автоматическое отслеживание обновлений Gradle-зависимостей
-через self-hosted Renovate в GitHub Actions.
-
-**Зачем:** `GradleDependency` и `NewerVersionAvailable` отключены
-в lint (несовместимы с baseline). Renovate открывает PR с
-обновлениями и не блокирует чужие сборки.
-
-**Компоненты:**
-- `renovate.json` — конфиг с группировкой Kotlin/KSP/Compose
-  Compiler, Hilt, AndroidX Compose, gRPC. `protobuf-*` отключены
-  (намеренный pin 3.25.8).
-- `.github/workflows/renovate.yml` — запуск раз в неделю по
-  расписанию (суббота 00:00 UTC) + `workflow_dispatch` для
-  ручного теста. Расписание задаётся только в cron; внутри
-  `renovate.json` блоки `schedule` и `timezone` отсутствуют.
-- PAT бот-аккаунта `tscalp-renovate-bot` с scope `repo` +
-  `workflow`, сохранён как Secret `RENOVATE_TOKEN`.
-  Срок действия 90 дней — обновлять по уведомлению.
-
-**Оценка:** ~1 час.
-
----
-
-## Смена лицензии GPL v3 → Apache 2.0
-
-**Статус:** в работе.
-
-**Что:** заменить лицензию проекта с GNU GPL v3 на Apache
-License 2.0.
-
-**Зачем:** Apache 2.0 — более разрешительная лицензия, совместима
-с большинством корпоративных политик, содержит явный патентный
-грант. GPL v3 требует распространения производных работ под той
-же лицензией, что ограничивает переиспользование.
-
-**Проверки (выполнены):**
-- Автор кода один — внешних контрибьюторов нет. Согласие
-  третьих лиц не требуется.
-- Сторонний GPL-код в проекте отсутствует.
-- SPDX-заголовков и копирайт-блоков в исходниках нет.
-
-**Действия:**
-- Заменить содержимое `LICENSE` на текст Apache 2.0.
-- Обновить секцию License в `README.md`.
-- Обновить метаданные проекта на GitLab / GitHub.
-
-**Юридическая оговорка:** уже распространённые копии под GPL v3
-остаются под GPL v3 — лицензия не отзывается задним числом.
-Коммиты и теги до смены — GPL v3, после — Apache 2.0. Стоит
-явно указать это в README.
-
-**Оценка:** ~30 минут.
-
----
-
-## Обновление compileSdk до 37
-
-**Статус:** запланировано.
-
-**Что:** обновить `compileSdk` с 36 до 37, оставив
-`targetSdk = 36`.
-
-**Зачем:** доступ к новым API Android 17 без активации
-изменений поведения. Google Play пока требует только
-`targetSdk 36`[reference:5], обновление `targetSdk` до 37
-не обязательно.
-
-**Риски `targetSdk 37`:**
-- Игнорирование ограничений ориентации и изменения размера
-  на больших экранах (sw > 600dp)[reference:6].
-- Новые лимиты памяти для Bitmap/Icons в RemoteViews[reference:7].
-- Возможные баги эмулятора для API 37[reference:8].
-
-**План:**
-1. Обновить `compileSdk` до 37 в `app/build.gradle.kts`.
-2. Локальная сборка: `./gradlew :app:clean :app:testDebugUnitTest --rerun-tasks`.
-3. Если зелено — коммит.
-4. `targetSdk` оставить 36 до отдельного решения.
-
-**Оценка:** ~10 минут.
-
----
-
 ## Self-hosted GitLab Runner через Ansible + Podman
 
 **Статус:** запланировано.
@@ -391,10 +131,6 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 **Оценка:** ~2–3 часа на написание роли и отладку.
 **Когда:** после решения вопроса с Gradle upgrade.
-
----
-
-
 
 ---
 
@@ -444,6 +180,410 @@ approval, per-environment значения. Всё остальное совпа
 **Оценка:** ~15 минут.
 
 ---
+
+
+### ktlint
+
+**Статус:** в работе, отложено до работы с десктопа.
+
+**Сделано:**
+- Плагин `org.jlleitschuh.gradle.ktlint` 14.2.0 подключён
+  в root и app `build.gradle.kts`.
+- `ktlint {}` в `app/build.gradle.kts` с `ignoreFailures = true`
+  и HTML-репортёром (soft mode — violations собираются, CI
+  не падает).
+- Шаги `Run ktlint` + `Upload ktlint report` в
+  `.github/workflows/ci.yml`.
+- CI на ветке `feat/ktlint` зелёный, отчёт в артефактах.
+
+**Осталось (с десктопа):**
+1. Скачать HTML-отчёт из артефактов, оценить объём
+   violations.
+2. Выбрать путь: либо `./gradlew :app:ktlintGenerateBaseline`
+   с последующим `ignoreFailures = false`, либо `.editorconfig`
+   с отключёнными правилами (wildcard imports — сейчас
+   используются повсеместно).
+3. Убрать `ignoreFailures = true`, включить enforcement.
+4. Смержить `feat/ktlint` в `dev`.
+5. Обновить ROADMAP — перенести в «Закрытые задачи».
+
+**Ветка:** `feat/ktlint` на origin (не смерджена).
+
+**Совместимость:** подтверждена — плагин 14.2.0 работает
+с Kotlin 2.4.20 и AGP 9.4.0. Исходный риск снят.
+
+**Оценка оставшихся работ:** ~20 мин на десктопе.
+
+
+
+### detekt
+
+**Статус:** soft mode сделан, ждёт доработки на десктопе.
+
+**Сделано:**
+- Плагин `io.gitlab.arturbosch.detekt` 1.23.8 подключён
+  в root и app `build.gradle.kts`.
+- `detekt {}` с `ignoreFailures = true`,
+  `buildUponDefaultConfig = true`.
+- Шаги `Run detekt` + `Upload detekt report` в
+  `.github/workflows/ci.yml`.
+- CI на ветке `feat/detekt` зелёный, HTML-отчёт
+  в артефактах.
+
+**Осталось (с десктопа):**
+1. Скачать HTML-отчёт, оценить объём violations.
+2. `./gradlew :app:detektBaseline` — сгенерировать baseline.
+3. Убрать `ignoreFailures = true` — включить enforcement.
+4. Смержить `feat/detekt` в `dev`.
+5. Обновить ROADMAP — перенести в «Закрытые задачи».
+
+**Ветка:** `feat/detekt` на origin (не смерджена).
+
+
+---
+
+
+
+## Reconnect-loop для gRPC-стрима цен
+
+**Статус:** запланировано.
+
+**Контекст:** `PriceStreamManager.runGrcpStream` при ошибке
+логирует и завершается. Переподключения нет. Polling (раз в 5 с)
+продолжает работать параллельно, но до следующего `setInterest`
+со сменой union gRPC-стрим мёртв. При длинной сессии пользователь
+видит задержку до 5 секунд на каждой цене.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/api/PriceStreamManager.kt` — метод `runGrcpStream`.
+
+**Шаги:**
+
+1. Обернуть `repository.subscribeLastPrices(...).collect { ... }`
+   в цикл `while (currentCoroutineContext().isActive)` с `try/catch`.
+2. При `CancellationException` — пробросить (штатное завершение).
+3. При прочих исключениях — увеличить `attempt`, вычислить
+   `delayMs` по backoff `[1s, 5s, 15s, 30s, 60s]`, cap 60 с,
+   залогировать `W [prices] gRPC error (attempt=$n), retry in ${ms}ms: ${msg}`,
+   затем `delay(delayMs)`.
+4. При нормальном завершении `collect` — сбросить `attempt = 0`.
+5. Polling (`runPolling`) **не трогать** — он работает параллельно
+   как есть.
+
+**Референсы:**
+- `docs/streams.md` → раздел «Общие принципы» — про разделение
+  каналов и поведение стримов.
+- Официальная документация T-Invest → «Stream-соединения» →
+  «Что делать при разрыве стрима» (экспоненциальная задержка
+  1/10/60 с).
+
+**Ограничения:**
+- **Не унифицировать** с каскадом позиций — семантика разная.
+- **Не подключать** WebSocket — он не нужен, polling дешёв
+  и работает параллельно.
+- **Не менять** сигнатуру `prices: SharedFlow<PriceUpdate>`.
+
+**Критерий готовности:**
+- При искусственном обрыве gRPC-стрима (например, отключить
+  сеть на 10 секунд) стрим переподключается автоматически,
+  в логах видны `W [prices] gRPC error` и повторная подписка.
+- Polling во время паузы продолжает эмитить цены.
+
+**Оценка:** ~30 минут + 15 минут на тест.
+
+**Зависимости:** нет.
+
+
+
+
+## PositionsStreamServiceGrpc — вернуться к стриму позиций
+
+**Статус:** запланировано. Связано с ISSUES.md → «PositionsStream
+не доставляет данные».
+
+**Контекст:** сейчас P&L через polling `PositionStreamManager`
+раз в 10 секунд. Официальный стрим не работал на
+`kotlin-sdk-grpc-core:1.48.1`; были подозрения, что
+`PositionsStreamServiceGrpc` отсутствует в SDK или требует
+отдельных прав.
+
+**Что изменилось:** SDK обновлён 1.48.1 → 1.51.0. Есть шанс,
+что нужный сервис появился.
+
+**Шаги при возврате:**
+1. Проверить наличие `PositionsStreamServiceGrpc` в артефакте
+   `kotlin-sdk-grpc-core:1.51.0` (распаковать jar/AAR,
+   `grep -r PositionsStreamServiceGrpc`).
+2. Если есть — написать минимальный тест-подписки вне
+   приложения (отдельный `main`, не трогая `PositionStreamManager`).
+3. Песочница: проверить `UNAUTHENTICATED: 40003` — воспроизводится
+   ли на 1.51.0.
+4. Боевой: проверить, приходит ли `hasPosition()`.
+5. Если работает — перевести `PositionStreamManager` на стрим,
+   polling оставить как fallback на случай разрыва.
+6. Если не работает — обновить ISSUES.md с новыми деталями и
+   оставить polling.
+
+**Оценка:** ~2 часа на проверку + ~2 часа на миграцию, если
+сервис рабочий.
+
+**Когда вернуться:** сразу после CI-задач 1–3 (быстрые победы),
+до задач 4, 5, 6.
+
+
+
+## Каскад обновления позиций
+
+**Статус:** запланировано.
+
+**Контекст:** сейчас `TInvestMarketDataService.subscribePositions`
+реализует polling через `fetchPositionsRest` раз в 10 секунд.
+gRPC-стрим не подключён. Официальная документация T-Invest
+рекомендует переподключаться при отсутствии данных.
+`PositionsStream` живёт в `OperationsStreamService`
+(`PositionsStreamServiceGrpc` не существует).
+
+**Предусловия:**
+- SDK `kotlin-sdk-grpc-core:1.51.0` (уже в проекте).
+- Проверить в артефакте наличие `OperationsStreamServiceCoroutineStub`
+  и классов `PositionsStreamRequest` / `PositionsStreamResponse`.
+
+**Файлы:**
+- `data/api/TInvestMarketDataService.kt` — основной файл.
+- `data/api/TInvestChannelFactory.kt` — возможно, добавить
+  канал `operationsStream` в `Channels`.
+- `domain/models/Portfolio.kt` — модель `PositionStreamItem`
+  (уже есть, не менять без причины).
+
+**Шаги:**
+
+1. Рефакторинг: переименовать текущий `subscribePositions`
+   → `subscribePositionsPolling` (private). Сборка.
+2. Добавить заглушки `subscribePositionsGrpc(accountId): Flow<PositionStreamItem>?`
+   и `subscribePositionsWebSocket(accountId): Flow<PositionStreamItem>?`,
+   обе возвращают `null`. Сборка.
+3. Реализовать `subscribePositions(accountId)` как циклический
+   каскад в `channelFlow`:
+   - gRPC-уровень → при ошибке/завершении → WS-уровень;
+   - WS-уровень → при ошибке/завершении → polling один раз;
+   - polling → `delay(RETRY_DELAY_MS = 10_000)` → повтор цикла.
+   - `LevelOutcome { Ended, Cancelled, Fatal }` для управления.
+   - Fatal (`NOT_FOUND` по счёту) останавливает каскад.
+   Сборка.
+4. Реализовать gRPC-уровень через
+   `OperationsStreamServiceCoroutineStub(channel).positionsStream(flowOf(request))`.
+   - `request = PositionsStreamRequest.newBuilder()
+     .addAccounts(accountId)
+     .setWithInitialPositions(true)
+     .build()`.
+   - Конвертеры `V1PositionsSecurities` → `PositionStreamItem`
+     и `V1PositionsFutures` → `PositionStreamItem`.
+   - Поле `balance` — **String**, конвертировать через `toLongOrNull()`.
+   Сборка.
+5. Реализовать WebSocket-уровень (после получения схемы сообщений).
+   - OkHttp 5.4.0 (уже в зависимостях).
+   - Рассмотреть использование Ktor для мультиплатформенности
+   - URL: `wss://invest-public-api.tbank.ru/ws/`.
+   - Заголовки: `Authorization: Bearer <token>`, `Web-Socket-Protocol: json`.
+   Сборка.
+6. Реализовать `subscribePositionsPolling` как одиночный
+   `fetchPositionsRest` (без внутреннего `while` и `delay`).
+   Сборка.
+7. Debug-логи с префиксом `[positions]` на каждом переходе
+   (уровни D/I/W/E — см. «Референсы»).
+
+**Референсы:**
+- `RussianInvestments/invest-api-kotlin-sdk` →
+  `kotlin-sdk-grpc-example/src/main/kotlin/ru/ttech/piapi/example/`
+  → `OperationStreamServiceExample.kt`, метод `examplePositionsStream`.
+- `operations.proto` в пакете `ru.tinkoff.piapi.contract.v1` —
+  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
+- `docs/streams.md` → раздел «PositionsStream» — история попыток.
+
+**Ограничения:**
+- **Не использовать** `PositionsStreamServiceGrpc` — класса не существует.
+- **Не переподключаться чаще, чем раз в 3 секунды** —
+  документация T-Invest предупреждает: «не пытайтесь
+  переподключаться слишком часто — это может усугубить ситуацию».
+- **Не использовать `retryWhen`** — цикл сам управляет
+  переподключениями.
+- **Не унифицировать** с каскадом цен — семантика разная
+  (sequential vs parallel sources).
+- Polling не должен «подниматься» обратно на gRPC внутри
+  одной итерации — только через cooldown и полный повтор.
+
+**Критерий готовности:**
+- При обрыве gRPC-стрима каскад переходит на WS без паузы.
+- При обрыве WS — один polling-fetch, затем `delay(10s)`, затем
+  повтор с gRPC.
+- `NOT_FOUND` по счёту останавливает каскад.
+- В `logcat` видны `[positions]`-сообщения на каждом переходе.
+- Unit-тесты (при наличии) зелёные, сборка зелёная.
+
+**Оценка:** ~4 часа (рефакторинг 30 мин, gRPC 2 ч, WS 1.5 ч).
+
+**Зависимости:** нет. Блокирует «StreamState в data-слое»
+и «UI-индикатор состояния стримов».
+
+**Открытые вопросы:**
+- Точная структура JSON-конверта для подписки через WebSocket.
+  Источник: официальная AsyncAPI-спецификация T-Invest API →
+  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
+  Канал: `/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`.
+  Схема сообщений соответствует proto-контракту
+  (`V1PositionsStreamRequest` / `V1PositionsStreamResponse`).
+- Точный состав полей `V1PositionsSecurities` / `V1PositionsFutures`.
+  Где искать: распаковать AAR 1.51.0.
+
+**Референс для WebSocket-уровня:**
+- AsyncAPI-спецификация: `src/docs/ws/asyncapi.yaml` в репозитории
+  `RussianInvestments/investAPI`.
+- URL: `wss://invest-public-api.tbank.ru/ws/`
+- Заголовки: `Authorization: Bearer <token>`,
+  `Web-Socket-Protocol: json` (или `json-proto`).
+- Формат: protobuf JSON mapping.
+
+
+
+
+## StreamState в data-слое
+
+**Статус:** запланировано.
+
+**Контекст:** для UI-индикатора деградации стримов нужен
+реактивный источник состояния. Полезен и без UI — для логов,
+AppMetrica, отладки.
+
+**Предусловия:** имеет смысл делать после каскада позиций
+(иначе состояние не будет отражать все уровни).
+
+**Файлы:**
+- `domain/models/StreamState.kt` — новый файл.
+- `domain/api/PriceStreamManager.kt` — добавить
+  `connectionState: StateFlow<StreamState>`.
+- `domain/api/PositionStreamManager.kt` — то же.
+
+**Шаги:**
+
+1. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`.
+2. В `PriceStreamManager` завести `private val _connectionState =
+   MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
+   Обновлять при переходе между gRPC и polling, при ошибках,
+   при отсутствии обновлений > 15 секунд (→ STALE).
+3. В `PositionStreamManager` — аналогично. Порог STALE — 30 секунд.
+4. «Биржа закрыта» ≠ STALE: если polling возвращает цену
+   (пусть и неизменную), состояние остаётся POLLING.
+
+**Референсы:** нет.
+
+**Ограничения:**
+- **Не менять** публичный контракт `prices: SharedFlow<...>`.
+- Не путать STALE с отсутствием интереса — STOPPED при пустом union.
+
+**Критерий готовности:**
+- `connectionState` реактивно меняется при переключении
+  источников и при отсутствии данных.
+- В `logcat` при смене состояния видно `[stream] state: LIVE → POLLING`
+  (или аналогичное).
+
+**Оценка:** ~30 минут.
+
+**Зависимости:** блокируется каскадом позиций
+и reconnect-loop для цен.
+
+
+## UI-индикатор состояния стримов
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** пользователь не может оценить на глаз,
+актуальны ли данные. Индикатор снимает вопрос
+«это задержка или данные устарели».
+
+**Предусловия:** StreamState реализован в обоих менеджерах.
+
+**Файлы:**
+- `presentation/.../MainScreen.kt` (или где определён NavBar) —
+  бейдж-точка на иконке вкладки.
+- `presentation/.../SettingsScreen.kt` — раздел «Диагностика».
+- `presentation/.../MainViewModel.kt` (или соответствующие
+  ViewModels) — проброс `StreamState` в UI.
+
+**UI-описание:**
+
+- **Бейдж-точка** на иконке вкладки:
+  - Заявки → `PriceStreamManager.connectionState`;
+  - Портфель → `PositionStreamManager.connectionState`;
+  - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
+  - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
+  - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
+- **Snackbar** при переходе в деградацию:
+  - debounce 3 секунды;
+  - тексты: см. п. «Тексты» ниже;
+  - восстановление в LIVE — без Snackbar.
+- **Раздел «Диагностика»** в Настройках:
+  - текущее состояние обоих стримов;
+  - время последнего обновления;
+  - источник (gRPC/REST/WS);
+  - расшифровка цветов бейджа.
+
+**Тексты:**
+- POLLING (цены): «Стрим цен: резервный режим. Обновление раз в 5 секунд.»
+- POLLING (позиции): «Стрим позиций: резервный режим. Обновление раз в 10 секунд.»
+- STALE (цены): «Стрим цен: нет данных. Проверьте соединение.»
+- STALE (позиции): «Стрим позиций: нет данных. Проверьте соединение.»
+
+**Ограничения:**
+- **Не менять** цвет текста NavBar — конфликт с семантикой
+  selected/unselected.
+- **Не делать** long-press на вкладке — не discoverable,
+  конфликт с системным long-press. Подсказка доступна через
+  раздел «Диагностика».
+
+**Критерий готовности:**
+- При переходе стрима в POLLING появляется жёлтая точка
+  и один Snackbar (не повторяется каждые N секунд).
+- При STALE — красная точка и Snackbar.
+- Раздел «Диагностика» показывает актуальное состояние.
+
+**Оценка:** ~2 часа.
+
+**Зависимости:** блокируется StreamState.
+
+
+## Унификация каскадов стримов
+
+**Статус:** отложено.
+
+**Контекст:** два каскада — цены (параллельные источники)
+и позиции (последовательный каскад). Возник вопрос: выделить
+общий движок.
+
+**Предусловия:** каскад позиций и reconnect-loop для цен
+должны быть реализованы и обкатаны.
+
+**Решение:** **не унифицировать.** Семантики принципиально
+разные. Преждевременная абстракция рискует усложнить оба каскада.
+
+**Что можно выделить без унификации:**
+- reconnect-loop с backoff (см. отдельную задачу для цен);
+- единый формат `[stream]`-логов;
+- health-check как отдельный wrapper.
+
+**Когда вернуться:** после того, как оба каскада заработают.
+Тогда станет видно, есть ли реально общий код, достойный выделения.
+
+**Оценка:** ~1 час на анализ, ~2 часа на рефакторинг,
+если решение окажется положительным.
+
+
+
+
+---
+---
+
 ## Закрытые задачи
 
 ### ✅ Единый источник цен (PriceStreamManager)
@@ -553,6 +693,39 @@ build-скрипте. AGP 9.x его не требует, но и не конф�
 `3.25.8` — намеренный pin для совместимости с gRPC и
 T-Invest SDK.
 
+### ✅ Удаление legacy `.webp`-иконок
+
+Удалены `ic_launcher.webp` и `ic_launcher_round.webp` из
+`mipmap-{hdpi,mdpi,xhdpi,xxhdpi,xxxhdpi}/`. Файлы
+`ic_launcher_foreground.webp` оставлены — на них ссылается
+adaptive XML `mipmap-anydpi/ic_launcher.xml`. Иконка
+в лаунчере проверена на устройстве.
+
+**Возможное улучшение в будущем:** перенести
+`ic_launcher_foreground` в `drawable-{density}/` или заменить
+векторным foreground. Отдельная задача, не в этой.
+
+### ✅ versionName в GitHub Release (отменено)
+
+Исходная задача из эпохи GitLab CI: добавить `Release vX.Y.Z`
+в description. В GitHub это решено через `name: Release
+${{ inputs.tag }}` в `release.yml` — версия видна в заголовке
+релиза, дублирование в body не нужно
+
+### ✅ Смена лицензии GPL v3 → Apache 2.0
+
+`LICENSE` заменён на Apache 2.0, `README.md` обновлён.
+Автор один, стороннего GPL-кода нет, SPDX-заголовков
+в исходниках нет. Юридическая оговорка о неотзываемости
+GPL для уже распространённых копий зафиксирована в README.
+
+### ✅ Обновление compileSdk до 37
+
+`compileSdk = 37`, `targetSdk = 36`. AGP 9.4.0 поддерживает
+API 37. Доступ к новым API Android 17 без активации изменений
+поведения. `targetSdk` оставлен на 36 — Google Play пока
+требует только его.
+
 ### ✅ Обновление GitHub Actions до Node.js 24
 
 - `actions/checkout`: v4 → v6
@@ -588,5 +761,43 @@ CI/CD перенесён с GitLab на GitHub Actions.
 `.gitlab-ci.yml` сохранён для будущего восстановления
 пайплайна через self-hosted runner (см. ROADMAP →
 «Self-hosted GitLab Runner через Ansible + Podman»).
+
+### ✅ Renovate: self-hosted через GitHub Actions
+
+Автоматическое отслеживание обновлений Gradle-зависимостей
+через self-hosted Renovate в GitHub Actions.
+
+- `renovate.json` — группировка Kotlin/KSP/Compose Compiler,
+  Hilt, AndroidX Compose, gRPC. `protobuf-*` отключены
+  (намеренный pin 3.25.8 для GeneratedMessageV3).
+- `.github/workflows/renovate.yml` — запуск раз в неделю по
+  расписанию (суббота 00:00 UTC) + `workflow_dispatch` для
+  ручного теста. Расписание только в cron; в `renovate.json`
+  блоки `schedule` и `timezone` отсутствуют.
+- PAT бот-аккаунта `tscalp-renovate-bot` (scope `repo` +
+  `workflow`), хранится как Secret `RENOVATE_TOKEN`.
+  Срок действия 90 дней — обновлять по уведомлению.
+- Default branch в GitHub переключён с `master` на `dev`:
+  workflows индексируются только из default branch.
+
+### ✅ Coverage в unit-tests
+
+Инструмент — **Kover** (не JaCoCo). Миграция выполнена.
+
+- `kover {}` в `app/build.gradle.kts`: exclusions для Hilt,
+  Compose, BuildConfig, Dagger; порог `minBound(3)` по инструкциям.
+- CI: `koverXmlReportDebug`, `koverHtmlReportDebug`,
+  `koverVerifyDebug` в `ci.yml`.
+- Итоговое покрытие: **4.53%** инструкций, 7.86% веток.
+- Отчёт сохраняется в артефактах CI, HTML доступен в браузере.
+
+**Отложено:** per-class пороги (`PositionFormatter` 70%,
+`CurrencyUtils` 70%, `CalculateTradeDetailsUseCase` 50% и т.д.).
+Синтаксис per-class правил в Kover требует проверки — сначала
+работает общий порог. Вернуться при следующей итерации по
+покрытию.
+
+**Итог:** JaCoCo полностью удалён из проекта, Kover единственный
+инструмент покрытия.
 
 ---
