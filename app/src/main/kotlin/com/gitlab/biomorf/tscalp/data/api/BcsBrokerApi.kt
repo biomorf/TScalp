@@ -84,8 +84,8 @@ class BcsBrokerApi : BrokerApi {
     }
 
     private suspend fun obtainAccessToken() {
-        val token = refreshToken ?: throw IllegalStateException("Refresh token not set")
-        val cid = clientId ?: throw IllegalStateException("Client ID not set")
+        val token = requireNotNull(refreshToken) { "Refresh token not set" }
+        val cid = requireNotNull(clientId) { "Client ID not set" }
         val formBody =
             FormBody
                 .Builder()
@@ -107,16 +107,26 @@ class BcsBrokerApi : BrokerApi {
                 AppLogger.e("BcsBrokerApi", "Ошибка получения access-токена: ${response.code}, тело: $errorBody")
                 throw IOException("Ошибка получения access-токена: ${response.code}")
             }
-            val responseBody = response.body.string().ifBlank { throw IOException("Пустой ответ") }
-            val map: Map<String, Any> = gson.fromJson(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
-            accessToken = map["access_token"] as? String ?: throw IOException("Не найден access_token в ответе")
-            val expiresIn = (map["expires_in"] as? Double)?.toLong() ?: 3600
-            tokenExpiry = System.currentTimeMillis() + expiresIn * 1000
-            AppLogger.d("BcsBrokerApi", "Access-токен получен успешно, истекает через $expiresIn сек")
+            parseAccessTokenResponse(response.body.string())
         } catch (e: Exception) {
             AppLogger.e("BcsBrokerApi", "Ошибка обмена токена", e)
             throw e
         }
+    }
+
+    /**
+     * Разбирает JSON-ответ BCS на access-токен и срок действия.
+     * Устанавливает [accessToken] и [tokenExpiry].
+     *
+     * @throws IOException если тело пустое или в нём нет access_token.
+     */
+    private fun parseAccessTokenResponse(responseBody: String) {
+        val body = responseBody.ifBlank { throw IOException("Пустой ответ") }
+        val map: Map<String, Any> = gson.fromJson(body, object : TypeToken<Map<String, Any>>() {}.type)
+        accessToken = map["access_token"] as? String ?: throw IOException("Не найден access_token в ответе")
+        val expiresIn = (map["expires_in"] as? Double)?.toLong() ?: 3600
+        tokenExpiry = System.currentTimeMillis() + expiresIn * 1000
+        AppLogger.d("BcsBrokerApi", "Access-токен получен успешно, истекает через $expiresIn сек")
     }
 
     private suspend fun ensureAccessToken() {
