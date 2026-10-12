@@ -268,9 +268,6 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 ---
 
----
----
-
 ## Переход на edge-to-edge (statusBarColor deprecated)
 
 **Статус:** запланировано, требует отдельной подготовки.
@@ -288,9 +285,6 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 **Оценка:** ~2 часа + прогон на устройствах разных версий.
 **Когда:** при подготовке релиза под Android 15 или target SDK 36.
-
----
-
 
 ---
 
@@ -334,7 +328,10 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 **Запланировано** (в порядке приоритета):
 
-## Self-hosted GitLab Runner через Ansible + Podman
+
+
+
+### Self-hosted GitLab Runner через Ansible + Podman
 
 **Статус:** запланировано.
 
@@ -378,7 +375,10 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 ---
 
-## Переход на GitHub Environment secrets
+
+
+
+### Переход на GitHub Environment secrets
 
 **Статус:** запланировано. Отложено до появления триггера.
 
@@ -425,35 +425,6 @@ approval, per-environment значения. Всё остальное совпа
 
 ---
 
-
-
-
-
-### detekt
-
-**Статус:** soft mode сделан, ждёт доработки на десктопе.
-
-**Сделано:**
-- Плагин `io.gitlab.arturbosch.detekt` 1.23.8 подключён
-  в root и app `build.gradle.kts`.
-- `detekt {}` с `ignoreFailures = true`,
-  `buildUponDefaultConfig = true`.
-- Шаги `Run detekt` + `Upload detekt report` в
-  `.github/workflows/ci.yml`.
-- CI на ветке `feat/detekt` зелёный, HTML-отчёт
-  в артефактах.
-
-**Осталось (с десктопа):**
-1. Скачать HTML-отчёт, оценить объём violations.
-2. `./gradlew :app:detektBaseline` — сгенерировать baseline.
-3. Убрать `ignoreFailures = true` — включить enforcement.
-4. Смержить `feat/detekt` в `dev`.
-5. Обновить ROADMAP — перенести в «Закрытые задачи».
-
-**Ветка:** `feat/detekt` на origin (не смерджена).
-
-
----
 
 
 
@@ -544,6 +515,7 @@ approval, per-environment значения. Всё остальное совпа
 
 **Когда вернуться:** сразу после CI-задач 1–3 (быстрые победы),
 до задач 4, 5, 6.
+
 
 
 
@@ -707,6 +679,8 @@ AppMetrica, отладки.
 и reconnect-loop для цен.
 
 
+
+
 ## UI-индикатор состояния стримов
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -766,6 +740,8 @@ AppMetrica, отладки.
 **Зависимости:** блокируется StreamState.
 
 
+
+
 ## Унификация каскадов стримов
 
 **Статус:** отложено.
@@ -790,6 +766,8 @@ AppMetrica, отладки.
 
 **Оценка:** ~1 час на анализ, ~2 часа на рефакторинг,
 если решение окажется положительным.
+
+
 
 
 ## Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
@@ -839,9 +817,10 @@ AppMetrica, отладки.
 
 **Зависимости:** нет.
 
+---
 
----
----
+
+
 
 ## Закрытые задачи
 
@@ -1090,5 +1069,62 @@ CI/CD перенесён с GitLab на GitHub Actions.
 
 **Итог:** `:app:ktlintCheck` падает при любом новом
 нарушении стиля. CI блокирует merge. 63 unit-теста зелёные.
+
+### ✅ detekt enforcement
+
+Плагин мигрирован с `io.gitlab.arturbosch.detekt` 1.23.8 на
+`dev.detekt` 2.0.0-alpha.6. CI-job `detekt` выполняется на
+push и PR в `dev` / `master`.
+
+**Сделано:**
+
+- **Миграция плагина.** Стабильная ветка 1.x несовместима
+  с JDK 25: она передаёт `--jvm-target 25`, который Kotlin
+  2.0.21 (встроенный в detekt 1.x) отвергает. Alpha-ветка
+  2.x поддерживает JDK 25, Kotlin 2.4, AGP 9.x.
+  Config переехал из `detekt {}` в
+  `tasks.withType<dev.detekt.gradle.Detekt>().configureEach {}`,
+  `jvmTarget.set("25")` явно.
+- **`config/detekt/detekt.yml`.** Отключены правила, дающие
+  ложные срабатывания или конфликтующие со стилем проекта:
+  `FunctionNaming` (Compose), `MatchingDeclarationName`,
+  `WildcardImport`, `MaxLineLength`, `ReturnCount`,
+  `TooGenericExceptionCaught`, `TooGenericExceptionThrown`,
+  `SwallowedException`, `UnusedParameter`. Настроены
+  `MagicNumber` (ignoreNumbers), `ComplexCondition`
+  (allowedConditions=4), `ConstructorParameterNaming`
+  (excludeClassPattern для `InstrumentUi`/`FutureUi`/`ShareUi`).
+- **Ручные фиксы группы 4** (16 issues):
+    - `CustomTrustManager.printStacktrace` → `AppLogger.w`;
+    - мёртвый `parseDate` в `TInvestOrdersService` удалён
+      (восстановление — см. ROADMAP → «Парсинг expireDate»);
+    - TODO-комментарии `FinamBrokerApi` → class-level KDoc
+      со ссылкой на «Реализация Finam Broker API»;
+    - `PositionFormatterTest` перемещён в `util/`;
+    - `PositionStreamManager` перемещён в `domain.api`;
+    - `BcsBrokerApi.obtainAccessToken` разбит на
+      `obtainAccessToken` + `parseAccessTokenResponse`
+      (фикс `ThrowsCount`);
+    - `TScalpApplication.onCreate` разбит на
+      `restoreBrokerConnection` + `restoreTInvest` + `restoreBcs`
+      (фикс `LoopWithTooManyJumpStatements` и
+      `CyclomaticComplexMethod`).
+- **Baseline для `MagicNumber`** (45 записей) —
+  `app/detekt-baseline.xml`. Массовые UI-размеры и
+  alpha/color-константы, точечное подавление непрактично.
+- **`@Suppress` для архитектурного долга** —
+  `LongMethod`, `CyclomaticComplexMethod`,
+  `TooManyFunctions`, `LargeClass` (32 issues) подавлены
+  с inline-комментариями и ссылками на ROADMAP →
+  «Рефакторинг архитектурного долга (detekt-группа 3)».
+- **`ignoreFailures = false`** — enforcement включён.
+
+**Итог:** `:app:detekt` падает при любом новом нарушении.
+CI блокирует merge. 63 unit-теста зелёные.
+
+**Открытие:** `@Suppress("UnusedParameter")` в detekt
+2.0.0-alpha.6 игнорируется — правило пришлось отключить
+целиком. Для остальных правил группы 3 `@Suppress`
+работает.
 
 ---
