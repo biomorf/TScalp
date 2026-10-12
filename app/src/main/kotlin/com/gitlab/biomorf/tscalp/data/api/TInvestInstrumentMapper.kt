@@ -16,6 +16,9 @@ object TInvestInstrumentMapper {
      * @param minPriceIncrementAmountOverride стоимость пункта для фьючерсов,
      *        полученная из getFuturesMargin. Для не-фьючерсов игнорируется.
      */
+    // Архитектурный долг: функция требует декомпозиции.
+    // См. ROADMAP → «Рефакторинг data-слоя T-Invest».
+    @Suppress("LongMethod")
     fun mapProtoToDomain(
         instrument: Instrument,
         minPriceIncrementAmountOverride: Double? = null,

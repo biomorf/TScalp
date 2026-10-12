@@ -53,6 +53,8 @@ import ru.tinkoff.piapi.contract.v1.SubscriptionAction
  * Маркет-данные, портфель, стримы и счета T-Invest.
  * Работает на разделяемом TInvestApiState.
  */
+// Архитектурный долг: 19 функций в классе. См. ROADMAP → «Рефакторинг data-слоя T-Invest».
+@Suppress("TooManyFunctions")
 class TInvestMarketDataService(
     private val state: TInvestApiState,
 ) {
@@ -125,6 +127,9 @@ class TInvestMarketDataService(
             }
         }
 
+    // Архитектурный долг: функция требует декомпозиции.
+    // См. ROADMAP → «Рефакторинг data-слоя T-Invest».
+    @Suppress("CyclomaticComplexMethod")
     suspend fun fetchPositionsRest(
         accountId: String,
         sandboxMode: Boolean,
