@@ -14,7 +14,14 @@ naming:
     # Отключено по аналогии с ktlint filename — не критично.
     MatchingDeclarationName:
         active: false
-
+    # Поля `ttech_uid` и `ttech_figi` в InstrumentUi — осознанное
+    # исключение T-Invest (см. AGENTS.md → «Идентификаторы
+    # инструментов»). Правило исключает семейство InstrumentUi
+    # через regex по имени класса; остальные конструкторы
+    # остаются под проверкой.
+    ConstructorParameterNaming:
+        excludeClassPattern: 'InstrumentUi$|FutureUi$|ShareUi$'
+        
 style:
     # Разрешены .editorconfig для ktlint. Detekt не читает
     # .editorconfig, но правило конфликтует с принятым стилем.
