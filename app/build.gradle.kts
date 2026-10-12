@@ -42,7 +42,7 @@ plugins {
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.kover")
     id("org.jlleitschuh.gradle.ktlint")
-    id("io.gitlab.arturbosch.detekt")
+    id("dev.detekt")
 }
 
 android {
@@ -370,8 +370,12 @@ ktlint {
     }
 }
 
-detekt {
+tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
     buildUponDefaultConfig = true
     ignoreFailures = true
-    baseline = file("detekt-baseline.xml")
+    jvmTarget.set("25")
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    reports {
+        html.required.set(true)
+    }
 }
