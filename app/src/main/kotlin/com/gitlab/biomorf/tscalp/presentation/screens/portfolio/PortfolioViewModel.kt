@@ -277,6 +277,9 @@ class PortfolioViewModel
             }
         }
 
+        // Архитектурный долг: функция требует декомпозиции.
+        // См. ROADMAP → «Рефакторинг ViewModel-слоя».
+        @Suppress("LongMethod")
         fun payInSandbox() {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }

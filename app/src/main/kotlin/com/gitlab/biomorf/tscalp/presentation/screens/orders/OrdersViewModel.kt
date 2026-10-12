@@ -412,6 +412,9 @@ class OrdersViewModel
 
         fun onSellClick() = viewModelScope.launch { postOrder(OrderDirection.SELL) }
 
+        // Архитектурный долг: функция требует декомпозиции.
+        // См. ROADMAP → «Рефакторинг ViewModel-слоя».
+        @Suppress("LongMethod", "CyclomaticComplexMethod")
         private suspend fun postOrder(direction: OrderDirection) {
             val state = _uiState.value
             val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return
