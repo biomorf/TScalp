@@ -19,6 +19,9 @@ class PrepareOrderRequestUseCase(
         val isPairedStop: Boolean?,
     )
 
+    // Архитектурный долг: функция требует декомпозиции.
+    // См. ROADMAP → «Рефакторинг UseCase-слоя».
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun prepare(
         brokerName: BrokerName,
         ticker: String,
