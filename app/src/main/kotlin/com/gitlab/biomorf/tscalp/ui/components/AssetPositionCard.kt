@@ -32,6 +32,15 @@ import com.gitlab.biomorf.tscalp.util.PositionFormatter
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
+/**
+ * Содержимое карточки позиции без обёртки Card.
+ *
+ * [tradingAvailability] в текущей реализации не используется —
+ * данные передаются из UI (PortfolioScreen, OrdersScreen), но
+ * визуальный индикатор статуса доступности инструмента ещё
+ * не реализован. См. ROADMAP → «Индикатор доступности
+ * инструмента в карточке позиции».
+ */
 @Composable
 fun AssetPositionCard(
     position: PortfolioPosition,
