@@ -182,37 +182,6 @@ approval, per-environment значения. Всё остальное совпа
 ---
 
 
-### ktlint
-
-**Статус:** в работе, отложено до работы с десктопа.
-
-**Сделано:**
-- Плагин `org.jlleitschuh.gradle.ktlint` 14.2.0 подключён
-  в root и app `build.gradle.kts`.
-- `ktlint {}` в `app/build.gradle.kts` с `ignoreFailures = true`
-  и HTML-репортёром (soft mode — violations собираются, CI
-  не падает).
-- Шаги `Run ktlint` + `Upload ktlint report` в
-  `.github/workflows/ci.yml`.
-- CI на ветке `feat/ktlint` зелёный, отчёт в артефактах.
-
-**Осталось (с десктопа):**
-1. Скачать HTML-отчёт из артефактов, оценить объём
-   violations.
-2. Выбрать путь: либо `./gradlew :app:ktlintGenerateBaseline`
-   с последующим `ignoreFailures = false`, либо `.editorconfig`
-   с отключёнными правилами (wildcard imports — сейчас
-   используются повсеместно).
-3. Убрать `ignoreFailures = true`, включить enforcement.
-4. Смержить `feat/ktlint` в `dev`.
-5. Обновить ROADMAP — перенести в «Закрытые задачи».
-
-**Ветка:** `feat/ktlint` на origin (не смерджена).
-
-**Совместимость:** подтверждена — плагин 14.2.0 работает
-с Kotlin 2.4.20 и AGP 9.4.0. Исходный риск снят.
-
-**Оценка оставшихся работ:** ~20 мин на десктопе.
 
 
 
@@ -799,5 +768,37 @@ CI/CD перенесён с GitLab на GitHub Actions.
 
 **Итог:** JaCoCo полностью удалён из проекта, Kover единственный
 инструмент покрытия.
+
+### ✅ ktlint enforcement
+
+Плагин `org.jlleitschuh.gradle.ktlint` 14.2.0 подключён
+в root и app `build.gradle.kts`. CI-job `ktlintCheck`
+выполняется на push и PR в `dev` / `master`.
+
+**Сделано:**
+
+- `.editorconfig` в корне проекта: отключены правила,
+  конфликтующие со стилем проекта:
+    - `function-naming` — Compose-функции по соглашению
+      начинаются с большой буквы;
+    - `no-wildcard-imports` — используются повсеместно;
+    - `max-line-length` — узко для Compose-экранов;
+    - `filename` — не критично для проекта.
+- `ktlintFormat` — автофикс ~2200 нарушений
+  (trailing-comma, indent, comment-spacing, import-ordering,
+  multiline-expression-wrapping, redundant curly braces,
+  final newline, consecutive blank lines).
+- Вручную исправлены 16 неавтофиксируемых нарушений:
+  дублирующие KDoc (`TInvestInstrumentMapper`),
+  EOL-комментарии перед KDoc (`BrokerApi`),
+  комментарии на строке value-параметра
+  (`OrderModels`, `TradingStatus`, `BrokerAccountDialog`),
+  однострочный `if` со скобками (`OrdersViewModel`).
+- `ignoreFailures = false` — enforcement включён.
+  Baseline не нужен: все три отчёта (main, test, kotlin-script)
+  показывают no issues.
+
+**Итог:** `:app:ktlintCheck` падает при любом новом
+нарушении стиля. CI блокирует merge. 63 unit-теста зелёные.
 
 ---
