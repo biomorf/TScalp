@@ -428,10 +428,22 @@ gRPC-стрим не подключён. Официальная документ
 и «UI-индикатор состояния стримов».
 
 **Открытые вопросы:**
-- Точная схема WebSocket-сообщения для подписки на позиции.
-  Где искать: Dart-SDK `tbank_invest_websocket.dart`, поддержка T-Invest.
-- Точный состав полей `V1PositionsSecurities` / `V1PositionsFutures`
-  в proto-контракте. Где искать: распаковать AAR 1.51.0.
+- Точная структура JSON-конверта для подписки через WebSocket.
+  Источник: официальная AsyncAPI-спецификация T-Invest API →
+  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
+  Канал: `/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`.
+  Схема сообщений соответствует proto-контракту
+  (`V1PositionsStreamRequest` / `V1PositionsStreamResponse`).
+- Точный состав полей `V1PositionsSecurities` / `V1PositionsFutures`.
+  Где искать: распаковать AAR 1.51.0.
+
+**Референс для WebSocket-уровня:**
+- AsyncAPI-спецификация: `src/docs/ws/asyncapi.yaml` в репозитории
+  `RussianInvestments/investAPI`.
+- URL: `wss://invest-public-api.tbank.ru/ws/`
+- Заголовки: `Authorization: Bearer <token>`,
+  `Web-Socket-Protocol: json` (или `json-proto`).
+- Формат: protobuf JSON mapping.
 
 
 
