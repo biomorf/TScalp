@@ -548,6 +548,52 @@ AppMetrica, отладки.
 если решение окажется положительным.
 
 
+## Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
+
+**Статус:** запланировано. Потерянная логика.
+
+**Контекст:** в `TInvestOrdersService.kt:155` устанавливался
+`expireDate` через `parseDate(request.expireDate)`, но метод
+`parseDate` возвращал пустой `com.google.protobuf.Timestamp` —
+то есть фактически ничего не парсил. Это была недописанная
+логика. При чистке detekt-issues (UnusedParameter) метод
+и его вызов удалены, чтобы не оставлять сломанный код.
+
+**Последствие:** при создании stop-order с типом экспирации
+`GOOD_TILL_DATE` поле `expireDate` в `PostStopOrderRequest`
+не устанавливается. Такие заявки либо отклоняются биржей,
+либо обрабатываются некорректно.
+
+**Файлы:**
+- `data/api/TInvestOrdersService.kt` — восстановить парсинг.
+- `domain/models/OrderModels.kt` — `expireDate` в
+  `StopOrderRequest` (нужно уточнить формат — String?).
+
+**Шаги:**
+1. Уточнить формат `expireDate`, приходящего из UI
+   (ISO-8601? unix timestamp? yyyy-MM-dd?).
+2. Уточнить формат, ожидаемый T-Invest API:
+   `com.google.protobuf.Timestamp` (секунды + наносекунды
+   от epoch UTC).
+3. Реализовать парсер с обработкой ошибок
+   (невалидный формат → возвращать `AppResult.Failure`).
+4. Восстановить вызов `builder.setExpireDate(...)` при
+   `expirationType == GOOD_TILL_DATE`.
+5. Покрыть unit-тестом.
+
+**Референс:**
+- Документация T-Invest API → PostStopOrder → expireDate.
+- `com.google.protobuf.Timestamp` — стандартный proto-тип,
+  поля `seconds` (int64), `nanos` (int32).
+
+**Критерий готовности:**
+- Stop-order с `GOOD_TILL_DATE` создаётся и принимается
+  биржей; `expireDate` в запросе совпадает с UI-значением.
+- Покрыто тестом.
+
+**Оценка:** ~1 час.
+
+**Зависимости:** нет.
 
 
 ---
