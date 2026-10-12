@@ -375,6 +375,7 @@ tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
     ignoreFailures = true
     jvmTarget.set("25")
     config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("detekt-baseline.xml")
     reports {
         html.required.set(true)
     }
