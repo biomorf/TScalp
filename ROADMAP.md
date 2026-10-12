@@ -105,6 +105,172 @@ Finam в UI.
 
 ---
 
+## Рефакторинг архитектурного долга (detekt-группа 3)
+
+**Статус:** запланировано.
+
+**Контекст:** при внедрении detekt 2.0.0-alpha.6 (см. задачу
+`detekt` в разделе выше) выявлены 10 групп архитектурного
+долга. Правила `LongMethod`, `CyclomaticComplexMethod`,
+`TooManyFunctions`, `LargeClass` подавлены в коде через
+`@Suppress` со ссылкой на эту секцию. `MagicNumber` (45
+записей) зафиксирован в `app/detekt-baseline.xml`.
+
+**Общие предусловия:**
+- Перед рефакторингом каждой группы — прогнать тесты,
+  зафиксировать текущее поведение.
+- Разбивать на подзадачи: один класс / одна функция за раз,
+  коммит после каждого шага (правило 4b AGENTS.md).
+- После рефакторинга — снять `@Suppress`, убедиться что
+  detekt проходит без него.
+
+**Общие ограничения:**
+- Не менять UI без санкции (правило 1 AGENTS.md).
+- Не ломать публичные контракты без миграции вызывающих.
+- Тесты (63 unit) должны оставаться зелёными.
+
+**Общий критерий готовности:** все `@Suppress` из этой секции
+сняты; `:app:detekt` проходит без новых подавлений; тесты
+зелёные.
+
+**Оценка:** ~15–20 часов суммарно.
+
+**Зависимости:** нет.
+
+### BrokerApi-реализации
+
+**Файлы:** `data/api/BcsBrokerApi.kt` (25 функций),
+`data/api/FinamBrokerApi.kt` (24), `data/api/TInvestBrokerApi.kt`
+(22), `domain/api/BrokerApi.kt` (интерфейс, 19).
+
+**Пути решения:**
+- Разделить `BrokerApi` на ролевые интерфейсы (`AccountsApi`,
+  `OrdersApi`, `MarketDataApi`, `StreamsApi`) с агрегацией.
+- Разбить реализации на сервисы по образцу
+  `TInvestMarketDataService` / `TInvestOrdersService`.
+
+**Оценка:** ~3 часа.
+
+### Репозитории
+
+**Файлы:** `data/repository/InvestRepository.kt` (17 функций),
+`data/repository/SettingsRepository.kt` (15).
+
+**Пути решения:** разбить по доменным областям (аккаунты,
+заявки, портфель, стримы — для `InvestRepository`; токены,
+настройки UI, режим sandbox — для `SettingsRepository`).
+
+**Оценка:** ~2 часа.
+
+### ViewModel-слой
+
+**Файлы:**
+- `presentation/screens/orders/OrdersViewModel.kt` — 49 функций,
+  LargeClass; `postOrder` (172 строки, complexity 28).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` —
+  12 функций; `payInSandbox` (61 строка).
+- `presentation/screens/settings/SettingsViewModel.kt` —
+  20 функций.
+
+**Пути решения:** вынести бизнес-логику в UseCase,
+оставить во ViewModel только состояние и делегирование.
+Для `OrdersViewModel` — возможно разделение на
+`OrderFormViewModel` / `OrderListViewModel`.
+
+**Оценка:** ~5 часов.
+
+### UseCase-слой
+
+**Файлы:**
+- `domain/usecases/CalculateTradeDetailsUseCase.kt` —
+  `calculate` (complexity 25).
+- `domain/usecases/PrepareOrderRequestUseCase.kt` —
+  `prepare` (92 строки, complexity 20).
+
+**Пути решения:** разбить `calculate` на отдельные функции
+по типу заявки (market/limit/stop). `prepare` — вынести
+валидацию, сборку request, разрешение uid в отдельные шаги.
+
+**Оценка:** ~2 часа.
+
+### Data-слой T-Invest
+
+**Файлы:**
+- `data/api/TInvestMarketDataService.kt` — 19 функций;
+  `fetchPositionsRest` (complexity 26).
+- `data/api/TInvestInstrumentMapper.kt` — `mapProtoToDomain`
+  (118 строк).
+
+**Пути решения:** `fetchPositionsRest` разбить на
+`fetchPositions` + `enrichWithInstrumentData` +
+`enrichWithMarginData`. `mapProtoToDomain` — на
+`mapFutures` / `mapShares` / `mapDefault`.
+
+**Оценка:** ~2 часа.
+
+### Compose-экраны
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — `OrdersScreen`
+  (646 строк, complexity 69), `InstrumentSearchField`
+  (130 строк, complexity 16).
+- `presentation/screens/portfolio/PortfolioScreen.kt` (161 строка,
+  complexity 19).
+- `presentation/screens/settings/SettingsScreen.kt` —
+  `TInvestSettingsPanel` (324 строки, complexity 35),
+  `BcsSettingsPanel` (182), `FinamSettingsPanel` (149).
+
+**Пути решения:** вынести секции экрана в приватные
+composables. Для `OrdersScreen` — отдельно форма заявки,
+список, поиск, диалоги.
+
+**Оценка:** ~6 часов.
+
+### Compose-компоненты
+
+**Файлы:**
+- `ui/components/AssetPositionCard.kt` — `AssetPositionCard`
+  (109 строк), `AssetCardContent` (136 строк, complexity 20).
+- `ui/components/BrokerAccountDialog.kt` (105 строк).
+- `ui/components/OrdersListViewModel.kt` — `loadOrders`
+  (62 строки).
+
+**Оценка:** ~2 часа.
+
+### Классификатор ошибок
+
+**Файлы:**
+- `util/AppResultExtensions.kt` — `Throwable.toAppError`
+  (66 строк, complexity 26).
+
+**Пути решения:** разбить на per-broker обработчики
+(`toTInvestError`, `toBcsError`, `toFinamError`) с
+диспетчеризацией по `BrokerName`.
+
+**Оценка:** ~1 час.
+
+### Индикатор доступности инструмента в карточке позиции
+
+**Файлы:**
+- `ui/components/AssetPositionCard.kt` — параметр
+  `tradingAvailability` объявлен, но не используется.
+
+**Контекст:** данные передаются из UI (`PortfolioScreen`,
+`OrdersScreen`), но визуальный индикатор не реализован.
+UI-изменение требует санкции (правило 1 AGENTS.md).
+
+**Пути решения:** добавить в карточку бейдж или цветовой
+индикатор статуса. Тексты и иконки согласовать заранее.
+
+**Оценка:** ~1 час (после санкции на UI).
+
+**Когда вернуться:** при следующей итерации по UI портфеля.
+
+---
+
+---
+---
+
 ## Переход на edge-to-edge (statusBarColor deprecated)
 
 **Статус:** запланировано, требует отдельной подготовки.
