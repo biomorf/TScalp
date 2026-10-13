@@ -1213,121 +1213,6 @@ secrets» (становится этапом 4) и «Hot-swap CI на GitLab»
   этапе 5.
 
 
-## Перенос ROADMAP и ISSUES в docs/
-
-**Мобильная работа:** полное закрытие. `git mv`, правки
-`.md`, проверка `grep` — доступно через proot-терминал.
-Сборка не требуется.
-
-**Статус:** запланировано.
-
-**Контекст:** корень проекта пухнет: `README.md`, `LICENSE`,
-`AGENTS.md`, `ISSUES.md`, `ROADMAP.md`. Файлы смешиваются
-с конфигами и кодом. `docs/` уже есть — справочные
-материалы там. Логично перенести планирование в `docs/`,
-оставив в корне только конвенциональные файлы.
-
-**Принцип:** конвенциональное — не трогаем. Всё остальное —
-в `docs/`.
-
-**Что остаётся в корне:**
-- `README.md` — конвенция GitHub/GitLab (рендерится на
-  главной).
-- `LICENSE` — юридическая конвенция (SPDX-автоопределение,
-  GitHub «About»).
-- `AGENTS.md` — конвенция ИИ-агентов (Claude Code, Cursor,
-  Aider ищут в корне).
-
-**Что переносится в `docs/`:**
-- `ROADMAP.md` → `docs/ROADMAP.md`
-- `ISSUES.md` → `docs/ISSUES.md`
-
-**Что уже в `docs/`:**
-- `docs/gradle-setup.md`
-- `docs/release-process.md`
-- `docs/streams.md`
-
-**Целевая структура:**
-
-```
-/
-├── README.md
-├── LICENSE
-├── AGENTS.md
-└── docs/
-    ├── ROADMAP.md
-    ├── ISSUES.md
-    ├── gradle-setup.md
-    ├── release-process.md
-    └── streams.md
-```
-
-**Файлы для правок:**
-
-1. `ROADMAP.md` → `docs/ROADMAP.md` — `git mv`.
-2. `ISSUES.md` → `docs/ISSUES.md` — `git mv`.
-3. `AGENTS.md` — 13 упоминаний `ROADMAP.md`/`ISSUES.md`:
-   - правило 5b — сократить до `docs/`, `AGENTS.md`;
-   - правило 5d — `docs/ROADMAP.md`;
-   - правило 5e — `docs/ROADMAP.md`, `docs/ISSUES.md`;
-   - правило 5f — `docs/ROADMAP.md`;
-   - раздел «Документы проекта» — полные пути;
-   - «После правок» — `docs/ISSUES.md`;
-   - «Запрещено» — `docs/ROADMAP.md` / `docs/ISSUES.md`;
-   - «Всё планируемое — в документах» — `docs/ROADMAP.md`;
-   - «Пометка о мобильной работе» — `docs/ROADMAP.md`.
-4. `docs/ROADMAP.md` — 2 ссылки на `ISSUES.md` (строки
-   ~452, ~475) → `docs/ISSUES.md`.
-5. `docs/ISSUES.md` — проверить ссылки на `ROADMAP.md`
-   (если есть) → `docs/ROADMAP.md`.
-6. `docs/release-process.md`, `docs/streams.md`,
-   `docs/gradle-setup.md` — `grep` на `ROADMAP`/`ISSUES`,
-   поправить при наличии.
-7. `README.md` — проверить ссылки на `ROADMAP.md`/
-   `ISSUES.md`, поправить.
-8. Grep-проверка в конце: во всём проекте не должно
-   остаться ссылок на `ROADMAP.md` / `ISSUES.md` без
-   префикса `docs/`.
-
-**Шаги:**
-
-1. `git mv ROADMAP.md docs/ROADMAP.md`.
-2. `git mv ISSUES.md docs/ISSUES.md`.
-3. Правки ссылок в `AGENTS.md`.
-4. Правки ссылок в `docs/ROADMAP.md` и `docs/ISSUES.md`.
-5. Правки ссылок в `docs/release-process.md`,
-   `docs/streams.md`, `docs/gradle-setup.md`.
-6. Правки ссылок в `README.md`.
-7. Финальная проверка `grep`.
-8. Коммит: `docs: move ROADMAP and ISSUES into docs/`.
-
-**Референсы:** нет.
-
-**Ограничения:**
-- `README.md`, `LICENSE`, `AGENTS.md` остаются в корне —
-  это конвенции.
-- Не менять содержимое `ROADMAP.md` / `ISSUES.md` в этом
-  коммите — только перемещение и ссылки.
-- Отдельный коммит на закрытие задачи (перенос секции в
-  закрытые) — но он уже будет в `docs/ROADMAP.md`.
-
-**Критерий готовности:**
-- `docs/ROADMAP.md` и `docs/ISSUES.md` существуют, в корне
-  их нет.
-- `grep -rn "ROADMAP.md\|ISSUES.md" --include="*.md" .`
-  показывает только ссылки с префиксом `docs/` (или внутри
-  самих файлов, что нормально).
-- `AGENTS.md` правило 5b сокращено, раздел «Документы
-  проекта» содержит полные пути.
-- Никаких битых относительных ссылок в `.md`.
-
-**Оценка:** ~40 минут.
-
-**Зависимости:** нет. Делается до создания
-`docs/ci-roadmap.md` и `docs/git-flow.md`, чтобы сразу
-класть новые файлы в правильную структуру.
-
-
 ---
 
 ## Закрытые задачи
@@ -1663,5 +1548,44 @@ Workflow `ci.yml` больше не запускается на коммитах
 **Итог:** экономия CI-минут на документационных коммитах.
 Полный CI по-прежнему срабатывает на любом коммите с кодом
 (`app/**`, `gradle/**`, `build.gradle.kts`, `.github/**`).
+
+cat >> docs/ROADMAP.md <<'EOF'
+
+### ✅ Перенос ROADMAP и ISSUES в docs/
+
+Планирование проекта вынесено из корня в `docs/`.
+
+**Сделано:**
+
+- `git mv ROADMAP.md docs/ROADMAP.md`,
+  `git mv ISSUES.md docs/ISSUES.md`.
+- В `AGENTS.md` обновлены все ссылки (13 упоминаний):
+  `ROADMAP.md`/`ISSUES.md` → `docs/ROADMAP.md`/`docs/ISSUES.md`.
+- Правило 5b упрощено: перечисление конкретных путей
+  заменено на `docs/` или `AGENTS.md`. Полные пути остались
+  в разделе «Документы проекта».
+- В `docs/ROADMAP.md` поправлены 2 ссылки на `docs/ISSUES.md`.
+- Остальные `docs/*.md` и `README.md` проверены — прямых
+  ссылок на `ROADMAP.md`/`ISSUES.md` не было.
+
+**Структура после миграции:**
+```
+
+/
+├── README.md
+├── LICENSE
+├── AGENTS.md
+└── docs/
+├── ROADMAP.md
+├── ISSUES.md
+├── gradle-setup.md
+├── release-process.md
+└── streams.md
+
+```
+
+**Итог:** в корне остались только конвенциональные файлы
+(`README.md`, `LICENSE`, `AGENTS.md`). Вся проектная
+документация — в `docs/`.
 
 ---
