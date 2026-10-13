@@ -1030,7 +1030,187 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
   параметры? Проверить при старте задачи.
 
 
+## Переход на полный GitFlow
 
+**Мобильная работа:** частичное. Rulesets (через web Settings),
+документация (`.md` в proot), workflow-правки (proot + push)
+— доступны с телефона. Проверка CI — через Actions UI.
+Первая настоящая проверка полного цикла (сборка release
+bundle, публикация в Play Store) — на десктопе.
+
+**Статус:** запланировано. Реализуется поэтапно.
+
+**Контекст:** сейчас упрощённая схема: `master` защищён,
+`dev` — нет, релизы через теги из `dev`, публикация в
+GitHub Releases. Планируется: Play Store, отдельный
+тестировщик (role emulation через второй GitHub-аккаунт),
+рост команды. Организационный слой нужно подготовить
+заранее — см. AGENTS.md → правило 2b.
+
+**Осознанные отклонения от канона (зафиксировать в
+`docs/git-flow.md`):**
+
+1. **Имя ветки `dev`** вместо канонического `develop`.
+   Причина: миграция имени = rulesets, workflows, docs,
+   локальные ветки у всех участников. Не стоит этого.
+2. **Merge-стратегия — Merge commit везде**, включая
+   `feature/* → dev`. Канон GitFlow рекомендует Squash для
+   feature-ветвей; у нас стратегия завязана на сохранение
+   SHA между `dev` и `master` (см. `docs/release-process.md`).
+   Squash переписывает SHA и приводит к расхождению ветвей.
+   Отдельная задача «Рассмотреть Squash vs Merge commit»
+   исследует вопрос.
+
+**Предусловия:** нет.
+
+**Этапы:**
+
+### Этап 1 — Rulesets
+
+**Файлы:** GitHub Settings → Rules → Rulesets.
+
+**Что сделать:**
+
+1. Защитить `dev` как `master`:
+   - Require a pull request before merging;
+   - Required approvals: 0 (пока один разработчик; вернуться
+     при появлении второго);
+   - Require status checks to pass (`CI / build`);
+   - Block force pushes;
+   - Restrict deletions.
+2. Ruleset для `release/**`:
+   - Require PR (source: `dev`);
+   - Block force pushes, restrict deletions.
+3. Ruleset для `hotfix/**`:
+   - Require PR (source: `master`);
+   - Block force pushes, restrict deletions.
+
+**Оценка:** ~30 минут.
+
+### Этап 2 — Соглашение о ветках и merge-стратегиях
+
+**Файлы:** `docs/git-flow.md` (новый), `docs/release-process.md`
+(правка), `AGENTS.md` (правила работы с ветками).
+
+**Структура веток:**
+
+- `master` — только релизы. Защищена.
+- `dev` — интеграция. Защищена. PR только из
+  `feature/*`, `bugfix/*`, `release/*`, `hotfix/*`.
+- `feature/<name>` — от `dev`. Одна фича = одна ветка.
+- `bugfix/<issue-id>` — от `dev`. Один баг = одна ветка.
+- `release/<vX.Y.Z>` — от `dev`. Стабилизация перед
+  релизом. Сюда — только фиксы, не фичи.
+- `hotfix/<vX.Y.Z>` — от `master`. Экстренный фикс прода.
+  После закрытия — обратный merge в `master` и `dev`.
+
+**Стратегии merge:**
+
+- `feature/* → dev`: Merge commit. SHA коммитов сохраняются.
+- `bugfix/* → dev`: Merge commit.
+- Создание `release/*`: ветка от `dev` (без merge).
+- `release/* → master`: Merge commit + тег `vX.Y.Z`.
+- `master → dev` (обратный merge после релиза): Merge commit.
+- `hotfix/* → master`: Merge commit + тег `vX.Y.(Z+1)`.
+- `hotfix/* → dev`: Cherry-pick или Merge commit — решить
+  на практике при первом hotfix.
+
+**Что отменяется:** схема `dev → master` напрямую (через
+Merge commit) больше **не используется**. Релизы идут через
+`release/*`. Схема из «Переезд CI на GitHub Actions»
+сохраняется как историческая запись, но новым соглашением
+отменяется. Пометку о пересмотре добавить в
+`docs/release-process.md`.
+
+**Оценка:** ~1 час.
+
+### Этап 3 — Реструктуризация workflow
+
+**Файлы:** `.github/workflows/`.
+
+**Уровни проверок:**
+
+| Триггер | Уровень | Что запускается | ~Время |
+|---|---|---|---|
+| Push в `feature/*`, `bugfix/*` | Fast | `testDebugUnitTest`, `ktlintCheck`, `detekt`, `lintDebug` | 2–3 мин |
+| PR в `dev` / `release/**` / `hotfix/**` | Fast (required) | то же | 2–3 мин |
+| Push в `dev` | Full | Fast + `assembleDebug` + `koverVerifyDebug` + артефакт APK | 5–7 мин |
+| Push в `release/**` | Release | Full + `bundleRelease` + upload в Google Play Internal | 8–10 мин |
+| Tag `v*` на `master` | Production | Release + upload в Google Play Production | 10 мин |
+
+**Решение по структуре файлов:** один `ci.yml` с разными
+job'ами и `if:`-условиями **или** разбить на `ci-fast.yml`,
+`ci-full.yml`, `ci-release.yml`, `release.yml`. Решить на
+старте этапа. Предварительно склоняюсь к разбивке — легче
+читать и отлаживать.
+
+**Что сохранить:** `paths-ignore` для docs-only коммитов
+(уже сделано).
+
+**Оценка:** ~3 часа.
+
+### Этап 4 — Environment secrets + публикация
+
+**Файлы:** GitHub Settings → Environments, workflows.
+
+**Что сделать:**
+
+1. Environment `release` с секретами (миграция 4 секретов
+   из Repository secrets — уже запланировано отдельной
+   задачей «Переход на GitHub Environment secrets», которая
+   становится подзадачей этой).
+2. Google Play Service Account JSON → Environment secret
+   `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
+3. Firebase App Distribution token + appId → Environment
+   secrets.
+4. Обновить workflow'ы: `environment: release` в job'ах,
+   которые публикуют.
+
+**Оценка:** ~2 часа.
+
+### Этап 5 — Role emulation для тестировщика
+
+**Файлы:** GitHub Settings → Collaborators, Rulesets.
+
+**Что сделать:**
+
+1. Создать второй GitHub-аккаунт (`tscalp-qa` или аналог).
+2. Добавить как Collaborator с ролью Read или Triage.
+3. Настроить Ruleset `dev` с `Required approvals: 1` —
+   PR требует approve от второго аккаунта.
+4. Документировать процесс в `docs/git-flow.md`.
+
+**Когда:** после этапов 1–3, когда процесс уже работает
+и approve будет реальным шагом, а не формальностью.
+
+**Оценка:** ~30 минут.
+
+### Этап 6 — Документация
+
+**Файлы:**
+- `docs/git-flow.md` (новый) — полный цикл с Mermaid-
+  диаграммой, стратегии merge, отклонения от канона.
+- `docs/release-process.md` — обновить: убрать `dev → master`
+  напрямую, добавить `release/*` и `hotfix/*`.
+- `AGENTS.md` — правила работы с ветками (какие ветки, какие
+  PR куда, стратегия merge).
+
+**Оценка:** ~1.5 часа.
+
+**Общая оценка:** ~9–10 часов.
+
+**Зависимости:** нет. Блокирует «Переход на GitHub Environment
+secrets» (становится этапом 4) и «Hot-swap CI на GitLab»
+(структура workflow определяет структуру `.gitlab-ci.yml`).
+
+**Открытые вопросы:**
+- Один workflow-файл с `if:` или разбивка на несколько?
+  Решить на старте этапа 3.
+- Cherry-pick или Merge commit для `hotfix/* → dev`?
+  Решить после первого hotfix.
+- Как эмулировать тестировщика — Triage-роль (не может
+  approve) или Maintainer с ограничениями? Уточнить на
+  этапе 5.
 
 ---
 
