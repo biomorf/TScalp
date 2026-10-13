@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.util.AppLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -50,6 +50,13 @@ class PriceStreamManager
     ) {
         companion object {
             private const val TAG = "PriceStreamManager"
+
+            /**
+             * Задержки между попытками переподключения gRPC-стрима
+             * при ошибке. Экспоненциальный backoff с cap 60 секунд —
+             * см. ROADMAP → «Reconnect-loop для gRPC-стрима цен».
+             */
+            private val RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
         }
 
         /** Текущие интересы: ключ потребителя → набор tscalpInstrumentId. */
@@ -135,18 +142,47 @@ class PriceStreamManager
          * Подписывается на gRPC-стрим цен и эмитит каждое обновление
          * в общий поток [prices].
          *
-         * При ошибке стрим логируется и завершается. Переподключение
-         * не делаем — REST-fallback (подкоммит 3) закроет паузы.
+         * Переподключается при ошибке с экспоненциальным backoff
+         * (1s / 5s / 15s / 30s / 60s, cap 60s). Polling работает
+         * параллельно и прикрывает паузы между попытками.
          */
         private suspend fun runGrcpStream(union: Set<String>) {
             val broker = BrokerName.TINVEST
-            repository
-                .subscribeLastPrices(broker, union.toList())
-                .catch { e -> AppLogger.e(TAG, "gRPC stream error", e) }
-                .collect { (tscalpId, price) ->
-                    AppLogger.d(TAG, "[gRPC/${broker.key}] $tscalpId = $price")
-                    _prices.emit(PriceUpdate(broker, tscalpId, price))
+            var attempt = 0
+            while (currentCoroutineContext().isActive) {
+                try {
+                    repository
+                        .subscribeLastPrices(broker, union.toList())
+                        .collect { (tscalpId, price) ->
+                            AppLogger.d(TAG, "[gRPC/${broker.key}] $tscalpId = $price")
+                            _prices.emit(PriceUpdate(broker, tscalpId, price))
+                        }
+                    // Сервер закрыл стрим штатно. Сбрасываем attempt
+                    // и пробуем подключиться заново без задержки.
+                    attempt = 0
+                    AppLogger.d(TAG, "[prices] gRPC stream completed by server, reconnecting")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    attempt++
+                    val delayMs = retryDelayMs(attempt)
+                    AppLogger.w(
+                        TAG,
+                        "[prices] gRPC error (attempt=$attempt), retry in ${delayMs}ms: ${e.message}",
+                        e,
+                    )
+                    delay(delayMs)
                 }
+            }
+        }
+
+        /**
+         * Задержка перед следующей попыткой переподключения.
+         * attempt — номер попытки начиная с 1.
+         */
+        private fun retryDelayMs(attempt: Int): Long {
+            val idx = (attempt - 1).coerceIn(0, RETRY_DELAYS_MS.lastIndex)
+            return RETRY_DELAYS_MS[idx]
         }
 
         /**
