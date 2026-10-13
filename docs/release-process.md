@@ -6,8 +6,9 @@
 **Основной CI сейчас — GitHub Actions.** GitLab CI временно
 отключён: квота Free Tier исчерпана. Пайплайн GitLab будет
 восстановлен после настройки self-hosted runner'а
-(см. ROADMAP → «Self-hosted GitLab Runner через Ansible +
-Podman»). Раздел про GitLab-релиз сохранён ниже и помечен
+(см. `docs/ci-roadmap.md` → «Self-hosted GitLab Runner через
+Ansible + Podman»). Раздел про GitLab-релиз сохранён ниже и
+помечен
 как временно отключённый.
 
 ## Версии
@@ -60,8 +61,8 @@ repository secret`. Используются в `release.yml`.
 не отображается в UI.
 
 Про Environment secrets (approval, ограничение по тегам,
-per-environment значения) — см. ROADMAP → «Переход на GitHub
-Environment secrets».
+per-environment значения) — см. `docs/ci-roadmap.md` →
+«Переход на GitHub Environment secrets».
 
 ### GitLab CI/CD Variables (временно отключены)
 
@@ -259,7 +260,8 @@ merge-коммитом на каждый PR. Для одиночного про�
 
 Пайплайн сохранён в `.gitlab-ci.yml`, но не запускается:
 квота Free Tier исчерпана. Будет восстановлен после настройки
-self-hosted runner'а (см. ROADMAP).
+self-hosted runner'а (см. `docs/ci-roadmap.md` →
+«Self-hosted GitLab Runner через Ansible + Podman»).
 
 Порядок — тот же, что для GitHub Actions, но с MR вместо PR
 и `release-cli` вместо `softprops/action-gh-release`:
