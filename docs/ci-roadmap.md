@@ -568,19 +568,18 @@ cat >> docs/ROADMAP.md <<'EOF'
   ссылок на `ROADMAP.md`/`ISSUES.md` не было.
 
 **Структура после миграции:**
-```
 
+```
 /
 ├── README.md
 ├── LICENSE
 ├── AGENTS.md
 └── docs/
-├── ROADMAP.md
-├── ISSUES.md
-├── gradle-setup.md
-├── release-process.md
-└── streams.md
-
+    ├── ROADMAP.md
+    ├── ISSUES.md
+    ├── gradle-setup.md
+    ├── release-process.md
+    └── streams.md
 ```
 
 **Итог:** в корне остались только конвенциональные файлы
