@@ -955,108 +955,6 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
 
 
 
-## CI: пропускать сборку на docs-only коммитах
-
-**Мобильная работа:** частичное (правка `.yml` и проверка
-через web UI; локальная сборка не требуется).
-
-**Статус:** запланировано.
-
-**Контекст:** `ci.yml` запускается на каждый push и PR в
-`dev` / `master`, включая коммиты, которые трогают только
-`*.md` (ROADMAP, ISSUES, AGENTS, docs/, README). Это тратит
-CI-минуты и замедляет работу — а в этих коммитах нет кода,
-который надо собирать или тестировать.
-
-**Зачем:** экономия CI-минут + более быстрый фидбэк на
-docs-only PR. За последние две сессии у нас было ~30
-docs-only коммитов — это существенная доля всех запусков.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `.github/workflows/ci.yml` — блок `on:`.
-- `.github/workflows/release.yml` — не трогаем, он на теге.
-- `.github/rulesets/` или GitHub Settings — если required
-  checks настроены на `CI / build`, нужно учесть поведение
-  при пропущенном workflow.
-
-**Проблема с required status checks:**
-
-Если на PR в `dev` / `master` включён required check
-(например, `CI / build`), то при пропуске workflow по
-`paths-ignore` GitHub показывает «Expected — Waiting for
-status to be reported» и блокирует merge. Это известная
-особенность GitHub Actions.
-
-**Варианты решения:**
-
-**A. `paths-ignore` + отдельный job-«notifier».**
-- В `on:` добавить `paths-ignore: ['**.md', 'docs/**', 'LICENSE', ...]`.
-- В `jobs:` добавить job с именем, совпадающим с required
-  check, который всегда проходит, если основной workflow
-  пропущен.
-- Сложно: нужно следить, чтобы оба job'а выдавали
-  одинаковый name.
-
-**B. Разделить на два workflow.**
-- `ci.yml` — code-only, `paths: ['app/**', 'build.gradle.kts', ...]`.
-- `ci-docs.yml` — docs-only, `paths-ignore: [...]`, простой
-  `echo "docs only"` job.
-- В Rulesets required check переключается на этот
-  `ci-docs.yml` job.
-
-**C. `paths-ignore` без required checks.**
-- Если required checks сейчас не настроены — просто добавить
-  `paths-ignore` и не париться.
-- Проверить текущие Rulesets в GitHub Settings.
-
-**D. Ничего не делать.**
-- Если CI-минуты не проблема (public repo с бесплатным
-  GitHub Actions) — оставить как есть.
-
-**План:**
-
-1. Проверить текущие Rulesets и required checks в GitHub
-   Settings → Rules.
-2. Выбрать вариант (A / B / C) в зависимости от того, есть
-   ли required checks на `dev` / `master`.
-3. Реализовать.
-4. Проверить: создать тестовый docs-only PR → CI должен
-   либо пропуститься, либо отработать минимально.
-5. Проверить: PR с кодом → полный CI должен отработать.
-
-**Референсы:**
-- GitHub Actions: `paths` и `paths-ignore` в `on:`:
-  https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore
-- Обсуждение проблемы с required checks при пропуске workflow:
-  github/community issue.
-
-**Ограничения:**
-- **Не пропускать** CI на PR с изменениями в
-  `build.gradle.kts`, `gradle/`, `app/`, `.github/workflows/`
-  — только на чисто документационных.
-- **Не менять** `release.yml` — он запускается на теги, не
-  на коммиты.
-- **Не ломать** required checks — если они есть, выбрать
-  вариант A или B.
-
-**Критерий готовности:**
-- Push коммита с изменениями только в `*.md` / `docs/`
-  не запускает `testDebugUnitTest` / `lint` / `assembleDebug`.
-- Push коммита с любым файлом кода запускает полный CI.
-- Required checks на PR в `dev` / `master` продолжают
-  работать без ложных блокировок.
-
-**Оценка:** ~30 минут.
-
-**Зависимости:** нет.
-
-**Открытые вопросы:**
-- Есть ли сейчас required checks на `dev` / `master`?
-  Проверить при старте задачи.
-- Если да — какой вариант (A или B) использовать.
-
 ---
 
 ## Compose Preview для компонентов
@@ -1440,5 +1338,34 @@ CI блокирует merge. 63 unit-теста зелёные.
 2.0.0-alpha.6 игнорируется — правило пришлось отключить
 целиком. Для остальных правил группы 3 `@Suppress`
 работает.
+
+### ✅ CI: пропускать сборку на docs-only коммитах
+
+Workflow `ci.yml` больше не запускается на коммитах, которые
+трогают только документацию.
+
+**Сделано:**
+
+- В `.github/workflows/ci.yml` в блоки `push` и
+  `pull_request` добавлен `paths-ignore`:
+  - `**.md` — все Markdown-файлы (ROADMAP, ISSUES, AGENTS,
+    README, docs/*.md);
+  - `docs/**` — директория документации;
+  - `LICENSE` — файл лицензии.
+- Rulesets на `dev` не настроены (проверено — только
+  `Protect master` и два ruleset'а для тегов), поэтому
+  required checks не мешают — обошлись без notifier-job'а
+  и без разделения на два workflow.
+- `release.yml` не тронут — он срабатывает на теги, а не на
+  push/PR.
+
+**Проверено:**
+
+- Коммит с правкой `ci.yml` — CI запустился и зелёный.
+- Docs-only коммит — workflow не запустился.
+
+**Итог:** экономия CI-минут на документационных коммитах.
+Полный CI по-прежнему срабатывает на любом коммите с кодом
+(`app/**`, `gradle/**`, `build.gradle.kts`, `.github/**`).
 
 ---
