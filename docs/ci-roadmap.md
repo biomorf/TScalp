@@ -588,3 +588,57 @@ cat >> docs/ROADMAP.md <<'EOF'
 документация — в `docs/`.
 
 ---
+
+
+### ✅ Разделение планирования: dev-roadmap / ci-roadmap
+
+CI/CD-планирование вынесено в отдельный файл `docs/ci-roadmap.md`.
+
+**Сделано:**
+
+- Создан `docs/ci-roadmap.md` с шапкой и обратной ссылкой
+  на `docs/ROADMAP.md`.
+- Перенесены открытые секции:
+  - `## CI/CD улучшения` (с подразделами
+    `### Self-hosted GitLab Runner через Ansible + Podman`,
+    `### Переход на GitHub Environment secrets`);
+  - `## Переход на полный GitFlow`.
+- Перенесены закрытые секции (хронологический порядок
+  сохранён):
+  - Защита ветки master
+  - versionName в GitHub Release
+  - Обновление GitHub Actions до Node.js 24
+  - Переезд CI на GitHub Actions
+  - Renovate: self-hosted через GitHub Actions
+  - Coverage в unit-tests
+  - ktlint enforcement
+  - detekt enforcement
+  - CI: пропускать сборку на docs-only коммитах
+  - Перенос ROADMAP и ISSUES в docs/
+- `docs/ROADMAP.md` содержит только задачи разработки
+  (код, архитектура, data-слой, UI, рефакторинг).
+- В шапках обоих файлов — взаимные ссылки.
+- `docs/release-process.md` — 3 ссылки обновлены на
+  `docs/ci-roadmap.md`.
+- `AGENTS.md` → «Документы проекта»: добавлен
+  `docs/ci-roadmap.md`, уточнено описание
+  `docs/ROADMAP.md` (план разработки), убрана дублирующая
+  строка.
+
+**Принцип разделения (применение правила 2b на уровне
+файлов):**
+
+- **`docs/ROADMAP.md`** — разработка: код, архитектура,
+  data-слой, UI, рефакторинг.
+- **`docs/ci-roadmap.md`** — организация: CI/CD, ветвление,
+  релизный процесс, code quality, публикация артефактов,
+  secrets, environment.
+
+Code-quality инструменты (ktlint, detekt, Kover) живут в
+CI-плане, потому что их роль — гейт на merge через CI,
+а не решение задачи кода.
+
+**Итог:** два файла вместо одного, каждый со своим
+потребителем и слоем.
+
+---
