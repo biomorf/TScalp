@@ -9,159 +9,6 @@
 
 ## Планируемые задачи
 
-### Gate-job для required checks
-
-**Мобильная работа:** частичное. Правка `ci.yml` через proot,
-правка Rulesets через web. Проверка — через Actions UI.
-
-**Статус:** в работе (код готов, ожидается завершение шага 3).
-**Ветка:** feature/gate-job-finalize
-
-**Прогресс:**
-
-- [x] Шаг 1 — `gate` добавлен в `ci.yml`.
-- [x] Шаг 2 — проверен на `feature/gate-job`: gate зелёный,
-  `fast-check` success, `full-build` skipped.
-- [x] Шаг 2 (push) — проверен на push в `dev` после merge
-  PR #12: gate зелёный, `full-build` запустился (success).
-- [ ] Шаг 3 — обновить Ruleset `Protect dev`: required
-  check → `CI / gate (pull_request)`. Ожидает: этот PR
-  засветит gate в picker'е.
-- [ ] Шаг 4 — обновить остальные Rulesets (`Protect master`,
-  `release`, `hotfix`) при первом PR в соответствующие
-  ветки.
-
-**Контекст:** required status checks в GitHub Rulesets
-зависят от picker'а, который показывает только те checks,
-что прогонялись на защищаемой ветке за последние **7 дней**.
-После паузы в проекте >7 дней:
-
-- picker не предлагает нужный check;
-- вписанный вручную check не матчится с рантаймом
-  (например, `CI / fast-check` без суффикса `(pull_request)`
-  не сопоставляется с `CI / fast-check (pull_request)`);
-- PR зависает в состоянии «Expected — Waiting for status
-  to be reported», merge заблокирован.
-
-Пришлось ручным сценарием: снять требование → мержить →
-дать CI прогнаться → вернуть requirement с корректным
-именем. Это повторяется при каждой паузе.
-
-**Цель:** устойчивый required check, который не исчезает
-из picker'а. После паузы любой длительности first push/PR
-запускает CI, check появляется — merge не блокируется.
-
-**Решение — gate-job.**
-
-Добавить в `ci.yml` job `gate`, который:
-
-- запускается всегда (`if: always()`);
-- зависит от `fast-check` и `full-build` (`needs:`);
-- проверяет их результат и падает, если хоть один не
-  завершился успешно;
-- таким образом, **всегда присутствует в CI** → всегда
-  доступен в picker'е.
-
-В Rulesets required check меняется на `CI / gate` во всех
-четырёх branch-ruleset'ах (`dev`, `master`, `release/**`,
-`hotfix/**`).
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `.github/workflows/ci.yml` — добавить job `gate`.
-- GitHub Settings → Rules → 4 branch-rulesets — заменить
-  required check.
-
-**Шаги:**
-
-1. Добавить в `ci.yml` job `gate`:
-
-   ```yaml
-   gate:
-     needs: [fast-check, full-build]
-     if: always()
-     runs-on: ubuntu-latest
-     steps:
-       - name: Verify upstream jobs
-         run: |
-           if [ "${{ needs.fast-check.result }}" != "success" ]; then
-             echo "fast-check did not succeed"
-             exit 1
-           fi
-           if [ "${{ needs.full-build.result }}" != "success" ] \
-              && [ "${{ needs.full-build.result }}" != "skipped" ]; then
-             echo "full-build did not succeed"
-             exit 1
-           fi
-   ```
-   Проверить на feature-ветке: gate запускается, зелёный
-   при успешных upstream, красный — если fast-check упал.
-
-Обновить Rulesets: заменить CI / fast-check (pull_request)
-на CI / gate (pull_request).
-
-Проверить на реальном PR: первый же PR с gate в списке
-checks → merge работает без ручных манипуляций.
-
-Симулировать «паузу»: пропустить неделю и проверить, что
-picker по-прежнему содержит CI / gate (теоретически —
-должен, потому что job есть в CI).
-
-Референсы:
-
-GitHub Docs → Required status checks.
-
-Паттерн gate-job (sometimes called "aggregate check",
-"fan-in job") — стандартный обход особенности picker'а.
-
-Правило 2b AGENTS.md — воспроизводим индустриальный
-процесс.
-
-Ограничения:
-
-Не менять содержимое fast-check / full-build — только
-добавить gate поверх них.
-
-Не менять правила в Rulesets, пока gate не отработает
-на защищаемой ветке (та же проблема с picker'ом — но
-теперь one-time, потому что gate присутствует в каждой
-сборке).
-
-gate не должен ничего собирать — только проверять
-результаты upstream.
-
-При добавлении новых job'ов в ci.yml — включать их в
-needs gate-job'а, иначе не будут блокировать merge.
-
-Критерий готовности:
-
-gate присутствует в ci.yml, запускается на push и PR.
-
-gate зелёный при успешных upstream и красный при
-падении fast-check.
-
-Required check в четырёх Rulesets — CI / gate (pull_request).
-
-Первый PR после паузы >7 дней не зависает: picker
-содержит CI / gate, merge работает.
-
-Оценка: ~30 минут.
-
-Зависимости: нет.
-
-Открытые вопросы:
-
-Имя job'а: gate или ci-complete? Решить при
-реализации.
-
-Нужен ли if: always() + ручная проверка результата, или
-достаточно needs: (тогда job падает автоматически, если
-upstream упал)? Проверить поведение GitHub: при needs
-без if: always() job не запускается, если upstream упал,
-— и не создаёт статус. Значит, if: always() обязателен.
-
-
 ### Role emulation для тестировщика
 
 **Мобильная работа:** полное закрытие. Всё делается через
@@ -875,5 +722,51 @@ CI-плане, потому что их роль — гейт на merge чер�
 индустриальный GitFlow (см. правило 2b AGENTS.md).
 Единственный работающий CI сейчас — GitHub Actions;
 GitLab — резерв (см. `### Hot-swap CI на GitLab`).
+
+### ✅ Gate-job для required checks
+
+Устойчивый required check, который не исчезает из
+picker'а Rulesets после паузы в проекте.
+
+**Проблема:** GitHub Rulesets picker показывает только те
+checks, что прогонялись на защищаемой ветке за последние
+7 дней. После паузы >7 дней required check исчезал из
+picker'а, вписанный вручную не матчился с рантаймом (имя
+check в Rulesets — это имя job'а без префикса workflow,
+а не полное `CI / fast-check (pull_request)`), PR зависал
+в «Expected — Waiting for status to be reported».
+
+**Решение:** job `gate` в `ci.yml`.
+
+- `needs: [fast-check, full-build]`
+- `if: always()` — запускается даже при падении upstream,
+  иначе не создал бы статус и required check завис бы.
+- Проверяет результат upstream: `fast-check` → `success`,
+  `full-build` → `success` или `skipped`.
+- Падает, если проверки не прошли → gate красный → merge
+  заблокирован.
+
+**Сделано:**
+
+- Job `gate` добавлен в `.github/workflows/ci.yml`.
+- Проверен на `feature/gate-job`: gate зелёный,
+  `fast-check` success, `full-build` skipped.
+- Проверен на push в `dev` после merge PR #12: gate
+  зелёный, `full-build` запустился (success).
+- Обновлены все четыре branch-ruleset'а (`Protect dev`,
+  `Protect master`, `Protect release branches`,
+  `Protect hotfix branches`): в required status checks
+  добавлен `gate` (через picker Add checks — не вручную).
+  Из `Protect master` / `release` / `hotfix` удалён
+  ошибочно вписанный `CI / fast-check (pull_request)`.
+
+**Открытие:** required check в Rulesets указывается **по
+имени job'а** (`gate`, `fast-check`), а не по полному
+UI-имени (`CI / gate (pull_request)`). Причина, по которой
+в прошлый раз не работал `CI / fast-check` — мы указывали
+его с префиксом workflow. Правильно — просто `fast-check`.
+
+**Итог:** первый PR после паузы >7 дней запускает CI,
+gate появляется в picker'е, merge не блокируется вручную.
 
 ---
