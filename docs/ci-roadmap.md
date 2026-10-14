@@ -9,6 +9,144 @@
 
 ## Планируемые задачи
 
+### Gate-job для required checks
+
+**Мобильная работа:** частичное. Правка `ci.yml` через proot,
+правка Rulesets через web. Проверка — через Actions UI.
+
+**Статус:** запланировано.
+
+**Контекст:** required status checks в GitHub Rulesets
+зависят от picker'а, который показывает только те checks,
+что прогонялись на защищаемой ветке за последние **7 дней**.
+После паузы в проекте >7 дней:
+
+- picker не предлагает нужный check;
+- вписанный вручную check не матчится с рантаймом
+  (например, `CI / fast-check` без суффикса `(pull_request)`
+  не сопоставляется с `CI / fast-check (pull_request)`);
+- PR зависает в состоянии «Expected — Waiting for status
+  to be reported», merge заблокирован.
+
+Пришлось ручным сценарием: снять требование → мержить →
+дать CI прогнаться → вернуть requirement с корректным
+именем. Это повторяется при каждой паузе.
+
+**Цель:** устойчивый required check, который не исчезает
+из picker'а. После паузы любой длительности first push/PR
+запускает CI, check появляется — merge не блокируется.
+
+**Решение — gate-job.**
+
+Добавить в `ci.yml` job `gate`, который:
+
+- запускается всегда (`if: always()`);
+- зависит от `fast-check` и `full-build` (`needs:`);
+- проверяет их результат и падает, если хоть один не
+  завершился успешно;
+- таким образом, **всегда присутствует в CI** → всегда
+  доступен в picker'е.
+
+В Rulesets required check меняется на `CI / gate` во всех
+четырёх branch-ruleset'ах (`dev`, `master`, `release/**`,
+`hotfix/**`).
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `.github/workflows/ci.yml` — добавить job `gate`.
+- GitHub Settings → Rules → 4 branch-rulesets — заменить
+  required check.
+
+**Шаги:**
+
+1. Добавить в `ci.yml` job `gate`:
+
+   ```yaml
+   gate:
+     needs: [fast-check, full-build]
+     if: always()
+     runs-on: ubuntu-latest
+     steps:
+       - name: Verify upstream jobs
+         run: |
+           if [ "${{ needs.fast-check.result }}" != "success" ]; then
+             echo "fast-check did not succeed"
+             exit 1
+           fi
+           if [ "${{ needs.full-build.result }}" != "success" ] \
+              && [ "${{ needs.full-build.result }}" != "skipped" ]; then
+             echo "full-build did not succeed"
+             exit 1
+           fi
+   ```
+   Проверить на feature-ветке: gate запускается, зелёный
+   при успешных upstream, красный — если fast-check упал.
+
+Обновить Rulesets: заменить CI / fast-check (pull_request)
+на CI / gate (pull_request).
+
+Проверить на реальном PR: первый же PR с gate в списке
+checks → merge работает без ручных манипуляций.
+
+Симулировать «паузу»: пропустить неделю и проверить, что
+picker по-прежнему содержит CI / gate (теоретически —
+должен, потому что job есть в CI).
+
+Референсы:
+
+GitHub Docs → Required status checks.
+
+Паттерн gate-job (sometimes called "aggregate check",
+"fan-in job") — стандартный обход особенности picker'а.
+
+Правило 2b AGENTS.md — воспроизводим индустриальный
+процесс.
+
+Ограничения:
+
+Не менять содержимое fast-check / full-build — только
+добавить gate поверх них.
+
+Не менять правила в Rulesets, пока gate не отработает
+на защищаемой ветке (та же проблема с picker'ом — но
+теперь one-time, потому что gate присутствует в каждой
+сборке).
+
+gate не должен ничего собирать — только проверять
+результаты upstream.
+
+При добавлении новых job'ов в ci.yml — включать их в
+needs gate-job'а, иначе не будут блокировать merge.
+
+Критерий готовности:
+
+gate присутствует в ci.yml, запускается на push и PR.
+
+gate зелёный при успешных upstream и красный при
+падении fast-check.
+
+Required check в четырёх Rulesets — CI / gate (pull_request).
+
+Первый PR после паузы >7 дней не зависает: picker
+содержит CI / gate, merge работает.
+
+Оценка: ~30 минут.
+
+Зависимости: нет.
+
+Открытые вопросы:
+
+Имя job'а: gate или ci-complete? Решить при
+реализации.
+
+Нужен ли if: always() + ручная проверка результата, или
+достаточно needs: (тогда job падает автоматически, если
+upstream упал)? Проверить поведение GitHub: при needs
+без if: always() job не запускается, если upstream упал,
+— и не создаёт статус. Значит, if: always() обязателен.
+
+
 ### Role emulation для тестировщика
 
 **Мобильная работа:** полное закрытие. Всё делается через
