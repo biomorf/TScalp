@@ -7,7 +7,9 @@
 
 ---
 
-## Переход на полный GitFlow
+## Планируемые задачи
+
+### Переход на полный GitFlow
 
 **Мобильная работа:** частичное. Rulesets (через web Settings),
 документация (`.md` в proot), workflow-правки (proot + push)
@@ -42,7 +44,7 @@ GitHub Releases. Планируется: Play Store, отдельный
 
 **Этапы:**
 
-### Этап 1 — Rulesets
+#### Этап 1 — Rulesets
 
 **Файлы:** GitHub Settings → Rules → Rulesets.
 
@@ -64,7 +66,7 @@ GitHub Releases. Планируется: Play Store, отдельный
 
 **Оценка:** ~30 минут.
 
-### Этап 2 — Соглашение о ветках и merge-стратегиях
+#### Этап 2 — Соглашение о ветках и merge-стратегиях
 
 **Файлы:** `docs/git-flow.md` (новый), `docs/release-process.md`
 (правка), `AGENTS.md` (правила работы с ветками).
@@ -101,7 +103,7 @@ Merge commit) больше **не используется**. Релизы ид�
 
 **Оценка:** ~1 час.
 
-### Этап 3 — Реструктуризация workflow
+#### Этап 3 — Реструктуризация workflow
 
 **Файлы:** `.github/workflows/`.
 
@@ -126,7 +128,7 @@ job'ами и `if:`-условиями **или** разбить на `ci-fast.y
 
 **Оценка:** ~3 часа.
 
-### Этап 4 — Environment secrets + публикация
+#### Этап 4 — Environment secrets + публикация
 
 **Файлы:** GitHub Settings → Environments, workflows.
 
@@ -145,7 +147,7 @@ job'ами и `if:`-условиями **или** разбить на `ci-fast.y
 
 **Оценка:** ~2 часа.
 
-### Этап 5 — Role emulation для тестировщика
+#### Этап 5 — Role emulation для тестировщика
 
 **Файлы:** GitHub Settings → Collaborators, Rulesets.
 
@@ -162,7 +164,7 @@ job'ами и `if:`-условиями **или** разбить на `ci-fast.y
 
 **Оценка:** ~30 минут.
 
-### Этап 6 — Документация
+#### Этап 6 — Документация
 
 **Файлы:**
 - `docs/git-flow.md` (новый) — полный цикл с Mermaid-
@@ -191,7 +193,7 @@ secrets» (становится этапом 4) и «Hot-swap CI на GitLab»
 
 
 
-## Hot-swap CI на GitLab
+### Hot-swap CI на GitLab
 
 **Мобильная работа:** частичное. Планирование и правки
 `.gitlab-ci.yml` / `docs/ci-cd.md` — через proot. Проверка
@@ -298,7 +300,7 @@ Actions, которая сама будет перестроена на этап
 
 ---
 
-## CI/CD улучшения
+### CI/CD улучшения
 
 **Статус:** частично сделано, остальное в плане.
 
@@ -341,7 +343,7 @@ Actions, которая сама будет перестроена на этап
 
 
 
-### Self-hosted GitLab Runner через Ansible + Podman
+#### Self-hosted GitLab Runner через Ansible + Podman
 
 **Статус:** запланировано.
 
@@ -388,7 +390,7 @@ Self-hosted даёт бесплатные сборки, полный контр�
 
 ---
 
-### Переход на GitHub Environment secrets
+#### Переход на GitHub Environment secrets
 
 **Статус:** запланировано. Отложено до появления триггера.
 

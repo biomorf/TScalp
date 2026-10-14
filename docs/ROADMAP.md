@@ -8,7 +8,9 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
-## Compose Preview для компонентов
+## Планируемые задачи
+
+### Compose Preview для компонентов
 
 **Статус:** запланировано. Вариант A — сейчас, вариант B —
 опционально после A.
@@ -82,7 +84,7 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
-## Миграция сетевого слоя на Ktor Client (KMP-подготовка)
+### Миграция сетевого слоя на Ktor Client (KMP-подготовка)
 
 **Статус:** запланировано.
 
@@ -191,7 +193,7 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
 
 ---
 
-## Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
+### Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
 
 **Статус:** запланировано. Потерянная логика.
 
@@ -240,7 +242,7 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
 
 ---
 
-## Унификация каскадов стримов
+### Унификация каскадов стримов
 
 **Статус:** отложено.
 
@@ -265,7 +267,7 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
 **Оценка:** ~1 час на анализ, ~2 часа на рефакторинг,
 если решение окажется положительным.
 
-## UI-индикатор состояния стримов
+### UI-индикатор состояния стримов
 
 **Статус:** запланировано. **UI — требует санкции.**
 
@@ -323,7 +325,7 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
 
 **Зависимости:** блокируется StreamState.
 
-## StreamState в data-слое
+### StreamState в data-слое
 
 **Статус:** запланировано.
 
@@ -368,7 +370,7 @@ AppMetrica, отладки.
 **Зависимости:** блокируется каскадом позиций
 и reconnect-loop для цен.
 
-## Каскад обновления позиций
+### Каскад обновления позиций
 
 **Статус:** запланировано.
 
@@ -485,7 +487,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
   `Web-Socket-Protocol: json` (или `json-proto`).
 - Формат: protobuf JSON mapping.
 
-## PositionsStreamServiceGrpc — вернуться к стриму позиций
+### PositionsStreamServiceGrpc — вернуться к стриму позиций
 
 **Статус:** запланировано. Связано с `docs/ISSUES.md` →
 «PositionsStream не доставляет данные».
@@ -519,7 +521,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 **Когда вернуться:** сразу после CI-задач 1–3 (быстрые победы),
 до задач 4, 5, 6.
 
-## Переход на edge-to-edge (statusBarColor deprecated)
+### Переход на edge-to-edge (statusBarColor deprecated)
 
 **Статус:** запланировано, требует отдельной подготовки.
 
@@ -539,7 +541,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 ---
 
-## Рефакторинг архитектурного долга (detekt-группа 3)
+### Рефакторинг архитектурного долга (detekt-группа 3)
 
 **Статус:** запланировано.
 
@@ -571,7 +573,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Зависимости:** нет.
 
-### BrokerApi-реализации
+#### BrokerApi-реализации
 
 **Файлы:** `data/api/BcsBrokerApi.kt` (25 функций),
 `data/api/FinamBrokerApi.kt` (24), `data/api/TInvestBrokerApi.kt`
@@ -585,7 +587,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Оценка:** ~3 часа.
 
-### Репозитории
+#### Репозитории
 
 **Файлы:** `data/repository/InvestRepository.kt` (17 функций),
 `data/repository/SettingsRepository.kt` (15).
@@ -596,7 +598,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Оценка:** ~2 часа.
 
-### ViewModel-слой
+#### ViewModel-слой
 
 **Файлы:**
 - `presentation/screens/orders/OrdersViewModel.kt` — 49 функций,
@@ -613,7 +615,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Оценка:** ~5 часов.
 
-### UseCase-слой
+#### UseCase-слой
 
 **Файлы:**
 - `domain/usecases/CalculateTradeDetailsUseCase.kt` —
@@ -627,7 +629,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Оценка:** ~2 часа.
 
-### Data-слой T-Invest
+#### Data-слой T-Invest
 
 **Файлы:**
 - `data/api/TInvestMarketDataService.kt` — 19 функций;
@@ -642,7 +644,7 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Оценка:** ~2 часа.
 
-### Compose-экраны
+#### Compose-экраны
 
 **Файлы:**
 - `presentation/screens/orders/OrdersScreen.kt` — `OrdersScreen`
@@ -670,7 +672,7 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 **Оценка:** ~6 часов на рефакторинг + ~1–2 часа на preview
 всех экранов (вариант C).
 
-### Compose-компоненты
+#### Compose-компоненты
 
 **Файлы:**
 - `ui/components/AssetPositionCard.kt` — `AssetPositionCard`
@@ -681,7 +683,7 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 **Оценка:** ~2 часа.
 
-### Классификатор ошибок
+#### Классификатор ошибок
 
 **Файлы:**
 - `util/AppResultExtensions.kt` — `Throwable.toAppError`
@@ -693,7 +695,7 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 **Оценка:** ~1 час.
 
-### Индикатор доступности инструмента в карточке позиции
+#### Индикатор доступности инструмента в карточке позиции
 
 **Файлы:**
 - `ui/components/AssetPositionCard.kt` — параметр
@@ -712,7 +714,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 ---
 
-## Реализация Finam Broker API
+### Реализация Finam Broker API
 
 **Статус:** запланировано.
 
@@ -790,7 +792,7 @@ Finam в UI.
 
 ---
 
-## Расшифровка кодов ошибок брокеров
+### Расшифровка кодов ошибок брокеров
 
 **Статус:** частично закрыто.
 
