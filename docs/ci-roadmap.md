@@ -7,253 +7,6 @@
 
 ---
 
-## CI/CD улучшения
-
-**Статус:** частично сделано, остальное в плане.
-
-**Уже работает (инфраструктура):**
-- `.gitlab-ci.yml`: стадии `test → build → release`.
-- Три job'а в стадии `test`: `unit-tests`, `lint`, `assemble-debug`.
-- `build-release` на тегах `vX.Y.Z`: проверка
-  `git merge-base`, подпись из `KEYSTORE_BASE64` +
-  `keystore.properties`, сборка
-  `assembleRelease -PreleaseVersionName=X.Y.Z`.
-- `publish-release`: GitLab Release с APK в assets и release
-  notes из git log (только `feat`/`fix`).
-- Кэш Gradle: стабильный ключ `gradle-cache-v1`, `.gradle/jdks`
-  в paths.
-- master защищён; MR через fast-forward merge
-  (`Settings → Merge requests → Merge method`).
-- Protected Tags `v*`.
-
-**Сделано:**
-- Lint job в стадии `test`. Baseline `app/lint-baseline.xml`,
-  `warningsAsErrors = true`, `disable` для динамических
-  детекторов (`AndroidGradlePluginVersion`, `GradleDependency`,
-  `NewerVersionAvailable`) — несовместимы с baseline, так как
-  сообщение зависит от последней версии в Maven Central.
-  HTML/XML-отчёты в артефактах CI.
-- Smoke-сборка `assembleDebug` в стадии `test`, параллельно
-  `unit-tests` и `lint`. Ловит ошибки, которые не покрывают
-  тесты и lint: битые ресурсы, конфликты в `packaging {}`,
-  `AndroidManifest.xml`, а также `renameDebugApk`.
-- Release notes из git log между предыдущим и текущим тегом.
-  Фильтр по типу коммита: только `feat` и `fix`. Fallback
-  «No user-facing changes».
-- Build cache: стабильный ключ вместо хэша конфигурационных
-  файлов.
-- `versionName` в имени release APK — через задачу
-  `renameReleaseApk` в `build.gradle.kts`.
-
-**Запланировано** (в порядке приоритета):
-
-
-
-
-### Self-hosted GitLab Runner через Ansible + Podman
-
-**Статус:** запланировано.
-
-**Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
-64 ГБ RAM, Bluefin 44) через Ansible, используя Podman как
-executor. Предусмотреть возможность переключения на удалённый
-сервер через inventory.
-
-**Зачем:** квота GitLab Free Tier (400 минут/мес) исчерпана.
-Self-hosted даёт бесплатные сборки, полный контроль над
-окружением и лучшую производительность.
-
-**Технические детали:**
-- Podman как drop-in замена Docker в GitLab Runner 15.1+.
-  В `config.toml`: `executor = "docker"`,
-  `host = "unix:///run/user/<uid>/podman/podman.sock"`.
-- Rootless Podman: без root, без демона, безопаснее.
-- Ansible роль: создание пользователя `gitlab-runner`,
-  `loginctl enable-linger`, `systemctl --user enable podman.socket`,
-  регистрация раннера, настройка `config.toml`.
-- Ограничения ресурсов: `--memory=16g`, `--cpus=8` (с запасом,
-  начать с 8g/4).
-- Кэш Gradle монтируется с хоста для ускорения сборок.
-
-**Бесшовное переключение:**
-- Inventory с двумя хостами: `local` и `remote`.
-- Раннеры регистрируются с разными тегами (`home`, `remote`).
-- Переключение — смена тега в `.gitlab-ci.yml` или через
-  переменную CI/CD.
-
-**План:**
-1. Написать Ansible роль для GitLab Runner + Podman.
-2. Протестировать на домашней машине (`ansible-playbook -i inventory.yml playbook.yml`).
-3. Зарегистрировать раннер в проекте.
-4. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
-5. `build-release` и `publish-release` оставить на GitLab SaaS
-   или перенести после проверки.
-
-**Оценка:** ~2–3 часа на написание роли и отладку.
-**Когда:** после решения вопроса с Gradle upgrade.
-
-
-
-
----
-
-### Переход на GitHub Environment secrets
-
-**Статус:** запланировано. Отложено до появления триггера.
-
-**Что:** перенести 4 секрета release-сборки
-(`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
-`KEY_PASSWORD`) из **Repository secrets** в
-**Environment secrets**.
-
-**Чем отличаются Environment secrets:**
-
-- **Required reviewers** — job не стартует, пока человек не
-  одобрит. Для одиночного проекта бесполезно: GitHub, как и
-  GitLab, не даёт approve свой же workflow. Работает только
-  при наличии второго Maintainer'а.
-- **Wait timer** — принудительная задержка перед запуском.
-  Защита от случайного нажатия.
-- **Deployment branches and tags** — секрет доступен только
-  для указанных веток или тегов (например, `v*`).
-  Repository secrets, наоборот, доступны любому workflow в
-  любой момент.
-- **Разделение окружений** — если появится staging/production,
-  разные значения для каждого.
-
-**Что Repository secrets НЕ умеют:** ограничение по веткам,
-approval, per-environment значения. Всё остальное совпадает —
-оба варианта хранят значения в зашифрованном виде, оба
-доступны в `${{ secrets.NAME }}` без изменений в синтаксисе.
-
-**Как перейти (когда наступит триггер):**
-
-1. `Settings → Environments` → создать environment
-   `release`.
-2. Добавить 4 секрета туда.
-3. Удалить их из Repository secrets.
-4. В `release.yml` добавить `environment: release` в job
-   `build-and-release`.
-
-**Когда вернуться:**
-- при появлении второго Maintainer'а;
-- при первом релизе, требующем approval-гейта;
-- при разделении staging/production окружений.
-
-**Оценка:** ~15 минут.
-
-
-
-
----
-
-## Hot-swap CI на GitLab
-
-**Мобильная работа:** частичное. Планирование и правки
-`.gitlab-ci.yml` / `docs/ci-cd.md` — через proot. Проверка
-пайплайна — только после появления self-hosted runner'а
-(блокируется отдельной задачей).
-
-**Статус:** запланировано. **Скелет.** Детализация — после
-внедрения GitFlow.
-
-**Контекст:** GitLab задуман как горячий резерв CI/CD на
-случай аварии GitHub. Сейчас:
-- зеркалирование GitHub → GitLab **не настроено**;
-- `.gitlab-ci.yml` сохранён с эпохи до перехода на GitHub
-  Actions, использует устаревший образ
-  (`mobiledevops/android-sdk-image:36.1.0`) и старую схему
-  триггеров (`dev`/`master`/MR/tag без GitFlow);
-- GitLab CI/CD Variables (keystore, пароли) — сохранены
-  и актуальны;
-- GitLab Protected Branches — только `master`;
-- Free Tier квота исчерпана, pipeline не запускается;
-- self-hosted runner — отдельная задача
-  (`### Self-hosted GitLab Runner через Ansible + Podman`).
-
-**Цель:** полное зеркало CI/CD (вариант «в» из обсуждения).
-Возможность лёгкого, бесшовного переключения между GitHub
-и GitLab как CI/CD-инфраструктурой.
-
-**Почему скелет, а не полный план:** структура job'ов и
-триггеров в `.gitlab-ci.yml` должна быть зеркалом GitHub
-Actions, которая сама будет перестроена на этапе 3 GitFlow
-(«Реструктуризация workflow»). Планировать `.gitlab-ci.yml`
-до этого — двойная работа.
-
-**Что фиксируется сейчас (не зависит от GitFlow):**
-
-1. **Зеркалирование GitHub → GitLab.** Настроить
-   автоматический push-mirror из GitHub Settings
-   (Settings → Repository → Mirroring). Проверить, что
-   ветки и теги уезжают.
-2. **Образ.** Обновить `mobiledevops/android-sdk-image`
-   до актуальной версии (на момент старта задачи).
-3. **`when: manual` на всех job'ах.** Квота Free Tier
-   исчерпана, pipeline не запускается. Когда runner
-   появится — все job'ы должны требовать ручного запуска,
-   чтобы случайно не сжечь лимиты.
-4. **Синхронизация секретов.** CI/CD Variables в GitLab
-   (keystore, пароли, `KEY_*`) — проверить, что
-   соответствуют текущей схеме GitHub. Если GitHub
-   переходит на Environment secrets (этап 4 GitFlow) —
-   отразить это и в GitLab (protected variables для
-   тегов `v*`).
-5. **`docs/ci-cd.md`** — новый документ. Процедура
-   переключения:
-   - как активировать pipeline в GitLab вручную;
-   - как отключить GitHub Actions (чтобы не было дублей);
-   - что делать с секретами;
-   - как запустить конкретный job.
-6. **Protected Branches / Tags в GitLab** — привести в
-   соответствие с GitHub Rulesets после этапа 1 GitFlow.
-
-**Что откладывается до GitFlow:**
-
-- Структура job'ов (fast / full / release / production).
-- Триггеры `rules:` под `feature/*`, `release/**`,
-  `hotfix/**`.
-- Схема publish (GitHub Release / Play Store / GitLab
-  Release).
-- Интеграция с Play Store / Firebase, когда они появятся.
-
-**Предусловия:**
-- Этап 1 GitFlow (Rulesets) — хотя бы для `dev`, чтобы
-  схема веток устоялась.
-- Self-hosted GitLab Runner (`### Self-hosted GitLab Runner
-  через Ansible + Podman`) — иначе pipeline не запустить.
-
-**Файлы:**
-- `.gitlab-ci.yml` — правки (образ, `when: manual`).
-- `docs/ci-cd.md` — новый документ.
-- `docs/release-process.md` — обновить раздел «Релиз через
-  GitLab CI» после реализации.
-
-**Оценка:** ~3 часа после снятия предусловий (переписать
-`.gitlab-ci.yml`, написать `docs/ci-cd.md`, прогнать).
-
-**Зависимости:**
-- **Блокируется** «Переход на полный GitFlow» (структура
-  workflow).
-- **Блокируется** «Self-hosted GitLab Runner через Ansible
-  + Podman» (возможность запуска pipeline).
-
-**Открытые вопросы:**
-- Настроить зеркалирование: push из GitHub Settings или
-  pull в GitLab? Проверить при старте.
-- Хранить ли `.gitlab-ci.yml` в актуальном состоянии
-  постоянно, или обновлять только при активации
-  (перед переключением)? Решить — это влияет на объём
-  поддержки.
-- Единая структура job'ов в GitHub Actions и GitLab CI,
-  или допускается расхождение в деталях? Решить на
-  этапе детализации после GitFlow.
-
-
-
-
----
-
 ## Переход на полный GitFlow
 
 **Мобильная работа:** частичное. Rulesets (через web Settings),
@@ -437,6 +190,253 @@ secrets» (становится этапом 4) и «Hot-swap CI на GitLab»
   этапе 5.
 
 
+
+## Hot-swap CI на GitLab
+
+**Мобильная работа:** частичное. Планирование и правки
+`.gitlab-ci.yml` / `docs/ci-cd.md` — через proot. Проверка
+пайплайна — только после появления self-hosted runner'а
+(блокируется отдельной задачей).
+
+**Статус:** запланировано. **Скелет.** Детализация — после
+внедрения GitFlow.
+
+**Контекст:** GitLab задуман как горячий резерв CI/CD на
+случай аварии GitHub. Сейчас:
+- зеркалирование GitHub → GitLab **не настроено**;
+- `.gitlab-ci.yml` сохранён с эпохи до перехода на GitHub
+  Actions, использует устаревший образ
+  (`mobiledevops/android-sdk-image:36.1.0`) и старую схему
+  триггеров (`dev`/`master`/MR/tag без GitFlow);
+- GitLab CI/CD Variables (keystore, пароли) — сохранены
+  и актуальны;
+- GitLab Protected Branches — только `master`;
+- Free Tier квота исчерпана, pipeline не запускается;
+- self-hosted runner — отдельная задача
+  (`### Self-hosted GitLab Runner через Ansible + Podman`).
+
+**Цель:** полное зеркало CI/CD (вариант «в» из обсуждения).
+Возможность лёгкого, бесшовного переключения между GitHub
+и GitLab как CI/CD-инфраструктурой.
+
+**Почему скелет, а не полный план:** структура job'ов и
+триггеров в `.gitlab-ci.yml` должна быть зеркалом GitHub
+Actions, которая сама будет перестроена на этапе 3 GitFlow
+(«Реструктуризация workflow»). Планировать `.gitlab-ci.yml`
+до этого — двойная работа.
+
+**Что фиксируется сейчас (не зависит от GitFlow):**
+
+1. **Зеркалирование GitHub → GitLab.** Настроить
+   автоматический push-mirror из GitHub Settings
+   (Settings → Repository → Mirroring). Проверить, что
+   ветки и теги уезжают.
+2. **Образ.** Обновить `mobiledevops/android-sdk-image`
+   до актуальной версии (на момент старта задачи).
+3. **`when: manual` на всех job'ах.** Квота Free Tier
+   исчерпана, pipeline не запускается. Когда runner
+   появится — все job'ы должны требовать ручного запуска,
+   чтобы случайно не сжечь лимиты.
+4. **Синхронизация секретов.** CI/CD Variables в GitLab
+   (keystore, пароли, `KEY_*`) — проверить, что
+   соответствуют текущей схеме GitHub. Если GitHub
+   переходит на Environment secrets (этап 4 GitFlow) —
+   отразить это и в GitLab (protected variables для
+   тегов `v*`).
+5. **`docs/ci-cd.md`** — новый документ. Процедура
+   переключения:
+   - как активировать pipeline в GitLab вручную;
+   - как отключить GitHub Actions (чтобы не было дублей);
+   - что делать с секретами;
+   - как запустить конкретный job.
+6. **Protected Branches / Tags в GitLab** — привести в
+   соответствие с GitHub Rulesets после этапа 1 GitFlow.
+
+**Что откладывается до GitFlow:**
+
+- Структура job'ов (fast / full / release / production).
+- Триггеры `rules:` под `feature/*`, `release/**`,
+  `hotfix/**`.
+- Схема publish (GitHub Release / Play Store / GitLab
+  Release).
+- Интеграция с Play Store / Firebase, когда они появятся.
+
+**Предусловия:**
+- Этап 1 GitFlow (Rulesets) — хотя бы для `dev`, чтобы
+  схема веток устоялась.
+- Self-hosted GitLab Runner (`### Self-hosted GitLab Runner
+  через Ansible + Podman`) — иначе pipeline не запустить.
+
+**Файлы:**
+- `.gitlab-ci.yml` — правки (образ, `when: manual`).
+- `docs/ci-cd.md` — новый документ.
+- `docs/release-process.md` — обновить раздел «Релиз через
+  GitLab CI» после реализации.
+
+**Оценка:** ~3 часа после снятия предусловий (переписать
+`.gitlab-ci.yml`, написать `docs/ci-cd.md`, прогнать).
+
+**Зависимости:**
+- **Блокируется** «Переход на полный GitFlow» (структура
+  workflow).
+- **Блокируется** «Self-hosted GitLab Runner через Ansible
+  + Podman» (возможность запуска pipeline).
+
+**Открытые вопросы:**
+- Настроить зеркалирование: push из GitHub Settings или
+  pull в GitLab? Проверить при старте.
+- Хранить ли `.gitlab-ci.yml` в актуальном состоянии
+  постоянно, или обновлять только при активации
+  (перед переключением)? Решить — это влияет на объём
+  поддержки.
+- Единая структура job'ов в GitHub Actions и GitLab CI,
+  или допускается расхождение в деталях? Решить на
+  этапе детализации после GitFlow.
+
+
+
+
+---
+
+## CI/CD улучшения
+
+**Статус:** частично сделано, остальное в плане.
+
+**Уже работает (инфраструктура):**
+- `.gitlab-ci.yml`: стадии `test → build → release`.
+- Три job'а в стадии `test`: `unit-tests`, `lint`, `assemble-debug`.
+- `build-release` на тегах `vX.Y.Z`: проверка
+  `git merge-base`, подпись из `KEYSTORE_BASE64` +
+  `keystore.properties`, сборка
+  `assembleRelease -PreleaseVersionName=X.Y.Z`.
+- `publish-release`: GitLab Release с APK в assets и release
+  notes из git log (только `feat`/`fix`).
+- Кэш Gradle: стабильный ключ `gradle-cache-v1`, `.gradle/jdks`
+  в paths.
+- master защищён; MR через fast-forward merge
+  (`Settings → Merge requests → Merge method`).
+- Protected Tags `v*`.
+
+**Сделано:**
+- Lint job в стадии `test`. Baseline `app/lint-baseline.xml`,
+  `warningsAsErrors = true`, `disable` для динамических
+  детекторов (`AndroidGradlePluginVersion`, `GradleDependency`,
+  `NewerVersionAvailable`) — несовместимы с baseline, так как
+  сообщение зависит от последней версии в Maven Central.
+  HTML/XML-отчёты в артефактах CI.
+- Smoke-сборка `assembleDebug` в стадии `test`, параллельно
+  `unit-tests` и `lint`. Ловит ошибки, которые не покрывают
+  тесты и lint: битые ресурсы, конфликты в `packaging {}`,
+  `AndroidManifest.xml`, а также `renameDebugApk`.
+- Release notes из git log между предыдущим и текущим тегом.
+  Фильтр по типу коммита: только `feat` и `fix`. Fallback
+  «No user-facing changes».
+- Build cache: стабильный ключ вместо хэша конфигурационных
+  файлов.
+- `versionName` в имени release APK — через задачу
+  `renameReleaseApk` в `build.gradle.kts`.
+
+**Запланировано** (в порядке приоритета):
+
+
+
+
+### Self-hosted GitLab Runner через Ansible + Podman
+
+**Статус:** запланировано.
+
+**Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
+64 ГБ RAM, Bluefin 44) через Ansible, используя Podman как
+executor. Предусмотреть возможность переключения на удалённый
+сервер через inventory.
+
+**Зачем:** квота GitLab Free Tier (400 минут/мес) исчерпана.
+Self-hosted даёт бесплатные сборки, полный контроль над
+окружением и лучшую производительность.
+
+**Технические детали:**
+- Podman как drop-in замена Docker в GitLab Runner 15.1+.
+  В `config.toml`: `executor = "docker"`,
+  `host = "unix:///run/user/<uid>/podman/podman.sock"`.
+- Rootless Podman: без root, без демона, безопаснее.
+- Ansible роль: создание пользователя `gitlab-runner`,
+  `loginctl enable-linger`, `systemctl --user enable podman.socket`,
+  регистрация раннера, настройка `config.toml`.
+- Ограничения ресурсов: `--memory=16g`, `--cpus=8` (с запасом,
+  начать с 8g/4).
+- Кэш Gradle монтируется с хоста для ускорения сборок.
+
+**Бесшовное переключение:**
+- Inventory с двумя хостами: `local` и `remote`.
+- Раннеры регистрируются с разными тегами (`home`, `remote`).
+- Переключение — смена тега в `.gitlab-ci.yml` или через
+  переменную CI/CD.
+
+**План:**
+1. Написать Ansible роль для GitLab Runner + Podman.
+2. Протестировать на домашней машине (`ansible-playbook -i inventory.yml playbook.yml`).
+3. Зарегистрировать раннер в проекте.
+4. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
+5. `build-release` и `publish-release` оставить на GitLab SaaS
+   или перенести после проверки.
+
+**Оценка:** ~2–3 часа на написание роли и отладку.
+**Когда:** после решения вопроса с Gradle upgrade.
+
+
+
+
+---
+
+### Переход на GitHub Environment secrets
+
+**Статус:** запланировано. Отложено до появления триггера.
+
+**Что:** перенести 4 секрета release-сборки
+(`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
+`KEY_PASSWORD`) из **Repository secrets** в
+**Environment secrets**.
+
+**Чем отличаются Environment secrets:**
+
+- **Required reviewers** — job не стартует, пока человек не
+  одобрит. Для одиночного проекта бесполезно: GitHub, как и
+  GitLab, не даёт approve свой же workflow. Работает только
+  при наличии второго Maintainer'а.
+- **Wait timer** — принудительная задержка перед запуском.
+  Защита от случайного нажатия.
+- **Deployment branches and tags** — секрет доступен только
+  для указанных веток или тегов (например, `v*`).
+  Repository secrets, наоборот, доступны любому workflow в
+  любой момент.
+- **Разделение окружений** — если появится staging/production,
+  разные значения для каждого.
+
+**Что Repository secrets НЕ умеют:** ограничение по веткам,
+approval, per-environment значения. Всё остальное совпадает —
+оба варианта хранят значения в зашифрованном виде, оба
+доступны в `${{ secrets.NAME }}` без изменений в синтаксисе.
+
+**Как перейти (когда наступит триггер):**
+
+1. `Settings → Environments` → создать environment
+   `release`.
+2. Добавить 4 секрета туда.
+3. Удалить их из Repository secrets.
+4. В `release.yml` добавить `environment: release` в job
+   `build-and-release`.
+
+**Когда вернуться:**
+- при появлении второго Maintainer'а;
+- при первом релизе, требующем approval-гейта;
+- при разделении staging/production окружений.
+
+**Оценка:** ~15 минут.
+
+
+
+
+---
 
 ## Закрытые задачи
 

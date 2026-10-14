@@ -8,103 +8,534 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
-## Расшифровка кодов ошибок брокеров
+## Compose Preview для компонентов
 
-**Статус:** частично закрыто.
+**Статус:** запланировано. Вариант A — сейчас, вариант B —
+опционально после A.
 
-**Сделано:**
-- `util/BrokerErrorMessages.kt` — центральный реестр
-  `Map<BrokerName, Map<code, msg>>`.
-- `util/TInvestErrorMessages.kt` — ~130 кодов T-Invest по
-  официальной документации.
-- `AppError.Api` расширен полями `brokerName`, `brokerCode`.
-- `toAppError(brokerName)` и `runCatchingAppResult(brokerName, block)`.
-- `InvestRepository` передаёт `brokerName` во все вызовы.
+**Контекст:** сейчас правки UI проверяются на телефоне через
+полный цикл «сборка → установка → навигация до экрана».
+Это медленно, особенно для карточек, которые рисуются в разных
+состояниях (положительная/отрицательная прибыль, разные типы
+инструментов, выбранное/невыбранное состояние).
 
-**Осталось:**
-- `BcsErrorMessages.kt` — заполнить по мере нахождения кодов BCS.
-- `FinamErrorMessages.kt` — то же.
-- Дополнять T-Invest таблицу новыми кодами по мере появления в логах.
+`ui-tooling-preview` уже подключён. `ui-tooling` — только
+`debugImplementation`, этого достаточно для IDE-превью.
 
-**Оценка:** 15 минут на нового брокера + 5 минут на новый код.
+**Предусловия:**
+- Проверить, что `AssetPositionCard` и `OrderCard` принимают
+  все данные через параметры (без `hiltViewModel()` внутри).
+  Если нет — превью невозможно без рефакторинга, в этом случае
+  задача переходит в блокер «Рефакторинг Compose-компонентов».
+
+**Вариант A (обязательный):**
+
+**Файлы:**
+- `ui/components/AssetPositionCard.kt` — preview-функции.
+- `ui/components/OrderCard.kt` — preview-функции.
+
+**Что покрыть:**
+- `AssetPositionCard` — 3–4 превью:
+    - акция с положительной прибылью;
+    - акция с отрицательной прибылью;
+    - фьючерс;
+    - выбранное состояние (isSelected = true).
+- `OrderCard` — 2–3 превью:
+    - рыночная заявка;
+    - лимитная заявка;
+    - исполненная заявка.
+
+**Ограничения:**
+- Preview-функции — `private`, с аннотацией
+  `@Preview(showBackground = true)`.
+- Оборачивать в `Theme { }` (наш `TScalpTheme`).
+- Данные — константы внутри preview-функции, не через
+  ViewModel.
+- **Не менять** сами компоненты — только добавлять превью.
+  Если компонент требует рефакторинга — выносить в отдельную
+  задачу.
+
+**Критерий готовности:**
+- В Android Studio при открытии файла компонента видны
+  превью-панели.
+- Превью рендерятся без ошибок, отображают реальные данные.
+- Сборка и тесты зелёные (preview не влияет на runtime).
+
+**Оценка:** ~30–40 минут.
+
+**Зависимости:** нет.
+
+**Вариант B (опциональный, после A):**
+
+**Файлы:**
+- `ui/components/BrokerAccountDialog.kt` — 2–3 превью
+  (разные брокеры, пустой список счетов, загрузка).
+- `ui/components/ConfirmOrderDialog.kt` — 2 превью
+  (рыночная/лимитная заявка).
+
+**Оценка:** ~40 минут.
+
+**Открытые вопросы:**
+- Есть ли у `OrderCard` и `ConfirmOrderDialog` зависимости
+  от `hiltViewModel()` или чего-то непередаваемого через
+  параметры? Проверить при старте задачи.
 
 ---
 
-## Реализация Finam Broker API
+## Миграция сетевого слоя на Ktor Client (KMP-подготовка)
 
 **Статус:** запланировано.
 
-**Контекст:** `FinamBrokerApi` — заглушка. Все методы
-`BrokerApi` либо возвращают пустые значения (`emptyList`,
-`emptyMap`, `0.0`), либо бросают `NotImplementedError` через
-`TODO("Not yet implemented")`. Брокер зарегистрирован
-в `DataModule` наравне с T-Invest и BCS, но фактически
-не работает.
+**Контекст:** сейчас сетевой слой построен на OkHttp 5.4.0
+(BCS) и gRPC-каналах (T-Invest). OkHttp официально прекратил
+поддержку Kotlin Multiplatform — использовать его в `commonMain`
+при переходе на KMP не получится. Ktor Client — основной
+KMP-совместимый HTTP-клиент, работает на Android, iOS, JVM
+из одного кода. На Android может использовать OkHttp как
+движок под капотом, так что производительность не пострадает.
 
-**Предусловия:**
-- Доступ к Finam API (документация, тестовый токен).
-- Выбор HTTP-клиента: OkHttp (уже в зависимостях,
-  используется BCS) или Ktor. Рекомендуется OkHttp для
-  консистентности с BCS.
+**Зачем планировать заранее:** переход на Ktor — это
+инфраструктурная задача, не требующая срочности. Но если
+закладывать её сейчас, при доработке reconnect-loop и каскада
+позиций мы будем использовать Ktor-совместимые паттерны
+(например, плагин `HttpRequestRetry`), а не OkHttp-специфичные.
+Иначе через 3–6 месяцев придётся переделывать.
+
+**Предусловия:** нет. Можно начинать в любой момент, когда
+текущие задачи (reconnect-loop, каскад позиций) закрыты.
 
 **Файлы:**
-- `data/api/FinamBrokerApi.kt` — основная реализация.
-- `util/FinamErrorMessages.kt` — расшифровка кодов ошибок
-  (может не существовать, см. ROADMAP → «Расшифровка
-  кодов ошибок брокеров»).
-- `data/api/FinamModels.kt` (новый) — data-классы для
-  JSON-ответов API.
-- `data/api/FinamConverters.kt` (новый) — конвертеры
-  JSON ↔ доменные модели.
+- `app/build.gradle.kts` — добавить зависимости Ktor.
+- `gradle/libs.versions.toml` (если есть) — версии Ktor.
+- `data/api/NetworkClient.kt` (новый) — фабрика `HttpClient`
+  с плагинами.
+- `data/api/BcsBrokerApi.kt` — перевести REST-запросы на Ktor.
+- `data/api/TInvestMarketDataService.kt` — REST-часть (цены,
+  портфель, счета, инструменты).
+- `data/repository/InvestRepository.kt` — только если
+  сигнатуры изменятся.
+- `data/api/FinamBrokerApi.kt` — то же, при реализации.
 
 **Шаги:**
 
-1. Изучить документацию Finam API: базовый URL
-   (боевой и sandbox), авторизация, формат запросов
-   и ответов.
-2. Реализовать `getAccounts(sandboxMode)`.
-3. Реализовать `fetchPositionsRest(accountId, sandboxMode)`.
-4. Реализовать `getBalance(accountId)`.
-5. Реализовать `findInstruments(query)`.
-6. Реализовать `postOrder` / `postStopOrder` /
-   `cancelOrder` / `cancelStopOrder`.
-7. Реализовать `getOrders` / `getStopOrders`.
-8. Реализовать `getLastPricesByTscalpInstrumentId`.
-9. Реализовать `getTradingStatuses`.
-10. Реализовать стримы (`subscribePositions`,
-    `subscribeOrderState`, `subscribeLastPrices`) —
-    если Finam поддерживает; иначе polling с fallback.
-11. Заполнить `FinamErrorMessages.kt` по мере
-    появления кодов ошибок.
-12. Покрыть unit-тестами (моки OkHttp).
+1. Выбрать версию Ktor (актуальную на момент старта; на
+   2026-10 — 3.x).
+2. Добавить зависимости:
+    - `io.ktor:ktor-client-core`
+    - `io.ktor:ktor-client-okhttp` (Android engine)
+    - `io.ktor:ktor-client-content-negotiation`
+    - `io.ktor:ktor-serialization-kotlinx-json` или gson-adapter
+    - `io.ktor:ktor-client-logging`
+3. Создать `NetworkClient.kt` — фабрика `HttpClient` с:
+    - движком OkHttp (для Android);
+    - `ContentNegotiation` (JSON);
+    - `HttpRequestRetry` (экспоненциальный backoff,
+      переиспользует паттерн из reconnect-loop);
+    - `Logging` через AppLogger (или кастомный логгер).
+4. Пилот: перевести `subscribeLastPrices` на Ktor-клиент
+   (или сразу gRPC-канал через Ktor-совместимый вариант).
+5. Поэтапно перевести `BcsBrokerApi` REST-запросы.
+6. Поэтапно перевести REST-часть `TInvestMarketDataService`.
+7. Удалить OkHttp-зависимости, если не останется прямого
+   использования (gRPC-каналы используют okhttp transport —
+   уточнить, оставлять ли).
+8. Убедиться, что 63 unit-теста зелёные на каждом шаге.
 
 **Референсы:**
-- Официальная документация Finam API (URL уточнить).
-- Существующая реализация `BcsBrokerApi` — образец
-  REST-клиента на OkHttp.
+- Официальная документация Ktor Client:
+  https://ktor.io/docs/client-create-new-application.html
+- Плагин Retry:
+  https://ktor.io/docs/client-retry.html
+- Плагин ContentNegotiation:
+  https://ktor.io/docs/client-serialization.html
+- KMP-статус OkHttp (прекращение поддержки): issue в
+  square/okhttp о KMP.
 
 **Ограничения:**
-- **Не оставлять `TODO("Not yet implemented")`** в коде,
-  который может быть вызван: заменять на явный
-  `AppResult.Failure` или `emptyList` с KDoc, если операция
-  не поддерживается.
-- Логирование — через `AppLogger`, не `printStackTrace`.
-- Идентификаторы инструментов — через `tscalpInstrumentId`
-  в domain-слое (см. AGENTS.md).
+- **Не смешивать** с другими задачами — миграция отдельная,
+  может идти параллельно.
+- **Не менять** публичные контракты `InvestRepository` /
+  `BrokerApi` без миграции вызывающих.
+- **Не удалять OkHttp полностью**, пока gRPC-каналы
+  (`TInvestChannelFactory`) используют его transport.
+  Разобраться на шаге 7.
+- Тесты должны оставаться зелёными после каждого шага.
 
 **Критерий готовности:**
-- Все методы `BrokerApi` реализованы через REST-запросы
-  к Finam API.
-- `TODO("Not yet implemented")` в `FinamBrokerApi.kt`
-  отсутствуют.
-- В UI Finam выбирается наравне с T-Invest и BCS,
-  выполняет базовые операции (счёт, портфель, заявка).
+- Все REST-запросы (BCS, T-Invest REST-часть) идут через
+  Ktor Client.
+- `NetworkClient.kt` — единая точка конфигурации HTTP-слоя.
+- OkHttp остаётся только как transport для gRPC (если нужен).
+- Сетевой слой готов к переносу в `commonMain` KMP-модуля
+  без изменений бизнес-логики.
+- 63 unit-теста зелёные.
 
-**Оценка:** ~8–12 часов (зависит от документации
-и наличия тестового доступа).
+**Оценка:** ~4–6 часов.
 
-**Зависимости:** нет. Блокирует полноценное использование
-Finam в UI.
+**Зависимости:** нет. Reconnect-loop для цен закрыт,
+зависимость от него снята. **Блокирует** задачу «Каскад
+обновления позиций» — WebSocket-уровень каскада строится
+на Ktor WebSocket plugin.
+
+**Когда вернуться:** в ближайшей рабочей сессии, до старта
+каскада позиций. Миграция разблокирует каскад.
+
+**Открытые вопросы:**
+- Оставлять ли OkHttp как transport для gRPC в KMP — зависит
+  от того, поддерживает ли `grpc-kotlin` KMP-таргеты.
+  Уточнить при старте задачи.
+- Какой JSON-сериализатор использовать: `kotlinx.serialization`
+  (KMP-native) или `gson-adapter` (текущий gson). Для KMP —
+  рекомендуется `kotlinx.serialization`, но потребуется миграция
+  data-классов.
+
+---
+
+## Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
+
+**Статус:** запланировано. Потерянная логика.
+
+**Контекст:** в `TInvestOrdersService.kt:155` устанавливался
+`expireDate` через `parseDate(request.expireDate)`, но метод
+`parseDate` возвращал пустой `com.google.protobuf.Timestamp` —
+то есть фактически ничего не парсил. Это была недописанная
+логика. При чистке detekt-issues (UnusedParameter) метод
+и его вызов удалены, чтобы не оставлять сломанный код.
+
+**Последствие:** при создании stop-order с типом экспирации
+`GOOD_TILL_DATE` поле `expireDate` в `PostStopOrderRequest`
+не устанавливается. Такие заявки либо отклоняются биржей,
+либо обрабатываются некорректно.
+
+**Файлы:**
+- `data/api/TInvestOrdersService.kt` — восстановить парсинг.
+- `domain/models/OrderModels.kt` — `expireDate` в
+  `StopOrderRequest` (нужно уточнить формат — String?).
+
+**Шаги:**
+1. Уточнить формат `expireDate`, приходящего из UI
+   (ISO-8601? unix timestamp? yyyy-MM-dd?).
+2. Уточнить формат, ожидаемый T-Invest API:
+   `com.google.protobuf.Timestamp` (секунды + наносекунды
+   от epoch UTC).
+3. Реализовать парсер с обработкой ошибок
+   (невалидный формат → возвращать `AppResult.Failure`).
+4. Восстановить вызов `builder.setExpireDate(...)` при
+   `expirationType == GOOD_TILL_DATE`.
+5. Покрыть unit-тестом.
+
+**Референс:**
+- Документация T-Invest API → PostStopOrder → expireDate.
+- `com.google.protobuf.Timestamp` — стандартный proto-тип,
+  поля `seconds` (int64), `nanos` (int32).
+
+**Критерий готовности:**
+- Stop-order с `GOOD_TILL_DATE` создаётся и принимается
+  биржей; `expireDate` в запросе совпадает с UI-значением.
+- Покрыто тестом.
+
+**Оценка:** ~1 час.
+
+**Зависимости:** нет.
+
+---
+
+## Унификация каскадов стримов
+
+**Статус:** отложено.
+
+**Контекст:** два каскада — цены (параллельные источники)
+и позиции (последовательный каскад). Возник вопрос: выделить
+общий движок.
+
+**Предусловия:** каскад позиций и reconnect-loop для цен
+должны быть реализованы и обкатаны.
+
+**Решение:** **не унифицировать.** Семантики принципиально
+разные. Преждевременная абстракция рискует усложнить оба каскада.
+
+**Что можно выделить без унификации:**
+- reconnect-loop с backoff (см. отдельную задачу для цен);
+- единый формат `[stream]`-логов;
+- health-check как отдельный wrapper.
+
+**Когда вернуться:** после того, как оба каскада заработают.
+Тогда станет видно, есть ли реально общий код, достойный выделения.
+
+**Оценка:** ~1 час на анализ, ~2 часа на рефакторинг,
+если решение окажется положительным.
+
+## UI-индикатор состояния стримов
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** пользователь не может оценить на глаз,
+актуальны ли данные. Индикатор снимает вопрос
+«это задержка или данные устарели».
+
+**Предусловия:** StreamState реализован в обоих менеджерах.
+
+**Файлы:**
+- `presentation/.../MainScreen.kt` (или где определён NavBar) —
+  бейдж-точка на иконке вкладки.
+- `presentation/.../SettingsScreen.kt` — раздел «Диагностика».
+- `presentation/.../MainViewModel.kt` (или соответствующие
+  ViewModels) — проброс `StreamState` в UI.
+
+**UI-описание:**
+
+- **Бейдж-точка** на иконке вкладки:
+  - Заявки → `PriceStreamManager.connectionState`;
+  - Портфель → `PositionStreamManager.connectionState`;
+  - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
+  - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
+  - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
+- **Snackbar** при переходе в деградацию:
+  - debounce 3 секунды;
+  - тексты: см. п. «Тексты» ниже;
+  - восстановление в LIVE — без Snackbar.
+- **Раздел «Диагностика»** в Настройках:
+  - текущее состояние обоих стримов;
+  - время последнего обновления;
+  - источник (gRPC/REST/WS);
+  - расшифровка цветов бейджа.
+
+**Тексты:**
+- POLLING (цены): «Стрим цен: резервный режим. Обновление раз в 5 секунд.»
+- POLLING (позиции): «Стрим позиций: резервный режим. Обновление раз в 10 секунд.»
+- STALE (цены): «Стрим цен: нет данных. Проверьте соединение.»
+- STALE (позиции): «Стрим позиций: нет данных. Проверьте соединение.»
+
+**Ограничения:**
+- **Не менять** цвет текста NavBar — конфликт с семантикой
+  selected/unselected.
+- **Не делать** long-press на вкладке — не discoverable,
+  конфликт с системным long-press. Подсказка доступна через
+  раздел «Диагностика».
+
+**Критерий готовности:**
+- При переходе стрима в POLLING появляется жёлтая точка
+  и один Snackbar (не повторяется каждые N секунд).
+- При STALE — красная точка и Snackbar.
+- Раздел «Диагностика» показывает актуальное состояние.
+
+**Оценка:** ~2 часа.
+
+**Зависимости:** блокируется StreamState.
+
+## StreamState в data-слое
+
+**Статус:** запланировано.
+
+**Контекст:** для UI-индикатора деградации стримов нужен
+реактивный источник состояния. Полезен и без UI — для логов,
+AppMetrica, отладки.
+
+**Предусловия:** имеет смысл делать после каскада позиций
+(иначе состояние не будет отражать все уровни).
+
+**Файлы:**
+- `domain/models/StreamState.kt` — новый файл.
+- `domain/api/PriceStreamManager.kt` — добавить
+  `connectionState: StateFlow<StreamState>`.
+- `domain/api/PositionStreamManager.kt` — то же.
+
+**Шаги:**
+
+1. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`.
+2. В `PriceStreamManager` завести `private val _connectionState =
+   MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
+   Обновлять при переходе между gRPC и polling, при ошибках,
+   при отсутствии обновлений > 15 секунд (→ STALE).
+3. В `PositionStreamManager` — аналогично. Порог STALE — 30 секунд.
+4. «Биржа закрыта» ≠ STALE: если polling возвращает цену
+   (пусть и неизменную), состояние остаётся POLLING.
+
+**Референсы:** нет.
+
+**Ограничения:**
+- **Не менять** публичный контракт `prices: SharedFlow<...>`.
+- Не путать STALE с отсутствием интереса — STOPPED при пустом union.
+
+**Критерий готовности:**
+- `connectionState` реактивно меняется при переключении
+  источников и при отсутствии данных.
+- В `logcat` при смене состояния видно `[stream] state: LIVE → POLLING`
+  (или аналогичное).
+
+**Оценка:** ~30 минут.
+
+**Зависимости:** блокируется каскадом позиций
+и reconnect-loop для цен.
+
+## Каскад обновления позиций
+
+**Статус:** запланировано.
+
+**Контекст:** сейчас `TInvestMarketDataService.subscribePositions`
+реализует polling через `fetchPositionsRest` раз в 10 секунд.
+gRPC-стрим не подключён. Официальная документация T-Invest
+рекомендует переподключаться при отсутствии данных.
+`PositionsStream` живёт в `OperationsStreamService`
+(`PositionsStreamServiceGrpc` не существует).
+
+**Предусловия:**
+- SDK `kotlin-sdk-grpc-core:1.51.0` (уже в проекте).
+- Проверить в артефакте наличие `OperationsStreamServiceCoroutineStub`
+  и классов `PositionsStreamRequest` / `PositionsStreamResponse`.
+
+**Файлы:**
+- `data/api/TInvestMarketDataService.kt` — основной файл.
+- `data/api/TInvestChannelFactory.kt` — возможно, добавить
+  канал `operationsStream` в `Channels`.
+- `domain/models/Portfolio.kt` — модель `PositionStreamItem`
+  (уже есть, не менять без причины).
+
+**Шаги:**
+
+1. Рефакторинг: переименовать текущий `subscribePositions`
+   → `subscribePositionsPolling` (private). Сборка.
+2. Добавить заглушки `subscribePositionsGrpc(accountId): Flow<PositionStreamItem>?`
+   и `subscribePositionsWebSocket(accountId): Flow<PositionStreamItem>?`,
+   обе возвращают `null`. Сборка.
+3. Реализовать `subscribePositions(accountId)` как циклический
+   каскад в `channelFlow`:
+   - gRPC-уровень → при ошибке/завершении → WS-уровень;
+   - WS-уровень → при ошибке/завершении → polling один раз;
+   - polling → `delay(RETRY_DELAY_MS = 10_000)` → повтор цикла.
+   - `LevelOutcome { Ended, Cancelled, Fatal }` для управления.
+   - Fatal (`NOT_FOUND` по счёту) останавливает каскад.
+   Сборка.
+4. Реализовать gRPC-уровень через
+   `OperationsStreamServiceCoroutineStub(channel).positionsStream(flowOf(request))`.
+   - `request = PositionsStreamRequest.newBuilder()
+     .addAccounts(accountId)
+     .setWithInitialPositions(true)
+     .build()`.
+   - Конвертеры `V1PositionsSecurities` → `PositionStreamItem`
+     и `V1PositionsFutures` → `PositionStreamItem`.
+   - Поле `balance` — **String**, конвертировать через `toLongOrNull()`.
+   Сборка.
+5. Реализовать WebSocket-уровень (после получения схемы сообщений).
+   - OkHttp 5.4.0 (уже в зависимостях).
+   - Рассмотреть использование Ktor для мультиплатформенности
+   - URL: `wss://invest-public-api.tbank.ru/ws/`.
+   - Заголовки: `Authorization: Bearer <token>`, `Web-Socket-Protocol: json`.
+   Сборка.
+6. Реализовать `subscribePositionsPolling` как одиночный
+   `fetchPositionsRest` (без внутреннего `while` и `delay`).
+   Сборка.
+7. Debug-логи с префиксом `[positions]` на каждом переходе
+   (уровни D/I/W/E — см. «Референсы»).
+
+**Референсы:**
+- `RussianInvestments/invest-api-kotlin-sdk` →
+  `kotlin-sdk-grpc-example/src/main/kotlin/ru/ttech/piapi/example/`
+  → `OperationStreamServiceExample.kt`, метод `examplePositionsStream`.
+- `operations.proto` в пакете `ru.tinkoff.piapi.contract.v1` —
+  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
+- `docs/streams.md` → раздел «PositionsStream» — история попыток.
+
+**Ограничения:**
+- **Не использовать** `PositionsStreamServiceGrpc` — класса не существует.
+- **Не переподключаться чаще, чем раз в 3 секунды** —
+  документация T-Invest предупреждает: «не пытайтесь
+  переподключаться слишком часто — это может усугубить ситуацию».
+- **Не использовать `retryWhen`** — цикл сам управляет
+  переподключениями.
+- **Не унифицировать** с каскадом цен — семантика разная
+  (sequential vs parallel sources).
+- Polling не должен «подниматься» обратно на gRPC внутри
+  одной итерации — только через cooldown и полный повтор.
+
+**Критерий готовности:**
+- При обрыве gRPC-стрима каскад переходит на WS без паузы.
+- При обрыве WS — один polling-fetch, затем `delay(10s)`, затем
+  повтор с gRPC.
+- `NOT_FOUND` по счёту останавливает каскад.
+- В `logcat` видны `[positions]`-сообщения на каждом переходе.
+- Unit-тесты (при наличии) зелёные, сборка зелёная.
+
+**Оценка:** ~4 часа (рефакторинг 30 мин, gRPC 2 ч, WS 1.5 ч).
+
+**Зависимости:** **блокируется** миграцией сетевого слоя на
+Ktor Client. WebSocket-уровень каскада строится на Ktor
+WebSocket plugin, а не на OkHttp, чтобы не переписывать его
+после KMP-миграции. Уровни gRPC и polling от Ktor не зависят,
+но архитектурно каскад пишется один раз.
+
+Блокирует «StreamState в data-слое» и «UI-индикатор
+состояния стримов».
+
+**Открытые вопросы:**
+- Точная структура JSON-конверта для подписки через WebSocket.
+  Источник: официальная AsyncAPI-спецификация T-Invest API →
+  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
+  Канал: `/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`.
+  Схема сообщений соответствует proto-контракту
+  (`V1PositionsStreamRequest` / `V1PositionsStreamResponse`).
+- Точный состав полей `V1PositionsSecurities` / `V1PositionsFutures`.
+  Где искать: распаковать AAR 1.51.0.
+
+**Референс для WebSocket-уровня:**
+- AsyncAPI-спецификация: `src/docs/ws/asyncapi.yaml` в репозитории
+  `RussianInvestments/investAPI`.
+- URL: `wss://invest-public-api.tbank.ru/ws/`
+- Заголовки: `Authorization: Bearer <token>`,
+  `Web-Socket-Protocol: json` (или `json-proto`).
+- Формат: protobuf JSON mapping.
+
+## PositionsStreamServiceGrpc — вернуться к стриму позиций
+
+**Статус:** запланировано. Связано с `docs/ISSUES.md` →
+«PositionsStream не доставляет данные».
+
+**Контекст:** сейчас P&L через polling `PositionStreamManager`
+раз в 10 секунд. Официальный стрим не работал на
+`kotlin-sdk-grpc-core:1.48.1`; были подозрения, что
+`PositionsStreamServiceGrpc` отсутствует в SDK или требует
+отдельных прав.
+
+**Что изменилось:** SDK обновлён 1.48.1 → 1.51.0. Есть шанс,
+что нужный сервис появился.
+
+**Шаги при возврате:**
+1. Проверить наличие `PositionsStreamServiceGrpc` в артефакте
+   `kotlin-sdk-grpc-core:1.51.0` (распаковать jar/AAR,
+   `grep -r PositionsStreamServiceGrpc`).
+2. Если есть — написать минимальный тест-подписки вне
+   приложения (отдельный `main`, не трогая `PositionStreamManager`).
+3. Песочница: проверить `UNAUTHENTICATED: 40003` — воспроизводится
+   ли на 1.51.0.
+4. Боевой: проверить, приходит ли `hasPosition()`.
+5. Если работает — перевести `PositionStreamManager` на стрим,
+   polling оставить как fallback на случай разрыва.
+6. Если не работает — обновить `docs/ISSUES.md` с новыми
+   деталями и оставить polling.
+
+**Оценка:** ~2 часа на проверку + ~2 часа на миграцию, если
+сервис рабочий.
+
+**Когда вернуться:** сразу после CI-задач 1–3 (быстрые победы),
+до задач 4, 5, 6.
+
+## Переход на edge-to-edge (statusBarColor deprecated)
+
+**Статус:** запланировано, требует отдельной подготовки.
+
+**Что:** `window.statusBarColor` и `window.navigationBarColor` устарели.
+С Android 15 система применяет edge-to-edge принудительно для приложений
+с target SDK 35+.
+
+**Действия:**
+1. Убрать `window.statusBarColor = ...` из `Theme.kt`.
+2. Убедиться, что в `MainActivity` вызывается `enableEdgeToEdge()`.
+3. Проверить все 4 экрана (Заявки, Портфель, Настройки, MainScreen)
+   на Android 12, 13, 14, 15.
+4. При необходимости — добавить `WindowInsets` в `Scaffold`-ы.
+
+**Оценка:** ~2 часа + прогон на устройствах разных версий.
+**Когда:** при подготовке релиза под Android 15 или target SDK 36.
 
 ---
 
@@ -281,534 +712,103 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 ---
 
-## Переход на edge-to-edge (statusBarColor deprecated)
-
-**Статус:** запланировано, требует отдельной подготовки.
-
-**Что:** `window.statusBarColor` и `window.navigationBarColor` устарели.
-С Android 15 система применяет edge-to-edge принудительно для приложений
-с target SDK 35+.
-
-**Действия:**
-1. Убрать `window.statusBarColor = ...` из `Theme.kt`.
-2. Убедиться, что в `MainActivity` вызывается `enableEdgeToEdge()`.
-3. Проверить все 4 экрана (Заявки, Портфель, Настройки, MainScreen)
-   на Android 12, 13, 14, 15.
-4. При необходимости — добавить `WindowInsets` в `Scaffold`-ы.
-
-**Оценка:** ~2 часа + прогон на устройствах разных версий.
-**Когда:** при подготовке релиза под Android 15 или target SDK 36.
-
----
-
-## PositionsStreamServiceGrpc — вернуться к стриму позиций
-
-**Статус:** запланировано. Связано с `docs/ISSUES.md` →
-«PositionsStream не доставляет данные».
-
-**Контекст:** сейчас P&L через polling `PositionStreamManager`
-раз в 10 секунд. Официальный стрим не работал на
-`kotlin-sdk-grpc-core:1.48.1`; были подозрения, что
-`PositionsStreamServiceGrpc` отсутствует в SDK или требует
-отдельных прав.
-
-**Что изменилось:** SDK обновлён 1.48.1 → 1.51.0. Есть шанс,
-что нужный сервис появился.
-
-**Шаги при возврате:**
-1. Проверить наличие `PositionsStreamServiceGrpc` в артефакте
-   `kotlin-sdk-grpc-core:1.51.0` (распаковать jar/AAR,
-   `grep -r PositionsStreamServiceGrpc`).
-2. Если есть — написать минимальный тест-подписки вне
-   приложения (отдельный `main`, не трогая `PositionStreamManager`).
-3. Песочница: проверить `UNAUTHENTICATED: 40003` — воспроизводится
-   ли на 1.51.0.
-4. Боевой: проверить, приходит ли `hasPosition()`.
-5. Если работает — перевести `PositionStreamManager` на стрим,
-   polling оставить как fallback на случай разрыва.
-6. Если не работает — обновить `docs/ISSUES.md` с новыми
-   деталями и оставить polling.
-
-**Оценка:** ~2 часа на проверку + ~2 часа на миграцию, если
-сервис рабочий.
-
-**Когда вернуться:** сразу после CI-задач 1–3 (быстрые победы),
-до задач 4, 5, 6.
-
-## Каскад обновления позиций
+## Реализация Finam Broker API
 
 **Статус:** запланировано.
 
-**Контекст:** сейчас `TInvestMarketDataService.subscribePositions`
-реализует polling через `fetchPositionsRest` раз в 10 секунд.
-gRPC-стрим не подключён. Официальная документация T-Invest
-рекомендует переподключаться при отсутствии данных.
-`PositionsStream` живёт в `OperationsStreamService`
-(`PositionsStreamServiceGrpc` не существует).
+**Контекст:** `FinamBrokerApi` — заглушка. Все методы
+`BrokerApi` либо возвращают пустые значения (`emptyList`,
+`emptyMap`, `0.0`), либо бросают `NotImplementedError` через
+`TODO("Not yet implemented")`. Брокер зарегистрирован
+в `DataModule` наравне с T-Invest и BCS, но фактически
+не работает.
 
 **Предусловия:**
-- SDK `kotlin-sdk-grpc-core:1.51.0` (уже в проекте).
-- Проверить в артефакте наличие `OperationsStreamServiceCoroutineStub`
-  и классов `PositionsStreamRequest` / `PositionsStreamResponse`.
+- Доступ к Finam API (документация, тестовый токен).
+- Выбор HTTP-клиента: OkHttp (уже в зависимостях,
+  используется BCS) или Ktor. Рекомендуется OkHttp для
+  консистентности с BCS.
 
 **Файлы:**
-- `data/api/TInvestMarketDataService.kt` — основной файл.
-- `data/api/TInvestChannelFactory.kt` — возможно, добавить
-  канал `operationsStream` в `Channels`.
-- `domain/models/Portfolio.kt` — модель `PositionStreamItem`
-  (уже есть, не менять без причины).
+- `data/api/FinamBrokerApi.kt` — основная реализация.
+- `util/FinamErrorMessages.kt` — расшифровка кодов ошибок
+  (может не существовать, см. ROADMAP → «Расшифровка
+  кодов ошибок брокеров»).
+- `data/api/FinamModels.kt` (новый) — data-классы для
+  JSON-ответов API.
+- `data/api/FinamConverters.kt` (новый) — конвертеры
+  JSON ↔ доменные модели.
 
 **Шаги:**
 
-1. Рефакторинг: переименовать текущий `subscribePositions`
-   → `subscribePositionsPolling` (private). Сборка.
-2. Добавить заглушки `subscribePositionsGrpc(accountId): Flow<PositionStreamItem>?`
-   и `subscribePositionsWebSocket(accountId): Flow<PositionStreamItem>?`,
-   обе возвращают `null`. Сборка.
-3. Реализовать `subscribePositions(accountId)` как циклический
-   каскад в `channelFlow`:
-   - gRPC-уровень → при ошибке/завершении → WS-уровень;
-   - WS-уровень → при ошибке/завершении → polling один раз;
-   - polling → `delay(RETRY_DELAY_MS = 10_000)` → повтор цикла.
-   - `LevelOutcome { Ended, Cancelled, Fatal }` для управления.
-   - Fatal (`NOT_FOUND` по счёту) останавливает каскад.
-   Сборка.
-4. Реализовать gRPC-уровень через
-   `OperationsStreamServiceCoroutineStub(channel).positionsStream(flowOf(request))`.
-   - `request = PositionsStreamRequest.newBuilder()
-     .addAccounts(accountId)
-     .setWithInitialPositions(true)
-     .build()`.
-   - Конвертеры `V1PositionsSecurities` → `PositionStreamItem`
-     и `V1PositionsFutures` → `PositionStreamItem`.
-   - Поле `balance` — **String**, конвертировать через `toLongOrNull()`.
-   Сборка.
-5. Реализовать WebSocket-уровень (после получения схемы сообщений).
-   - OkHttp 5.4.0 (уже в зависимостях).
-   - Рассмотреть использование Ktor для мультиплатформенности
-   - URL: `wss://invest-public-api.tbank.ru/ws/`.
-   - Заголовки: `Authorization: Bearer <token>`, `Web-Socket-Protocol: json`.
-   Сборка.
-6. Реализовать `subscribePositionsPolling` как одиночный
-   `fetchPositionsRest` (без внутреннего `while` и `delay`).
-   Сборка.
-7. Debug-логи с префиксом `[positions]` на каждом переходе
-   (уровни D/I/W/E — см. «Референсы»).
+1. Изучить документацию Finam API: базовый URL
+   (боевой и sandbox), авторизация, формат запросов
+   и ответов.
+2. Реализовать `getAccounts(sandboxMode)`.
+3. Реализовать `fetchPositionsRest(accountId, sandboxMode)`.
+4. Реализовать `getBalance(accountId)`.
+5. Реализовать `findInstruments(query)`.
+6. Реализовать `postOrder` / `postStopOrder` /
+   `cancelOrder` / `cancelStopOrder`.
+7. Реализовать `getOrders` / `getStopOrders`.
+8. Реализовать `getLastPricesByTscalpInstrumentId`.
+9. Реализовать `getTradingStatuses`.
+10. Реализовать стримы (`subscribePositions`,
+    `subscribeOrderState`, `subscribeLastPrices`) —
+    если Finam поддерживает; иначе polling с fallback.
+11. Заполнить `FinamErrorMessages.kt` по мере
+    появления кодов ошибок.
+12. Покрыть unit-тестами (моки OkHttp).
 
 **Референсы:**
-- `RussianInvestments/invest-api-kotlin-sdk` →
-  `kotlin-sdk-grpc-example/src/main/kotlin/ru/ttech/piapi/example/`
-  → `OperationStreamServiceExample.kt`, метод `examplePositionsStream`.
-- `operations.proto` в пакете `ru.tinkoff.piapi.contract.v1` —
-  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
-- `docs/streams.md` → раздел «PositionsStream» — история попыток.
+- Официальная документация Finam API (URL уточнить).
+- Существующая реализация `BcsBrokerApi` — образец
+  REST-клиента на OkHttp.
 
 **Ограничения:**
-- **Не использовать** `PositionsStreamServiceGrpc` — класса не существует.
-- **Не переподключаться чаще, чем раз в 3 секунды** —
-  документация T-Invest предупреждает: «не пытайтесь
-  переподключаться слишком часто — это может усугубить ситуацию».
-- **Не использовать `retryWhen`** — цикл сам управляет
-  переподключениями.
-- **Не унифицировать** с каскадом цен — семантика разная
-  (sequential vs parallel sources).
-- Polling не должен «подниматься» обратно на gRPC внутри
-  одной итерации — только через cooldown и полный повтор.
+- **Не оставлять `TODO("Not yet implemented")`** в коде,
+  который может быть вызван: заменять на явный
+  `AppResult.Failure` или `emptyList` с KDoc, если операция
+  не поддерживается.
+- Логирование — через `AppLogger`, не `printStackTrace`.
+- Идентификаторы инструментов — через `tscalpInstrumentId`
+  в domain-слое (см. AGENTS.md).
 
 **Критерий готовности:**
-- При обрыве gRPC-стрима каскад переходит на WS без паузы.
-- При обрыве WS — один polling-fetch, затем `delay(10s)`, затем
-  повтор с gRPC.
-- `NOT_FOUND` по счёту останавливает каскад.
-- В `logcat` видны `[positions]`-сообщения на каждом переходе.
-- Unit-тесты (при наличии) зелёные, сборка зелёная.
+- Все методы `BrokerApi` реализованы через REST-запросы
+  к Finam API.
+- `TODO("Not yet implemented")` в `FinamBrokerApi.kt`
+  отсутствуют.
+- В UI Finam выбирается наравне с T-Invest и BCS,
+  выполняет базовые операции (счёт, портфель, заявка).
 
-**Оценка:** ~4 часа (рефакторинг 30 мин, gRPC 2 ч, WS 1.5 ч).
+**Оценка:** ~8–12 часов (зависит от документации
+и наличия тестового доступа).
 
-**Зависимости:** **блокируется** миграцией сетевого слоя на
-Ktor Client. WebSocket-уровень каскада строится на Ktor
-WebSocket plugin, а не на OkHttp, чтобы не переписывать его
-после KMP-миграции. Уровни gRPC и polling от Ktor не зависят,
-но архитектурно каскад пишется один раз.
-
-Блокирует «StreamState в data-слое» и «UI-индикатор
-состояния стримов».
-
-**Открытые вопросы:**
-- Точная структура JSON-конверта для подписки через WebSocket.
-  Источник: официальная AsyncAPI-спецификация T-Invest API →
-  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
-  Канал: `/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`.
-  Схема сообщений соответствует proto-контракту
-  (`V1PositionsStreamRequest` / `V1PositionsStreamResponse`).
-- Точный состав полей `V1PositionsSecurities` / `V1PositionsFutures`.
-  Где искать: распаковать AAR 1.51.0.
-
-**Референс для WebSocket-уровня:**
-- AsyncAPI-спецификация: `src/docs/ws/asyncapi.yaml` в репозитории
-  `RussianInvestments/investAPI`.
-- URL: `wss://invest-public-api.tbank.ru/ws/`
-- Заголовки: `Authorization: Bearer <token>`,
-  `Web-Socket-Protocol: json` (или `json-proto`).
-- Формат: protobuf JSON mapping.
-
-## StreamState в data-слое
-
-**Статус:** запланировано.
-
-**Контекст:** для UI-индикатора деградации стримов нужен
-реактивный источник состояния. Полезен и без UI — для логов,
-AppMetrica, отладки.
-
-**Предусловия:** имеет смысл делать после каскада позиций
-(иначе состояние не будет отражать все уровни).
-
-**Файлы:**
-- `domain/models/StreamState.kt` — новый файл.
-- `domain/api/PriceStreamManager.kt` — добавить
-  `connectionState: StateFlow<StreamState>`.
-- `domain/api/PositionStreamManager.kt` — то же.
-
-**Шаги:**
-
-1. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`.
-2. В `PriceStreamManager` завести `private val _connectionState =
-   MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
-   Обновлять при переходе между gRPC и polling, при ошибках,
-   при отсутствии обновлений > 15 секунд (→ STALE).
-3. В `PositionStreamManager` — аналогично. Порог STALE — 30 секунд.
-4. «Биржа закрыта» ≠ STALE: если polling возвращает цену
-   (пусть и неизменную), состояние остаётся POLLING.
-
-**Референсы:** нет.
-
-**Ограничения:**
-- **Не менять** публичный контракт `prices: SharedFlow<...>`.
-- Не путать STALE с отсутствием интереса — STOPPED при пустом union.
-
-**Критерий готовности:**
-- `connectionState` реактивно меняется при переключении
-  источников и при отсутствии данных.
-- В `logcat` при смене состояния видно `[stream] state: LIVE → POLLING`
-  (или аналогичное).
-
-**Оценка:** ~30 минут.
-
-**Зависимости:** блокируется каскадом позиций
-и reconnect-loop для цен.
-
-## UI-индикатор состояния стримов
-
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** пользователь не может оценить на глаз,
-актуальны ли данные. Индикатор снимает вопрос
-«это задержка или данные устарели».
-
-**Предусловия:** StreamState реализован в обоих менеджерах.
-
-**Файлы:**
-- `presentation/.../MainScreen.kt` (или где определён NavBar) —
-  бейдж-точка на иконке вкладки.
-- `presentation/.../SettingsScreen.kt` — раздел «Диагностика».
-- `presentation/.../MainViewModel.kt` (или соответствующие
-  ViewModels) — проброс `StreamState` в UI.
-
-**UI-описание:**
-
-- **Бейдж-точка** на иконке вкладки:
-  - Заявки → `PriceStreamManager.connectionState`;
-  - Портфель → `PositionStreamManager.connectionState`;
-  - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
-  - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
-  - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
-- **Snackbar** при переходе в деградацию:
-  - debounce 3 секунды;
-  - тексты: см. п. «Тексты» ниже;
-  - восстановление в LIVE — без Snackbar.
-- **Раздел «Диагностика»** в Настройках:
-  - текущее состояние обоих стримов;
-  - время последнего обновления;
-  - источник (gRPC/REST/WS);
-  - расшифровка цветов бейджа.
-
-**Тексты:**
-- POLLING (цены): «Стрим цен: резервный режим. Обновление раз в 5 секунд.»
-- POLLING (позиции): «Стрим позиций: резервный режим. Обновление раз в 10 секунд.»
-- STALE (цены): «Стрим цен: нет данных. Проверьте соединение.»
-- STALE (позиции): «Стрим позиций: нет данных. Проверьте соединение.»
-
-**Ограничения:**
-- **Не менять** цвет текста NavBar — конфликт с семантикой
-  selected/unselected.
-- **Не делать** long-press на вкладке — не discoverable,
-  конфликт с системным long-press. Подсказка доступна через
-  раздел «Диагностика».
-
-**Критерий готовности:**
-- При переходе стрима в POLLING появляется жёлтая точка
-  и один Snackbar (не повторяется каждые N секунд).
-- При STALE — красная точка и Snackbar.
-- Раздел «Диагностика» показывает актуальное состояние.
-
-**Оценка:** ~2 часа.
-
-**Зависимости:** блокируется StreamState.
-
-## Унификация каскадов стримов
-
-**Статус:** отложено.
-
-**Контекст:** два каскада — цены (параллельные источники)
-и позиции (последовательный каскад). Возник вопрос: выделить
-общий движок.
-
-**Предусловия:** каскад позиций и reconnect-loop для цен
-должны быть реализованы и обкатаны.
-
-**Решение:** **не унифицировать.** Семантики принципиально
-разные. Преждевременная абстракция рискует усложнить оба каскада.
-
-**Что можно выделить без унификации:**
-- reconnect-loop с backoff (см. отдельную задачу для цен);
-- единый формат `[stream]`-логов;
-- health-check как отдельный wrapper.
-
-**Когда вернуться:** после того, как оба каскада заработают.
-Тогда станет видно, есть ли реально общий код, достойный выделения.
-
-**Оценка:** ~1 час на анализ, ~2 часа на рефакторинг,
-если решение окажется положительным.
-
-## Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
-
-**Статус:** запланировано. Потерянная логика.
-
-**Контекст:** в `TInvestOrdersService.kt:155` устанавливался
-`expireDate` через `parseDate(request.expireDate)`, но метод
-`parseDate` возвращал пустой `com.google.protobuf.Timestamp` —
-то есть фактически ничего не парсил. Это была недописанная
-логика. При чистке detekt-issues (UnusedParameter) метод
-и его вызов удалены, чтобы не оставлять сломанный код.
-
-**Последствие:** при создании stop-order с типом экспирации
-`GOOD_TILL_DATE` поле `expireDate` в `PostStopOrderRequest`
-не устанавливается. Такие заявки либо отклоняются биржей,
-либо обрабатываются некорректно.
-
-**Файлы:**
-- `data/api/TInvestOrdersService.kt` — восстановить парсинг.
-- `domain/models/OrderModels.kt` — `expireDate` в
-  `StopOrderRequest` (нужно уточнить формат — String?).
-
-**Шаги:**
-1. Уточнить формат `expireDate`, приходящего из UI
-   (ISO-8601? unix timestamp? yyyy-MM-dd?).
-2. Уточнить формат, ожидаемый T-Invest API:
-   `com.google.protobuf.Timestamp` (секунды + наносекунды
-   от epoch UTC).
-3. Реализовать парсер с обработкой ошибок
-   (невалидный формат → возвращать `AppResult.Failure`).
-4. Восстановить вызов `builder.setExpireDate(...)` при
-   `expirationType == GOOD_TILL_DATE`.
-5. Покрыть unit-тестом.
-
-**Референс:**
-- Документация T-Invest API → PostStopOrder → expireDate.
-- `com.google.protobuf.Timestamp` — стандартный proto-тип,
-  поля `seconds` (int64), `nanos` (int32).
-
-**Критерий готовности:**
-- Stop-order с `GOOD_TILL_DATE` создаётся и принимается
-  биржей; `expireDate` в запросе совпадает с UI-значением.
-- Покрыто тестом.
-
-**Оценка:** ~1 час.
-
-**Зависимости:** нет.
+**Зависимости:** нет. Блокирует полноценное использование
+Finam в UI.
 
 ---
 
-## Миграция сетевого слоя на Ktor Client (KMP-подготовка)
+## Расшифровка кодов ошибок брокеров
 
-**Статус:** запланировано.
+**Статус:** частично закрыто.
 
-**Контекст:** сейчас сетевой слой построен на OkHttp 5.4.0
-(BCS) и gRPC-каналах (T-Invest). OkHttp официально прекратил
-поддержку Kotlin Multiplatform — использовать его в `commonMain`
-при переходе на KMP не получится. Ktor Client — основной
-KMP-совместимый HTTP-клиент, работает на Android, iOS, JVM
-из одного кода. На Android может использовать OkHttp как
-движок под капотом, так что производительность не пострадает.
+**Сделано:**
+- `util/BrokerErrorMessages.kt` — центральный реестр
+  `Map<BrokerName, Map<code, msg>>`.
+- `util/TInvestErrorMessages.kt` — ~130 кодов T-Invest по
+  официальной документации.
+- `AppError.Api` расширен полями `brokerName`, `brokerCode`.
+- `toAppError(brokerName)` и `runCatchingAppResult(brokerName, block)`.
+- `InvestRepository` передаёт `brokerName` во все вызовы.
 
-**Зачем планировать заранее:** переход на Ktor — это
-инфраструктурная задача, не требующая срочности. Но если
-закладывать её сейчас, при доработке reconnect-loop и каскада
-позиций мы будем использовать Ktor-совместимые паттерны
-(например, плагин `HttpRequestRetry`), а не OkHttp-специфичные.
-Иначе через 3–6 месяцев придётся переделывать.
+**Осталось:**
+- `BcsErrorMessages.kt` — заполнить по мере нахождения кодов BCS.
+- `FinamErrorMessages.kt` — то же.
+- Дополнять T-Invest таблицу новыми кодами по мере появления в логах.
 
-**Предусловия:** нет. Можно начинать в любой момент, когда
-текущие задачи (reconnect-loop, каскад позиций) закрыты.
-
-**Файлы:**
-- `app/build.gradle.kts` — добавить зависимости Ktor.
-- `gradle/libs.versions.toml` (если есть) — версии Ktor.
-- `data/api/NetworkClient.kt` (новый) — фабрика `HttpClient`
-  с плагинами.
-- `data/api/BcsBrokerApi.kt` — перевести REST-запросы на Ktor.
-- `data/api/TInvestMarketDataService.kt` — REST-часть (цены,
-  портфель, счета, инструменты).
-- `data/repository/InvestRepository.kt` — только если
-  сигнатуры изменятся.
-- `data/api/FinamBrokerApi.kt` — то же, при реализации.
-
-**Шаги:**
-
-1. Выбрать версию Ktor (актуальную на момент старта; на
-   2026-10 — 3.x).
-2. Добавить зависимости:
-    - `io.ktor:ktor-client-core`
-    - `io.ktor:ktor-client-okhttp` (Android engine)
-    - `io.ktor:ktor-client-content-negotiation`
-    - `io.ktor:ktor-serialization-kotlinx-json` или gson-adapter
-    - `io.ktor:ktor-client-logging`
-3. Создать `NetworkClient.kt` — фабрика `HttpClient` с:
-    - движком OkHttp (для Android);
-    - `ContentNegotiation` (JSON);
-    - `HttpRequestRetry` (экспоненциальный backoff,
-      переиспользует паттерн из reconnect-loop);
-    - `Logging` через AppLogger (или кастомный логгер).
-4. Пилот: перевести `subscribeLastPrices` на Ktor-клиент
-   (или сразу gRPC-канал через Ktor-совместимый вариант).
-5. Поэтапно перевести `BcsBrokerApi` REST-запросы.
-6. Поэтапно перевести REST-часть `TInvestMarketDataService`.
-7. Удалить OkHttp-зависимости, если не останется прямого
-   использования (gRPC-каналы используют okhttp transport —
-   уточнить, оставлять ли).
-8. Убедиться, что 63 unit-теста зелёные на каждом шаге.
-
-**Референсы:**
-- Официальная документация Ktor Client:
-  https://ktor.io/docs/client-create-new-application.html
-- Плагин Retry:
-  https://ktor.io/docs/client-retry.html
-- Плагин ContentNegotiation:
-  https://ktor.io/docs/client-serialization.html
-- KMP-статус OkHttp (прекращение поддержки): issue в
-  square/okhttp о KMP.
-
-**Ограничения:**
-- **Не смешивать** с другими задачами — миграция отдельная,
-  может идти параллельно.
-- **Не менять** публичные контракты `InvestRepository` /
-  `BrokerApi` без миграции вызывающих.
-- **Не удалять OkHttp полностью**, пока gRPC-каналы
-  (`TInvestChannelFactory`) используют его transport.
-  Разобраться на шаге 7.
-- Тесты должны оставаться зелёными после каждого шага.
-
-**Критерий готовности:**
-- Все REST-запросы (BCS, T-Invest REST-часть) идут через
-  Ktor Client.
-- `NetworkClient.kt` — единая точка конфигурации HTTP-слоя.
-- OkHttp остаётся только как transport для gRPC (если нужен).
-- Сетевой слой готов к переносу в `commonMain` KMP-модуля
-  без изменений бизнес-логики.
-- 63 unit-теста зелёные.
-
-**Оценка:** ~4–6 часов.
-
-**Зависимости:** нет. Reconnect-loop для цен закрыт,
-зависимость от него снята. **Блокирует** задачу «Каскад
-обновления позиций» — WebSocket-уровень каскада строится
-на Ktor WebSocket plugin.
-
-**Когда вернуться:** в ближайшей рабочей сессии, до старта
-каскада позиций. Миграция разблокирует каскад.
-
-**Открытые вопросы:**
-- Оставлять ли OkHttp как transport для gRPC в KMP — зависит
-  от того, поддерживает ли `grpc-kotlin` KMP-таргеты.
-  Уточнить при старте задачи.
-- Какой JSON-сериализатор использовать: `kotlinx.serialization`
-  (KMP-native) или `gson-adapter` (текущий gson). Для KMP —
-  рекомендуется `kotlinx.serialization`, но потребуется миграция
-  data-классов.
-
----
-
-## Compose Preview для компонентов
-
-**Статус:** запланировано. Вариант A — сейчас, вариант B —
-опционально после A.
-
-**Контекст:** сейчас правки UI проверяются на телефоне через
-полный цикл «сборка → установка → навигация до экрана».
-Это медленно, особенно для карточек, которые рисуются в разных
-состояниях (положительная/отрицательная прибыль, разные типы
-инструментов, выбранное/невыбранное состояние).
-
-`ui-tooling-preview` уже подключён. `ui-tooling` — только
-`debugImplementation`, этого достаточно для IDE-превью.
-
-**Предусловия:**
-- Проверить, что `AssetPositionCard` и `OrderCard` принимают
-  все данные через параметры (без `hiltViewModel()` внутри).
-  Если нет — превью невозможно без рефакторинга, в этом случае
-  задача переходит в блокер «Рефакторинг Compose-компонентов».
-
-**Вариант A (обязательный):**
-
-**Файлы:**
-- `ui/components/AssetPositionCard.kt` — preview-функции.
-- `ui/components/OrderCard.kt` — preview-функции.
-
-**Что покрыть:**
-- `AssetPositionCard` — 3–4 превью:
-    - акция с положительной прибылью;
-    - акция с отрицательной прибылью;
-    - фьючерс;
-    - выбранное состояние (isSelected = true).
-- `OrderCard` — 2–3 превью:
-    - рыночная заявка;
-    - лимитная заявка;
-    - исполненная заявка.
-
-**Ограничения:**
-- Preview-функции — `private`, с аннотацией
-  `@Preview(showBackground = true)`.
-- Оборачивать в `Theme { }` (наш `TScalpTheme`).
-- Данные — константы внутри preview-функции, не через
-  ViewModel.
-- **Не менять** сами компоненты — только добавлять превью.
-  Если компонент требует рефакторинга — выносить в отдельную
-  задачу.
-
-**Критерий готовности:**
-- В Android Studio при открытии файла компонента видны
-  превью-панели.
-- Превью рендерятся без ошибок, отображают реальные данные.
-- Сборка и тесты зелёные (preview не влияет на runtime).
-
-**Оценка:** ~30–40 минут.
-
-**Зависимости:** нет.
-
-**Вариант B (опциональный, после A):**
-
-**Файлы:**
-- `ui/components/BrokerAccountDialog.kt` — 2–3 превью
-  (разные брокеры, пустой список счетов, загрузка).
-- `ui/components/ConfirmOrderDialog.kt` — 2 превью
-  (рыночная/лимитная заявка).
-
-**Оценка:** ~40 минут.
-
-**Открытые вопросы:**
-- Есть ли у `OrderCard` и `ConfirmOrderDialog` зависимости
-  от `hiltViewModel()` или чего-то непередаваемого через
-  параметры? Проверить при старте задачи.
+**Оценка:** 15 минут на нового брокера + 5 минут на новый код.
 
 ---
 
