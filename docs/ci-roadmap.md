@@ -25,7 +25,7 @@ bundle, публикация в Play Store) — на десктопе.
 - [x] Этап 1 — Rulesets
 - [x] Этап 2 — Соглашение о ветках и merge-стратегиях
 - [x] Этап 3 — Реструктуризация workflow
-- [ ] Этап 4 — Environment secrets + публикация
+- [x] Этап 4 — Environment secrets + публикация
 - [ ] Этап 5 — Role emulation для тестировщика
 - [ ] Этап 6 — Документация
 
