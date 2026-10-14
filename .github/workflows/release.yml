@@ -14,9 +14,10 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-    steps:
+    build-and-release:
+      runs-on: ubuntu-latest
+      environment: release
+      steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
@@ -66,3 +67,23 @@ jobs:
           files: app/build/outputs/apk/release/tscalp-release-*.apk
           name: Release ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
+
+
+# ─────────────────────────────────────────────────────────────
+# TODO 4b: Google Play Internal Testing (release/** branch)
+#
+# When Play Console is set up:
+#   - Add step: Upload AAB to Google Play Internal track.
+#   - Requires Environment secret GOOGLE_PLAY_SERVICE_ACCOUNT_JSON.
+#   - Triggered from a new `release-build` job in ci.yml,
+#     not from this file (release.yml runs on tags only).
+#
+# TODO 4c: Google Play Production (tag v*)
+#
+# When Play Console is set up:
+#   - Add step after 'Create GitHub Release': build .aab, upload
+#     to Play Store Production track (status: draft).
+#   - Requires Environment secret GOOGLE_PLAY_SERVICE_ACCOUNT_JSON.
+#   - Current release.yml builds APK only; .aab requires
+#     `:app:bundleRelease`.
+# ─────────────────────────────────────────────────────────────
