@@ -128,9 +128,26 @@ job'ов читаются компактно.
 | Триггер | Job | Что запускается | ~Время |
 |---|---|---|---|
 | Push в `feature/*`, `bugfix/*` | `fast-check` | `testDebugUnitTest`, `ktlintCheck`, `detekt`, `lintDebug` | 2–3 мин |
-| PR в `dev` / `release/**` / `hotfix/**` | `fast-check` (required) | то же | 2–3 мин |
+| PR в `dev` / `master` / `release/**` / `hotfix/**` | `fast-check` (required) | то же | 2–3 мин |
 | Push в `dev` | `full-build` | Fast + `assembleDebug` + kover + артефакт APK | 5–7 мин |
 
+**`master` включён в триггеры PR** — иначе required check
+`CI / fast-check` на PR в `master` не появится, и PR
+`release/* → master` / `hotfix/* → master` зависнут в
+состоянии «Expected — Waiting for status to be reported».
+
+**`paths-ignore` для `pull_request` убираем.** Оставляем
+только на `push`. Причина: если PR состоит из docs-only
+коммитов и workflow пропускается по триггеру — required
+check не создаётся, PR зависает. На push docs-only skip
+работает (см. `### ✅ CI: пропускать сборку на docs-only
+коммитах`).
+
+**Итого `paths-ignore` в новой конфигурации:**
+
+- `push` — есть (docs-only коммиты не запускают CI).
+- `pull_request` — нет (все PR запускают fast-check,
+  даже документационные).
 **Release-tier (push в `release/**`) и production-tier
 (tag `v*` на `master`) переносятся в этап 4** — они
 требуют keystore и Environment secrets, без которых
