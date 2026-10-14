@@ -14,8 +14,22 @@
 **Мобильная работа:** частичное. Правка `ci.yml` через proot,
 правка Rulesets через web. Проверка — через Actions UI.
 
-**Статус:** в работе.
-**Ветка:** feature/gate-job
+**Статус:** в работе (код готов, ожидается завершение шага 3).
+**Ветка:** feature/gate-job-finalize
+
+**Прогресс:**
+
+- [x] Шаг 1 — `gate` добавлен в `ci.yml`.
+- [x] Шаг 2 — проверен на `feature/gate-job`: gate зелёный,
+  `fast-check` success, `full-build` skipped.
+- [x] Шаг 2 (push) — проверен на push в `dev` после merge
+  PR #12: gate зелёный, `full-build` запустился (success).
+- [ ] Шаг 3 — обновить Ruleset `Protect dev`: required
+  check → `CI / gate (pull_request)`. Ожидает: этот PR
+  засветит gate в picker'е.
+- [ ] Шаг 4 — обновить остальные Rulesets (`Protect master`,
+  `release`, `hotfix`) при первом PR в соответствующие
+  ветки.
 
 **Контекст:** required status checks в GitHub Rulesets
 зависят от picker'а, который показывает только те checks,
