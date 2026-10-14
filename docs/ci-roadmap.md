@@ -9,6 +9,124 @@
 
 ## Планируемые задачи
 
+### Справочник по защите репозитория
+
+**Мобильная работа:** полное закрытие. Создание `.md`-файла,
+правки ссылок — через proot.
+
+**Статус:** запланировано.
+
+**Контекст:** за время работы над GitFlow накопились
+особенности защиты репозитория, которые легко забыть и
+снова наступить на те же грабли:
+
+- **GitHub Rulesets picker.** Показывает только те checks,
+  что прогонялись на защищаемой ветке за последние 7 дней.
+  После паузы >7 дней — исчезают, PR зависает в «Expected
+  — Waiting for status to be reported».
+- **Required check указывается по имени job'а.** `gate`,
+  `fast-check` — не `CI / gate (pull_request)`. Полное
+  UI-имя не матчится с рантаймом.
+- **Gate-job pattern.** `gate` в `ci.yml` — обход picker'а:
+  всегда присутствует в CI, не исчезает из списка.
+- **Bypass для Repository admin** — нужен для аварийного
+  восстановления (например, удаление случайного тега).
+- **GitLab Protected Branches/Tags** — эквиваленты
+  GitHub Rulesets, но с другой терминологией и другим
+  набором правил.
+
+Всё это сейчас разбросано: частично в `docs/git-flow.md`
+(таблица защиты), частично в закрытых задачах
+`docs/ci-roadmap.md` (`✅ Gate-job для required checks`),
+частично в истории обсуждений. При следующем обновлении
+Rulesets или переключении на GitLab придётся собирать
+по кусочкам.
+
+**Цель:** единый справочник `docs/repo-protection.md`,
+который отвечает на вопрос «как устроена защита веток и
+тегов в проекте» для обеих платформ.
+
+**Файлы:**
+- `docs/repo-protection.md` — новый документ.
+- `docs/git-flow.md` — добавить ссылку (раздел
+  «Защита веток (Rulesets)»).
+- `docs/ci-roadmap.md` — добавить ссылку из задачи
+  `### Hot-swap CI на GitLab` (как в связанный документ).
+
+**Структура `docs/repo-protection.md`:**
+
+1. **Обзор.** Что защищаем: ветки, теги. Зачем.
+2. **GitHub Rulesets.**
+   - Список наших ruleset'ов (имена, target, правила).
+   - Required checks: как задаются (по имени job'а), где
+     взять (picker, Add checks).
+   - Bypass: где и зачем.
+3. **Известные ограничения GitHub.**
+   - Picker: 7-дневное окно «засветки» check.
+   - Required check по имени job'а, не по UI-имени.
+   - Gate-job pattern как обход.
+4. **GitLab Protected Branches / Tags.**
+   - Что настроено (по факту — только `master`).
+   - Терминология: Protected Branches, Protected Tags,
+     Merge Request Approval Rules.
+   - Что делать при активации GitLab CI (синхронизация
+     с GitHub).
+5. **Таблица эквивалентов.** GitHub ↔ GitLab.
+6. **Процедуры.**
+   - Добавить новый required check.
+   - Восстановиться после ошибочного тега.
+   - Переключить CI на GitLab (ссылка на `docs/ci-cd.md`,
+     когда появится).
+
+**Шаги:**
+
+1. Собрать текущее состояние Rulesets из
+   `docs/git-flow.md`, `docs/ci-roadmap.md` (закрытая
+   задача Gate-job).
+2. Проверить фактическое состояние на GitHub:
+   Settings → Rules. Убедиться, что описание совпадает
+   с реальностью.
+3. Проверить GitLab: Protected Branches / Tags,
+   CI/CD Variables, MR Approval Rules.
+4. Написать `docs/repo-protection.md` по структуре выше.
+5. Добавить ссылки из `docs/git-flow.md` и
+   `docs/ci-roadmap.md`.
+6. Проверить `grep`: файл не битый, ссылки взаимны.
+
+**Референсы:**
+- GitHub Docs → Rulesets, Required status checks.
+- GitLab Docs → Protected branches, Protected tags,
+  Merge request approvals.
+- `docs/ci-roadmap.md` → `### ✅ Gate-job для required
+  checks` — практический кейс с picker'ом.
+
+**Ограничения:**
+- Не дублировать содержимое `docs/git-flow.md` — там
+  схема веток и merge. Здесь — только защита.
+- Не дублировать `docs/release-process.md` — там
+  процедура релиза. Здесь — только правила платформы.
+- GitLab-раздел — по факту (защищён только `master`),
+  не выдумывать будущее.
+
+**Критерий готовности:**
+- `docs/repo-protection.md` создан, покрывает все
+  перечисленные разделы.
+- Ссылки из `docs/git-flow.md` и `docs/ci-roadmap.md`
+  добавлены.
+- Информация соответствует фактическому состоянию
+  GitHub и GitLab.
+- `grep` по проекту не находит битых ссылок.
+
+**Оценка:** ~1.5 часа.
+
+**Зависимости:** нет.
+
+**Открытые вопросы:** нет.
+
+
+
+
+
 ### Role emulation для тестировщика
 
 **Мобильная работа:** полное закрытие. Всё делается через
