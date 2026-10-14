@@ -10,6 +10,92 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
+### versionCode из нечислового semver
+
+**Мобильная работа:** полное закрытие. Правка `build.gradle.kts`,
+проверка через `grep`/`wc` — доступно через proot. Полная
+сборка — на десктопе.
+
+**Статус:** запланировано.
+
+**Контекст:** при тестировании Environment secrets создали
+пробный тег `v0.0.1-test`. Сборка упала на этапе
+`assembleRelease`:
+
+    android.defaultConfig.versionCode is set to 0,
+    but it should be a positive integer.
+
+Причина: функция `computedVersionCode` в `app/build.gradle.kts`
+парсит имя релиза как `major.minor.patch`. Для
+`"0.0.1-test"` вызов `.split(".")` даёт три элемента
+(`["0", "0", "1-test"]`), ветка срабатывает, но
+`"1-test".toIntOrNull()` возвращает `null → 0`. Итог —
+`versionCode = 0`, AGP отвергает конфигурацию, задача
+`assembleRelease` не регистрируется.
+
+**Последствия:** любой тег с суффиксом (`v1.0.0-rc1`,
+`v2.0.0-beta`) ломает сборку. Сейчас это не критично —
+у нас релизные теги всегда чистый semver. Но если появится
+release candidate или beta-канал — упадёт.
+
+**Файлы:**
+- `app/build.gradle.kts` — функция `computedVersionCode`.
+
+**Шаги:**
+
+1. Воспроизвести: `./gradlew :app:assembleRelease
+   -PreleaseVersionName="0.0.1-test"` — должен упасть
+   (или уже воспроизведено в Actions на `v0.0.1-test`).
+2. Выбрать поведение:
+    - **A.** Падать с явной ошибкой:
+      `require(patch.toIntOrNull() != null) { "Invalid semver
+      patch: '$patch' in releaseVersionName '$releaseVersionName'" }`.
+      Плюс: fail-fast, ясно, что не так.
+    - **B.** Игнорировать суффикс: резать по `-` до парсинга.
+      `"0.0.1-test"` → `"0.0.1"` → `versionCode = 1`.
+      Плюс: работает для RC/beta. Минус: два разных релиза
+      (`0.0.1` и `0.0.1-rc1`) получат одинаковый versionCode —
+      Play Store не примет второй.
+    - **C.** Хэшировать суффикс в младшие разряды versionCode.
+      Сложно, редко нужно.
+3. Реализовать выбранный вариант.
+4. Покрыть unit-тестом: `computedVersionCode("1.2.3")`,
+   `computedVersionCode("1.2.3-rc1")` (в зависимости от
+   решения), `computedVersionCode("invalid")` — ожидаемое
+   поведение.
+
+**Референсы:**
+- Официальная документация Android → versionCode:
+  `https://developer.android.com/studio/publish/versioning#appversioning`.
+- `app/build.gradle.kts` — текущая реализация
+  `computedVersionCode`.
+- Проблемный прогон workflow:
+  https://github.com/biomorf/TScalp/actions (тег
+  `v0.0.1-test`, уже удалён).
+
+**Ограничения:**
+- Не менять формулу для стандартного semver — она работает.
+- Решение должно быть совместимо с Play Store (если
+  планируется публикация) — versionCode строго возрастает.
+- Отдельный unit-тест — не часть интеграционного.
+
+**Критерий готовности:**
+- `computedVersionCode` ведёт себя предсказуемо на нечисловом
+  semver (по выбранному варианту A/B/C).
+- Есть unit-тест, покрывающий граничный случай.
+- `:app:assembleRelease -PreleaseVersionName="0.0.1-test"`
+  завершается либо успешно (если выбрали B), либо падает
+  с понятным сообщением (если A).
+
+**Оценка:** ~30 минут.
+
+**Зависимости:** нет.
+
+**Открытые вопросы:**
+- Планируется ли release candidate / beta-канал? Если нет —
+  вариант A. Если да — B или C, но с дополнительной
+  проработкой уникальности versionCode.
+
 ### Compose Preview для компонентов
 
 **Статус:** запланировано. Вариант A — сейчас, вариант B —
