@@ -70,7 +70,7 @@ web Settings GitHub + правка `docs/git-flow.md`.
 - Роль второго участника: Write или Maintainer? Решить
   при появлении. Для approve достаточно Write.
 
-#### Self-hosted GitLab Runner через Ansible + Podman
+### Self-hosted GitLab Runner через Ansible + Podman
 
 **Статус:** запланировано.
 
