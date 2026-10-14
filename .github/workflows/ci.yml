@@ -123,3 +123,19 @@ jobs:
         with:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
+  gate:
+      needs: [fast-check, full-build]
+      if: always()
+      runs-on: ubuntu-latest
+      steps:
+          - name: Verify upstream jobs
+            run: |
+                if [ "${{ needs.fast-check.result }}" != "success" ]; then
+                  echo "fast-check did not succeed: ${{ needs.fast-check.result }}"
+                  exit 1
+                fi
+                if [ "${{ needs.full-build.result }}" != "success" ] \
+                   && [ "${{ needs.full-build.result }}" != "skipped" ]; then
+                  echo "full-build did not succeed and was not skipped: ${{ needs.full-build.result }}"
+                  exit 1
+                fi
