@@ -147,6 +147,113 @@ approval, per-environment значения. Всё остальное совпа
 
 ---
 
+## Hot-swap CI на GitLab
+
+**Мобильная работа:** частичное. Планирование и правки
+`.gitlab-ci.yml` / `docs/ci-cd.md` — через proot. Проверка
+пайплайна — только после появления self-hosted runner'а
+(блокируется отдельной задачей).
+
+**Статус:** запланировано. **Скелет.** Детализация — после
+внедрения GitFlow.
+
+**Контекст:** GitLab задуман как горячий резерв CI/CD на
+случай аварии GitHub. Сейчас:
+- зеркалирование GitHub → GitLab **не настроено**;
+- `.gitlab-ci.yml` сохранён с эпохи до перехода на GitHub
+  Actions, использует устаревший образ
+  (`mobiledevops/android-sdk-image:36.1.0`) и старую схему
+  триггеров (`dev`/`master`/MR/tag без GitFlow);
+- GitLab CI/CD Variables (keystore, пароли) — сохранены
+  и актуальны;
+- GitLab Protected Branches — только `master`;
+- Free Tier квота исчерпана, pipeline не запускается;
+- self-hosted runner — отдельная задача
+  (`### Self-hosted GitLab Runner через Ansible + Podman`).
+
+**Цель:** полное зеркало CI/CD (вариант «в» из обсуждения).
+Возможность лёгкого, бесшовного переключения между GitHub
+и GitLab как CI/CD-инфраструктурой.
+
+**Почему скелет, а не полный план:** структура job'ов и
+триггеров в `.gitlab-ci.yml` должна быть зеркалом GitHub
+Actions, которая сама будет перестроена на этапе 3 GitFlow
+(«Реструктуризация workflow»). Планировать `.gitlab-ci.yml`
+до этого — двойная работа.
+
+**Что фиксируется сейчас (не зависит от GitFlow):**
+
+1. **Зеркалирование GitHub → GitLab.** Настроить
+   автоматический push-mirror из GitHub Settings
+   (Settings → Repository → Mirroring). Проверить, что
+   ветки и теги уезжают.
+2. **Образ.** Обновить `mobiledevops/android-sdk-image`
+   до актуальной версии (на момент старта задачи).
+3. **`when: manual` на всех job'ах.** Квота Free Tier
+   исчерпана, pipeline не запускается. Когда runner
+   появится — все job'ы должны требовать ручного запуска,
+   чтобы случайно не сжечь лимиты.
+4. **Синхронизация секретов.** CI/CD Variables в GitLab
+   (keystore, пароли, `KEY_*`) — проверить, что
+   соответствуют текущей схеме GitHub. Если GitHub
+   переходит на Environment secrets (этап 4 GitFlow) —
+   отразить это и в GitLab (protected variables для
+   тегов `v*`).
+5. **`docs/ci-cd.md`** — новый документ. Процедура
+   переключения:
+   - как активировать pipeline в GitLab вручную;
+   - как отключить GitHub Actions (чтобы не было дублей);
+   - что делать с секретами;
+   - как запустить конкретный job.
+6. **Protected Branches / Tags в GitLab** — привести в
+   соответствие с GitHub Rulesets после этапа 1 GitFlow.
+
+**Что откладывается до GitFlow:**
+
+- Структура job'ов (fast / full / release / production).
+- Триггеры `rules:` под `feature/*`, `release/**`,
+  `hotfix/**`.
+- Схема publish (GitHub Release / Play Store / GitLab
+  Release).
+- Интеграция с Play Store / Firebase, когда они появятся.
+
+**Предусловия:**
+- Этап 1 GitFlow (Rulesets) — хотя бы для `dev`, чтобы
+  схема веток устоялась.
+- Self-hosted GitLab Runner (`### Self-hosted GitLab Runner
+  через Ansible + Podman`) — иначе pipeline не запустить.
+
+**Файлы:**
+- `.gitlab-ci.yml` — правки (образ, `when: manual`).
+- `docs/ci-cd.md` — новый документ.
+- `docs/release-process.md` — обновить раздел «Релиз через
+  GitLab CI» после реализации.
+
+**Оценка:** ~3 часа после снятия предусловий (переписать
+`.gitlab-ci.yml`, написать `docs/ci-cd.md`, прогнать).
+
+**Зависимости:**
+- **Блокируется** «Переход на полный GitFlow» (структура
+  workflow).
+- **Блокируется** «Self-hosted GitLab Runner через Ansible
+  + Podman» (возможность запуска pipeline).
+
+**Открытые вопросы:**
+- Настроить зеркалирование: push из GitHub Settings или
+  pull в GitLab? Проверить при старте.
+- Хранить ли `.gitlab-ci.yml` в актуальном состоянии
+  постоянно, или обновлять только при активации
+  (перед переключением)? Решить — это влияет на объём
+  поддержки.
+- Единая структура job'ов в GitHub Actions и GitLab CI,
+  или допускается расхождение в деталях? Решить на
+  этапе детализации после GitFlow.
+
+
+
+
+---
+
 ## Переход на полный GitFlow
 
 **Мобильная работа:** частичное. Rulesets (через web Settings),
