@@ -117,30 +117,42 @@ Merge commit) больше **не используется**. Релизы ид�
 
 **Файлы:** `.github/workflows/`.
 
-**Уровни проверок:**
+**Решение по структуре файлов:** один `ci.yml` с двумя
+job'ами и `if:`-условиями. Разбивка на несколько файлов
+отклонена — required check `CI / fast-check` должен
+существовать в одном месте, а `if:`-условия для двух
+job'ов читаются компактно.
 
-| Триггер | Уровень | Что запускается | ~Время |
+**Уровни проверок (этап 3):**
+
+| Триггер | Job | Что запускается | ~Время |
 |---|---|---|---|
-| Push в `feature/*`, `bugfix/*` | Fast | `testDebugUnitTest`, `ktlintCheck`, `detekt`, `lintDebug` | 2–3 мин |
-| PR в `dev` / `release/**` / `hotfix/**` | Fast (required) | то же | 2–3 мин |
-| Push в `dev` | Full | Fast + `assembleDebug` + `koverVerifyDebug` + артефакт APK | 5–7 мин |
-| Push в `release/**` | Release | Full + `bundleRelease` + upload в Google Play Internal | 8–10 мин |
-| Tag `v*` на `master` | Production | Release + upload в Google Play Production | 10 мин |
+| Push в `feature/*`, `bugfix/*` | `fast-check` | `testDebugUnitTest`, `ktlintCheck`, `detekt`, `lintDebug` | 2–3 мин |
+| PR в `dev` / `release/**` / `hotfix/**` | `fast-check` (required) | то же | 2–3 мин |
+| Push в `dev` | `full-build` | Fast + `assembleDebug` + kover + артефакт APK | 5–7 мин |
 
-**Решение по структуре файлов:** один `ci.yml` с разными
-job'ами и `if:`-условиями **или** разбить на `ci-fast.yml`,
-`ci-full.yml`, `ci-release.yml`, `release.yml`. Решить на
-старте этапа. Предварительно склоняюсь к разбивке — легче
-читать и отлаживать.
+**Release-tier (push в `release/**`) и production-tier
+(tag `v*` на `master`) переносятся в этап 4** — они
+требуют keystore и Environment secrets, без которых
+`bundleRelease` не собирается. Логически связаны с
+публикацией, идут одной задачей.
+
+**Required check:** после этапа 3 имя обязательной проверки
+в Rulesets меняется с `CI / build` на `CI / fast-check`.
+Обновить во всех 4 branch-ruleset'ах (`dev`, `master`,
+`release/**`, `hotfix/**`).
 
 **Что сохранить:** `paths-ignore` для docs-only коммитов
 (уже сделано).
 
-**Оценка:** ~3 часа.
+**Оценка:** ~2 часа (один файл `ci.yml` + обновление
+Rulesets).
 
 #### Этап 4 — Environment secrets + публикация
 
-**Файлы:** GitHub Settings → Environments, workflows.
+**Файлы:** GitHub Settings → Environments,
+`.github/workflows/ci.yml` (release-job), `release.yml`
+(production-tier), возможно `.github/workflows/release.yml`.
 
 **Что сделать:**
 
@@ -155,7 +167,55 @@ job'ами и `if:`-условиями **или** разбить на `ci-fast.y
 4. Обновить workflow'ы: `environment: release` в job'ах,
    которые публикуют.
 
-**Оценка:** ~2 часа.
+**Release-tier (push в `release/**`):**
+
+Добавить в `ci.yml` третий job `release-build`:
+
+- триггер: push в `release/**`;
+- `needs: fast-check` (не запускать без зелёного fast);
+- сборка `bundleRelease` с подписью (keystore из
+  Environment `release`);
+- upload `.aab` в Google Play Internal Testing
+  (track `internal`);
+- `environment: release` — активирует Environment secrets
+  и потенциальные approval-гейты.
+
+**Production-tier (tag `v*` на `master`):**
+
+Обновить существующий `release.yml`:
+
+- добавить `environment: release` в job `build-and-release`;
+- текущая логика (сборка APK, публикация в GitHub Releases)
+  сохраняется;
+- дополнительно — upload `.aab` в Google Play Production
+  (track `production`, status `draft` для ручного approve
+  в Play Console);
+- keystore уже используется в `release.yml` — перевести
+  на Environment secrets (пункт 4).
+
+**Required check в Rulesets:** добавить `CI / release-build`
+как обязательный для `release/**` ruleset. Для `dev` /
+`master` / `hotfix/**` — остаётся `CI / fast-check`.
+
+**Итоговая матрица триггеров (после этапа 4):**
+
+| Триггер | Job | Публикация |
+|---|---|---|
+| Push в `feature/*`, `bugfix/*` | `fast-check` | — |
+| PR в `dev` / `release/**` / `hotfix/**` | `fast-check` | — |
+| Push в `dev` | `full-build` | — |
+| Push в `release/**` | `release-build` | Google Play Internal |
+| Tag `v*` на `master` | `release.yml` | GitHub Release + Google Play Production |
+
+**Оценка:** ~4 часа (Environment secrets + release-job
+в `ci.yml` + обновление `release.yml` + Play Store
+Service Account).
+
+**Зависимости:**
+- **Блокируется** созданием Google Play Console listing
+  (нужен для Service Account).
+- **Блокируется** регистрацией Firebase проекта (для
+  App Distribution token).
 
 #### Этап 5 — Role emulation для тестировщика
 
