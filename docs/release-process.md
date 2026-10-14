@@ -186,13 +186,23 @@ ruleset'а: один для `master`, второй для тегов `v*`.
 
 ## Продвижение master
 
-Ветка `master` защищена: прямой push запрещён, продвижение
-идёт **только через MR из `dev`** (см. «Настройка GitLab»).
-Локальный `git merge --ff-only dev` не используется — его
-заменяет MR.
+> **Схема обновлена в рамках перехода на GitFlow**
+> (см. `docs/ci-roadmap.md` → «Переход на полный GitFlow»).
+> Раньше продвижение шло напрямую `dev → master`.
+> Сейчас — через `release/*`. Полное описание — в
+> `docs/git-flow.md`.
 
-Ветка `master` защищена: прямой push запрещён, продвижение
-идёт **только через Pull Request из `dev`**.
+Ветка `master` защищена: прямой push запрещён. Продвижение
+идёт **только через Pull Request из `release/*`** (или
+`hotfix/*` для экстренных фиксов). Локальный
+`git merge --ff-only` не используется — его заменяет PR.
+
+Каждый merge в `master` сопровождается **аннотированным
+тегом** `vX.Y.Z` (см. «Теги»).
+
+После merge в `master` делается **обратный merge
+`master → dev`**, чтобы фиксы стабилизации и hotfix-правки
+не потерялись при следующем релизе.
 
 ### Стратегия merge
 
@@ -236,14 +246,24 @@ merge-коммитом на каждый PR. Для одиночного про�
 
 Полный цикл:
 
-1. Продвинуть `master` через Pull Request из `dev`
-   (см. «Продвижение master»).
-2. Поставить **аннотированный** тег и запушить:
+1. Убедиться, что `dev` содержит все коммиты для релиза.
+2. Создать ветку `release/vX.Y.Z` от `dev`:
+
+       git checkout dev
+       git pull
+       git checkout -b release/vX.Y.Z
+       git push -u origin release/vX.Y.Z
+
+3. Стабилизация: в `release/vX.Y.Z` вносятся только фиксы,
+   найденные при тестировании. Новые фичи не допускаются.
+4. Продвинуть `master` через Pull Request
+   `release/vX.Y.Z → master` (см. «Продвижение master»).
+5. Поставить **аннотированный** тег и запушить:
 
        git tag -a vX.Y.Z -m "Release vX.Y.Z"
        git push origin vX.Y.Z
 
-3. GitHub Actions запускает `release.yml`:
+6. GitHub Actions запускает `release.yml`:
     - триггер на тег `v*`;
     - checkout, setup JDK 17, setup Gradle;
     - декодирует keystore из `KEYSTORE_BASE64`;
@@ -255,6 +275,11 @@ merge-коммитом на каждый PR. Для одиночного про�
 
 Отдельный workflow `ci.yml` прогоняет `testDebugUnitTest`,
 `lintDebug` и `assembleDebug` на push и PR в `dev` / `master`.
+
+7. Обратный merge `master → dev`, чтобы фиксы стабилизации
+   не потерялись:
+
+       # PR master -> dev через web (Merge commit)
 
 ## Релиз через GitLab CI (временно отключён)
 
@@ -295,50 +320,68 @@ self-hosted runner'а (см. `docs/ci-roadmap.md` →
 
        git push origin dev
 
-3. Создать **Pull Request** `dev → master` в GitHub UI.
+3. Создать ветку `release/vX.Y.Z` от `dev`:
 
-   *GitLab:* Создать MR `dev → master` в GitLab UI.
+       git checkout dev && git pull
+       git checkout -b release/vX.Y.Z
+       git push -u origin release/vX.Y.Z
 
-4. Дождаться зелёного `ci.yml` на PR.
+4. Стабилизация в `release/vX.Y.Z` — только фиксы.
+
+5. Создать **Pull Request** `release/vX.Y.Z → master`
+   в GitHub UI.
+
+   *GitLab:* Создать MR `release/vX.Y.Z → master`
+   в GitLab UI.
+
+6. Дождаться зелёного `ci.yml` на PR.
 
    *GitLab:* Дождаться зелёного пайплайна на MR.
 
-5. Merge PR через **Squash** или **Merge commit** в зависимости
-         от политики. При включённом `Require linear history`
-         в Ruleset GitHub потребует **Rebase** или **Squash**.
+7. Merge PR через **Merge commit** (единственная
+   разрешённая стратегия — см. `docs/git-flow.md`).
 
    *GitLab:* Смерджить MR.
 
-6. Локально:
+8. Создать аннотированный тег `vX.Y.Z` на `master`:
+
+       git tag -a vX.Y.Z -m "Release vX.Y.Z"
+       git push origin vX.Y.Z
+
+9. Обратный merge `master → dev`:
+
+       # PR master -> dev через web (Merge commit)
+
+10. Локально:
 
        git checkout master
        git pull --ff-only origin master
 
    Если `--ff-only` падает — значит `dev` и `master` разошлись,
    разобраться до продолжения.
-7. Проверить, что `origin/master` содержит нужный коммит:
+11. Проверить, что `origin/master` содержит нужный коммит:
 
        git log origin/master -1 --oneline
 
 Создание тега:
 
-8. `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
-9. **Проверить перед пушем**:
+12. `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
+13. **Проверить перед пушем**:
 
        git branch -r --contains vX.Y.Z
 
    В выводе **обязан** быть `origin/master`. Если нет — тег
    создан не на том коммите, удалить и повторить с шага 6.
-10. `git push origin vX.Y.Z`.
+14. `git push origin vX.Y.Z`.
 
 Пуш только тега, без `--tags`: `git push --tags` отправит все
 локальные теги, включая случайные.
 
 После пуша:
 
-11. Открыть GitHub → вкладку **Actions** → workflow **Release**.
+15. Открыть GitHub → вкладку **Actions** → workflow **Release**.
     Убедиться, что job зелёный.
-12. Открыть вкладку **Releases** → проверить, что создан
+16. Открыть вкладку **Releases** → проверить, что создан
     релиз с APK и notes.
 
 **При ошибке:**
