@@ -9,276 +9,108 @@
 
 ## Планируемые задачи
 
-### Переход на полный GitFlow
+### Role emulation для тестировщика
 
-**Мобильная работа:** частичное. Rulesets (через web Settings),
-документация (`.md` в proot), workflow-правки (proot + push)
-— доступны с телефона. Проверка CI — через Actions UI.
-Первая настоящая проверка полного цикла (сборка release
-bundle, публикация в Play Store) — на десктопе.
+**Мобильная работа:** полное закрытие. Всё делается через
+web Settings GitHub + правка `docs/git-flow.md`.
 
-**Статус:** в работе. Реализуется поэтапно.
-**Ветка:** feat/git-flow
+**Статус:** отложено. **Триггер:** появление реального
+второго участника (тестировщика или разработчика).
 
-**Прогресс:**
+**Контекст:** этап 5 плана GitFlow. Второй GitHub-аккаунт
+нужен, чтобы approve на PR был **реальным** шагом, а не
+формальностью. Пока в проекте один человек — эмуляция
+роли тестировщика фиктивным аккаунтом создаёт overhead
+(двойной логин на каждый PR) без практического смысла.
 
-- [x] Этап 1 — Rulesets
-- [x] Этап 2 — Соглашение о ветках и merge-стратегиях
-- [x] Этап 3 — Реструктуризация workflow
-- [x] Этап 4 — Environment secrets + публикация
-- [ ] Этап 5 — Role emulation для тестировщика
-- [ ] Этап 6 — Документация
-
-**Контекст:** сейчас упрощённая схема: `master` защищён,
-`dev` — нет, релизы через теги из `dev`, публикация в
-GitHub Releases. Планируется: Play Store, отдельный
-тестировщик (role emulation через второй GitHub-аккаунт),
-рост команды. Организационный слой нужно подготовить
-заранее — см. AGENTS.md → правило 2b.
-
-**Осознанные отклонения от канона (зафиксировать в
-`docs/git-flow.md`):**
-
-1. **Имя ветки `dev`** вместо канонического `develop`.
-   Причина: миграция имени = rulesets, workflows, docs,
-   локальные ветки у всех участников. Не стоит этого.
-2. **Merge-стратегия — Merge commit везде**, включая
-   `feature/* → dev`. Канон GitFlow рекомендует Squash для
-   feature-ветвей; у нас стратегия завязана на сохранение
-   SHA между `dev` и `master` (см. `docs/release-process.md`).
-   Squash переписывает SHA и приводит к расхождению ветвей.
-   Отдельная задача «Рассмотреть Squash vs Merge commit»
-   исследует вопрос.
-
-**Предусловия:** нет.
-
-**Этапы:**
-
-#### Этап 1 — Rulesets
-
-**Файлы:** GitHub Settings → Rules → Rulesets.
-
-**Что сделать:**
-
-1. Защитить `dev` как `master`:
-   - Require a pull request before merging;
-   - Required approvals: 0 (пока один разработчик; вернуться
-     при появлении второго);
-   - Require status checks to pass (`CI / build`);
-   - Block force pushes;
-   - Restrict deletions.
-2. Ruleset для `release/**`:
-   - Require PR (source: `dev`);
-   - Block force pushes, restrict deletions.
-3. Ruleset для `hotfix/**`:
-   - Require PR (source: `master`);
-   - Block force pushes, restrict deletions.
-
-**Оценка:** ~30 минут.
-
-#### Этап 2 — Соглашение о ветках и merge-стратегиях
-
-**Файлы:** `docs/git-flow.md` (новый), `docs/release-process.md`
-(правка), `AGENTS.md` (правила работы с ветками).
-
-**Структура веток:**
-
-- `master` — только релизы. Защищена.
-- `dev` — интеграция. Защищена. PR только из
-  `feature/*`, `bugfix/*`, `release/*`, `hotfix/*`.
-- `feature/<name>` — от `dev`. Одна фича = одна ветка.
-- `bugfix/<issue-id>` — от `dev`. Один баг = одна ветка.
-- `release/<vX.Y.Z>` — от `dev`. Стабилизация перед
-  релизом. Сюда — только фиксы, не фичи.
-- `hotfix/<vX.Y.Z>` — от `master`. Экстренный фикс прода.
-  После закрытия — обратный merge в `master` и `dev`.
-
-**Стратегии merge:**
-
-- `feature/* → dev`: Merge commit. SHA коммитов сохраняются.
-- `bugfix/* → dev`: Merge commit.
-- Создание `release/*`: ветка от `dev` (без merge).
-- `release/* → master`: Merge commit + тег `vX.Y.Z`.
-- `master → dev` (обратный merge после релиза): Merge commit.
-- `hotfix/* → master`: Merge commit + тег `vX.Y.(Z+1)`.
-- `hotfix/* → dev`: Cherry-pick или Merge commit — решить
-  на практике при первом hotfix.
-
-**Что отменяется:** схема `dev → master` напрямую (через
-Merge commit) больше **не используется**. Релизы идут через
-`release/*`. Схема из «Переезд CI на GitHub Actions»
-сохраняется как историческая запись, но новым соглашением
-отменяется. Пометку о пересмотре добавить в
-`docs/release-process.md`.
-
-**Оценка:** ~1 час.
-
-#### Этап 3 — Реструктуризация workflow
-
-**Файлы:** `.github/workflows/`.
-
-**Решение по структуре файлов:** один `ci.yml` с двумя
-job'ами и `if:`-условиями. Разбивка на несколько файлов
-отклонена — required check `CI / fast-check` должен
-существовать в одном месте, а `if:`-условия для двух
-job'ов читаются компактно.
-
-**Уровни проверок (этап 3):**
-
-| Триггер | Job | Что запускается | ~Время |
-|---|---|---|---|
-| Push в `feature/*`, `bugfix/*` | `fast-check` | `testDebugUnitTest`, `ktlintCheck`, `detekt`, `lintDebug` | 2–3 мин |
-| PR в `dev` / `master` / `release/**` / `hotfix/**` | `fast-check` (required) | то же | 2–3 мин |
-| Push в `dev` | `full-build` | Fast + `assembleDebug` + kover + артефакт APK | 5–7 мин |
-
-**`master` включён в триггеры PR** — иначе required check
-`CI / fast-check` на PR в `master` не появится, и PR
-`release/* → master` / `hotfix/* → master` зависнут в
-состоянии «Expected — Waiting for status to be reported».
-
-**`paths-ignore` для `pull_request` убираем.** Оставляем
-только на `push`. Причина: если PR состоит из docs-only
-коммитов и workflow пропускается по триггеру — required
-check не создаётся, PR зависает. На push docs-only skip
-работает (см. `### ✅ CI: пропускать сборку на docs-only
-коммитах`).
-
-**Итого `paths-ignore` в новой конфигурации:**
-
-- `push` — есть (docs-only коммиты не запускают CI).
-- `pull_request` — нет (все PR запускают fast-check,
-  даже документационные).
-**Release-tier (push в `release/**`) и production-tier
-(tag `v*` на `master`) переносятся в этап 4** — они
-требуют keystore и Environment secrets, без которых
-`bundleRelease` не собирается. Логически связаны с
-публикацией, идут одной задачей.
-
-**Required check:** после этапа 3 имя обязательной проверки
-в Rulesets меняется с `CI / build` на `CI / fast-check`.
-Обновить во всех 4 branch-ruleset'ах (`dev`, `master`,
-`release/**`, `hotfix/**`).
-
-**Что сохранить:** `paths-ignore` для docs-only коммитов
-(уже сделано).
-
-**Оценка:** ~2 часа (один файл `ci.yml` + обновление
-Rulesets).
-
-#### Этап 4 — Environment secrets + публикация
-
-**Файлы:** GitHub Settings → Environments,
-`.github/workflows/ci.yml` (release-job), `release.yml`
-(production-tier), возможно `.github/workflows/release.yml`.
-
-**Что сделать:**
-
-1. Environment `release` с секретами (миграция 4 секретов
-   из Repository secrets — уже запланировано отдельной
-   задачей «Переход на GitHub Environment secrets», которая
-   становится подзадачей этой).
-2. Google Play Service Account JSON → Environment secret
-   `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
-3. Firebase App Distribution token + appId → Environment
-   secrets.
-4. Обновить workflow'ы: `environment: release` в job'ах,
-   которые публикуют.
-
-**Release-tier (push в `release/**`):**
-
-Добавить в `ci.yml` третий job `release-build`:
-
-- триггер: push в `release/**`;
-- `needs: fast-check` (не запускать без зелёного fast);
-- сборка `bundleRelease` с подписью (keystore из
-  Environment `release`);
-- upload `.aab` в Google Play Internal Testing
-  (track `internal`);
-- `environment: release` — активирует Environment secrets
-  и потенциальные approval-гейты.
-
-**Production-tier (tag `v*` на `master`):**
-
-Обновить существующий `release.yml`:
-
-- добавить `environment: release` в job `build-and-release`;
-- текущая логика (сборка APK, публикация в GitHub Releases)
-  сохраняется;
-- дополнительно — upload `.aab` в Google Play Production
-  (track `production`, status `draft` для ручного approve
-  в Play Console);
-- keystore уже используется в `release.yml` — перевести
-  на Environment secrets (пункт 4).
-
-**Required check в Rulesets:** добавить `CI / release-build`
-как обязательный для `release/**` ruleset. Для `dev` /
-`master` / `hotfix/**` — остаётся `CI / fast-check`.
-
-**Итоговая матрица триггеров (после этапа 4):**
-
-| Триггер | Job | Публикация |
-|---|---|---|
-| Push в `feature/*`, `bugfix/*` | `fast-check` | — |
-| PR в `dev` / `release/**` / `hotfix/**` | `fast-check` | — |
-| Push в `dev` | `full-build` | — |
-| Push в `release/**` | `release-build` | Google Play Internal |
-| Tag `v*` на `master` | `release.yml` | GitHub Release + Google Play Production |
-
-**Оценка:** ~4 часа (Environment secrets + release-job
-в `ci.yml` + обновление `release.yml` + Play Store
-Service Account).
-
-**Зависимости:**
-- **Блокируется** созданием Google Play Console listing
-  (нужен для Service Account).
-- **Блокируется** регистрацией Firebase проекта (для
-  App Distribution token).
-
-#### Этап 5 — Role emulation для тестировщика
-
-**Файлы:** GitHub Settings → Collaborators, Rulesets.
-
-**Что сделать:**
-
-1. Создать второй GitHub-аккаунт (`tscalp-qa` или аналог).
-2. Добавить как Collaborator с ролью Read или Triage.
-3. Настроить Ruleset `dev` с `Required approvals: 1` —
-   PR требует approve от второго аккаунта.
-4. Документировать процесс в `docs/git-flow.md`.
-
-**Когда:** после этапов 1–3, когда процесс уже работает
-и approve будет реальным шагом, а не формальностью.
-
-**Оценка:** ~30 минут.
-
-#### Этап 6 — Документация
+**Предусловия:**
+- Появился реальный второй участник (человек, а не
+  фиктивный аккаунт).
 
 **Файлы:**
-- `docs/git-flow.md` (новый) — полный цикл с Mermaid-
-  диаграммой, стратегии merge, отклонения от канона.
-- `docs/release-process.md` — обновить: убрать `dev → master`
-  напрямую, добавить `release/*` и `hotfix/*`.
-- `AGENTS.md` — правила работы с ветками (какие ветки, какие
-  PR куда, стратегия merge).
+- `docs/git-flow.md` — раздел о ролях и требуемых approve.
+- GitHub Settings → Collaborators.
+- Rulesets.
 
-**Оценка:** ~1.5 часа.
+**Шаги:**
 
-**Общая оценка:** ~9–10 часов.
+1. Добавить второго участника как Collaborator с ролью
+   **Write** (роль Read или Triage **не может одобрять
+   PR** — это ограничение GitHub security model).
+2. В Rulesets для `dev`, `release/**`, `hotfix/**` поднять
+   `Required approvals: 1`.
+3. В `docs/git-flow.md` добавить раздел «Роли» с описанием:
+   кто может approve, что даёт approve, как выглядит
+   процесс.
+4. Проверить на тестовом PR: PR без approve → merge
+   заблокирован; approve от второго участника → merge
+   разрешён.
 
-**Зависимости:** нет. Блокирует «Переход на GitHub Environment
-secrets» (становится этапом 4) и «Hot-swap CI на GitLab»
-(структура workflow определяет структуру `.gitlab-ci.yml`).
+**Референсы:**
+- GitHub Docs → Repository roles.
+- `docs/git-flow.md` → «Осознанные отклонения».
+
+**Ограничения:**
+- Не создавать фиктивный аккаунт «для тренировки» — ждать
+  реального участника.
+- Не давать роль выше Write — read-only и triage не
+  подходят из-за невозможности approve.
+
+**Критерий готовности:**
+- Второй участник добавлен как Collaborator.
+- Required approvals: 1 на всех PR в `dev` / `release/**` /
+  `hotfix/**`.
+- Процесс задокументирован в `docs/git-flow.md`.
+
+**Оценка:** ~30 минут.
+
+**Зависимости:** нет.
 
 **Открытые вопросы:**
-- Один workflow-файл с `if:` или разбивка на несколько?
-  Решить на старте этапа 3.
-- Cherry-pick или Merge commit для `hotfix/* → dev`?
-  Решить после первого hotfix.
-- Как эмулировать тестировщика — Triage-роль (не может
-  approve) или Maintainer с ограничениями? Уточнить на
-  этапе 5.
+- Роль второго участника: Write или Maintainer? Решить
+  при появлении. Для approve достаточно Write.
 
+#### Self-hosted GitLab Runner через Ansible + Podman
 
+**Статус:** запланировано.
+
+**Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
+64 ГБ RAM, Bluefin 44) через Ansible, используя Podman как
+executor. Предусмотреть возможность переключения на удалённый
+сервер через inventory.
+
+**Зачем:** квота GitLab Free Tier (400 минут/мес) исчерпана.
+Self-hosted даёт бесплатные сборки, полный контроль над
+окружением и лучшую производительность.
+
+**Технические детали:**
+- Podman как drop-in замена Docker в GitLab Runner 15.1+.
+  В `config.toml`: `executor = "docker"`,
+  `host = "unix:///run/user/<uid>/podman/podman.sock"`.
+- Rootless Podman: без root, без демона, безопаснее.
+- Ansible роль: создание пользователя `gitlab-runner`,
+  `loginctl enable-linger`, `systemctl --user enable podman.socket`,
+  регистрация раннера, настройка `config.toml`.
+- Ограничения ресурсов: `--memory=16g`, `--cpus=8` (с запасом,
+  начать с 8g/4).
+- Кэш Gradle монтируется с хоста для ускорения сборок.
+
+**Бесшовное переключение:**
+- Inventory с двумя хостами: `local` и `remote`.
+- Раннеры регистрируются с разными тегами (`home`, `remote`).
+- Переключение — смена тега в `.gitlab-ci.yml` или через
+  переменную CI/CD.
+
+**План:**
+1. Написать Ansible роль для GitLab Runner + Podman.
+2. Протестировать на домашней машине (`ansible-playbook -i inventory.yml playbook.yml`).
+3. Зарегистрировать раннер в проекте.
+4. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
+5. `build-release` и `publish-release` оставить на GitLab SaaS
+   или перенести после проверки.
+
+**Оценка:** ~2–3 часа на написание роли и отладку.
+**Когда:** после решения вопроса с Gradle upgrade.
 
 ### Hot-swap CI на GitLab
 
@@ -334,10 +166,10 @@ Actions, которая сама будет перестроена на этап
    тегов `v*`).
 5. **`docs/ci-cd.md`** — новый документ. Процедура
    переключения:
-   - как активировать pipeline в GitLab вручную;
-   - как отключить GitHub Actions (чтобы не было дублей);
-   - что делать с секретами;
-   - как запустить конкретный job.
+    - как активировать pipeline в GitLab вручную;
+    - как отключить GitHub Actions (чтобы не было дублей);
+    - что делать с секретами;
+    - как запустить конкретный job.
 6. **Protected Branches / Tags в GitLab** — привести в
    соответствие с GitHub Rulesets после этапа 1 GitFlow.
 
@@ -369,7 +201,7 @@ Actions, которая сама будет перестроена на этап
 - **Блокируется** «Переход на полный GitFlow» (структура
   workflow).
 - **Блокируется** «Self-hosted GitLab Runner через Ansible
-  + Podman» (возможность запуска pipeline).
+    + Podman» (возможность запуска pipeline).
 
 **Открытые вопросы:**
 - Настроить зеркалирование: push из GitHub Settings или
@@ -381,9 +213,6 @@ Actions, которая сама будет перестроена на этап
 - Единая структура job'ов в GitHub Actions и GitLab CI,
   или допускается расхождение в деталях? Решить на
   этапе детализации после GitFlow.
-
-
-
 
 ---
 
@@ -426,54 +255,6 @@ Actions, которая сама будет перестроена на этап
   `renameReleaseApk` в `build.gradle.kts`.
 
 **Запланировано** (в порядке приоритета):
-
-
-
-
-#### Self-hosted GitLab Runner через Ansible + Podman
-
-**Статус:** запланировано.
-
-**Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
-64 ГБ RAM, Bluefin 44) через Ansible, используя Podman как
-executor. Предусмотреть возможность переключения на удалённый
-сервер через inventory.
-
-**Зачем:** квота GitLab Free Tier (400 минут/мес) исчерпана.
-Self-hosted даёт бесплатные сборки, полный контроль над
-окружением и лучшую производительность.
-
-**Технические детали:**
-- Podman как drop-in замена Docker в GitLab Runner 15.1+.
-  В `config.toml`: `executor = "docker"`,
-  `host = "unix:///run/user/<uid>/podman/podman.sock"`.
-- Rootless Podman: без root, без демона, безопаснее.
-- Ansible роль: создание пользователя `gitlab-runner`,
-  `loginctl enable-linger`, `systemctl --user enable podman.socket`,
-  регистрация раннера, настройка `config.toml`.
-- Ограничения ресурсов: `--memory=16g`, `--cpus=8` (с запасом,
-  начать с 8g/4).
-- Кэш Gradle монтируется с хоста для ускорения сборок.
-
-**Бесшовное переключение:**
-- Inventory с двумя хостами: `local` и `remote`.
-- Раннеры регистрируются с разными тегами (`home`, `remote`).
-- Переключение — смена тега в `.gitlab-ci.yml` или через
-  переменную CI/CD.
-
-**План:**
-1. Написать Ansible роль для GitLab Runner + Podman.
-2. Протестировать на домашней машине (`ansible-playbook -i inventory.yml playbook.yml`).
-3. Зарегистрировать раннер в проекте.
-4. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
-5. `build-release` и `publish-release` оставить на GitLab SaaS
-   или перенести после проверки.
-
-**Оценка:** ~2–3 часа на написание роли и отладку.
-**Когда:** после решения вопроса с Gradle upgrade.
-
-
-
 
 ---
 
@@ -522,8 +303,140 @@ approval, per-environment значения. Всё остальное совпа
 
 **Оценка:** ~15 минут.
 
+---
 
+### Play Store Internal Testing
 
+**Мобильная работа:** частичное. Планирование и правка
+`.github/workflows/ci.yml` — через proot. Настройка Play
+Console и Service Account — через web. Реальная проверка
+публикации — только на десктопе или после первой сборки.
+
+**Статус:** запланировано. **Заблокировано** созданием
+Google Play Console listing.
+
+**Контекст:** после этапа 4a (Environment secrets для
+релиза) остался нереализованным release-tier: push в
+`release/**` должен собирать `.aab` и публиковать его в
+Play Store Internal Testing для QA. Блокер — отсутствие
+Play Console listing и Service Account JSON.
+
+**Предусловия:**
+- Создан Google Play Console listing для приложения.
+- Сгенерирован Service Account JSON с правами на публикацию
+  в Internal Testing.
+- Listing заполнен (иконки, скриншоты, описание) — минимум
+  для внутреннего трека.
+
+**Файлы:**
+- `.github/workflows/ci.yml` — добавить job `release-build`.
+- GitHub Settings → Environments → `release` — добавить
+  secret `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
+
+**Шаги:**
+
+1. Создать listing в Play Console (если ещё нет).
+2. Сгенерировать Service Account JSON в Google Cloud
+   Console, привязать к Play Console.
+3. Добавить JSON как Environment secret `release`.
+4. Добавить job `release-build` в `ci.yml`:
+    - триггер: `push` в `release/**`;
+    - `needs: fast-check`;
+    - `environment: release`;
+    - сборка `:app:bundleRelease` с подписью из Environment
+      secrets;
+    - upload `.aab` в Play Internal Testing через
+      `r0adkll/upload-google-play@v1`;
+    - track `internal`.
+5. Обновить Ruleset `Protect release branches`: добавить
+   `CI / release-build` в required checks.
+6. Тестовая проверка: срезать `release/v0.0.1-test` от
+   `dev`, запушить, дождаться зелёного workflow, удалить
+   ветку и тестовую публикацию.
+
+**Референсы:**
+- `r0adkll/upload-google-play` — GitHub Action.
+- `docs/git-flow.md` → «Жизненный цикл релиза».
+
+**Ограничения:**
+- Не публиковать в Production на этом этапе — только
+  Internal.
+- Не менять `release.yml` (тег `v*`) — production-tier
+  отдельная задача.
+- `versionCode` для Play Store должен строго возрастать —
+  проверить, что формула из semver даёт валидные значения.
+
+**Критерий готовности:**
+- Push в `release/**` публикует `.aab` в Play Internal
+  Testing.
+- Required check `CI / release-build` настроен.
+- Публикация видна в Play Console для тестировщиков.
+
+**Оценка:** ~4 часа (включая настройку Play Console и
+Service Account).
+
+**Зависимости:**
+- Блокируется Play Console listing.
+- Разблокирует «Play Store Production» (общий Service
+  Account).
+
+**Открытые вопросы:** нет.
+
+### Play Store Production
+
+**Мобильная работа:** частичное. Правка `.github/workflows/release.yml`
+— через proot. Проверка публикации — только на десктопе
+(сборка с подписью и upload в Play).
+
+**Статус:** запланировано. **Заблокировано** «Play Store
+Internal Testing» (общий Service Account).
+
+**Контекст:** production-tier — публикация релиза в
+Production track Play Store. Привязан к тегу `v*` на
+`master`. Расширяет существующий `release.yml`.
+
+**Предусловия:**
+- Выполнен «Play Store Internal Testing».
+- Service Account JSON с правами на публикацию в Production.
+
+**Файлы:**
+- `.github/workflows/release.yml` — расширить job
+  `build-and-release`.
+
+**Шаги:**
+
+1. Добавить в `release.yml` после шага «Create GitHub
+   Release»:
+    - сборка `:app:bundleRelease`;
+    - upload `.aab` в Play Production (track `production`,
+      status `draft` для ручного approve в Play Console).
+2. Проверить, что Environment `release` уже привязан к
+   job'у (сделано в 4a).
+3. Тестовый прогон: пробный тег `v0.0.x-test` → дождаться
+   зелёного workflow → проверить, что `.aab` появился в
+   Play Console как draft → удалить draft и тег.
+
+**Референсы:**
+- `r0adkll/upload-google-play` → параметр `status: draft`.
+- `docs/git-flow.md` → «Жизненный цикл релиза».
+
+**Ограничения:**
+- Публикация в Production — только `status: draft`. Релиз
+  в прод делает человек через Play Console.
+- Не менять сборку APK для GitHub Releases — она остаётся
+  как есть, `.aab` собирается дополнительно.
+
+**Критерий готовности:**
+- Tag `vX.Y.Z` на `master` создаёт:
+    - GitHub Release с APK (как раньше);
+    - `.aab` в Play Console Production track со статусом
+      `draft`.
+
+**Оценка:** ~2 часа.
+
+**Зависимости:** блокируется «Play Store Internal Testing».
+
+**Открытые вопросы:** нет.
 
 ---
 
@@ -784,7 +697,6 @@ cat >> docs/ROADMAP.md <<'EOF'
 
 ---
 
-
 ### ✅ Разделение планирования: dev-roadmap / ci-roadmap
 
 CI/CD-планирование вынесено в отдельный файл `docs/ci-roadmap.md`.
@@ -836,4 +748,69 @@ CI-плане, потому что их роль — гейт на merge чер�
 **Итог:** два файла вместо одного, каждый со своим
 потребителем и слоем.
 
+### ✅ Переход на полный GitFlow
+
+Полный GitFlow внедрён: Rulesets, соглашение о ветках,
+реструктуризация workflow, Environment secrets.
+
+**Сделано (этапы 1, 2, 3, 4a, 6):**
+
+- **Этап 1 — Rulesets.** Созданы 4 branch-ruleset'а
+  (`Protect dev`, `Protect release branches`,
+  `Protect hotfix branches` — плюс существовавший
+  `Protect master`) с required check `CI / fast-check`,
+  block force pushes, restrict deletions, Merge-only
+  merge strategy.
+  В `Protect release tags` добавлен bypass для
+  Repository admin — для восстановления после ошибок
+  (например, удаление случайного тега `v0.0.1-test`).
+- **Этап 2 — Соглашение о ветках.** Создан
+  `docs/git-flow.md` (полное описание схемы веток,
+  стратегий merge, жизненных циклов release и hotfix,
+  осознанных отклонений от канона, правил защиты).
+  Обновлён `docs/release-process.md`: схема `dev → master`
+  заменена на `release/* → master` + обратный
+  `master → dev`. В `AGENTS.md` добавлен раздел
+  «Git workflow: ветки и PR» с картой merge.
+- **Этап 3 — Реструктуризация workflow.** `ci.yml`
+  разделён на два job'а: `fast-check` (unit + lint +
+  ktlint + detekt) и `full-build` (kover + assembleDebug).
+  Триггеры расширены под GitFlow, `master` добавлен
+  в PR-триггеры, `paths-ignore` убран с PR. Required check
+  в Rulesets переименован `CI / build` → `CI / fast-check`.
+- **Этап 4a — Environment secrets.** Создан Environment
+  `release` с tag-scoped доступом (`v*`), без admin bypass.
+  4 keystore-секрета перенесены из Repository secrets
+  в Environment. В `release.yml` добавлен
+  `environment: release`. Repository secrets удалены.
+  Проверено холостым прогоном на теге `v0.0.2` —
+  workflow зелёный, GitHub Release создан.
+- **Этап 6 — Документация.** Реализован как часть
+  этапа 2 (`docs/git-flow.md`, `docs/release-process.md`,
+  `AGENTS.md`).
+
+**Осознанные отклонения от канона GitFlow:**
+
+1. **Ветка `dev`** вместо `develop` — миграция имени
+   дороже, чем отступление.
+2. **Merge commit везде** (без Squash и Rebase) —
+   сохранение SHA, отсутствие расхождения `dev`/`master`.
+   Отдельная задача «Рассмотреть Squash vs Merge commit»
+   в `docs/ci-roadmap.md` (Планируемые).
+
+**Вынесено в отдельные задачи:**
+
+- `### Play Store Internal Testing` — release-tier
+  публикация в Play Console (заблокирована Play Console).
+- `### Play Store Production` — production-tier
+  (зависит от Internal).
+- `### Role emulation для тестировщика` — этап 5,
+  отложен до появления второго участника.
+
+**Итог:** организационный слой воспроизводит
+индустриальный GitFlow (см. правило 2b AGENTS.md).
+Единственный работающий CI сейчас — GitHub Actions;
+GitLab — резерв (см. `### Hot-swap CI на GitLab`).
+
+---
 ---
