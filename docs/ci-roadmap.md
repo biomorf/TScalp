@@ -14,7 +14,8 @@
 **Мобильная работа:** частичное. Правка `ci.yml` через proot,
 правка Rulesets через web. Проверка — через Actions UI.
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/gate-job
 
 **Контекст:** required status checks в GitHub Rulesets
 зависят от picker'а, который показывает только те checks,
