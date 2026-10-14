@@ -652,6 +652,44 @@ hotfix-веток.
 в ROADMAP. Правило выше — только про синхронизацию **текущей
 ветки с её origin-копией**.
 
+### Git workflow: ветки и PR
+
+Полное соглашение о ветвлении — в `docs/git-flow.md`. Здесь —
+краткая карта для быстрой ориентации.
+
+**Постоянные ветки:**
+
+- `master` — релизы. Прямой push запрещён (Ruleset).
+- `dev` — интеграция. Прямой push запрещён (Ruleset).
+
+**Временные ветки:**
+
+- `feature/<name>` — от `dev`. Одна фича.
+- `bugfix/<issue-id>` — от `dev`. Один баг в разработке.
+- `release/vX.Y.Z` — от `dev`. Стабилизация перед релизом.
+- `hotfix/vX.Y.Z` — от тега на `master`. Экстренный фикс.
+
+**Стратегия merge:** Merge commit везде. Squash и Rebase
+отключены в Rulesets — стратегия единая (см.
+`docs/git-flow.md` → «Осознанные отклонения»).
+
+**Карта merge:**
+
+| Source | Target | Тег |
+|---|---|---|
+| `feature/*` | `dev` | — |
+| `bugfix/*` | `dev` | — |
+| `release/*` | `master` | `vX.Y.Z` |
+| `master` | `dev` | — |
+| `hotfix/*` | `master` | `vX.Y.(Z+1)` |
+| `hotfix/*` | `dev` | — |
+
+**Порядок работы над задачей из ROADMAP** — правило 5g.
+
+**Проверка перед PR:** `./gradlew :app:clean
+:app:testDebugUnitTest --rerun-tasks` — зелёный. CI прогонит
+то же на PR.
+
 ---
 
 ## Запрещено
