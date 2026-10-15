@@ -20,10 +20,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,11 +69,14 @@ class TInvestMarketDataService(
     companion object {
         private const val TAG = "TInvestMarketData"
 
-        /**
-         * Пауза между итерациями каскада стрима позиций:
-         * после одиночного polling перед повторной попыткой gRPC.
-         */
+        /** Интервал polling позиций. */
         private const val RETRY_DELAY_MS = 10_000L
+
+        /**
+         * Экспоненциальный backoff для переподключения gRPC-стрима.
+         * Cap 60 секунд — по аналогии с [PriceStreamManager].
+         */
+        private val GRPC_RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
     }
 
     // ---------- Счета ----------
@@ -281,88 +286,104 @@ class TInvestMarketDataService(
             instrumentType = "futures",
         )
 
-    // ---------- Стрим позиций (polling) ----------
-
-    // ---------- Стрим позиций (каскад) ----------
+    // ---------- Стрим позиций (параллельно) ----------
 
     /**
-     * Циклический каскад: gRPC → polling → cooldown → retry.
+     * Параллельный каскад: gRPC-стрим + polling работают одновременно.
      *
-     * 1. gRPC-стрим — первичный источник. Даёт изменения количества.
-     * 2. Polling — fallback. Одноразовый снимок с полным составом
-     *    полей (цены, P&L).
-     * 3. Cooldown [RETRY_DELAY_MS] после polling.
-     * 4. Цикл повторяется: снова gRPC, polling, cooldown.
+     * Каждый уровень эмитит события в общий поток. Polling прикрывает
+     * паузы, когда gRPC молчит (в песочнице, при отсутствии прав,
+     * или если сервер не отвечает). gRPC переподключается при ошибке
+     * с экспоненциальным backoff.
      *
-     * Fatal (NOT_FOUND по счёту) останавливает каскад.
-     * Отмена снаружи пробрасывается как CancellationException.
+     * Fatal (NOT_FOUND по счёту) завершает оба уровня.
      */
-    fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
-        channelFlow {
-            AppLogger.d(TAG, "[positions] cascade started (account=$accountId)")
-            var iteration = 0
-            try {
-                while (isActive) {
-                    iteration++
-                    AppLogger.d(TAG, "[positions] iteration #$iteration")
+    fun subscribePositions(accountId: String): Flow<PositionStreamItem> {
+        val pollingFlow = subscribePositionsPolling(accountId)
+        val grpcFlow = subscribePositionsGrpcWithReconnect(accountId)
+        return if (grpcFlow != null) {
+            merge(grpcFlow, pollingFlow)
+        } else {
+            pollingFlow
+        }
+    }
 
-                    // Уровень 1: gRPC
-                    val grpcFlow = subscribePositionsGrpc(accountId)
-                    if (grpcFlow != null) {
-                        AppLogger.d(TAG, "[positions] gRPC: attempting stream")
-                        val grpcOutcome =
-                            try {
-                                grpcFlow.collect { send(it) }
-                                AppLogger.d(TAG, "[positions] gRPC: completed — falling back")
-                                LevelOutcome.Ended
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                if (e.message?.contains("NOT_FOUND") == true) {
-                                    AppLogger.w(TAG, "[positions] gRPC: fatal (${e.message})")
-                                    LevelOutcome.Fatal
-                                } else {
-                                    AppLogger.w(TAG, "[positions] gRPC: error (${e.message}) — falling back")
-                                    LevelOutcome.Ended
-                                }
-                            }
-                        if (grpcOutcome == LevelOutcome.Fatal) return@channelFlow
+    /**
+     * gRPC-стрим с автопереподключением.
+     *
+     * Возвращает `null`, если API не инициализирован.
+     * Переподключается с экспоненциальным backoff
+     * [GRPC_RETRY_DELAYS_MS] при ошибках. Штатное завершение
+     * сервером → повтор без задержки. NOT_FOUND → завершение
+     * потока без переподключения.
+     */
+    private fun subscribePositionsGrpcWithReconnect(accountId: String): Flow<PositionStreamItem>? {
+        if (state.api == null) return null
+        return flow {
+            var attempt = 0
+            while (currentCoroutineContext().isActive) {
+                val grpcFlow = subscribePositionsGrpc(accountId) ?: return@flow
+                try {
+                    AppLogger.d(TAG, "[positions]/gRPC: connecting (attempt=${attempt + 1})")
+                    grpcFlow.collect { emit(it) }
+                    attempt = 0
+                    AppLogger.d(TAG, "[positions]/gRPC: completed by server, reconnecting")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (e.message?.contains("NOT_FOUND") == true) {
+                        AppLogger.w(TAG, "[positions]/gRPC: fatal (${e.message}) — stopping")
+                        return@flow
                     }
+                    attempt++
+                    val delayMs = retryDelayMs(attempt)
+                    AppLogger.w(
+                        TAG,
+                        "[positions]/gRPC: error (attempt=$attempt, ${e.message}), retry in ${delayMs}ms",
+                    )
+                    delay(delayMs)
+                }
+            }
+        }
+    }
 
-                    // Уровень 2: polling один раз
-                    AppLogger.d(TAG, "[positions] polling: single fetch")
-                    val pollOutcome =
-                        try {
-                            val sandbox = state.sandboxMode
-                            val snapshot = fetchPositionsSnapshot(accountId, sandbox)
-                            for (pos in snapshot) send(convertToStreamItem(pos))
-                            AppLogger.d(TAG, "[positions] polling: fetched ${snapshot.size} positions")
-                            LevelOutcome.Ended
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            if (e.message?.contains("NOT_FOUND") == true) {
-                                AppLogger.w(TAG, "[positions] polling: account not found — stopping cascade")
-                                LevelOutcome.Fatal
-                            } else {
-                                AppLogger.w(TAG, "[positions] polling: error (${e.message})")
-                                LevelOutcome.Ended
-                            }
+    /**
+     * Polling позиций раз в [RETRY_DELAY_MS] миллисекунд.
+     *
+     * Стартовый снапшот делается сразу, чтобы UI не ждал 10 секунд
+     * при первом открытии портфеля. Далее — по циклу.
+     *
+     * NOT_FOUND по счёту завершает поток.
+     */
+    private fun subscribePositionsPolling(accountId: String): Flow<PositionStreamItem> =
+        flow {
+            AppLogger.d(TAG, "[positions]/polling: started (account=$accountId)")
+            try {
+                while (currentCoroutineContext().isActive) {
+                    try {
+                        val sandbox = state.sandboxMode
+                        val snapshot = fetchPositionsSnapshot(accountId, sandbox)
+                        AppLogger.d(TAG, "[positions]/polling: fetched ${snapshot.size} positions")
+                        for (pos in snapshot) emit(convertToStreamItem(pos))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        if (e.message?.contains("NOT_FOUND") == true) {
+                            AppLogger.w(TAG, "[positions]/polling: account not found — stopping")
+                            return@flow
                         }
-                    if (pollOutcome == LevelOutcome.Fatal) return@channelFlow
-
-                    AppLogger.d(TAG, "[positions] cooldown ${RETRY_DELAY_MS}ms before retry")
+                        AppLogger.w(TAG, "[positions]/polling: error (${e.message})")
+                    }
                     delay(RETRY_DELAY_MS)
                 }
             } finally {
-                AppLogger.d(TAG, "[positions] cascade stopped (account=$accountId)")
+                AppLogger.d(TAG, "[positions]/polling: stopped (account=$accountId)")
             }
         }
 
-    private sealed interface LevelOutcome {
-        object Ended : LevelOutcome
-
-        object Fatal : LevelOutcome
+    private fun retryDelayMs(attempt: Int): Long {
+        val idx = (attempt - 1).coerceIn(0, GRPC_RETRY_DELAYS_MS.lastIndex)
+        return GRPC_RETRY_DELAYS_MS[idx]
     }
 
     private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
