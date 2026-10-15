@@ -10,6 +10,75 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
+### Переименование fetchPositionsRest → fetchPositionsSnapshot
+
+**Мобильная работа:** частичное (grep+sed-правки — с телефона;
+сборка и тесты — на десктопе).
+
+**Статус:** запланировано.
+
+**Контекст:** метод `fetchPositionsRest` в `BrokerApi` назван
+по транспортному признаку одного брокера (BCS, Finam — REST).
+Но у T-Invest это **gRPC unary**, не REST. Имя путает и
+препятствует унификации fallback-каскадов:
+
+- у T-Invest позиции идут через gRPC unary (не поток),
+- у BCS — через REST,
+- у Finam — как решится при реализации.
+
+При этом `subscribePositions` — это **stream** (gRPC,
+позже WS). Логическая пара «snapshot / stream» описывает
+оба метода без привязки к транспорту.
+
+**Цель:** переименовать метод в `fetchPositionsSnapshot` во
+всех слоях, чтобы имя отражало семантику («одноразовый
+снимок» vs «стрим»), а не транспорт.
+
+**Файлы:**
+- `domain/api/BrokerApi.kt` — интерфейс и KDoc.
+- `data/api/TInvestBrokerApi.kt` — override.
+- `data/api/TInvestMarketDataService.kt` — реализация + 2
+  внутренних вызова.
+- `data/api/BcsBrokerApi.kt` — override + 2 внутренних
+  вызова.
+- `data/api/FinamBrokerApi.kt` — override + 2 внутренних
+  вызова.
+- `data/repository/InvestRepository.kt` — вызов.
+- `docs/ROADMAP.md` — 5 упоминаний (включая эту задачу).
+
+**Шаги:**
+
+1. Переименовать `fetchPositionsRest` → `fetchPositionsSnapshot`
+   во всех `.kt` файлах (6 файлов, 14 мест).
+2. Уточнить KDoc в `BrokerApi.kt`: явно указать, что метод
+   возвращает снимок (в отличие от `subscribePositions`),
+   транспорт зависит от реализации брокера.
+3. Обновить 5 упоминаний в `docs/ROADMAP.md`.
+4. Сборка: `./gradlew :app:clean :app:testDebugUnitTest
+   :app:ktlintCheck :app:detekt --rerun-tasks` — зелёная.
+
+**Референсы:**
+- `domain/api/BrokerApi.kt` — текущий KDoc.
+- `docs/git-flow.md` → «Осознанные отклонения» — общая
+  логика транспорт-нейтральных имён в domain-слое
+  (см. AGENTS.md → «Идентификаторы инструментов»).
+
+**Ограничения:**
+- Не менять поведение — только имя.
+- Не трогать `subscribePositions` — там имя корректно
+  (это стрим).
+
+**Критерий готовности:**
+- Все упоминания `fetchPositionsRest` заменены на
+  `fetchPositionsSnapshot`.
+- Сборка и тесты зелёные.
+- KDoc уточнён.
+
+**Оценка:** ~20 минут.
+
+**Зависимости:** нет. Разблокирует последующие задачи по
+fallback-каскадам (gRPC для позиций, WS-уровень).
+
 ### versionCode из нечислового semver
 
 **Мобильная работа:** полное закрытие. Правка `build.gradle.kts`,
