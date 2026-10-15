@@ -24,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
 import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
@@ -45,6 +46,10 @@ import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
 import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.PortfolioRequest
 import ru.tinkoff.piapi.contract.v1.PortfolioResponse
+import ru.tinkoff.piapi.contract.v1.PositionsFutures
+import ru.tinkoff.piapi.contract.v1.PositionsSecurities
+import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
+import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
 import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
 import ru.tinkoff.piapi.contract.v1.SubscribeLastPriceRequest
 import ru.tinkoff.piapi.contract.v1.SubscriptionAction
@@ -193,6 +198,81 @@ class TInvestMarketDataService(
                 )
             }
         }
+
+    // ---------- Стрим позиций (gRPC) ----------
+
+    /**
+     * gRPC-стрим изменений позиций через
+     * `OperationsStreamServiceAsync.positionsStream`.
+     *
+     * Возвращает `null`, если API не инициализирован.
+     *
+     * Даёт только изменения количества и идентификаторы.
+     * Поля `currentPrice`, `averagePositionPrice`, `expectedYield`,
+     * `pointValue` в стриме отсутствуют. Обогащение P&L —
+     * задача `PositionStreamManager` (см. `docs/streams.md`).
+     *
+     * `withInitialPositions = true` — сервер пришлёт снапшот
+     * позиций сразу при подключении, отдельный REST-запрос
+     * не нужен.
+     */
+    fun subscribePositionsGrpc(accountId: String): Flow<PositionStreamItem>? {
+        val api = state.api ?: return null
+        return callbackFlow {
+            val request =
+                PositionsStreamRequest
+                    .newBuilder()
+                    .addAccounts(accountId)
+                    .setWithInitialPositions(true)
+                    .build()
+
+            val streamJob =
+                launch {
+                    try {
+                        api.operationsStreamServiceAsync.positionsStream(
+                            request,
+                            { response: PositionsStreamResponse ->
+                                if (response.hasInitialPositions()) {
+                                    val snapshot = response.initialPositions
+                                    snapshot.securitiesList.forEach { trySend(convertSecurity(it)) }
+                                    snapshot.futuresList.forEach { trySend(convertFuture(it)) }
+                                }
+                                if (response.hasPosition()) {
+                                    val data = response.position
+                                    data.securitiesList.forEach { trySend(convertSecurity(it)) }
+                                    data.futuresList.forEach { trySend(convertFuture(it)) }
+                                }
+                                // hasPing / hasSubscriptions — служебные, игнорируем.
+                            },
+                        )
+                    } catch (e: Exception) {
+                        close(e)
+                    }
+                }
+
+            awaitClose { streamJob.cancel() }
+        }
+    }
+
+    private fun convertSecurity(s: PositionsSecurities): PositionStreamItem =
+        PositionStreamItem(
+            tscalpInstrumentId = s.instrumentUid,
+            brokerName = BrokerName.TINVEST,
+            ticker = s.ticker,
+            quantity = s.balance,
+            classCode = s.classCode,
+            instrumentType = s.instrumentType.ifBlank { "share" },
+        )
+
+    private fun convertFuture(f: PositionsFutures): PositionStreamItem =
+        PositionStreamItem(
+            tscalpInstrumentId = f.instrumentUid,
+            brokerName = BrokerName.TINVEST,
+            ticker = f.ticker,
+            quantity = f.balance,
+            classCode = f.classCode,
+            instrumentType = "futures",
+        )
 
     // ---------- Стрим позиций (polling) ----------
 
