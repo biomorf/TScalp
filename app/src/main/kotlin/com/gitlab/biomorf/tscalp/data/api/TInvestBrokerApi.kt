@@ -67,10 +67,10 @@ class TInvestBrokerAPI(
         marketData.closeSandboxAccount(accountId)
     }
 
-    override suspend fun fetchPositionsRest(
+    override suspend fun fetchPositionsSnapshot(
         accountId: String,
         sandboxMode: Boolean,
-    ) = marketData.fetchPositionsRest(accountId, sandboxMode)
+    ) = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
     override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = marketData.subscribePositions(accountId)
 

@@ -239,7 +239,7 @@ class BcsBrokerApi : BrokerApi {
         callbackFlow {
             // Стартовый снапшот
             try {
-                val positions = fetchPositionsRest(accountId, false)
+                val positions = fetchPositionsSnapshot(accountId, false)
                 positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
             } catch (e: Exception) {
                 AppLogger.w(TAG, "BCS snapshot failed", e)
@@ -249,7 +249,7 @@ class BcsBrokerApi : BrokerApi {
             while (isActive) {
                 delay(10_000)
                 try {
-                    val positions = fetchPositionsRest(accountId, false)
+                    val positions = fetchPositionsSnapshot(accountId, false)
                     positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
                 } catch (e: Exception) {
                     AppLogger.w(TAG, "BCS polling error", e)
@@ -271,7 +271,7 @@ class BcsBrokerApi : BrokerApi {
         )
 
     // реализация на основе HTTP-клиента
-    override suspend fun fetchPositionsRest(
+    override suspend fun fetchPositionsSnapshot(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PortfolioPosition> {

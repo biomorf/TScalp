@@ -18,7 +18,7 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 **Статус:** в работе.
 **Ветка:** feature/rename-fetch-positions
 
-**Контекст:** метод `fetchPositionsRest` в `BrokerApi` назван
+**Контекст:** метод `fetchPositionsSnapshot` в `BrokerApi` назван
 по транспортному признаку одного брокера (BCS, Finam — REST).
 Но у T-Invest это **gRPC unary**, не REST. Имя путает и
 препятствует унификации fallback-каскадов:
@@ -49,7 +49,7 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 **Шаги:**
 
-1. Переименовать `fetchPositionsRest` → `fetchPositionsSnapshot`
+1. Переименовать `fetchPositionsSnapshot` → `fetchPositionsSnapshot`
    во всех `.kt` файлах (6 файлов, 14 мест).
 2. Уточнить KDoc в `BrokerApi.kt`: явно указать, что метод
    возвращает снимок (в отличие от `subscribePositions`),
@@ -70,7 +70,7 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
   (это стрим).
 
 **Критерий готовности:**
-- Все упоминания `fetchPositionsRest` заменены на
+- Все упоминания `fetchPositionsSnapshot` заменены на
   `fetchPositionsSnapshot`.
 - Сборка и тесты зелёные.
 - KDoc уточнён.
@@ -543,7 +543,7 @@ AppMetrica, отладки.
 **Статус:** запланировано.
 
 **Контекст:** сейчас `TInvestMarketDataService.subscribePositions`
-реализует polling через `fetchPositionsRest` раз в 10 секунд.
+реализует polling через `fetchPositionsSnapshot` раз в 10 секунд.
 gRPC-стрим не подключён. Официальная документация T-Invest
 рекомендует переподключаться при отсутствии данных.
 `PositionsStream` живёт в `OperationsStreamService`
@@ -593,7 +593,7 @@ gRPC-стрим не подключён. Официальная документ
    - Заголовки: `Authorization: Bearer <token>`, `Web-Socket-Protocol: json`.
    Сборка.
 6. Реализовать `subscribePositionsPolling` как одиночный
-   `fetchPositionsRest` (без внутреннего `while` и `delay`).
+   `fetchPositionsSnapshot` (без внутреннего `while` и `delay`).
    Сборка.
 7. Debug-логи с префиксом `[positions]` на каждом переходе
    (уровни D/I/W/E — см. «Референсы»).
@@ -801,11 +801,11 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Файлы:**
 - `data/api/TInvestMarketDataService.kt` — 19 функций;
-  `fetchPositionsRest` (complexity 26).
+  `fetchPositionsSnapshot` (complexity 26).
 - `data/api/TInvestInstrumentMapper.kt` — `mapProtoToDomain`
   (118 строк).
 
-**Пути решения:** `fetchPositionsRest` разбить на
+**Пути решения:** `fetchPositionsSnapshot` разбить на
 `fetchPositions` + `enrichWithInstrumentData` +
 `enrichWithMarginData`. `mapProtoToDomain` — на
 `mapFutures` / `mapShares` / `mapDefault`.
@@ -915,7 +915,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
    (боевой и sandbox), авторизация, формат запросов
    и ответов.
 2. Реализовать `getAccounts(sandboxMode)`.
-3. Реализовать `fetchPositionsRest(accountId, sandboxMode)`.
+3. Реализовать `fetchPositionsSnapshot(accountId, sandboxMode)`.
 4. Реализовать `getBalance(accountId)`.
 5. Реализовать `findInstruments(query)`.
 6. Реализовать `postOrder` / `postStopOrder` /
