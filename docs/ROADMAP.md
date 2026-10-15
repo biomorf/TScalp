@@ -10,104 +10,58 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
-### gRPC-стрим позиций
+### Позиции не обновляются при смене счёта
 
-**Мобильная работа:** частичное (распаковка AAR и `grep` —
-с телефона; минимальный тест подписки и миграция —
-на десктопе).
+**Мобильная работа:** невозможно (требует запуска и проверки
+в UI).
 
-**Статус:** в работе (разведка артефакта завершена).
-**Ветка:** feature/positions-grpc-stream
+**Статус:** запланировано. Регресс от PR #16 (gRPC-стрим
+позиций).
 
-**Разведка артефакта (SDK 1.51.0):**
-- `OperationsStreamServiceAsync.positionsStream(request, vararg callbacks)` — есть.
-- `PositionsStreamRequest`: `addAccounts`, `setWithInitialPositions`, `setPingSettings`.
-- `PositionsStreamResponse`: `hasInitialPositions` / `hasPosition` / `hasPing` / `hasSubscriptions`.
-- `PositionData`: `moneyList`, `securitiesList`, `futuresList`, `optionsList`.
-- `PositionsSecurities` / `PositionsFutures`: `figi`, `blocked`, `balance` (Long), `positionUid`, `instrumentUid`, `ticker`, `classCode`.
-- **Важно:** стрим даёт только изменения количества и идентификаторы. Цены, `averagePositionPrice`, `expectedYield` — в стриме НЕТ.
+**Симптом:** при переключении счёта в UI остаются позиции
+предыдущего счёта. Позиции нового счёта добавляются, но
+старые не исчезают.
 
-**Контекст:** сейчас P&L через polling `PositionStreamManager`
-раз в 10 секунд. Официальный стрим на
-`kotlin-sdk-grpc-core:1.48.1` не удалось завести: сервер
-не присылал данные (см. `docs/streams.md` → «PositionsStream»).
+**Контекст:** до PR #16 (переход на каскад gRPC + polling)
+такого поведения не было. Симптом появился после изменений
+в `PositionStreamManager` и `TInvestMarketDataService`.
 
-**Ключевая корректировка:** `PositionsStreamServiceGrpc`
-**не существует**. Стрим позиций — это метод
-`positionsStream` внутри `OperationsStreamService`
-(там же, где `PortfolioStream` и `OperationsStream`).
-Прошлые попытки искали несуществующий класс — отсюда
-неудачи.
+**Гипотезы:**
 
-**Что изменилось:** SDK обновлён 1.48.1 → 1.51.0. Нужно
-проверить заново, но уже по правильному имени.
+1. `_flow` в `PositionStreamManager` имеет `replay = 1`.
+   При смене счёта через `start(newAccountId)` replay-кэш
+   не сбрасывается (сброс происходит только в `stop()`).
+   Новые подписчики могут получить элемент от старого счёта.
+2. Каскад `subscribePositions` может блокироваться на
+   gRPC-уровне — если стрим молчит, polling не запускается,
+   и `_flow` не получает свежих событий.
+3. `PortfolioViewModel` не очищает список позиций при
+   смене счёта — накапливает элементы с разными
+   `tscalpInstrumentId`.
 
-**Шаги при возврате:**
+**Файлы:**
+- `domain/api/PositionStreamManager.kt`
+- `presentation/screens/portfolio/PortfolioViewModel.kt`
+- `presentation/screens/orders/OrdersViewModel.kt`
 
-1. **Разведка артефакта.** Распаковать
-   `kotlin-sdk-grpc-core:1.51.0` (jar/AAR), проверить наличие:
-    - `OperationsStreamServiceCoroutineStub` (или
-      `operationsStreamServiceAsync` в `InvestApi`);
-    - классов `PositionsStreamRequest` и `PositionsStreamResponse`.
-2. **Минимальный тест-подписки вне приложения**
-   (отдельный `main`, не трогая `PositionStreamManager`).
-   По образцу из SDK:
-   `RussianInvestments/invest-api-kotlin-sdk` →
-   `kotlin-sdk-grpc-example/.../OperationStreamServiceExample.kt`
-   → метод `examplePositionsStream`.
-    - запрос:
-      `PositionsStreamRequest.newBuilder()
-      .addAccounts(accountId)
-      .setWithInitialPositions(true)
-      .build()`.
-    - `withInitialPositions = true` даёт снапшот позиций сразу
-      при подключении — не нужен отдельный REST-вызов.
-3. **Песочница.** Проверить, воспроизводится ли
-   `UNAUTHENTICATED: 40003` на 1.51.0. Если нет — уже победа.
-4. **Боевой.** Проверить, приходят ли `initialPositions` и
-   последующие `position` (обновления).
-5. **Если работает** — перевести `PositionStreamManager`
-   на стрим, polling оставить как fallback (второй уровень
-   в каскаде, см. `docs/ROADMAP.md` → «Каскад обновления
-   позиций»).
-6. **Если не работает** — обновить `docs/ISSUES.md` с новыми
-   деталями (какой именно `onError`, есть ли `ping`) и
-   оставить polling.
+**Шаги:**
 
-**Референсы:**
-- `RussianInvestments/invest-api-kotlin-sdk` →
-  `OperationStreamServiceExample.kt` → `examplePositionsStream`.
-- `operations.proto` в `ru.tinkoff.piapi.contract.v1` —
-  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
-- `docs/streams.md` → «PositionsStream» — история прошлых попыток.
-- AsyncAPI-спецификация WebSocket:
-  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
-  Канал `/OperationsStreamService/PositionsStream`. Пригодится
-  для WS-уровня каскада.
+1. Воспроизвести: открыть портфель на счёте A, переключиться
+   на счёт B, посмотреть, полностью ли заменился список.
+2. Логи `PositionStream` + `[positions]` — проверить, эмитит
+   ли менеджер события для нового счёта.
+3. Определить, где теряется сигнал сброса: в менеджере
+   (replay-кэш, snapshotCache) или в ViewModel.
+4. Исправить.
+5. Покрыть unit-тестом (если возможно).
 
-**Ограничения:**
-- **Не искать** `PositionsStreamServiceGrpc` — класса не существует.
-- Не менять `PositionStreamManager` на этом шаге — только
-  разведка артефакта и минимальный тест.
-- Не переподключаться чаще, чем раз в 3 секунды — документация
-  T-Invest предупреждает: «не пытайтесь переподключаться
-  слишком часто».
+**Критерий готовности:**
+- При смене счёта список позиций полностью замещается.
+- Не остаётся артефактов предыдущего счёта.
 
-**Критерий готовности (разведка):**
-- Известно, есть ли `OperationsStreamServiceCoroutineStub`
-  (или async-вариант) в артефакте 1.51.0.
-- Есть минимальный тест-подписки вне приложения.
-- Известно поведение в песочнице и боевом:
-  `UNAUTHENTICATED: 40003` воспроизводится или нет,
-  приходят ли данные.
-- Результат зафиксирован в `docs/ISSUES.md`.
+**Оценка:** ~1 час.
 
-**Оценка:** ~2 часа на разведку + минимальный тест.
-Миграция `PositionStreamManager` — отдельная задача,
-зависит от результата.
-
-**Зависимости:** нет. **Разблокирует** WS-уровень в каскаде
-позиций (см. `docs/ROADMAP.md` → «Каскад обновления позиций»).
+**Зависимости:** нет. Регресс от задачи «gRPC-стрим позиций».
 
 ### Рефакторинг расчёта P&L для PortfolioPosition
 
@@ -1211,5 +1165,64 @@ for gRPC price stream` (PR #10).
 Один коммит: `refactor(domain): rename fetchPositionsRest
 to fetchPositionsSnapshot` (PR #17).
 
+### ✅ gRPC-стрим позиций
+
+gRPC-стрим позиций реализован и работает в боевом и
+песочнице. Основной источник обновлений количества;
+polling остаётся параллельным fallback'ом.
+
+**Что сделано:**
+
+- **Разведка артефакта SDK 1.51.0.** Подтверждено:
+  `OperationsStreamServiceAsync.positionsStream` доступен,
+  классы `PositionsStreamRequest` / `PositionsStreamResponse`
+  есть. Сервис был и в 1.48.1 — прошлые попытки падали
+  не из-за отсутствия классов, а из-за несуществующего
+  имени `PositionsStreamServiceGrpc`.
+- **`subscribePositionsGrpc`** в `TInvestMarketDataService`.
+  Через `api.operationsStreamServiceAsync.positionsStream`,
+  с `withInitialPositions = true` (сервер присылает
+  снапшот при подключении).
+- **Параллельная схема вместо последовательного каскада.**
+  `merge(subscribePositionsGrpcWithReconnect, subscribePositionsPolling)`.
+  gRPC и polling работают одновременно, эмитят в общий
+  поток. Отказ от каскада: gRPC может молчать (в первых
+  тестах — да), а polling обязан работать.
+- **Автопереподключение gRPC** с экспоненциальным
+  backoff `[1s, 5s, 15s, 30s, 60s]`. Ожидание появления
+  API внутри flow (без early-return).
+- **Обогащение в `PositionStreamManager`.** Полные события
+  (от polling, `currentPrice != null`) обновляют
+  `snapshotCache`. Неполные события (от gRPC, без P&L)
+  дополняются `currentPrice`, `averagePositionPrice`,
+  `expectedYield`, `isin`, `pointValue` из кэша.
+- **Диагностический лог** `[positions]/gRPC: response — subs=, init=, pos=, ping=, case=`.
+  Нужен, потому что `PING` приходит раз в 60 секунд;
+  без него не отличить «стрим мёртв» от «стрим жив,
+  изменений нет».
+
+**Проверено:**
+
+- Боевой аккаунт: `SUBSCRIPTIONS` → `INITIAL_POSITIONS`
+  за 100 мс, затем `PING` раз в 60 секунд.
+- Песочница: тот же flow, `hasPosition()` приходит при
+  изменении позиции.
+- **Обогащение работает:** gRPC-событие `POSITION` для
+  `5f72f0f4-...` (qty=7) получило `price=103.54,
+  yield=42.08` из кэша polling.
+- 63 unit-теста зелёные, ktlint и detekt чистые.
+
+**Ограничение:** валютные остатки (`moneyList`) gRPC-стрим
+не отдаёт — обрабатываются только `securities` и `futures`.
+Для UI это некритично: цена валюты = 1.0, polling приносит
+полные данные.
+
+**Итог:** задача разблокирует WS-уровень в каскаде позиций
+(см. `### Каскад обновления позиций`). Миграция
+`PositionStreamManager` на стрим как единственный источник
+не потребовалась — параллельная схема оказалась надёжнее.
+
+Один коммит с закрытием — см. `docs/ROADMAP.md` → этот
+раздел.
 
 ---

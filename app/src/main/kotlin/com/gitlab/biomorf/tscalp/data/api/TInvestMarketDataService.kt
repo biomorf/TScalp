@@ -20,10 +20,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
 import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
@@ -45,6 +49,10 @@ import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
 import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.PortfolioRequest
 import ru.tinkoff.piapi.contract.v1.PortfolioResponse
+import ru.tinkoff.piapi.contract.v1.PositionsFutures
+import ru.tinkoff.piapi.contract.v1.PositionsSecurities
+import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
+import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
 import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
 import ru.tinkoff.piapi.contract.v1.SubscribeLastPriceRequest
 import ru.tinkoff.piapi.contract.v1.SubscriptionAction
@@ -60,6 +68,15 @@ class TInvestMarketDataService(
 ) {
     companion object {
         private const val TAG = "TInvestMarketData"
+
+        /** Интервал polling позиций. */
+        private const val RETRY_DELAY_MS = 10_000L
+
+        /**
+         * Экспоненциальный backoff для переподключения gRPC-стрима.
+         * Cap 60 секунд — по аналогии с [PriceStreamManager].
+         */
+        private val GRPC_RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
     }
 
     // ---------- Счета ----------
@@ -194,36 +211,188 @@ class TInvestMarketDataService(
             }
         }
 
-    // ---------- Стрим позиций (polling) ----------
+    // ---------- Стрим позиций (gRPC) ----------
 
-    fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
-        callbackFlow {
-            try {
-                val sandbox = state.sandboxMode
-                val snapshot = fetchPositionsSnapshot(accountId, sandbox)
-                for (pos in snapshot) trySend(convertToStreamItem(pos))
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "Не удалось получить стартовый снапшот: ${e.message}")
-            }
+    /**
+     * gRPC-стрим изменений позиций через
+     * `OperationsStreamServiceAsync.positionsStream`.
+     *
+     * Возвращает `null`, если API не инициализирован.
+     *
+     * Даёт только изменения количества и идентификаторы.
+     * Поля `currentPrice`, `averagePositionPrice`, `expectedYield`,
+     * `pointValue` в стриме отсутствуют. Обогащение P&L —
+     * задача `PositionStreamManager` (см. `docs/streams.md`).
+     *
+     * `withInitialPositions = true` — сервер пришлёт снапшот
+     * позиций сразу при подключении, отдельный REST-запрос
+     * не нужен.
+     */
+    fun subscribePositionsGrpc(accountId: String): Flow<PositionStreamItem>? {
+        val api = state.api ?: return null
+        return callbackFlow {
+            val request =
+                PositionsStreamRequest
+                    .newBuilder()
+                    .addAccounts(accountId)
+                    .setWithInitialPositions(true)
+                    .build()
 
-            while (isActive) {
-                delay(10_000)
-                try {
-                    val sandbox = state.sandboxMode
-                    val positions = fetchPositionsSnapshot(accountId, sandbox)
-                    for (pos in positions) trySend(convertToStreamItem(pos))
-                } catch (e: Exception) {
-                    val msg = e.message ?: ""
-                    if (msg.contains("NOT_FOUND")) {
-                        AppLogger.w(TAG, "Счёт $accountId не найден, останавливаю polling")
-                        break
+            val streamJob =
+                launch {
+                    try {
+                        api.operationsStreamServiceAsync.positionsStream(
+                            request,
+                            { response: PositionsStreamResponse ->
+                                AppLogger.d(
+                                    TAG,
+                                    "[positions]/gRPC: response — " +
+                                        "subs=${response.hasSubscriptions()}, " +
+                                        "init=${response.hasInitialPositions()}, " +
+                                        "pos=${response.hasPosition()}, " +
+                                        "ping=${response.hasPing()}, " +
+                                        "case=${response.payloadCase}",
+                                )
+                                if (response.hasInitialPositions()) {
+                                    val snapshot = response.initialPositions
+                                    snapshot.securitiesList.forEach { trySend(convertSecurity(it)) }
+                                    snapshot.futuresList.forEach { trySend(convertFuture(it)) }
+                                }
+                                if (response.hasPosition()) {
+                                    val data = response.position
+                                    data.securitiesList.forEach { trySend(convertSecurity(it)) }
+                                    data.futuresList.forEach { trySend(convertFuture(it)) }
+                                }
+                                // hasPing / hasSubscriptions — служебные, игнорируем.
+                            },
+                        )
+                    } catch (e: Exception) {
+                        close(e)
                     }
-                    AppLogger.w(TAG, "Polling error: $msg")
+                }
+
+            awaitClose { streamJob.cancel() }
+        }
+    }
+
+    private fun convertSecurity(s: PositionsSecurities): PositionStreamItem =
+        PositionStreamItem(
+            tscalpInstrumentId = s.instrumentUid,
+            brokerName = BrokerName.TINVEST,
+            ticker = s.ticker,
+            quantity = s.balance,
+            classCode = s.classCode,
+            instrumentType = s.instrumentType.ifBlank { "share" },
+        )
+
+    private fun convertFuture(f: PositionsFutures): PositionStreamItem =
+        PositionStreamItem(
+            tscalpInstrumentId = f.instrumentUid,
+            brokerName = BrokerName.TINVEST,
+            ticker = f.ticker,
+            quantity = f.balance,
+            classCode = f.classCode,
+            instrumentType = "futures",
+        )
+
+    // ---------- Стрим позиций (параллельно) ----------
+
+    /**
+     * Параллельный каскад: gRPC-стрим + polling работают одновременно.
+     *
+     * Каждый уровень эмитит события в общий поток. Polling прикрывает
+     * паузы, когда gRPC молчит (в песочнице, при отсутствии прав,
+     * или если сервер не отвечает). gRPC переподключается при ошибке
+     * с экспоненциальным backoff.
+     *
+     * Fatal (NOT_FOUND по счёту) завершает оба уровня.
+     */
+    fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
+        merge(
+            subscribePositionsGrpcWithReconnect(accountId),
+            subscribePositionsPolling(accountId),
+        )
+
+    /**
+     * gRPC-стрим с автопереподключением.
+     *
+     * Возвращает `null`, если API не инициализирован.
+     * Переподключается с экспоненциальным backoff
+     * [GRPC_RETRY_DELAYS_MS] при ошибках. Штатное завершение
+     * сервером → повтор без задержки. NOT_FOUND → завершение
+     * потока без переподключения.
+     */
+    private fun subscribePositionsGrpcWithReconnect(accountId: String): Flow<PositionStreamItem> =
+        flow {
+            var attempt = 0
+            while (currentCoroutineContext().isActive) {
+                val grpcFlow = subscribePositionsGrpc(accountId)
+                if (grpcFlow == null) {
+                    AppLogger.d(TAG, "[positions]/gRPC: waiting for API init")
+                    delay(1_000)
+                    continue
+                }
+                try {
+                    AppLogger.d(TAG, "[positions]/gRPC: connecting (attempt=${attempt + 1})")
+                    grpcFlow.collect { emit(it) }
+                    attempt = 0
+                    AppLogger.d(TAG, "[positions]/gRPC: completed by server, reconnecting")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (e.message?.contains("NOT_FOUND") == true) {
+                        AppLogger.w(TAG, "[positions]/gRPC: fatal (${e.message}) — stopping")
+                        return@flow
+                    }
+                    attempt++
+                    val delayMs = retryDelayMs(attempt)
+                    AppLogger.w(
+                        TAG,
+                        "[positions]/gRPC: error (attempt=$attempt, ${e.message}), retry in ${delayMs}ms",
+                    )
+                    delay(delayMs)
                 }
             }
-
-            awaitClose { }
         }
+
+    /**
+     * Polling позиций раз в [RETRY_DELAY_MS] миллисекунд.
+     *
+     * Стартовый снапшот делается сразу, чтобы UI не ждал 10 секунд
+     * при первом открытии портфеля. Далее — по циклу.
+     *
+     * NOT_FOUND по счёту завершает поток.
+     */
+    private fun subscribePositionsPolling(accountId: String): Flow<PositionStreamItem> =
+        flow {
+            AppLogger.d(TAG, "[positions]/polling: started (account=$accountId)")
+            try {
+                while (currentCoroutineContext().isActive) {
+                    try {
+                        val sandbox = state.sandboxMode
+                        val snapshot = fetchPositionsSnapshot(accountId, sandbox)
+                        AppLogger.d(TAG, "[positions]/polling: fetched ${snapshot.size} positions")
+                        for (pos in snapshot) emit(convertToStreamItem(pos))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        if (e.message?.contains("NOT_FOUND") == true) {
+                            AppLogger.w(TAG, "[positions]/polling: account not found — stopping")
+                            return@flow
+                        }
+                        AppLogger.w(TAG, "[positions]/polling: error (${e.message})")
+                    }
+                    delay(RETRY_DELAY_MS)
+                }
+            } finally {
+                AppLogger.d(TAG, "[positions]/polling: stopped (account=$accountId)")
+            }
+        }
+
+    private fun retryDelayMs(attempt: Int): Long {
+        val idx = (attempt - 1).coerceIn(0, GRPC_RETRY_DELAYS_MS.lastIndex)
+        return GRPC_RETRY_DELAYS_MS[idx]
+    }
 
     private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
         PositionStreamItem(
