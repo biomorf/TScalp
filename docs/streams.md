@@ -47,8 +47,11 @@
     - песочница → `UNAUTHENTICATED: 40003`;
     - боевой → ошибок нет, но `hasPosition()` не приходит (пустой
       стрим).
-- **Вывод:** метод не поддерживается в `kotlin-sdk-grpc-core:1.48.1`
-  либо требует отдельных прав.
+- **Вывод:** метод не удалось завести на
+  `kotlin-sdk-grpc-core:1.48.1`. Сервер не присылал данные
+  (`hasPosition()` не приходил, ошибок в логах не было).
+  Причина осталась невыясненной — возможно, старый SDK, права,
+  либо поведение метода. Требуется проверка на 1.51.0.
 
 **Текущая альтернатива:** polling через
 `SharedPositionStreamManager` с периодом 10 секунд. P&L корректно
@@ -56,8 +59,14 @@
 
 ## Рекомендации
 
-- При обновлении SDK проверить наличие `PositionsStreamServiceGrpc`
-  и перейти на официальный Kotlin-stub.
+- **Правильное имя метода:** `OperationsStreamService.positionsStream`.
+  `PositionsStreamServiceGrpc` не существует. Проверять наличие
+  в SDK: `OperationsStreamServiceCoroutineStub` (или
+  `operationsStreamServiceAsync` в `InvestApi`), классы
+  `PositionsStreamRequest` / `PositionsStreamResponse`.
+- При обновлении SDK (1.48.1 → 1.51.0) проверить стрим заново.
+  Минимальный тест-подписки с `withInitialPositions = true` —
+  в `docs/ROADMAP.md` → «gRPC-стрим позиций».
 - При использовании ручного gRPC всегда логировать `onClose`-статус
   и `response.allFields` для диагностики.
 - Для песочницы предусмотреть fallback-режим, отключающий стримы,
