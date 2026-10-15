@@ -298,15 +298,11 @@ class TInvestMarketDataService(
      *
      * Fatal (NOT_FOUND по счёту) завершает оба уровня.
      */
-    fun subscribePositions(accountId: String): Flow<PositionStreamItem> {
-        val pollingFlow = subscribePositionsPolling(accountId)
-        val grpcFlow = subscribePositionsGrpcWithReconnect(accountId)
-        return if (grpcFlow != null) {
-            merge(grpcFlow, pollingFlow)
-        } else {
-            pollingFlow
-        }
-    }
+    fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
+        merge(
+            subscribePositionsGrpcWithReconnect(accountId),
+            subscribePositionsPolling(accountId),
+        )
 
     /**
      * gRPC-стрим с автопереподключением.
@@ -317,12 +313,16 @@ class TInvestMarketDataService(
      * сервером → повтор без задержки. NOT_FOUND → завершение
      * потока без переподключения.
      */
-    private fun subscribePositionsGrpcWithReconnect(accountId: String): Flow<PositionStreamItem>? {
-        if (state.api == null) return null
-        return flow {
+    private fun subscribePositionsGrpcWithReconnect(accountId: String): Flow<PositionStreamItem> =
+        flow {
             var attempt = 0
             while (currentCoroutineContext().isActive) {
-                val grpcFlow = subscribePositionsGrpc(accountId) ?: return@flow
+                val grpcFlow = subscribePositionsGrpc(accountId)
+                if (grpcFlow == null) {
+                    AppLogger.d(TAG, "[positions]/gRPC: waiting for API init")
+                    delay(1_000)
+                    continue
+                }
                 try {
                     AppLogger.d(TAG, "[positions]/gRPC: connecting (attempt=${attempt + 1})")
                     grpcFlow.collect { emit(it) }
@@ -345,7 +345,6 @@ class TInvestMarketDataService(
                 }
             }
         }
-    }
 
     /**
      * Polling позиций раз в [RETRY_DELAY_MS] миллисекунд.
