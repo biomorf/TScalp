@@ -23,6 +23,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,6 +66,12 @@ class TInvestMarketDataService(
 ) {
     companion object {
         private const val TAG = "TInvestMarketData"
+
+        /**
+         * Пауза между итерациями каскада стрима позиций:
+         * после одиночного polling перед повторной попыткой gRPC.
+         */
+        private const val RETRY_DELAY_MS = 10_000L
     }
 
     // ---------- Счета ----------
@@ -276,34 +283,87 @@ class TInvestMarketDataService(
 
     // ---------- Стрим позиций (polling) ----------
 
+    // ---------- Стрим позиций (каскад) ----------
+
+    /**
+     * Циклический каскад: gRPC → polling → cooldown → retry.
+     *
+     * 1. gRPC-стрим — первичный источник. Даёт изменения количества.
+     * 2. Polling — fallback. Одноразовый снимок с полным составом
+     *    полей (цены, P&L).
+     * 3. Cooldown [RETRY_DELAY_MS] после polling.
+     * 4. Цикл повторяется: снова gRPC, polling, cooldown.
+     *
+     * Fatal (NOT_FOUND по счёту) останавливает каскад.
+     * Отмена снаружи пробрасывается как CancellationException.
+     */
     fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
-        callbackFlow {
+        channelFlow {
+            AppLogger.d(TAG, "[positions] cascade started (account=$accountId)")
+            var iteration = 0
             try {
-                val sandbox = state.sandboxMode
-                val snapshot = fetchPositionsSnapshot(accountId, sandbox)
-                for (pos in snapshot) trySend(convertToStreamItem(pos))
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "Не удалось получить стартовый снапшот: ${e.message}")
-            }
+                while (isActive) {
+                    iteration++
+                    AppLogger.d(TAG, "[positions] iteration #$iteration")
 
-            while (isActive) {
-                delay(10_000)
-                try {
-                    val sandbox = state.sandboxMode
-                    val positions = fetchPositionsSnapshot(accountId, sandbox)
-                    for (pos in positions) trySend(convertToStreamItem(pos))
-                } catch (e: Exception) {
-                    val msg = e.message ?: ""
-                    if (msg.contains("NOT_FOUND")) {
-                        AppLogger.w(TAG, "Счёт $accountId не найден, останавливаю polling")
-                        break
+                    // Уровень 1: gRPC
+                    val grpcFlow = subscribePositionsGrpc(accountId)
+                    if (grpcFlow != null) {
+                        AppLogger.d(TAG, "[positions] gRPC: attempting stream")
+                        val grpcOutcome =
+                            try {
+                                grpcFlow.collect { send(it) }
+                                AppLogger.d(TAG, "[positions] gRPC: completed — falling back")
+                                LevelOutcome.Ended
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                if (e.message?.contains("NOT_FOUND") == true) {
+                                    AppLogger.w(TAG, "[positions] gRPC: fatal (${e.message})")
+                                    LevelOutcome.Fatal
+                                } else {
+                                    AppLogger.w(TAG, "[positions] gRPC: error (${e.message}) — falling back")
+                                    LevelOutcome.Ended
+                                }
+                            }
+                        if (grpcOutcome == LevelOutcome.Fatal) return@channelFlow
                     }
-                    AppLogger.w(TAG, "Polling error: $msg")
-                }
-            }
 
-            awaitClose { }
+                    // Уровень 2: polling один раз
+                    AppLogger.d(TAG, "[positions] polling: single fetch")
+                    val pollOutcome =
+                        try {
+                            val sandbox = state.sandboxMode
+                            val snapshot = fetchPositionsSnapshot(accountId, sandbox)
+                            for (pos in snapshot) send(convertToStreamItem(pos))
+                            AppLogger.d(TAG, "[positions] polling: fetched ${snapshot.size} positions")
+                            LevelOutcome.Ended
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            if (e.message?.contains("NOT_FOUND") == true) {
+                                AppLogger.w(TAG, "[positions] polling: account not found — stopping cascade")
+                                LevelOutcome.Fatal
+                            } else {
+                                AppLogger.w(TAG, "[positions] polling: error (${e.message})")
+                                LevelOutcome.Ended
+                            }
+                        }
+                    if (pollOutcome == LevelOutcome.Fatal) return@channelFlow
+
+                    AppLogger.d(TAG, "[positions] cooldown ${RETRY_DELAY_MS}ms before retry")
+                    delay(RETRY_DELAY_MS)
+                }
+            } finally {
+                AppLogger.d(TAG, "[positions] cascade stopped (account=$accountId)")
+            }
         }
+
+    private sealed interface LevelOutcome {
+        object Ended : LevelOutcome
+
+        object Fatal : LevelOutcome
+    }
 
     private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
         PositionStreamItem(
