@@ -10,6 +10,105 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
+### gRPC-стрим позиций
+
+**Мобильная работа:** частичное (распаковка AAR и `grep` —
+с телефона; минимальный тест подписки и миграция —
+на десктопе).
+
+**Статус:** в работе (разведка артефакта завершена).
+**Ветка:** feature/positions-grpc-stream
+
+**Разведка артефакта (SDK 1.51.0):**
+- `OperationsStreamServiceAsync.positionsStream(request, vararg callbacks)` — есть.
+- `PositionsStreamRequest`: `addAccounts`, `setWithInitialPositions`, `setPingSettings`.
+- `PositionsStreamResponse`: `hasInitialPositions` / `hasPosition` / `hasPing` / `hasSubscriptions`.
+- `PositionData`: `moneyList`, `securitiesList`, `futuresList`, `optionsList`.
+- `PositionsSecurities` / `PositionsFutures`: `figi`, `blocked`, `balance` (Long), `positionUid`, `instrumentUid`, `ticker`, `classCode`.
+- **Важно:** стрим даёт только изменения количества и идентификаторы. Цены, `averagePositionPrice`, `expectedYield` — в стриме НЕТ.
+
+**Контекст:** сейчас P&L через polling `PositionStreamManager`
+раз в 10 секунд. Официальный стрим на
+`kotlin-sdk-grpc-core:1.48.1` не удалось завести: сервер
+не присылал данные (см. `docs/streams.md` → «PositionsStream»).
+
+**Ключевая корректировка:** `PositionsStreamServiceGrpc`
+**не существует**. Стрим позиций — это метод
+`positionsStream` внутри `OperationsStreamService`
+(там же, где `PortfolioStream` и `OperationsStream`).
+Прошлые попытки искали несуществующий класс — отсюда
+неудачи.
+
+**Что изменилось:** SDK обновлён 1.48.1 → 1.51.0. Нужно
+проверить заново, но уже по правильному имени.
+
+**Шаги при возврате:**
+
+1. **Разведка артефакта.** Распаковать
+   `kotlin-sdk-grpc-core:1.51.0` (jar/AAR), проверить наличие:
+    - `OperationsStreamServiceCoroutineStub` (или
+      `operationsStreamServiceAsync` в `InvestApi`);
+    - классов `PositionsStreamRequest` и `PositionsStreamResponse`.
+2. **Минимальный тест-подписки вне приложения**
+   (отдельный `main`, не трогая `PositionStreamManager`).
+   По образцу из SDK:
+   `RussianInvestments/invest-api-kotlin-sdk` →
+   `kotlin-sdk-grpc-example/.../OperationStreamServiceExample.kt`
+   → метод `examplePositionsStream`.
+    - запрос:
+      `PositionsStreamRequest.newBuilder()
+      .addAccounts(accountId)
+      .setWithInitialPositions(true)
+      .build()`.
+    - `withInitialPositions = true` даёт снапшот позиций сразу
+      при подключении — не нужен отдельный REST-вызов.
+3. **Песочница.** Проверить, воспроизводится ли
+   `UNAUTHENTICATED: 40003` на 1.51.0. Если нет — уже победа.
+4. **Боевой.** Проверить, приходят ли `initialPositions` и
+   последующие `position` (обновления).
+5. **Если работает** — перевести `PositionStreamManager`
+   на стрим, polling оставить как fallback (второй уровень
+   в каскаде, см. `docs/ROADMAP.md` → «Каскад обновления
+   позиций»).
+6. **Если не работает** — обновить `docs/ISSUES.md` с новыми
+   деталями (какой именно `onError`, есть ли `ping`) и
+   оставить polling.
+
+**Референсы:**
+- `RussianInvestments/invest-api-kotlin-sdk` →
+  `OperationStreamServiceExample.kt` → `examplePositionsStream`.
+- `operations.proto` в `ru.tinkoff.piapi.contract.v1` —
+  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
+- `docs/streams.md` → «PositionsStream» — история прошлых попыток.
+- AsyncAPI-спецификация WebSocket:
+  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
+  Канал `/OperationsStreamService/PositionsStream`. Пригодится
+  для WS-уровня каскада.
+
+**Ограничения:**
+- **Не искать** `PositionsStreamServiceGrpc` — класса не существует.
+- Не менять `PositionStreamManager` на этом шаге — только
+  разведка артефакта и минимальный тест.
+- Не переподключаться чаще, чем раз в 3 секунды — документация
+  T-Invest предупреждает: «не пытайтесь переподключаться
+  слишком часто».
+
+**Критерий готовности (разведка):**
+- Известно, есть ли `OperationsStreamServiceCoroutineStub`
+  (или async-вариант) в артефакте 1.51.0.
+- Есть минимальный тест-подписки вне приложения.
+- Известно поведение в песочнице и боевом:
+  `UNAUTHENTICATED: 40003` воспроизводится или нет,
+  приходят ли данные.
+- Результат зафиксирован в `docs/ISSUES.md`.
+
+**Оценка:** ~2 часа на разведку + минимальный тест.
+Миграция `PositionStreamManager` — отдельная задача,
+зависит от результата.
+
+**Зависимости:** нет. **Разблокирует** WS-уровень в каскаде
+позиций (см. `docs/ROADMAP.md` → «Каскад обновления позиций»).
+
 ### Compose Preview для компонентов
 
 **Мобильная работа:** частичное (написание `@Preview`-функций
@@ -498,97 +597,6 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 - Заголовки: `Authorization: Bearer <token>`,
   `Web-Socket-Protocol: json` (или `json-proto`).
 - Формат: protobuf JSON mapping.
-
-### gRPC-стрим позиций
-
-**Мобильная работа:** частичное (распаковка AAR и `grep` —
-с телефона; минимальный тест подписки и миграция —
-на десктопе).
-
-**Статус:** запланировано. Связано с `docs/ISSUES.md` →
-«PositionsStream не доставляет данные».
-
-**Контекст:** сейчас P&L через polling `PositionStreamManager`
-раз в 10 секунд. Официальный стрим на
-`kotlin-sdk-grpc-core:1.48.1` не удалось завести: сервер
-не присылал данные (см. `docs/streams.md` → «PositionsStream»).
-
-**Ключевая корректировка:** `PositionsStreamServiceGrpc`
-**не существует**. Стрим позиций — это метод
-`positionsStream` внутри `OperationsStreamService`
-(там же, где `PortfolioStream` и `OperationsStream`).
-Прошлые попытки искали несуществующий класс — отсюда
-неудачи.
-
-**Что изменилось:** SDK обновлён 1.48.1 → 1.51.0. Нужно
-проверить заново, но уже по правильному имени.
-
-**Шаги при возврате:**
-
-1. **Разведка артефакта.** Распаковать
-   `kotlin-sdk-grpc-core:1.51.0` (jar/AAR), проверить наличие:
-    - `OperationsStreamServiceCoroutineStub` (или
-      `operationsStreamServiceAsync` в `InvestApi`);
-    - классов `PositionsStreamRequest` и `PositionsStreamResponse`.
-2. **Минимальный тест-подписки вне приложения**
-   (отдельный `main`, не трогая `PositionStreamManager`).
-   По образцу из SDK:
-   `RussianInvestments/invest-api-kotlin-sdk` →
-   `kotlin-sdk-grpc-example/.../OperationStreamServiceExample.kt`
-   → метод `examplePositionsStream`.
-    - запрос:
-      `PositionsStreamRequest.newBuilder()
-      .addAccounts(accountId)
-      .setWithInitialPositions(true)
-      .build()`.
-    - `withInitialPositions = true` даёт снапшот позиций сразу
-      при подключении — не нужен отдельный REST-вызов.
-3. **Песочница.** Проверить, воспроизводится ли
-   `UNAUTHENTICATED: 40003` на 1.51.0. Если нет — уже победа.
-4. **Боевой.** Проверить, приходят ли `initialPositions` и
-   последующие `position` (обновления).
-5. **Если работает** — перевести `PositionStreamManager`
-   на стрим, polling оставить как fallback (второй уровень
-   в каскаде, см. `docs/ROADMAP.md` → «Каскад обновления
-   позиций»).
-6. **Если не работает** — обновить `docs/ISSUES.md` с новыми
-   деталями (какой именно `onError`, есть ли `ping`) и
-   оставить polling.
-
-**Референсы:**
-- `RussianInvestments/invest-api-kotlin-sdk` →
-  `OperationStreamServiceExample.kt` → `examplePositionsStream`.
-- `operations.proto` в `ru.tinkoff.piapi.contract.v1` —
-  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
-- `docs/streams.md` → «PositionsStream» — история прошлых попыток.
-- AsyncAPI-спецификация WebSocket:
-  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
-  Канал `/OperationsStreamService/PositionsStream`. Пригодится
-  для WS-уровня каскада.
-
-**Ограничения:**
-- **Не искать** `PositionsStreamServiceGrpc` — класса не существует.
-- Не менять `PositionStreamManager` на этом шаге — только
-  разведка артефакта и минимальный тест.
-- Не переподключаться чаще, чем раз в 3 секунды — документация
-  T-Invest предупреждает: «не пытайтесь переподключаться
-  слишком часто».
-
-**Критерий готовности (разведка):**
-- Известно, есть ли `OperationsStreamServiceCoroutineStub`
-  (или async-вариант) в артефакте 1.51.0.
-- Есть минимальный тест-подписки вне приложения.
-- Известно поведение в песочнице и боевом:
-  `UNAUTHENTICATED: 40003` воспроизводится или нет,
-  приходят ли данные.
-- Результат зафиксирован в `docs/ISSUES.md`.
-
-**Оценка:** ~2 часа на разведку + минимальный тест.
-Миграция `PositionStreamManager` — отдельная задача,
-зависит от результата.
-
-**Зависимости:** нет. **Разблокирует** WS-уровень в каскаде
-позиций (см. `docs/ROADMAP.md` → «Каскад обновления позиций»).
 
 ### Переход на edge-to-edge (statusBarColor deprecated)
 
