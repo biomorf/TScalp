@@ -21,13 +21,18 @@ interface BrokerApi {
     suspend fun closeSandboxAccount(accountId: String)
 
     /**
-     * Прямой запрос позиций (REST / gRPC-unary).
-     * Возвращает позиции портфеля для указанного счёта в виде списка доменных объектов.
-     * Каждый брокер реализует по‑своему: Т‑Инвестиции – через getPortfolio, БКС – парсинг JSON.
-     * Используется в polling и при первой загрузке только внутри сервисных реализаций,
-     * не должен вызываться Presentation или Repository.
+     * Возвращает одноразовый снимок позиций портфеля
+     * (в отличие от [subscribePositions], который отдаёт поток).
+     *
+     * Транспорт зависит от реализации брокера: у T-Invest —
+     * gRPC unary ([getPortfolio][ru.tinkoff.piapi.contract.v1.PortfolioResponse]),
+     * у BCS / Finam — REST (парсинг JSON).
+     *
+     * Используется в polling и при первой загрузке только
+     * внутри сервисных реализаций, не должен вызываться
+     * Presentation или Repository.
      */
-    suspend fun fetchPositionsRest(
+    suspend fun fetchPositionsSnapshot(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PortfolioPosition>

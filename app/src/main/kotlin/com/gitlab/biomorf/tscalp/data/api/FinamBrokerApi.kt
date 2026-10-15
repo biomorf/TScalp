@@ -126,7 +126,7 @@ class FinamBrokerApi : BrokerApi {
         callbackFlow {
             // Стартовый снапшот
             try {
-                val positions = fetchPositionsRest(accountId, false)
+                val positions = fetchPositionsSnapshot(accountId, false)
                 positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
             } catch (e: Exception) {
                 AppLogger.w(TAG, "Finam snapshot failed", e)
@@ -136,7 +136,7 @@ class FinamBrokerApi : BrokerApi {
             while (isActive) {
                 delay(10_000)
                 try {
-                    val positions = fetchPositionsRest(accountId, false)
+                    val positions = fetchPositionsSnapshot(accountId, false)
                     positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
                 } catch (e: Exception) {
                     AppLogger.w(TAG, "Finam polling error", e)
@@ -158,7 +158,7 @@ class FinamBrokerApi : BrokerApi {
         )
 
     // реализация на основе HTTP-клиента
-    override suspend fun fetchPositionsRest(
+    override suspend fun fetchPositionsSnapshot(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PortfolioPosition> =

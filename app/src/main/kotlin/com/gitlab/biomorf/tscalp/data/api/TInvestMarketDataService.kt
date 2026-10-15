@@ -130,7 +130,7 @@ class TInvestMarketDataService(
     // Архитектурный долг: функция требует декомпозиции.
     // См. ROADMAP → «Рефакторинг data-слоя T-Invest».
     @Suppress("CyclomaticComplexMethod")
-    suspend fun fetchPositionsRest(
+    suspend fun fetchPositionsSnapshot(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PortfolioPosition> =
@@ -200,7 +200,7 @@ class TInvestMarketDataService(
         callbackFlow {
             try {
                 val sandbox = state.sandboxMode
-                val snapshot = fetchPositionsRest(accountId, sandbox)
+                val snapshot = fetchPositionsSnapshot(accountId, sandbox)
                 for (pos in snapshot) trySend(convertToStreamItem(pos))
             } catch (e: Exception) {
                 AppLogger.w(TAG, "Не удалось получить стартовый снапшот: ${e.message}")
@@ -210,7 +210,7 @@ class TInvestMarketDataService(
                 delay(10_000)
                 try {
                     val sandbox = state.sandboxMode
-                    val positions = fetchPositionsRest(accountId, sandbox)
+                    val positions = fetchPositionsSnapshot(accountId, sandbox)
                     for (pos in positions) trySend(convertToStreamItem(pos))
                 } catch (e: Exception) {
                     val msg = e.message ?: ""
