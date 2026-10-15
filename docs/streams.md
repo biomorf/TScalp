@@ -99,8 +99,6 @@
 
 ## Рекомендации
 
-## Рекомендации
-
 - **Правильное имя метода:** `OperationsStreamService.positionsStream`
   (через `OperationsStreamServiceAsync`). `PositionsStreamServiceGrpc`
   не существует.
