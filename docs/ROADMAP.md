@@ -10,162 +10,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
-### Переименование fetchPositionsRest → fetchPositionsSnapshot
-
-**Мобильная работа:** частичное (grep+sed-правки — с телефона;
-сборка и тесты — на десктопе).
-
-**Статус:** в работе.
-**Ветка:** feature/rename-fetch-positions
-
-**Контекст:** метод `fetchPositionsSnapshot` в `BrokerApi` назван
-по транспортному признаку одного брокера (BCS, Finam — REST).
-Но у T-Invest это **gRPC unary**, не REST. Имя путает и
-препятствует унификации fallback-каскадов:
-
-- у T-Invest позиции идут через gRPC unary (не поток),
-- у BCS — через REST,
-- у Finam — как решится при реализации.
-
-При этом `subscribePositions` — это **stream** (gRPC,
-позже WS). Логическая пара «snapshot / stream» описывает
-оба метода без привязки к транспорту.
-
-**Цель:** переименовать метод в `fetchPositionsSnapshot` во
-всех слоях, чтобы имя отражало семантику («одноразовый
-снимок» vs «стрим»), а не транспорт.
-
-**Файлы:**
-- `domain/api/BrokerApi.kt` — интерфейс и KDoc.
-- `data/api/TInvestBrokerApi.kt` — override.
-- `data/api/TInvestMarketDataService.kt` — реализация + 2
-  внутренних вызова.
-- `data/api/BcsBrokerApi.kt` — override + 2 внутренних
-  вызова.
-- `data/api/FinamBrokerApi.kt` — override + 2 внутренних
-  вызова.
-- `data/repository/InvestRepository.kt` — вызов.
-- `docs/ROADMAP.md` — 5 упоминаний (включая эту задачу).
-
-**Шаги:**
-
-1. Переименовать `fetchPositionsSnapshot` → `fetchPositionsSnapshot`
-   во всех `.kt` файлах (6 файлов, 14 мест).
-2. Уточнить KDoc в `BrokerApi.kt`: явно указать, что метод
-   возвращает снимок (в отличие от `subscribePositions`),
-   транспорт зависит от реализации брокера.
-3. Обновить 5 упоминаний в `docs/ROADMAP.md`.
-4. Сборка: `./gradlew :app:clean :app:testDebugUnitTest
-   :app:ktlintCheck :app:detekt --rerun-tasks` — зелёная.
-
-**Референсы:**
-- `domain/api/BrokerApi.kt` — текущий KDoc.
-- `docs/git-flow.md` → «Осознанные отклонения» — общая
-  логика транспорт-нейтральных имён в domain-слое
-  (см. AGENTS.md → «Идентификаторы инструментов»).
-
-**Ограничения:**
-- Не менять поведение — только имя.
-- Не трогать `subscribePositions` — там имя корректно
-  (это стрим).
-
-**Критерий готовности:**
-- Все упоминания `fetchPositionsSnapshot` заменены на
-  `fetchPositionsSnapshot`.
-- Сборка и тесты зелёные.
-- KDoc уточнён.
-
-**Оценка:** ~20 минут.
-
-**Зависимости:** нет. Разблокирует последующие задачи по
-fallback-каскадам (gRPC для позиций, WS-уровень).
-
-### versionCode из нечислового semver
-
-**Мобильная работа:** полное закрытие. Правка `build.gradle.kts`,
-проверка через `grep`/`wc` — доступно через proot. Полная
-сборка — на десктопе.
-
-**Статус:** запланировано.
-
-**Контекст:** при тестировании Environment secrets создали
-пробный тег `v0.0.1-test`. Сборка упала на этапе
-`assembleRelease`:
-
-    android.defaultConfig.versionCode is set to 0,
-    but it should be a positive integer.
-
-Причина: функция `computedVersionCode` в `app/build.gradle.kts`
-парсит имя релиза как `major.minor.patch`. Для
-`"0.0.1-test"` вызов `.split(".")` даёт три элемента
-(`["0", "0", "1-test"]`), ветка срабатывает, но
-`"1-test".toIntOrNull()` возвращает `null → 0`. Итог —
-`versionCode = 0`, AGP отвергает конфигурацию, задача
-`assembleRelease` не регистрируется.
-
-**Последствия:** любой тег с суффиксом (`v1.0.0-rc1`,
-`v2.0.0-beta`) ломает сборку. Сейчас это не критично —
-у нас релизные теги всегда чистый semver. Но если появится
-release candidate или beta-канал — упадёт.
-
-**Файлы:**
-- `app/build.gradle.kts` — функция `computedVersionCode`.
-
-**Шаги:**
-
-1. Воспроизвести: `./gradlew :app:assembleRelease
-   -PreleaseVersionName="0.0.1-test"` — должен упасть
-   (или уже воспроизведено в Actions на `v0.0.1-test`).
-2. Выбрать поведение:
-    - **A.** Падать с явной ошибкой:
-      `require(patch.toIntOrNull() != null) { "Invalid semver
-      patch: '$patch' in releaseVersionName '$releaseVersionName'" }`.
-      Плюс: fail-fast, ясно, что не так.
-    - **B.** Игнорировать суффикс: резать по `-` до парсинга.
-      `"0.0.1-test"` → `"0.0.1"` → `versionCode = 1`.
-      Плюс: работает для RC/beta. Минус: два разных релиза
-      (`0.0.1` и `0.0.1-rc1`) получат одинаковый versionCode —
-      Play Store не примет второй.
-    - **C.** Хэшировать суффикс в младшие разряды versionCode.
-      Сложно, редко нужно.
-3. Реализовать выбранный вариант.
-4. Покрыть unit-тестом: `computedVersionCode("1.2.3")`,
-   `computedVersionCode("1.2.3-rc1")` (в зависимости от
-   решения), `computedVersionCode("invalid")` — ожидаемое
-   поведение.
-
-**Референсы:**
-- Официальная документация Android → versionCode:
-  `https://developer.android.com/studio/publish/versioning#appversioning`.
-- `app/build.gradle.kts` — текущая реализация
-  `computedVersionCode`.
-- Проблемный прогон workflow:
-  https://github.com/biomorf/TScalp/actions (тег
-  `v0.0.1-test`, уже удалён).
-
-**Ограничения:**
-- Не менять формулу для стандартного semver — она работает.
-- Решение должно быть совместимо с Play Store (если
-  планируется публикация) — versionCode строго возрастает.
-- Отдельный unit-тест — не часть интеграционного.
-
-**Критерий готовности:**
-- `computedVersionCode` ведёт себя предсказуемо на нечисловом
-  semver (по выбранному варианту A/B/C).
-- Есть unit-тест, покрывающий граничный случай.
-- `:app:assembleRelease -PreleaseVersionName="0.0.1-test"`
-  завершается либо успешно (если выбрали B), либо падает
-  с понятным сообщением (если A).
-
-**Оценка:** ~30 минут.
-
-**Зависимости:** нет.
-
-**Открытые вопросы:**
-- Планируется ли release candidate / beta-канал? Если нет —
-  вариант A. Если да — B или C, но с дополнительной
-  проработкой уникальности versionCode.
-
 ### Compose Preview для компонентов
 
 **Мобильная работа:** частичное (написание `@Preview`-функций
@@ -709,6 +553,62 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 ---
 
+#### Compose-экраны
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — `OrdersScreen`
+  (646 строк, complexity 69), `InstrumentSearchField`
+  (130 строк, complexity 16).
+- `presentation/screens/portfolio/PortfolioScreen.kt` (161 строка,
+  complexity 19).
+- `presentation/screens/settings/SettingsScreen.kt` —
+  `TInvestSettingsPanel` (324 строки, complexity 35),
+  `BcsSettingsPanel` (182), `FinamSettingsPanel` (149).
+
+**Пути решения:** вынести секции экрана в приватные
+composables. Для `OrdersScreen` — отдельно форма заявки,
+список, поиск, диалоги.
+
+**Дополнительно — Compose Preview (вариант C):**
+после разделения экранов на wrapper + content добавить
+`@Preview` для каждого экрана во всех состояниях
+(loading / error / empty / data). Обёртка с `hiltViewModel()`
+остаётся без превью; чистый content принимает `uiState`
+и колбэки, для него — превью с моками. Это ускорит
+дальнейшие UI-итерации (см. ROADMAP → «Compose Preview
+для компонентов», варианты A/B).
+
+**Оценка:** ~6 часов на рефакторинг + ~1–2 часа на preview
+всех экранов (вариант C).
+
+#### Compose-компоненты
+
+**Файлы:**
+- `ui/components/AssetPositionCard.kt` — `AssetPositionCard`
+  (109 строк), `AssetCardContent` (136 строк, complexity 20).
+- `ui/components/BrokerAccountDialog.kt` (105 строк).
+- `ui/components/OrdersListViewModel.kt` — `loadOrders`
+  (62 строки).
+
+**Оценка:** ~2 часа.
+
+#### ViewModel-слой
+
+**Файлы:**
+- `presentation/screens/orders/OrdersViewModel.kt` — 49 функций,
+  LargeClass; `postOrder` (172 строки, complexity 28).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` —
+  12 функций; `payInSandbox` (61 строка).
+- `presentation/screens/settings/SettingsViewModel.kt` —
+  20 функций.
+
+**Пути решения:** вынести бизнес-логику в UseCase,
+оставить во ViewModel только состояние и делегирование.
+Для `OrdersViewModel` — возможно разделение на
+`OrderFormViewModel` / `OrderListViewModel`.
+
+**Оценка:** ~5 часов.
+
 ### Рефакторинг архитектурного долга (detekt-группа 3)
 
 **Статус:** запланировано.
@@ -766,23 +666,6 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 
 **Оценка:** ~2 часа.
 
-#### ViewModel-слой
-
-**Файлы:**
-- `presentation/screens/orders/OrdersViewModel.kt` — 49 функций,
-  LargeClass; `postOrder` (172 строки, complexity 28).
-- `presentation/screens/portfolio/PortfolioViewModel.kt` —
-  12 функций; `payInSandbox` (61 строка).
-- `presentation/screens/settings/SettingsViewModel.kt` —
-  20 функций.
-
-**Пути решения:** вынести бизнес-логику в UseCase,
-оставить во ViewModel только состояние и делегирование.
-Для `OrdersViewModel` — возможно разделение на
-`OrderFormViewModel` / `OrderListViewModel`.
-
-**Оценка:** ~5 часов.
-
 #### UseCase-слой
 
 **Файлы:**
@@ -809,45 +692,6 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 `fetchPositions` + `enrichWithInstrumentData` +
 `enrichWithMarginData`. `mapProtoToDomain` — на
 `mapFutures` / `mapShares` / `mapDefault`.
-
-**Оценка:** ~2 часа.
-
-#### Compose-экраны
-
-**Файлы:**
-- `presentation/screens/orders/OrdersScreen.kt` — `OrdersScreen`
-  (646 строк, complexity 69), `InstrumentSearchField`
-  (130 строк, complexity 16).
-- `presentation/screens/portfolio/PortfolioScreen.kt` (161 строка,
-  complexity 19).
-- `presentation/screens/settings/SettingsScreen.kt` —
-  `TInvestSettingsPanel` (324 строки, complexity 35),
-  `BcsSettingsPanel` (182), `FinamSettingsPanel` (149).
-
-**Пути решения:** вынести секции экрана в приватные
-composables. Для `OrdersScreen` — отдельно форма заявки,
-список, поиск, диалоги.
-
-**Дополнительно — Compose Preview (вариант C):**
-после разделения экранов на wrapper + content добавить
-`@Preview` для каждого экрана во всех состояниях
-(loading / error / empty / data). Обёртка с `hiltViewModel()`
-остаётся без превью; чистый content принимает `uiState`
-и колбэки, для него — превью с моками. Это ускорит
-дальнейшие UI-итерации (см. ROADMAP → «Compose Preview
-для компонентов», варианты A/B).
-
-**Оценка:** ~6 часов на рефакторинг + ~1–2 часа на preview
-всех экранов (вариант C).
-
-#### Compose-компоненты
-
-**Файлы:**
-- `ui/components/AssetPositionCard.kt` — `AssetPositionCard`
-  (109 строк), `AssetCardContent` (136 строк, complexity 20).
-- `ui/components/BrokerAccountDialog.kt` (105 строк).
-- `ui/components/OrdersListViewModel.kt` — `loadOrders`
-  (62 строки).
 
 **Оценка:** ~2 часа.
 
@@ -1128,5 +972,35 @@ API 37. Доступ к новым API Android 17 без активации из
 polling (раз в 5 с), а основной источник восстанавливается
 самостоятельно. Один коммит: `feat(prices): add reconnect-loop
 for gRPC price stream` (PR #10).
+
+### ✅ Переименование fetchPositionsRest → fetchPositionsSnapshot
+
+Метод в `BrokerApi` переименован: имя отражает семантику
+(«снимок» vs «стрим»), а не транспорт.
+
+**Сделано:**
+
+- `domain/api/BrokerApi.kt` — интерфейс + KDoc очищен:
+  убраны дублирующие формулировки, транспорт-зависимость
+  описана явно (gRPC unary для T-Invest, REST для
+  BCS / Finam).
+- `data/api/TInvestBrokerApi.kt` — override.
+- `data/api/TInvestMarketDataService.kt` — реализация
+  + 2 внутренних вызова.
+- `data/api/BcsBrokerApi.kt` — override + 2 внутренних
+  вызова.
+- `data/api/FinamBrokerApi.kt` — override + 2 внутренних
+  вызова.
+- `data/repository/InvestRepository.kt` — вызов.
+- `docs/ROADMAP.md` — 5 упоминаний обновлены.
+
+**Итог:** имя унифицировано по семантике (snapshot / stream),
+транспорт больше не «протекает» в название. Разблокирует
+задачи по fallback-каскадам для стримов (позиции, цены,
+ордера), где важна прозрачность «снимок vs стрим».
+
+Один коммит: `refactor(domain): rename fetchPositionsRest
+to fetchPositionsSnapshot` (PR #17).
+
 
 ---
