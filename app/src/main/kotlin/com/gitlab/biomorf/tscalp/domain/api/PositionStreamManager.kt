@@ -31,6 +31,17 @@ class PositionStreamManager
         private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)
         val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
 
+        /**
+         * Кэш последних полных снимков по инструментам.
+         *
+         * Полный снимок — событие с непустым `currentPrice` (приходит
+         * от polling). Неполные события от gRPC-стрима (только количество
+         * и идентификаторы) обогащаются полями P&L из этого кэша.
+         *
+         * Чистится при смене счёта в [start].
+         */
+        private val snapshotCache = mutableMapOf<String, PositionStreamItem>()
+
         private var job: Job? = null
         private var currentAccountId: String? = null
         private val scope =
@@ -53,6 +64,7 @@ class PositionStreamManager
             }
             if (currentAccountId != accountId) {
                 AppLogger.d(TAG, "Перезапуск потока позиций: $currentAccountId → $accountId")
+                snapshotCache.clear()
             }
             job?.cancel()
             currentAccountId = accountId
@@ -64,10 +76,44 @@ class PositionStreamManager
                         return@launch
                     }
                     broker.subscribePositions(accountId).collect { item ->
-                        AppLogger.d(TAG, "Элемент потока: ${item.tscalpInstrumentId}")
-                        _flow.emit(item)
+                        val enriched = enrichAndCache(item)
+                        AppLogger.d(
+                            TAG,
+                            "Элемент потока: ${enriched.tscalpInstrumentId}, " +
+                                "qty=${enriched.quantity}, " +
+                                "price=${enriched.currentPrice}, " +
+                                "yield=${enriched.expectedYield}",
+                        )
+                        _flow.emit(enriched)
                     }
                 }
+        }
+
+        /**
+         * Обогащает событие полями P&L из кэша последнего полного снимка.
+         *
+         * Маркер полного события — непустой [PositionStreamItem.currentPrice].
+         * Polling заполняет его (даже нулём), gRPC-стрим — оставляет `null`.
+         *
+         * Если событие полное — обновляем кэш и возвращаем как есть.
+         * Если неполное и кэш есть — дополняем поля, которые gRPC не даёт.
+         * Если неполное и кэша нет (первое событие после старта) —
+         * возвращаем как есть; UI покажет заглушку для P&L.
+         */
+        private fun enrichAndCache(item: PositionStreamItem): PositionStreamItem {
+            val isFull = item.currentPrice != null
+            if (isFull) {
+                snapshotCache[item.tscalpInstrumentId] = item
+                return item
+            }
+            val cached = snapshotCache[item.tscalpInstrumentId] ?: return item
+            return item.copy(
+                currentPrice = cached.currentPrice,
+                averagePositionPrice = cached.averagePositionPrice,
+                expectedYield = cached.expectedYield,
+                isin = cached.isin,
+                pointValue = cached.pointValue,
+            )
         }
 
         @OptIn(ExperimentalCoroutinesApi::class)
