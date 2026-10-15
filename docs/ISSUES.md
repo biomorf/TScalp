@@ -88,8 +88,11 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 
 **Детали реализации и попыток:** `docs/streams.md`.
 
-**Когда вернуться:** после обновления SDK до версии с
-`PositionsStreamServiceGrpc` — перейти на официальный стрим.
+**Когда вернуться:** SDK обновлён 1.48.1 → 1.51.0. Проверить
+заново — но по правильному имени: `OperationsStreamService.positionsStream`,
+не `PositionsStreamServiceGrpc` (класса не существует).
+Минимальный тест подписки — в `docs/ROADMAP.md` → «gRPC-стрим
+позиций».
 
 ---
 
