@@ -399,39 +399,33 @@ SHA коммитов из `feature/*`, ветки не расходятся,
 
 ---
 
-## Защита веток (Rulesets)
+## Защита веток и тегов
 
-Настроены в GitHub Settings → Rules → Rulesets.
+Защита реализована через GitHub Rulesets:
+`master`, `dev`, `release/**`, `hotfix/**` — только через
+PR, с обязательным статусом CI, запретом force-push и
+удаления. Теги `v*` — иммутабельны, создание только для
+Maintainers.
 
-| Ruleset | Target | Правила |
-|---|---|---|
-| `Protect master` | `master` | PR, status checks, block force pushes, restrict deletions |
-| `Protect dev` | `dev` | то же |
-| `Protect release branches` | `release/**` | то же |
-| `Protect hotfix branches` | `hotfix/**` | то же |
-| `Protect release tags` | `v*` | restrict updates, restrict deletions |
-| `Restrict tag creation to maintainers` | `v*` | создание тега — только Maintainers |
-
-**Allowed merge methods:** только `Merge`. `Squash` и
-`Rebase` отключены — стратегия единая, случайное
-нажатие не сломает историю.
-
-**Bypass:** Repository admin. Для одиночного проекта
-необходим, чтобы делать административные операции
-(например, force-push после ошибочного тестового коммита).
-При появлении второго разработчика — bypass
-пересматривается.
+**Детали, список Rulesets, известные ограничения GitHub
+(picker, имя job'а, gate-job) и GitLab Protected Branches —
+в `docs/repo-protection.md`.**
 
 ---
 
 ## Связанные документы
 
-- `docs/ci-roadmap.md` → «Переход на полный GitFlow» —
-  план внедрения и текущий прогресс.
+- `docs/repo-protection.md` — защита веток и тегов,
+  GitHub Rulesets, GitLab Protected Branches, известные
+  ограничения платформ.
 - `docs/release-process.md` — процедура релиза,
   versionName / versionCode, теги, секреты.
+- `docs/ci-roadmap.md` — план задач по CI/CD и
+  инфраструктуре. Закрытая задача «Переход на полный
+  GitFlow» — история внедрения этой схемы.
 - `AGENTS.md` → правило 5g — жизненный цикл задачи
   в ROADMAP при работе с feature-ветками.
 - `AGENTS.md` → правило 2b — организационные практики
   воспроизводятся по индустриальным стандартам.
+
 

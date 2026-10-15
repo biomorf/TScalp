@@ -104,85 +104,25 @@ per-environment значения) — см. `docs/ci-roadmap.md` →
 - **Воспроизводимость.** Клонировав репозиторий на тег, любой
   может увидеть сообщение тега без запуска CI.
 
-### Защита веток и тегов (GitHub Rulesets)
+### Защита веток и тегов
 
-**Статус:** актуально.
+**Детали — в отдельном справочнике:** `docs/repo-protection.md`.
+Там описаны:
 
-В GitHub механизм защиты — **Rulesets**. Настраиваются в
-`Settings → Rules → Rulesets`. Для проекта создаются два
-ruleset'а: один для `master`, второй для тегов `v*`.
+- все Rulesets проекта (ветки, теги), их правила и bypass;
+- известные ограничения GitHub (picker required checks,
+  имя job'а vs UI-имя, gate-job pattern);
+- GitLab Protected Branches / Tags и таблица эквивалентов;
+- процедуры: добавить required check, восстановиться
+  после ошибочного тега.
 
-#### Ruleset 1: защита ветки master
+**Кратко:** защита реализована через GitHub Rulesets.
+Ветки `master`, `dev`, `release/**`, `hotfix/**` — только
+через PR, с обязательным статусом CI и запретом
+force-push / удаления. Теги `v*` — иммутабельны, создание
+только для Maintainers.
 
-1. `Settings → Rules → Rulesets → New ruleset → New branch ruleset`.
-2. **Ruleset Name:** `Protect master`.
-3. **Enforcement status:** `Active`.
-4. **Target branches → Add target → Include default branch**
-   (или явно указать `master`).
-5. **Rules:**
-    - `Restrict deletions` — запрет удаления ветки.
-    - `Block force pushes` — запрет force-push.
-    - `Require a pull request before merging` — только через PR.
-        - `Required approvals: 0` (для одиночного проекта).
-        - `Dismiss stale pull request approvals when new commits
-       are pushed` — выключено.
-        - `Require review from Code Owners` — выключено.
-        - `Require conversation resolution before merging` —
-          рекомендуется включить.
-    - `Require status checks to pass` — выбрать `CI / build`
-      (имя job'а из `ci.yml`).
-    - `Require linear history` — рекомендуется включить
-      (аналог fast-forward).
-6. **Bypass list:** оставить пустым (или добавить себя как
-   Repository admin, если нужно экстренно запушить).
-7. **Create**.
-
-#### Ruleset 2: защита тегов v*
-
-1. `Settings → Rules → Rulesets → New ruleset → New tag ruleset`.
-2. **Ruleset Name:** `Protect release tags`.
-3. **Enforcement status:** `Active`.
-4. **Target tags → Add target → Include by pattern:**
-   `v*`.
-5. **Rules:**
-    - `Restrict creations` — создание только для Maintainers.
-    - `Restrict updates` — запрет force-push тега.
-    - `Restrict deletions` — запрет удаления тега.
-6. **Bypass list:** оставить пустым.
-7. **Create**.
-
-#### Особенности GitHub Rulesets
-
-- **Required status checks.** GitHub позволяет выбрать check
-  только если он уже запускался на защищаемой ветке за
-  последние 7 дней. Если `CI / build` не появляется в списке —
-  сначала создайте PR без этого правила, дайте `ci.yml`
-  отработать, потом добавьте check.
-- **Удаление защищённого тега.** Возможно только через UI
-  (`Releases → Tags → Delete tag`) или API с правами admin.
-- **Проверка правил.** После создания ruleset'а попробуйте
-  выполнить `git push origin master` локально — GitHub
-  должен отклонить операцию с сообщением о защите.
-
-
-**GitLab Protected Tags (временно отключены):**
-
-Настроены, но пока не используются:
-
-- `Settings → Repository → Protected tags`;
-- pattern: `v*`;
-- `Allowed to create: Maintainers`.
-
-Отдельных тумблеров «запретить удаление» / «запретить force-push»
-для тегов в GitLab нет: защищённый тег иммутабелен по умолчанию.
-Любой push, пытающийся перезаписать или удалить защищённый тег,
-отклоняется на уровне протокола. Удалить тег можно только через
-веб-интерфейс (`Settings → Repository → Tags`), роль Maintainer+.
-
-Аннотированные теги + Protected Tags — двойная защита:
-первое делает подмену заметной, второе делает её невозможной
-через push. Локально переписать тег всё ещё можно, но
-при попытке push GitLab отклонит операцию.
+---
 
 ## Продвижение master
 
