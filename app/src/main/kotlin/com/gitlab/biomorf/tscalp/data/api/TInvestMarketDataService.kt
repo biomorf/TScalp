@@ -244,6 +244,15 @@ class TInvestMarketDataService(
                         api.operationsStreamServiceAsync.positionsStream(
                             request,
                             { response: PositionsStreamResponse ->
+                                AppLogger.d(
+                                    TAG,
+                                    "[positions]/gRPC: response — " +
+                                        "subs=${response.hasSubscriptions()}, " +
+                                        "init=${response.hasInitialPositions()}, " +
+                                        "pos=${response.hasPosition()}, " +
+                                        "ping=${response.hasPing()}, " +
+                                        "case=${response.payloadCase}",
+                                )
                                 if (response.hasInitialPositions()) {
                                     val snapshot = response.initialPositions
                                     snapshot.securitiesList.forEach { trySend(convertSecurity(it)) }
