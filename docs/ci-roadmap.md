@@ -72,6 +72,10 @@ web Settings GitHub + правка `docs/git-flow.md`.
 
 ### Self-hosted GitLab Runner через Ansible + Podman
 
+**Мобильная работа:** частичное (Ansible-роль, inventory,
+playbook — с телефона; тестирование разворачивания — на
+домашней машине).
+
 **Статус:** запланировано.
 
 **Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
