@@ -11,6 +11,162 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### Плавный переход Hilt → Koin
+
+**Мобильная работа:** частичное (правки `.kt`/`.kts` — через
+proot; сборка и проверка графа — на десктопе).
+
+**Статус:** запланировано.
+
+**Контекст:** Hilt не поддерживает Kotlin Multiplatform —
+Android/JVM only. Koin — основной KMP-совместимый DI,
+работает на Android, iOS, JVM из одного кода. При появлении
+iOS-задачи миграция станет обязательной. Сейчас — удобный
+момент для плавного перехода: сосуществование Hilt и Koin
+возможно через мост `koin-android-dagger`, миграция — по
+модулям без остановки проекта.
+
+**Зачем заранее:** переписывание всего DI-графа за один
+раз — большая остановка. Поэтапный переход растворяется в
+текущей работе, не блокирует другие задачи.
+
+**Предусловия:**
+
+- Задачи, затрагивающие DI-модули (`RepositoryModule`,
+  `UseCaseModule`, `DataModule`), выполнены или
+  остановлены.
+- Koin Compiler Plugin доступен и совместим с Kotlin 2.4.20
+  — проверить при старте, нужно для compile-time проверки
+  графа.
+- Koin 4.x или новее — уточнить актуальную версию на
+  Maven Central.
+
+**Ключевые принципы:**
+
+- **Сосуществование до полного перехода.** Hilt и Koin
+  работают параллельно через `koin-android-dagger`. Каждый
+  модуль переводится отдельно.
+- **Порядок «от листьев к корню».** Сначала модули без
+  Hilt-специфичных зависимостей (`RepositoryModule`,
+  `UseCaseModule`), потом `DataModule` (там
+  `@ApplicationContext`), потом ViewModel и Activity.
+- **Compile-time проверка графа.** Koin Compiler Plugin
+  (требует Kotlin 2.3.20+) сохраняет проверку графа на
+  этапе компиляции — как у Hilt. Рантайм-резолвинг без
+  плагина — регресс, не использовать.
+- **После каждого модуля — сборка и тесты.** Коммит после
+  каждого переведённого модуля (правило 4b AGENTS.md).
+
+**Фазы:**
+
+**Фаза 1 — Инвентаризация и инфраструктура.**
+- Составить список всех Hilt-модулей (`@Module`,
+  `@InstallIn`), точек инъекции (`@Inject`,
+  `@AndroidEntryPoint`, `@HiltViewModel`), их зависимостей.
+- Добавить Koin-зависимости: `koin-android`,
+  `koin-androidx-compose`, `koin-android-dagger`,
+  Koin Compiler Plugin.
+- В `TScalpApplication.onCreate` вызвать `startKoin` **до**
+  инициализации Hilt-компонентов (иначе bridge упадёт).
+- Проверка: приложение запускается, все зависимости
+  разрешаются. Hilt пока управляет всем.
+
+**Фаза 2 — Пилотный модуль (`RepositoryModule`).**
+- Создать `app/di/koin/RepositoryKoinModule.kt` с
+  провайдерами репозиториев.
+- Для получения зависимостей из Hilt использовать
+  `scope.dagger<HiltEntryPoint>().someDependency()`.
+- Удалить соответствующие `@Module @InstallIn` из
+  `RepositoryModule.kt`.
+- Проверка: сборка, 63 теста, smoke-тест приложения.
+
+**Фаза 3 — Постепенный перенос модулей.**
+- Порядок: `UseCaseModule` → `DataModule`
+  (`@ApplicationContext` → `androidContext(...)`) →
+  `BrokerModule` → ViewModels → Activity.
+- ViewModel: `@HiltViewModel` → `koinViewModel()` в
+  Compose.
+- Activity: `@AndroidEntryPoint` → `KoinComponent` или
+  ручная инициализация.
+- После каждого модуля: сборка + тесты + коммит.
+
+**Фаза 4 — Удаление Hilt.**
+- Проверка: `grep -r "@Hilt\|@Inject\|@Module\|@InstallIn"`
+  не находит совпадений.
+- Удалить зависимости: `hilt-android`,
+  `hilt-android-compiler`, `hilt-navigation-compose`.
+- Удалить плагин `dagger.hilt.android.plugin` из
+  корневого `build.gradle.kts`.
+- Финальная проверка: полная сборка, тесты, ручной прогон.
+
+**Файлы:**
+
+- `gradle/libs.versions.toml` или `build.gradle.kts` —
+  версии Koin.
+- `app/build.gradle.kts` — зависимости Koin и плагин
+  compiler.
+- `TScalpApplication.kt` — `startKoin` в `onCreate`.
+- `app/di/koin/*.kt` (новые) — Koin-модули по мере
+  перевода.
+- `app/di/*.kt` (существующие) — удаление Hilt-модулей по
+  мере перевода.
+- ViewModel-файлы — `@HiltViewModel` → `koinViewModel`.
+- `MainActivity.kt` — замена `@AndroidEntryPoint`.
+
+**Референсы:**
+
+- Koin Android: `https://insert-koin.io/docs/reference/koin-android/`
+- Koin Compiler Plugin:
+  `https://insert-koin.io/docs/reference/koin-compiler-plugin/`
+- `koin-android-dagger` bridge:
+  `https://insert-koin.io/docs/reference/koin-android/koin-dagger/`
+- Koin для Compose Multiplatform:
+  `https://insert-koin.io/docs/reference/koin-compose/`
+
+**Ограничения:**
+
+- Не откусывать сразу всё: один модуль — один коммит.
+- Не переводить ViewModel и Activity до модулей нижнего
+  уровня — они зависят от всего графа.
+- Не использовать Koin без Compiler Plugin — теряется
+  compile-time safety.
+- Не смешивать миграцию с другими изменениями в тех же
+  модулях — отдельные коммиты.
+- `:transport-ktor` (если уже есть) не знает про DI —
+  провайдеры живут в `:app`. Koin-модуль для него
+  создаётся на фазе 2 или 3.
+
+**Критерий готовности:**
+
+- Hilt полностью удалён из проекта.
+- Все зависимости разрешаются через Koin.
+- Compile-time проверка графа работает (Compiler Plugin).
+- 63 unit-теста зелёные, ktlint и detekt чистые.
+- Приложение собирается и запускается на устройстве.
+
+**Оценка:** ~8–12 часов суммарно (фаза 1: 2 ч;
+фаза 2: 1–2 ч; фаза 3: 4–6 ч; фаза 4: 1–2 ч).
+
+**Зависимости:** нет. **Разблокирует** iOS-фазу
+(перенос кода в KMP-модуль без Hilt).
+
+**Открытые вопросы:**
+
+- Точная совместимость Koin Compiler Plugin с Kotlin
+  2.4.20 и AGP 9.4.0. Проверить при старте фазы 1.
+- Актуальная версия Koin на Maven Central.
+- Нужен ли `koin-androidx-compose` отдельно или хватает
+  `koin-compose` в текущей версии. Уточнить по
+  документации.
+- `startKoin` до Hilt — что именно «до»: в `onCreate`
+  перед `super.onCreate()` или после? Проверить по
+  документации bridge.
+
+
+
+
+---
+
 ### Оркестратор стримов и Ktor WS transport
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
