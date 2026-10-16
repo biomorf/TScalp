@@ -75,12 +75,37 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 - Сборка, 63 теста зелёные. Поведение не меняется.
 
 **Фаза 2 — Ktor WS transport.**
+
+**Параметры WS-подключения (из asyncapi.yaml):**
+
+- URL: `wss://invest-public-api.tbank.ru/ws/`.
+- Заголовки: `Authorization: Bearer <token>`,
+  `Web-Socket-Protocol: json`.
+- Канал подписки:
+  `/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`.
+
+**Структура запроса (V1PositionsStreamRequest):**
+
+- `accounts` — список ID счетов.
+- `withInitialPositions` — `true`, снапшот при подключении.
+- `pingSettings` — опционально, настройки пинга.
+
+**Структура ответа (V1PositionsStreamResponse):**
+
+- `initialPositions` — снапшот (при `withInitialPositions = true`).
+- `position` — обновления.
+- `ping` — keepalive.
+
+**Шаги:**
+
 - Создать `:transport-ktor` KMP-модуль с одним `androidTarget()`.
-- Ktor 3.6.0: `ktor-client-core`, `ktor-client-okhttp`, `ktor-client-websockets`, `ktor-serialization-kotlinx-json`.
+- Ktor 3.6.0: `ktor-client-core`, `ktor-client-okhttp`,
+  `ktor-client-websockets`, `ktor-serialization-kotlinx-json`.
 - Реализовать `TInvestPositionsWebSocket` в `commonMain`.
 - Hilt-провайдер в `:app/di/`.
 - Оркестратор использует WS как fallback стрим-уровня.
-- Проверка: gRPC работает → WS в standby; отключить gRPC → WS даёт данные.
+- Проверка: gRPC работает → WS в standby; отключить gRPC →
+  WS даёт данные.
 
 **Фаза 3 — Раскат на цены и ордера.**
 - Аналогично для `pricesStream` и `orderStateStream`.
@@ -128,8 +153,13 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Открытые вопросы:**
 
-- Точная структура JSON-конверта WS-подписки. Источник: `asyncapi.yaml`.
-- URL и заголовки для sandbox/prod WS.
+- Точная структура JSON-конверта подписки. В спецификации
+  `asyncapi.yaml` канал и структура полей подтверждены, но
+  полный пример конверта (обёртка над `V1PositionsStreamRequest`)
+  не приведён. **Гипотеза:** `{"positionsStream": { ... }}`.
+  Проверить при первой реализации фазы 2.
+- Отдельный URL для sandbox/prod WS или один общий.
+  Текущая гипотеза — один общий (`invest-public-api.tbank.ru`).
 
 
 
