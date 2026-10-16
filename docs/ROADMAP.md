@@ -104,6 +104,14 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 - Реализовать `TInvestPositionsWebSocket` в `commonMain`.
 - Hilt-провайдер в `:app/di/`.
 - Оркестратор использует WS как fallback стрим-уровня.
+- **SSL/Trust для Ktor WS.** CustomTrustManager (российские
+  сертификаты) сейчас Android-only в `:app/data/api/`.
+  Ввести интерфейс `SslContextProvider` в `domain/api/`.
+  Android-реализация — в `:app/data/api/common/`
+  (`AndroidSslContextProvider`), использует существующий
+  CustomTrustManager и `R.raw.*`. И gRPC-, и Ktor-транспорты
+  получают интерфейс через DI (сейчас Hilt, позже Koin).
+  На будущей iOS-фазе — добавить `iosMain` реализацию
 - Проверка: gRPC работает → WS в standby; отключить gRPC →
   WS даёт данные.
 
