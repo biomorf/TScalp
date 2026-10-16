@@ -6,9 +6,321 @@
 
 CI/CD-планирование → `docs/ci-roadmap.md`.
 
----
 
 ## Планируемые задачи
+
+---
+
+### Оркестратор стримов и Ktor WS transport
+
+**Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
+
+**Статус:** в работе.
+
+**Контекст:** три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка композиции логика fallback размазывается по брокерам. Оркестратор — единая точка композиции для каждого брокера.
+
+**Архитектурная схема — два уровня, fallback внутри каждого:**
+
+```
+                  Стрим-уровень              Polling-уровень
+                  (мгновенные обновления)    (снимки раз в 10 сек)
+TInvest:          gRPC-stream → WS           gRPC-unary → REST
+BCS:              WS                        REST
+Finam:            gRPC-stream               REST
+
+                  └────────── merge() ───────────┘
+                                  ↓
+                          Общий поток событий
+                                  ↓
+                          PositionStreamManager
+                                  ↓
+                              UI
+```
+
+Уровни работают параллельно. Внутри каждого — primary и fallback. У T-Invest все три транспорта, у BCS — WS + REST, у Finam — gRPC-stream + REST.
+
+**Ключевые принципы:**
+
+- Оркестратор — без Hilt-аннотаций, без Android-импортов. Готов к переносу в KMP-модуль (Уровень 1 iOS-совместимости).
+- Hilt-обвязка — в `:app/di/`.
+- Транспорты не знают про домен. Оркестратор знает про домен.
+- `streamWithFallback` — общая утилита в `domain/api/StreamCombinators.kt`.
+- Отсутствующие транспорты — `null` (ветка замьючена).
+
+**Псевдокод оркестратора (T-Invest):**
+
+```kotlin
+fun positionsStream(accountId: String): Flow<PositionStreamItem> =
+    merge(
+        streamWithFallback(
+            grpc.positionsStream(accountId),
+            ktor.wsPositionsStream(accountId),
+        ),
+        streamWithFallback(
+            grpc.positionsPolling(accountId),
+            ktor.restPositionsPolling(accountId),
+        ),
+    )
+```
+
+**Предусловия:** нет.
+
+**Фазы:**
+
+**Фаза 1 — Оркестратор (рефакторинг, без изменений поведения).**
+- Создать `app/data/orchestrator/TInvestOrchestrator.kt`.
+- Создать `domain/api/StreamCombinators.kt` с `streamWithFallback`.
+- Перенести композицию gRPC-stream + gRPC-unary polling из `TInvestMarketDataService` в оркестратор.
+- `TInvestBrokerAPI.positionsStream` делегирует в оркестратор.
+- Сборка, 63 теста зелёные. Поведение не меняется.
+
+**Фаза 2 — Ktor WS transport.**
+- Создать `:transport-ktor` KMP-модуль с одним `androidTarget()`.
+- Ktor 3.6.0: `ktor-client-core`, `ktor-client-okhttp`, `ktor-client-websockets`, `ktor-serialization-kotlinx-json`.
+- Реализовать `TInvestPositionsWebSocket` в `commonMain`.
+- Hilt-провайдер в `:app/di/`.
+- Оркестратор использует WS как fallback стрим-уровня.
+- Проверка: gRPC работает → WS в standby; отключить gRPC → WS даёт данные.
+
+**Фаза 3 — Раскат на цены и ордера.**
+- Аналогично для `pricesStream` и `orderStateStream`.
+- Проверка на каждом.
+
+**Файлы:**
+
+- `settings.gradle.kts` — `include(":transport-ktor")`.
+- `transport-ktor/build.gradle.kts` (новый).
+- `transport-ktor/src/commonMain/kotlin/.../TInvestPositionsWebSocket.kt` (новый).
+- `transport-ktor/src/androidMain/kotlin/.../HttpEngine.android.kt` (новый).
+- `domain/api/StreamCombinators.kt` (новый).
+- `app/data/orchestrator/TInvestOrchestrator.kt` (новый).
+- `app/data/api/TInvestMarketDataService.kt` — переработать.
+- `app/di/DataModule.kt` — Hilt-провайдер для WS.
+
+**Референсы:**
+
+- AsyncAPI-спецификация WS: `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
+- Канал WS: `/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`.
+- Ktor Client WebSocket: `https://ktor.io/docs/client-websockets.html`.
+- `docs/streams.md` → «PositionsStream».
+
+**Ограничения:**
+
+- Только позиции на первом этапе (фаза 2). Раскат на цены и ордера — фаза 3.
+- Только WS. REST-fallback для polling — отдельная задача.
+- Оркестратор без Hilt-аннотаций и без Android-импортов.
+- iOS-таргет не добавляем. Только `androidTarget()`.
+- Логика fallback — в оркестраторе, не в брокере.
+- Ktor 3.6.0 (проверено на Maven Central).
+- Не смешивать с миграцией REST.
+
+**Критерий готовности:**
+
+- Модуль `:transport-ktor` собирается.
+- `TInvestOrchestrator` композирует два уровня с fallback'ами.
+- Брокер делегирует в оркестратор.
+- При отключённом gRPC-стриме данные идут через WS.
+- 63 unit-теста зелёные, ktlint и detekt чистые.
+
+**Оценка:** ~6–8 часов (фаза 1: 2 ч; фаза 2: 3–4 ч; фаза 3: 1–2 ч).
+
+**Зависимости:** нет. **Разблокирует** «Ktor REST transport для polling», «StreamState в data-слое», «UI-индикатор состояния стримов».
+
+**Открытые вопросы:**
+
+- Точная структура JSON-конверта WS-подписки. Источник: `asyncapi.yaml`.
+- URL и заголовки для sandbox/prod WS.
+- Есть ли у Finam gRPC-stream (сейчас в схеме указан, но требует подтверждения).
+
+
+
+
+---
+
+### Ktor REST transport для polling
+
+**Мобильная работа:** невозможно (требует сборки и проверки на реальных данных).
+
+**Статус:** запланировано.
+
+**Контекст:** polling у T-Invest идёт через gRPC unary. REST API у T-Invest — прокси Swagger над gRPC unary-методами. Если gRPC-протокол недоступен (блокировка портов, региональные ограничения), REST даёт альтернативу. У BCS REST — уже основной транспорт, сейчас на OkHttp.
+
+**Зачем:** fallback для polling-уровня. Плюс — единый стиль на Ktor для всех REST-запросов (BCS мигрирует с OkHttp). Ktor даёт единый HTTP-клиент для KMP, OkHttp — нет.
+
+**Предусловия:** выполнена задача «Оркестратор стримов и Ktor WS transport» — нужен оркестратор как точка композиции.
+
+**Фазы:**
+
+**Фаза 1 — Ktor REST-клиент для T-Invest.**
+- `TInvestRestTransport` в `:transport-ktor/commonMain`.
+- Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`.
+- Прокси над REST-эндпоинтами T-Invest.
+
+**Фаза 2 — Fallback для polling T-Invest.**
+- Оркестратор композирует gRPC-unary + REST в polling-уровне.
+- При недоступности gRPC polling идёт через REST.
+- Логика переключения — в оркестраторе, не в брокере.
+
+**Фаза 3 — Миграция BCS на Ktor.**
+- Перевести `BcsBrokerApi` с OkHttp на Ktor REST.
+- Удалить прямые OkHttp-зависимости (если не останется).
+- Опционально — сделать `:transport-ktor` точкой входа для всех REST-брокеров.
+
+**Файлы:**
+
+- `transport-ktor/src/commonMain/kotlin/.../TInvestRestTransport.kt` (новый).
+- `transport-ktor/src/commonMain/kotlin/.../BcsRestTransport.kt` (новый).
+- `app/data/api/TInvestMarketDataService.kt` — обновить.
+- `app/data/api/BcsBrokerApi.kt` — миграция.
+- `app/data/orchestrator/TInvestOrchestrator.kt` — композиция polling с REST.
+
+**Референсы:**
+
+- REST API T-Invest: `https://developer.tbank.ru/invest/intro/developer/protocols/restapi`.
+- Формат запроса: `POST https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1.<Service>/<Method>`.
+- Ktor Client: `https://ktor.io/docs/client-create-new-application.html`.
+- Существующая реализация `BcsBrokerApi` — образец REST-клиента.
+
+**Ограничения:**
+
+- Не смешивать с WS-транспортом (отдельные фазы, отдельные PR).
+- Логика fallback — в оркестраторе.
+- Лимиты REST те же, что у gRPC unary: 6 запросов/сек.
+- Не удалять OkHttp полностью, пока gRPC-транспорт использует его как engine.
+- Транспорт не знает про домен — возвращает DTO или сырой JSON, конвертация — в репозитории.
+
+**Критерий готовности:**
+
+- При недоступности gRPC polling идёт через REST.
+- `BcsBrokerApi` использует Ktor REST.
+- `TInvestOrchestrator` композирует gRPC unary + REST.
+- 63 unit-теста зелёные, ktlint и detekt чистые.
+
+**Оценка:** ~4–6 часов.
+
+**Зависимости:** блокируется «Оркестратор стримов и Ktor WS transport».
+
+
+
+
+---
+
+
+
+
+
+
+Набросок правки ROADMAP
+
+Ниже — компактный план, что менять. Сохрани в черновик, на десктопе применим.
+
+---
+
+Проблема в текущем планировании
+
+Три задачи пересекаются, но описаны как независимые:
+
+1. ### Каскад обновления позиций — описывает последовательный каскад внутри TInvestMarketDataService. Устарело: gRPC-уровень сделан, последовательный каскад отменён в пользу параллельного.
+2. ### Унификация каскадов стримов — статус «отложено». По обсуждению — должно быть «в работе», потому что де-факто унификация нужна.
+3. ### Миграция сетевого слоя на Ktor Client — описывает миграцию REST-запросов на Ktor. Устарело: реально нужен Ktor для WebSocket как fallback для стримов.
+
+---
+
+Целевая архитектура (набросок)
+
+```
+ViewModel
+    ↓
+PositionStreamManager / PriceStreamManager (domain)
+    ↓
+BrokerApi (domain interface)
+    ↓
+TInvestBrokerAPI (data adapter)
+    ↓
+StreamOrchestrator (data — НОВЫЙ слой)
+    ├── gRPC transport    (T-Invest only)
+    ├── Ktor WS transport (все брокеры с WS)
+    └── Ktor REST polling (все брокеры)
+```
+
+Ключевое:
+
+· Оркестратор — общий. Брокер только композиция транспортов.
+· Отсутствующие транспорты — null (ветка замьючена).
+· Логика fallback — в оркестраторе, не в брокере.
+
+Матрица брокеров:
+
+Транспорт T-Invest BCS Finam
+gRPC stream ✅ ❌ ❌
+Ktor WS stream ✅ ? ❌
+Ktor REST polling ✅ ✅ ✅
+
+---
+
+Правки в ROADMAP
+
+1. Переформулировать «Каскад обновления позиций»
+
+Убрать всё про последовательный каскад и LevelOutcome. Заменить на:
+
+· Что сделано: gRPC-стрим + параллельный polling (PR #20).
+· Что осталось: WS-уровень (через Ktor).
+· Куда идёт: становится частью «Унификации каскадов».
+
+Или закрыть как отдельную задачу — всё её содержимое уже в других местах.
+
+2. Переформулировать «Унификация каскадов стримов»
+
+Из «отложено» → «в работе». Новое содержание:
+
+· Зачем: три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка — дублирование.
+· Что унифицируется:
+  · StreamOrchestrator — класс композиции.
+  · streamWithFallback(primary, fallback, polling) — утилита.
+  · Единый формат [stream]-логов.
+  · Общий механизм backoff.
+· Что НЕ унифицируется: доменная логика (позиции ≠ цены по семантике).
+· Фазы:
+  1. Выделить оркестратор из TInvestMarketDataService (рефакторинг без изменений поведения).
+  2. Добавить Ktor WS-транспорт для позиций.
+  3. Раскатать на цены и ордера.
+  4. HTTP REST fallback для polling.
+
+3. Переформулировать «Миграция на Ktor Client»
+
+Сузить: первый этап — только WS. REST-миграция — отдельная задача после.
+
+Или удалить и создать новую: «Ktor WebSocket transport».
+
+4. Новая задача: :transport-ktor (KMP-модуль)
+
+Создать модуль с одним androidTarget(), Ktor 3.6.0, WS-клиент для позиций T-Invest.
+
+---
+
+Открытые вопросы
+
+1. Где живёт StreamOrchestrator:
+   · :app/data/orchestrator/ — просто, но не KMP.
+   · :transport-ktor/orchestrator/ — модуль назван неточно (оркестратор не про транспорт).
+   · Новый :streams модуль — чище, но +1 модуль.
+2. Имя модуля: :transport-ktor — вариант для транспорта. Для оркестратора — :stream-core, :streams.
+3. Порядок фаз: сначала оркестратор (рефакторинг) или сразу WS (быстрая польза)?
+
+---
+
+Что делать на десктопе
+
+1. Открыть docs/ROADMAP.md.
+2. Пройти по трём задачам, применить правки выше.
+3. Решить открытые вопросы (1, 2, 3).
+4. Коммит docs(roadmap): rework stream cascade planning.
+
+---
+
+
+
 
 ### Рефакторинг расчёта P&L для PortfolioPosition
 
@@ -152,6 +464,9 @@ P&L не сделан до интеграции стрима, карточки �
 gRPC-стрима позиций — иначе переход на стрим сломает P&L
 в карточках.
 
+
+
+
 ---
 
 ### Compose Preview для компонентов
@@ -229,117 +544,8 @@ gRPC-стрима позиций — иначе переход на стрим �
   от `hiltViewModel()` или чего-то непередаваемого через
   параметры? Проверить при старте задачи.
 
----
 
-### Миграция сетевого слоя на Ktor Client (KMP-подготовка)
 
-**Мобильная работа:** невозможно (требует итеративной
-сборки и прогона тестов на каждом шаге).
-
-**Статус:** запланировано.
-
-**Контекст:** сейчас сетевой слой построен на OkHttp 5.4.0
-(BCS) и gRPC-каналах (T-Invest). OkHttp официально прекратил
-поддержку Kotlin Multiplatform — использовать его в `commonMain`
-при переходе на KMP не получится. Ktor Client — основной
-KMP-совместимый HTTP-клиент, работает на Android, iOS, JVM
-из одного кода. На Android может использовать OkHttp как
-движок под капотом, так что производительность не пострадает.
-
-**Зачем планировать заранее:** переход на Ktor — это
-инфраструктурная задача, не требующая срочности. Но если
-закладывать её сейчас, при доработке reconnect-loop и каскада
-позиций мы будем использовать Ktor-совместимые паттерны
-(например, плагин `HttpRequestRetry`), а не OkHttp-специфичные.
-Иначе через 3–6 месяцев придётся переделывать.
-
-**Предусловия:** нет. Можно начинать в любой момент, когда
-текущие задачи (reconnect-loop, каскад позиций) закрыты.
-
-**Файлы:**
-- `app/build.gradle.kts` — добавить зависимости Ktor.
-- `gradle/libs.versions.toml` (если есть) — версии Ktor.
-- `data/api/NetworkClient.kt` (новый) — фабрика `HttpClient`
-  с плагинами.
-- `data/api/BcsBrokerApi.kt` — перевести REST-запросы на Ktor.
-- `data/api/TInvestMarketDataService.kt` — REST-часть (цены,
-  портфель, счета, инструменты).
-- `data/repository/InvestRepository.kt` — только если
-  сигнатуры изменятся.
-- `data/api/FinamBrokerApi.kt` — то же, при реализации.
-
-**Шаги:**
-
-1. Выбрать версию Ktor (актуальную на момент старта; на
-   2026-10 — 3.x).
-2. Добавить зависимости:
-    - `io.ktor:ktor-client-core`
-    - `io.ktor:ktor-client-okhttp` (Android engine)
-    - `io.ktor:ktor-client-content-negotiation`
-    - `io.ktor:ktor-serialization-kotlinx-json` или gson-adapter
-    - `io.ktor:ktor-client-logging`
-3. Создать `NetworkClient.kt` — фабрика `HttpClient` с:
-    - движком OkHttp (для Android);
-    - `ContentNegotiation` (JSON);
-    - `HttpRequestRetry` (экспоненциальный backoff,
-      переиспользует паттерн из reconnect-loop);
-    - `Logging` через AppLogger (или кастомный логгер).
-4. Пилот: перевести `subscribeLastPrices` на Ktor-клиент
-   (или сразу gRPC-канал через Ktor-совместимый вариант).
-5. Поэтапно перевести `BcsBrokerApi` REST-запросы.
-6. Поэтапно перевести REST-часть `TInvestMarketDataService`.
-7. Удалить OkHttp-зависимости, если не останется прямого
-   использования (gRPC-каналы используют okhttp transport —
-   уточнить, оставлять ли).
-8. Убедиться, что 63 unit-теста зелёные на каждом шаге.
-
-**Референсы:**
-- Официальная документация Ktor Client:
-  https://ktor.io/docs/client-create-new-application.html
-- Плагин Retry:
-  https://ktor.io/docs/client-retry.html
-- Плагин ContentNegotiation:
-  https://ktor.io/docs/client-serialization.html
-- KMP-статус OkHttp (прекращение поддержки): issue в
-  square/okhttp о KMP.
-
-**Ограничения:**
-- **Не смешивать** с другими задачами — миграция отдельная,
-  может идти параллельно.
-- **Не менять** публичные контракты `InvestRepository` /
-  `BrokerApi` без миграции вызывающих.
-- **Не удалять OkHttp полностью**, пока gRPC-каналы
-  (`TInvestChannelFactory`) используют его transport.
-  Разобраться на шаге 7.
-- Тесты должны оставаться зелёными после каждого шага.
-
-**Критерий готовности:**
-- Все REST-запросы (BCS, T-Invest REST-часть) идут через
-  Ktor Client.
-- `NetworkClient.kt` — единая точка конфигурации HTTP-слоя.
-- OkHttp остаётся только как transport для gRPC (если нужен).
-- Сетевой слой готов к переносу в `commonMain` KMP-модуля
-  без изменений бизнес-логики.
-- 63 unit-теста зелёные.
-
-**Оценка:** ~4–6 часов.
-
-**Зависимости:** нет. Reconnect-loop для цен закрыт,
-зависимость от него снята. **Блокирует** задачу «Каскад
-обновления позиций» — WebSocket-уровень каскада строится
-на Ktor WebSocket plugin.
-
-**Когда вернуться:** в ближайшей рабочей сессии, до старта
-каскада позиций. Миграция разблокирует каскад.
-
-**Открытые вопросы:**
-- Оставлять ли OkHttp как transport для gRPC в KMP — зависит
-  от того, поддерживает ли `grpc-kotlin` KMP-таргеты.
-  Уточнить при старте задачи.
-- Какой JSON-сериализатор использовать: `kotlinx.serialization`
-  (KMP-native) или `gson-adapter` (текущий gson). Для KMP —
-  рекомендуется `kotlinx.serialization`, но потребуется миграция
-  data-классов.
 
 ---
 
@@ -393,32 +599,10 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
 
 **Зависимости:** нет.
 
+
+
+
 ---
-
-### Унификация каскадов стримов
-
-**Статус:** отложено.
-
-**Контекст:** два каскада — цены (параллельные источники)
-и позиции (последовательный каскад). Возник вопрос: выделить
-общий движок.
-
-**Предусловия:** каскад позиций и reconnect-loop для цен
-должны быть реализованы и обкатаны.
-
-**Решение:** **не унифицировать.** Семантики принципиально
-разные. Преждевременная абстракция рискует усложнить оба каскада.
-
-**Что можно выделить без унификации:**
-- reconnect-loop с backoff (см. отдельную задачу для цен);
-- единый формат `[stream]`-логов;
-- health-check как отдельный wrapper.
-
-**Когда вернуться:** после того, как оба каскада заработают.
-Тогда станет видно, есть ли реально общий код, достойный выделения.
-
-**Оценка:** ~1 час на анализ, ~2 часа на рефакторинг,
-если решение окажется положительным.
 
 ### UI-индикатор состояния стримов
 
@@ -478,6 +662,11 @@ KMP-совместимый HTTP-клиент, работает на Android, iOS
 
 **Зависимости:** блокируется StreamState.
 
+
+
+
+---
+
 ### StreamState в data-слое
 
 **Мобильная работа:** невозможно (требует сборки и проверки
@@ -523,125 +712,14 @@ AppMetrica, отладки.
 
 **Оценка:** ~30 минут.
 
-**Зависимости:** блокируется каскадом позиций
-и reconnect-loop для цен.
+**Зависимости:** блокируется «Оркестратором стримов и Ktor
+WS transport» — нужен финальный слой композиции, иначе
+состояние не отражает все уровни.
 
-### Каскад обновления позиций
 
-**Статус:** запланировано.
 
-**Контекст:** сейчас `TInvestMarketDataService.subscribePositions`
-реализует polling через `fetchPositionsSnapshot` раз в 10 секунд.
-gRPC-стрим не подключён. Официальная документация T-Invest
-рекомендует переподключаться при отсутствии данных.
-`PositionsStream` живёт в `OperationsStreamService`
-(`PositionsStreamServiceGrpc` не существует).
 
-**Предусловия:**
-- SDK `kotlin-sdk-grpc-core:1.51.0` (уже в проекте).
-- Проверить в артефакте наличие `OperationsStreamServiceCoroutineStub`
-  и классов `PositionsStreamRequest` / `PositionsStreamResponse`.
-
-**Файлы:**
-- `data/api/TInvestMarketDataService.kt` — основной файл.
-- `data/api/TInvestChannelFactory.kt` — возможно, добавить
-  канал `operationsStream` в `Channels`.
-- `domain/models/Portfolio.kt` — модель `PositionStreamItem`
-  (уже есть, не менять без причины).
-
-**Шаги:**
-
-1. Рефакторинг: переименовать текущий `subscribePositions`
-   → `subscribePositionsPolling` (private). Сборка.
-2. Добавить заглушки `subscribePositionsGrpc(accountId): Flow<PositionStreamItem>?`
-   и `subscribePositionsWebSocket(accountId): Flow<PositionStreamItem>?`,
-   обе возвращают `null`. Сборка.
-3. Реализовать `subscribePositions(accountId)` как циклический
-   каскад в `channelFlow`:
-   - gRPC-уровень → при ошибке/завершении → WS-уровень;
-   - WS-уровень → при ошибке/завершении → polling один раз;
-   - polling → `delay(RETRY_DELAY_MS = 10_000)` → повтор цикла.
-   - `LevelOutcome { Ended, Cancelled, Fatal }` для управления.
-   - Fatal (`NOT_FOUND` по счёту) останавливает каскад.
-   Сборка.
-4. Реализовать gRPC-уровень через
-   `OperationsStreamServiceCoroutineStub(channel).positionsStream(flowOf(request))`.
-   - `request = PositionsStreamRequest.newBuilder()
-     .addAccounts(accountId)
-     .setWithInitialPositions(true)
-     .build()`.
-   - Конвертеры `V1PositionsSecurities` → `PositionStreamItem`
-     и `V1PositionsFutures` → `PositionStreamItem`.
-   - Поле `balance` — **String**, конвертировать через `toLongOrNull()`.
-   Сборка.
-5. Реализовать WebSocket-уровень (после получения схемы сообщений).
-   - OkHttp 5.4.0 (уже в зависимостях).
-   - Рассмотреть использование Ktor для мультиплатформенности
-   - URL: `wss://invest-public-api.tbank.ru/ws/`.
-   - Заголовки: `Authorization: Bearer <token>`, `Web-Socket-Protocol: json`.
-   Сборка.
-6. Реализовать `subscribePositionsPolling` как одиночный
-   `fetchPositionsSnapshot` (без внутреннего `while` и `delay`).
-   Сборка.
-7. Debug-логи с префиксом `[positions]` на каждом переходе
-   (уровни D/I/W/E — см. «Референсы»).
-
-**Референсы:**
-- `RussianInvestments/invest-api-kotlin-sdk` →
-  `kotlin-sdk-grpc-example/src/main/kotlin/ru/ttech/piapi/example/`
-  → `OperationStreamServiceExample.kt`, метод `examplePositionsStream`.
-- `operations.proto` в пакете `ru.tinkoff.piapi.contract.v1` —
-  определения `PositionsStreamRequest` / `PositionsStreamResponse`.
-- `docs/streams.md` → раздел «PositionsStream» — история попыток.
-
-**Ограничения:**
-- **Не использовать** `PositionsStreamServiceGrpc` — класса не существует.
-- **Не переподключаться чаще, чем раз в 3 секунды** —
-  документация T-Invest предупреждает: «не пытайтесь
-  переподключаться слишком часто — это может усугубить ситуацию».
-- **Не использовать `retryWhen`** — цикл сам управляет
-  переподключениями.
-- **Не унифицировать** с каскадом цен — семантика разная
-  (sequential vs parallel sources).
-- Polling не должен «подниматься» обратно на gRPC внутри
-  одной итерации — только через cooldown и полный повтор.
-
-**Критерий готовности:**
-- При обрыве gRPC-стрима каскад переходит на WS без паузы.
-- При обрыве WS — один polling-fetch, затем `delay(10s)`, затем
-  повтор с gRPC.
-- `NOT_FOUND` по счёту останавливает каскад.
-- В `logcat` видны `[positions]`-сообщения на каждом переходе.
-- Unit-тесты (при наличии) зелёные, сборка зелёная.
-
-**Оценка:** ~4 часа (рефакторинг 30 мин, gRPC 2 ч, WS 1.5 ч).
-
-**Зависимости:** **блокируется** миграцией сетевого слоя на
-Ktor Client. WebSocket-уровень каскада строится на Ktor
-WebSocket plugin, а не на OkHttp, чтобы не переписывать его
-после KMP-миграции. Уровни gRPC и polling от Ktor не зависят,
-но архитектурно каскад пишется один раз.
-
-Блокирует «StreamState в data-слое» и «UI-индикатор
-состояния стримов».
-
-**Открытые вопросы:**
-- Точная структура JSON-конверта для подписки через WebSocket.
-  Источник: официальная AsyncAPI-спецификация T-Invest API →
-  `RussianInvestments/investAPI` → `src/docs/ws/asyncapi.yaml`.
-  Канал: `/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`.
-  Схема сообщений соответствует proto-контракту
-  (`V1PositionsStreamRequest` / `V1PositionsStreamResponse`).
-- Точный состав полей `V1PositionsSecurities` / `V1PositionsFutures`.
-  Где искать: распаковать AAR 1.51.0.
-
-**Референс для WebSocket-уровня:**
-- AsyncAPI-спецификация: `src/docs/ws/asyncapi.yaml` в репозитории
-  `RussianInvestments/investAPI`.
-- URL: `wss://invest-public-api.tbank.ru/ws/`
-- Заголовки: `Authorization: Bearer <token>`,
-  `Web-Socket-Protocol: json` (или `json-proto`).
-- Формат: protobuf JSON mapping.
+---
 
 ### Переход на edge-to-edge (statusBarColor deprecated)
 
@@ -661,7 +739,42 @@ WebSocket plugin, а не на OkHttp, чтобы не переписывать 
 **Оценка:** ~2 часа + прогон на устройствах разных версий.
 **Когда:** при подготовке релиза под Android 15 или target SDK 36.
 
+
+
+
 ---
+
+### Рефакторинг архитектурного долга (detekt-группа 3)
+
+**Статус:** запланировано.
+
+**Контекст:** при внедрении detekt 2.0.0-alpha.6 (см. задачу
+`detekt` в разделе выше) выявлены 10 групп архитектурного
+долга. Правила `LongMethod`, `CyclomaticComplexMethod`,
+`TooManyFunctions`, `LargeClass` подавлены в коде через
+`@Suppress` со ссылкой на эту секцию. `MagicNumber` (45
+записей) зафиксирован в `app/detekt-baseline.xml`.
+
+**Общие предусловия:**
+- Перед рефакторингом каждой группы — прогнать тесты,
+  зафиксировать текущее поведение.
+- Разбивать на подзадачи: один класс / одна функция за раз,
+  коммит после каждого шага (правило 4b AGENTS.md).
+- После рефакторинга — снять `@Suppress`, убедиться что
+  detekt проходит без него.
+
+**Общие ограничения:**
+- Не менять UI без санкции (правило 1 AGENTS.md).
+- Не ломать публичные контракты без миграции вызывающих.
+- Тесты (63 unit) должны оставаться зелёными.
+
+**Общий критерий готовности:** все `@Suppress` из этой секции
+сняты; `:app:detekt` проходит без новых подавлений; тесты
+зелёные.
+
+**Оценка:** ~15–20 часов суммарно.
+
+**Зависимости:** нет.
 
 #### Compose-экраны
 
@@ -718,38 +831,6 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 `OrderFormViewModel` / `OrderListViewModel`.
 
 **Оценка:** ~5 часов.
-
-### Рефакторинг архитектурного долга (detekt-группа 3)
-
-**Статус:** запланировано.
-
-**Контекст:** при внедрении detekt 2.0.0-alpha.6 (см. задачу
-`detekt` в разделе выше) выявлены 10 групп архитектурного
-долга. Правила `LongMethod`, `CyclomaticComplexMethod`,
-`TooManyFunctions`, `LargeClass` подавлены в коде через
-`@Suppress` со ссылкой на эту секцию. `MagicNumber` (45
-записей) зафиксирован в `app/detekt-baseline.xml`.
-
-**Общие предусловия:**
-- Перед рефакторингом каждой группы — прогнать тесты,
-  зафиксировать текущее поведение.
-- Разбивать на подзадачи: один класс / одна функция за раз,
-  коммит после каждого шага (правило 4b AGENTS.md).
-- После рефакторинга — снять `@Suppress`, убедиться что
-  detekt проходит без него.
-
-**Общие ограничения:**
-- Не менять UI без санкции (правило 1 AGENTS.md).
-- Не ломать публичные контракты без миграции вызывающих.
-- Тесты (63 unit) должны оставаться зелёными.
-
-**Общий критерий готовности:** все `@Suppress` из этой секции
-сняты; `:app:detekt` проходит без новых подавлений; тесты
-зелёные.
-
-**Оценка:** ~15–20 часов суммарно.
-
-**Зависимости:** нет.
 
 #### BrokerApi-реализации
 
@@ -834,6 +915,9 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 **Когда вернуться:** при следующей итерации по UI портфеля.
 
+
+
+
 ---
 
 ### Реализация Finam Broker API
@@ -912,6 +996,9 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 **Зависимости:** нет. Блокирует полноценное использование
 Finam в UI.
 
+
+
+
 ---
 
 ### Расшифровка кодов ошибок брокеров
@@ -933,6 +1020,9 @@ Finam в UI.
 - Дополнять T-Invest таблицу новыми кодами по мере появления в логах.
 
 **Оценка:** 15 минут на нового брокера + 5 минут на новый код.
+
+
+
 
 ---
 
