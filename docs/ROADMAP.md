@@ -26,7 +26,7 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
                   (мгновенные обновления)    (снимки раз в 10 сек)
 TInvest:          gRPC-stream → WS           gRPC-unary → REST
 BCS:              WS                        REST
-Finam:            gRPC-stream               REST
+Finam:            gRPC-stream → WS           gRPC-unary → REST
 
                   └────────── merge() ───────────┘
                                   ↓
@@ -37,7 +37,7 @@ Finam:            gRPC-stream               REST
                               UI
 ```
 
-Уровни работают параллельно. Внутри каждого — primary и fallback. У T-Invest все три транспорта, у BCS — WS + REST, у Finam — gRPC-stream + REST.
+Уровни работают параллельно. Внутри каждого — primary и fallback. У T-Invest и Finam — все три транспорта (gRPC, WS, REST). У BCS — WS + REST.
 
 **Ключевые принципы:**
 
@@ -130,7 +130,6 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 - Точная структура JSON-конверта WS-подписки. Источник: `asyncapi.yaml`.
 - URL и заголовки для sandbox/prod WS.
-- Есть ли у Finam gRPC-stream (сейчас в схеме указан, но требует подтверждения).
 
 
 
@@ -204,11 +203,6 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 
 ---
-
-
-
-
-
 
 Набросок правки ROADMAP
 
@@ -933,9 +927,10 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 **Предусловия:**
 - Доступ к Finam API (документация, тестовый токен).
-- Выбор HTTP-клиента: OkHttp (уже в зависимостях,
-  используется BCS) или Ktor. Рекомендуется OkHttp для
-  консистентности с BCS.
+- Завершена задача «Оркестратор стримов и Ktor WS transport» —
+  `:transport-ktor` даёт HTTP-клиент для REST и WS.
+  У Finam есть gRPC, WS и REST — все три транспорта,
+  как у T-Invest.
 
 **Файлы:**
 - `data/api/FinamBrokerApi.kt` — основная реализация.
@@ -962,16 +957,23 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 8. Реализовать `getLastPricesByTscalpInstrumentId`.
 9. Реализовать `getTradingStatuses`.
 10. Реализовать стримы (`subscribePositions`,
-    `subscribeOrderState`, `subscribeLastPrices`) —
-    если Finam поддерживает; иначе polling с fallback.
+    `subscribeOrderState`, `subscribeLastPrices`):
+    gRPC-stream — primary, WS — fallback, REST — polling.
+    Композиция через `FinamOrchestrator` по образцу
+    `TInvestOrchestrator`.
 11. Заполнить `FinamErrorMessages.kt` по мере
     появления кодов ошибок.
 12. Покрыть unit-тестами (моки OkHttp).
 
 **Референсы:**
-- Официальная документация Finam API (URL уточнить).
+- Официальная документация Finam API:
+  - gRPC: https://api.finam.ru/docs/grpc/#introduction
+  - WebSocket (AsyncAPI): https://api.finam.ru/docs/async-api/
+  - REST: https://api.finam.ru/docs/rest/
 - Существующая реализация `BcsBrokerApi` — образец
-  REST-клиента на OkHttp.
+  REST-клиента.
+- `TInvestOrchestrator` — образец композиции транспортов
+  с fallback'ами.
 
 **Ограничения:**
 - **Не оставлять `TODO("Not yet implemented")`** в коде,
