@@ -3,8 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.4.21" apply false
     kotlin("multiplatform") version "2.4.21" apply false
     id("com.android.application") version "9.4.1" apply false
+    id("com.android.kotlin.multiplatform.library") version "9.4.1" apply false
     // Версия плагина не указывается отдельно, она будет взята из версии Kotlin
-    //
     kotlin("plugin.serialization") version "2.4.20"
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.20" apply false
     id("com.google.dagger.hilt.android") version "2.60.1" apply false

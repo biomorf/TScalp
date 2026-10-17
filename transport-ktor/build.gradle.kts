@@ -1,11 +1,17 @@
 plugins {
     kotlin("multiplatform")
-    id("com.android.library") version "9.4.1"
+    id("com.android.kotlin.multiplatform.library")
     kotlin("plugin.serialization")
 }
 
 kotlin {
-    androidTarget {
+    android {
+        namespace = "com.gitlab.biomorf.tscalp.transport.ktor"
+        compileSdk = 37
+        minSdk = 30
+
+        withHostTest {}
+
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
@@ -35,19 +41,5 @@ kotlin {
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
             }
         }
-    }
-}
-
-android {
-    namespace = "com.gitlab.biomorf.tscalp.transport.ktor"
-    compileSdk = 37
-
-    defaultConfig {
-        minSdk = 30
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
 }
