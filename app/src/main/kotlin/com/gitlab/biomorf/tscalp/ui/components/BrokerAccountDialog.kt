@@ -8,6 +8,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import androidx.compose.ui.tooling.preview.Preview
+import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
+import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-компонентов».
@@ -135,4 +138,60 @@ fun BrokerAccountDialog(
             }
         },
     )
+}
+
+
+@Preview(name = "T-Invest — with accounts", showBackground = true, widthDp = 400)
+@Composable
+private fun BrokerAccountDialogTInvestPreview() {
+    TScalpTheme {
+        BrokerAccountDialog(
+            availableBrokers = listOf(BrokerName.TINVEST, BrokerName.BCS, BrokerName.FINAM),
+            selectedBroker = BrokerName.TINVEST,
+            onBrokerSelected = {},
+            accounts = listOf(
+                BrokerAccount("acc-1", "Основной", BrokerAccountType.BROKER),
+                BrokerAccount("acc-2", "ИИС", BrokerAccountType.IIS),
+            ),
+            selectedAccountId = "acc-1",
+            onAccountSelected = {},
+            onDismiss = {},
+            onSave = {},
+        )
+    }
+}
+
+@Preview(name = "BCS — empty accounts", showBackground = true, widthDp = 400)
+@Composable
+private fun BrokerAccountDialogBcsEmptyPreview() {
+    TScalpTheme {
+        BrokerAccountDialog(
+            availableBrokers = listOf(BrokerName.TINVEST, BrokerName.BCS, BrokerName.FINAM),
+            selectedBroker = BrokerName.BCS,
+            onBrokerSelected = {},
+            accounts = emptyList(),
+            selectedAccountId = null,
+            onAccountSelected = {},
+            onDismiss = {},
+            onSave = {},
+        )
+    }
+}
+
+@Preview(name = "FINAM — no account selector", showBackground = true, widthDp = 400)
+@Composable
+private fun BrokerAccountDialogFinamNoSelectorPreview() {
+    TScalpTheme {
+        BrokerAccountDialog(
+            availableBrokers = listOf(BrokerName.TINVEST, BrokerName.BCS, BrokerName.FINAM),
+            selectedBroker = BrokerName.FINAM,
+            onBrokerSelected = {},
+            accounts = emptyList(),
+            selectedAccountId = null,
+            onAccountSelected = {},
+            onDismiss = {},
+            onSave = {},
+            showAccountSelector = false,
+        )
+    }
 }
