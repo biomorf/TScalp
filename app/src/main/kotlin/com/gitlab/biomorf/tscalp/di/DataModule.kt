@@ -19,6 +19,7 @@ import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.websocket.WebSockets
+import okhttp3.OkHttpClient
 import javax.inject.Singleton
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
@@ -90,6 +91,22 @@ object DataModule {
                 }
             }
         }
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(
+        @ApplicationContext context: Context,
+    ): OkHttpClient {
+        val trustManager = CustomTrustManager(context)
+        val sslContext =
+            SSLContext.getInstance("TLS").apply {
+                init(null, arrayOf<TrustManager>(trustManager), null)
+            }
+        return OkHttpClient
+            .Builder()
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .build()
     }
 }
 
