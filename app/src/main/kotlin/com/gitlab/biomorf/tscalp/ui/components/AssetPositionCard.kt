@@ -31,6 +31,9 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.util.PositionFormatter
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import androidx.compose.ui.tooling.preview.Preview
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 
 /**
  * Содержимое карточки позиции без обёртки Card.
@@ -348,5 +351,97 @@ private fun AssetCardContent(
                 }
             }
         }
+    }
+}
+
+
+@Preview(name = "Share — profit", showBackground = true, widthDp = 400)
+@Composable
+private fun AssetPositionCardShareProfitPreview() {
+    TScalpTheme {
+        AssetPositionCard(
+            position = PortfolioPosition(
+                tscalpInstrumentId = "uid-1",
+                brokerName = BrokerName.TINVEST,
+                name = "Сбербанк",
+                ticker = "SBER",
+                quantity = 10,
+                currentPrice = 250.5,
+                totalValue = 2505.0,
+                averagePrice = 200.0,
+                profit = 505.0,
+                profitPercent = 25.25,
+                instrumentType = "share",
+                isin = "RU0009029540",
+                classCode = "TQBR",
+            ),
+            instrumentType = "share",
+            priceChangePercent = 1.5,
+            onClick = {},
+            onDelete = {},
+            onSettings = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Preview(name = "Share — loss", showBackground = true, widthDp = 400)
+@Composable
+private fun AssetPositionCardShareLossPreview() {
+    TScalpTheme {
+        AssetPositionCard(
+            position = PortfolioPosition(
+                tscalpInstrumentId = "uid-2",
+                brokerName = BrokerName.TINVEST,
+                name = "Газпром",
+                ticker = "GAZP",
+                quantity = 10,
+                currentPrice = 150.0,
+                totalValue = 1500.0,
+                averagePrice = 200.0,
+                profit = -500.0,
+                profitPercent = -25.0,
+                instrumentType = "share",
+                isin = "RU0007661625",
+                classCode = "TQBR",
+            ),
+            instrumentType = "share",
+            priceChangePercent = -2.0,
+            onClick = {},
+            onDelete = {},
+            onSettings = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Preview(name = "Futures", showBackground = true, widthDp = 400)
+@Composable
+private fun AssetPositionCardFuturesPreview() {
+    TScalpTheme {
+        AssetPositionCard(
+            position = PortfolioPosition(
+                tscalpInstrumentId = "uid-3",
+                brokerName = BrokerName.TINVEST,
+                name = "Фьючерс Si",
+                ticker = "SiU4",
+                quantity = 2,
+                currentPrice = 85000.0,
+                totalValue = 170000.0,
+                averagePrice = 84000.0,
+                profit = 2000.0,
+                profitPercent = 2.38,
+                instrumentType = "futures",
+                classCode = "SPBFUT",
+                pointValue = 1.0,
+            ),
+            instrumentType = "futures",
+            priceChangePercent = 0.5,
+            pointValue = 1.0,
+            onClick = {},
+            onDelete = {},
+            onSettings = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
