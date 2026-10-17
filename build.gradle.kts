@@ -1,6 +1,7 @@
 // Top-level build file
 plugins {
     id("org.jetbrains.kotlin.android") version "2.4.21" apply false
+    kotlin("multiplatform") version "2.4.21" apply false
     id("com.android.application") version "9.4.1" apply false
     // Версия плагина не указывается отдельно, она будет взята из версии Kotlin
     //
