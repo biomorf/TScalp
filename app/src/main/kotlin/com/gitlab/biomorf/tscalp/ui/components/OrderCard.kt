@@ -34,6 +34,7 @@ import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
  */
 @Composable
 fun OrderCard(
+    modifier: Modifier = Modifier,
     ticker: String,
     direction: String,
     orderType: OrderTypeSelection,
@@ -43,7 +44,6 @@ fun OrderCard(
     instrumentType: String = "",
     totalCost: Double? = null,
     onCancel: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
 ) {
     val orderColor = TradePhrases.orderTypeColor(orderType)
 

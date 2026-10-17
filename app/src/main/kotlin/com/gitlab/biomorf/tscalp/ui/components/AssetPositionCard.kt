@@ -50,6 +50,7 @@ import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 @Suppress("LongMethod")
 @Composable
 fun AssetPositionCard(
+    modifier: Modifier = Modifier,
     position: PortfolioPosition,
     instrumentType: String = "",
     priceChangePercent: Double? = null,
@@ -61,7 +62,6 @@ fun AssetPositionCard(
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
     pointValue: Double? = null,
-    modifier: Modifier = Modifier,
 ) {
     // --- Цветовая индикация изменения цены (состояния) ---
     var previousPrice by remember { mutableDoubleStateOf(position.currentPrice) }
