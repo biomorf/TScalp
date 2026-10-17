@@ -209,6 +209,11 @@ dependencies {
     // Обязательно для SSL на Android
     implementation("org.conscrypt:conscrypt-android:2.6.3")
 
+    // Ktor transport (:transport-ktor)
+    implementation(project(":transport-ktor"))
+    implementation("io.ktor:ktor-client-okhttp:3.6.0")
+    implementation("io.ktor:ktor-client-websockets:3.6.0")
+
     // Обязательная зависимость для ManagedChannel
     // implementation("io.grpc:grpc-stub:1.57.2")
     // implementation("io.grpc:grpc-stub:1.84.1")
