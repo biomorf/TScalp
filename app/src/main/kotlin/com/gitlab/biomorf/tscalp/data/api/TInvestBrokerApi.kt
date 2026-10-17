@@ -12,6 +12,7 @@ import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
+import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transform
@@ -72,6 +73,7 @@ class TInvestBrokerAPI(
                 client = httpClient,
                 url = WS_URL,
                 token = token,
+                logger = { msg -> AppLogger.d("TInvestWS", msg) },
             )
     }
 
