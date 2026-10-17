@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.CustomTrustManager
 import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.TInvestChannelFactory
@@ -15,7 +16,12 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.websocket.WebSockets
 import javax.inject.Singleton
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -61,6 +67,29 @@ object DataModule {
     @Provides
     @Singleton
     fun provideBcsBrokerApi(): BcsBrokerApi = BcsBrokerApi()
+
+    @Provides
+    @Singleton
+    fun provideTInvestTransportHttpClient(
+        @ApplicationContext context: Context,
+    ): HttpClient {
+        val trustManager = CustomTrustManager(context)
+        val sslContext =
+            SSLContext.getInstance("TLS").apply {
+                init(null, arrayOf<TrustManager>(trustManager), null)
+            }
+        return HttpClient(OkHttp) {
+            install(WebSockets)
+            engine {
+                config {
+                    followRedirects(false)
+                    followSslRedirects(false)
+                    retryOnConnectionFailure(true)
+                    sslSocketFactory(sslContext.socketFactory, trustManager)
+                }
+            }
+        }
+    }
 }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
