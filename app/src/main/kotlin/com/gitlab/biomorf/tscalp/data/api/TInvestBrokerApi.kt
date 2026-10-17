@@ -12,6 +12,7 @@ import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import kotlinx.coroutines.flow.Flow
 import ru.ttech.piapi.core.InvestApi
+import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 
 /**
  * Фасад T-Invest API.
@@ -26,6 +27,7 @@ class TInvestBrokerAPI(
 ) : BrokerApi {
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
+    private val orchestrator = TInvestOrchestrator(marketData)
     private val orders = TInvestOrdersService(state)
 
     override val name: BrokerName = BrokerName.TINVEST
@@ -72,7 +74,7 @@ class TInvestBrokerAPI(
         sandboxMode: Boolean,
     ) = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = marketData.subscribePositions(accountId)
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
 
     override suspend fun getBalance(accountId: String) = marketData.getBalance(accountId)
 
