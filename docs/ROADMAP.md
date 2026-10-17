@@ -19,6 +19,63 @@ proot; сборка и проверка графа — на десктопе).
 **Статус:** в работе.
 **Ветка:** feature/hilt-koin-inventory
 
+**Фаза 1 — инвентаризация (read-only, выполнено):**
+
+**Hilt-модули (3):**
+- `DataModule` — `@InstallIn(SingletonComponent)`,
+  6 × `@Provides` (DataStore, TInvestChannelFactory,
+  TInvestBrokerAPI, BrokerManager, FinamBrokerApi,
+  BcsBrokerApi).
+- `RepositoryModule` — `@InstallIn(SingletonComponent)`,
+  3 × `@Provides` (InvestRepository, InstrumentRepository,
+  SearchCache).
+- `UseCaseModule` (в `RepositoryModule.kt`) —
+  `@InstallIn(SingletonComponent)`, 2 × `@Provides`
+  (`provideCalculateTradeDetailsUseCase`,
+  `providePrepareOrderRequestUseCase`).
+
+**Точки инъекции (13 × `@Inject`):**
+- `TScalpApplication` — 3 (positionStreamManager,
+  brokerManager, settingsRepository).
+- `TInvestChannelFactory` — 1 (конструктор, `Context`).
+- `SettingsRepository` — 1 (конструктор, `Context` → DataStore).
+- `TradingStateRepository` — 1 (конструктор, DataStore).
+- `PositionStreamManager` — 1 (конструктор, BrokerManager).
+- `PriceStreamManager` — 1 (конструктор, BrokerManager,
+  InvestRepository).
+- `OrdersViewModel` — 1 (конструктор).
+- `PortfolioViewModel` — 1 (конструктор).
+- `SettingsViewModel` — 1 (конструктор).
+- `OrdersListViewModel` — 1 (конструктор).
+
+**Activity (1):** `MainActivity` — `@AndroidEntryPoint`.
+
+**ViewModel (4 × `@HiltViewModel`):** `OrdersViewModel`,
+`PortfolioViewModel`, `SettingsViewModel`,
+`OrdersListViewModel`.
+
+**Порядок миграции (лист → корень):**
+
+1. `UseCaseModule` — простые use-case без состояния и
+   без `Context`. Пилот — минимальный риск при откате.
+2. `RepositoryModule` — провайдеры репозиториев.
+3. `DataModule` — содержит `@ApplicationContext`, требует
+   `androidContext(...)` в Koin.
+4. `TScalpApplication`, `MainActivity` — переходят на
+   `KoinComponent` / `KoinComponent` (activity).
+5. ViewModels — `@HiltViewModel` → `koinViewModel()` в
+   Compose.
+6. Удаление Hilt-плагина и зависимостей.
+
+**Замечания:**
+- `SettingsRepository` и `TradingStateRepository` используют
+  `@ApplicationContext` — при переводе в Koin нужен
+  `androidContext(applicationContext)`.
+- `TInvestChannelFactory` тоже зависит от `Context` —
+  аналогично.
+- ViewModels зависят от репозиториев — миграция после
+  репозиториев.
+
 **Контекст:** Hilt не поддерживает Kotlin Multiplatform —
 Android/JVM only. Koin — основной KMP-совместимый DI,
 работает на Android, iOS, JVM из одного кода. При появлении
@@ -176,6 +233,23 @@ iOS-задачи миграция станет обязательной. Сей�
 **Ветка:** feature/stream-orchestrator
 
 **Контекст:** три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка композиции логика fallback размазывается по брокерам. Оркестратор — единая точка композиции для каждого брокера.
+
+Целевая архитектура (набросок)
+
+```
+ViewModel
+    ↓
+PositionStreamManager / PriceStreamManager (domain)
+    ↓
+BrokerApi (domain interface)
+    ↓
+TInvestBrokerAPI (data adapter)
+    ↓
+StreamOrchestrator (data — НОВЫЙ слой)
+    ├── gRPC transport    (T-Invest only)
+    ├── Ktor WS transport (все брокеры с WS)
+    └── Ktor REST polling (все брокеры)
+```
 
 **Архитектурная схема — два уровня, fallback внутри каждого:**
 
@@ -395,122 +469,7 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Зависимости:** блокируется «Оркестратор стримов и Ktor WS transport».
 
-
-
-
 ---
-
-Набросок правки ROADMAP
-
-Ниже — компактный план, что менять. Сохрани в черновик, на десктопе применим.
-
----
-
-Проблема в текущем планировании
-
-Три задачи пересекаются, но описаны как независимые:
-
-1. ### Каскад обновления позиций — описывает последовательный каскад внутри TInvestMarketDataService. Устарело: gRPC-уровень сделан, последовательный каскад отменён в пользу параллельного.
-2. ### Унификация каскадов стримов — статус «отложено». По обсуждению — должно быть «в работе», потому что де-факто унификация нужна.
-3. ### Миграция сетевого слоя на Ktor Client — описывает миграцию REST-запросов на Ktor. Устарело: реально нужен Ktor для WebSocket как fallback для стримов.
-
----
-
-Целевая архитектура (набросок)
-
-```
-ViewModel
-    ↓
-PositionStreamManager / PriceStreamManager (domain)
-    ↓
-BrokerApi (domain interface)
-    ↓
-TInvestBrokerAPI (data adapter)
-    ↓
-StreamOrchestrator (data — НОВЫЙ слой)
-    ├── gRPC transport    (T-Invest only)
-    ├── Ktor WS transport (все брокеры с WS)
-    └── Ktor REST polling (все брокеры)
-```
-
-Ключевое:
-
-· Оркестратор — общий. Брокер только композиция транспортов.
-· Отсутствующие транспорты — null (ветка замьючена).
-· Логика fallback — в оркестраторе, не в брокере.
-
-Матрица брокеров:
-
-Транспорт T-Invest BCS Finam
-gRPC stream ✅ ❌ ❌
-Ktor WS stream ✅ ? ❌
-Ktor REST polling ✅ ✅ ✅
-
----
-
-Правки в ROADMAP
-
-1. Переформулировать «Каскад обновления позиций»
-
-Убрать всё про последовательный каскад и LevelOutcome. Заменить на:
-
-· Что сделано: gRPC-стрим + параллельный polling (PR #20).
-· Что осталось: WS-уровень (через Ktor).
-· Куда идёт: становится частью «Унификации каскадов».
-
-Или закрыть как отдельную задачу — всё её содержимое уже в других местах.
-
-2. Переформулировать «Унификация каскадов стримов»
-
-Из «отложено» → «в работе». Новое содержание:
-
-· Зачем: три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка — дублирование.
-· Что унифицируется:
-  · StreamOrchestrator — класс композиции.
-  · streamWithFallback(primary, fallback, polling) — утилита.
-  · Единый формат [stream]-логов.
-  · Общий механизм backoff.
-· Что НЕ унифицируется: доменная логика (позиции ≠ цены по семантике).
-· Фазы:
-  1. Выделить оркестратор из TInvestMarketDataService (рефакторинг без изменений поведения).
-  2. Добавить Ktor WS-транспорт для позиций.
-  3. Раскатать на цены и ордера.
-  4. HTTP REST fallback для polling.
-
-3. Переформулировать «Миграция на Ktor Client»
-
-Сузить: первый этап — только WS. REST-миграция — отдельная задача после.
-
-Или удалить и создать новую: «Ktor WebSocket transport».
-
-4. Новая задача: :transport-ktor (KMP-модуль)
-
-Создать модуль с одним androidTarget(), Ktor 3.6.0, WS-клиент для позиций T-Invest.
-
----
-
-Открытые вопросы
-
-1. Где живёт StreamOrchestrator:
-   · :app/data/orchestrator/ — просто, но не KMP.
-   · :transport-ktor/orchestrator/ — модуль назван неточно (оркестратор не про транспорт).
-   · Новый :streams модуль — чище, но +1 модуль.
-2. Имя модуля: :transport-ktor — вариант для транспорта. Для оркестратора — :stream-core, :streams.
-3. Порядок фаз: сначала оркестратор (рефакторинг) или сразу WS (быстрая польза)?
-
----
-
-Что делать на десктопе
-
-1. Открыть docs/ROADMAP.md.
-2. Пройти по трём задачам, применить правки выше.
-3. Решить открытые вопросы (1, 2, 3).
-4. Коммит docs(roadmap): rework stream cascade planning.
-
----
-
-
-
 
 ### Рефакторинг расчёта P&L для PortfolioPosition
 
@@ -1378,6 +1337,91 @@ for gRPC price stream` (PR #10).
 («снимок» vs «стрим»), а не транспорт.
 
 **Сделано:**
+
+- `domain/api/BrokerApi.kt` — интерфейс + KDoc очищен:
+  убраны дублирующие формулировки, транспорт-зависимость
+  описана явно (gRPC unary для T-Invest, REST для
+  BCS / Finam).
+- `data/api/TInvestBrokerApi.kt` — override.
+- `data/api/TInvestMarketDataService.kt` — реализация
+  + 2 внутренних вызова.
+- `data/api/BcsBrokerApi.kt` — override + 2 внутренних
+  вызова.
+- `data/api/FinamBrokerApi.kt` — override + 2 внутренних
+  вызова.
+- `data/repository/InvestRepository.kt` — вызов.
+- `docs/ROADMAP.md` — 5 упоминаний обновлены.
+
+**Итог:** имя унифицировано по семантике (snapshot / stream),
+транспорт больше не «протекает» в название. Разблокирует
+задачи по fallback-каскадам для стримов (позиции, цены,
+ордера), где важна прозрачность «снимок vs стрим».
+
+Один коммит: `refactor(domain): rename fetchPositionsRest
+to fetchPositionsSnapshot` (PR #17).
+
+### ✅ gRPC-стрим позиций
+
+gRPC-стрим позиций реализован и работает в боевом и
+песочнице. Основной источник обновлений количества;
+polling остаётся параллельным fallback'ом.
+
+**Что сделано:**
+
+- **Разведка артефакта SDK 1.51.0.** Подтверждено:
+  `OperationsStreamServiceAsync.positionsStream` доступен,
+  классы `PositionsStreamRequest` / `PositionsStreamResponse`
+  есть. Сервис был и в 1.48.1 — прошлые попытки падали
+  не из-за отсутствия классов, а из-за несуществующего
+  имени `PositionsStreamServiceGrpc`.
+- **`subscribePositionsGrpc`** в `TInvestMarketDataService`.
+  Через `api.operationsStreamServiceAsync.positionsStream`,
+  с `withInitialPositions = true` (сервер присылает
+  снапшот при подключении).
+- **Параллельная схема вместо последовательного каскада.**
+  `merge(subscribePositionsGrpcWithReconnect, subscribePositionsPolling)`.
+  gRPC и polling работают одновременно, эмитят в общий
+  поток. Отказ от каскада: gRPC может молчать (в первых
+  тестах — да), а polling обязан работать.
+- **Автопереподключение gRPC** с экспоненциальным
+  backoff `[1s, 5s, 15s, 30s, 60s]`. Ожидание появления
+  API внутри flow (без early-return).
+- **Обогащение в `PositionStreamManager`.** Полные события
+  (от polling, `currentPrice != null`) обновляют
+  `snapshotCache`. Неполные события (от gRPC, без P&L)
+  дополняются `currentPrice`, `averagePositionPrice`,
+  `expectedYield`, `isin`, `pointValue` из кэша.
+- **Диагностический лог** `[positions]/gRPC: response — subs=, init=, pos=, ping=, case=`.
+  Нужен, потому что `PING` приходит раз в 60 секунд;
+  без него не отличить «стрим мёртв» от «стрим жив,
+  изменений нет».
+
+**Проверено:**
+
+- Боевой аккаунт: `SUBSCRIPTIONS` → `INITIAL_POSITIONS`
+  за 100 мс, затем `PING` раз в 60 секунд.
+- Песочница: тот же flow, `hasPosition()` приходит при
+  изменении позиции.
+- **Обогащение работает:** gRPC-событие `POSITION` для
+  `5f72f0f4-...` (qty=7) получило `price=103.54,
+  yield=42.08` из кэша polling.
+- 63 unit-теста зелёные, ktlint и detekt чистые.
+
+**Ограничение:** валютные остатки (`moneyList`) gRPC-стрим
+не отдаёт — обрабатываются только `securities` и `futures`.
+Для UI это некритично: цена валюты = 1.0, polling приносит
+полные данные.
+
+**Итог:** задача разблокирует WS-уровень в каскаде позиций
+(см. `### Каскад обновления позиций`). Миграция
+`PositionStreamManager` на стрим как единственный источник
+не потребовалась — параллельная схема оказалась надёжнее.
+
+Один коммит с закрытием — см. `docs/ROADMAP.md` → этот
+раздел.
+
+---
+но:**
 
 - `domain/api/BrokerApi.kt` — интерфейс + KDoc очищен:
   убраны дублирующие формулировки, транспорт-зависимость
