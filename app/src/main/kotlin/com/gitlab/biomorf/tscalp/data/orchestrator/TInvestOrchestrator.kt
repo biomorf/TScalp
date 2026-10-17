@@ -17,11 +17,12 @@ import kotlinx.coroutines.flow.Flow
  */
 class TInvestOrchestrator(
     private val marketData: TInvestMarketDataService,
+    private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
 ) {
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
         streamWithFallback(
             primary = marketData.subscribePositionsGrpcWithReconnect(accountId),
-            fallback = null,
+            fallback = wsFallback(accountId),
             polling = marketData.subscribePositionsPolling(accountId),
         )
 }

@@ -14,6 +14,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.transform
 import ru.ttech.piapi.core.InvestApi
 
 /**
@@ -34,7 +35,11 @@ class TInvestBrokerAPI(
 
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
-    private val orchestrator = TInvestOrchestrator(marketData)
+    private val orchestrator =
+        TInvestOrchestrator(
+            marketData = marketData,
+            wsFallback = { accountId -> buildWsFallback(accountId) },
+        )
     private val orders = TInvestOrdersService(state)
 
     /**
@@ -81,6 +86,20 @@ class TInvestBrokerAPI(
         state.api = null
         positionsWebSocket = null
     }
+
+    /**
+     * WS-fallback стрим-уровня для оркестратора.
+     *
+     * Возвращает null, пока [initialize] не создаст [positionsWebSocket].
+     * Один WS-response → несколько PositionStreamItem (initialPositions
+     * или position с несколькими инструментами) — emit через transform.
+     */
+    private fun buildWsFallback(accountId: String): Flow<PositionStreamItem>? =
+        positionsWebSocket
+            ?.subscribePositions(accountId)
+            ?.transform { response ->
+                TInvestPositionsWsMapper.mapAll(response).forEach { emit(it) }
+            }
 
     // ---------- BrokerApi: делегирование ----------
 
