@@ -5,9 +5,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import androidx.compose.ui.tooling.preview.Preview
 import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 
 @Composable
@@ -83,7 +83,6 @@ fun ConfirmOrderDialog(
         },
     )
 }
-
 
 @Preview(name = "Market BUY — single", showBackground = true, widthDp = 400)
 @Composable

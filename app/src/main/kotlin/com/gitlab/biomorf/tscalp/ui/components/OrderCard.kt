@@ -10,12 +10,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 import com.gitlab.biomorf.tscalp.util.TradePhrases
 import com.gitlab.biomorf.tscalp.util.formatPrice
-import androidx.compose.ui.tooling.preview.Preview
-import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 
 /**
  * Унифицированная карточка заявки для использования в очереди заявок
@@ -110,7 +110,6 @@ fun OrderCard(
         }
     }
 }
-
 
 @Preview(name = "Market order", showBackground = true, widthDp = 400)
 @Composable

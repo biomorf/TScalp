@@ -5,11 +5,11 @@ import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import androidx.compose.ui.tooling.preview.Preview
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 
 // Архитектурный долг: функция требует декомпозиции.
@@ -140,7 +140,6 @@ fun BrokerAccountDialog(
     )
 }
 
-
 @Preview(name = "T-Invest — with accounts", showBackground = true, widthDp = 400)
 @Composable
 private fun BrokerAccountDialogTInvestPreview() {
@@ -149,10 +148,11 @@ private fun BrokerAccountDialogTInvestPreview() {
             availableBrokers = listOf(BrokerName.TINVEST, BrokerName.BCS, BrokerName.FINAM),
             selectedBroker = BrokerName.TINVEST,
             onBrokerSelected = {},
-            accounts = listOf(
-                BrokerAccount("acc-1", "Основной", BrokerAccountType.BROKER),
-                BrokerAccount("acc-2", "ИИС", BrokerAccountType.IIS),
-            ),
+            accounts =
+                listOf(
+                    BrokerAccount("acc-1", "Основной", BrokerAccountType.BROKER),
+                    BrokerAccount("acc-2", "ИИС", BrokerAccountType.IIS),
+                ),
             selectedAccountId = "acc-1",
             onAccountSelected = {},
             onDismiss = {},
