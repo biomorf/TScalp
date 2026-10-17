@@ -11,6 +11,8 @@ import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
+import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import ru.ttech.piapi.core.InvestApi
 
@@ -24,11 +26,25 @@ import ru.ttech.piapi.core.InvestApi
 @Suppress("TooManyFunctions")
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
+    private val httpClient: HttpClient,
 ) : BrokerApi {
+    private companion object {
+        const val WS_URL = "wss://invest-public-api.tbank.ru/ws/"
+    }
+
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
     private val orchestrator = TInvestOrchestrator(marketData)
     private val orders = TInvestOrdersService(state)
+
+    /**
+     * WebSocket-клиент PositionsStream. Создаётся в [initialize]
+     * (нужен токен) и обнуляется в [deinitialize].
+     * Nullable, потому что WS зависит от инициализированного
+     * состояния брокера.
+     */
+    var positionsWebSocket: TInvestPositionsWebSocket? = null
+        private set
 
     override val name: BrokerName = BrokerName.TINVEST
     override val isInitialized: Boolean get() = state.api != null
@@ -46,6 +62,12 @@ class TInvestBrokerAPI(
         val newChannels = channelFactory.create(token, sandbox)
         state.channels = newChannels
         state.api = InvestApi.createApi(newChannels.api)
+        positionsWebSocket =
+            TInvestPositionsWebSocket(
+                client = httpClient,
+                url = WS_URL,
+                token = token,
+            )
     }
 
     /**
@@ -57,6 +79,7 @@ class TInvestBrokerAPI(
         state.channels?.shutdownAll()
         state.channels = null
         state.api = null
+        positionsWebSocket = null
     }
 
     // ---------- BrokerApi: делегирование ----------
