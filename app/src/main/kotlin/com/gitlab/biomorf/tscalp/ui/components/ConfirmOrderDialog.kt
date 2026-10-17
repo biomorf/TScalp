@@ -5,8 +5,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 
 @Composable
 fun ConfirmOrderDialog(
@@ -80,4 +82,76 @@ fun ConfirmOrderDialog(
             }
         },
     )
+}
+
+@Preview(name = "Market BUY — single", showBackground = true, widthDp = 400)
+@Composable
+private fun ConfirmOrderDialogMarketPreview() {
+    TScalpTheme {
+        ConfirmOrderDialog(
+            show = true,
+            ticker = "SBER",
+            quantity = 10,
+            pendingDirection = "BUY",
+            orderType = OrderTypeSelection.Market,
+            instrumentType = "share",
+            executionPrice = 250.5,
+            pairTradingEnabled = false,
+            pairedInstrumentTicker = null,
+            pairedInstrumentType = null,
+            pairedMultiplier = null,
+            pairExecPrice = 0.0,
+            pairedOrderType = null,
+            onDismiss = {},
+            onConfirm = {},
+        )
+    }
+}
+
+@Preview(name = "Limit SELL — single", showBackground = true, widthDp = 400)
+@Composable
+private fun ConfirmOrderDialogLimitPreview() {
+    TScalpTheme {
+        ConfirmOrderDialog(
+            show = true,
+            ticker = "GAZP",
+            quantity = 20,
+            pendingDirection = "SELL",
+            orderType = OrderTypeSelection.Limit,
+            instrumentType = "share",
+            executionPrice = 150.0,
+            pairTradingEnabled = false,
+            pairedInstrumentTicker = null,
+            pairedInstrumentType = null,
+            pairedMultiplier = null,
+            pairExecPrice = 0.0,
+            pairedOrderType = null,
+            onDismiss = {},
+            onConfirm = {},
+        )
+    }
+}
+
+@Preview(name = "Paired trade — futures + share", showBackground = true, widthDp = 400)
+@Composable
+private fun ConfirmOrderDialogPairedPreview() {
+    TScalpTheme {
+        ConfirmOrderDialog(
+            show = true,
+            ticker = "SiU4",
+            quantity = 1,
+            pendingDirection = "BUY",
+            orderType = OrderTypeSelection.Limit,
+            instrumentType = "futures",
+            executionPrice = 85000.0,
+            pairTradingEnabled = true,
+            pairedInstrumentTicker = "SBER",
+            pairedInstrumentType = "share",
+            pairedMultiplier = "10",
+            pairExecPrice = 250.5,
+            pairedOrderType = OrderTypeSelection.Market,
+            onDismiss = {},
+            onConfirm = {},
+        )
+    }
 }
