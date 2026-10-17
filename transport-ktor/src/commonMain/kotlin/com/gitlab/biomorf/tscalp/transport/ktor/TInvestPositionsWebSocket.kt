@@ -2,37 +2,43 @@ package com.gitlab.biomorf.tscalp.transport.ktor
 
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsStreamResponseDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsStreamSubscribeRequestDto
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.websocket.webSocket
-import io.ktor.websocket.Frame
-import io.ktor.websocket.readText
-import io.ktor.websocket.send
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 
 /**
- * WebSocket-клиент для T-Invest PositionsStream.
+ * WebSocket-клиент для T-Invest PositionsStream (OkHttp).
  *
  * URL: wss://invest-public-api.tbank.ru/ws/
  * Канал: /tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream
  * Формат: protobuf JSON mapping.
  *
- * Эмитит сырые DTO (`PositionsStreamResponseDto`).
+ * Эмитит сырые DTO (PositionsStreamResponseDto).
  * Конвертация в доменные модели — в :app (оркестратор).
  *
- * Переподключение — экспоненциальный backoff
- * [1s, 5s, 15s, 30s, 60s], cap 60s.
+ * Переподключение — экспоненциальный backoff [1s, 5s, 15s, 30s, 60s], cap 60s.
  *
- * НЕ использует Hilt. НЕ использует Android API. Готов к KMP.
+ * НЕ использует Hilt. НЕ использует Android API.
+ *
+ * Реализовано на OkHttp, а не на Ktor: Ktor client возвращал 404
+ * на upgrade-handshake (проверены комбинации URL/header),
+ * OkHttp — тот же стек, что у gRPC-транспорта, TLS-цепочка
+ * CustomTrustManager уже проверена на этом проекте.
  */
 class TInvestPositionsWebSocket(
-    private val client: HttpClient,
+    private val client: OkHttpClient,
     private val url: String,
     private val token: String,
     private val json: Json = Json { ignoreUnknownKeys = true },
@@ -48,38 +54,9 @@ class TInvestPositionsWebSocket(
         while (currentCoroutineContext().isActive) {
             try {
                 logger("$TAG connecting (attempt=${attempt + 1})")
-                client.webSocket(
-                    urlString = url,
-                    request = {
-                        headers.append("Authorization", "Bearer $token")
-                        // TODO: проверить, нужен ли также
-                        // Sec-WebSocket-Protocol: json. Сейчас — как в asyncapi.
-                        headers.append("Web-Socket-Protocol", "json")
-                    },
-                ) {
-                    logger("$TAG connected")
-                    val subscription = PositionsStreamSubscribeRequestDto(
-                        accounts = listOf(accountId),
-                        withInitialPositions = true,
-                    )
-                    val envelope = buildSubscriptionEnvelope(subscription)
-                    send(Frame.Text(envelope))
-                    logger("$TAG subscription sent (${envelope.length} bytes)")
-
-                    for (frame in incoming) {
-                        if (frame !is Frame.Text) continue
-                        val text = frame.readText()
-                        logger("$TAG frame received (len=${text.length})")
-                        try {
-                            val response = json.decodeFromString(PositionsStreamResponseDto.serializer(), text)
-                            emit(response)
-                        } catch (e: Exception) {
-                            logger("$TAG parse error: ${e.message}")
-                        }
-                    }
-                    logger("$TAG stream closed by server, reconnecting")
-                    attempt = 0
-                }
+                connectOnce(accountId).collect { emit(it) }
+                attempt = 0
+                logger("$TAG stream closed by server, reconnecting")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -92,15 +69,71 @@ class TInvestPositionsWebSocket(
         }
     }
 
-    /**
-     * Формирует JSON-конверт для подписки.
-     *
-     * TODO: подтвердить точную структуру. Гипотеза — обёртка с
-     * именем метода. Возможные альтернативы:
-     * 1. {"positionsStream": {"accounts": [...], "withInitialPositions": true}} — текущая.
-     * 2. {"accounts": [...], "withInitialPositions": true} (плоско).
-     * 3. {"header": {"channel": "..."}, "payload": {...}}.
-     */
+    private fun connectOnce(accountId: String): Flow<PositionsStreamResponseDto> = callbackFlow {
+        val request =
+            Request
+                .Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .header("Web-Socket-Protocol", "json, $token")
+                .build()
+
+        val listener =
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) {
+                    logger("$TAG connected")
+                    val subscription =
+                        PositionsStreamSubscribeRequestDto(
+                            accounts = listOf(accountId),
+                            withInitialPositions = true,
+                        )
+                    val envelope = buildSubscriptionEnvelope(subscription)
+                    webSocket.send(envelope)
+                    logger("$TAG subscription sent (${envelope.length} bytes)")
+                }
+
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    logger("$TAG frame received (len=${text.length})")
+                    try {
+                        val response = json.decodeFromString(PositionsStreamResponseDto.serializer(), text)
+                        trySend(response)
+                    } catch (e: Exception) {
+                        logger("$TAG parse error: ${e.message}")
+                    }
+                }
+
+                override fun onClosed(
+                    webSocket: WebSocket,
+                    code: Int,
+                    reason: String,
+                ) {
+                    logger("$TAG closed by server: code=$code, reason=$reason")
+                    close()
+                }
+
+                override fun onFailure(
+                    webSocket: WebSocket,
+                    t: Throwable,
+                    response: Response?,
+                ) {
+                    logger("$TAG failure: ${t.message}")
+                    close(t)
+                }
+            }
+
+        val webSocket = client.newWebSocket(request, listener)
+        awaitClose {
+            logger("$TAG closing")
+            webSocket.cancel()
+        }
+    }
+
     private fun buildSubscriptionEnvelope(request: PositionsStreamSubscribeRequestDto): String {
         val inner = json.encodeToString(PositionsStreamSubscribeRequestDto.serializer(), request)
         return """{"positionsStream":$inner}"""

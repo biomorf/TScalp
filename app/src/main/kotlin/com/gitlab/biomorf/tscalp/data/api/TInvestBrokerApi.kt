@@ -13,9 +13,9 @@ import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
 import com.gitlab.biomorf.tscalp.util.AppLogger
-import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transform
+import okhttp3.OkHttpClient
 import ru.ttech.piapi.core.InvestApi
 
 /**
@@ -28,7 +28,7 @@ import ru.ttech.piapi.core.InvestApi
 @Suppress("TooManyFunctions")
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
-    private val httpClient: HttpClient,
+    private val okHttpClient: OkHttpClient,
 ) : BrokerApi {
     private companion object {
         const val WS_URL = "wss://invest-public-api.tbank.ru/ws/"
@@ -70,7 +70,7 @@ class TInvestBrokerAPI(
         state.api = InvestApi.createApi(newChannels.api)
         positionsWebSocket =
             TInvestPositionsWebSocket(
-                client = httpClient,
+                client = okHttpClient,
                 url = WS_URL,
                 token = token,
                 logger = { msg -> AppLogger.d("TInvestWS", msg) },

@@ -43,8 +43,8 @@ object DataModule {
     @Singleton
     fun provideTInvestBrokerAPI(
         channelFactory: TInvestChannelFactory,
-        httpClient: HttpClient,
-    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient)
+        okHttpClient: OkHttpClient,
+    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, okHttpClient)
 
     @Provides
     @Singleton
