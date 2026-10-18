@@ -215,3 +215,62 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 `docs/ROADMAP.md` → закрытая задача «gRPC-стрим позиций».
 
 ---
+
+## T-Invest WebSocket: 404 от Envoy на Android
+
+**Статус:** отложен. Блокируется фиксом `restoreTInvest`
+(см. следующую запись).
+
+**Симптом:** OkHttp на Android получает `HTTP 404 Not Found` от
+Envoy на upgrade-запрос к `wss://invest-public-api.tbank.ru/ws`.
+В заголовках ответа — `x-k8s-istio-drop-ok: true`,
+`x-k8s-istio-sage-group: invest-piapi`, `server: envoy`,
+`content-length: 0`. TCP и TLS проходят, отказ на уровне HTTP.
+
+Тот же запрос с десктопа через `websocat` (URL
+`wss://invest-public-api.tbank.ru/ws`, **без** слэша, заголовок
+`Web-Socket-Protocol: json`) — **101 Switching Protocols**.
+Подписка без токена в WS-заголовке молчит (сервер ждёт токен
+в `Authorization` или `Web-Socket-Protocol: json, <token>`).
+
+**Перебрано:**
+- URL: `/ws/` → 404; `/ws` без слэша → 404 (на Android, websocat
+  с `/ws` — 101).
+- Auth: `Authorization: Bearer <token>` → 404;
+  `Web-Socket-Protocol: json, <token>` → 404 (без Authorization).
+- Имя заголовка: `Web-Socket-Protocol` vs
+  `Sec-WebSocket-Protocol` — обе дают 404 на Android.
+- Формат: `json` (пробовали), `json-proto` (не пробовали).
+- `Origin: https://invest-public-api.tbank.ru` — 404.
+- `User-Agent: websocat/1.14.1` — 404.
+- `protocols(HTTP_1_1)` в OkHttpClient — 404.
+- Клиенты: Ktor `client.webSocket` → 404; OkHttp
+  `newWebSocket` → 404. Оба на Android.
+
+**Гипотеза:** OkHttp шлёт дефолтные заголовки
+(`User-Agent: okhttp/5.5.0`, `Accept-Encoding: gzip`), которые
+Envoy режет на WS-маршруте. Гипотеза не подтверждена: в
+logcat `HttpLoggingInterceptor` (тег `OkHttpWS`) до сих пор не
+появлялся — достоверного полного handshake от OkHttp нет.
+
+**Решение (отложено):**
+1. Убедиться, что `HttpLoggingInterceptor` реально в сборке
+   (в `DataModule.provideOkHttpClient` есть
+   `.addInterceptor(...)`; `logging-interceptor:5.5.0` в
+   `app/build.gradle.kts`).
+2. Прогнать live-тест с тегом `OkHttpWS` и получить полный
+   `--> GET ...` + список заголовков.
+3. Сравнить посимвольно с `websocat -v -k ...` на десктопе —
+   найти лишнее или отсутствующее.
+4. Если причина в `User-Agent` / `Accept-Encoding` — убрать
+   через interceptor или явный `.header(...)`.
+5. Если не поможет — попробовать `json-proto` и
+   `Sec-WebSocket-Protocol: json, <token>` (оставшиеся
+   комбинации).
+
+**Когда вернуться:** после фикса `restoreTInvest` (следующая
+запись) — без него WS-клиент не запускается на устройстве.
+Ветка `feature/ws-okhttp-fallback` содержит все эксперименты;
+коммит `20cabfc` — точка отката.
+
+---
