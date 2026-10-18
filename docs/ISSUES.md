@@ -252,65 +252,97 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 
 ---
 
-## T-Invest WebSocket: 404 от Envoy на Android
+## T-Invest WebSocket и REST-стримы недоступны (серверная деградация)
 
-**Статус:** отложен. Блокируется фиксом `restoreTInvest`
-(см. следующую запись).
+**Статус:** открыт, не наш код. Блокирует фазу 2 `stream-orchestrator`
+(WS-fallback). gRPC и polling работают штатно.
 
-**Симптом:** OkHttp на Android получает `HTTP 404 Not Found` от
-Envoy на upgrade-запрос к `wss://invest-public-api.tbank.ru/ws`.
-В заголовках ответа — `x-k8s-istio-drop-ok: true`,
-`x-k8s-istio-sage-group: invest-piapi`, `server: envoy`,
-`content-length: 0`. TCP и TLS проходят, отказ на уровне HTTP.
+**Симптом (сводный):**
 
-Тот же запрос с десктопа через `websocat` (URL
-`wss://invest-public-api.tbank.ru/ws`, **без** слэша, заголовок
-`Web-Socket-Protocol: json`) — **101 Switching Protocols**.
-Подписка без токена в WS-заголовке молчит (сервер ждёт токен
-в `Authorization` или `Web-Socket-Protocol: json, <token>`).
+- **WebSocket handshake** на `wss://invest-public-api.tbank.ru/ws`
+  на Android и на десктопе через websocat **зависает без ответа**
+  (TCP устанавливается, TLS проходит, HTTP upgrade не отвечает
+  101 и не отбивается кодом).
+- **REST-прокси** `POST /rest/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`
+  возвращает **HTTP 404 от Envoy** (и на HTTP/2, и на HTTP/1.1,
+  с `Authorization` и без).
+- **gRPC** `OperationsStreamService/positionsStream` работает
+  штатно — приходят `SUBSCRIPTIONS`, `INITIAL_POSITIONS`, `PING`.
 
-**Перебрано:**
-- URL: `/ws/` → 404; `/ws` без слэша → 404 (на Android, websocat
-  с `/ws` — 101).
-- Auth: `Authorization: Bearer <token>` → 404;
-  `Web-Socket-Protocol: json, <token>` → 404 (без Authorization).
-- Имя заголовка: `Web-Socket-Protocol` vs
-  `Sec-WebSocket-Protocol` — обе дают 404 на Android.
-- Формат: `json` (пробовали), `json-proto` (не пробовали).
-- `Origin: https://invest-public-api.tbank.ru` — 404.
-- `User-Agent: websocat/1.14.1` — 404.
-- `protocols(HTTP_1_1)` в OkHttpClient — 404.
-- Клиенты: Ktor `client.webSocket` → 404; OkHttp
-  `newWebSocket` → 404. Оба на Android.
+**Полная матрица экспериментов (2026-10-18):**
 
-**Гипотеза:** OkHttp шлёт дефолтные заголовки
-(`User-Agent: okhttp/5.5.0`, `Accept-Encoding: gzip`), которые
-Envoy режет на WS-маршруте. Гипотеза не подтверждена: в
-logcat `HttpLoggingInterceptor` (тег `OkHttpWS`) до сих пор не
-появлялся — достоверного полного handshake от OkHttp нет.
+На Android (OkHttp):
+- URL `/ws/` + `Authorization` + `Web-Socket-Protocol: json` → **404** (`x-k8s-istio-drop-ok: true`).
+- URL `/ws` (без слэша) + те же заголовки → **404**.
+- `Web-Socket-Protocol: json, <token>` без `Authorization` → **404**.
+- `Sec-WebSocket-Protocol: json` (вместо `Web-Socket-Protocol`) → **404**.
+- Добавление `Origin: https://invest-public-api.tbank.ru` → **404**.
+- Добавление `User-Agent: websocat/1.14.1` → **404 исчез, пришёл timeout 10s**.
+  Это был первый прогресс: Envoy пропустил запрос, но handshake не завершился.
+- `protocols(HTTP_1_1)` в OkHttpClient → timeout.
+- `minWebSocketMessageToCompress(Long.MAX_VALUE)` → timeout.
+  `Sec-WebSocket-Extensions: permessage-deflate` в handshake **остался**
+  (OkHttp не позволяет отключить публично, параметр влияет только
+  на исходящее сжатие сообщений).
 
-**Решение (отложено):**
-1. Убедиться, что `HttpLoggingInterceptor` реально в сборке
-   (в `DataModule.provideOkHttpClient` есть
-   `.addInterceptor(...)`; `logging-interceptor:5.5.0` в
-   `app/build.gradle.kts`).
-2. Прогнать live-тест с тегом `OkHttpWS` и получить полный
-   `--> GET ...` + список заголовков.
-3. Сравнить посимвольно с `websocat -v -k ...` на десктопе —
-   найти лишнее или отсутствующее.
-4. Если причина в `User-Agent` / `Accept-Encoding` — убрать
-   через interceptor или явный `.header(...)`.
-5. Если не поможет — попробовать `json-proto` и
-   `Sec-WebSocket-Protocol: json, <token>` (оставшиеся
-   комбинации).
+На Android (Ktor CIO):
+- `HttpClient(CIO)` + `CustomTrustManager` через `engine { https { trustManager = ... } }`,
+  заголовки `Authorization` + `Web-Socket-Protocol: json` → **silent hang**
+  (20+ секунд без `connected`, без `failure` — handshake не завершился).
 
-**Когда вернуться:** после фикса `restoreTInvest` (следующая
-запись) — без него WS-клиент не запускается на устройстве.
-Ветка `feature/ws-okhttp-fallback` содержит все эксперименты;
-коммит `20cabfc` — точка отката.
+На десктопе (websocat 1.14.1, `-k` для игнора сертификата):
+- В начале сессии (до всех экспериментов): URL `/ws` + `Web-Socket-Protocol: json`
+  → **101 Switching Protocols** ✅ (эталон, что сервер вообще жив).
+- Позже в той же сессии: URL `/ws` + `Web-Socket-Protocol: json` → **silent hang** ❌.
+- Тот же URL + `Authorization: Bearer <token>` → **silent hang**.
+- `Web-Socket-Protocol: json, <token>` → **silent hang**.
+
+На десктопе (curl, REST-прокси):
+- `POST /rest/.../PositionsStream` HTTP/2 с `Authorization` → **404** (Envoy).
+- Тот же запрос HTTP/1.1 (`--http1.1`) → **404** (Envoy, chunked).
+
+**Вывод:**
+
+- **Проблема не в нашем коде.** Websocat (эталонный клиент) с теми же
+  URL и заголовками получал 101 в начале сессии и зависает сейчас.
+  Значит, стриминговые эндпоинты T-Invest (WS и REST) **деградировали
+  на стороне сервера** в течение сессии. Это может быть технические
+  работы, изменения в ingress-конфигурации, DDoS или регресс в API.
+- **Оба наших клиента (OkHttp и CIO) ведут себя консистентно** —
+  повторяют состояние сервера. Код корректен по документации T-Invest
+  (URL, заголовки, формат подписки).
+- **gRPC-канал на том же хосте работает.** Это подтверждает, что
+  TCP/TLS до `invest-public-api.tbank.ru` проходят, проблема именно
+  в стриминговых HTTP-эндпоинтах.
+
+**Решение:**
+
+1. **Не тратить время на перебор клиентов, пока сервер не восстановится.**
+   Все разумные комбинации (OkHttp / CIO / curl / websocat, URL
+   с/без слэша, все заголовки, HTTP/1.1 и HTTP/2) перепробованы.
+2. **Ждать восстановления сервиса T-Invest.** Проверять периодически
+   через `websocat -k wss://invest-public-api.tbank.ru/ws -H "Web-Socket-Protocol: json"` —
+   появление 101 означает, что можно возобновить работу.
+3. **gRPC + polling остаются основными источниками данных.**
+   `stream-orchestrator` закрывается без WS-fallback; WS добавляется
+   позже как опциональное улучшение.
+
+**Когда вернуться:**
+
+- Когда websocat снова начнёт получать 101 (проверять раз в несколько дней).
+- При появлении информации о восстановлении стримов в T-Invest
+  (новости, статус-страница API, ответ поддержки).
+- При жалобах от пользователей на поведение стримов.
+
+**Точка отката:** ветка `feature/ws-okhttp-fallback`, коммит `934646d`
+(миграция на Ktor CIO). Содержит все эксперименты — OkHttp-версию,
+CIO-версию, заголовки, `User-Agent`, `minWebSocketMessageToCompress`.
+
+---
+
 ## restoreTInvest не использует сохранённый accountId при падении getAccounts
 
-**Статус:** открыт. Чинится сейчас — блокер для WS live-теста.
+**Статус:** решён (2026-10-18, PR #25, коммит `776f8b4`).
 
 **Симптом:** если `getAccounts` в `TScalpApplication.restoreTInvest`
 возвращает `UNAVAILABLE: upstream connect error`, весь метод
@@ -352,8 +384,19 @@ logcat `HttpLoggingInterceptor` (тег `OkHttpWS`) до сих пор не
 4. При успешном `getAccounts` — валидировать `savedAccountId`
    (как сейчас: `accounts.any { it.id == savedAccountId }`).
 
-**Когда вернуться:** сейчас. В проде это означает: при временном
-сбое сети стримы не поднимаются при старте приложения, даже
-если пользователь уже логинился и счёт сохранён.
+**Сделано:** `restoreTInvest` разбит на три метода
+(`restoreTInvest` / `resolveTInvestAccountId` / `tryOpenSandboxAccount`),
+`savedAccountId` читается до `getAccounts`, `getAccounts` обёрнут
+в отдельный `try/catch` с fallback на сохранённый счёт,
+`positionStreamManager.start()` вызывается независимо от результата
+`getAccounts`.
+
+**Проверено:** в live-тесте при `UNAVAILABLE: UNAUTHENTICATED: 40003`
+от `getAccounts` в логах видно
+`TScalpApplication: TInvest: getAccounts failed, fallback to savedAccountId`,
+и стрим запускается по сохранённому accountId.
+
+**Когда вернуться:** не требуется. Открыть заново, если снова
+появятся репорты о пустом старте после переустановки или логина.
 
 ---
