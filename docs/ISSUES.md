@@ -437,3 +437,139 @@ live-тест на устройстве. Если silent hang — пауза е�
 появятся репорты о пустом старте после переустановки или логина.
 
 ---
+
+## gRPC retry: string matching NOT_FOUND вместо Status.Code
+
+**Статус:** открыт. Небольшой фикс. Связан с WS/retry — см. следующую запись.
+
+**Симптом:** в `TInvestMarketDataService.subscribePositionsGrpcWithReconnect`
+и `subscribePositionsPolling` условие остановки —
+`e.message?.contains("NOT_FOUND") == true`. `e.message` у
+`StatusException` — человекочитаемый текст, не код. Если формат
+изменится, текст локализуется или исключение обернётся в
+`CompletionException` — проверка **молча** перестанет срабатывать.
+Тогда NOT_FOUND (счёт удалён) → бесконечный retry с backoff до 60s.
+
+**Решение:** `Status.fromThrowable(e).code == Status.Code.NOT_FOUND` —
+стандартный API, не зависит от формата `message`.
+
+**Файлы:** `data/api/TInvestMarketDataService.kt`.
+
+**Когда вернуться:** при следующей сессии на десктопе, ветка
+`bugfix/grpc-error-classification`.
+
+---
+
+## gRPC retry: бесконечный retry на не-recoverable ошибках
+
+**Статус:** открыт. Фикс вместе с предыдущей записью. **Критичен
+для WS** — эта ошибка была в логах при отзыве токена.
+
+**Симптом:** только NOT_FOUND останавливает retry. UNAUTHENTICATED
+(токен отозван), PERMISSION_DENIED (read-token на write-операцию),
+INVALID_ARGUMENT (битый запрос) — retry вечно каждые 60s. Пользователь
+с отозванным токеном видит шум в логах, посаженную батарею, лишний
+трафик. В этой сессии было ровно так: `UNAUTHENTICATED: 40003`
+после отзыва токена — retry-loop крутился, пока не сделали force-stop.
+Параллельный WS-retry-loop (см. ROADMAP «Rate-limiter» и «stream-orchestrator»)
+мог усугублять rate-limit на стороне T-Invest.
+
+**Решение:** классификация по `Status.fromThrowable(e).code`:
+- **не retry:** NOT_FOUND, UNAUTHENTICATED, PERMISSION_DENIED,
+  INVALID_ARGUMENT, FAILED_PRECONDITION;
+- **retry:** UNAVAILABLE, DEADLINE_EXCEEDED, INTERNAL, UNKNOWN;
+- **RESOURCE_EXHAUSTED** — retry, но с отдельной задержкой
+  (учитывает rate-limit, см. `docs/rate-limits.md`).
+
+**Файлы:** `data/api/TInvestMarketDataService.kt`.
+
+**Когда вернуться:** вместе с предыдущей записью.
+
+---
+
+## TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket
+
+**Статус:** открыт. Небольшой фикс. **Критичен для WS** — утечка
+WS-соединения напрямую бьёт по rate-limit.
+
+**Симптом:** `initialize(token, sandbox)` перезаписывает
+`positionsWebSocket = TInvestPositionsWebSocket(...)` без закрытия
+предыдущего. Ре-логин, смена токена или повторный «Сохранить» в
+настройках без logout → старая WS-сессия держит сокет, получает
+ping/frames в никуда. Утечка соединения + лишняя нагрузка + одна
+из вероятных причин rate-limit (см. ISSUES → «T-Invest WebSocket:
+вероятный rate-limit после массовых попыток»).
+
+**Решение:** в `initialize()` перед созданием нового — вызвать
+`positionsWebSocket?.close()`. Метод `close()` в
+`TInvestPositionsWebSocket` сейчас отсутствует — добавить (закрыть
+OkHttp/CIO сессию, отменить Flow). `deinitialize()` уже обнуляет
+`positionsWebSocket`, но тоже без `close()` — та же утечка при logout.
+
+**Файлы:** `data/api/TInvestBrokerApi.kt`,
+`transport-ktor/.../TInvestPositionsWebSocket.kt`.
+
+**Когда вернуться:** при следующей сессии на десктопе, ветка
+`bugfix/ws-lifecycle`.
+
+---
+
+## BcsBrokerApi создаёт OkHttpClient без CustomTrustManager
+
+**Статус:** открыт. Латентный. Не для WS.
+
+**Симптом:** `BcsBrokerApi` содержит
+`private val client = OkHttpClient()` — отдельный клиент без
+российских корневых сертификатов. Сейчас работает (BCS на стандартных
+CA), но мина: если BCS введёт российские CA (как T-Invest) — TLS
+сломается тихо. Плюс инстанс не переиспользуется с DI-провайдером
+(OkHttpClient shared), хотя сейчас других потребителей OkHttp в
+DI и нет (после отката провайдера).
+
+**Решение:** инжектить `OkHttpClient` из DI. При появлении других
+потребителей (WS, REST) — один shared клиент на всё приложение с
+`CustomTrustManager`.
+
+**Файлы:** `data/api/BcsBrokerApi.kt`, `di/DataModule.kt`.
+
+**Когда вернуться:** при интеграции BCS WS, при первой жалобе на
+TLS BCS, или когда понадобится shared OkHttpClient из DI.
+
+---
+
+## PriceStreamManager.runGrcpStream: потенциальный busy loop
+
+**Статус:** открыт. Латентный, не воспроизводится сейчас. Не для WS.
+
+**Симптом:**
+
+    while (isActive) {
+      try {
+        repository.subscribeLastPrices(broker, union.toList()).collect { ... }
+        attempt = 0  // stream completed by server, reconnecting
+      } catch (e) { ... delay(...) }
+    }
+
+Если `subscribeLastPrices` вернёт `emptyFlow()` (дефолт `BrokerApi`,
+используется BCS / Finam), `collect` завершится **мгновенно**, без
+исключения. `attempt = 0`, «stream completed by server», новый
+вызов, снова мгновенно. **Busy loop без задержки** — CPU 100%,
+батарея в ноль.
+
+Сейчас `PriceStreamManager` хардкодит `BrokerName.TINVEST`, у
+T-Invest `subscribeLastPrices` не пустой. Латентный: станет
+реальным при расширении `PriceStreamManager` на BCS / Finam.
+
+**Решение:** если `collect` завершился без единой эмиссии за N
+секунд — `delay(1_000)` перед следующим кругом. Или проверять
+через `first()` с таймаутом и трактовать отсутствие эмиссии как
+ошибку (ретрай с delay).
+
+**Файлы:** `domain/api/PriceStreamManager.kt`.
+
+**Когда вернуться:** при добавлении BCS / Finam в
+`PriceStreamManager`, или при жалобах на батарею в фоновом режиме.
+
+---
+
+---
