@@ -131,48 +131,74 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 
 ## Позиции не обновляются при смене счёта
 
-**Статус:** открыт, не воспроизводится. Оставлен для
-наблюдения.
+**Статус:** открыт, причина найдена. Фикс — одна строка, при
+следующей сессии на десктопе.
 
 **Симптом:** при переключении счёта в UI остаются позиции
 предыдущего счёта. Позиции нового счёта добавляются, но
 старые не исчезают.
 
-**Контекст:** регресс от PR #16 (переход на каскад
-gRPC + polling, позже переделан на параллельную схему в
-PR #20). Появился после изменений в `PositionStreamManager`
-и `TInvestMarketDataService`.
+**Причина (подтверждена аудитом 2026-10-18):**
 
-**Текущее состояние (2026-10-15):** не воспроизводится.
-Проверено 3–4 переключения между боевым счётом и песочницей
-в свежей сессии — позиции замещаются корректно.
+`PositionStreamManager._flow` — `MutableSharedFlow(replay = 1)`.
+`stop()` вызывает `_flow.resetReplayCache()`, а `start(newAccountId)`
+— **нет**. При смене счёта:
 
-**Возможные причины:**
-- Гонка (race condition) при первом запуске.
-- Побочный эффект состояния эмулятора после падения.
-- Одноразовый сбой, который больше не повторялся.
+1. `OrdersViewModel` / `PortfolioViewModel` вызывают
+   `positionStreamManager.start(newAccountId)` без
+   предварительного `stop()`. `stop()` есть **только в
+   logout-ветке** (`else` от `isInitialized`), а не при смене
+   счёта.
+2. `start()` делает `snapshotCache.clear()` и `job?.cancel()`,
+   но не `_flow.resetReplayCache()`. Replay-кэш сохраняет
+   последний элемент от **старого** счёта.
+3. Новый коллектор в ViewModel подписывается на `_flow` и
+   первым получает элемент от старого счёта. `updatePortfolioItem`
+   / `updatePositionPnl` вставляет его в UI.
+4. Если `tscalpInstrumentId` этой позиции нет в новом счёте —
+   она не будет вытеснена никогда. Отсюда «залипшие» позиции.
 
-**Гипотезы (если воспроизведётся):**
-1. `_flow` в `PositionStreamManager` имеет `replay = 1`.
-   При смене счёта через `start(newAccountId)` replay-кэш
-   не сбрасывается (сброс только в `stop()`). Новые
-   подписчики могут получить элемент от старого счёта.
-2. `PortfolioViewModel` не очищает список позиций при
-   смене счёта — накапливает элементы с разными
-   `tscalpInstrumentId`.
-3. Гонка между `PositionStreamManager.start(newAccountId)`
-   и первыми событиями от gRPC / polling для нового счёта.
+Подтверждение по коду: `start()` и `stop()` в
+`PositionStreamManager`; смена счёта в `OrdersViewModel`
+(`startPositionUpdates()`, строка ~905) и `PortfolioViewModel`
+(`startPositionUpdates(accountId)`, строка ~150) — обе без
+`stop()` у менеджера.
 
-**Файлы для отладки:**
-- `domain/api/PositionStreamManager.kt`
-- `presentation/screens/portfolio/PortfolioViewModel.kt`
-- `presentation/screens/orders/OrdersViewModel.kt`
+**Решение:**
 
-**Когда вернуться:**
-- При воспроизведении на реальном устройстве.
-- При жалобах пользователей на «залипшие» позиции.
-- Если не повторится через несколько релизов — закрыть
-  с пометкой «не воспроизводится».
+В `PositionStreamManager.start(accountId)` при
+`currentAccountId != accountId` — вызвать
+`_flow.resetReplayCache()` (до `job?.cancel()`, чтобы новый
+подписчик гарантированно не получил старый элемент). Это
+симметрично `stop()`, который уже делает сброс.
+
+Альтернатива — добавить `positionStreamManager.stop()` в
+`startPositionUpdates()` ViewModel'ей перед `start()`, но это
+задевает три ViewModel и оставляет возможность вызвать
+`start()` напрямую (например, из `TScalpApplication`). Фикс в
+`start()` менеджера — единственная точка, надёжнее.
+
+**Остальные гипотезы (не подтверждены, оставлены как контекст):**
+
+2. `PortfolioViewModel` не очищает список позиций при смене
+   счёта — накапливает элементы с разными
+   `tscalpInstrumentId`. Проверить, если после фикса №1
+   симптом повторится.
+3. Гонка между `start(newAccountId)` и первыми событиями
+   gRPC / polling для нового счёта. Проверить, если
+   повторится.
+
+**Файлы:**
+
+- `domain/api/PositionStreamManager.kt` — фикс (`start()`).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` —
+  контекст (смена счёта).
+- `presentation/screens/orders/OrdersViewModel.kt` — контекст.
+
+**Когда вернуться:** сейчас, при следующей сессии на десктопе.
+Отдельная ветка `bugfix/position-stream-replay` от `dev`,
+фикс + тест (проверить, что после смены счёта replay-кэш пуст
+до первого элемента нового счёта).
 
 ---
 
