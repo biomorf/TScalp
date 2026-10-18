@@ -68,48 +68,98 @@ class TScalpApplication : Application() {
     }
 
     /**
-     * Инициализирует TInvestBrokerAPI и запускает стрим позиций
-     * по сохранённому счёту (или создаёт новый в песочнице).
+     * Инициализирует TInvestBrokerAPI и запускает стрим позиций.
      *
-     * Выбор счёта:
-     * 1. Сохранённый счёт, если он ещё существует.
-     * 2. Иначе — первый доступный счёт в аккаунте.
-     * 3. Иначе, если песочница — создаём новый.
-     * 4. Иначе (боевой и пусто) — ничего не делаем.
+     * Счёт выбирается через [resolveTInvestAccountId]: при успешном
+     * `getAccounts` используется сохранённый или первый доступный счёт,
+     * при падении — сохранённый (если есть), иначе в песочнице
+     * открывается новый.
+     *
+     * `positionStreamManager.start()` вызывается независимо от того,
+     * удалось ли получить список счетов — это позволяет стримам
+     * работать при временном сбое `getAccounts`.
      */
     private suspend fun restoreTInvest(broker: BrokerApi) {
         val tInvest = broker as? TInvestBrokerAPI ?: return
+
+        val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
+        if (creds == null) {
+            AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
+            return
+        }
+        val (token, sandbox) = creds
+
         try {
-            val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
-            if (creds == null) {
-                AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
-                return
-            }
-            val (token, sandbox) = creds
             tInvest.initialize(token, sandbox)
             brokerManager.refreshInitializationState()
-
-            val accounts = tInvest.getAccounts(sandbox)
-            val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
-
-            val accountId =
-                when {
-                    savedAccountId != null && accounts.any { it.id == savedAccountId } -> savedAccountId
-                    accounts.isNotEmpty() -> accounts.first().id
-                    sandbox -> tInvest.openSandboxAccount()
-                    else -> null
-                }
-
-            if (accountId != null) {
-                if (accountId != savedAccountId) {
-                    settingsRepository.saveDefaultAccountId(BrokerName.TINVEST, accountId)
-                }
-                positionStreamManager.start(accountId)
-            } else {
-                AppLogger.w("TScalpApplication", "Не удалось выбрать/создать TInvest-счёт")
-            }
         } catch (e: Exception) {
-            AppLogger.e("TScalpApplication", "Не удалось подготовить TInvest-счёт", e)
+            AppLogger.e("TScalpApplication", "TInvest: не удалось инициализировать API", e)
+            return
+        }
+
+        val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
+        val accountId = resolveTInvestAccountId(tInvest, sandbox, savedAccountId)
+
+        if (accountId == null) {
+            AppLogger.w("TScalpApplication", "TInvest: не удалось выбрать/создать счёт")
+            return
+        }
+
+        if (accountId != savedAccountId) {
+            settingsRepository.saveDefaultAccountId(BrokerName.TINVEST, accountId)
+        }
+        positionStreamManager.start(accountId)
+    }
+
+    /**
+     * Выбирает accountId для T-Invest с fallback на сохранённый счёт.
+     *
+     * Порядок:
+     * 1. `getAccounts` успешно:
+     *    - savedAccountId есть в списке → он;
+     *    - иначе список не пуст → первый;
+     *    - иначе sandbox → новый счёт в песочнице;
+     *    - иначе null.
+     * 2. `getAccounts` упало:
+     *    - savedAccountId есть → он (главный fallback);
+     *    - иначе sandbox → новый счёт в песочнице;
+     *    - иначе null.
+     */
+    private suspend fun resolveTInvestAccountId(
+        tInvest: TInvestBrokerAPI,
+        sandbox: Boolean,
+        savedAccountId: String?,
+    ): String? {
+        val accounts =
+            try {
+                tInvest.getAccounts(sandbox)
+            } catch (e: Exception) {
+                AppLogger.w("TScalpApplication", "TInvest: getAccounts failed, fallback to savedAccountId", e)
+                null
+            }
+
+        return when {
+            accounts == null -> savedAccountId ?: tryOpenSandboxAccount(tInvest, sandbox)
+            savedAccountId != null && accounts.any { it.id == savedAccountId } -> savedAccountId
+            accounts.isNotEmpty() -> accounts.first().id
+            sandbox -> tryOpenSandboxAccount(tInvest, sandbox)
+            else -> null
+        }
+    }
+
+    /**
+     * Открывает новый счёт в песочнице. Null вне sandbox или при ошибке.
+     */
+    private suspend fun tryOpenSandboxAccount(
+        tInvest: TInvestBrokerAPI,
+        sandbox: Boolean,
+    ): String? {
+        if (!sandbox) return null
+        return try {
+            tInvest.openSandboxAccount()
+        } catch (e: Exception) {
+            AppLogger.w("TScalpApplication", "TInvest: openSandboxAccount failed", e)
+            null
         }
     }
 
