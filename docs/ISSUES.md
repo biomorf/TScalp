@@ -252,91 +252,102 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 
 ---
 
-## T-Invest WebSocket и REST-стримы недоступны (серверная деградация)
+## T-Invest WebSocket: вероятный rate-limit после массовых попыток
 
-**Статус:** открыт, не наш код. Блокирует фазу 2 `stream-orchestrator`
-(WS-fallback). gRPC и polling работают штатно.
+**Статус:** открыт. Сервер жив (см. ниже), вероятная причина —
+rate-limit по IP или `User-Agent` после ~100 upgrade-попыток за
+сессию. Блокирует фазу 2 `stream-orchestrator` (WS-fallback).
+gRPC и polling работают штатно.
 
-**Симптом (сводный):**
+**Симптом:** WebSocket handshake на
+`wss://invest-public-api.tbank.ru/ws` с домашнего IP (Android
+и десктоп) ведёт себя по-разному в течение сессии:
 
-- **WebSocket handshake** на `wss://invest-public-api.tbank.ru/ws`
-  на Android и на десктопе через websocat **зависает без ответа**
-  (TCP устанавливается, TLS проходит, HTTP upgrade не отвечает
-  101 и не отбивается кодом).
-- **REST-прокси** `POST /rest/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`
-  возвращает **HTTP 404 от Envoy** (и на HTTP/2, и на HTTP/1.1,
-  с `Authorization` и без).
-- **gRPC** `OperationsStreamService/positionsStream` работает
-  штатно — приходят `SUBSCRIPTIONS`, `INITIAL_POSITIONS`, `PING`.
+- **в начале сессии** websocat с `Web-Socket-Protocol: json` →
+  **101 Switching Protocols**, соединение держится;
+- **через час** с того же IP websocat → **silent hang** (TCP
+  устанавливается, TLS проходит, HTTP upgrade не отвечает 101
+  и не отбивается кодом);
+- **с мобильного IP через Termux/proot** (тот же websocat,
+  те же заголовки) → **соединение держится**, handshake проходит.
+
+**Ключевой факт:** сервер T-Invest **жив**. Вход найден:
+URL `wss://invest-public-api.tbank.ru/ws` (без слэша),
+заголовок `Web-Socket-Protocol: json`. С мобильного IP это
+работает прямо сейчас. Проблема — с домашнего IP после
+множества попыток.
 
 **Полная матрица экспериментов (2026-10-18):**
 
-На Android (OkHttp):
+На Android (OkHttp) с домашнего IP:
 - URL `/ws/` + `Authorization` + `Web-Socket-Protocol: json` → **404** (`x-k8s-istio-drop-ok: true`).
 - URL `/ws` (без слэша) + те же заголовки → **404**.
 - `Web-Socket-Protocol: json, <token>` без `Authorization` → **404**.
 - `Sec-WebSocket-Protocol: json` (вместо `Web-Socket-Protocol`) → **404**.
 - Добавление `Origin: https://invest-public-api.tbank.ru` → **404**.
-- Добавление `User-Agent: websocat/1.14.1` → **404 исчез, пришёл timeout 10s**.
-  Это был первый прогресс: Envoy пропустил запрос, но handshake не завершился.
+- Добавление `User-Agent: websocat/1.14.1` → **404 исчез, timeout 10s**.
 - `protocols(HTTP_1_1)` в OkHttpClient → timeout.
-- `minWebSocketMessageToCompress(Long.MAX_VALUE)` → timeout.
-  `Sec-WebSocket-Extensions: permessage-deflate` в handshake **остался**
-  (OkHttp не позволяет отключить публично, параметр влияет только
-  на исходящее сжатие сообщений).
+- `minWebSocketMessageToCompress(Long.MAX_VALUE)` → timeout
+  (`Sec-WebSocket-Extensions: permessage-deflate` в handshake
+  остался — OkHttp не даёт отключить публично).
 
-На Android (Ktor CIO):
-- `HttpClient(CIO)` + `CustomTrustManager` через `engine { https { trustManager = ... } }`,
-  заголовки `Authorization` + `Web-Socket-Protocol: json` → **silent hang**
-  (20+ секунд без `connected`, без `failure` — handshake не завершился).
+На Android (Ktor CIO) с домашнего IP:
+- `HttpClient(CIO)` + `CustomTrustManager`, `Authorization` +
+  `Web-Socket-Protocol: json` → **silent hang** (20+ секунд).
 
-На десктопе (websocat 1.14.1, `-k` для игнора сертификата):
-- В начале сессии (до всех экспериментов): URL `/ws` + `Web-Socket-Protocol: json`
-  → **101 Switching Protocols** ✅ (эталон, что сервер вообще жив).
-- Позже в той же сессии: URL `/ws` + `Web-Socket-Protocol: json` → **silent hang** ❌.
-- Тот же URL + `Authorization: Bearer <token>` → **silent hang**.
+На десктопе (websocat 1.14.1, `-k`) с домашнего IP:
+- Начало сессии: `/ws` + `Web-Socket-Protocol: json` → **101** ✅.
+- Через час: то же → **silent hang** ❌.
+- + `Authorization` → **silent hang**.
 - `Web-Socket-Protocol: json, <token>` → **silent hang**.
 
-На десктопе (curl, REST-прокси):
-- `POST /rest/.../PositionsStream` HTTP/2 с `Authorization` → **404** (Envoy).
-- Тот же запрос HTTP/1.1 (`--http1.1`) → **404** (Envoy, chunked).
+На десктопе (curl) с домашнего IP, REST-прокси:
+- `POST /rest/.../PositionsStream` HTTP/2 → **404** (Envoy).
+- Тот же HTTP/1.1 → **404** (Envoy, chunked).
+  (REST-прокси — отдельная история, не обязательно связан с WS.)
 
-**Вывод:**
+В Termux/proot (мобильный IP, websocat 1.14.1, `-k`):
+- `/ws` + `Web-Socket-Protocol: json` → **соединение держится** ✅
+  (TCP установлен, TLS проходит, handshake завершён).
 
-- **Проблема не в нашем коде.** Websocat (эталонный клиент) с теми же
-  URL и заголовками получал 101 в начале сессии и зависает сейчас.
-  Значит, стриминговые эндпоинты T-Invest (WS и REST) **деградировали
-  на стороне сервера** в течение сессии. Это может быть технические
-  работы, изменения в ingress-конфигурации, DDoS или регресс в API.
-- **Оба наших клиента (OkHttp и CIO) ведут себя консистентно** —
-  повторяют состояние сервера. Код корректен по документации T-Invest
-  (URL, заголовки, формат подписки).
-- **gRPC-канал на том же хосте работает.** Это подтверждает, что
-  TCP/TLS до `invest-public-api.tbank.ru` проходят, проблема именно
-  в стриминговых HTTP-эндпоинтах.
+**Гипотезы (по убыванию вероятности):**
+
+1. **Rate-limit по IP.** За сессию отправлено ~100 upgrade-запросов
+   (OkHttp retry-loop + CIO + websocat), плюс много незакрытых
+   TCP от timeout'ов. Envoy ingress мог применить лимит на
+   количество одновременных WS-соединений или на частоту попыток
+   с одного IP.
+2. **Rate-limit / бан по `User-Agent`.** Envoy может
+   маршрутизировать WS по UA. Мы массово слали
+   `websocat/1.14.1` (из OkHttp) — это могло попасть в чёрный
+   список после серии неудач.
+3. **Исчерпание одновременных соединений.** OkHttp retry-loop
+   не закрывал TCP при `SocketTimeoutException` — накопились
+   десятки «мёртвых» сессий с домашнего IP. С мобильного IP
+   их нет.
 
 **Решение:**
 
-1. **Не тратить время на перебор клиентов, пока сервер не восстановится.**
-   Все разумные комбинации (OkHttp / CIO / curl / websocat, URL
-   с/без слэша, все заголовки, HTTP/1.1 и HTTP/2) перепробованы.
-2. **Ждать восстановления сервиса T-Invest.** Проверять периодически
-   через `websocat -k wss://invest-public-api.tbank.ru/ws -H "Web-Socket-Protocol: json"` —
-   появление 101 означает, что можно возобновить работу.
-3. **gRPC + polling остаются основными источниками данных.**
-   `stream-orchestrator` закрывается без WS-fallback; WS добавляется
-   позже как опциональное улучшение.
+1. **Пауза 30–60 минут** — дать rate-limit сброситься.
+2. **Один чистый запрос** с домашнего IP после паузы:
+   `websocat -vv -k wss://invest-public-api.tbank.ru/ws -H "Web-Socket-Protocol: json"`
+   без `Authorization`, без параллельных попыток, без нашего
+   клиента в фоне. **101 → сервер и вход восстановлены.**
+3. **В коде:** отключить retry на `404` — это не временная
+   ошибка, повтор не поможет и только усугубляет бан. Retry на
+   `timeout` оставить, но с интервалом 60s+ (сейчас 1s).
+4. **Закрывать TCP при timeout** (OkHttp `webSocket.cancel()` —
+   уже делается в `awaitClose`, но проверить, что не остаётся
+   висящих сокетов между попытками).
 
-**Когда вернуться:**
+**Когда вернуться:** сейчас. После паузы — один чистый тест
+с домашнего IP. Если 101 — правки в коде (retry на 404) и
+live-тест на устройстве. Если silent hang — пауза ещё
+дольше или проверка с другого IP (мобильный hotspot).
 
-- Когда websocat снова начнёт получать 101 (проверять раз в несколько дней).
-- При появлении информации о восстановлении стримов в T-Invest
-  (новости, статус-страница API, ответ поддержки).
-- При жалобах от пользователей на поведение стримов.
-
-**Точка отката:** ветка `feature/ws-okhttp-fallback`, коммит `934646d`
-(миграция на Ktor CIO). Содержит все эксперименты — OkHttp-версию,
-CIO-версию, заголовки, `User-Agent`, `minWebSocketMessageToCompress`.
+**Точка отката:** ветка `feature/ws-okhttp-fallback`, коммит
+`934646d` (CIO), `2ddb7b1` (первая версия ISSUES). Все
+эксперименты сохранены.
 
 ---
 
