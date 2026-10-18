@@ -106,6 +106,12 @@ object DataModule {
         return OkHttpClient
             .Builder()
             .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+            .addInterceptor(
+                okhttp3.logging.HttpLoggingInterceptor { message ->
+                    com.gitlab.biomorf.tscalp.util.AppLogger.d("OkHttpWS", message)
+                }.apply { level = okhttp3.logging.HttpLoggingInterceptor.Level.HEADERS },
+            )
             .build()
     }
 }

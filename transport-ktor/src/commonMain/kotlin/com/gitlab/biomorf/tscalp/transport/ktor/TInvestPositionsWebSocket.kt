@@ -75,7 +75,7 @@ class TInvestPositionsWebSocket(
                 .Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
-                .header("Web-Socket-Protocol", "json, $token")
+                .header("Web-Socket-Protocol", "json")
                 .build()
 
         val listener =
@@ -122,7 +122,15 @@ class TInvestPositionsWebSocket(
                     t: Throwable,
                     response: Response?,
                 ) {
-                    logger("$TAG failure: ${t.message}")
+                    val code = response?.code ?: -1
+                    val body =
+                        try {
+                            response?.body?.string()?.take(500) ?: ""
+                        } catch (e: Exception) {
+                            "<body read failed: ${e.message}>"
+                        }
+                    val headers = response?.headers?.toString() ?: ""
+                    logger("$TAG failure: ${t.message} | code=$code | body=$body | headers=$headers")
                     close(t)
                 }
             }

@@ -31,7 +31,7 @@ class TInvestBrokerAPI(
     private val okHttpClient: OkHttpClient,
 ) : BrokerApi {
     private companion object {
-        const val WS_URL = "wss://invest-public-api.tbank.ru/ws/"
+        const val WS_URL = "wss://invest-public-api.tbank.ru/ws"
     }
 
     private val state = TInvestApiState()
