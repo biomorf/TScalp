@@ -278,102 +278,113 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 
 ---
 
-## T-Invest WebSocket: вероятный rate-limit после массовых попыток
+## T-Invest WebSocket: решён — канал должен быть в URL path
 
-**Статус:** открыт. Сервер жив (см. ниже), вероятная причина —
-rate-limit по IP или `User-Agent` после ~100 upgrade-попыток за
-сессию. Блокирует фазу 2 `stream-orchestrator` (WS-fallback).
-gRPC и polling работают штатно.
+**Статус:** решён (2026-10-19). Транспорт подтверждён через
+websocat на прод-аккаунте (initialPositions с реальными данными).
+Live-тест на устройстве через `TInvestPositionsWebSocket` —
+ожидается на десктопе.
 
-**Симптом:** WebSocket handshake на
-`wss://invest-public-api.tbank.ru/ws` с домашнего IP (Android
-и десктоп) ведёт себя по-разному в течение сессии:
+**Причина (главное):** канал T-Invest — **часть URL path**, а не
+только тело подписки. Правильный URL:
 
-- **в начале сессии** websocat с `Web-Socket-Protocol: json` →
-  **101 Switching Protocols**, соединение держится;
-- **через час** с того же IP websocat → **silent hang** (TCP
-  устанавливается, TLS проходит, HTTP upgrade не отвечает 101
-  и не отбивается кодом);
-- **с мобильного IP через Termux/proot** (тот же websocat,
-  те же заголовки) → **соединение держится**, handshake проходит.
+    wss://invest-public-api.tbank.ru/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream
 
-**Ключевой факт:** сервер T-Invest **жив**. Вход найден:
-URL `wss://invest-public-api.tbank.ru/ws` (без слэша),
-заголовок `Web-Socket-Protocol: json`. С мобильного IP это
-работает прямо сейчас. Проблема — с домашнего IP после
-множества попыток.
+Голый `/ws` без канала → сервер не знает, какой стрим открывать,
+и отвечает `404` / `timeout` / silent hang. С каналом в пути —
+handshake проходит за миллисекунды.
 
-**Полная матрица экспериментов (2026-10-18):**
+**Подтверждение (websocat 1.14.1, `-k`, прод-токен, боевой счёт
+2309452027):**
 
-На Android (OkHttp) с домашнего IP:
-- URL `/ws/` + `Authorization` + `Web-Socket-Protocol: json` → **404** (`x-k8s-istio-drop-ok: true`).
-- URL `/ws` (без слэша) + те же заголовки → **404**.
-- `Web-Socket-Protocol: json, <token>` без `Authorization` → **404**.
-- `Sec-WebSocket-Protocol: json` (вместо `Web-Socket-Protocol`) → **404**.
-- Добавление `Origin: https://invest-public-api.tbank.ru` → **404**.
-- Добавление `User-Agent: websocat/1.14.1` → **404 исчез, timeout 10s**.
+    websocat -vv -k "wss://invest-public-api.tbank.ru/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream" \
+      -H "Web-Socket-Protocol: json" \
+      -H "Authorization: Bearer <token>"
+
+Ответ сервера:
+
+- `Connected to ws` + `upgrade: websocket`, `sec-websocket-accept`,
+  `x-k8s-istio-drop-ok: true` (это флаг «пропущено», не ошибка).
+- После отправки подписки
+  `{"accounts":["2309452027"],"withInitialPositions":true}`:
+  `{"subscriptions": {"accounts": [{"accountId": "2309452027",
+  "subscriptionStatus": "POSITIONS_SUBSCRIPTION_STATUS_SUCCESS"}],
+  "trackingId": "...", "streamId": "..."}}`
+- Далее `initialPositions` с реальными securities
+  (SBER, TMON@, instrumentUid совпадает с логами приложения).
+
+**Коды закрытия WS (диагностический справочник):**
+
+- **`1013`** — соединение открыто, но подписка не пришла за
+  ~10 секунд. Сервер закрывает по таймауту ожидания подписки.
+  В нашем клиенте не возникает — `TInvestPositionsWebSocket`
+  отправляет подписку сразу после `connected`.
+- **`4001 Unauthorized`** — handshake прошёл, но токен не
+  принят в `Authorization`. Проверить токен / режим
+  (sandbox vs prod).
+- **`1011` + `reason: "50004"`** — `NOT_FOUND` (счёт не
+  существует). Проверить accountId: соответствует ли он токену.
+
+**Что было опровергнуто по ходу сессии:**
+
+Все три гипотезы оказались ложными — они были следствием
+неправильного URL, а не самостоятельными причинами:
+
+1. ~~Rate-limit по IP / User-Agent.~~ Мобильный IP давал тот же
+   silent hang на голом `/ws`, что и домашний. С каналом в URL
+   работает с любого IP.
+2. ~~Серверная деградация T-Invest.~~ Сервер всё время работал,
+   просто мы били не туда.
+3. ~~permessage-deflate в OkHttp.~~ Отличие OkHttp от websocat
+   в handshake есть, но не оно решало: с правильным URL и OkHttp,
+   и Ktor CIO прошли бы одинаково. CIO оставляем как рабочий
+   вариант (уже мигрирован в `934646d`).
+
+**Матрица экспериментов (историческая, 2026-10-18):**
+
+Все варианты ниже — на голом `/ws` без канала в пути. Каждый
+давал `404` / `timeout` / silent hang, но не из-за заголовков
+или клиента, а из-за отсутствия канала в URL:
+
+- URL `/ws/` + `Authorization` + `Web-Socket-Protocol: json` → 404.
+- URL `/ws` (без слэша) + те же → 404.
+- `Web-Socket-Protocol: json, <token>` без `Authorization` → 404.
+- `Sec-WebSocket-Protocol: json` → 404.
+- `+Origin` → 404.
+- `+User-Agent: websocat/1.14.1` → timeout 10s (сдвиг с 404, но
+  не решение).
 - `protocols(HTTP_1_1)` в OkHttpClient → timeout.
-- `minWebSocketMessageToCompress(Long.MAX_VALUE)` → timeout
-  (`Sec-WebSocket-Extensions: permessage-deflate` в handshake
-  остался — OkHttp не даёт отключить публично).
+- `minWebSocketMessageToCompress(Long.MAX_VALUE)` → timeout.
+- Ktor CIO с теми же заголовками → silent hang.
+- `curl POST /rest/.../PositionsStream` HTTP/2 и HTTP/1.1 → 404
+  от Envoy. REST-прокси для streaming — отдельная история, к
+  WS отношения не имеет.
 
-На Android (Ktor CIO) с домашнего IP:
-- `HttpClient(CIO)` + `CustomTrustManager`, `Authorization` +
-  `Web-Socket-Protocol: json` → **silent hang** (20+ секунд).
+**Решение (сделано в коде):**
 
-На десктопе (websocat 1.14.1, `-k`) с домашнего IP:
-- Начало сессии: `/ws` + `Web-Socket-Protocol: json` → **101** ✅.
-- Через час: то же → **silent hang** ❌.
-- + `Authorization` → **silent hang**.
-- `Web-Socket-Protocol: json, <token>` → **silent hang**.
+- `TInvestBrokerApi.WS_URL` разбит на `WS_BASE_URL` +
+  `WS_POSITIONS_CHANNEL` + собранный `WS_URL` (коммит `777fa60`).
+- `buildSubscriptionEnvelope` — плоский JSON
+  `{accounts, withInitialPositions}` (без обёртки `positionsStream`).
+- `TInvestPositionsWebSocket` — Ktor CIO
+  (`HttpClient(CIO)` + `CustomTrustManager` через
+  `engine { https { trustManager = ... } }`), коммит `934646d`.
 
-На десктопе (curl) с домашнего IP, REST-прокси:
-- `POST /rest/.../PositionsStream` HTTP/2 → **404** (Envoy).
-- Тот же HTTP/1.1 → **404** (Envoy, chunked).
-  (REST-прокси — отдельная история, не обязательно связан с WS.)
+**Что осталось:**
 
-В Termux/proot (мобильный IP, websocat 1.14.1, `-k`):
-- `/ws` + `Web-Socket-Protocol: json` → **соединение держится** ✅
-  (TCP установлен, TLS проходит, handshake завершён).
+- Live-тест на десктопе: пересобрать, установить, запустить,
+  в logcat `TInvestWS` ожидаем `connected` → `subscription sent`
+  → `frame received`.
+- Если данные идут — merge `feature/ws-okhttp-fallback` в
+  `feature/stream-orchestrator`, затем в `dev`.
+- Правка `TInvestPositionsWebSocket`: retry на `404` и `1011 +
+  50004` не нужен (это не временные ошибки). Retry только на
+  `timeout` / `IOException` / `SSLException`, интервал 60s+
+  вместо 1s. Оформить отдельной задачей.
 
-**Гипотезы (по убыванию вероятности):**
-
-1. **Rate-limit по IP.** За сессию отправлено ~100 upgrade-запросов
-   (OkHttp retry-loop + CIO + websocat), плюс много незакрытых
-   TCP от timeout'ов. Envoy ingress мог применить лимит на
-   количество одновременных WS-соединений или на частоту попыток
-   с одного IP.
-2. **Rate-limit / бан по `User-Agent`.** Envoy может
-   маршрутизировать WS по UA. Мы массово слали
-   `websocat/1.14.1` (из OkHttp) — это могло попасть в чёрный
-   список после серии неудач.
-3. **Исчерпание одновременных соединений.** OkHttp retry-loop
-   не закрывал TCP при `SocketTimeoutException` — накопились
-   десятки «мёртвых» сессий с домашнего IP. С мобильного IP
-   их нет.
-
-**Решение:**
-
-1. **Пауза 30–60 минут** — дать rate-limit сброситься.
-2. **Один чистый запрос** с домашнего IP после паузы:
-   `websocat -vv -k wss://invest-public-api.tbank.ru/ws -H "Web-Socket-Protocol: json"`
-   без `Authorization`, без параллельных попыток, без нашего
-   клиента в фоне. **101 → сервер и вход восстановлены.**
-3. **В коде:** отключить retry на `404` — это не временная
-   ошибка, повтор не поможет и только усугубляет бан. Retry на
-   `timeout` оставить, но с интервалом 60s+ (сейчас 1s).
-4. **Закрывать TCP при timeout** (OkHttp `webSocket.cancel()` —
-   уже делается в `awaitClose`, но проверить, что не остаётся
-   висящих сокетов между попытками).
-
-**Когда вернуться:** сейчас. После паузы — один чистый тест
-с домашнего IP. Если 101 — правки в коде (retry на 404) и
-live-тест на устройстве. Если silent hang — пауза ещё
-дольше или проверка с другого IP (мобильный hotspot).
-
-**Точка отката:** ветка `feature/ws-okhttp-fallback`, коммит
-`934646d` (CIO), `2ddb7b1` (первая версия ISSUES). Все
-эксперименты сохранены.
+**Точка отката:** ветка `feature/ws-okhttp-fallback`, коммиты
+`777fa60` (URL с каналом), `b34d614` (DebugConfig),
+`934646d` (CIO).
 
 ---
 
@@ -496,9 +507,10 @@ WS-соединения напрямую бьёт по rate-limit.
 `positionsWebSocket = TInvestPositionsWebSocket(...)` без закрытия
 предыдущего. Ре-логин, смена токена или повторный «Сохранить» в
 настройках без logout → старая WS-сессия держит сокет, получает
-ping/frames в никуда. Утечка соединения + лишняя нагрузка + одна
-из вероятных причин rate-limit (см. ISSUES → «T-Invest WebSocket:
-вероятный rate-limit после массовых попыток»).
+ping/frames в никуда. Утечка соединения + лишняя нагрузка на сервер (WS-сессии
+накапливаются, каждая держит сокет и heartbeat). Ссылка на
+запись про транспорт: `ISSUES → «T-Invest WebSocket: решён —
+канал должен быть в URL path»`.
 
 **Решение:** в `initialize()` перед созданием нового — вызвать
 `positionsWebSocket?.close()`. Метод `close()` в
