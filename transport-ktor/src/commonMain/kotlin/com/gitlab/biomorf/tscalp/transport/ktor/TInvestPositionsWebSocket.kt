@@ -76,6 +76,7 @@ class TInvestPositionsWebSocket(
                 .url(url)
                 .header("Authorization", "Bearer $token")
                 .header("Web-Socket-Protocol", "json")
+                .header("User-Agent", "websocat/1.14.1")
                 .build()
 
         val listener =
