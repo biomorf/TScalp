@@ -173,17 +173,17 @@ iOS-задачи миграция станет обязательной. Сей�
 **Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
 
 **Статус:** отложено. Фаза 1 — готова, вмержена. Фаза 2 —
-инфраструктура и wiring готовы. WS-транспорт не подтверждён:
-WS-эндпоинты T-Invest (WebSocket + REST-прокси) недоступны на
-стороне сервера, деградация зафиксирована в `docs/ISSUES.md` →
-«T-Invest WebSocket и REST-стримы недоступны (серверная деградация)».
-OkHttp и Ktor CIO ведут себя одинаково (404 / timeout / silent hang),
-websocat тоже зависает — это не наш код.
+инфраструктура и wiring готовы. WS-транспорт не подтверждён на
+устройстве, но **сервер T-Invest жив**: с мобильного IP через
+websocat handshake проходит (соединение держится). С домашнего
+IP после ~100 попыток — silent hang, вероятный rate-limit
+по IP или User-Agent. См. `docs/ISSUES.md` → «T-Invest WebSocket:
+вероятный rate-limit после массовых попыток».
 **Ветка:** `feature/stream-orchestrator` (фаза 1 вмержена в dev,
 PR был). Эксперименты по WS — `feature/ws-okhttp-fallback` (не
 вмержена, хранит всё: OkHttp, CIO, заголовки, User-Agent).
 `stream-orchestrator` можно закрывать без WS-fallback; WS —
-отдельная задача после восстановления T-Invest.
+отдельная задача после паузы и проверки rate-limit.
 
 **Прогресс:**
 
@@ -199,12 +199,15 @@ PR был). Эксперименты по WS — `feature/ws-okhttp-fallback` (�
   WS как fallback (через `wsFallback`-лямбду), Hilt-провайдеры,
   HTTP-клиент на `CustomTrustManager` (OkHttp → CIO).
   Wiring сделан в `feature/ws-okhttp-fallback`.
-- [ ] Фаза 2, WS handshake не подтверждён — серверная
-  деградация T-Invest. OkHttp: 404 от Envoy → timeout после
-  User-Agent. Ktor CIO: silent hang. Websocat: 101 в начале
-  сессии → silent hang позже. REST-прокси
-  `/rest/.../PositionsStream` → 404 (HTTP/1.1 и HTTP/2).
-  Матрица экспериментов — `docs/ISSUES.md`.
+- [ ] Фаза 2, WS handshake не подтверждён на устройстве.
+  С домашнего IP: OkHttp → 404 / timeout, Ktor CIO → silent
+  hang, websocat → 101 в начале сессии, silent hang через час.
+  **С мобильного IP через websocat — соединение держится
+  (сервер жив, вход найден: `/ws` без слэша +
+  `Web-Socket-Protocol: json`).** Вероятный rate-limit по
+  IP/UA после массовых попыток; пауза и проверка описаны в
+  `docs/ISSUES.md`. REST-прокси `/rest/.../PositionsStream`
+  → 404 независимо от IP — отдельный вопрос.
 - [ ] Фаза 3: раскат на цены и ордера — ждёт восстановления
   стримов T-Invest.
 - [ ] Merge `feature/ws-okhttp-fallback` в `dev` — только
@@ -314,14 +317,14 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Альтернативы для WS-транспорта.**
 
-Историческая хронология: OkHttp → CIO → raw SSLSocket были
-вариантами замены транспорта. По итогам сессии 2026-10-18
-стало ясно, что **проблема на стороне сервера T-Invest**
-(см. `docs/ISSUES.md` → «T-Invest WebSocket и REST-стримы
-недоступны (серверная деградация)»). Websocat с теми же
-URL и заголовками получал 101 в начале сессии и зависает
-сейчас. REST-прокси тоже 404. Поэтому пока сервер не
-восстановится, ни один из вариантов A/B не даст результата.
+Историческая хронология: OkHttp → CIO → raw SSLSocket.
+После проверки с мобильного IP (websocat держит соединение)
+стало ясно: **сервер жив и вход найден**, с домашнего IP —
+вероятный rate-limit после ~100 попыток. Значит, варианты A
+и B не были «неправильными», их просто нельзя проверить, пока
+домашний IP под лимитом. Сначала пауза и один чистый запрос
+(см. ISSUES), затем — либо OkHttp/CIO заработают сразу, либо
+переход к B.
 
 Матрица экспериментов сохранена в ISSUES. Ниже — краткая
 сводка вариантов и их статус.
@@ -337,12 +340,14 @@ URL и заголовками получал 101 в начале сессии и
 - Результат: **silent hang** — handshake не отвечает 101 и не
   отбивается кодом за 20+ секунд. То же, что вебсокет-версии
   OkHttp в конце сессии.
-- Вывод: проблема не в permessage-deflate и не в клиенте,
-  а на сервере. Переход к B не имеет смысла, пока сервер
-  не восстановится.
+- Вывод: silent hang не объясняется permessage-deflate
+  (CIO его не ставит). Скорее всего, к моменту теста домашний
+  IP уже был под rate-limit, и любой клиент с него висит.
+  Проверить CIO с мобильного IP или после паузы на домашнем —
+  отдельный шаг.
 
-**B. Raw SSLSocket WebSocket-клиент. — только после
-восстановления сервера.**
+**B. Raw SSLSocket WebSocket-клиент. — если OkHttp/CIO
+не заработают после снятия rate-limit.**
 
 - Свой handshake на `SSLSocket` с `CustomTrustManager`, свой
   WebSocket frame parser (text / close / ping-pong, без
@@ -434,7 +439,9 @@ URL и заголовками получал 101 в начале сессии и
 - Прод vs sandbox WS URL — не проверено. Пока один общий
   `wss://invest-public-api.tbank.ru/ws`.
 - permessage-deflate — на CIO не воспроизводится (заголовок не
-  ставится), но handshake всё равно висит. Гипотеза исключена.
+  ставится), но handshake всё равно висит. Гипотеза
+  **не подтвердилась**; более вероятно — rate-limit по IP
+  (см. ISSUES).
 
 
 
