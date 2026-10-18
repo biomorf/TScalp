@@ -172,36 +172,43 @@ iOS-задачи миграция станет обязательной. Сей�
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
 
-**Статус:** в работе. Фаза 1 — готова. Фаза 2 —
-инфраструктура и wiring готовы, WS-транспорт на OkHttp
-не проходит handshake (404/timeout от Envoy). Требуется
-смена WS-транспорта, см. «Альтернативы для WS-транспорта».
-**Ветка:** feature/stream-orchestrator; эксперименты по WS
-ведутся в `feature/ws-okhttp-fallback`, будут вмержены сюда.
+**Статус:** отложено. Фаза 1 — готова, вмержена. Фаза 2 —
+инфраструктура и wiring готовы. WS-транспорт не подтверждён:
+WS-эндпоинты T-Invest (WebSocket + REST-прокси) недоступны на
+стороне сервера, деградация зафиксирована в `docs/ISSUES.md` →
+«T-Invest WebSocket и REST-стримы недоступны (серверная деградация)».
+OkHttp и Ktor CIO ведут себя одинаково (404 / timeout / silent hang),
+websocat тоже зависает — это не наш код.
+**Ветка:** `feature/stream-orchestrator` (фаза 1 вмержена в dev,
+PR был). Эксперименты по WS — `feature/ws-okhttp-fallback` (не
+вмержена, хранит всё: OkHttp, CIO, заголовки, User-Agent).
+`stream-orchestrator` можно закрывать без WS-fallback; WS —
+отдельная задача после восстановления T-Invest.
 
 **Прогресс:**
 
 - [x] Фаза 1: `StreamCombinators.kt`, `TInvestOrchestrator.kt`,
   `TInvestBrokerApi` делегирует в оркестратор,
   `internal`-методы в `TInvestMarketDataService`.
-  Сборка и тесты — зелёные.
+  Сборка и тесты — зелёные. Вмержено в dev.
 - [x] Фаза 2, инфраструктура: `:transport-ktor` KMP-модуль
   (мигрирован на `com.android.kotlin.multiplatform.library`),
   DTO для WS-сообщений, unit-тест на десериализацию,
-  `TInvestPositionsWebSocket` на OkHttp (переписан с Ktor).
+  `TInvestPositionsWebSocket` (OkHttp-версия, затем Ktor CIO).
 - [x] Фаза 2, интеграция: `TInvestOrchestrator` использует
-  WS как fallback, Hilt-провайдеры, HTTP-клиент на
-  `CustomTrustManager`. Wiring сделан в
-  `feature/ws-okhttp-fallback`.
-- [ ] Фаза 2, WS handshake не подтверждён. OkHttp получает
-  404 от Envoy (до User-Agent) или timeout 10 секунд
-  (после User-Agent). Гипотеза — `permessage-deflate` в
-  handshake, OkHttp не даёт отключить публично. См.
-  `docs/ISSUES.md` → «T-Invest WebSocket: 404 от Envoy на
-  Android». Требуется смена транспорта — см.
-  «Альтернативы для WS-транспорта» ниже.
-- [ ] Фаза 3: раскат на цены и ордера.
-- [ ] Merge в `dev` — после подтверждения WS.
+  WS как fallback (через `wsFallback`-лямбду), Hilt-провайдеры,
+  HTTP-клиент на `CustomTrustManager` (OkHttp → CIO).
+  Wiring сделан в `feature/ws-okhttp-fallback`.
+- [ ] Фаза 2, WS handshake не подтверждён — серверная
+  деградация T-Invest. OkHttp: 404 от Envoy → timeout после
+  User-Agent. Ktor CIO: silent hang. Websocat: 101 в начале
+  сессии → silent hang позже. REST-прокси
+  `/rest/.../PositionsStream` → 404 (HTTP/1.1 и HTTP/2).
+  Матрица экспериментов — `docs/ISSUES.md`.
+- [ ] Фаза 3: раскат на цены и ордера — ждёт восстановления
+  стримов T-Invest.
+- [ ] Merge `feature/ws-okhttp-fallback` в `dev` — только
+  когда WS подтвердится на live-тесте.
 
 **Контекст:** три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка композиции логика fallback размазывается по брокерам. Оркестратор — единая точка композиции для каждого брокера.
 
@@ -305,63 +312,66 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 - Аналогично для `pricesStream` и `orderStateStream`.
 - Проверка на каждом.
 
-**Альтернативы для WS-транспорта (если OkHttp не проходит).**
+**Альтернативы для WS-транспорта.**
 
-Из диагностики (см. `docs/ISSUES.md` → «T-Invest WebSocket:
-404 от Envoy на Android»): websocat с `Web-Socket-Protocol:
-json` и URL без слэша получает 101, OkHttp — 404 или timeout.
-Единственное оставшееся отличие — OkHttp всегда ставит в
-handshake `Sec-WebSocket-Extensions: permessage-deflate`;
-websocat не ставит (`compress_deflate: false` в options).
-OkHttp не даёт публичного API убрать этот заголовок:
-`minWebSocketMessageToCompress` влияет только на исходящее
-сжатие сообщений.
+Историческая хронология: OkHttp → CIO → raw SSLSocket были
+вариантами замены транспорта. По итогам сессии 2026-10-18
+стало ясно, что **проблема на стороне сервера T-Invest**
+(см. `docs/ISSUES.md` → «T-Invest WebSocket и REST-стримы
+недоступны (серверная деградация)»). Websocat с теми же
+URL и заголовками получал 101 в начале сессии и зависает
+сейчас. REST-прокси тоже 404. Поэтому пока сервер не
+восстановится, ни один из вариантов A/B не даст результата.
 
-**A. Ktor CIO engine (`ktor-client-cio`).**
+Матрица экспериментов сохранена в ISSUES. Ниже — краткая
+сводка вариантов и их статус.
 
-- CIO не устанавливает `permessage-deflate` по умолчанию.
-- Плюс: готовый WS-клиент, Ktor уже в проекте, ~30–60 минут.
-- Минус: TLS через `SSLSocketFactory` в конфиге CIO нужно
-  сконфигурировать с `CustomTrustManager`; поведение проверить
-  (возможно, CIO использует свой TLS-стек).
-- Если за 30 минут TLS не заведётся — откат, переход к B.
-- Файлы: `transport-ktor/build.gradle.kts` (добавить
-  `ktor-client-cio`), `TInvestPositionsWebSocket.kt` (Ktor
-  `client.webSocket` вместо `OkHttpClient.newWebSocket`),
-  `DataModule.kt` (при необходимости — отдельный HTTP-клиент
-  на CIO).
-- Критерий проверки: `websocat -vv` на десктопе не показывает
-  `Sec-WebSocket-Extensions`; в логе нашего клиента тоже
-  не должно быть (или лог через CIO-interceptor покажет
-  отсутствие).
-- Если провалится — **B**.
+**A. Ktor CIO engine (`ktor-client-cio`). — опробован, не помог.**
 
-**B. Raw SSLSocket WebSocket-клиент.**
+- CIO не устанавливает `permessage-deflate` по умолчанию — это
+  было основной гипотезой (OkHttp ставит всегда, websocat — нет).
+- Реализовано: `HttpClient(CIO)` + `CustomTrustManager` через
+  `engine { https { trustManager = ... } }`, Ktor-версия
+  `TInvestPositionsWebSocket` восстановлена (Ktor `client.webSocket`),
+  `TInvestBrokerApi` инжектит `HttpClient` вместо `OkHttpClient`.
+- Результат: **silent hang** — handshake не отвечает 101 и не
+  отбивается кодом за 20+ секунд. То же, что вебсокет-версии
+  OkHttp в конце сессии.
+- Вывод: проблема не в permessage-deflate и не в клиенте,
+  а на сервере. Переход к B не имеет смысла, пока сервер
+  не восстановится.
+
+**B. Raw SSLSocket WebSocket-клиент. — только после
+восстановления сервера.**
 
 - Свой handshake на `SSLSocket` с `CustomTrustManager`, свой
   WebSocket frame parser (text / close / ping-pong, без
   permessage-deflate).
-- Плюс: полный контроль. Если websocat работает — это тоже
-  будет.
+- Плюс: полный контроль. Если websocat снова начнёт получать 101 —
+  и наш raw клиент тоже получит.
 - Минус: ~2–3 часа, нужно поддерживать (frame parsing,
   masking, fragmentation — вручную).
+- Когда выбирать: после появления 101 в websocat и если CIO / OkHttp
+  почему-то всё ещё не проходят handshake.
 - Файлы: `transport-ktor/src/commonMain/kotlin/.../raw/RawWebSocketClient.kt`
   (новый), `TInvestPositionsWebSocket.kt` (переписать на новый
   клиент).
 - Риски: TLS на raw socket — ручная работа с `SSLSocketFactory`
   и trust manager; SNI — руками.
-- Если провалится — **C**.
 
-**C. Отказ от WS-фоллбэка.**
+**C. Отказ от WS-фоллбэка. — текущее решение.**
 
-- Закрыть задачу без WS, gRPC + polling продолжают работать.
-  WS — nice-to-have, не блокер для остальных задач.
-- Плюс: не тратить 2–3 часа на кастомный клиент.
+- Закрыть `stream-orchestrator` без WS, gRPC + polling
+  продолжают работать. WS — nice-to-have, не блокер для
+  остальных задач.
+- Плюс: не тратить 2–3 часа на кастомный клиент, пока сервер
+  сам не работает.
 - Минус: теряем страховку на случай отказа gRPC.
-- Когда выбирать: если A и B провалились или приоритет
-  сместился.
+- Как вернуться к WS: отдельная задача `T-Invest WS fallback`
+  в ROADMAP, триггер — websocat снова получает 101.
 
-**Порядок:** A → (если провалится) B → (если провалится) C.
+**Порядок (актуальный):** A опробован → C сейчас → B — только
+после восстановления сервера, если понадобится.
 
 **Оценка альтернатив:**
 - A: 30–60 минут (включая проверку TLS).
@@ -396,27 +406,35 @@ OkHttp не даёт публичного API убрать этот заголо
 - Ktor 3.6.0 (проверено на Maven Central).
 - Не смешивать с миграцией REST.
 
-**Критерий готовности:**
+**Критерий готовности (актуальный, без WS):**
 
 - Модуль `:transport-ktor` собирается.
-- `TInvestOrchestrator` композирует два уровня с fallback'ами.
+- `TInvestOrchestrator` композирует gRPC-stream и polling
+  через `streamWithFallback`.
 - Брокер делегирует в оркестратор.
-- При отключённом gRPC-стриме данные идут через WS.
 - 63 unit-теста зелёные, ktlint и detekt чистые.
+- WS-фоллбэк — отдельная задача после восстановления сервера.
+
+**Критерий готовности (полный, с WS — когда сервер восстановится):**
+
+- При отключённом gRPC-стриме данные идут через WS.
+- Матрица экспериментов из ISSUES подтверждает 101 на websocat.
 
 **Оценка:** ~6–8 часов (фаза 1: 2 ч; фаза 2: 3–4 ч; фаза 3: 1–2 ч).
 
 **Зависимости:** нет. **Разблокирует** «Ktor REST transport для polling», «StreamState в data-слое», «UI-индикатор состояния стримов».
 
-**Открытые вопросы:**
+**Открытые вопросы (при возврате к задаче):**
 
-- Точная структура JSON-конверта подписки. В спецификации
-  `asyncapi.yaml` канал и структура полей подтверждены, но
-  полный пример конверта (обёртка над `V1PositionsStreamRequest`)
-  не приведён. **Гипотеза:** `{"positionsStream": { ... }}`.
-  Проверить при первой реализации фазы 2.
-- Отдельный URL для sandbox/prod WS или один общий.
-  Текущая гипотеза — один общий (`invest-public-api.tbank.ru`).
+- Точная структура JSON-конверта подписки — не подтверждена,
+  потому что до live-теста подписки дело не дошло (handshake не
+  проходит). Гипотеза: плоский JSON `{accounts, withInitialPositions}`
+  (сейчас в коде) или обёртка `{"positionsStream":{...}}`. Проверить
+  на первом живом WS.
+- Прод vs sandbox WS URL — не проверено. Пока один общий
+  `wss://invest-public-api.tbank.ru/ws`.
+- permessage-deflate — на CIO не воспроизводится (заголовок не
+  ставится), но handshake всё равно висит. Гипотеза исключена.
 
 
 
