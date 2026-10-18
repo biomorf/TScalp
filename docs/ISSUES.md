@@ -251,3 +251,53 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 `docs/ROADMAP.md` → закрытая задача «gRPC-стрим позиций».
 
 ---
+
+## restoreTInvest не использует сохранённый accountId при падении getAccounts
+
+**Статус:** открыт. Чинится сейчас — блокер для WS live-теста.
+
+**Симптом:** если `getAccounts` в `TScalpApplication.restoreTInvest`
+возвращает `UNAVAILABLE: upstream connect error`, весь метод
+падает в `catch`, `positionStreamManager.start(accountId)` не
+вызывается. Стримы gRPC, polling и WS не стартуют. UI показывает
+пустоту, даже если `savedAccountId` сохранён в DataStore и
+валиден.
+
+**Причина:** `restoreTInvest` построен линейно, без fallback:
+
+    try {
+      creds = loadBrokerCredentials() ?: return
+      tInvest.initialize(token, sandbox)
+      brokerManager.refreshInitializationState()
+      accounts = tInvest.getAccounts(sandbox)   // падает UNAVAILABLE
+      savedAccountId = loadDefaultAccountId(TINVEST)
+      accountId = when { ... }                  // не доходит
+      positionStreamManager.start(accountId)    // не вызывается
+    } catch (e) { log }
+
+- `savedAccountId` читается **после** `getAccounts`. Если
+  `getAccounts` бросает — сохранённое значение не используется.
+- Один `try/catch` на весь метод: любой сбой сети или брокера
+  прерывает весь `restoreTInvest`.
+- `saveDefaultAccountId` вызывается только при успешном
+  выборе, но сам accountId в DataStore **работает** и переживает
+  перезапуски.
+
+**Решение:**
+1. Читать `savedAccountId` **до** `getAccounts`.
+2. Обернуть `getAccounts` в отдельный `try/catch`. При падении:
+   - если `savedAccountId != null` — использовать его,
+     продолжить к `positionStreamManager.start()`;
+   - если `savedAccountId == null` и sandbox — попробовать
+     `openSandboxAccount()` в отдельном `try/catch`;
+   - если `savedAccountId == null` и не sandbox — лог и выход.
+3. `positionStreamManager.start()` вызывать независимо от
+   того, прошёл ли `getAccounts`.
+4. При успешном `getAccounts` — валидировать `savedAccountId`
+   (как сейчас: `accounts.any { it.id == savedAccountId }`).
+
+**Когда вернуться:** сейчас. В проде это означает: при временном
+сбое сети стримы не поднимаются при старте приложения, даже
+если пользователь уже логинился и счёт сохранён.
+
+---
