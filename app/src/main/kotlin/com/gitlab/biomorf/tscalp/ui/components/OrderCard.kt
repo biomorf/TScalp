@@ -10,8 +10,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
 import com.gitlab.biomorf.tscalp.util.TradePhrases
 import com.gitlab.biomorf.tscalp.util.formatPrice
 
@@ -32,6 +34,7 @@ import com.gitlab.biomorf.tscalp.util.formatPrice
  */
 @Composable
 fun OrderCard(
+    modifier: Modifier = Modifier,
     ticker: String,
     direction: String,
     orderType: OrderTypeSelection,
@@ -41,7 +44,6 @@ fun OrderCard(
     instrumentType: String = "",
     totalCost: Double? = null,
     onCancel: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
 ) {
     val orderColor = TradePhrases.orderTypeColor(orderType)
 
@@ -106,5 +108,62 @@ fun OrderCard(
                 )
             }
         }
+    }
+}
+
+@Preview(name = "Market order", showBackground = true, widthDp = 400)
+@Composable
+private fun OrderCardMarketPreview() {
+    TScalpTheme {
+        OrderCard(
+            ticker = "SBER",
+            direction = "BUY",
+            orderType = OrderTypeSelection.Market,
+            status = "NEW",
+            quantity = 10,
+            price = 250.5,
+            instrumentType = "share",
+            totalCost = 2505.0,
+            onCancel = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Preview(name = "Limit order — partial fill", showBackground = true, widthDp = 400)
+@Composable
+private fun OrderCardLimitPreview() {
+    TScalpTheme {
+        OrderCard(
+            ticker = "GAZP",
+            direction = "SELL",
+            orderType = OrderTypeSelection.Limit,
+            status = "PARTIALLY_FILL",
+            quantity = 20,
+            price = 150.0,
+            instrumentType = "share",
+            totalCost = 3000.0,
+            onCancel = {},
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Preview(name = "Executed order", showBackground = true, widthDp = 400)
+@Composable
+private fun OrderCardExecutedPreview() {
+    TScalpTheme {
+        OrderCard(
+            ticker = "SiU4",
+            direction = "BUY",
+            orderType = OrderTypeSelection.Limit,
+            status = "FILL",
+            quantity = 1,
+            price = 85000.0,
+            instrumentType = "futures",
+            totalCost = 85000.0,
+            onCancel = null,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
