@@ -17,12 +17,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
-import okhttp3.OkHttpClient
 import javax.inject.Singleton
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -43,8 +40,8 @@ object DataModule {
     @Singleton
     fun provideTInvestBrokerAPI(
         channelFactory: TInvestChannelFactory,
-        okHttpClient: OkHttpClient,
-    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, okHttpClient)
+        httpClient: HttpClient,
+    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient)
 
     @Provides
     @Singleton
@@ -72,48 +69,17 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideTInvestTransportHttpClient(
+    fun provideTInvestWsHttpClient(
         @ApplicationContext context: Context,
-    ): HttpClient {
-        val trustManager = CustomTrustManager(context)
-        val sslContext =
-            SSLContext.getInstance("TLS").apply {
-                init(null, arrayOf<TrustManager>(trustManager), null)
-            }
-        return HttpClient(OkHttp) {
+    ): HttpClient =
+        HttpClient(CIO) {
             install(WebSockets)
             engine {
-                config {
-                    followRedirects(false)
-                    followSslRedirects(false)
-                    retryOnConnectionFailure(true)
-                    sslSocketFactory(sslContext.socketFactory, trustManager)
+                https {
+                    trustManager = CustomTrustManager(context)
                 }
             }
         }
-    }
-
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(
-        @ApplicationContext context: Context,
-    ): OkHttpClient {
-        val trustManager = CustomTrustManager(context)
-        val sslContext =
-            SSLContext.getInstance("TLS").apply {
-                init(null, arrayOf<TrustManager>(trustManager), null)
-            }
-        return OkHttpClient
-            .Builder()
-            .sslSocketFactory(sslContext.socketFactory, trustManager)
-            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
-            .addInterceptor(
-                okhttp3.logging.HttpLoggingInterceptor { message ->
-                    com.gitlab.biomorf.tscalp.util.AppLogger.d("OkHttpWS", message)
-                }.apply { level = okhttp3.logging.HttpLoggingInterceptor.Level.HEADERS },
-            )
-            .build()
-    }
 }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(

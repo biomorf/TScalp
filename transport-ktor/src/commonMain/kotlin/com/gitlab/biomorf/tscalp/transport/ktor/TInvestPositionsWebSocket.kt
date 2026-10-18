@@ -2,43 +2,43 @@ package com.gitlab.biomorf.tscalp.transport.ktor
 
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsStreamResponseDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsStreamSubscribeRequestDto
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
+import io.ktor.websocket.send
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
 
 /**
- * WebSocket-клиент для T-Invest PositionsStream (OkHttp).
+ * WebSocket-клиент для T-Invest PositionsStream.
  *
- * URL: wss://invest-public-api.tbank.ru/ws/
- * Канал: /tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream
- * Формат: protobuf JSON mapping.
+ * URL: wss://invest-public-api.tbank.ru/ws (без завершающего слэша —
+ * только в этой форме сервер отвечает 101).
+ * Заголовки: Authorization: Bearer <token>, Web-Socket-Protocol: json.
+ * Формат подписки: плоский JSON ({"accounts":[...],"withInitialPositions":true}).
  *
  * Эмитит сырые DTO (PositionsStreamResponseDto).
  * Конвертация в доменные модели — в :app (оркестратор).
  *
  * Переподключение — экспоненциальный backoff [1s, 5s, 15s, 30s, 60s], cap 60s.
  *
- * НЕ использует Hilt. НЕ использует Android API.
+ * НЕ использует Hilt. НЕ использует Android API. Готов к KMP.
  *
- * Реализовано на OkHttp, а не на Ktor: Ktor client возвращал 404
- * на upgrade-handshake (проверены комбинации URL/header),
- * OkHttp — тот же стек, что у gRPC-транспорта, TLS-цепочка
- * CustomTrustManager уже проверена на этом проекте.
+ * Engine: Ktor CIO (не OkHttp). OkHttp в handshake всегда ставит
+ * Sec-WebSocket-Extensions: permessage-deflate, который ingress
+ * T-Invest не принимает — handshake висит 10 секунд и падает по таймауту.
+ * CIO не ставит этот заголовок по умолчанию, как websocat
+ * (compress_deflate: false).
  */
 class TInvestPositionsWebSocket(
-    private val client: OkHttpClient,
+    private val client: HttpClient,
     private val url: String,
     private val token: String,
     private val json: Json = Json { ignoreUnknownKeys = true },
@@ -54,9 +54,36 @@ class TInvestPositionsWebSocket(
         while (currentCoroutineContext().isActive) {
             try {
                 logger("$TAG connecting (attempt=${attempt + 1})")
-                connectOnce(accountId).collect { emit(it) }
-                attempt = 0
-                logger("$TAG stream closed by server, reconnecting")
+                client.webSocket(
+                    urlString = url,
+                    request = {
+                        headers.append("Authorization", "Bearer $token")
+                        headers.append("Web-Socket-Protocol", "json")
+                    },
+                ) {
+                    logger("$TAG connected")
+                    val subscription = PositionsStreamSubscribeRequestDto(
+                        accounts = listOf(accountId),
+                        withInitialPositions = true,
+                    )
+                    val envelope = buildSubscriptionEnvelope(subscription)
+                    send(Frame.Text(envelope))
+                    logger("$TAG subscription sent (${envelope.length} bytes)")
+
+                    for (frame in incoming) {
+                        if (frame !is Frame.Text) continue
+                        val text = frame.readText()
+                        logger("$TAG frame received (len=${text.length})")
+                        try {
+                            val response = json.decodeFromString(PositionsStreamResponseDto.serializer(), text)
+                            emit(response)
+                        } catch (e: Exception) {
+                            logger("$TAG parse error: ${e.message}")
+                        }
+                    }
+                    logger("$TAG stream closed by server, reconnecting")
+                    attempt = 0
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -69,82 +96,6 @@ class TInvestPositionsWebSocket(
         }
     }
 
-    private fun connectOnce(accountId: String): Flow<PositionsStreamResponseDto> = callbackFlow {
-        val request =
-            Request
-                .Builder()
-                .url(url)
-                .header("Authorization", "Bearer $token")
-                .header("Web-Socket-Protocol", "json")
-                .header("User-Agent", "websocat/1.14.1")
-                .build()
-
-        val listener =
-            object : WebSocketListener() {
-                override fun onOpen(
-                    webSocket: WebSocket,
-                    response: Response,
-                ) {
-                    logger("$TAG connected")
-                    val subscription =
-                        PositionsStreamSubscribeRequestDto(
-                            accounts = listOf(accountId),
-                            withInitialPositions = true,
-                        )
-                    val envelope = buildSubscriptionEnvelope(subscription)
-                    webSocket.send(envelope)
-                    logger("$TAG subscription sent (${envelope.length} bytes)")
-                }
-
-                override fun onMessage(
-                    webSocket: WebSocket,
-                    text: String,
-                ) {
-                    logger("$TAG frame received (len=${text.length})")
-                    try {
-                        val response = json.decodeFromString(PositionsStreamResponseDto.serializer(), text)
-                        trySend(response)
-                    } catch (e: Exception) {
-                        logger("$TAG parse error: ${e.message}")
-                    }
-                }
-
-                override fun onClosed(
-                    webSocket: WebSocket,
-                    code: Int,
-                    reason: String,
-                ) {
-                    logger("$TAG closed by server: code=$code, reason=$reason")
-                    close()
-                }
-
-                override fun onFailure(
-                    webSocket: WebSocket,
-                    t: Throwable,
-                    response: Response?,
-                ) {
-                    val code = response?.code ?: -1
-                    val body =
-                        try {
-                            response?.body?.string()?.take(500) ?: ""
-                        } catch (e: Exception) {
-                            "<body read failed: ${e.message}>"
-                        }
-                    val headers = response?.headers?.toString() ?: ""
-                    logger("$TAG failure: ${t.message} | code=$code | body=$body | headers=$headers")
-                    close(t)
-                }
-            }
-
-        val webSocket = client.newWebSocket(request, listener)
-        awaitClose {
-            logger("$TAG closing")
-            webSocket.cancel()
-        }
-    }
-
-    private fun buildSubscriptionEnvelope(request: PositionsStreamSubscribeRequestDto): String {
-        val inner = json.encodeToString(PositionsStreamSubscribeRequestDto.serializer(), request)
-        return """{"positionsStream":$inner}"""
-    }
+    private fun buildSubscriptionEnvelope(request: PositionsStreamSubscribeRequestDto): String =
+        json.encodeToString(PositionsStreamSubscribeRequestDto.serializer(), request)
 }
