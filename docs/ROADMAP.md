@@ -11,6 +11,139 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### Rate-limiter для unary-запросов T-Invest
+
+**Мобильная работа:** невозможно (сборка + тесты на десктопе;
+правки `.kt` через proot — можно, но без проверки).
+
+**Статус:** запланировано.
+
+**Контекст:** в проекте **нет rate-limiter для unary-запросов**
+к T-Invest. Единственные механизмы ограничения частоты —
+периодичность polling (`RETRY_DELAY_MS = 10_000L` для позиций,
+`5_000L` для цен) и backoff переподключения стримов
+(`GRPC_RETRY_DELAYS_MS`, `RETRY_DELAYS_MS`). Это не ограничители
+частоты API, а расписания. При параллельных запросах
+(например, `getTradingStatuses` через
+`coroutineScope { awaitAll() }` — N параллельных unary на
+N инструментов) лимит легко превышается.
+
+Официальные лимиты T-Invest записаны в `docs/rate-limits.md`:
+не более 50 запросов в секунду суммарно, плюс по-сервисные
+лимиты в минуту (Instruments 200, Users 100, MarketData 300,
+Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
+и т.д.).
+
+**Зачем:** без rate-limiter'а возможны `RESOURCE_EXHAUSTED`
+от API, троттлинг на стороне сервера, деградация UX
+(запросы уходят в отказ, UI показывает ошибки). Особенно
+критично для `postOrder` (15/сек) и `getTradingStatuses`
+(N параллельных).
+
+**Предусловия:** нет.
+
+**Файлы:**
+
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestRateLimiter.kt` (новый) —
+  rate-limiter (токен-бакет) с учётом лимитов по сервисам и
+  общего лимита 50/сек.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestMarketDataService.kt` —
+  обернуть `getLastPricesByTscalpInstrumentId`,
+  `getTradingStatuses`, `getPortfolio`, `fetchPositionsSnapshot`
+  (внутри — unary) в rate-limiter.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestOrdersService.kt` —
+  обернуть `postOrder` (15/сек), `postStopOrder`,
+  `getOrders`/`getStopOrders`, `cancel*`.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/DataModule.kt` —
+  Hilt-провайдер `TInvestRateLimiter` как `@Singleton`.
+
+**Шаги:**
+
+1. **Вынести лимиты в константы** (`TInvestRateLimits` в
+   `data/api/`): таблицы из `docs/rate-limits.md` — по каждому
+   сервису, отдельные строки для `getOrders` и `postOrder`,
+   общий лимит 50/сек.
+2. **Реализовать токен-бакет** (`TInvestRateLimiter`): метод
+   `suspend fun <T> withPermission(service: TInvestService, block: suspend () -> T): T`.
+   Внутри — `Semaphore` или `Channel`-based limiter с
+   двумя уровнями: per-service (N/мин) и глобальный (50/сек).
+3. **Интегрировать** в `TInvestMarketDataService` и
+   `TInvestOrdersService`: обернуть каждый unary-вызов в
+   `rateLimiter.withPermission(...) { broker.method() }`.
+4. **Особый случай `getTradingStatuses`:** сейчас
+   `coroutineScope { ids.map { async { ... } }.awaitAll() }` —
+   N параллельных. С rate-limiter'ом либо (а) последовательно
+   через limiter, либо (б) батчинг (если API даст метод
+   batch-запроса), либо (в) ограничить concurrency — например,
+   `Semaphore(10)` поверх rate-limiter'а.
+5. **Опционально: `GetUserTariff`** — unary-метод, возвращает
+   актуальные лимиты для пользователя. Вызывать при старте
+   приложения (после `initialize`), кэшировать, использовать
+   в rate-limiter вместо статических констант. Для грейдов
+   4–5 лимиты выше, чем в таблице.
+6. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
+   запросов не превышают лимит, что `postOrder` не чаще
+   15/сек, что общий лимит 50/сек соблюдается.
+
+**Референсы:**
+
+- `docs/rate-limits.md` — официальные лимиты (полные таблицы).
+- Официальная документация T-Invest:
+  `https://developer.tbank.ru/invest/intro/developer/limits` —
+  раздел «Лимиты запросов».
+- `GetUserTariff` в proto-контракте:
+  `ru.tinkoff.piapi.contract.v1.UsersService/GetUserTariff`.
+
+**Ограничения:**
+
+- Не менять публичные контракты `BrokerApi`. Rate-limiter —
+  внутренняя деталь `TInvestBrokerAPI` и его сервисов.
+- Не смешивать с задачей `stream-orchestrator` — это отдельная
+  работа по data-слою, не про WS.
+- Не трогать BCS / Finam — у них свои лимиты, отдельные задачи
+  при интеграции.
+- Держать поведение `getTradingStatuses` прежним по контракту
+  (тот же `Map<uid, TradingAvailability>`), меняется только
+  внутренняя реализация.
+- Если rate-limiter не может дать разрешение (запрос ждёт
+  слишком долго) — вернуть `AppResult.Failure` с
+  `AppError.Unknown("rate limit")` или дождаться с таймаутом.
+  Решение зафиксировать в KDoc.
+
+**Критерий готовности:**
+
+- `TInvestRateLimiter` реализован, покрыт unit-тестами.
+- Все unary-вызовы в `TInvestMarketDataService` и
+  `TInvestOrdersService` проходят через rate-limiter.
+- `getTradingStatuses` не превышает лимит `MarketData`
+  (300/мин для gRPC) даже при 100 инструментах за раз.
+- `postOrder` не чаще 15/сек.
+- Общий лимит 50/сек с одного IP соблюдается (замер в unit-тесте).
+- 63 теста зелёные, ktlint и detekt чистые.
+
+**Оценка:** ~3–5 часов (токен-бакет 1–1.5 ч, интеграция
+1–1.5 ч, `GetUserTariff` 0.5–1 ч, тесты 0.5–1 ч).
+
+**Зависимости:** нет. **Разблокирует:** безопасный переход на
+более агрессивный polling, добавление батч-операций по
+инструментам, торговлю без риска `RESOURCE_EXHAUSTED`.
+
+**Открытые вопросы:**
+
+- Использовать `GetUserTariff` сразу или начать со статических
+  лимитов и добавить динамические позже. Решить при старте.
+- Как вести себя при долгом ожидании (timeout vs fail vs
+  ждать) — унифицировать через `AppResult`.
+- Нужен ли отдельный rate-limiter для REST-эндпоинтов T-Invest
+  (REST-прокси), если они будут использоваться — у REST
+  лимиты ниже (см. таблицу). Пока REST не используется,
+  не актуально.
+
+
+
+
+---
+
 ### Плавный переход Hilt → Koin
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts` — через
