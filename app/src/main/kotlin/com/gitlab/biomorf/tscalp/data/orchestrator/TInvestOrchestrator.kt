@@ -21,8 +21,23 @@ class TInvestOrchestrator(
 ) {
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
         streamWithFallback(
-            primary = marketData.subscribePositionsGrpcWithReconnect(accountId),
-            fallback = wsFallback(accountId),
-            polling = marketData.subscribePositionsPolling(accountId),
+            primary =
+                if (DebugConfig.DISABLE_GRPC_STREAM) {
+                    null
+                } else {
+                    marketData.subscribePositionsGrpcWithReconnect(accountId)
+                },
+            fallback =
+                if (DebugConfig.DISABLE_WS_FALLBACK) {
+                    null
+                } else {
+                    wsFallback(accountId)
+                },
+            polling =
+                if (DebugConfig.DISABLE_POLLING) {
+                    null
+                } else {
+                    marketData.subscribePositionsPolling(accountId)
+                },
         )
 }
