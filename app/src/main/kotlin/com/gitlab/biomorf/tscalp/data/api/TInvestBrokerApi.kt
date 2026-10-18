@@ -31,7 +31,9 @@ class TInvestBrokerAPI(
     private val httpClient: HttpClient,
 ) : BrokerApi {
     private companion object {
-        const val WS_URL = "wss://invest-public-api.tbank.ru/ws"
+        const val WS_BASE_URL = "wss://invest-public-api.tbank.ru/ws"
+        const val WS_POSITIONS_CHANNEL = "tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream"
+        const val WS_URL = "$WS_BASE_URL/$WS_POSITIONS_CHANNEL"
     }
 
     private val state = TInvestApiState()
