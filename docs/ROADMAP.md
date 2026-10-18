@@ -172,24 +172,36 @@ iOS-задачи миграция станет обязательной. Сей�
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
 
-**Статус:** в работе.
-**Ветка:** feature/stream-orchestrator
+**Статус:** в работе. Фаза 1 — готова. Фаза 2 —
+инфраструктура и wiring готовы, WS-транспорт на OkHttp
+не проходит handshake (404/timeout от Envoy). Требуется
+смена WS-транспорта, см. «Альтернативы для WS-транспорта».
+**Ветка:** feature/stream-orchestrator; эксперименты по WS
+ведутся в `feature/ws-okhttp-fallback`, будут вмержены сюда.
 
 **Прогресс:**
 
 - [x] Фаза 1: `StreamCombinators.kt`, `TInvestOrchestrator.kt`,
   `TInvestBrokerApi` делегирует в оркестратор,
-  `internal`-методы в `TInvestMarketDataService`. Ожидает
-  компиляции на десктопе.
-- [x] Фаза 2, инфраструктура: `:transport-ktor` KMP-модуль,
-  DTO для WS-сообщений, скелет `TInvestPositionsWebSocket`
-  с reconnect, unit-тест на десериализацию. Ожидает
-  компиляции и проверки на реальном WS.
-- [ ] Фаза 2, интеграция: подключить WS как fallback в
-  `TInvestOrchestrator`, проверить fallback (отключить gRPC →
-  WS подхватывает).
+  `internal`-методы в `TInvestMarketDataService`.
+  Сборка и тесты — зелёные.
+- [x] Фаза 2, инфраструктура: `:transport-ktor` KMP-модуль
+  (мигрирован на `com.android.kotlin.multiplatform.library`),
+  DTO для WS-сообщений, unit-тест на десериализацию,
+  `TInvestPositionsWebSocket` на OkHttp (переписан с Ktor).
+- [x] Фаза 2, интеграция: `TInvestOrchestrator` использует
+  WS как fallback, Hilt-провайдеры, HTTP-клиент на
+  `CustomTrustManager`. Wiring сделан в
+  `feature/ws-okhttp-fallback`.
+- [ ] Фаза 2, WS handshake не подтверждён. OkHttp получает
+  404 от Envoy (до User-Agent) или timeout 10 секунд
+  (после User-Agent). Гипотеза — `permessage-deflate` в
+  handshake, OkHttp не даёт отключить публично. См.
+  `docs/ISSUES.md` → «T-Invest WebSocket: 404 от Envoy на
+  Android». Требуется смена транспорта — см.
+  «Альтернативы для WS-транспорта» ниже.
 - [ ] Фаза 3: раскат на цены и ордера.
-- [ ] Merge в `dev` — после десктоп-проверки.
+- [ ] Merge в `dev` — после подтверждения WS.
 
 **Контекст:** три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка композиции логика fallback размазывается по брокерам. Оркестратор — единая точка композиции для каждого брокера.
 
@@ -292,6 +304,69 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 **Фаза 3 — Раскат на цены и ордера.**
 - Аналогично для `pricesStream` и `orderStateStream`.
 - Проверка на каждом.
+
+**Альтернативы для WS-транспорта (если OkHttp не проходит).**
+
+Из диагностики (см. `docs/ISSUES.md` → «T-Invest WebSocket:
+404 от Envoy на Android»): websocat с `Web-Socket-Protocol:
+json` и URL без слэша получает 101, OkHttp — 404 или timeout.
+Единственное оставшееся отличие — OkHttp всегда ставит в
+handshake `Sec-WebSocket-Extensions: permessage-deflate`;
+websocat не ставит (`compress_deflate: false` в options).
+OkHttp не даёт публичного API убрать этот заголовок:
+`minWebSocketMessageToCompress` влияет только на исходящее
+сжатие сообщений.
+
+**A. Ktor CIO engine (`ktor-client-cio`).**
+
+- CIO не устанавливает `permessage-deflate` по умолчанию.
+- Плюс: готовый WS-клиент, Ktor уже в проекте, ~30–60 минут.
+- Минус: TLS через `SSLSocketFactory` в конфиге CIO нужно
+  сконфигурировать с `CustomTrustManager`; поведение проверить
+  (возможно, CIO использует свой TLS-стек).
+- Если за 30 минут TLS не заведётся — откат, переход к B.
+- Файлы: `transport-ktor/build.gradle.kts` (добавить
+  `ktor-client-cio`), `TInvestPositionsWebSocket.kt` (Ktor
+  `client.webSocket` вместо `OkHttpClient.newWebSocket`),
+  `DataModule.kt` (при необходимости — отдельный HTTP-клиент
+  на CIO).
+- Критерий проверки: `websocat -vv` на десктопе не показывает
+  `Sec-WebSocket-Extensions`; в логе нашего клиента тоже
+  не должно быть (или лог через CIO-interceptor покажет
+  отсутствие).
+- Если провалится — **B**.
+
+**B. Raw SSLSocket WebSocket-клиент.**
+
+- Свой handshake на `SSLSocket` с `CustomTrustManager`, свой
+  WebSocket frame parser (text / close / ping-pong, без
+  permessage-deflate).
+- Плюс: полный контроль. Если websocat работает — это тоже
+  будет.
+- Минус: ~2–3 часа, нужно поддерживать (frame parsing,
+  masking, fragmentation — вручную).
+- Файлы: `transport-ktor/src/commonMain/kotlin/.../raw/RawWebSocketClient.kt`
+  (новый), `TInvestPositionsWebSocket.kt` (переписать на новый
+  клиент).
+- Риски: TLS на raw socket — ручная работа с `SSLSocketFactory`
+  и trust manager; SNI — руками.
+- Если провалится — **C**.
+
+**C. Отказ от WS-фоллбэка.**
+
+- Закрыть задачу без WS, gRPC + polling продолжают работать.
+  WS — nice-to-have, не блокер для остальных задач.
+- Плюс: не тратить 2–3 часа на кастомный клиент.
+- Минус: теряем страховку на случай отказа gRPC.
+- Когда выбирать: если A и B провалились или приоритет
+  сместился.
+
+**Порядок:** A → (если провалится) B → (если провалится) C.
+
+**Оценка альтернатив:**
+- A: 30–60 минут (включая проверку TLS).
+- B: 2–3 часа (включая парсер фреймов).
+- C: 0 (только закрытие задачи).
 
 **Файлы:**
 
