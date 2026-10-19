@@ -305,18 +305,23 @@ iOS-задачи миграция станет обязательной. Сей�
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
 
-**Статус:** отложено. Фаза 1 — готова, вмержена. Фаза 2 —
-инфраструктура и wiring готовы. WS-транспорт не подтверждён на
-устройстве, но **сервер T-Invest жив**: с мобильного IP через
-websocat handshake проходит (соединение держится). С домашнего
-IP после ~100 попыток — silent hang; с каналом в URL — работает
-по IP или User-Agent. См. `docs/ISSUES.md` → «T-Invest WebSocket:
-решён — канал должен быть в URL path».
+**Статус:** в работе. Фаза 1 — готова, вмержена в dev. Фаза 2 —
+инфраструктура, wiring и WS-транспорт готовы в коде. Root cause
+найден 2026-10-19: канал T-Invest — **часть URL path**, голый `/ws`
+возвращает 404 / timeout / silent hang. С каналом в URL handshake
+проходит за миллисекунды, сервер отвечает
+`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS` и шлёт `initialPositions`
+(подтверждено через websocat на прод-аккаунте 2309452027). В коде
+URL исправлен (коммит `777fa60`). Live-тест через
+`TInvestPositionsWebSocket` на устройстве — ожидается на десктопе.
+Детали и коды закрытия WS (`1013` / `4001` / `1011 + 50004`) —
+`docs/ISSUES.md` → «T-Invest WebSocket: решён — канал должен
+быть в URL path».
+
 **Ветка:** `feature/stream-orchestrator` (фаза 1 вмержена в dev,
-PR был). Эксперименты по WS — `feature/ws-okhttp-fallback` (не
-вмержена, хранит всё: OkHttp, CIO, заголовки, User-Agent).
-`stream-orchestrator` можно закрывать без WS-fallback; WS —
-отдельная задача после паузы и проверки rate-limit.
+PR был). Фаза 2 и WS-транспорт — в `feature/ws-okhttp-fallback`
+(готова к merge в `stream-orchestrator` после live-теста на
+устройстве).
 
 **Прогресс:**
 
