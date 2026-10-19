@@ -97,6 +97,93 @@
 `PositionStreamManager` с периодом 10 секунд. P&L корректно
 отображается с задержкой.
 
+## WebSocket (T-Invest)
+
+Стриминг через WebSocket — альтернатива gRPC-стримам для тех же
+каналов (`PositionsStream`, `MarketDataStream`, `OrdersStream`).
+Реализован в `:transport-ktor` (`TInvestPositionsWebSocket`),
+движок Ktor CIO.
+
+### Адрес
+
+**Канал — часть URL path**, а не только тело подписки:
+
+    wss://invest-public-api.tbank.ru/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream
+
+Голый `/ws` без канала возвращает 404 / timeout / silent hang.
+Подтверждено end-to-end через websocat (`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS`
+и `initialPositions` с реальными securities).
+
+### Авторизация
+
+Два допустимых способа (по документации T-Invest):
+
+- `Authorization: Bearer <token>` — HTTP-заголовок, работает.
+- `Web-Socket-Protocol: json, <token>` — токен в заголовке
+  протокола, тоже допустим, но не проверяли.
+
+Сейчас в коде используется `Authorization`.
+
+### Формат сообщений: json или json-proto
+
+T-Invest поддерживает два режима через заголовок
+`Web-Socket-Protocol`:
+
+- **`json`** (camelCase) — стандартный protobuf JSON mapping.
+  Поля: `initialPositions`, `instrumentUid`, `classCode`,
+  `withInitialPositions`.
+- **`json-proto`** (snake_case) — имена как в proto-контрактах.
+  Поля: `initial_positions`, `instrument_uid`, `class_code`,
+  `with_initial_positions`.
+
+**Выбрано: `json`.** Архитектурное обоснование:
+
+1. **Не протекает proto в транспорт.** `:transport-ktor` — KMP-
+   модуль, без зависимости от `ru.tinkoff.piapi`. Если бы выбрали
+   `json-proto` ради совпадения имён с proto-классами, единственный
+   сценарий выгоды — втащить `ru.tinkoff.piapi` внутрь transport,
+   чтобы делить типы с gRPC. Это ломает KMP-совместимость
+   (T-Invest SDK — Android-only) и убивает цель модуля.
+2. **Согласованность с другими JSON-слоями.** BCS и Finam отдают
+   camelCase (REST-конвенция). Если WS будет snake_case, в
+   `data/api/` окажутся DTO двух стилей — лишняя когнитивная цена.
+3. **Читаемость логов и документации.** `json` совпадает с
+   asyncapi-примерами T-Invest и с тем, что приходит в websocat.
+   `json-proto` выглядит как внутренности proto, случайно
+   просочившиеся наружу.
+4. **Простая точка перехода, если понадобится.** Смена режима —
+   одна строка в заголовке + переименование `@SerialName`
+   в DTO. Не архитектурный разворот, а локальная правка.
+
+**Когда `json-proto` стал бы лучше:** если бы `:transport-ktor`
+был не отдельным слоем, а тонкой обёрткой над gRPC-proto, и мы
+были бы готовы втащить `ru.tinkoff.piapi` внутрь него. У нас —
+два разных слоя по дизайну, и `json` эту границу уважает.
+
+### Коды закрытия WS
+
+Сервер T-Invest использует стандартные WebSocket close codes
+(1000–4999) плюс собственные application-коды в reason:
+
+- **`1013 Try Again Later`** — соединение открыто, но подписка
+  не пришла за ~10 секунд. Сервер закрывает по таймауту ожидания
+  подписки. В нашем клиенте не возникает — `TInvestPositionsWebSocket`
+  отправляет подписку сразу после `connected`.
+- **`4001 Unauthorized`** — handshake прошёл, но токен не принят
+  в `Authorization`. Проверить токен / режим (sandbox vs prod).
+- **`1011` + `reason: "50004"`** — `NOT_FOUND` (счёт не существует).
+  Проверить accountId: соответствует ли он токену.
+
+### Связанные документы
+
+- `docs/ISSUES.md` → «T-Invest WebSocket: решён — канал должен
+  быть в URL path» — root cause, матрица экспериментов,
+  коды закрытия.
+- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport» —
+  план фаз 2 и 3.
+
+---
+
 ## Рекомендации
 
 - **Правильное имя метода:** `OperationsStreamService.positionsStream`
