@@ -72,49 +72,53 @@ web Settings GitHub + правка `docs/git-flow.md`.
 
 ### Self-hosted GitLab Runner через Ansible + Podman
 
-**Мобильная работа:** частичное (Ansible-роль, inventory,
-playbook — с телефона; тестирование разворачивания — на
-домашней машине).
+**Мобильная работа:** частичное (написание Ansible-ролей, inventory, playbook — с телефона; тестирование разворачивания — на удалённом сервере или десктопе).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** ci/self-hosted-runner
 
-**Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
-64 ГБ RAM, Bluefin 44) через Ansible, используя Podman как
-executor. Предусмотреть возможность переключения на удалённый
-сервер через inventory.
+**Что:** развернуть GitLab Runner на удалённом сервере (Fedora 43, `51.250.36.160`, 2 CPU, 2 GB RAM) и/или домашней машине (Bluefin 44, i9 13980HX, 64 GB RAM) через Ansible, используя Podman как executor. Один хост активен, второй — резерв. Переключение через inventory.
 
-**Зачем:** квота GitLab Free Tier (400 минут/мес) исчерпана.
-Self-hosted даёт бесплатные сборки, полный контроль над
-окружением и лучшую производительность.
+**Зачем:** квота GitLab Free Tier одноразовая. Self-hosted — единственный путь для регулярных сборок без ограничений.
 
 **Технические детали:**
-- Podman как drop-in замена Docker в GitLab Runner 15.1+.
-  В `config.toml`: `executor = "docker"`,
-  `host = "unix:///run/user/<uid>/podman/podman.sock"`.
-- Rootless Podman: без root, без демона, безопаснее.
-- Ansible роль: создание пользователя `gitlab-runner`,
-  `loginctl enable-linger`, `systemctl --user enable podman.socket`,
-  регистрация раннера, настройка `config.toml`.
-- Ограничения ресурсов: `--memory=16g`, `--cpus=8` (с запасом,
-  начать с 8g/4).
-- Кэш Gradle монтируется с хоста для ускорения сборок.
+- **Ansible-роль:** создание пользователя `gitlab-runner`, установка `podman` и `gitlab-runner` (явно, через dnf), `loginctl enable-linger`, `systemctl --user enable --now podman.socket`, регистрация раннера, генерация `config.toml`.
+- **Регистрация:** GitLab 17+ использует authentication token (`--token glrt-...`), а не устаревший registration token.
+- **Podman как executor:** в `config.toml` `executor = "docker"`, `host = "unix:///run/user/<uid>/podman/podman.sock"`. Rootless.
+- **Ограничения ресурсов:**
+  - `remote`: `concurrent = 1`, `--memory=1g`, `--cpus=2` (2 GB RAM — впритык, добавить swap и ограничить Gradle JVM в `gradle.properties` для CI).
+  - `home`: `concurrent = 4`, `--memory=8g`, `--cpus=8`.
+- **Кэш Gradle:** монтируется с хоста в контейнер для ускорения сборок (том `gradle-cache`).
+- **Секреты:** токен раннера хранится в Ansible Vault (`ansible/group_vars/all/vault.yml`), пароль Vault — вне репозитория.
 
 **Бесшовное переключение:**
-- Inventory с двумя хостами: `local` и `remote`.
-- Раннеры регистрируются с разными тегами (`home`, `remote`).
-- Переключение — смена тега в `.gitlab-ci.yml` или через
-  переменную CI/CD.
+- Inventory с двумя хостами: `remote` (Fedora 43) и `home` (Bluefin 44).
+- Один хост включён (`enabled: true` в `host_vars`), второй выключен.
+- Раннеры регистрируются с разными тегами (`remote`, `home`).
+- Переключение — смена `enabled` в `host_vars` + `ansible-playbook`.
+- Для CI: `tags:` в `.gitlab-ci.yml` выбирает нужный раннер.
 
 **План:**
-1. Написать Ansible роль для GitLab Runner + Podman.
-2. Протестировать на домашней машине (`ansible-playbook -i inventory.yml playbook.yml`).
-3. Зарегистрировать раннер в проекте.
-4. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
-5. `build-release` и `publish-release` оставить на GitLab SaaS
-   или перенести после проверки.
+1. Создать структуру Ansible-проекта (`ansible/` в корне репозитория).
+2. Написать роль `gitlab_runner` (задачи, шаблоны, handlers).
+3. Настроить inventory и Vault.
+4. Протестировать на `remote` (`ansible-playbook -i inventory/hosts.yml playbook.yml`).
+5. Зарегистрировать раннер в GitLab (project runner для `biomorf/tscalp`).
+6. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
+7. `build-release` и `publish-release` оставить на GitLab SaaS (или перенести после проверки).
 
-**Оценка:** ~2–3 часа на написание роли и отладку.
-**Когда:** после решения вопроса с Gradle upgrade.
+**Оценка:** ~4–5 часов (роль 2 ч, отладка на сервере 1.5 ч, интеграция в `.gitlab-ci.yml` 1 ч, документация 0.5 ч).
+
+**Предусловия:**
+- Проект `biomorf/tscalp` на gitlab.com существует.
+- Authentication token для runner создан в GitLab UI.
+- SSH-доступ к `51.250.36.160` по ключу проверен.
+
+**Открытые вопросы:**
+- Нужно ли ставить `fail2ban` на сервер? (Пока нет, по решению пользователя.)
+- Переносить ли `build-release` на self-hosted сразу или после стабилизации? (Оставить на SaaS пока.)
+
+---
 
 ### Hot-swap CI на GitLab
 
