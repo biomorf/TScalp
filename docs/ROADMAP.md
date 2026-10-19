@@ -337,19 +337,23 @@ PR был). Фаза 2 и WS-транспорт — в `feature/ws-okhttp-fallba
   WS как fallback (через `wsFallback`-лямбду), Hilt-провайдеры,
   HTTP-клиент на `CustomTrustManager` (OkHttp → CIO).
   Wiring сделан в `feature/ws-okhttp-fallback`.
-- [ ] Фаза 2, WS handshake не подтверждён на устройстве.
-  С домашнего IP: OkHttp → 404 / timeout, Ktor CIO → silent
-  hang, websocat → 101 в начале сессии, silent hang через час.
-  **С мобильного IP через websocat — соединение держится
-  (сервер жив, вход найден: `/ws` без слэша +
-  `Web-Socket-Protocol: json`).** Вероятный rate-limit по
-  IP/UA после массовых попыток; пауза и проверка описаны в
-  `docs/ISSUES.md`. REST-прокси `/rest/.../PositionsStream`
-  → 404 независимо от IP — отдельный вопрос.
-- [ ] Фаза 3: раскат на цены и ордера — ждёт восстановления
-  стримов T-Invest.
-- [ ] Merge `feature/ws-okhttp-fallback` в `dev` — только
-  когда WS подтвердится на live-тесте.
+- [x] Фаза 2, WS handshake подтверждён. Root cause: канал —
+  **часть URL path**, голый `/ws` даёт 404 / timeout / silent
+  hang. С каналом в пути
+  (`/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`)
+  и заголовком `Web-Socket-Protocol: json` handshake проходит
+  за миллисекунды. Подтверждено через websocat на прод-аккаунте
+  2309452027 (`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS` +
+  `initialPositions` с реальными securities). URL в коде
+  исправлен (`777fa60`). Live-тест через
+  `TInvestPositionsWebSocket` — ожидается на десктопе.
+- [ ] Фаза 3: раскат на цены и ордера. Отдельные каналы:
+  `MarketDataStream` (цены), `OrdersStream` (статусы заявок).
+  URL по тому же шаблону: `WS_BASE_URL + WS_*_CHANNEL`.
+  После стабилизации `PositionsStream` на устройстве.
+- [ ] Merge `feature/ws-okhttp-fallback` → `feature/stream-orchestrator`
+  → `dev` — после live-теста через `TInvestPositionsWebSocket`
+  на устройстве (connected + frame received в logcat `TInvestWS`).
 
 **Контекст:** три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка композиции логика fallback размазывается по брокерам. Оркестратор — единая точка композиции для каждого брокера.
 
