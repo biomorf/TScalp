@@ -207,6 +207,7 @@ class TInvestMarketDataService(
                     profitPercent = profitPercent,
                     instrumentType = instrumentUi?.instrumentType ?: "",
                     pointValue = pointVal,
+                    currency = instrumentUi?.currency,
                 )
             }
         }
@@ -322,7 +323,7 @@ class TInvestMarketDataService(
      * сервером → повтор без задержки. NOT_FOUND → завершение
      * потока без переподключения.
      */
-    private fun subscribePositionsGrpcWithReconnect(accountId: String): Flow<PositionStreamItem> =
+    internal fun subscribePositionsGrpcWithReconnect(accountId: String): Flow<PositionStreamItem> =
         flow {
             var attempt = 0
             while (currentCoroutineContext().isActive) {
@@ -363,7 +364,7 @@ class TInvestMarketDataService(
      *
      * NOT_FOUND по счёту завершает поток.
      */
-    private fun subscribePositionsPolling(accountId: String): Flow<PositionStreamItem> =
+    internal fun subscribePositionsPolling(accountId: String): Flow<PositionStreamItem> =
         flow {
             AppLogger.d(TAG, "[positions]/polling: started (account=$accountId)")
             try {
@@ -407,6 +408,7 @@ class TInvestMarketDataService(
             expectedYield = pos.profit,
             instrumentType = pos.instrumentType,
             pointValue = pos.pointValue,
+            currency = pos.currency,
         )
 
     // ---------- Баланс и пополнение ----------

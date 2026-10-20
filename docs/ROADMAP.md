@@ -11,6 +11,255 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### UI: отображение blocked на валютной карточке
+
+**Мобильная работа:** частичное (план и правки `.kt` — через
+proot; сборка и визуальная проверка — на десктопе).
+
+**Статус:** запланировано. **UI — требует санкции.**
+Сейчас задача — план, не реализация: как именно показывать
+`blocked` на карточке, не решено.
+
+**Контекст:** валютная позиция (ticker `RUB000UTSTOM`)
+отображается обычной `AssetPositionCard`. После WS-интеграции
+в `PositionStreamItem` появились `money` (свободные) и
+`blocked` (заблокированные) — но до UI они не доходят,
+`PortfolioPosition` этих полей не имеет, а `toPortfolioPosition()`
+их отбрасывает. Пользователь видит только `quantity` (в
+polling — рубли), без разбивки на свободные/заблокированные.
+
+**Предусловия:**
+- WS-интеграция money/blocked в `PositionStreamManager`
+  закрыта (сделано, коммит `0167c03`).
+- Формула связи `money`, `blocked`, `quantity` — не
+  подтверждена (`docs/ROADMAP.md` → «Оркестратор стримов
+  и Ktor WS transport»). До выяснения показывать `money`
+  и `blocked` как **отдельные значения**, а не производные.
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/models/Portfolio.kt` —
+  добавить `money: Double? = null`, `blocked: Double? = null`
+  в `PortfolioPosition`; пробросить в
+  `PositionStreamItem.toPortfolioPosition()`.
+- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioViewModel.kt` —
+  `updatePortfolioItem` (копирование полей при обновлении,
+  сейчас `old.copy(...)` не переносит `money`/`blocked`).
+- `app/src/main/kotlin/.../ui/components/AssetPositionCard.kt` —
+  отображение (варианты ниже).
+- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioScreen.kt` —
+  проброс параметров, если добавляются отдельными аргументами.
+
+**Варианты отображения (требуют санкции):**
+
+- **A. Дополнительная строка в карточке.** Под текущей суммой
+  — «Свободно: X ₽ · Заблокировано: Y ₽». Появляется только
+  для `instrumentType == "currency"` и при непустом
+  `blocked`. Минимум правок, явно.
+- **B. Развёрнутая карточка по тапу.** Обычный вид —
+  `quantity`; по тапу раскрывается детализация с `money` /
+  `blocked`. Не засоряет список, но требует состояния
+  «раскрыта» в `AssetPositionCard` (сейчас такого нет).
+- **C. Badge с суммой блокировки.** Маленький бейдж в углу
+  карточки при `blocked != null && blocked > 0`. Минимум
+  текста, но неочевидно без подсказки.
+
+Рекомендация: **A**. Самое прозрачное, без новых состояний
+в composable, легко тестируется превью.
+
+**Шаги:**
+1. Добавить `money`/`blocked` в `PortfolioPosition` (domain).
+2. Пробросить в `PositionStreamItem.toPortfolioPosition()`.
+3. Обновить `PortfolioViewModel.updatePortfolioItem` — при
+   обновлении переносить `money`/`blocked` (по аналогии с
+   `expectedYield`).
+4. **Санкция на UI** — согласовать вариант (A/B/C) и тексты.
+5. Реализовать отображение в `AssetPositionCard`.
+6. Compose Preview для трёх состояний: `blocked == null`,
+   `blocked == 0.0`, `blocked > 0.0`.
+7. Unit-тест на `toPortfolioPosition()` (money/blocked
+   доходят).
+8. Сборка, 84+ теста зелёные, ручная проверка на устройстве.
+
+**Референсы:**
+- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport»
+  (фаза 2, money/blocked merge).
+- `docs/ISSUES.md` → «PositionsStream over WS не отдаёт
+  данные в песочнице» (prod-only поведение).
+- `TInvestPositionsWsMapperTest`, `PositionStreamManagerTest` —
+  образец тестов на доменный merge.
+
+**Ограничения:**
+- Не менять UI без санкции (правило 1 AGENTS.md) — вариант
+  и тексты согласуются до правки.
+- Не показывать `blocked` для не-валютных инструментов.
+- Не выводить `money + blocked` как «итог», пока формула
+  не подтверждена — только отдельные значения.
+- Не трогать `OrdersScreen` — карточка там используется в
+  контексте заявок, к заблокированным средствам отношения
+  не имеет.
+
+**Критерий готовности:**
+- `PortfolioPosition.money` / `.blocked` заполняются из
+  WS-события.
+- На карточке `RUB000UTSTOM` видно `blocked` (по варианту,
+  согласованному с пользователем).
+- Для не-валютных инструментов внешний вид не изменился.
+- Тесты на `toPortfolioPosition` добавлены.
+- Сборка и тесты зелёные.
+
+**Оценка:** ~2–3 часа (domain+ViewModel — 1 ч, UI — 1 ч,
+превью+тесты — 1 ч).
+
+**Зависимости:** нет. **Блокирует** отображение полной
+картины валютной позиции (свободные + заблокированные).
+
+**Открытые вопросы:**
+- Как именно пользователь хочет видеть `blocked`? Вариант
+  A/B/C — нужно решение.
+- Формула `money` ↔ `blocked` ↔ `quantity` — проверить на
+  реальном счёте с ненулевым `blocked`. До этого показывать
+  раздельно.
+- Показывать ли `money` отдельно от `quantity`, или
+  заменить текущее значение? Зависит от формулы.
+- Нужно ли отображать `blocked` в `OrdersScreen` (карточка
+  позиции в контексте заявки) — сейчас нет, но при
+  блокировке инструмента биржей может быть полезно.
+
+---
+
+### Rate-limiter для unary-запросов T-Invest
+
+**Мобильная работа:** невозможно (сборка + тесты на десктопе;
+правки `.kt` через proot — можно, но без проверки).
+
+**Статус:** запланировано.
+
+**Контекст:** в проекте **нет rate-limiter для unary-запросов**
+к T-Invest. Единственные механизмы ограничения частоты —
+периодичность polling (`RETRY_DELAY_MS = 10_000L` для позиций,
+`5_000L` для цен) и backoff переподключения стримов
+(`GRPC_RETRY_DELAYS_MS`, `RETRY_DELAYS_MS`). Это не ограничители
+частоты API, а расписания. При параллельных запросах
+(например, `getTradingStatuses` через
+`coroutineScope { awaitAll() }` — N параллельных unary на
+N инструментов) лимит легко превышается.
+
+Официальные лимиты T-Invest записаны в `docs/rate-limits.md`:
+не более 50 запросов в секунду суммарно, плюс по-сервисные
+лимиты в минуту (Instruments 200, Users 100, MarketData 300,
+Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
+и т.д.).
+
+**Зачем:** без rate-limiter'а возможны `RESOURCE_EXHAUSTED`
+от API, троттлинг на стороне сервера, деградация UX
+(запросы уходят в отказ, UI показывает ошибки). Особенно
+критично для `postOrder` (15/сек) и `getTradingStatuses`
+(N параллельных).
+
+**Предусловия:** нет.
+
+**Файлы:**
+
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestRateLimiter.kt` (новый) —
+  rate-limiter (токен-бакет) с учётом лимитов по сервисам и
+  общего лимита 50/сек.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestMarketDataService.kt` —
+  обернуть `getLastPricesByTscalpInstrumentId`,
+  `getTradingStatuses`, `getPortfolio`, `fetchPositionsSnapshot`
+  (внутри — unary) в rate-limiter.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestOrdersService.kt` —
+  обернуть `postOrder` (15/сек), `postStopOrder`,
+  `getOrders`/`getStopOrders`, `cancel*`.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/DataModule.kt` —
+  Hilt-провайдер `TInvestRateLimiter` как `@Singleton`.
+
+**Шаги:**
+
+1. **Вынести лимиты в константы** (`TInvestRateLimits` в
+   `data/api/`): таблицы из `docs/rate-limits.md` — по каждому
+   сервису, отдельные строки для `getOrders` и `postOrder`,
+   общий лимит 50/сек.
+2. **Реализовать токен-бакет** (`TInvestRateLimiter`): метод
+   `suspend fun <T> withPermission(service: TInvestService, block: suspend () -> T): T`.
+   Внутри — `Semaphore` или `Channel`-based limiter с
+   двумя уровнями: per-service (N/мин) и глобальный (50/сек).
+3. **Интегрировать** в `TInvestMarketDataService` и
+   `TInvestOrdersService`: обернуть каждый unary-вызов в
+   `rateLimiter.withPermission(...) { broker.method() }`.
+4. **Особый случай `getTradingStatuses`:** сейчас
+   `coroutineScope { ids.map { async { ... } }.awaitAll() }` —
+   N параллельных. С rate-limiter'ом либо (а) последовательно
+   через limiter, либо (б) батчинг (если API даст метод
+   batch-запроса), либо (в) ограничить concurrency — например,
+   `Semaphore(10)` поверх rate-limiter'а.
+5. **Опционально: `GetUserTariff`** — unary-метод, возвращает
+   актуальные лимиты для пользователя. Вызывать при старте
+   приложения (после `initialize`), кэшировать, использовать
+   в rate-limiter вместо статических констант. Для грейдов
+   4–5 лимиты выше, чем в таблице.
+6. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
+   запросов не превышают лимит, что `postOrder` не чаще
+   15/сек, что общий лимит 50/сек соблюдается.
+
+**Референсы:**
+
+- `docs/rate-limits.md` — официальные лимиты (полные таблицы).
+- Официальная документация T-Invest:
+  `https://developer.tbank.ru/invest/intro/developer/limits` —
+  раздел «Лимиты запросов».
+- `GetUserTariff` в proto-контракте:
+  `ru.tinkoff.piapi.contract.v1.UsersService/GetUserTariff`.
+
+**Ограничения:**
+
+- Не менять публичные контракты `BrokerApi`. Rate-limiter —
+  внутренняя деталь `TInvestBrokerAPI` и его сервисов.
+- Не смешивать с задачей `stream-orchestrator` — это отдельная
+  работа по data-слою, не про WS.
+- Не трогать BCS / Finam — у них свои лимиты, отдельные задачи
+  при интеграции.
+- Держать поведение `getTradingStatuses` прежним по контракту
+  (тот же `Map<uid, TradingAvailability>`), меняется только
+  внутренняя реализация.
+- Если rate-limiter не может дать разрешение (запрос ждёт
+  слишком долго) — вернуть `AppResult.Failure` с
+  `AppError.Unknown("rate limit")` или дождаться с таймаутом.
+  Решение зафиксировать в KDoc.
+
+**Критерий готовности:**
+
+- `TInvestRateLimiter` реализован, покрыт unit-тестами.
+- Все unary-вызовы в `TInvestMarketDataService` и
+  `TInvestOrdersService` проходят через rate-limiter.
+- `getTradingStatuses` не превышает лимит `MarketData`
+  (300/мин для gRPC) даже при 100 инструментах за раз.
+- `postOrder` не чаще 15/сек.
+- Общий лимит 50/сек с одного IP соблюдается (замер в unit-тесте).
+- 63 теста зелёные, ktlint и detekt чистые.
+
+**Оценка:** ~3–5 часов (токен-бакет 1–1.5 ч, интеграция
+1–1.5 ч, `GetUserTariff` 0.5–1 ч, тесты 0.5–1 ч).
+
+**Зависимости:** нет. **Разблокирует:** безопасный переход на
+более агрессивный polling, добавление батч-операций по
+инструментам, торговлю без риска `RESOURCE_EXHAUSTED`.
+
+**Открытые вопросы:**
+
+- Использовать `GetUserTariff` сразу или начать со статических
+  лимитов и добавить динамические позже. Решить при старте.
+- Как вести себя при долгом ожидании (timeout vs fail vs
+  ждать) — унифицировать через `AppResult`.
+- Нужен ли отдельный rate-limiter для REST-эндпоинтов T-Invest
+  (REST-прокси), если они будут использоваться — у REST
+  лимиты ниже (см. таблицу). Пока REST не используется,
+  не актуально.
+
+
+
+
+---
+
 ### Плавный переход Hilt → Koin
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts` — через
@@ -172,8 +421,66 @@ iOS-задачи миграция станет обязательной. Сей�
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
 
-**Статус:** в работе.
-**Ветка:** feature/stream-orchestrator
+**Статус:** в работе. Фаза 1 — готова, вмержена в dev. Фаза 2
+(WS transport для позиций) — **закрыта**, live-тест на устройстве
+пройден 2026-10-20. Root cause канала в URL path подтверждён.
+Prod WS работает end-to-end: `POSITIONS_SUBSCRIPTION_STATUS_SUCCESS`,
+`initialPositions` с реальными позициями, `ping` раз в 60 секунд.
+Склейка money/blocked в валютную позицию реализована, покрыта
+тестами. Sandbox WS — серверное ограничение (`docs/ISSUES.md`).
+Фаза 3 (раскат на цены и ордера) — открыта, ждёт merge фазы 2
+в `dev`.
+
+**Ветка:** `feature/stream-orchestrator` (фаза 1 вмержена в dev,
+PR был). Фаза 2 и WS-транспорт — в `feature/ws-okhttp-fallback`
+(готова к merge в `stream-orchestrator` после live-теста на
+устройстве).
+
+**Прогресс:**
+
+- [x] Фаза 1: `StreamCombinators.kt`, `TInvestOrchestrator.kt`,
+  `TInvestBrokerApi` делегирует в оркестратор,
+  `internal`-методы в `TInvestMarketDataService`.
+  Сборка и тесты — зелёные. Вмержено в dev.
+- [x] Фаза 2, инфраструктура: `:transport-ktor` KMP-модуль
+  (мигрирован на `com.android.kotlin.multiplatform.library`),
+  DTO для WS-сообщений, unit-тест на десериализацию,
+  `TInvestPositionsWebSocket` (OkHttp-версия, затем Ktor CIO).
+- [x] Фаза 2, интеграция: `TInvestOrchestrator` использует
+  WS как fallback (через `wsFallback`-лямбду), Hilt-провайдеры,
+  HTTP-клиент на `CustomTrustManager` (OkHttp → CIO).
+  Wiring сделан в `feature/ws-okhttp-fallback`.
+- [x] Фаза 2, WS handshake подтверждён. Root cause: канал —
+  **часть URL path**, голый `/ws` даёт 404 / timeout / silent
+  hang. С каналом в пути
+  (`/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`)
+  и заголовком `Web-Socket-Protocol: json` handshake проходит
+  за миллисекунды. Первое подтверждение — websocat на телефоне
+  (proot), прод-аккаунт 2309452027
+  (`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS` + `initialPositions`
+  с реальными securities). URL в коде исправлен (`777fa60`).
+- [x] Фаза 2, live-тест на устройстве пройден 2026-10-20.
+  Prod: `connected` → `subscription sent` → `frame received`
+  (`subscriptions` + `initialPositions`), UI показывает
+  корректно. Sandbox: сервер закрывает без кадра,
+  подтверждено `websocat -k` — ограничение сервера,
+  запись в `docs/ISSUES.md`. WS URL маршрутизируется по
+  режиму (`buildWsUrl`, коммит `ff5c29d`).
+- [x] Фаза 2, money/blocked в валютную позицию. Валютная
+  позиция из WS склеивается с polling-item'ом по `currency`
+  в `PositionStreamManager.enrichAndCache` (коммит
+  `0167c03`). Хранится как `money` / `blocked` — раздельно,
+  формула связи с `quantity` не подтверждена, интерпретация
+  отложена до UI-задачи. Тесты:
+  `TInvestPositionsWsMapperTest` (6),
+  `PositionStreamManagerTest` (4).
+- [ ] Фаза 3: раскат на цены и ордера. Отдельные каналы:
+  `MarketDataStream` (цены), `OrdersStream` (статусы заявок).
+  URL по тому же шаблону: `WS_BASE_URL + WS_*_CHANNEL`.
+  После стабилизации `PositionsStream` на устройстве.
+- [ ] Merge `feature/ws-okhttp-fallback` → `feature/stream-orchestrator`
+  → `dev`. Условие live-теста выполнено (2026-10-20), ждёт
+  ревью и PR.
 
 **Контекст:** три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка композиции логика fallback размазывается по брокерам. Оркестратор — единая точка композиции для каждого брокера.
 
@@ -277,6 +584,75 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 - Аналогично для `pricesStream` и `orderStateStream`.
 - Проверка на каждом.
 
+**Альтернативы для WS-транспорта.**
+
+Историческая хронология: OkHttp → CIO → raw SSLSocket.
+После проверки с мобильного IP (websocat держит соединение)
+стало ясно: **сервер жив и вход найден**, с домашнего IP —
+вероятный rate-limit после ~100 попыток. Гипотеза оказалась
+неверной — с правильным URL WS работает. Значит, варианты A
+и B не были «неправильными», их просто нельзя проверить, пока
+домашний IP под лимитом. Сначала пауза и один чистый запрос
+(см. ISSUES), затем — либо OkHttp/CIO заработают сразу, либо
+переход к B.
+
+Матрица экспериментов сохранена в ISSUES. Ниже — краткая
+сводка вариантов и их статус.
+
+**A. Ktor CIO engine (`ktor-client-cio`). — опробован, не помог.**
+
+- CIO не устанавливает `permessage-deflate` по умолчанию — это
+  было основной гипотезой (OkHttp ставит всегда, websocat — нет).
+- Реализовано: `HttpClient(CIO)` + `CustomTrustManager` через
+  `engine { https { trustManager = ... } }`, Ktor-версия
+  `TInvestPositionsWebSocket` восстановлена (Ktor `client.webSocket`),
+  `TInvestBrokerApi` инжектит `HttpClient` вместо `OkHttpClient`.
+- Результат: **silent hang** — handshake не отвечает 101 и не
+  отбивается кодом за 20+ секунд. То же, что вебсокет-версии
+  OkHttp в конце сессии.
+- Вывод: silent hang не объясняется permessage-deflate
+  (CIO его не ставит). Скорее всего, к моменту теста домашний
+  IP уже был под rate-limit, и любой клиент с него висит.
+  Проверить CIO с мобильного IP или после паузы на домашнем —
+  отдельный шаг.
+
+**B. Raw SSLSocket WebSocket-клиент. — если OkHttp/CIO
+не заработают после снятия rate-limit.**
+
+- Свой handshake на `SSLSocket` с `CustomTrustManager`, свой
+  WebSocket frame parser (text / close / ping-pong, без
+  permessage-deflate).
+- Плюс: полный контроль. Если websocat снова начнёт получать 101 —
+  и наш raw клиент тоже получит.
+- Минус: ~2–3 часа, нужно поддерживать (frame parsing,
+  masking, fragmentation — вручную).
+- Когда выбирать: после появления 101 в websocat и если CIO / OkHttp
+  почему-то всё ещё не проходят handshake.
+- Файлы: `transport-ktor/src/commonMain/kotlin/.../raw/RawWebSocketClient.kt`
+  (новый), `TInvestPositionsWebSocket.kt` (переписать на новый
+  клиент).
+- Риски: TLS на raw socket — ручная работа с `SSLSocketFactory`
+  и trust manager; SNI — руками.
+
+**C. Отказ от WS-фоллбэка. — текущее решение.**
+
+- Закрыть `stream-orchestrator` без WS, gRPC + polling
+  продолжают работать. WS — nice-to-have, не блокер для
+  остальных задач.
+- Плюс: не тратить 2–3 часа на кастомный клиент, пока сервер
+  сам не работает.
+- Минус: теряем страховку на случай отказа gRPC.
+- Как вернуться к WS: отдельная задача `T-Invest WS fallback`
+  в ROADMAP, триггер — websocat снова получает 101.
+
+**Порядок (актуальный):** A опробован → C сейчас → B — только
+после восстановления сервера, если понадобится.
+
+**Оценка альтернатив:**
+- A: 30–60 минут (включая проверку TLS).
+- B: 2–3 часа (включая парсер фреймов).
+- C: 0 (только закрытие задачи).
+
 **Файлы:**
 
 - `settings.gradle.kts` — `include(":transport-ktor")`.
@@ -305,27 +681,37 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 - Ktor 3.6.0 (проверено на Maven Central).
 - Не смешивать с миграцией REST.
 
-**Критерий готовности:**
+**Критерий готовности (актуальный, без WS):**
 
 - Модуль `:transport-ktor` собирается.
-- `TInvestOrchestrator` композирует два уровня с fallback'ами.
+- `TInvestOrchestrator` композирует gRPC-stream и polling
+  через `streamWithFallback`.
 - Брокер делегирует в оркестратор.
-- При отключённом gRPC-стриме данные идут через WS.
 - 63 unit-теста зелёные, ktlint и detekt чистые.
+- WS-фоллбэк — отдельная задача после восстановления сервера.
+
+**Критерий готовности (полный, с WS — когда сервер восстановится):**
+
+- При отключённом gRPC-стриме данные идут через WS.
+- Матрица экспериментов из ISSUES подтверждает 101 на websocat.
 
 **Оценка:** ~6–8 часов (фаза 1: 2 ч; фаза 2: 3–4 ч; фаза 3: 1–2 ч).
 
 **Зависимости:** нет. **Разблокирует** «Ktor REST transport для polling», «StreamState в data-слое», «UI-индикатор состояния стримов».
 
-**Открытые вопросы:**
+**Открытые вопросы (при возврате к задаче):**
 
-- Точная структура JSON-конверта подписки. В спецификации
-  `asyncapi.yaml` канал и структура полей подтверждены, но
-  полный пример конверта (обёртка над `V1PositionsStreamRequest`)
-  не приведён. **Гипотеза:** `{"positionsStream": { ... }}`.
-  Проверить при первой реализации фазы 2.
-- Отдельный URL для sandbox/prod WS или один общий.
-  Текущая гипотеза — один общий (`invest-public-api.tbank.ru`).
+- Точная структура JSON-конверта подписки — не подтверждена,
+  потому что до live-теста подписки дело не дошло (handshake не
+  проходит). Гипотеза: плоский JSON `{accounts, withInitialPositions}`
+  (сейчас в коде) или обёртка `{"positionsStream":{...}}`. Проверить
+  на первом живом WS.
+- Прод vs sandbox WS URL — не проверено. Пока один общий
+  `wss://invest-public-api.tbank.ru/ws`.
+- permessage-deflate — на CIO не воспроизводится (заголовок не
+  ставится), но handshake всё равно висит. Гипотеза
+  **не подтвердилась**; более вероятно — rate-limit по IP
+  (см. ISSUES).
 
 
 

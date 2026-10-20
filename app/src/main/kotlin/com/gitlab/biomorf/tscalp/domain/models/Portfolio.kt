@@ -14,6 +14,27 @@ data class PositionStreamItem(
     val isin: String = "",
     val pointValue: Double? = null,
     val instrumentType: String = "",
+    // Для валютных позиций (instrumentType = "currency").
+    // Из WS PositionsStream: money — свободный остаток,
+    // blocked — заблокированный. Обе величины — в единицах
+    // валюты (для rub — рубли, для других валют — единицы
+    // этой валюты).
+    // Формула связи money, blocked и quantity пока не
+    // подтверждена по документации T-Invest. Возможные
+    // варианты (quantity = money, quantity = money + blocked,
+    // money и blocked — производные от quantity) проверяются
+    // на реальных данных. Поэтому храним раздельно:
+    // интерпретация откладывается до UI-задачи, и модель
+    // не придётся менять, какая бы формула ни оказалась
+    // верной.
+    val money: Double? = null,
+    val blocked: Double? = null,
+    // Код валюты (ISO-4217, например "rub") для валютных
+    // позиций (instrumentType = "currency"). Нужен для
+    // склейки money/blocked из WS-стрима (там только
+    // currency, без uid и ticker) с валютной позицией,
+    // пришедшей из polling.
+    val currency: String? = null,
 )
 
 data class PortfolioPosition(
@@ -34,6 +55,10 @@ data class PortfolioPosition(
     val profitPercent: Double? = null,
     val priceChangePercent: Double? = null,
     val pointValue: Double? = null,
+    // Код валюты (ISO-4217) для валютных позиций.
+    // Источник — InstrumentUi.currency в fetchPositionsSnapshot.
+    // Используется для склейки с WS-стримом (money/blocked).
+    val currency: String? = null,
 )
 
 /**

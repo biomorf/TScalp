@@ -76,7 +76,7 @@ class PositionStreamManager
                         return@launch
                     }
                     broker.subscribePositions(accountId).collect { item ->
-                        val enriched = enrichAndCache(item)
+                        val enriched = enrichAndCache(item) ?: return@collect
                         AppLogger.d(
                             TAG,
                             "Элемент потока: ${enriched.tscalpInstrumentId}, " +
@@ -100,7 +100,25 @@ class PositionStreamManager
          * Если неполное и кэша нет (первое событие после старта) —
          * возвращаем как есть; UI покажет заглушку для P&L.
          */
-        private fun enrichAndCache(item: PositionStreamItem): PositionStreamItem {
+        internal fun enrichAndCache(item: PositionStreamItem): PositionStreamItem? {
+            // Валютная позиция из WS (money/blocked): приходит без
+            // tscalpInstrumentId и ticker — только currency. Сливаем
+            // в закэшированный item из polling по currency. Если
+            // polling ещё не пришёл — null (ждём, чтобы не создавать
+            // дубликат карточки).
+            if (item.instrumentType == "currency" && item.tscalpInstrumentId.isBlank()) {
+                val cached =
+                    snapshotCache.values.firstOrNull {
+                        it.instrumentType == "currency" && it.currency == item.currency
+                    } ?: return null
+                val merged =
+                    cached.copy(
+                        money = item.money ?: cached.money,
+                        blocked = item.blocked ?: cached.blocked,
+                    )
+                snapshotCache[cached.tscalpInstrumentId] = merged
+                return merged
+            }
             val isFull = item.currentPrice != null
             if (isFull) {
                 snapshotCache[item.tscalpInstrumentId] = item

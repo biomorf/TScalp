@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.CustomTrustManager
 import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.TInvestChannelFactory
@@ -15,6 +16,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.websocket.WebSockets
 import javax.inject.Singleton
 
 @Module
@@ -36,7 +40,8 @@ object DataModule {
     @Singleton
     fun provideTInvestBrokerAPI(
         channelFactory: TInvestChannelFactory,
-    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory)
+        httpClient: HttpClient,
+    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient)
 
     @Provides
     @Singleton
@@ -61,6 +66,20 @@ object DataModule {
     @Provides
     @Singleton
     fun provideBcsBrokerApi(): BcsBrokerApi = BcsBrokerApi()
+
+    @Provides
+    @Singleton
+    fun provideTInvestWsHttpClient(
+        @ApplicationContext context: Context,
+    ): HttpClient =
+        HttpClient(CIO) {
+            install(WebSockets)
+            engine {
+                https {
+                    trustManager = CustomTrustManager(context)
+                }
+            }
+        }
 }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
