@@ -100,7 +100,7 @@ class PositionStreamManager
          * Если неполное и кэша нет (первое событие после старта) —
          * возвращаем как есть; UI покажет заглушку для P&L.
          */
-        private fun enrichAndCache(item: PositionStreamItem): PositionStreamItem? {
+        internal fun enrichAndCache(item: PositionStreamItem): PositionStreamItem? {
             // Валютная позиция из WS (money/blocked): приходит без
             // tscalpInstrumentId и ticker — только currency. Сливаем
             // в закэшированный item из polling по currency. Если
