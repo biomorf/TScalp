@@ -639,3 +639,57 @@ sandbox-WS не лечится на нашей стороне.
 - `docs/streams.md` — похожее ограничение OrderStateStream.
 
 ---
+
+## Двойное WS-подключение к PositionsStream
+
+**Статус:** отложен, требует подтверждения.
+
+**Симптом:** в logcat `TInvestWS` периодически видны два
+параллельных WS-подключения с одинаковым `accountId`. Оба
+проходят handshake и подписку, сервер подтверждает обе
+(`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS`). В других сессиях
+— одно подключение.
+
+**Наблюдение:** факт зафиксирован один раз, в логе от
+2026-10-20 17:41:28.988 — два `connecting (attempt=1)` из
+разных тредов (12745 и 12752). В логах 18:53 и 19:00 —
+одно подключение. Значит, воспроизводится не всегда.
+
+**Причина:** не подтверждена. Гипотезы:
+1. `TInvestOrchestrator.positionsStream` вызывается дважды —
+   например, `subscribePositions` собирается из двух мест
+   (прямой вызов + через `PositionStreamManager`).
+2. `PositionStreamManager` перезапускает поток и создаёт
+   второй `collect` на WS-flow, оставляя первый активным.
+3. `TInvestPositionsWebSocket.subscribePositions` возвращает
+   `flow { ... }` — каждый `collect` создаёт новую
+   корутину и новое `client.webSocket(...)`. Если flow
+   собирается дважды (рекомпозиция во ViewModel, два
+   подписчика), получаем два параллельных подключения.
+
+**Файлы для отладки:**
+- `transport-ktor/src/commonMain/.../TInvestPositionsWebSocket.kt` —
+  `subscribePositions` (создание корутин-канала на каждый
+  `collect`).
+- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` —
+  вызов `wsFallback(accountId)`.
+- `domain/api/PositionStreamManager.kt` — `start()`, защита
+  «уже запущен», сбор flow.
+- `presentation/screens/portfolio/PortfolioViewModel.kt` —
+  точка подписки на `PositionStreamManager.positions`.
+
+**Решение:** пока не принято. Функционально не блокирует
+(сервер принимает обе подписки), но создаёт лишнюю нагрузку
+и шум в логах. При подтверждении — либо защита от повторного
+`collect` в `TInvestPositionsWebSocket` (например,
+`shareIn` / `stateIn` с уникальным upstream), либо
+устранение двойного вызова на уровне оркестратора.
+
+**Когда вернуться:**
+- При следующей правке `PositionStreamManager` или
+  `TInvestOrchestrator`.
+- При появлении жалоб на нагрузку или лаги от WS.
+- При подключении WS к ценам и ордерам (та же природа
+  проблемы, проявится вероятнее на частых стримах).
+
+---
