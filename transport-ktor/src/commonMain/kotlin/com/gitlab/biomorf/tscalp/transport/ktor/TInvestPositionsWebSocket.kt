@@ -41,7 +41,13 @@ class TInvestPositionsWebSocket(
     private val client: HttpClient,
     private val url: String,
     private val token: String,
-    private val json: Json = Json { ignoreUnknownKeys = true },
+    // encodeDefaults = true: иначе withInitialPositions (default = true)
+    // не сериализуется, и сервер не присылает initialPositions-снапшот.
+    private val json: Json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        },
     private val logger: (String) -> Unit = { },
 ) {
     companion object {
@@ -62,18 +68,20 @@ class TInvestPositionsWebSocket(
                     },
                 ) {
                     logger("$TAG connected")
+                    logger("$TAG subscribing: accountId=$accountId")
                     val subscription = PositionsStreamSubscribeRequestDto(
                         accounts = listOf(accountId),
                         withInitialPositions = true,
                     )
                     val envelope = buildSubscriptionEnvelope(subscription)
+                    logger("$TAG payload: $envelope")
                     send(Frame.Text(envelope))
                     logger("$TAG subscription sent (${envelope.length} bytes)")
 
                     for (frame in incoming) {
                         if (frame !is Frame.Text) continue
                         val text = frame.readText()
-                        logger("$TAG frame received (len=${text.length})")
+                        logger("$TAG frame received: $text")
                         try {
                             val response = json.decodeFromString(PositionsStreamResponseDto.serializer(), text)
                             emit(response)
