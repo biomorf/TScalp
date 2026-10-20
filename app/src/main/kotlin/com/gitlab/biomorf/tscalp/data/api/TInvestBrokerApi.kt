@@ -31,9 +31,14 @@ class TInvestBrokerAPI(
     private val httpClient: HttpClient,
 ) : BrokerApi {
     private companion object {
-        const val WS_BASE_URL = "wss://invest-public-api.tbank.ru/ws"
+        const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
+        const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
         const val WS_POSITIONS_CHANNEL = "tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream"
-        const val WS_URL = "$WS_BASE_URL/$WS_POSITIONS_CHANNEL"
+
+        fun buildWsUrl(sandbox: Boolean): String {
+            val base = if (sandbox) WS_BASE_URL_SANDBOX else WS_BASE_URL_PROD
+            return "$base/$WS_POSITIONS_CHANNEL"
+        }
     }
 
     private val state = TInvestApiState()
@@ -73,7 +78,7 @@ class TInvestBrokerAPI(
         positionsWebSocket =
             TInvestPositionsWebSocket(
                 client = httpClient,
-                url = WS_URL,
+                url = buildWsUrl(sandbox),
                 token = token,
                 logger = { msg -> AppLogger.d("TInvestWS", msg) },
             )
