@@ -589,7 +589,9 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Фаза 3 — Раскат на цены и ордера.**
 
-**Статус:** запланировано.
+**Статус:** в работе. Код готов (DTO, клиенты, мапперы,
+wiring), покрыт unit-тестами. Ожидает live-теста на
+проде (WS цен и ордеров end-to-end) перед merge в `dev`.
 
 **Контекст:** Фаза 2 (позиции) закрыта. Для цен и ордеров
 нужны отдельные WS-каналы и DTO, отличные от `PositionsStream`.
@@ -626,19 +628,51 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 8. **Тесты.** Unit-тесты на мапперы (цены, ордера).
 
+**Сделано (2026-10-21):**
+
+- DTO цен: `MarketDataStreamDto.kt` (`4404095`), 5 тестов.
+- DTO ордеров: `OrderStateStreamDto.kt` (`b3330ae`), 5 тестов.
+- `TInvestPricesWebSocket` с incremental subscription
+  (`setInterest` + SUBSCRIBE/UNSUBSCRIBE без переподключения)
+  и hot SharedFlow (`b40afcb`).
+- `TInvestOrderStateWebSocket` per-account (`57902e7`).
+- Мапперы `TInvestPricesWsMapper` / `TInvestOrderStateWsMapper`
+  (`77595a1`), 10 тестов (`30f39b4`).
+- `retryWithBackoff` в `StreamCombinators` — gRPC-primary
+  переподключается сам, не роняя merge с WS (`444b3db`).
+- Wiring в `TInvestOrchestrator` + `TInvestBrokerAPI`
+  (`444b3db`).
+- Sandbox-fix: WS-клиенты создаются только при `!sandbox`
+  (`da409d9`).
+- Локальный гейт: 94 теста (84 + 10), lint, ktlint, detekt —
+  зелёные.
+
 **Ограничения:**
 
 - `instrumentId` в WS цен принимает uid. Использовать `tscalpInstrumentId`.
 - Лимиты WS-подписок: T-Invest ограничивает число подписок в одном соединении. При превышении — отписка/переподписка.
 - Не смешивать с REST fallback (это отдельная задача «Ktor REST transport для polling»).
 
-**Открытые вопросы:**
+**Решения (2026-10-21):**
 
-1. **Динамическая подписка на цены.** `PriceStreamManager` меняет union инструментов. gRPC пересоздаёт стрим. Для WS есть два пути:
-   - Простой: пересоздавать WS-соединение при смене union.
-   - Правильный: использовать `subscriptionAction` (SUBSCRIBE/UNSUBSCRIBE) без разрыва соединения. Второй путь предпочтительнее, но требует состояния (какие uid уже подписаны). Решить при реализации.
-2. **Восстановление после обрыва WS цен.** `PriceStreamManager` оборачивает поток в reconnect-loop (backoff). WS-клиент тоже умеет переподключаться. Где граница ответственности — в оркестраторе или в менеджере? Решить по образцу позиций.
-3. **Маппинг `orderState`.** В gRPC-версии (см. `TInvestMarketDataService.subscribeOrderState`) поля извлекались через reflection (`findFieldByName`). В WS DTO поля типизированы. Нужно сверить, какие поля есть в asyncapi, и не потерять нужные для `OrderState`.
+1. **Динамическая подписка на цены — incremental.**
+   `TInvestPricesWebSocket.setInterest(uids)` диффит
+   множество и шлёт SUBSCRIBE/UNSUBSCRIBE без разрыва
+   соединения. При реконнекте переподписывается на весь
+   текущий interest. Hot SharedFlow исключает двойное
+   WS-подключение при повторном сборе.
+2. **Восстановление — на двух уровнях.** WS-клиент сам
+   переподключается (backoff [1s, 5s, 15s, 30s, 60s]).
+   gRPC-primary обёрнут в `retryWithBackoff` — без этого
+   падение gRPC роняло `merge()` целиком и WS-fallback
+   тоже терялся. `PriceStreamManager` ничего не оборачивает:
+   его задача — union + интерес, а не переподключение.
+3. **Маппинг `orderState` — без reflection.** WS DTO
+   типизирован (`OrderStateDto`), поля мапятся 1-в-1 в
+   доменную `OrderState`. Enum'ы чистятся от proto-префиксов
+   (`ORDER_DIRECTION_`, `EXECUTION_REPORT_STATUS_`),
+   `MoneyValue` конвертируется в `Double`, `createdAt`
+   (RFC3339) парсится в epoch seconds.
 
 
 **Альтернативы для WS-транспорта.**
