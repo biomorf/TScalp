@@ -11,6 +11,77 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### Add stop() to TInvestOrderStateWebSocket
+
+**Мобильная работа:** полное закрытие. Правки `.kt` — через
+proot; сборка и гейт — на десктопе. Оценка ~15 минут.
+
+**Статус:** отложено. **Триггер:** первое использование
+`subscribeOrderState` в UI (OrdersViewModel или отдельный
+менеджер ордеров).
+
+**Контекст:** архитектурный дисбаланс между WS-клиентами.
+`TInvestPricesWebSocket` имеет `stop()` и собственный
+`wsScope` (`TInvestBrokerAPI.deinitialize` вызывает
+`pricesWebSocket?.stop()` и `wsScope?.cancel()`).
+`TInvestOrderStateWebSocket` — `flow { }`, живущий в scope
+коллектора, без `stop()`. Сейчас не проявляется: у
+`subscribeOrderState` нет UI-потребителя (grep по
+`app/src/main/` — только объявления и вызовы из
+оркестратора). Но когда потребитель появится, `deinitialize`
+не остановит WS-соединение ордеров — оно будет жить до
+отмены родительского scope.
+
+**Файлы:**
+- `transport-ktor/src/commonMain/.../TInvestOrderStateWebSocket.kt` —
+  добавить `scope: CoroutineScope` в конструктор, `stop()`,
+  `connectionLoop()` по образцу `TInvestPricesWebSocket`.
+- `app/src/main/kotlin/.../data/api/TInvestBrokerApi.kt` —
+  в `deinitialize` вызвать `orderStateWebSocket?.stop()`
+  до обнуления.
+- `transport-ktor/src/commonMain/.../TInvestOrderStateWebSocket.kt`
+  KDoc — удалить warning про отсутствие `stop()`.
+
+**Шаги:**
+1. Добавить `scope: CoroutineScope` в конструктор
+   `TInvestOrderStateWebSocket`.
+2. Переписать `subscribeOrderState` как поле класса
+   `SharedFlow<OrderStateStreamResponseDto>` + `setInterest(accountId)` /
+   `stop()` (по образцу prices, но с одним accountId).
+3. В `TInvestBrokerAPI.initialize` передать `wsScope` в
+   конструктор; в `deinitialize` — `orderStateWebSocket?.stop()`.
+4. Гейт: `testDebugUnitTest :lintDebug :ktlintCheck :detekt`.
+5. Удалить warning в KDoc.
+
+**Референсы:**
+- `TInvestPricesWebSocket.kt` — образец (incremental, scope,
+  stop, hot SharedFlow).
+- `TInvestBrokerApi.kt` → `deinitialize` — где сейчас
+  `orderStateWebSocket = null` без отмены.
+
+**Ограничения:**
+- Не менять контракт `BrokerApi.subscribeOrderState` — он
+  suspend-fun, возвращающая Flow. Lifecycle — внутренняя
+  деталь клиента.
+- Если UI-потребитель появится раньше — задача становится
+  блокером, не откладывать.
+
+**Критерий готовности:**
+- `TInvestOrderStateWebSocket` имеет `stop()` и `scope`.
+- `TInvestBrokerAPI.deinitialize` вызывает `stop()` для
+  order state до обнуления.
+- Гейт зелёный.
+- KDoc без warning'а.
+
+**Оценка:** ~15 минут.
+
+**Зависимости:** нет. **Разблокирует** корректный lifecycle
+ордеров при появлении UI-потребителя.
+
+**Открытые вопросы:** нет.
+
+---
+
 ### UI: отображение blocked на валютной карточке
 
 **Мобильная работа:** частичное (план и правки `.kt` — через

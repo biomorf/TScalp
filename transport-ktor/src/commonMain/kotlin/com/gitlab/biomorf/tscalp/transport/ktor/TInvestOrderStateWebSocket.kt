@@ -36,6 +36,13 @@ import kotlinx.serialization.json.Json
  *
  * Переподключение — экспоненциальный backoff [1s, 5s, 15s, 30s, 60s].
  *
+ * **Lifecycle: нет stop().** Flow живёт в scope коллектора.
+ * `TInvestBrokerAPI.deinitialize` обнуляет поле без отмены
+ * активных коллекторов. Сейчас безопасно (у метода нет
+ * UI-потребителя), но при его появлении — добавить stop()
+ * по образцу `TInvestPricesWebSocket`. См. ROADMAP →
+ * «Add stop() to TInvestOrderStateWebSocket».
+ *
  * НЕ использует Hilt. НЕ использует Android API. Готов к KMP.
  */
 class TInvestOrderStateWebSocket(
