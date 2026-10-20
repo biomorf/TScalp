@@ -42,8 +42,10 @@ fun <T> streamWithFallback(
  * Штатная отмена (CancellationException) пробрасывается. Нормальное
  * завершение источника тоже переподключаем: сервер мог закрыть стрим.
  */
+private val DEFAULT_RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
+
 fun <T> retryWithBackoff(
-    delays: LongArray = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000),
+    delays: LongArray = DEFAULT_RETRY_DELAYS_MS,
     source: () -> Flow<T>,
 ): Flow<T> =
     flow {

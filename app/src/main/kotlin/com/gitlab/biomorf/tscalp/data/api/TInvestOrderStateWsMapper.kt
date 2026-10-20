@@ -32,8 +32,7 @@ object TInvestOrderStateWsMapper {
             updateTime = dto.createdAt?.let { parseEpochSeconds(it) },
         )
 
-    private fun MoneyValueDto.toDoubleOrNull(): Double =
-        (units.toLongOrNull() ?: 0L).toDouble() + nano / 1_000_000_000.0
+    private fun MoneyValueDto.toDoubleOrNull(): Double = (units.toLongOrNull() ?: 0L).toDouble() + nano / 1_000_000_000.0
 
     private fun parseEpochSeconds(rfc3339: String): Long? =
         try {
