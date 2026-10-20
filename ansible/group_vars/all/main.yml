@@ -10,3 +10,7 @@ podman_user_socket: "/run/user/1000/podman/podman.sock"
 
 # Образ для job-контейнеров (пока без Android SDK, только для fast-check)
 gitlab_runner_docker_image: "eclipse-temurin:17-jdk"
+
+# Взяты из ansible/group_vars/all/vault.yml (зашифрован)
+ansible_become_password: "{{ vault_become_password }}"
+gitlab_runner_token: "{{ vault_gitlab_runner_token }}"

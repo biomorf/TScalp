@@ -64,4 +64,5 @@ google-services.json
 # Файлы с чувствительными данными
 **/secure_prefs.xml
 **/EncryptedSharedPreferences.xml
-
+*.vault_pass
+.ansible/

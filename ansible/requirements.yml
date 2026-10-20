@@ -1,0 +1,4 @@
+---
+collections:
+  - name: fedora.linux_system_roles
+    version: ">=1.70.0"
