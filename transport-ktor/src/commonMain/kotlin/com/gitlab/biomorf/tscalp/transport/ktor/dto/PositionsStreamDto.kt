@@ -47,6 +47,7 @@ data class PositionsStreamResponseDto(
 data class PositionsResponseDto(
     @SerialName("accountId") val accountId: String = "",
     @SerialName("money") val money: List<MoneyValueDto> = emptyList(),
+    @SerialName("blocked") val blocked: List<MoneyValueDto> = emptyList(),
     @SerialName("securities") val securities: List<PositionsSecuritiesDto> = emptyList(),
     @SerialName("futures") val futures: List<PositionsFuturesDto> = emptyList(),
 )
@@ -58,6 +59,7 @@ data class PositionsResponseDto(
 data class PositionDataDto(
     @SerialName("accountId") val accountId: String = "",
     @SerialName("money") val money: List<MoneyValueDto> = emptyList(),
+    @SerialName("blocked") val blocked: List<MoneyValueDto> = emptyList(),
     @SerialName("securities") val securities: List<PositionsSecuritiesDto> = emptyList(),
     @SerialName("futures") val futures: List<PositionsFuturesDto> = emptyList(),
     @SerialName("date") val date: String? = null,
