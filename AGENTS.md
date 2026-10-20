@@ -647,6 +647,28 @@ message должен быть явно разделён на смысловые 
 `./gradlew :app:clean :app:testDebugUnitTest --rerun-tasks`.
 Если сборка падает — сначала фикс, потом коммит.
 
+**Перед PR — полный прогон гейтов CI.** Минимум
+`testDebugUnitTest` недостаточен для проверки перед PR: CI
+прогоняет `fast-check` (unit + lint + ktlint + detekt). Все
+эти гейты должны быть зелёными локально **до** создания PR,
+иначе CI упадёт на первой же проверке стиля — как было в
+сессии 2026-10-20 с ktlint-нарушением в
+`TInvestPositionsWsMapper.toAmountOrZero`.
+
+Команда:
+
+    ./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug \
+      :app:ktlintCheck :app:detekt --rerun-tasks \
+      2>&1 | grep -E '\[warn\]|\[error\]|^w:|^e:|FAILED|BUILD'
+
+Ожидаемо: `BUILD SUCCESSFUL`, все гейты зелёные, только
+известные warning'и (`statusBarColor`, Gradle 10).
+
+**Не «прогоним в CI, посмотрим».** Ошибка стиля или линтера
+в CI — это лишний цикл push→CI→fix, который тратит время
+и засоряет историю. Полный локальный прогон занимает
+~50 секунд, дешевле любого цикла CI.
+
 **CI/CD изменения** (`.gitlab-ci.yml`, CI-скрипты, конфиги пайплайна):
 коммит **до** проверки. Пайплайн не воспроизводится локально,
 поэтому порядок обратный:
