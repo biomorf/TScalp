@@ -332,6 +332,28 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 ---
 
+**Checkpoint (2026-10-20):**
+
+- **Где остановились:** Root cause найден (канал T-Invest должен быть
+  в URL path, а не только в теле подписки). Подтверждено end-to-end
+  через websocat на прод-аккаунте.
+- **Код:** ветка `feature/ws-okhttp-fallback`.
+  - WS URL исправлен (`777fa60`).
+  - Миграция на Ktor CIO (`934646d`).
+  - `DebugConfig` для изоляции источников (`b34d614`).
+  - Документация: `docs/streams.md` и `docs/ISSUES.md` (`7507d04`, `34f3df2`).
+- **Следующий шаг (десктоп):**
+  1. `git checkout feature/ws-okhttp-fallback && git merge dev`
+  2. `./gradlew :app:clean :app:compileDebugKotlin`
+  3. `assembleDebug`, установка на устройство.
+  4. Live-тест: logcat `TInvestWS` — ждём `connected` + `subscription sent` + `frame received`.
+  5. Если работает — merge `feature/ws-okhttp-fallback` в `feature/stream-orchestrator`, затем в `dev`. Обновить ROADMAP (фаза 2 = done).
+  6. Если не работает (CIO/TLS) — откат на OkHttp-версию с новым URL.
+  7. Если данные идут, но не все — использовать `DebugConfig` (отключить gRPC и polling), чтобы изолировать WS-события.
+
+---
+
+
 ### Ktor REST transport для polling
 
 **Мобильная работа:** невозможно (требует сборки и проверки на реальных данных).

@@ -109,14 +109,25 @@ web Settings GitHub + правка `docs/git-flow.md`.
 - Для CI: `tags:` в `.gitlab-ci.yml` выбирает нужный runner.
 
 **План:**
-1. Написать роль `gitlab_runner` (структура ниже).
-2. Создать `ansible.cfg`, `inventory/hosts.yml`, `group_vars/all/main.yml`, `host_vars/{remote,home}.yml`, `group_vars/all/vault.yml` (Ansible Vault).
-3. Проверить SSH до `remote` (`51.250.36.160`, юзер `def`).
-4. Развернуть на `remote`, проверить, что runner зарегистрирован в GitLab.
-5. Проверить, что `podman run` job'а из runner'а работает (тестовый pipeline).
-6. Перевести `fast-check` на `remote` runner.
-7. Развернуть на `home`, перевести `assembleDebug`.
-8. Обновить `docs/ci-cd.md` (когда появится) с процедурой переключения.
+- [x] Создать структуру `ansible/` и базовые конфиги (`ansible.cfg`, `inventory`, `group_vars`, `host_vars`).
+- [x] Настроить Ansible Vault для `become_password` и `runner_token`.
+- [x] Подключить `fedora.linux_system_roles` (через `requirements.yml` и `install-requirements.sh`).
+- [x] Написать роль `gitlab_runner` (задачи, handlers, шаблон quadlet-юнита).
+- [x] Проверить YAML-синтаксис playbook (`ansible-playbook --syntax-check`).
+- [ ] Выполнить dry-run на `remote` (`ansible-playbook --check --diff -l remote`).
+- [ ] Применить роль на `remote`, проверить, что runner зарегистрирован в GitLab.
+- [ ] Перевести job `fast-check` на `remote` runner.
+- [ ] Развернуть на `home`, перевести `assembleDebug`.
+- [ ] Обновить `docs/ci-cd.md` (когда появится) с процедурой переключения.
+
+**Текущее состояние (2026-10-20):**
+
+- Роль написана, все конфиги на месте.
+- Коллекция `fedora.linux_system_roles` v2.5.0 установлена в proot.
+- `ansible-playbook --syntax-check` проходит без ошибок.
+- **Следующий шаг:** запустить `ansible-playbook playbook.yml --check --diff -l remote` в директории `ansible/`. Ожидается проверка SSH, Vault-пароля и корректности шаблонов без реальных изменений.
+- Если dry-run успешен — переход к реальному запуску (без `--check`).
+- **Ветка:** `ci/self-hosted-runner` (запушена).
 
 **Структура `ansible/`:**
 
