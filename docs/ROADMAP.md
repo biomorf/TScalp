@@ -305,18 +305,15 @@ iOS-задачи миграция станет обязательной. Сей�
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts`/`.md` — через proot; сборка и проверка WS — на десктопе).
 
-**Статус:** в работе. Фаза 1 — готова, вмержена в dev. Фаза 2 —
-инфраструктура, wiring и WS-транспорт готовы в коде. Root cause
-найден 2026-10-19: канал T-Invest — **часть URL path**, голый `/ws`
-возвращает 404 / timeout / silent hang. С каналом в URL handshake
-проходит за миллисекунды, сервер отвечает
-`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS` и шлёт `initialPositions`
-(подтверждено через websocat на прод-аккаунте 2309452027). В коде
-URL исправлен (коммит `777fa60`). Live-тест через
-`TInvestPositionsWebSocket` на устройстве — ожидается на десктопе.
-Детали и коды закрытия WS (`1013` / `4001` / `1011 + 50004`) —
-`docs/ISSUES.md` → «T-Invest WebSocket: решён — канал должен
-быть в URL path».
+**Статус:** в работе. Фаза 1 — готова, вмержена в dev. Фаза 2
+(WS transport для позиций) — **закрыта**, live-тест на устройстве
+пройден 2026-10-20. Root cause канала в URL path подтверждён.
+Prod WS работает end-to-end: `POSITIONS_SUBSCRIPTION_STATUS_SUCCESS`,
+`initialPositions` с реальными позициями, `ping` раз в 60 секунд.
+Склейка money/blocked в валютную позицию реализована, покрыта
+тестами. Sandbox WS — серверное ограничение (`docs/ISSUES.md`).
+Фаза 3 (раскат на цены и ордера) — открыта, ждёт merge фазы 2
+в `dev`.
 
 **Ветка:** `feature/stream-orchestrator` (фаза 1 вмержена в dev,
 PR был). Фаза 2 и WS-транспорт — в `feature/ws-okhttp-fallback`
@@ -342,18 +339,32 @@ PR был). Фаза 2 и WS-транспорт — в `feature/ws-okhttp-fallba
   hang. С каналом в пути
   (`/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream`)
   и заголовком `Web-Socket-Protocol: json` handshake проходит
-  за миллисекунды. Подтверждено через websocat на прод-аккаунте
-  2309452027 (`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS` +
-  `initialPositions` с реальными securities). URL в коде
-  исправлен (`777fa60`). Live-тест через
-  `TInvestPositionsWebSocket` — ожидается на десктопе.
+  за миллисекунды. Первое подтверждение — websocat на телефоне
+  (proot), прод-аккаунт 2309452027
+  (`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS` + `initialPositions`
+  с реальными securities). URL в коде исправлен (`777fa60`).
+- [x] Фаза 2, live-тест на устройстве пройден 2026-10-20.
+  Prod: `connected` → `subscription sent` → `frame received`
+  (`subscriptions` + `initialPositions`), UI показывает
+  корректно. Sandbox: сервер закрывает без кадра,
+  подтверждено `websocat -k` — ограничение сервера,
+  запись в `docs/ISSUES.md`. WS URL маршрутизируется по
+  режиму (`buildWsUrl`, коммит `ff5c29d`).
+- [x] Фаза 2, money/blocked в валютную позицию. Валютная
+  позиция из WS склеивается с polling-item'ом по `currency`
+  в `PositionStreamManager.enrichAndCache` (коммит
+  `0167c03`). Хранится как `money` / `blocked` — раздельно,
+  формула связи с `quantity` не подтверждена, интерпретация
+  отложена до UI-задачи. Тесты:
+  `TInvestPositionsWsMapperTest` (6),
+  `PositionStreamManagerTest` (4).
 - [ ] Фаза 3: раскат на цены и ордера. Отдельные каналы:
   `MarketDataStream` (цены), `OrdersStream` (статусы заявок).
   URL по тому же шаблону: `WS_BASE_URL + WS_*_CHANNEL`.
   После стабилизации `PositionsStream` на устройстве.
 - [ ] Merge `feature/ws-okhttp-fallback` → `feature/stream-orchestrator`
-  → `dev` — после live-теста через `TInvestPositionsWebSocket`
-  на устройстве (connected + frame received в logcat `TInvestWS`).
+  → `dev`. Условие live-теста выполнено (2026-10-20), ждёт
+  ревью и PR.
 
 **Контекст:** три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка композиции логика fallback размазывается по брокерам. Оркестратор — единая точка композиции для каждого брокера.
 
