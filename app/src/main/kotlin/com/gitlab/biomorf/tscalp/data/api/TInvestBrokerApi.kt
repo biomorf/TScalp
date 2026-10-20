@@ -97,17 +97,17 @@ class TInvestBrokerAPI(
         val newChannels = channelFactory.create(token, sandbox)
         state.channels = newChannels
         state.api = InvestApi.createApi(newChannels.api)
-        positionsWebSocket =
-            TInvestPositionsWebSocket(
-                client = httpClient,
-                url = buildWsUrl(sandbox, WS_POSITIONS_CHANNEL),
-                token = token,
-                logger = { msg -> AppLogger.d("TInvestWS", msg) },
-            )
-        // WS для цен и ордеров — только prod. В sandbox
-        // сервер закрывает соединение без кадра (см.
-        // docs/ISSUES.md), поэтому клиенты не создаём.
+        // Все WS-клиенты — только prod. В sandbox сервер
+        // закрывает соединение без кадра (см. docs/ISSUES.md),
+        // поэтому клиенты не создаём.
         if (!sandbox) {
+            positionsWebSocket =
+                TInvestPositionsWebSocket(
+                    client = httpClient,
+                    url = buildWsUrl(sandbox, WS_POSITIONS_CHANNEL),
+                    token = token,
+                    logger = { msg -> AppLogger.d("TInvestWS", msg) },
+                )
             wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             pricesWebSocket =
                 TInvestPricesWebSocket(
