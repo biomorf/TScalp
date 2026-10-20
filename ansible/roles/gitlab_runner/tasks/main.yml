@@ -1,4 +1,68 @@
 ---
-- name: Role placeholder
-  ansible.builtin.debug:
-    msg: "gitlab_runner role skeleton. Implementation is the next step."
+- name: Ensure linger is enabled for {{ ansible_user }}
+  ansible.builtin.command: loginctl enable-linger {{ ansible_user }}
+  args:
+    creates: /var/lib/systemd/linger/{{ ansible_user }}
+
+- name: Ensure rootless podman socket is enabled and started
+  ansible.builtin.command: systemctl --user enable --now podman.socket
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
+  changed_when: false
+
+- name: Ensure gitlab-runner config directory exists
+  ansible.builtin.file:
+    path: "{{ gitlab_runner_config_dir }}"
+    state: directory
+    mode: "0700"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Deploy config.toml
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ gitlab_runner_config_dir }}/config.toml"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  notify: Restart gitlab-runner
+
+- name: Ensure quadlet directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/.config/containers/systemd"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Deploy quadlet unit
+  ansible.builtin.template:
+    src: gitlab-runner.container.j2
+    dest: "{{ ansible_user_dir }}/.config/containers/systemd/gitlab-runner.container"
+    mode: "0644"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  notify:
+    - Reload systemd user daemon
+    - Restart gitlab-runner
+
+- name: Pull gitlab-runner image
+  ansible.builtin.command: podman pull {{ gitlab_runner_image }}
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
+  changed_when: false
+
+- name: Flush handlers to reload daemon before starting
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure gitlab-runner service is enabled and started
+  ansible.builtin.command: systemctl --user enable --now gitlab-runner.service
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
+  changed_when: false

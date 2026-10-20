@@ -1,0 +1,18 @@
+[Unit]
+Description=GitLab Runner
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image={{ gitlab_runner_image }}
+ContainerName={{ gitlab_runner_container_name }}
+Volume={{ gitlab_runner_config_dir }}/config.toml:/etc/gitlab-runner/config.toml:ro,Z
+Volume={{ podman_user_socket }}:/var/run/docker.sock
+Network=host
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

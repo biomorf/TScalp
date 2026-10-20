@@ -1,5 +1,16 @@
 ---
-- name: Restart gitlab-runner container
-  ansible.builtin.command:
-    cmd: podman restart {{ gitlab_runner_container_name }}
+- name: Reload systemd user daemon
+  ansible.builtin.command: systemctl --user daemon-reload
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
+  changed_when: true
+
+- name: Restart gitlab-runner
+  ansible.builtin.command: systemctl --user restart gitlab-runner.service
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
   changed_when: true

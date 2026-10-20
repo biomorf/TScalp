@@ -1,0 +1,17 @@
+---
+- name: Setup GitLab Runner
+  hosts: managed
+  become: true
+  vars:
+    # Отключаем установку Podman на уровне роли, если вдруг она не нужна
+    podman_install: true
+
+  roles:
+    - role: fedora.linux_system_roles.podman
+      when: enabled | default(false) | bool
+      vars:
+        podman_packages:
+          - podman
+
+    - role: gitlab_runner
+      when: enabled | default(false) | bool
