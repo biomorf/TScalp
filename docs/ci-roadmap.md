@@ -9,6 +9,142 @@
 
 ## Планируемые задачи
 
+### GitHub → GitLab mirror через GitHub Action
+
+**Мобильная работа:** полное закрытие. Всё через proot
+(правки `.yml`) + web (настройка токенов). Локальная
+сборка не требуется.
+
+**Статус:** запланировано. **Хороший кандидат для работы
+с телефона.**
+
+**Контекст:** основной CI — GitHub Actions. GitLab —
+резерв на случай аварии (см. `docs/ci-roadmap.md` →
+«Hot-swap CI на GitLab»). Для работающего резерва нужна
+актуальная история в GitLab.
+
+**Что не работает (встроенное):**
+
+- **GitHub push mirror** (Settings → Repository → Mirroring)
+  — Enterprise only.
+- **GitLab mirror** (Settings → Repository → Mirroring
+  repositories) — Premium+.
+
+Оба факта проверить при старте задачи: тарифные линейки
+могли измениться.
+
+**Альтернатива — GitHub Action с `git push --mirror`:**
+
+- на каждый push/delete в GitHub (любая ветка) workflow
+  делает `git clone --mirror` и `git push --mirror` в GitLab;
+- ~10 строк YAML;
+- работает на Free-тарифах обоих сервисов.
+
+**Предусловия:**
+- Проект `biomorf/tscalp` на GitLab существует (по README
+  badge — да).
+- В GitLab создан deploy token с `write_repository` или
+  PAT с `write_repository`.
+
+**Файлы:**
+- `.github/workflows/mirror.yml` (новый) — workflow
+  зеркалирования.
+- GitHub Settings → Secrets → `GITLAB_MIRROR_TOKEN`.
+
+**Шаги:**
+
+1. В GitLab: Settings → Repository → Deploy tokens →
+   создать `github-mirror`, scope `write_repository`.
+2. В GitHub: Settings → Secrets and variables → Actions →
+   добавить `GITLAB_MIRROR_TOKEN` со значением токена.
+3. Создать `.github/workflows/mirror.yml` (шаблон):
+
+   ~~~yaml
+   name: Mirror to GitLab
+   on:
+     push:
+     delete:
+   jobs:
+     mirror:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v6
+           with:
+             fetch-depth: 0
+         - run: |
+             git fetch --prune --tags
+             git push --mirror \
+               https://oauth2:${{ secrets.GITLAB_MIRROR_TOKEN }}@gitlab.com/biomorf/tscalp.git
+   ~~~
+
+4. Проверить на тестовом коммите: пуш в `dev` GitHub →
+   workflow зелёный → в GitLab `dev` синхронизирован.
+5. Проверить защищённые ветки GitLab: `master` защищена
+   (Protected Branches). `--mirror` пытается пушить все
+   ветки, включая `master` — deploy token с
+   `write_repository` **обойдёт** protected. Это осознанно:
+   зеркало должно быть точным. При необходимости —
+   ограничить Protected Branches в GitLab или дать токену
+   bypass.
+6. Обновить `docs/ci-roadmap.md`: задачу «Hot-swap CI на
+   GitLab» — пункт «Зеркалирование» закрыть, с
+   перекрёстной ссылкой на эту задачу.
+
+**Референсы:**
+- `actions/checkout` — GitHub Marketplace. Версия может
+  быть v6+, проверить при старте.
+- GitLab Deploy Tokens:
+  `https://docs.gitlab.com/ee/user/project/deploy_tokens/`.
+- GitLab Protected Branches:
+  `docs/repo-protection.md` → «GitLab Protected
+  Branches / Tags».
+
+**Ограничения:**
+- Не зеркалировать GitHub Actions artifacts — только
+  git-история.
+- Не пушить `--tags` иначе как через `--mirror`: `--tags`
+  отдельно может конфликтовать с защищёнными тегами
+  GitLab.
+- Не коммитить токен в код — только через Secrets.
+- Проверить: `push --mirror` удаляет ветки в GitLab, если
+  их нет в GitHub. Если в GitLab есть локальные
+  ветки (например, эксперименты), зеркало их **удалит**.
+  При необходимости — использовать `git push origin
+  --all` + `--tags` вместо `--mirror` (без удаления
+  лишних).
+
+**Критерий готовности:**
+- Push в любую ветку GitHub → GitLab синхронизирован в
+  течение ~30 секунд.
+- Delete ветки в GitHub → удалена в GitLab.
+- Теги синхронизируются.
+- Workflow зелёный, история GitLab совпадает с GitHub
+  (`git log --oneline` совпадает).
+
+**Оценка:** ~10 минут активной работы (токены 3, YAML 3,
+проверка 4).
+
+**Зависимости:** нет. **Разблокирует** «Hot-swap CI на
+GitLab» — без зеркала переключение на резерв невозможно.
+
+**Открытые вопросы:**
+- `--mirror` (полная точная копия, удаляет лишнее) или
+  `--all + --tags` (только добавление, без удаления)?
+  Рекомендация — `--mirror`, если в GitLab нет
+  локальных экспериментов.
+- Должен ли workflow запускаться на push в защищённые
+  ветки (`dev`, `master`)? Скорее да — именно их история
+  важна для резерва.
+- Что делать при падении mirror workflow: отдельный
+  алерт/issue, или игнорировать и разбираться при
+  реальном переключении на GitLab? Рекомендация —
+  игнорировать до реального сбоя, но добавить в
+  monitoring, когда он появится.
+
+---
+
+### Codecov: diff coverage в PR и бейдж покрытия
+
 ### Codecov: diff coverage в PR и бейдж покрытия
 
 **Мобильная работа:** полное закрытие. Всё делается через
