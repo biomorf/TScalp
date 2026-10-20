@@ -72,49 +72,93 @@ web Settings GitHub + правка `docs/git-flow.md`.
 
 ### Self-hosted GitLab Runner через Ansible + Podman
 
-**Мобильная работа:** частичное (Ansible-роль, inventory,
-playbook — с телефона; тестирование разворачивания — на
-домашней машине).
+**Мобильная работа:** частичное (написание Ansible-ролей, inventory, playbook — с телефона; тестирование разворачивания — на удалённом сервере или десктопе).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** ci/self-hosted-runner
 
-**Что:** развернуть GitLab Runner на домашней машине (i9 13980HX,
-64 ГБ RAM, Bluefin 44) через Ansible, используя Podman как
-executor. Предусмотреть возможность переключения на удалённый
-сервер через inventory.
+**Что:** развернуть GitLab Runner в Podman-контейнере на удалённом сервере (Fedora 43, `51.250.36.160`, 2 CPU, 2 GB RAM) и/или домашней машине (Bluefin 44, i9 13980HX, 64 GB RAM) через Ansible. Один хост активен, второй — резерв. Переключение через inventory.
 
-**Зачем:** квота GitLab Free Tier (400 минут/мес) исчерпана.
-Self-hosted даёт бесплатные сборки, полный контроль над
-окружением и лучшую производительность.
+**Зачем:** квота GitLab Free Tier одноразовая. Self-hosted — единственный путь для регулярных сборок без ограничений.
+
+**Архитектурный принцип:** immutable-подход. **Хост отвечает только за запуск Podman/Docker.** Всё остальное — внутри контейнеров. Никаких `dnf install gitlab-runner`, `useradd gitlab-runner`, `systemctl --user` на хосте. Runner — это контейнер `gitlab/gitlab-runner:latest`, job'ы — вложенные контейнеры через Podman socket хоста.
+
+**Схема:**
+
+- **Control node** (Ansible) — в контейнере: proot на телефоне или toolbox на десктопе. Не на хосте.
+- **Managed nodes** — сам хост (Fedora 43 / Bluefin 44), на котором есть только Podman (rootless, пользователь `def`).
+- **Runner** — контейнер `gitlab/gitlab-runner:latest` (официальный).
+- **Job'ы** — через `docker` executor, пробрасывается хост-Podman socket (`/run/user/1000/podman/podman.sock:/var/run/docker.sock`).
 
 **Технические детали:**
-- Podman как drop-in замена Docker в GitLab Runner 15.1+.
-  В `config.toml`: `executor = "docker"`,
-  `host = "unix:///run/user/<uid>/podman/podman.sock"`.
-- Rootless Podman: без root, без демона, безопаснее.
-- Ansible роль: создание пользователя `gitlab-runner`,
-  `loginctl enable-linger`, `systemctl --user enable podman.socket`,
-  регистрация раннера, настройка `config.toml`.
-- Ограничения ресурсов: `--memory=16g`, `--cpus=8` (с запасом,
-  начать с 8g/4).
-- Кэш Gradle монтируется с хоста для ускорения сборок.
+
+- **Ansible-роль:** проверка Podman, `podman pull gitlab/gitlab-runner:latest`, создание `config.toml` (из шаблона), запуск контейнера, регистрация через `podman run --rm gitlab/gitlab-runner register ...`, автозапуск через `podman generate systemd --new` или `podman kube play`.
+- **Регистрация:** GitLab 17+ использует authentication token (`--token glrt-...`), не registration token.
+- **Executor:** `docker` (через Podman socket). Для job'ов — образ `eclipse-temurin:17-jdk` (на первом этапе, без Android SDK).
+- **Ограничения ресурсов:**
+  - `remote`: `concurrent = 1`, `--memory=1g`, `--cpus=2`. На 2 GB RAM работает только `fast-check` (lint, ktlint, detekt, unit-тесты). `assembleDebug` не запускается.
+  - `home`: `concurrent = 4`, `--memory=8g`, `--cpus=8`. Полный набор job'ов.
+- **Кэш Gradle:** том `gradle-cache` на хосте, монтируется в job-контейнеры.
+- **Секреты:** токен раннера в Ansible Vault (`ansible/group_vars/all/vault.yml`), пароль Vault — вне репозитория.
+- **Кастомный job-образ:** пока не делаем. На готовых образах. Если не хватит — отдельной задачей.
 
 **Бесшовное переключение:**
-- Inventory с двумя хостами: `local` и `remote`.
-- Раннеры регистрируются с разными тегами (`home`, `remote`).
-- Переключение — смена тега в `.gitlab-ci.yml` или через
-  переменную CI/CD.
+- Inventory: одна группа `managed`, хосты `remote` и `home`, у каждого `enabled: true/false`.
+- Раннеры регистрируются с разными тегами (`remote`, `home`).
+- Переключение — смена `enabled` в `inventory/hosts.yml` + `ansible-playbook`.
+- Для CI: `tags:` в `.gitlab-ci.yml` выбирает нужный runner.
 
 **План:**
-1. Написать Ansible роль для GitLab Runner + Podman.
-2. Протестировать на домашней машине (`ansible-playbook -i inventory.yml playbook.yml`).
-3. Зарегистрировать раннер в проекте.
-4. Перевести job'ы `unit-tests`, `lint`, `assemble-debug` на self-hosted.
-5. `build-release` и `publish-release` оставить на GitLab SaaS
-   или перенести после проверки.
+- [x] Создать структуру `ansible/` и базовые конфиги (`ansible.cfg`, `inventory`, `group_vars`, `host_vars`).
+- [x] Настроить Ansible Vault для `become_password` и `runner_token`.
+- [x] Подключить `fedora.linux_system_roles` (через `requirements.yml` и `install-requirements.sh`).
+- [x] Написать роль `gitlab_runner` (задачи, handlers, шаблон quadlet-юнита).
+- [x] Проверить YAML-синтаксис playbook (`ansible-playbook --syntax-check`).
+- [ ] Выполнить dry-run на `remote` (`ansible-playbook --check --diff -l remote`).
+- [ ] Применить роль на `remote`, проверить, что runner зарегистрирован в GitLab.
+- [ ] Перевести job `fast-check` на `remote` runner.
+- [ ] Развернуть на `home`, перевести `assembleDebug`.
+- [ ] Обновить `docs/ci-cd.md` (когда появится) с процедурой переключения.
 
-**Оценка:** ~2–3 часа на написание роли и отладку.
-**Когда:** после решения вопроса с Gradle upgrade.
+**Текущее состояние (2026-10-20):**
+
+- Роль написана, все конфиги на месте.
+- Коллекция `fedora.linux_system_roles` v2.5.0 установлена в proot.
+- `ansible-playbook --syntax-check` проходит без ошибок.
+- **Следующий шаг:** запустить `ansible-playbook playbook.yml --check --diff -l remote` в директории `ansible/`. Ожидается проверка SSH, Vault-пароля и корректности шаблонов без реальных изменений.
+- Если dry-run успешен — переход к реальному запуску (без `--check`).
+- **Ветка:** `ci/self-hosted-runner` (запушена).
+
+**Структура `ansible/`:**
+
+    ansible/
+    ├── ansible.cfg
+    ├── playbook.yml
+    ├── inventory/hosts.yml
+    ├── group_vars/all/{main,vault}.yml
+    ├── host_vars/{remote,home}.yml
+    └── roles/gitlab_runner/
+        ├── tasks/main.yml
+        ├── templates/config.toml.j2
+        ├── defaults/main.yml
+        ├── handlers/main.yml
+        └── meta/main.yml
+
+**Оценка:** ~4–5 часов (роль 2 ч, отладка на сервере 1.5 ч, интеграция в `.gitlab-ci.yml` 1 ч, документация 0.5 ч).
+
+**Предусловия:**
+- Проект `biomorf/tscalp` на gitlab.com существует.
+- Authentication token для runner создан в GitLab UI.
+- SSH-доступ к `51.250.36.160` по ключу проверен (`ansible_user: def`).
+- Podman установлен на оба хоста (rootless, юзер `def`) — по правилу самодостаточности Ansible-роль проверяет и ставит, если нет.
+
+**Открытые вопросы:**
+- `fail2ban` на сервер — пока нет, по решению пользователя.
+- `build-release` переносить на self-hosted сразу или после стабилизации? (Пока оставить на SaaS.)
+- Кастомный job-образ с Android SDK — отдельная задача после MVP.
+- Если 2 GB RAM на remote окажется мало — увеличить после внедрения.
+
+---
 
 ### Hot-swap CI на GitLab
 
