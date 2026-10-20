@@ -207,6 +207,7 @@ class TInvestMarketDataService(
                     profitPercent = profitPercent,
                     instrumentType = instrumentUi?.instrumentType ?: "",
                     pointValue = pointVal,
+                    currency = instrumentUi?.currency,
                 )
             }
         }
@@ -407,6 +408,7 @@ class TInvestMarketDataService(
             expectedYield = pos.profit,
             instrumentType = pos.instrumentType,
             pointValue = pos.pointValue,
+            currency = pos.currency,
         )
 
     // ---------- Баланс и пополнение ----------
