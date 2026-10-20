@@ -1,0 +1,6 @@
+---
+# Специфика домашней Bluefin 44 (i9 13980HX, 64 GB RAM)
+gitlab_runner_tags: ["home", "full"]
+gitlab_runner_concurrent: 4
+gitlab_runner_docker_memory: "8g"
+gitlab_runner_docker_cpus: "8"

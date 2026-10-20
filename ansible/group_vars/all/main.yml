@@ -1,0 +1,12 @@
+---
+# Общие переменные для всех runner'ов
+
+gitlab_url: "https://gitlab.com/"
+gitlab_runner_image: "gitlab/gitlab-runner:latest"
+gitlab_runner_executor: "docker"
+
+# Podman socket на хосте (rootless, UID 1000 для пользователя def)
+podman_user_socket: "/run/user/1000/podman/podman.sock"
+
+# Образ для job-контейнеров (пока без Android SDK, только для fast-check)
+gitlab_runner_docker_image: "eclipse-temurin:17-jdk"

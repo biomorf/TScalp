@@ -1,0 +1,6 @@
+---
+# Специфика сервера Fedora 43 (51.250.36.160, 2 CPU, 2 GB RAM)
+gitlab_runner_tags: ["remote", "fast"]
+gitlab_runner_concurrent: 1
+gitlab_runner_docker_memory: "1g"
+gitlab_runner_docker_cpus: "2"
