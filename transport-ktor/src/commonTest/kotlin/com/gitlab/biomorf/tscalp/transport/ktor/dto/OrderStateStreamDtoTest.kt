@@ -81,8 +81,8 @@ class OrderStateStreamDtoTest {
         assertNotNull(sub)
         assertEquals("RESULT_SUBSCRIPTION_STATUS_ERROR", sub.status)
         assertNotNull(sub.error)
-        assertEquals("UNAUTHENTICATED", sub.error!!.code)
-        assertEquals("Token is invalid", sub.error!!.message)
+        assertEquals("UNAUTHENTICATED", sub.error.code)
+        assertEquals("Token is invalid", sub.error.message)
     }
 
     @Test
@@ -119,9 +119,9 @@ class OrderStateStreamDtoTest {
         assertEquals("ORDER_DIRECTION_BUY", o.direction)
         assertEquals("EXECUTION_REPORT_STATUS_NEW", o.executionReportStatus)
         assertNotNull(o.initialOrderPrice)
-        assertEquals("290", o.initialOrderPrice!!.units)
-        assertEquals(500_000_000, o.initialOrderPrice!!.nano)
-        assertEquals("rub", o.initialOrderPrice!!.currency)
+        assertEquals("290", o.initialOrderPrice.units)
+        assertEquals(500_000_000, o.initialOrderPrice.nano)
+        assertEquals("rub", o.initialOrderPrice.currency)
         assertNull(o.executedOrderPrice)
         assertEquals("10", o.lotsRequested)
         assertEquals("0", o.lotsExecuted)
@@ -143,6 +143,6 @@ class OrderStateStreamDtoTest {
         val dto = json.decodeFromString(OrderStateStreamResponseDto.serializer(), raw)
 
         assertNotNull(dto.orderState)
-        assertEquals("order-1", dto.orderState!!.orderId)
+        assertEquals("order-1", dto.orderState.orderId)
     }
 }

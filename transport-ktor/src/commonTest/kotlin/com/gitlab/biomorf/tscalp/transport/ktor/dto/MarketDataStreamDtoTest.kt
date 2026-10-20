@@ -102,8 +102,8 @@ class MarketDataStreamDtoTest {
         assertEquals("uid-sber", lp.instrumentUid)
         assertEquals("SBER", lp.ticker)
         assertNotNull(lp.price)
-        assertEquals("292", lp.price!!.units)
-        assertEquals(600_000_000, lp.price!!.nano)
+        assertEquals("292", lp.price.units)
+        assertEquals(600_000_000, lp.price.nano)
         assertEquals("LAST_PRICE_EXCHANGE", lp.lastPriceType)
         assertNull(dto.subscribeLastPriceResponse)
         assertNull(dto.ping)
@@ -123,7 +123,7 @@ class MarketDataStreamDtoTest {
         val dto = json.decodeFromString(MarketDataResponseDto.serializer(), raw)
 
         assertNotNull(dto.ping)
-        assertEquals("2026-10-21T10:00:00Z", dto.ping!!.time)
+        assertEquals("2026-10-21T10:00:00Z", dto.ping.time)
     }
 
     @Test
@@ -142,6 +142,6 @@ class MarketDataStreamDtoTest {
         val dto = json.decodeFromString(MarketDataResponseDto.serializer(), raw)
 
         assertNotNull(dto.lastPrice)
-        assertEquals("uid-sber", dto.lastPrice!!.instrumentUid)
+        assertEquals("uid-sber", dto.lastPrice.instrumentUid)
     }
 }
