@@ -581,8 +581,58 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
   WS даёт данные.
 
 **Фаза 3 — Раскат на цены и ордера.**
-- Аналогично для `pricesStream` и `orderStateStream`.
-- Проверка на каждом.
+
+**Статус:** запланировано.
+
+**Контекст:** Фаза 2 (позиции) закрыта. Для цен и ордеров
+нужны отдельные WS-каналы и DTO, отличные от `PositionsStream`.
+
+**Каналы (из `asyncapi.yaml`):**
+
+- Цены: `/tinkoff.public.invest.api.contract.v1.MarketDataStreamService/MarketDataStream`
+- Ордера: `/tinkoff.public.invest.api.contract.v1.OrdersStreamService/OrderStateStream`
+
+**Шаги:**
+
+1. **DTO для цен.** Создать в `:transport-ktor/dto/`:
+   - `MarketDataRequestDto`: `subscribeLastPriceRequest` (вложенный).
+   - `SubscribeLastPriceRequestDto`: `subscriptionAction` (SUBSCRIBE), `instruments` (список `LastPriceInstrumentDto`).
+   - `LastPriceInstrumentDto`: `instrumentId` (принимает uid).
+   - `MarketDataResponseDto`: `lastPrice`, `subscribeLastPriceResponse`, `ping`.
+   - `LastPriceDto`: `instrumentUid`, `price` (units, nano).
+   - `SubscribeLastPriceResponseDto`: `lastPriceSubscriptions`, `trackingId`.
+
+2. **DTO для ордеров.** Создать в `:transport-ktor/dto/`:
+   - `OrderStateStreamRequestDto`: `accounts`, `pingDelayMillis`.
+   - `OrderStateStreamResponseDto`: `orderState`, `subscription`, `ping`.
+   - `OrderStateDto`: `orderId`, `orderRequestId`, `ticker`, `classCode`, `direction`, `executionReportStatus`, `initialOrderPrice`, `executedOrderPrice`, `lotsRequested`, `lotsExecuted`, `createdAt`.
+
+3. **Клиент цен.** Создать `TInvestPricesWebSocket` по образцу `TInvestPositionsWebSocket`. Отправка подписки при коннекте. Парсинг `lastPrice`. Реализовать поддержку динамической подписки (см. Открытые вопросы).
+
+4. **Клиент ордеров.** Создать `TInvestOrderStateWebSocket`. Отправка `accounts` при коннекте. Парсинг `orderState`.
+
+5. **Мапперы.** `TInvestPricesWsMapper` (WS DTO -> `Pair<String, Double>`), `TInvestOrderStateWsMapper` (WS DTO -> `OrderState`).
+
+6. **Оркестратор.** В `TInvestOrchestrator` добавить методы `pricesStream(...)` и `orderStateStream(...)`, композируя gRPC-primary + WS-fallback.
+
+7. **DI.** Обновить `TInvestBrokerAPI` для создания WS-клиентов цен и ордеров, передать их в оркестратор.
+
+8. **Тесты.** Unit-тесты на мапперы (цены, ордера).
+
+**Ограничения:**
+
+- `instrumentId` в WS цен принимает uid. Использовать `tscalpInstrumentId`.
+- Лимиты WS-подписок: T-Invest ограничивает число подписок в одном соединении. При превышении — отписка/переподписка.
+- Не смешивать с REST fallback (это отдельная задача «Ktor REST transport для polling»).
+
+**Открытые вопросы:**
+
+1. **Динамическая подписка на цены.** `PriceStreamManager` меняет union инструментов. gRPC пересоздаёт стрим. Для WS есть два пути:
+   - Простой: пересоздавать WS-соединение при смене union.
+   - Правильный: использовать `subscriptionAction` (SUBSCRIBE/UNSUBSCRIBE) без разрыва соединения. Второй путь предпочтительнее, но требует состояния (какие uid уже подписаны). Решить при реализации.
+2. **Восстановление после обрыва WS цен.** `PriceStreamManager` оборачивает поток в reconnect-loop (backoff). WS-клиент тоже умеет переподключаться. Где граница ответственности — в оркестраторе или в менеджере? Решить по образцу позиций.
+3. **Маппинг `orderState`.** В gRPC-версии (см. `TInvestMarketDataService.subscribeOrderState`) поля извлекались через reflection (`findFieldByName`). В WS DTO поля типизированы. Нужно сверить, какие поля есть в asyncapi, и не потерять нужные для `OrderState`.
+
 
 **Альтернативы для WS-транспорта.**
 
