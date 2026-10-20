@@ -584,4 +584,58 @@ T-Invest `subscribeLastPrices` не пустой. Латентный: стане
 
 ---
 
+## PositionsStream over WS не отдаёт данные в песочнице
+
+**Статус:** открыт. Ограничение сервера, не наш код.
+
+**Симптом:** при подключении к sandbox-WS
+(`wss://sandbox-invest-public-api.tbank.ru/ws/.../PositionsStream`)
+сервер принимает handshake и подписку, но сразу закрывает
+соединение (`Received WebSocket close message`) без единого
+кадра. Ни `subscriptions`, ни `initialPositions`, ни ошибки.
+
+**Подтверждено:**
+- Ktor CIO клиент (`TInvestPositionsWebSocket`) — воспроизводится.
+- `websocat -k` с тем же URL, токеном и payload
+  (`{"accounts":["<sandbox-accountId>"],"withInitialPositions":true}`)
+  — идентичный результат: `Connected to ws` → `close message`
+  без кадров.
+
+**Контекст:** тот же `PositionsStream`, тот же payload на проде
+(`wss://invest-public-api.tbank.ru/ws/...`) работает end-to-end:
+`subscriptions` → `POSITIONS_SUBSCRIPTION_STATUS_SUCCESS`,
+`initialPositions` со списком позиций, `ping` раз в 60 секунд.
+
+**Причина:** неизвестна. Гипотеза — ограничение песочницы
+T-Invest на WS `PositionsStream`, аналогичное известному
+ограничению `OrderStateStream` в sandbox
+(`UNAUTHENTICATED: 40003`, см. `docs/streams.md`).
+
+**Что сделано в клиенте:** WS URL теперь маршрутизируется по
+режиму: прод → `invest-public-api.tbank.ru`, sandbox →
+`sandbox-invest-public-api.tbank.ru` (см.
+`TInvestBrokerAPI.buildWsUrl`). Это закрыло другую проблему —
+sandbox-токен раньше уходил на прод-хост. Само ограничение
+sandbox-WS не лечится на нашей стороне.
+
+**Решение:** в песочнице WS-стрим позиций фактически не
+работает; данные идут через gRPC + polling. Fallback работает
+как задумано: WS молча закрывается, оркестратор продолжает
+получать данные от двух других источников. Для UI это
+прозрачно.
+
+**Когда вернуться:**
+- При обновлении SDK/документации T-Invest — возможно,
+  ограничение снято.
+- При официальном подтверждении от поддержки T-Invest.
+- Если на проде WS перестанет работать по той же схеме
+  (закрытие без кадров) — это уже другой баг, не sandbox.
+
+**Связанные файлы:**
+- `app/src/main/kotlin/.../data/api/TInvestBrokerApi.kt` —
+  `buildWsUrl`.
+- `transport-ktor/src/commonMain/.../TInvestPositionsWebSocket.kt` —
+  клиент.
+- `docs/streams.md` — похожее ограничение OrderStateStream.
+
 ---
