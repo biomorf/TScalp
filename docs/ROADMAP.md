@@ -478,6 +478,13 @@ PR был). Фаза 2 и WS-транспорт — в `feature/ws-okhttp-fallba
   `MarketDataStream` (цены), `OrdersStream` (статусы заявок).
   URL по тому же шаблону: `WS_BASE_URL + WS_*_CHANNEL`.
   После стабилизации `PositionsStream` на устройстве.
+- [ ] Не создавать `TInvestPositionsWebSocket` в sandbox. Цены
+  и ордера уже создаются только при `!sandbox`
+  (`TInvestBrokerAPI.initialize`), позиции — пока всегда.
+  Исправить до PR: тот же принцип, WS в sandbox крутит
+  reconnect-loop без пользы (см. `docs/ISSUES.md` →
+  «PositionsStream over WS не отдаёт данные в песочнице»,
+  дополнение 2026-10-21).
 - [ ] Merge `feature/ws-okhttp-fallback` → `feature/stream-orchestrator`
   → `dev`. Условие live-теста выполнено (2026-10-20), ждёт
   ревью и PR.
