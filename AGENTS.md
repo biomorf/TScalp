@@ -785,17 +785,19 @@ message должен быть явно разделён на смысловые 
 ### 5a. Порядок коммита: локально vs CI
 
 **Локальные изменения** (код, ресурсы, Gradle-конфиги, документация):
-коммит **после** зелёной сборки
-`./gradlew :app:clean :app:testDebugUnitTest --rerun-tasks`.
-Если сборка падает — сначала фикс, потом коммит.
+коммит **после** зелёного полного гейта (см. ниже).
+Если гейт падает — сначала фикс, потом коммит.
 
-**Перед PR — полный прогон гейтов CI.** Минимум
-`testDebugUnitTest` недостаточен для проверки перед PR: CI
-прогоняет `fast-check` (unit + lint + ktlint + detekt). Все
-эти гейты должны быть зелёными локально **до** создания PR,
-иначе CI упадёт на первой же проверке стиля — как было в
-сессии 2026-10-20 с ktlint-нарушением в
-`TInvestPositionsWsMapper.toAmountOrZero`.
+**Перед каждым коммитом — полный гейт.** Минимум
+`testDebugUnitTest` недостаточен: CI прогоняет `fast-check`
+(unit + lint + ktlint + detekt). Все четыре задачи должны
+быть зелёными локально **до** коммита, не только до PR.
+Иначе lint/ktlint/detekt падают после коммита — как было
+в сессиях 2026-10-20/21: ktlint на
+`TInvestPositionsWsMapper.toAmountOrZero` и
+`TInvestOrderStateWsMapper.toDoubleOrNull`, detekt
+MagicNumber в `StreamCombinators`. Каждый такой случай —
+лишний цикл fix→commit→push.
 
 Команда:
 
