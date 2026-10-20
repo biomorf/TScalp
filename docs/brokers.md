@@ -20,6 +20,17 @@ T-Invest, BCS, Finam. Матрица транспортов, авторизац�
 Транспорты описаны в задаче «Оркестратор стримов и Ktor WS
 transport» (`docs/ROADMAP.md`).
 
+**Стадия реализации WebSocket:** только `PositionsStream` для
+T-Invest — реализован в `:transport-ktor`
+(`TInvestPositionsWebSocket`), работает на проде. Sandbox WS
+не отдаёт данные (серверное ограничение, см. `docs/streams.md`).
+`MarketDataStream` (цены) и `OrdersStream` (статусы заявок) —
+фаза 3, ещё не реализованы.
+
+У BCS и Finam WS указан как поддерживаемый протокол по
+документации, но в проекте **не реализован** — этап
+планирования.
+
 ---
 
 ## T-Invest
@@ -29,7 +40,11 @@ transport» (`docs/ROADMAP.md`).
 **Транспорты:**
 
 - gRPC — основной протокол (stream + unary).
-- WebSocket — `wss://invest-public-api.tbank.ru/ws/`.
+- WebSocket — `wss://invest-public-api.tbank.ru/ws/` (prod),
+  `wss://sandbox-invest-public-api.tbank.ru/ws/` (sandbox).
+  Канал — часть URL path. Реализован для `PositionsStream`
+  (`:transport-ktor`). Детали, коды закрытия, ограничение
+  sandbox — `docs/streams.md` → «WebSocket (T-Invest)».
 - REST — прокси Swagger над gRPC unary-методами:
   `POST /rest/tinkoff.public.invest.api.contract.v1.<Service>/<Method>`.
 
