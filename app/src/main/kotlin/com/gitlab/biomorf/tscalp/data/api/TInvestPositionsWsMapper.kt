@@ -99,6 +99,5 @@ object TInvestPositionsWsMapper {
             currency = currency,
         )
 
-    private fun MoneyValueDto.toAmountOrZero(): Double =
-        (units.toLongOrNull() ?: 0L).toDouble() + nano / 1_000_000_000.0
+    private fun MoneyValueDto.toAmountOrZero(): Double = (units.toLongOrNull() ?: 0L).toDouble() + nano / 1_000_000_000.0
 }
