@@ -37,6 +37,7 @@ data class PositionsStreamResponseDto(
     @SerialName("initialPositions") val initialPositions: PositionsResponseDto? = null,
     @SerialName("position") val position: PositionDataDto? = null,
     @SerialName("ping") val ping: PingDto? = null,
+    @SerialName("subscriptions") val subscriptions: SubscriptionsDto? = null,
 )
 
 /**
@@ -45,6 +46,7 @@ data class PositionsStreamResponseDto(
 @Serializable
 data class PositionsResponseDto(
     @SerialName("accountId") val accountId: String = "",
+    @SerialName("money") val money: List<MoneyValueDto> = emptyList(),
     @SerialName("securities") val securities: List<PositionsSecuritiesDto> = emptyList(),
     @SerialName("futures") val futures: List<PositionsFuturesDto> = emptyList(),
 )
@@ -55,6 +57,7 @@ data class PositionsResponseDto(
 @Serializable
 data class PositionDataDto(
     @SerialName("accountId") val accountId: String = "",
+    @SerialName("money") val money: List<MoneyValueDto> = emptyList(),
     @SerialName("securities") val securities: List<PositionsSecuritiesDto> = emptyList(),
     @SerialName("futures") val futures: List<PositionsFuturesDto> = emptyList(),
     @SerialName("date") val date: String? = null,
@@ -88,4 +91,33 @@ data class PositionsFuturesDto(
 @Serializable
 data class PingDto(
     @SerialName("time") val time: String? = null,
+)
+
+/**
+ * Подтверждение подписки. Сервер присылает первым кадром после
+ * отправки запроса на подписку. Используется для логирования
+ * и различения «подписка принята» / «данные пошли».
+ */
+@Serializable
+data class SubscriptionsDto(
+    @SerialName("accounts") val accounts: List<AccountSubscriptionDto> = emptyList(),
+    @SerialName("trackingId") val trackingId: String? = null,
+    @SerialName("streamId") val streamId: String? = null,
+)
+
+@Serializable
+data class AccountSubscriptionDto(
+    @SerialName("accountId") val accountId: String = "",
+    @SerialName("subscriptionStatus") val subscriptionStatus: String = "",
+)
+
+/**
+ * Валютный остаток. protobuf JSON mapping отдаёт int64 (`units`)
+ * строкой, nano — числом.
+ */
+@Serializable
+data class MoneyValueDto(
+    @SerialName("currency") val currency: String = "",
+    @SerialName("units") val units: String = "0",
+    @SerialName("nano") val nano: Int = 0,
 )
