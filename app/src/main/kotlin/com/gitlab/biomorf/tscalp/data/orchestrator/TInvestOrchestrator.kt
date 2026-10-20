@@ -1,7 +1,9 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
+import com.gitlab.biomorf.tscalp.domain.api.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.streamWithFallback
+import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +20,8 @@ import kotlinx.coroutines.flow.Flow
 class TInvestOrchestrator(
     private val marketData: TInvestMarketDataService,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
+    private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
+    private val orderStateWsFallback: (String) -> Flow<OrderState>? = { null },
 ) {
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
         streamWithFallback(
@@ -39,5 +43,39 @@ class TInvestOrchestrator(
                 } else {
                     marketData.subscribePositionsPolling(accountId)
                 },
+        )
+
+    fun pricesStream(uids: Set<String>): Flow<Pair<String, Double>> =
+        streamWithFallback(
+            primary =
+                if (DebugConfig.DISABLE_GRPC_STREAM) {
+                    null
+                } else {
+                    retryWithBackoff { marketData.subscribeLastPrices(uids.toList()) }
+                },
+            fallback =
+                if (DebugConfig.DISABLE_WS_FALLBACK) {
+                    null
+                } else {
+                    pricesWsFallback(uids)
+                },
+            polling = null,
+        )
+
+    fun orderStateStream(accountId: String): Flow<OrderState> =
+        streamWithFallback(
+            primary =
+                if (DebugConfig.DISABLE_GRPC_STREAM) {
+                    null
+                } else {
+                    retryWithBackoff { marketData.subscribeOrderState(accountId) }
+                },
+            fallback =
+                if (DebugConfig.DISABLE_WS_FALLBACK) {
+                    null
+                } else {
+                    orderStateWsFallback(accountId)
+                },
+            polling = null,
         )
 }
