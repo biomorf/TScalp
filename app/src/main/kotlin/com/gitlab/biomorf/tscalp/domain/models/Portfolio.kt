@@ -14,6 +14,21 @@ data class PositionStreamItem(
     val isin: String = "",
     val pointValue: Double? = null,
     val instrumentType: String = "",
+    // Для валютных позиций (instrumentType = "currency").
+    // Из WS PositionsStream: money — свободный остаток,
+    // blocked — заблокированный. Обе величины — в единицах
+    // валюты (для rub — рубли, для других валют — единицы
+    // этой валюты).
+    // Формула связи money, blocked и quantity пока не
+    // подтверждена по документации T-Invest. Возможные
+    // варианты (quantity = money, quantity = money + blocked,
+    // money и blocked — производные от quantity) проверяются
+    // на реальных данных. Поэтому храним раздельно:
+    // интерпретация откладывается до UI-задачи, и модель
+    // не придётся менять, какая бы формула ни оказалась
+    // верной.
+    val money: Double? = null,
+    val blocked: Double? = null,
 )
 
 data class PortfolioPosition(
