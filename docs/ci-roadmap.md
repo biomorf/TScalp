@@ -9,6 +9,149 @@
 
 ## Планируемые задачи
 
+### Codecov: diff coverage в PR и бейдж покрытия
+
+**Мобильная работа:** полное закрытие. Всё делается через
+proot (правки `.yml`) + web (регистрация, настройка,
+наблюдение за PR). Локальная Gradle-сборка не требуется.
+
+**Статус:** запланировано. **Хороший кандидат для работы
+с телефона.**
+
+**Контекст:** Kover считает покрытие и проверяет общий
+порог (`minBound(3)`), но не показывает, как **изменение
+в PR** повлияло на покрытие. Codecov даёт:
+
+- PR-комментарий с **diff coverage** — процент покрытия
+  именно изменённых строк;
+- **статус-чек** в PR (можно сделать обязательным в
+  Rulesets, как `gate`);
+- **историю покрытия** по коммитам и веткам — видно,
+  когда и что просело;
+- **бейдж в README** — обновляется автоматически.
+
+Для **публичного** репозитория Codecov бесплатен, токен
+не обязателен (`GITHUB_TOKEN` достаточно).
+
+**Предусловия:**
+- Kover настроен и генерирует XML (`koverXmlReportDebug`
+  в `ci.yml` уже есть).
+- Репозиторий на GitHub — публичный (`biomorf/TScalp`).
+
+**Файлы:**
+- `.github/workflows/ci.yml` — добавить шаг загрузки
+  отчёта в Codecov после `koverXmlReportDebug`.
+- `codecov.yml` (новый, корень) — настройка порогов и
+  игнорирования путей.
+- `README.md` — добавить бейдж покрытия рядом с CI-бейджем.
+- `docs/ci-roadmap.md` — этот файл (обновление статуса
+  при закрытии).
+
+**Шаги:**
+
+1. Зарегистрироваться на `https://codecov.io` через
+   GitHub OAuth. Дать доступ к репозиторию
+   `biomorf/TScalp`.
+2. Взять **upload token** из настроек репозитория на
+   Codecov (для публичного репо не обязателен, но лучше
+   добавить — защита от подмены).
+3. Добавить в GitHub **Repository secrets**:
+   `CODECOV_TOKEN`.
+4. В `.github/workflows/ci.yml` — после шага с
+   `koverXmlReportDebug` добавить:
+
+   ~~~yaml
+   - name: Upload coverage to Codecov
+     uses: codecov/codecov-action@v5
+     with:
+       files: app/build/reports/kover/reportDebug.xml
+       fail_ci_if_error: false
+     env:
+       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+   ~~~
+
+   `fail_ci_if_error: false` — на первом этапе. Когда
+   интеграция стабилизируется — можно переключить на
+   `true`, чтобы падение upload'а блокировало merge.
+5. Создать `codecov.yml` в корне (минимальный):
+
+   ~~~yaml
+   coverage:
+     status:
+       project:
+         default:
+           target: auto
+           threshold: 1%
+       patch:
+         default:
+           target: 50%
+   ignore:
+     - "app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/**"
+     - "app/src/main/kotlin/com/gitlab/biomorf/tscalp/ui/theme/**"
+   comment:
+     layout: "diff, files"
+   ~~~
+
+   Значения — стартовые, уточняются по факту (текущее
+   покрытие ~4.5% — `target: auto` покажет тренд, не
+   абсолют).
+6. Проверить на тестовом PR: открыть маленький PR,
+   дождаться, что Codecov оставил комментарий и статус-чек
+   прошёл.
+7. (Опционально) В Rulesets `Protect dev` добавить
+   `codecov/project` в required checks — блокировать PR,
+   если покрытие упало больше чем на 1%.
+8. В `README.md` добавить бейдж:
+
+   ~~~markdown
+   [![codecov](https://codecov.io/gh/biomorf/TScalp/branch/dev/graph/badge.svg)](https://codecov.io/gh/biomorf/TScalp)
+   ~~~
+
+9. Обновить этот файл: перенести задачу в «Закрытые».
+
+**Референсы:**
+- Codecov: `https://about.codecov.io/`
+- `codecov/codecov-action` на GitHub Marketplace (v5).
+- Kover: `docs/ci-roadmap.md` → «Coverage в unit-tests».
+- Kover XML-отчёт: `app/build/reports/kover/reportDebug.xml`.
+
+**Ограничения:**
+- Не переключать `fail_ci_if_error: true` до стабилизации
+  (первый PR может упасть по причинам Codecov — сеть,
+  сервис).
+- Не менять общий порог Kover (`minBound(3)`) — Codecov
+  работает параллельно, не заменяет.
+- `codecov.yml` начинать с консервативных значений
+  (`target: auto`, `threshold: 1%`), не с жёстких.
+- Бейдж в README — **после** того, как отработает хотя бы
+  один PR (иначе бейдж будет `unknown`).
+
+**Критерий готовности:**
+- В PR от Codecov приходит комментарий с diff coverage.
+- Статус-чек `codecov/project` в PR зелёный.
+- Бейдж покрытия в README отображается (не `unknown`).
+- История покрытия видна на codecov.io по ветке `dev`.
+
+**Оценка:** ~30–40 минут активной работы (регистрация 5,
+правка `ci.yml` 10, `codecov.yml` 10, проверка 10).
+
+**Зависимости:** нет. **Разблокирует** контроль diff
+coverage в PR; может стать обязательным чеком в Rulesets
+позже.
+
+**Открытые вопросы:**
+- `target: 50%` для patch — стартовое, проверить на первом
+  PR. Текущее общее покрытие ~4.5%, patch-порог может
+  оказаться слишком строгим или наоборот.
+- Игнорировать ли `presentation/screens/**` в `codecov.yml`
+  (UI-код, покрытие unit-тестами малополезно). Решить
+  после первого PR.
+- Добавлять ли `codecov/project` в required checks
+  Rulesets сразу или после стабилизации. Рекомендация —
+  после.
+
+---
+
 ### Role emulation для тестировщика
 
 **Мобильная работа:** полное закрытие. Всё делается через
