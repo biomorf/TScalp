@@ -35,9 +35,10 @@
 
 ### PositionsStream
 
-**Статус:** в работе. Разведка артефакта `kotlin-sdk-grpc-core:1.51.0`
-завершена, SDK содержит всё нужное. Реализация — в ветке
-`feature/positions-grpc-stream`.
+**Статус:** решён. gRPC-стрим реализован и работает в боевом
+и песочнице. Основной источник изменений количества; polling
+остаётся параллельным fallback'ом. См. `docs/ROADMAP.md` →
+«gRPC-стрим позиций» (закрытая задача).
 
 **История попыток:**
 
@@ -108,11 +109,21 @@
 
 **Канал — часть URL path**, а не только тело подписки:
 
+    # Prod
     wss://invest-public-api.tbank.ru/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream
+
+    # Sandbox
+    wss://sandbox-invest-public-api.tbank.ru/ws/tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream
 
 Голый `/ws` без канала возвращает 404 / timeout / silent hang.
 Подтверждено end-to-end через websocat (`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS`
 и `initialPositions` с реальными securities).
+
+**Маршрутизация по режиму.** В `TInvestBrokerAPI.buildWsUrl(sandbox)`
+URL выбирается по флагу: prod → `invest-public-api.tbank.ru`,
+sandbox → `sandbox-invest-public-api.tbank.ru`. Без этого
+sandbox-токен уходил на прод-хост, и сервер закрывал соединение
+сразу после подписки.
 
 ### Авторизация
 
@@ -174,11 +185,58 @@ T-Invest поддерживает два режима через заголов�
 - **`1011` + `reason: "50004"`** — `NOT_FOUND` (счёт не существует).
   Проверить accountId: соответствует ли он токену.
 
+### Sandbox WS не отдаёт данные
+
+В песочнице сервер принимает handshake и подписку, но **сразу
+закрывает соединение без единого кадра** (`Received WebSocket
+close message`, без `subscriptions`, без `initialPositions`,
+без кода ошибки). Подтверждено `websocat -k` с тем же URL,
+токеном и payload — идентичный результат. Это ограничение
+сервера, не клиента.
+
+В песочнице данные идут через gRPC + polling; WS молча
+закрывается, оркестратор продолжает получать данные от двух
+других источников. Для UI прозрачно. Запись:
+`docs/ISSUES.md` → «PositionsStream over WS не отдаёт данные
+в песочнице».
+
+### Подписка: encodeDefaults
+
+`withInitialPositions` в DTO имеет default `true`. Без
+`encodeDefaults = true` в `Json` kotlinx.serialization
+**не сериализует поле с default-значением** — payload уходит
+коротким (`{"accounts":["..."]}`, 27 байт вместо 75), и сервер
+не присылает `initialPositions` (только `subscriptions`).
+
+Лечится `Json { ignoreUnknownKeys = true; encodeDefaults = true }`
+в `TInvestPositionsWebSocket`.
+
+### Money и blocked: раздельно, без формулы
+
+Валютные остатки приходят двумя account-level массивами:
+`money` (свободные) и `blocked` (заблокированные), каждый
+элемент — `MoneyValue` с одним полем `currency` (без uid и
+ticker).
+
+`TInvestPositionsWsMapper` группирует `money` и `blocked`
+по `currency` в один `PositionStreamItem` на валюту
+(`instrumentType = "currency"`, пустой `tscalpInstrumentId`).
+`PositionStreamManager.enrichAndCache` склеивает этот item
+с валютной позицией из polling по полю `currency`.
+
+`money` и `blocked` хранятся на `PositionStreamItem`
+**раздельно**. Формула связи `money` ↔ `blocked` ↔ `quantity`
+не подтверждена по документации — интерпретация отложена до
+UI-задачи (см. `docs/ROADMAP.md` → «UI: отображение blocked
+на валютной карточке»).
+
 ### Связанные документы
 
 - `docs/ISSUES.md` → «T-Invest WebSocket: решён — канал должен
   быть в URL path» — root cause, матрица экспериментов,
   коды закрытия.
+- `docs/ISSUES.md` → «PositionsStream over WS не отдаёт данные
+  в песочнице» — sandbox-ограничение сервера.
 - `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport» —
   план фаз 2 и 3.
 
