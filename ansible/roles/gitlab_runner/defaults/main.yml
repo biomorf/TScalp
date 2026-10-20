@@ -1,0 +1,21 @@
+---
+# Defaults for gitlab_runner role (portable, no project-specific values)
+
+gitlab_url: "https://gitlab.com/"
+gitlab_runner_image: "gitlab/gitlab-runner:latest"
+gitlab_runner_container_name: "gitlab-runner"
+gitlab_runner_executor: "docker"
+gitlab_runner_concurrent: 1
+gitlab_runner_tags: []
+gitlab_runner_docker_image: "eclipse-temurin:17-jdk"
+gitlab_runner_docker_memory: "1g"
+gitlab_runner_docker_cpus: "2"
+gitlab_runner_docker_volumes:
+  - "/cache"
+gitlab_runner_config_dir: "{{ ansible_user_dir }}/.config/gitlab-runner"
+
+# Mandatory, must come from Ansible Vault
+gitlab_runner_token: ""
+
+# Podman socket on the host (rootless)
+podman_user_socket: "/run/user/{{ ansible_user_uid | default(1000) }}/podman/podman.sock"

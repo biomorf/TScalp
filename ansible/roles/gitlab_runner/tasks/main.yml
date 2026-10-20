@@ -1,0 +1,4 @@
+---
+- name: Role placeholder
+  ansible.builtin.debug:
+    msg: "gitlab_runner role skeleton. Implementation is the next step."

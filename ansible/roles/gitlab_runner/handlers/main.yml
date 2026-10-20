@@ -1,0 +1,5 @@
+---
+- name: Restart gitlab-runner container
+  ansible.builtin.command:
+    cmd: podman restart {{ gitlab_runner_container_name }}
+  changed_when: true
