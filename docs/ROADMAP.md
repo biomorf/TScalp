@@ -11,6 +11,77 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### Add stop() to TInvestOrderStateWebSocket
+
+**Мобильная работа:** полное закрытие. Правки `.kt` — через
+proot; сборка и гейт — на десктопе. Оценка ~15 минут.
+
+**Статус:** отложено. **Триггер:** первое использование
+`subscribeOrderState` в UI (OrdersViewModel или отдельный
+менеджер ордеров).
+
+**Контекст:** архитектурный дисбаланс между WS-клиентами.
+`TInvestPricesWebSocket` имеет `stop()` и собственный
+`wsScope` (`TInvestBrokerAPI.deinitialize` вызывает
+`pricesWebSocket?.stop()` и `wsScope?.cancel()`).
+`TInvestOrderStateWebSocket` — `flow { }`, живущий в scope
+коллектора, без `stop()`. Сейчас не проявляется: у
+`subscribeOrderState` нет UI-потребителя (grep по
+`app/src/main/` — только объявления и вызовы из
+оркестратора). Но когда потребитель появится, `deinitialize`
+не остановит WS-соединение ордеров — оно будет жить до
+отмены родительского scope.
+
+**Файлы:**
+- `transport-ktor/src/commonMain/.../TInvestOrderStateWebSocket.kt` —
+  добавить `scope: CoroutineScope` в конструктор, `stop()`,
+  `connectionLoop()` по образцу `TInvestPricesWebSocket`.
+- `app/src/main/kotlin/.../data/api/TInvestBrokerApi.kt` —
+  в `deinitialize` вызвать `orderStateWebSocket?.stop()`
+  до обнуления.
+- `transport-ktor/src/commonMain/.../TInvestOrderStateWebSocket.kt`
+  KDoc — удалить warning про отсутствие `stop()`.
+
+**Шаги:**
+1. Добавить `scope: CoroutineScope` в конструктор
+   `TInvestOrderStateWebSocket`.
+2. Переписать `subscribeOrderState` как поле класса
+   `SharedFlow<OrderStateStreamResponseDto>` + `setInterest(accountId)` /
+   `stop()` (по образцу prices, но с одним accountId).
+3. В `TInvestBrokerAPI.initialize` передать `wsScope` в
+   конструктор; в `deinitialize` — `orderStateWebSocket?.stop()`.
+4. Гейт: `testDebugUnitTest :lintDebug :ktlintCheck :detekt`.
+5. Удалить warning в KDoc.
+
+**Референсы:**
+- `TInvestPricesWebSocket.kt` — образец (incremental, scope,
+  stop, hot SharedFlow).
+- `TInvestBrokerApi.kt` → `deinitialize` — где сейчас
+  `orderStateWebSocket = null` без отмены.
+
+**Ограничения:**
+- Не менять контракт `BrokerApi.subscribeOrderState` — он
+  suspend-fun, возвращающая Flow. Lifecycle — внутренняя
+  деталь клиента.
+- Если UI-потребитель появится раньше — задача становится
+  блокером, не откладывать.
+
+**Критерий готовности:**
+- `TInvestOrderStateWebSocket` имеет `stop()` и `scope`.
+- `TInvestBrokerAPI.deinitialize` вызывает `stop()` для
+  order state до обнуления.
+- Гейт зелёный.
+- KDoc без warning'а.
+
+**Оценка:** ~15 минут.
+
+**Зависимости:** нет. **Разблокирует** корректный lifecycle
+ордеров при появлении UI-потребителя.
+
+**Открытые вопросы:** нет.
+
+---
+
 ### UI: отображение blocked на валютной карточке
 
 **Мобильная работа:** частичное (план и правки `.kt` — через
@@ -478,6 +549,13 @@ PR был). Фаза 2 и WS-транспорт — в `feature/ws-okhttp-fallba
   `MarketDataStream` (цены), `OrdersStream` (статусы заявок).
   URL по тому же шаблону: `WS_BASE_URL + WS_*_CHANNEL`.
   После стабилизации `PositionsStream` на устройстве.
+- [ ] Не создавать `TInvestPositionsWebSocket` в sandbox. Цены
+  и ордера уже создаются только при `!sandbox`
+  (`TInvestBrokerAPI.initialize`), позиции — пока всегда.
+  Исправить до PR: тот же принцип, WS в sandbox крутит
+  reconnect-loop без пользы (см. `docs/ISSUES.md` →
+  «PositionsStream over WS не отдаёт данные в песочнице»,
+  дополнение 2026-10-21).
 - [ ] Merge `feature/ws-okhttp-fallback` → `feature/stream-orchestrator`
   → `dev`. Условие live-теста выполнено (2026-10-20), ждёт
   ревью и PR.
@@ -582,7 +660,28 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Фаза 3 — Раскат на цены и ордера.**
 
-**Статус:** запланировано.
+**Статус:** в работе. Код готов, покрыт unit-тестами.
+Live-тест WS цен пройден на проде 2026-10-21 (SBER:
+`SUBSCRIPTION_STATUS_SUCCESS` + поток `lastPrice`, ~1–2 сек
+между обновлениями). WS ордеров — live-тестирован на проде
+2026-10-21: `RESULT_SUBSCRIPTION_STATUS_OK` + кадры
+`orderState` (NEW, CANCELLED) + маппер отработал
+(`OrderState(orderId=..., status=..., limitPrice=...)`).
+UI-потребитель `subscribeOrderState` пока не подключён —
+активировался через временный debug-хук (DebugConfig).
+Готово к PR в `dev`.
+
+**Ключевые находки live-теста (2026-10-21):**
+
+- `MarketDataServerSideStream` и `MarketDataStream`
+  (bidirectional) — оба работают.
+- `instrumentId` принимает uid (`instrumentUid` из
+  `PositionStreamItem`) и `ticker_classCode`. В коде
+  используется uid — маппинг не нужен.
+- `subscriptionAction: "SUBSCRIPTION_ACTION_SUBSCRIBE"`
+  обязателен в payload. Без него —
+  `SUBSCRIPTION_STATUS_SUBSCRIPTION_ACTION_IS_INVALID`,
+  кадров нет.
 
 **Контекст:** Фаза 2 (позиции) закрыта. Для цен и ордеров
 нужны отдельные WS-каналы и DTO, отличные от `PositionsStream`.
@@ -619,19 +718,51 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 8. **Тесты.** Unit-тесты на мапперы (цены, ордера).
 
+**Сделано (2026-10-21):**
+
+- DTO цен: `MarketDataStreamDto.kt` (`4404095`), 5 тестов.
+- DTO ордеров: `OrderStateStreamDto.kt` (`b3330ae`), 5 тестов.
+- `TInvestPricesWebSocket` с incremental subscription
+  (`setInterest` + SUBSCRIBE/UNSUBSCRIBE без переподключения)
+  и hot SharedFlow (`b40afcb`).
+- `TInvestOrderStateWebSocket` per-account (`57902e7`).
+- Мапперы `TInvestPricesWsMapper` / `TInvestOrderStateWsMapper`
+  (`77595a1`), 10 тестов (`30f39b4`).
+- `retryWithBackoff` в `StreamCombinators` — gRPC-primary
+  переподключается сам, не роняя merge с WS (`444b3db`).
+- Wiring в `TInvestOrchestrator` + `TInvestBrokerAPI`
+  (`444b3db`).
+- Sandbox-fix: WS-клиенты создаются только при `!sandbox`
+  (`da409d9`).
+- Локальный гейт: 94 теста (84 + 10), lint, ktlint, detekt —
+  зелёные.
+
 **Ограничения:**
 
 - `instrumentId` в WS цен принимает uid. Использовать `tscalpInstrumentId`.
 - Лимиты WS-подписок: T-Invest ограничивает число подписок в одном соединении. При превышении — отписка/переподписка.
 - Не смешивать с REST fallback (это отдельная задача «Ktor REST transport для polling»).
 
-**Открытые вопросы:**
+**Решения (2026-10-21):**
 
-1. **Динамическая подписка на цены.** `PriceStreamManager` меняет union инструментов. gRPC пересоздаёт стрим. Для WS есть два пути:
-   - Простой: пересоздавать WS-соединение при смене union.
-   - Правильный: использовать `subscriptionAction` (SUBSCRIBE/UNSUBSCRIBE) без разрыва соединения. Второй путь предпочтительнее, но требует состояния (какие uid уже подписаны). Решить при реализации.
-2. **Восстановление после обрыва WS цен.** `PriceStreamManager` оборачивает поток в reconnect-loop (backoff). WS-клиент тоже умеет переподключаться. Где граница ответственности — в оркестраторе или в менеджере? Решить по образцу позиций.
-3. **Маппинг `orderState`.** В gRPC-версии (см. `TInvestMarketDataService.subscribeOrderState`) поля извлекались через reflection (`findFieldByName`). В WS DTO поля типизированы. Нужно сверить, какие поля есть в asyncapi, и не потерять нужные для `OrderState`.
+1. **Динамическая подписка на цены — incremental.**
+   `TInvestPricesWebSocket.setInterest(uids)` диффит
+   множество и шлёт SUBSCRIBE/UNSUBSCRIBE без разрыва
+   соединения. При реконнекте переподписывается на весь
+   текущий interest. Hot SharedFlow исключает двойное
+   WS-подключение при повторном сборе.
+2. **Восстановление — на двух уровнях.** WS-клиент сам
+   переподключается (backoff [1s, 5s, 15s, 30s, 60s]).
+   gRPC-primary обёрнут в `retryWithBackoff` — без этого
+   падение gRPC роняло `merge()` целиком и WS-fallback
+   тоже терялся. `PriceStreamManager` ничего не оборачивает:
+   его задача — union + интерес, а не переподключение.
+3. **Маппинг `orderState` — без reflection.** WS DTO
+   типизирован (`OrderStateDto`), поля мапятся 1-в-1 в
+   доменную `OrderState`. Enum'ы чистятся от proto-префиксов
+   (`ORDER_DIRECTION_`, `EXECUTION_REPORT_STATUS_`),
+   `MoneyValue` конвертируется в `Double`, `createdAt`
+   (RFC3339) парсится в epoch seconds.
 
 
 **Альтернативы для WS-транспорта.**
@@ -798,6 +929,13 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Контекст:** polling у T-Invest идёт через gRPC unary. REST API у T-Invest — прокси Swagger над gRPC unary-методами. Если gRPC-протокол недоступен (блокировка портов, региональные ограничения), REST даёт альтернативу. У BCS REST — уже основной транспорт, сейчас на OkHttp.
 
+**Снапшот заявок.** `OrderStateStream` (gRPC и WS) отдаёт только
+события, без replay — заявки, выставленные на другом устройстве
+до подписки, не видны. Для полной картины нужен unary-snapshot
+`getOrders` + `getStopOrders`. При отказе gRPC (WS работает) этот
+snapshot тоже недоступен — только REST. Поэтому REST-fallback для
+этих методов — часть фундамента для `OrderStreamManager`.
+
 **Зачем:** fallback для polling-уровня. Плюс — единый стиль на Ktor для всех REST-запросов (BCS мигрирует с OkHttp). Ktor даёт единый HTTP-клиент для KMP, OkHttp — нет.
 
 **Предусловия:** выполнена задача «Оркестратор стримов и Ktor WS transport» — нужен оркестратор как точка композиции.
@@ -806,13 +944,18 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Фаза 1 — Ktor REST-клиент для T-Invest.**
 - `TInvestRestTransport` в `:transport-ktor/commonMain`.
-- Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`.
+- Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`,
+  **`getOrders`, `getStopOrders`** (snapshot заявок для
+  `OrderStreamManager`).
 - Прокси над REST-эндпоинтами T-Invest.
 
 **Фаза 2 — Fallback для polling T-Invest.**
 - Оркестратор композирует gRPC-unary + REST в polling-уровне.
 - При недоступности gRPC polling идёт через REST.
 - Логика переключения — в оркестраторе, не в брокере.
+- Потребители REST-snapshot: `fetchPositionsSnapshot` (уже),
+  `OrderStreamManager` (snapshot заявок, после реализации),
+  `PriceStreamManager` (последние цены).
 
 **Фаза 3 — Миграция BCS на Ktor.**
 - Перевести `BcsBrokerApi` с OkHttp на Ktor REST.
@@ -847,7 +990,9 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 - При недоступности gRPC polling идёт через REST.
 - `BcsBrokerApi` использует Ktor REST.
 - `TInvestOrchestrator` композирует gRPC unary + REST.
-- 63 unit-теста зелёные, ktlint и detekt чистые.
+- `getOrders` / `getStopOrders` работают через REST
+  (snapshot заявок доступен без gRPC).
+- Все unit-тесты зелёные (сейчас 94+), ktlint и detekt чистые.
 
 **Оценка:** ~4–6 часов.
 

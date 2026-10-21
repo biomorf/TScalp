@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api
 
+import com.gitlab.biomorf.tscalp.BuildConfig
+import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -11,11 +13,20 @@ import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
+import com.gitlab.biomorf.tscalp.transport.ktor.TInvestOrderStateWebSocket
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
+import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPricesWebSocket
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.launch
 import ru.ttech.piapi.core.InvestApi
 
 /**
@@ -34,10 +45,15 @@ class TInvestBrokerAPI(
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
         const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
         const val WS_POSITIONS_CHANNEL = "tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream"
+        const val WS_PRICES_CHANNEL = "tinkoff.public.invest.api.contract.v1.MarketDataStreamService/MarketDataStream"
+        const val WS_ORDER_STATE_CHANNEL = "tinkoff.public.invest.api.contract.v1.OrdersStreamService/OrderStateStream"
 
-        fun buildWsUrl(sandbox: Boolean): String {
+        fun buildWsUrl(
+            sandbox: Boolean,
+            channel: String,
+        ): String {
             val base = if (sandbox) WS_BASE_URL_SANDBOX else WS_BASE_URL_PROD
-            return "$base/$WS_POSITIONS_CHANNEL"
+            return "$base/$channel"
         }
     }
 
@@ -47,6 +63,8 @@ class TInvestBrokerAPI(
         TInvestOrchestrator(
             marketData = marketData,
             wsFallback = { accountId -> buildWsFallback(accountId) },
+            pricesWsFallback = { uids -> buildPricesWsFallback(uids) },
+            orderStateWsFallback = { accountId -> buildOrderStateWsFallback(accountId) },
         )
     private val orders = TInvestOrdersService(state)
 
@@ -58,6 +76,15 @@ class TInvestBrokerAPI(
      */
     var positionsWebSocket: TInvestPositionsWebSocket? = null
         private set
+
+    var pricesWebSocket: TInvestPricesWebSocket? = null
+        private set
+
+    var orderStateWebSocket: TInvestOrderStateWebSocket? = null
+        private set
+
+    private var wsScope: CoroutineScope? = null
+    private var orderStateDebugJob: Job? = null
 
     override val name: BrokerName = BrokerName.TINVEST
     override val isInitialized: Boolean get() = state.api != null
@@ -75,13 +102,35 @@ class TInvestBrokerAPI(
         val newChannels = channelFactory.create(token, sandbox)
         state.channels = newChannels
         state.api = InvestApi.createApi(newChannels.api)
-        positionsWebSocket =
-            TInvestPositionsWebSocket(
-                client = httpClient,
-                url = buildWsUrl(sandbox),
-                token = token,
-                logger = { msg -> AppLogger.d("TInvestWS", msg) },
-            )
+        // Все WS-клиенты — только prod. В sandbox сервер
+        // закрывает соединение без кадра (см. docs/ISSUES.md),
+        // поэтому клиенты не создаём.
+        if (!sandbox) {
+            positionsWebSocket =
+                TInvestPositionsWebSocket(
+                    client = httpClient,
+                    url = buildWsUrl(sandbox, WS_POSITIONS_CHANNEL),
+                    token = token,
+                    logger = { msg -> AppLogger.d("TInvestWS", msg) },
+                )
+            wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            pricesWebSocket =
+                TInvestPricesWebSocket(
+                    client = httpClient,
+                    url = buildWsUrl(sandbox, WS_PRICES_CHANNEL),
+                    token = token,
+                    scope = wsScope!!,
+                    logger = { msg -> AppLogger.d("TInvestWS/prices", msg) },
+                    logFrames = BuildConfig.DEBUG,
+                )
+            orderStateWebSocket =
+                TInvestOrderStateWebSocket(
+                    client = httpClient,
+                    url = buildWsUrl(sandbox, WS_ORDER_STATE_CHANNEL),
+                    token = token,
+                    logger = { msg -> AppLogger.d("TInvestWS/orders", msg) },
+                )
+        }
     }
 
     /**
@@ -94,6 +143,13 @@ class TInvestBrokerAPI(
         state.channels = null
         state.api = null
         positionsWebSocket = null
+        pricesWebSocket?.stop()
+        pricesWebSocket = null
+        orderStateWebSocket = null
+        orderStateDebugJob?.cancel()
+        orderStateDebugJob = null
+        wsScope?.cancel()
+        wsScope = null
     }
 
     /**
@@ -110,6 +166,17 @@ class TInvestBrokerAPI(
                 TInvestPositionsWsMapper.mapAll(response).forEach { emit(it) }
             }
 
+    private fun buildPricesWsFallback(uids: Set<String>): Flow<Pair<String, Double>>? {
+        val ws = pricesWebSocket ?: return null
+        ws.setInterest(uids)
+        return ws.prices.mapNotNull { TInvestPricesWsMapper.mapLastPrice(it) }
+    }
+
+    private fun buildOrderStateWsFallback(accountId: String): Flow<OrderState>? =
+        orderStateWebSocket
+            ?.subscribeOrderState(accountId)
+            ?.mapNotNull { TInvestOrderStateWsMapper.mapOrderState(it) }
+
     // ---------- BrokerApi: делегирование ----------
 
     override suspend fun getAccounts(sandboxMode: Boolean) = marketData.getAccounts(sandboxMode)
@@ -125,7 +192,22 @@ class TInvestBrokerAPI(
         sandboxMode: Boolean,
     ) = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> {
+        if (DebugConfig.ENABLE_ORDER_STATE_DEBUG) startOrderStateDebug(accountId)
+        return orchestrator.positionsStream(accountId)
+    }
+
+    private fun startOrderStateDebug(accountId: String) {
+        if (orderStateDebugJob?.isActive == true) return
+        val scope = wsScope ?: return
+        orderStateDebugJob =
+            scope.launch {
+                AppLogger.d("TInvestWS/orders", "debug: subscribing to order state for $accountId")
+                orchestrator.orderStateStream(accountId).collect { state ->
+                    AppLogger.d("TInvestWS/orders", "debug: $state")
+                }
+            }
+    }
 
     override suspend fun getBalance(accountId: String) = marketData.getBalance(accountId)
 
@@ -164,7 +246,7 @@ class TInvestBrokerAPI(
 
     override suspend fun getTradingStatuses(ids: List<String>) = marketData.getTradingStatuses(ids)
 
-    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = marketData.subscribeOrderState(accountId)
+    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = orchestrator.orderStateStream(accountId)
 
     override suspend fun checkTradeAvailability(
         accountId: String,
@@ -190,5 +272,5 @@ class TInvestBrokerAPI(
     /**
      * Стрим последних цен. Используется OrdersViewModel.startPriceUpdates().
      */
-    override fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> = marketData.subscribeLastPrices(uids)
+    override fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> = orchestrator.pricesStream(uids.toSet())
 }
