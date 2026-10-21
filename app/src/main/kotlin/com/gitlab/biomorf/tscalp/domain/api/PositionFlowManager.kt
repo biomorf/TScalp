@@ -25,7 +25,7 @@ class PositionFlowManager
         private val brokerManager: BrokerManager,
     ) {
         companion object {
-            private const val TAG = "PositionStream"
+            private const val TAG = "PositionFlowManager"
         }
 
         private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)

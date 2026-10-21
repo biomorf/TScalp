@@ -51,7 +51,7 @@ class PriceFlowManager
         private val repository: InvestRepository,
     ) {
         companion object {
-            private const val TAG = "PriceStreamManager"
+            private const val TAG = "PriceFlowManager"
 
             /**
              * Задержки между попытками переподключения gRPC-стрима
