@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
+import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -122,6 +123,15 @@ class PriceStreamManager
                 .toSet()
 
         /**
+         * Принудительно перезапускает стрим и polling с текущими
+         * флагами DebugConfig. Вызывается из UI при переключении
+         * тумблеров (gRPC, WS, REST), чтобы применить их на лету.
+         */
+        fun reapplyDebugFlags() {
+            restart(currentUnion())
+        }
+
+        /**
          * Пересоздаёт gRPC-стрим под новый набор tscalpInstrumentId.
          * Пустой union → стрим остановлен, ничего не запускаем.
          */
@@ -134,8 +144,14 @@ class PriceStreamManager
                 AppLogger.d(TAG, "Union empty, gRPC stream stopped")
                 return
             }
-            AppLogger.d(TAG, "Starting gRPC stream for ${union.size} tscalpInstrumentId(s)")
-            streamJob = scope.launch { runGrcpStream(union) }
+            if (DebugConfig.forceRest) {
+                AppLogger.d(TAG, "forceRest enabled: skipping gRPC stream, polling only")
+            } else if (DebugConfig.disableGrpc && DebugConfig.disableWs) {
+                AppLogger.d(TAG, "gRPC and WS disabled: skipping stream job, polling only")
+            } else {
+                AppLogger.d(TAG, "Starting gRPC stream for ${union.size} tscalpInstrumentId(s)")
+                streamJob = scope.launch { runGrcpStream(union) }
+            }
             pollingJob = scope.launch { runPolling(union) }
         }
 
@@ -148,6 +164,10 @@ class PriceStreamManager
          * параллельно и прикрывает паузы между попытками.
          */
         private suspend fun runGrcpStream(union: Set<String>) {
+            if (DebugConfig.forceRest) {
+                AppLogger.d(TAG, "forceRest enabled: runGrcpStream bypassed")
+                return
+            }
             val broker = BrokerName.TINVEST
             var attempt = 0
             while (currentCoroutineContext().isActive) {
@@ -155,13 +175,14 @@ class PriceStreamManager
                     repository
                         .subscribeLastPrices(broker, union.toList())
                         .collect { (tscalpId, price) ->
-                            AppLogger.d(TAG, "[gRPC/${broker.key}] $tscalpId = $price")
+                            AppLogger.d(TAG, "[manager/stream] $tscalpId = $price")
                             _prices.emit(PriceUpdate(broker, tscalpId, price))
                         }
                     // Сервер закрыл стрим штатно. Сбрасываем attempt
                     // и пробуем подключиться заново без задержки.
                     attempt = 0
-                    AppLogger.d(TAG, "[prices] gRPC stream completed by server, reconnecting")
+                    AppLogger.d(TAG, "[prices] gRPC stream completed by server, reconnecting in 1s")
+                    delay(1000) // Защита от busy-loop, если сервер закрывает стрим сразу
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -211,7 +232,7 @@ class PriceStreamManager
                     val prices = broker.pricesSnapshot(union.toList())
                     prices.forEach { (tscalpId, price) ->
                         if (price != null) {
-                            AppLogger.d(TAG, "[REST/${brokerName.key}] $tscalpId = $price")
+                            AppLogger.d(TAG, "[manager/polling/${brokerName.key}] $tscalpId = $price")
                             _prices.emit(PriceUpdate(brokerName, tscalpId, price))
                         }
                     }

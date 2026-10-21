@@ -57,8 +57,11 @@ class PositionStreamManager
          * Идемпотентен для одного и того же accountId. При смене счёта —
          * перезапускает поток (иначе polling продолжит ходить по старому счёту).
          */
-        fun start(accountId: String) {
-            if (job?.isActive == true && currentAccountId == accountId) {
+        fun start(
+            accountId: String,
+            forceRestart: Boolean = false,
+        ) {
+            if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
                 AppLogger.d(TAG, "Поток позиций уже запущен для $accountId")
                 return
             }
@@ -132,6 +135,14 @@ class PositionStreamManager
                 isin = cached.isin,
                 pointValue = cached.pointValue,
             )
+        }
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        fun reapplyDebugFlags() {
+            val accountId = currentAccountId ?: return
+            AppLogger.d(TAG, "reapplyDebugFlags: restarting stream")
+            job?.cancel()
+            start(accountId, forceRestart = true)
         }
 
         @OptIn(ExperimentalCoroutinesApi::class)

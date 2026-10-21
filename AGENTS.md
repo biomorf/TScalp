@@ -1261,6 +1261,13 @@ hotfix-веток.
   исключения на границах слоёв. Ошибки брокеров расшифровываются
   через `BrokerErrorMessages`.
 - **Логирование:** `AppLogger`, не `android.util.Log`.
+- **Формат логов транспортов:** `<протокол>/<транспорт>/<брокер>`.
+  - `[REST/ktor/TInvest] ...`
+  - `[WS/ktor/TInvest] ...`
+  - `[stream/gRPC/TInvest] ...`
+  - `[unary/gRPC/TInvest] ...`
+  - `[manager/stream] ...` (менеджер получил данные из любого стрима)
+  - `[manager/polling] ...` (менеджер получил данные из любого polling)
 - **Цены** — только через `PriceStreamManager`. Не вызывать
   `broker.subscribeLastPrices` и `repository.getLastPricesResult`
   из ViewModel напрямую. Регистрировать интерес через

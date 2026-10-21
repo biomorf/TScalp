@@ -16,5 +16,8 @@ class TInvestApiState {
 
     @Volatile var channels: TInvestChannelFactory.Channels? = null
 
+    /** Токен доступа. Нужен REST-транспорту для заголовка Authorization. */
+    @Volatile var token: String? = null
+
     @Volatile var sandboxMode: Boolean = true
 }
