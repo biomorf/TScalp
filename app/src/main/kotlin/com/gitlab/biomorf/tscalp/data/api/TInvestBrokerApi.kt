@@ -59,14 +59,15 @@ class TInvestBrokerAPI(
 
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
+    private val orders = TInvestOrdersService(state)
     private val orchestrator =
         TInvestOrchestrator(
             marketData = marketData,
+            orders = orders,
             wsFallback = { accountId -> buildWsFallback(accountId) },
             pricesWsFallback = { uids -> buildPricesWsFallback(uids) },
             orderStateWsFallback = { accountId -> buildOrderStateWsFallback(accountId) },
         )
-    private val orders = TInvestOrdersService(state)
 
     /**
      * WebSocket-клиент PositionsStream. Создаётся в [initialize]
