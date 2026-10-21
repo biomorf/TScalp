@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
@@ -940,7 +941,10 @@ fun TradeSettingsContent(onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InfoSettingsContent(onBack: () -> Unit) {
+fun InfoSettingsContent(
+    onBack: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel(),
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -953,6 +957,7 @@ fun InfoSettingsContent(onBack: () -> Unit) {
             )
         },
     ) { paddingValues ->
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
         Column(
             modifier =
                 Modifier
@@ -966,6 +971,11 @@ fun InfoSettingsContent(onBack: () -> Unit) {
             Text("Разработчик: Масленников Андрей", style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(8.dp))
             Text("Репозиторий: github.com/biomorf/TScalp", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (BuildConfig.DEBUG) {
+                DebugSwitchesSection(uiState, viewModel)
+            }
             Spacer(modifier = Modifier.height(8.dp))
             val context = LocalContext.current
             Text(
@@ -982,5 +992,50 @@ fun InfoSettingsContent(onBack: () -> Unit) {
                     },
             )
         }
+    }
+}
+
+@Composable
+private fun DebugSwitchesSection(
+    uiState: SettingsUiState,
+    viewModel: SettingsViewModel,
+) {
+    Text("Диагностика транспортов (debug)", style = MaterialTheme.typography.titleMedium)
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text("Отключить gRPC stream")
+        Switch(
+            checked = uiState.disableGrpc,
+            onCheckedChange = { viewModel.toggleGrpc(it) },
+        )
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text("Отключить WS")
+        Switch(
+            checked = uiState.disableWs,
+            onCheckedChange = { viewModel.toggleWs(it) },
+        )
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text("Принудительный REST (цены)")
+        Switch(
+            checked = uiState.forceRest,
+            onCheckedChange = { viewModel.toggleRest(it) },
+        )
     }
 }

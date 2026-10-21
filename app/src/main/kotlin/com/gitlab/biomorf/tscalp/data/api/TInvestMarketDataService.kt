@@ -247,7 +247,7 @@ class TInvestMarketDataService(
                             { response: PositionsStreamResponse ->
                                 AppLogger.d(
                                     TAG,
-                                    "[positions]/gRPC: response — " +
+                                    "[stream/gRPC/TInvest]: response — " +
                                         "subs=${response.hasSubscriptions()}, " +
                                         "init=${response.hasInitialPositions()}, " +
                                         "pos=${response.hasPosition()}, " +
@@ -329,27 +329,27 @@ class TInvestMarketDataService(
             while (currentCoroutineContext().isActive) {
                 val grpcFlow = subscribePositionsGrpc(accountId)
                 if (grpcFlow == null) {
-                    AppLogger.d(TAG, "[positions]/gRPC: waiting for API init")
+                    AppLogger.d(TAG, "[stream/gRPC/TInvest]: waiting for API init")
                     delay(1_000)
                     continue
                 }
                 try {
-                    AppLogger.d(TAG, "[positions]/gRPC: connecting (attempt=${attempt + 1})")
+                    AppLogger.d(TAG, "[stream/gRPC/TInvest]: connecting (attempt=${attempt + 1})")
                     grpcFlow.collect { emit(it) }
                     attempt = 0
-                    AppLogger.d(TAG, "[positions]/gRPC: completed by server, reconnecting")
+                    AppLogger.d(TAG, "[stream/gRPC/TInvest]: completed by server, reconnecting")
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     if (e.message?.contains("NOT_FOUND") == true) {
-                        AppLogger.w(TAG, "[positions]/gRPC: fatal (${e.message}) — stopping")
+                        AppLogger.w(TAG, "[stream/gRPC/TInvest]: fatal (${e.message}) — stopping")
                         return@flow
                     }
                     attempt++
                     val delayMs = retryDelayMs(attempt)
                     AppLogger.w(
                         TAG,
-                        "[positions]/gRPC: error (attempt=$attempt, ${e.message}), retry in ${delayMs}ms",
+                        "[stream/gRPC/TInvest]: error (attempt=$attempt, ${e.message}), retry in ${delayMs}ms",
                     )
                     delay(delayMs)
                 }
@@ -366,27 +366,27 @@ class TInvestMarketDataService(
      */
     internal fun subscribePositionsPolling(accountId: String): Flow<PositionStreamItem> =
         flow {
-            AppLogger.d(TAG, "[positions]/polling: started (account=$accountId)")
+            AppLogger.d(TAG, "[unary/gRPC/TInvest]: started (account=$accountId)")
             try {
                 while (currentCoroutineContext().isActive) {
                     try {
                         val sandbox = state.sandboxMode
                         val snapshot = fetchPositionsSnapshot(accountId, sandbox)
-                        AppLogger.d(TAG, "[positions]/polling: fetched ${snapshot.size} positions")
+                        AppLogger.d(TAG, "[unary/gRPC/TInvest]: fetched ${snapshot.size} positions")
                         for (pos in snapshot) emit(convertToStreamItem(pos))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         if (e.message?.contains("NOT_FOUND") == true) {
-                            AppLogger.w(TAG, "[positions]/polling: account not found — stopping")
+                            AppLogger.w(TAG, "[unary/gRPC/TInvest]: account not found — stopping")
                             return@flow
                         }
-                        AppLogger.w(TAG, "[positions]/polling: error (${e.message})")
+                        AppLogger.w(TAG, "[unary/gRPC/TInvest]: error (${e.message})")
                     }
                     delay(RETRY_DELAY_MS)
                 }
             } finally {
-                AppLogger.d(TAG, "[positions]/polling: stopped (account=$accountId)")
+                AppLogger.d(TAG, "[unary/gRPC/TInvest]: stopped (account=$accountId)")
             }
         }
 
@@ -526,6 +526,7 @@ class TInvestMarketDataService(
             if (ids.isEmpty()) return@withContext emptyMap()
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(ids).build()
+            AppLogger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${ids.size} instruments")
             val response = currentApi.marketDataServiceSync.getLastPrices(request)
             response.lastPricesList.associate { lp ->
                 lp.instrumentUid to (lp.price?.let { it.units + it.nano / 1_000_000_000.0 })
@@ -588,7 +589,10 @@ class TInvestMarketDataService(
                         if (value.hasLastPrice()) {
                             val lp = value.lastPrice
                             val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
-                            if (price != null) trySend(lp.instrumentUid to price)
+                            if (price != null) {
+                                AppLogger.d(TAG, "[stream/gRPC/TInvest] LastPrice ${lp.instrumentUid} = $price")
+                                trySend(lp.instrumentUid to price)
+                            }
                         }
                     }
 

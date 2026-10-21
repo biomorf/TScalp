@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.BuildConfig
-import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -22,13 +21,11 @@ import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.transform
-import kotlinx.coroutines.launch
 import ru.ttech.piapi.core.InvestApi
 
 /**
@@ -93,7 +90,6 @@ class TInvestBrokerAPI(
 
     private var wsScope: CoroutineScope? = null
     private var restTransport: TInvestRestTransport? = null
-    private var orderStateDebugJob: Job? = null
 
     override val name: BrokerName = BrokerName.TINVEST
     override val isInitialized: Boolean get() = state.api != null
@@ -168,8 +164,6 @@ class TInvestBrokerAPI(
         orderStateWebSocket?.stop()
         orderStateWebSocket = null
         restTransport = null
-        orderStateDebugJob?.cancel()
-        orderStateDebugJob = null
         wsScope?.cancel()
         wsScope = null
     }
@@ -215,22 +209,7 @@ class TInvestBrokerAPI(
         sandboxMode: Boolean,
     ) = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> {
-        if (DebugConfig.ENABLE_ORDER_STATE_DEBUG) startOrderStateDebug(accountId)
-        return orchestrator.positionsStream(accountId)
-    }
-
-    private fun startOrderStateDebug(accountId: String) {
-        if (orderStateDebugJob?.isActive == true) return
-        val scope = wsScope ?: return
-        orderStateDebugJob =
-            scope.launch {
-                AppLogger.d("TInvestWS/orders", "debug: subscribing to order state for $accountId")
-                orchestrator.orderStateStream(accountId).collect { state ->
-                    AppLogger.d("TInvestWS/orders", "debug: $state")
-                }
-            }
-    }
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
 
     override suspend fun getBalance(accountId: String) = marketData.getBalance(accountId)
 

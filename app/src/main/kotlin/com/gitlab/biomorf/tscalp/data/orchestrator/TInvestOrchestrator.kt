@@ -36,13 +36,13 @@ class TInvestOrchestrator(
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
         streamWithFallback(
             primary =
-                if (DebugConfig.DISABLE_GRPC_STREAM) {
+                if (DebugConfig.disableGrpc) {
                     null
                 } else {
                     marketData.subscribePositionsGrpcWithReconnect(accountId)
                 },
             fallback =
-                if (DebugConfig.DISABLE_WS_FALLBACK) {
+                if (DebugConfig.disableWs) {
                     null
                 } else {
                     wsFallback(accountId)
@@ -58,13 +58,13 @@ class TInvestOrchestrator(
     fun pricesStream(uids: Set<String>): Flow<Pair<String, Double>> =
         streamWithFallback(
             primary =
-                if (DebugConfig.DISABLE_GRPC_STREAM) {
+                if (DebugConfig.disableGrpc) {
                     null
                 } else {
                     retryWithBackoff { marketData.subscribeLastPrices(uids.toList()) }
                 },
             fallback =
-                if (DebugConfig.DISABLE_WS_FALLBACK) {
+                if (DebugConfig.disableWs) {
                     null
                 } else {
                     pricesWsFallback(uids)
@@ -75,13 +75,13 @@ class TInvestOrchestrator(
     fun orderStateStream(accountId: String): Flow<OrderState> =
         streamWithFallback(
             primary =
-                if (DebugConfig.DISABLE_GRPC_STREAM) {
+                if (DebugConfig.disableGrpc) {
                     null
                 } else {
                     retryWithBackoff { marketData.subscribeOrderState(accountId) }
                 },
             fallback =
-                if (DebugConfig.DISABLE_WS_FALLBACK) {
+                if (DebugConfig.disableWs) {
                     null
                 } else {
                     orderStateWsFallback(accountId)
@@ -98,9 +98,10 @@ class TInvestOrchestrator(
     ): List<PortfolioPosition> = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
     suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> {
-        if (DebugConfig.FORCE_REST_FOR_POLLING) {
+        AppLogger.d(TAG, "pricesSnapshot: forceRest=${DebugConfig.forceRest}")
+        if (DebugConfig.forceRest) {
             val rest = pricesRestFallback ?: throw IllegalStateException("REST fallback not configured")
-            AppLogger.w(TAG, "FORCE_REST_FOR_POLLING: bypassing gRPC for prices")
+            AppLogger.w(TAG, "forceRest: bypassing gRPC for prices")
             return rest(uids)
         }
         return try {

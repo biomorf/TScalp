@@ -5,14 +5,17 @@ import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
+import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +38,10 @@ data class SettingsUiState(
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
     val isError: Boolean = false,
+    // Debug-флаги
+    val disableGrpc: Boolean = false,
+    val disableWs: Boolean = false,
+    val forceRest: Boolean = false,
 )
 
 // Архитектурный долг: 20 функций в классе. См. ROADMAP → «Рефакторинг ViewModel-слоя».
@@ -47,6 +54,7 @@ class SettingsViewModel
         private val tradingStateRepository: TradingStateRepository,
         private val brokerManager: BrokerManager,
         private val positionStreamManager: PositionStreamManager,
+        private val priceStreamManager: PriceStreamManager,
         private val repository: InvestRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
@@ -63,6 +71,9 @@ class SettingsViewModel
                         bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
                         finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
                         defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: "",
+                        disableGrpc = DebugConfig.disableGrpc,
+                        disableWs = DebugConfig.disableWs,
+                        forceRest = DebugConfig.forceRest,
                     )
                 }
             }
@@ -311,5 +322,25 @@ class SettingsViewModel
 
         fun clearStatus() {
             _uiState.update { it.copy(statusMessage = null, isError = false) }
+        }
+
+        fun toggleGrpc(enabled: Boolean) {
+            AppLogger.d("SettingsVM", "toggleGrpc: enabled=$enabled")
+            DebugConfig.disableGrpc = enabled
+            _uiState.update { it.copy(disableGrpc = DebugConfig.disableGrpc) }
+        }
+
+        fun toggleWs(enabled: Boolean) {
+            AppLogger.d("SettingsVM", "toggleWs: enabled=$enabled")
+            DebugConfig.disableWs = enabled
+            _uiState.update { it.copy(disableWs = DebugConfig.disableWs) }
+        }
+
+        fun toggleRest(enabled: Boolean) {
+            AppLogger.d("SettingsVM", "toggleRest: enabled=$enabled")
+            DebugConfig.forceRest = enabled
+            _uiState.update { it.copy(forceRest = DebugConfig.forceRest) }
+            priceStreamManager.reapplyDebugFlags()
+            positionStreamManager.reapplyDebugFlags()
         }
     }

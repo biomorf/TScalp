@@ -28,7 +28,7 @@ class TInvestRestTransport(
     private val logger: (String) -> Unit = { },
 ) {
     companion object {
-        private const val TAG = "[transport-ktor/rest]"
+        private const val TAG = "[REST/ktor/TInvest]"
         private const val SERVICE_PREFIX = "tinkoff.public.invest.api.contract.v1"
     }
 

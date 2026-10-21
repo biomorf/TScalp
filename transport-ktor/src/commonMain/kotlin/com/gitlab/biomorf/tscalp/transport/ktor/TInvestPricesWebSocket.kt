@@ -68,7 +68,7 @@ class TInvestPricesWebSocket(
     private val logFrames: Boolean = false,
 ) {
     companion object {
-        private const val TAG = "[transport-ktor/prices-ws]"
+        private const val TAG = "[WS/ktor/TInvest]"
         private val RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
         private const val PRICES_BUFFER = 256
     }
