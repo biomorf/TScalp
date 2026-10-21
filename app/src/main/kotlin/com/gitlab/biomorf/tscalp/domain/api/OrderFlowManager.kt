@@ -50,7 +50,7 @@ import javax.inject.Singleton
  * stream выполняются последовательно на одном worker'е.
  */
 @Singleton
-class OrderStreamManager
+class OrderFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerManager,

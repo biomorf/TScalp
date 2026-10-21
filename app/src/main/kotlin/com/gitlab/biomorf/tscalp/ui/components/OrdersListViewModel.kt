@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
-import com.gitlab.biomorf.tscalp.domain.api.OrderStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
@@ -24,7 +24,7 @@ class OrdersListViewModel
     constructor(
         private val repository: InvestRepository,
         private val settingsRepository: SettingsRepository,
-        private val orderStreamManager: OrderStreamManager,
+        private val orderFlowManager: OrderFlowManager,
     ) : ViewModel() {
         data class OrdersListState(
             val orders: List<OrderListItem> = emptyList(),
@@ -39,8 +39,8 @@ class OrdersListViewModel
         init {
             viewModelScope.launch {
                 combine(
-                    orderStreamManager.orders,
-                    orderStreamManager.hasLoaded,
+                    orderFlowManager.orders,
+                    orderFlowManager.hasLoaded,
                 ) { orders, loaded -> orders to loaded }.collect { (orders, loaded) ->
                     _uiState.update { current ->
                         current.copy(
@@ -99,9 +99,9 @@ class OrdersListViewModel
                 val accountId = accounts.first().id
 
                 // Шаг 2: запустить агрегацию (snapshot polling + stream).
-                // Дальше UI обновляется через orderStreamManager.orders
+                // Дальше UI обновляется через orderFlowManager.orders
                 // (см. init). start() идемпотентен для того же accountId.
-                orderStreamManager.start(accountId)
+                orderFlowManager.start(accountId)
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
@@ -157,6 +157,6 @@ class OrdersListViewModel
         }
 
         override fun onCleared() {
-            orderStreamManager.stop()
+            orderFlowManager.stop()
         }
     }
