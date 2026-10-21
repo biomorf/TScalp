@@ -16,6 +16,11 @@ data class OrderState(
     val status: String,
     // epoch seconds
     val updateTime: Long?,
+    // "LIMIT", "MARKET", "BESTPRICE" (без ORDER_TYPE_ префикса)
+    // null — если источник не дал (gRPC без маппинга, старый API)
+    val orderType: String? = null,
+    // uid инструмента для склейки с позициями/заявками из polling
+    val tscalpInstrumentId: String? = null,
 )
 
 data class OrderResult(
@@ -161,3 +166,28 @@ data class SandboxMoney(
     val units: Long,
     val nano: Int = 0,
 )
+
+/**
+ * Конвертация stream-модели в модель UI-списка заявок.
+ *
+ * Stream (gRPC/WS) отдаёт только обычные заявки (без stop).
+ * `stopPrice = null`, `isStopOrder = false` всегда.
+ *
+ * [instrumentType] пуст: `OrderState` не знает типа инструмента;
+ * UI-карточке достаточно [OrderListItem.type] (LIMIT/MARKET).
+ */
+internal fun OrderState.toOrderListItem(): OrderListItem =
+    OrderListItem(
+        orderId = orderId,
+        ticker = ticker,
+        tscalpInstrumentId = tscalpInstrumentId ?: "",
+        instrumentType = "",
+        direction = direction,
+        price = limitPrice ?: executedPrice ?: 0.0,
+        stopPrice = null,
+        quantity = quantity,
+        type = orderType?.takeIf { it != "UNSPECIFIED" } ?: "LIMIT",
+        status = status,
+        orderDate = updateTime,
+        isStopOrder = false,
+    )
