@@ -97,8 +97,13 @@ class TInvestOrchestrator(
         sandboxMode: Boolean,
     ): List<PortfolioPosition> = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
-    suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> =
-        try {
+    suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> {
+        if (DebugConfig.FORCE_REST_FOR_POLLING) {
+            val rest = pricesRestFallback ?: throw IllegalStateException("REST fallback not configured")
+            AppLogger.w(TAG, "FORCE_REST_FOR_POLLING: bypassing gRPC for prices")
+            return rest(uids)
+        }
+        return try {
             marketData.getLastPricesByTscalpInstrumentId(uids)
         } catch (e: Throwable) {
             if (isTransportError(e) && pricesRestFallback != null) {
@@ -108,6 +113,7 @@ class TInvestOrchestrator(
                 throw e
             }
         }
+    }
 
     private fun isTransportError(e: Throwable): Boolean {
         val status =

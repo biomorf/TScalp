@@ -31,10 +31,12 @@ internal object DebugConfig {
     private const val DISABLE_WS_FALLBACK_RAW = false
     private const val DISABLE_POLLING_RAW = false
     private const val ENABLE_ORDER_STATE_DEBUG_RAW = false
+    private const val FORCE_REST_FOR_POLLING_RAW = false
 
     // --- Публичные флаги. В release всегда false. ---
     val DISABLE_GRPC_STREAM: Boolean = BuildConfig.DEBUG && DISABLE_GRPC_STREAM_RAW
     val DISABLE_WS_FALLBACK: Boolean = BuildConfig.DEBUG && DISABLE_WS_FALLBACK_RAW
     val DISABLE_POLLING: Boolean = BuildConfig.DEBUG && DISABLE_POLLING_RAW
     val ENABLE_ORDER_STATE_DEBUG: Boolean = BuildConfig.DEBUG && ENABLE_ORDER_STATE_DEBUG_RAW
+    val FORCE_REST_FOR_POLLING: Boolean = BuildConfig.DEBUG && FORCE_REST_FOR_POLLING_RAW
 }
