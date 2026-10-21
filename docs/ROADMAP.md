@@ -603,6 +603,86 @@ iOS-задачи миграция станет обязательной. Сей�
 
 **Мобильная работа:** невозможно (требует сборки и проверки на реальных данных).
 
+**Целевая архитектура транспорта (уточнение от 2026-10-21):**
+
+Оркестратор — единственное место, где живёт транспорт. Стримы (Flow) и unary (suspend) оба проходят через него. Менеджеры вызывают `xxxStream` для стрима и `xxxSnapshot` в polling-loop, не зная про REST. Fallback gRPC→REST живёт только в оркестраторе.
+
+```mermaid
+flowchart BT
+    subgraph VM["ViewModels"]
+        direction TB
+        V1["PortfolioViewModel"]
+        V2["OrdersViewModel"]
+        V3["OrdersListViewModel"]
+    end
+
+    subgraph Managers["Domain managers (агрегация для UI)"]
+        direction TB
+        M1["PositionStreamManager"]
+        M2["PriceStreamManager"]
+        M3["OrderStreamManager"]
+    end
+
+    subgraph Orchestrator["TInvestOrchestrator<br/>(владеет транспортами)"]
+        direction TB
+        S["Streams (Flow)<br/>positionsStream<br/>pricesStream<br/>orderStateStream"]
+        U["Unary (suspend)<br/>positionsSnapshot<br/>pricesSnapshot<br/>ordersSnapshot<br/>balanceSnapshot"]
+        F["Fallback: try gRPC unary<br/>catch UNAVAILABLE/DEADLINE<br/>→ REST"]
+        U --> F
+    end
+
+    V1 -->|observes| M1
+    V1 -->|observes| M2
+    V2 -->|observes| M2
+    V2 -->|calls| U
+    V3 -->|observes| M2
+    V3 -->|observes| M3
+
+    M1 -->|uses| S
+    M1 -->|uses| U
+    M2 -->|uses| S
+    M2 -->|uses| U
+    M3 -->|uses| S
+    M3 -->|uses| U
+
+    style Orchestrator fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style Managers fill:#fff4e1,stroke:#333,stroke-width:2px
+    style VM fill:#fff9c4,stroke:#333,stroke-width:2px
+    style F fill:#ffe1e1,stroke:#333,stroke-width:2px
+```
+
+**Порядок реализации (по шагам):**
+
+**Шаг 1a — unary-обёртки в оркестраторе (рефакторинг, без смены поведения).**
+- `positionsSnapshot(accountId, sandbox): List<PortfolioPosition>`
+- `pricesSnapshot(uids): Map<String, Double?>`
+- `ordersSnapshot(accountId): List<OrderListItem>`
+- `balanceSnapshot(accountId): Double`
+- Внутри — тонкие обёртки над `marketData.*` / `orders.*`. Fallback пока нет.
+- Гейт, коммит.
+
+**Шаг 1b — переключение менеджеров на оркестратор.**
+- `PriceStreamManager.runPolling`: `repository.getLastPricesResult(...)` → `orchestrator.pricesSnapshot(...)`.
+- `OrderStreamManager.collectPolling`: `broker.getOrders(...)` + `broker.getStopOrders(...)` → `orchestrator.ordersSnapshot(...)`.
+- Поведение не меняется, fallback пока нет.
+- Гейт, live-тест (цены и заявки обновляются), коммит.
+
+**Шаг 2 — REST transport и fallback.**
+- `TInvestRestTransport` в `:transport-ktor` (Ktor Client).
+- В `TInvestOrchestrator` unary-методы: `try { gRPC } catch (UNAVAILABLE | DEADLINE_EXCEEDED | UNIMPLEMENTED) { REST }`.
+- Логика: только на транспортные ошибки, не на бизнес-ошибки.
+- Гейт, коммит.
+
+**Шаг 3 — live-тест fallback.**
+- `DebugConfig.FORCE_REST_FOR_POLLING` — принудительный REST (debug-only).
+- Live-тест: позиции, цены, заявки обновляются через REST при `FORCE_REST` и при физическом отключении gRPC (например, через VPN).
+- Коммит, закрытие задачи.
+
+**Что НЕ в этой задаче:**
+- `getTradingStatuses` — отдельная задача «REST fallback для getTradingStatuses» (отложено). Причина: параллельные N запросов через REST дорого, критичность метода низкая (индикатор доступности, не данные).
+- Миграция BCS на Ktor REST — фаза 3 (после T-Invest).
+
+
 **Статус:** запланировано.
 
 **Контекст:** polling у T-Invest идёт через gRPC unary. REST API у T-Invest — прокси Swagger над gRPC unary-методами. Если gRPC-протокол недоступен (блокировка портов, региональные ограничения), REST даёт альтернативу. У BCS REST — уже основной транспорт, сейчас на OkHttp.
