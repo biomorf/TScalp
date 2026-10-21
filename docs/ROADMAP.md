@@ -11,6 +11,188 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### Split order domain into sealed Regular/Stop
+
+**Мобильная работа:** невозможно (массовый рефакторинг,
+сборка и визуальная проверка UI — на десктопе).
+
+**Статус:** запланировано. **Ревизия после завершения
+`OrderStreamManager` (задача A):** уточнить форму по
+фактическим потребностям UI, обновить оценку.
+
+**Триггер к реализации:** UI начнёт использовать поля из
+stream-событий (`executedQuantity`, `executedPrice`), которые
+сейчас в `OrderListItem` отсутствуют; или появится третья
+модель заявки (например, для Finam); или `isStopOrder: Boolean`
+начнёт обрастать доп. nullable-полями «только для stop».
+
+**Контекст:** `domain/models/OrderModels.kt` содержит две
+модели заявок:
+
+- `OrderListItem` — используется unary-путём (`getOrders`,
+  `getStopOrders`) через `InvestRepository` → `OrdersListViewModel`
+  → UI. Содержит `isStopOrder: Boolean` + `stopPrice: Double?`
+  как sum-type через флаг.
+- `OrderState` — используется stream-путём
+  (`subscribeOrderState` → `OrderStreamManager` — A).
+  Transport-модель WS/gRPC, без stop-полей (asyncapi:
+  `OrderStateStream` не стримит stop-orders).
+
+Проблема: `OrderListItem` — God-модель в зачатке. Расширение
+stream-полями (`executedQuantity`, `executedPrice`) через
+nullable-поля сделает её хуже. `isStopOrder: Boolean` —
+антипаттерн «флаг + опциональное поле» вместо sum-type.
+Отмена заявки выбирает `cancelOrder` vs `cancelStopOrder`
+через флаг — компилятор не проверяет.
+
+**Форма (выбрана `sealed interface`, не `sealed class`):**
+
+    sealed interface Order {
+        val orderId: String
+        val ticker: String
+        val tscalpInstrumentId: String
+        val instrumentType: String
+        val direction: String
+        val quantity: Long
+        val status: String
+        val orderDate: Long?
+
+        data class Regular(
+            override val orderId: String,
+            // ... common
+            val price: Double,
+            val orderType: String,
+            val executedQuantity: Long? = null,
+            val executedPrice: Double? = null,
+        ) : Order
+
+        data class Stop(
+            override val orderId: String,
+            // ... common
+            val stopPrice: Double,
+            val limitPrice: Double? = null,
+            val orderType: String,
+        ) : Order
+    }
+
+**Обоснование `sealed interface` (осознанное отклонение от
+существующего `sealed class AppResult` в проекте):**
+
+1. `Order` — чистый value type, без shared state и поведения.
+   Только `val`-контракт. Всё это — признак interface.
+2. Композиция понадобится: `Order.Regular : Order, Cancellable`
+   и `Order.Stop : Order, Cancellable` с разными реализациями
+   `cancel()` через разные use cases. Sealed class закрывает
+   эту возможность (только одно наследование).
+3. Официальная рекомендация Kotlin 1.5+: `sealed interface`
+   для sum types без shared state.
+4. `AppResult` — не тот же кейс: у него `sealed class` с
+   генерик-параметром и фабричными методами. Оставляем как
+   есть; см. «Связанный вопрос» ниже.
+
+**Предусловия:**
+- `OrderStreamManager` (задача A) реализован и вмержен.
+- Ревизия формы по фактическим полям, которые UI потребляет
+  из stream: возможно, `executedQuantity` / `executedPrice`
+  не нужны в UI вообще — тогда `Regular` не расширяем.
+
+**Что меняется:**
+- `domain/models/OrderModels.kt`: `OrderListItem` → удалить,
+  добавить `sealed interface Order` с `Regular` / `Stop`.
+- `data/api/TInvestOrdersMapper.kt`: `mapOrder` → `Order.Regular`,
+  `mapStopOrder` → `Order.Stop` (без `isStopOrder: true`).
+- `data/api/TInvestOrderStateWsMapper.kt`: `mapOrderState` →
+  `Order.Regular` (stream не отдаёт stop).
+- `domain/api/OrderStreamManager.kt` (из A): `Map<orderId, Order>`.
+- `data/repository/InvestRepository.kt`: `getAllOrdersResult` →
+  `List<Order>`.
+- `domain/api/BrokerApi.kt`: `getOrders`, `getStopOrders`,
+  `subscribeOrderState` — типы меняются.
+- `data/api/{BcsBrokerApi,FinamBrokerApi}.kt` — сигнатуры
+  (сейчас возвращают `emptyList()`, правка косметическая).
+- `ui/components/OrdersListViewModel.kt`: `OrderListItem` → `Order`,
+  `when` по типу для карточки и отмены.
+- `ui/components/OrdersListDialog.kt`, `OrdersScreen.kt`:
+  карточка заявки — `when (order) { is Regular -> ..., is Stop -> ... }`.
+- `ui/components/OrderCard.kt` (если есть): отображение stop-цены
+  только для `Stop`.
+
+**Шаги:**
+1. Заменить `OrderListItem` на `sealed interface Order` +
+   `Regular` / `Stop` в `OrderModels.kt`.
+2. Обновить `TInvestOrdersMapper`: `mapOrder` → `Regular`,
+   `mapStopOrder` → `Stop`. Убрать `isStopOrder` из обоих.
+3. Обновить `TInvestOrderStateWsMapper`: `mapOrderState` →
+   `Regular`.
+4. Обновить `InvestRepository`: сигнатура `getAllOrdersResult`.
+5. Обновить `BrokerApi`: три сигнатуры.
+6. Обновить `BcsBrokerApi`, `FinamBrokerApi` — сигнатуры.
+7. Обновить `OrderStreamManager` (A): `Map<String, Order>`.
+8. Обновить `OrdersListViewModel`: коллекция `List<Order>`,
+   `when` для отмены (`Regular` → `cancelOrder`,
+   `Stop` → `cancelStopOrder`).
+9. Обновить UI-карточку: `when` по типу для отображения
+   (stop-цена, тип, кнопка отмены).
+10. Обновить тесты: мапперы, ViewModel, если есть.
+11. Гейт: полный набор (testDebugUnitTest + lintDebug +
+    ktlintCheck + detekt).
+12. Ручная проверка: создать лимитную и stop-заявку, отменить
+    обе через UI.
+
+**Файлы (ключевые):**
+- `domain/models/OrderModels.kt`
+- `data/api/TInvestOrdersMapper.kt`
+- `data/api/TInvestOrderStateWsMapper.kt`
+- `data/repository/InvestRepository.kt`
+- `domain/api/BrokerApi.kt`
+- `data/api/BcsBrokerApi.kt`, `data/api/FinamBrokerApi.kt`
+- `domain/api/OrderStreamManager.kt` (A)
+- `ui/components/OrdersListViewModel.kt`
+- `ui/components/OrderCard.kt`, `OrdersListDialog.kt`,
+  `OrdersScreen.kt`
+
+**Ограничения:**
+- Не смешивать с A: A закрывает stream-snapshot, B —
+  рефакторинг моделей. Отдельные PR.
+- UI-изменения требуют санкции (правило 1 AGENTS.md).
+  Тексты/иконки карточки stop-заявки согласовать до правки.
+- Не удалять `OrderState` (transport-модель) — она остаётся
+  для WS/gRPC DTO → domain-конверсии.
+- Не менять `StopOrderRequest` (домен для отправки stop-заявки) —
+  это отдельная сущность, не путать.
+
+**Критерий готовности:**
+- `OrderListItem` удалён, `sealed interface Order` используется
+  везде.
+- `when` по `Order` exhaustive (компилятор проверяет).
+- UI: лимитная и stop-заявки отображаются и отменяются
+  корректно.
+- Тесты зелёные, гейт зелёный.
+
+**Оценка:** ~5–6 часов (модели + мапперы 1.5 ч, репозиторий +
+BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
+ручная проверка 1–1.5 ч).
+
+**Зависимости:** блокируется задачей A (`OrderStreamManager`).
+**Разблокирует** унификацию доменных моделей заявок между
+брокерами (BCS, Finam).
+
+**Открытые вопросы:**
+- Нужны ли `executedQuantity` / `executedPrice` в UI-карточке?
+  Сейчас в `OrderListItem` их нет; stream их отдаёт. Решить
+  после ревизии A: если UI не показывает — `Regular` без них.
+- Как в `OrdersScreen` отображать `Stop` vs `Regular`?
+  Отдельные карточки или одна с `when`-ветвлением? Решить
+  перед реализацией (нужна санкция на UI).
+- **Связанный вопрос: `AppResult` / `AppError`.** Сейчас
+  `sealed class`. Пересмотреть на `sealed interface` по той
+  же логике (нет shared state, только `val`-контракт), но
+  **только после оценки необходимости**: если рефакторинг B
+  пройдёт гладко и выявит реальную пользу `sealed interface`,
+  вернуться к `AppResult`. Отдельная задача пока не заводится.
+
+---
+
 ### Add stop() to TInvestOrderStateWebSocket
 
 **Мобильная работа:** полное закрытие. Правки `.kt` — через
