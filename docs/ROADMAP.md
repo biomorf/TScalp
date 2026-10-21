@@ -926,6 +926,13 @@ Live-тест WS цен пройден на проде 2026-10-21 (SBER:
 
 **Контекст:** polling у T-Invest идёт через gRPC unary. REST API у T-Invest — прокси Swagger над gRPC unary-методами. Если gRPC-протокол недоступен (блокировка портов, региональные ограничения), REST даёт альтернативу. У BCS REST — уже основной транспорт, сейчас на OkHttp.
 
+**Снапшот заявок.** `OrderStateStream` (gRPC и WS) отдаёт только
+события, без replay — заявки, выставленные на другом устройстве
+до подписки, не видны. Для полной картины нужен unary-snapshot
+`getOrders` + `getStopOrders`. При отказе gRPC (WS работает) этот
+snapshot тоже недоступен — только REST. Поэтому REST-fallback для
+этих методов — часть фундамента для `OrderStreamManager`.
+
 **Зачем:** fallback для polling-уровня. Плюс — единый стиль на Ktor для всех REST-запросов (BCS мигрирует с OkHttp). Ktor даёт единый HTTP-клиент для KMP, OkHttp — нет.
 
 **Предусловия:** выполнена задача «Оркестратор стримов и Ktor WS transport» — нужен оркестратор как точка композиции.
@@ -934,13 +941,18 @@ Live-тест WS цен пройден на проде 2026-10-21 (SBER:
 
 **Фаза 1 — Ktor REST-клиент для T-Invest.**
 - `TInvestRestTransport` в `:transport-ktor/commonMain`.
-- Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`.
+- Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`,
+  **`getOrders`, `getStopOrders`** (snapshot заявок для
+  `OrderStreamManager`).
 - Прокси над REST-эндпоинтами T-Invest.
 
 **Фаза 2 — Fallback для polling T-Invest.**
 - Оркестратор композирует gRPC-unary + REST в polling-уровне.
 - При недоступности gRPC polling идёт через REST.
 - Логика переключения — в оркестраторе, не в брокере.
+- Потребители REST-snapshot: `fetchPositionsSnapshot` (уже),
+  `OrderStreamManager` (snapshot заявок, после реализации),
+  `PriceStreamManager` (последние цены).
 
 **Фаза 3 — Миграция BCS на Ktor.**
 - Перевести `BcsBrokerApi` с OkHttp на Ktor REST.
@@ -975,7 +987,9 @@ Live-тест WS цен пройден на проде 2026-10-21 (SBER:
 - При недоступности gRPC polling идёт через REST.
 - `BcsBrokerApi` использует Ktor REST.
 - `TInvestOrchestrator` композирует gRPC unary + REST.
-- 63 unit-теста зелёные, ktlint и detekt чистые.
+- `getOrders` / `getStopOrders` работают через REST
+  (snapshot заявок доступен без gRPC).
+- Все unit-тесты зелёные (сейчас 94+), ktlint и detekt чистые.
 
 **Оценка:** ~4–6 часов.
 
