@@ -100,6 +100,7 @@ class TInvestBrokerAPI(
         sandbox: Boolean,
     ) {
         state.sandboxMode = sandbox
+        state.token = token
         state.channels?.shutdownAll()
         val newChannels = channelFactory.create(token, sandbox)
         state.channels = newChannels
@@ -146,6 +147,7 @@ class TInvestBrokerAPI(
         state.channels?.shutdownAll()
         state.channels = null
         state.api = null
+        state.token = null
         positionsWebSocket = null
         pricesWebSocket?.stop()
         pricesWebSocket = null
