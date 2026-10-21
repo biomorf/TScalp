@@ -8,6 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -26,7 +27,12 @@ class TInvestOrchestrator(
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
     private val orderStateWsFallback: (String) -> Flow<OrderState>? = { null },
+    private val pricesRestFallback: (suspend (List<String>) -> Map<String, Double?>)? = null,
 ) {
+    private companion object {
+        private const val TAG = "TInvestOrchestrator"
+    }
+
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
         streamWithFallback(
             primary =
@@ -91,7 +97,32 @@ class TInvestOrchestrator(
         sandboxMode: Boolean,
     ): List<PortfolioPosition> = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
-    suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> = marketData.getLastPricesByTscalpInstrumentId(uids)
+    suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> =
+        try {
+            marketData.getLastPricesByTscalpInstrumentId(uids)
+        } catch (e: Throwable) {
+            if (isTransportError(e) && pricesRestFallback != null) {
+                AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST")
+                pricesRestFallback(uids)
+            } else {
+                throw e
+            }
+        }
+
+    private fun isTransportError(e: Throwable): Boolean {
+        val status =
+            when (e) {
+                is io.grpc.StatusException -> e.status
+                is io.grpc.StatusRuntimeException -> e.status
+                else -> return false
+            }
+        return status.code in
+            listOf(
+                io.grpc.Status.Code.UNAVAILABLE,
+                io.grpc.Status.Code.DEADLINE_EXCEEDED,
+                io.grpc.Status.Code.UNIMPLEMENTED,
+            )
+    }
 
     suspend fun ordersSnapshot(accountId: String): List<OrderListItem> = orders.getOrders(accountId) + orders.getStopOrders(accountId)
 

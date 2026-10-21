@@ -17,6 +17,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestOrderStateWebSocket
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPricesWebSocket
+import com.gitlab.biomorf.tscalp.transport.ktor.TInvestRestTransport
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +46,8 @@ class TInvestBrokerAPI(
     private companion object {
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
         const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
+        const val REST_BASE_URL_PROD = "https://invest-public-api.tbank.ru"
+        const val REST_BASE_URL_SANDBOX = "https://sandbox-invest-public-api.tbank.ru"
         const val WS_POSITIONS_CHANNEL = "tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream"
         const val WS_PRICES_CHANNEL = "tinkoff.public.invest.api.contract.v1.MarketDataStreamService/MarketDataStream"
         const val WS_ORDER_STATE_CHANNEL = "tinkoff.public.invest.api.contract.v1.OrdersStreamService/OrderStateStream"
@@ -56,6 +59,8 @@ class TInvestBrokerAPI(
             val base = if (sandbox) WS_BASE_URL_SANDBOX else WS_BASE_URL_PROD
             return "$base/$channel"
         }
+
+        fun buildRestUrl(sandbox: Boolean): String = if (sandbox) REST_BASE_URL_SANDBOX else REST_BASE_URL_PROD
     }
 
     private val state = TInvestApiState()
@@ -68,6 +73,7 @@ class TInvestBrokerAPI(
             wsFallback = { accountId -> buildWsFallback(accountId) },
             pricesWsFallback = { uids -> buildPricesWsFallback(uids) },
             orderStateWsFallback = { accountId -> buildOrderStateWsFallback(accountId) },
+            pricesRestFallback = { uids -> restTransport!!.getLastPrices(uids) },
         )
 
     /**
@@ -86,6 +92,7 @@ class TInvestBrokerAPI(
         private set
 
     private var wsScope: CoroutineScope? = null
+    private var restTransport: TInvestRestTransport? = null
     private var orderStateDebugJob: Job? = null
 
     override val name: BrokerName = BrokerName.TINVEST
@@ -136,6 +143,13 @@ class TInvestBrokerAPI(
                     logFrames = BuildConfig.DEBUG,
                 )
         }
+        restTransport =
+            TInvestRestTransport(
+                client = httpClient,
+                baseUrl = buildRestUrl(sandbox),
+                token = token,
+                logger = { msg -> AppLogger.d("TInvestRest", msg) },
+            )
     }
 
     /**
@@ -153,6 +167,7 @@ class TInvestBrokerAPI(
         pricesWebSocket = null
         orderStateWebSocket?.stop()
         orderStateWebSocket = null
+        restTransport = null
         orderStateDebugJob?.cancel()
         orderStateDebugJob = null
         wsScope?.cancel()
