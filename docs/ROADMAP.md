@@ -663,9 +663,12 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 **Статус:** в работе. Код готов, покрыт unit-тестами.
 Live-тест WS цен пройден на проде 2026-10-21 (SBER:
 `SUBSCRIPTION_STATUS_SUCCESS` + поток `lastPrice`, ~1–2 сек
-между обновлениями). WS ордеров — не live-тестирован:
-нет UI-потребителя `subscribeOrderState`, клиент написан
-по образцу positions и покрыт unit-тестами DTO/маппера.
+между обновлениями). WS ордеров — live-тестирован на проде
+2026-10-21: `RESULT_SUBSCRIPTION_STATUS_OK` + кадры
+`orderState` (NEW, CANCELLED) + маппер отработал
+(`OrderState(orderId=..., status=..., limitPrice=...)`).
+UI-потребитель `subscribeOrderState` пока не подключён —
+активировался через временный debug-хук (DebugConfig).
 Готово к PR в `dev`.
 
 **Ключевые находки live-теста (2026-10-21):**
