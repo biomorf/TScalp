@@ -141,7 +141,7 @@ class OrderStreamManager
         ) {
             while (currentCoroutineContext().isActive) {
                 try {
-                    val snapshot = broker.getOrders(accountId) + broker.getStopOrders(accountId)
+                    val snapshot = broker.ordersSnapshot(accountId)
                     AppLogger.d(TAG, "polling: ${snapshot.size} orders")
                     val now = System.currentTimeMillis()
                     for (item in snapshot) {
