@@ -702,3 +702,49 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
   проблемы, проявится вероятнее на частых стримах).
 
 ---
+
+
+## INTERNAL: 70001 при параллельных unary-запросах
+
+**Статус:** открыт. Причина подтверждена.
+
+**Симптом:** `getLastPricesByTscalpInstrumentId` (gRPC unary)
+периодически падает с
+`io.grpc.StatusException: INTERNAL: 70001` под параллельной
+нагрузкой. Наблюдалось в live-тесте 2026-10-21 при открытии
+портфеля:
+
+    W PriceStreamManager: REST poll failed: INTERNAL: 70001
+    io.grpc.StatusException: INTERNAL: 70001
+        at io.grpc.Status.asException(Status.java:547)
+        ...
+
+Один цикл polling упал, следующий (через 5 сек) прошёл
+успешно — `try/catch` в `PriceStreamManager.runPolling`
+корректно обрабатывает, цикл продолжается.
+
+**Причина:** подтверждена по документации T-Invest
+(https://developer.tbank.ru/invest/intro/developer/error-codes/errors).
+Код `70001` — «Внутренняя ошибка сервиса, попробуйте выполнить
+запрос позднее». Код уже расшифрован в
+`util/TInvestErrorMessages` (`"70001" to "Внутренняя ошибка
+сервиса. Попробуйте позже."`).
+
+Ошибка транзиентная, на стороне T-Invest. В live-тесте
+следующий цикл polling (через 5 сек) прошёл успешно.
+
+**Решение (сделано):**
+- В `PriceStreamManager.runPolling` логирование переведено
+  на `toAppError(BrokerName.TINVEST).message` — в логах
+  теперь расшифровка, а не сырой `INTERNAL: 70001`.
+- Цикл polling корректно продолжается после ошибки
+  (`try/catch`). UI не ломается.
+
+**Дальнейшие шаги:**
+- Rate-limiter для unary-запросов (ROADMAP → «Rate-limiter
+  для unary-запросов T-Invest») всё ещё актуален для кодов
+  `80001`-`80003` (RESOURCE_EXHAUSTED), но не для `70001`.
+- Ошибка `70001` на нашей стороне не лечится — только
+  ожиданием / повтором.
+
+---
