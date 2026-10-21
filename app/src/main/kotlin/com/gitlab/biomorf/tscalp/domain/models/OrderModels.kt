@@ -16,6 +16,11 @@ data class OrderState(
     val status: String,
     // epoch seconds
     val updateTime: Long?,
+    // "LIMIT", "MARKET", "BESTPRICE" (без ORDER_TYPE_ префикса)
+    // null — если источник не дал (gRPC без маппинга, старый API)
+    val orderType: String? = null,
+    // uid инструмента для склейки с позициями/заявками из polling
+    val tscalpInstrumentId: String? = null,
 )
 
 data class OrderResult(

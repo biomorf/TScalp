@@ -30,6 +30,8 @@ object TInvestOrderStateWsMapper {
             executedQuantity = dto.lotsExecuted.toLongOrNull() ?: 0L,
             status = dto.executionReportStatus.removePrefix("EXECUTION_REPORT_STATUS_"),
             updateTime = dto.createdAt?.let { parseEpochSeconds(it) },
+            orderType = dto.orderType.removePrefix("ORDER_TYPE_").ifBlank { null },
+            tscalpInstrumentId = dto.instrumentUid.ifBlank { null },
         )
 
     private fun MoneyValueDto.toDoubleOrNull(): Double = (units.toLongOrNull() ?: 0L).toDouble() + nano / 1_000_000_000.0
