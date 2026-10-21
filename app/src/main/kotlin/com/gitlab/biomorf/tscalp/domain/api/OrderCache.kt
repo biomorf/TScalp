@@ -82,18 +82,15 @@ internal class OrderCache(
 
     /**
      * Удалить записи, у которых и `lastSeenAt`, и `lastStreamAt`
-     * старше `now - ttlMs`. Возвращает `true`, если что-то удалено
-     * (чтобы вызывающий мог решить, обновлять ли `_orders`).
+     * старше `now - ttlMs`.
      */
-    fun evictStale(now: Long): Boolean {
-        if (entries.isEmpty()) return false
+    fun evictStale(now: Long) {
+        if (entries.isEmpty()) return
         val cutoff = now - ttlMs
-        val before = entries.size
         entries.entries.removeAll { (_, e) ->
             val lastTouched = maxOf(e.lastSeenAt, e.lastStreamAt)
             lastTouched < cutoff
         }
-        return entries.size != before
     }
 
     /** Снимок для UI: отсортирован по `orderDate`, затем по `price`. */
