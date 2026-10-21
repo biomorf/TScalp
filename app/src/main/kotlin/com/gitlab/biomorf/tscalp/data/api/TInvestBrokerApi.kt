@@ -8,6 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
+import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
@@ -59,14 +60,15 @@ class TInvestBrokerAPI(
 
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
+    private val orders = TInvestOrdersService(state)
     private val orchestrator =
         TInvestOrchestrator(
             marketData = marketData,
+            orders = orders,
             wsFallback = { accountId -> buildWsFallback(accountId) },
             pricesWsFallback = { uids -> buildPricesWsFallback(uids) },
             orderStateWsFallback = { accountId -> buildOrderStateWsFallback(accountId) },
         )
-    private val orders = TInvestOrdersService(state)
 
     /**
      * WebSocket-клиент PositionsStream. Создаётся в [initialize]
@@ -266,6 +268,13 @@ class TInvestBrokerAPI(
     }
 
     // ---------- Публичные методы вне BrokerApi ----------
+
+    // ---------- Unary snapshots (для менеджеров) ----------
+    // Делегируют в оркестратор, где будет fallback gRPC → REST (шаг 2).
+
+    suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(ids)
+
+    suspend fun ordersSnapshot(accountId: String): List<OrderListItem> = orchestrator.ordersSnapshot(accountId)
 
     /**
      * Возвращает полный доменный инструмент по uid.

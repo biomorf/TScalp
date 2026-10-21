@@ -1,9 +1,12 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
+import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.api.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.streamWithFallback
+import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
+import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import kotlinx.coroutines.flow.Flow
 
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
  */
 class TInvestOrchestrator(
     private val marketData: TInvestMarketDataService,
+    private val orders: TInvestOrdersService,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
     private val orderStateWsFallback: (String) -> Flow<OrderState>? = { null },
@@ -78,4 +82,18 @@ class TInvestOrchestrator(
                 },
             polling = null,
         )
+
+    // ---------- Unary snapshots (без fallback, фаза 1a) ----------
+    // Fallback gRPC → REST будет добавлен в шаге 2.
+
+    suspend fun positionsSnapshot(
+        accountId: String,
+        sandboxMode: Boolean,
+    ): List<PortfolioPosition> = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
+
+    suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> = marketData.getLastPricesByTscalpInstrumentId(uids)
+
+    suspend fun ordersSnapshot(accountId: String): List<OrderListItem> = orders.getOrders(accountId) + orders.getStopOrders(accountId)
+
+    suspend fun balanceSnapshot(accountId: String): Double = marketData.getBalance(accountId)
 }

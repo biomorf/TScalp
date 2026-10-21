@@ -1,11 +1,12 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
+import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
-import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.util.AppLogger
+import com.gitlab.biomorf.tscalp.util.toAppError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -39,7 +40,7 @@ import javax.inject.Singleton
  * - совпадающий union → перезапуска нет.
  *
  * [prices] не имеет replay-кэша: актуальное состояние подписчик
- * подтягивает сам через InvestRepository.getLastPricesResult.
+ * подтягивает сам через `broker.pricesSnapshot` (оркестратор).
  */
 @Singleton
 class PriceStreamManager
@@ -198,21 +199,24 @@ class PriceStreamManager
          * неудачная итерация не должна останавливать polling.
          */
         private suspend fun runPolling(union: Set<String>) {
-            val broker = BrokerName.TINVEST
+            val brokerName = BrokerName.TINVEST
+            val broker = brokerManager.getBroker(brokerName) as? TInvestBrokerAPI
+            if (broker == null) {
+                AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, polling не запускаем")
+                return
+            }
             while (currentCoroutineContext().isActive) {
                 delay(5_000)
-                when (val result = repository.getLastPricesResult(union.toList())) {
-                    is AppResult.Success -> {
-                        result.data.forEach { (tscalpId, price) ->
-                            if (price != null) {
-                                AppLogger.d(TAG, "[REST/${broker.key}] $tscalpId = $price")
-                                _prices.emit(PriceUpdate(broker, tscalpId, price))
-                            }
+                try {
+                    val prices = broker.pricesSnapshot(union.toList())
+                    prices.forEach { (tscalpId, price) ->
+                        if (price != null) {
+                            AppLogger.d(TAG, "[REST/${brokerName.key}] $tscalpId = $price")
+                            _prices.emit(PriceUpdate(brokerName, tscalpId, price))
                         }
                     }
-                    is AppResult.Failure -> {
-                        AppLogger.w(TAG, "REST poll failed: ${result.error.message}", result.error.cause)
-                    }
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)
                 }
             }
         }
