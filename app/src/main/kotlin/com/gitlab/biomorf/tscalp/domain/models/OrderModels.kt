@@ -166,3 +166,28 @@ data class SandboxMoney(
     val units: Long,
     val nano: Int = 0,
 )
+
+/**
+ * Конвертация stream-модели в модель UI-списка заявок.
+ *
+ * Stream (gRPC/WS) отдаёт только обычные заявки (без stop).
+ * `stopPrice = null`, `isStopOrder = false` всегда.
+ *
+ * [instrumentType] пуст: `OrderState` не знает типа инструмента;
+ * UI-карточке достаточно [OrderListItem.type] (LIMIT/MARKET).
+ */
+internal fun OrderState.toOrderListItem(): OrderListItem =
+    OrderListItem(
+        orderId = orderId,
+        ticker = ticker,
+        tscalpInstrumentId = tscalpInstrumentId ?: "",
+        instrumentType = "",
+        direction = direction,
+        price = limitPrice ?: executedPrice ?: 0.0,
+        stopPrice = null,
+        quantity = quantity,
+        type = orderType?.takeIf { it != "UNSPECIFIED" } ?: "LIMIT",
+        status = status,
+        orderDate = updateTime,
+        isStopOrder = false,
+    )

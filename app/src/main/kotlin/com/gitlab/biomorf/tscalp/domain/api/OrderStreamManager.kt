@@ -1,0 +1,180 @@
+package com.gitlab.biomorf.tscalp.domain.api
+
+import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
+import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.toOrderListItem
+import com.gitlab.biomorf.tscalp.util.AppLogger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Агрегирует активные заявки счёта из двух источников:
+ *
+ * 1. **Snapshot polling** (`getOrders` + `getStopOrders`, gRPC unary,
+ *    раз в [POLLING_INTERVAL_MS]). Покрывает заявки, выставленные
+ *    до открытия приложения (в т.ч. с другого устройства), и
+ *    stop-orders (stream их не отдаёт).
+ * 2. **Stream** (`subscribeOrderState`, gRPC-stream + WS fallback).
+ *    Мгновенные события изменения статуса.
+ *
+ * Merge-семантика:
+ * - polling: добавить/обновить элементы из снимка. Отсутствие
+ *   заявки в снимке не удаляет её из кэша — она могла быть
+ *   только что создана через stream, до того как сервер успел
+ *   её вернуть в unary.
+ * - stream: если [OrderListItem.status] терминальный
+ *   ([TERMINAL_STATUSES]) — удалить из кэша. Иначе — добавить/обновить.
+ *
+ * Результат — `StateFlow<List<OrderListItem>>`, отсортированный
+ * по [OrderListItem.orderDate] по возрастанию (новые снизу, как
+ * в текущем `OrdersListViewModel`).
+ *
+ * Scope — single-threaded (`Dispatchers.IO.limitedParallelism(1)`),
+ * поэтому доступ к кэшу не требует синхронизации: polling и
+ * stream выполняются последовательно на одном worker'е.
+ */
+@Singleton
+class OrderStreamManager
+    @Inject
+    constructor(
+        private val brokerManager: BrokerManager,
+    ) {
+        companion object {
+            private const val TAG = "OrderStream"
+            private const val POLLING_INTERVAL_MS = 15_000L
+            private val TERMINAL_STATUSES = setOf("FILL", "CANCELLED", "REJECTED")
+        }
+
+        private val _orders = MutableStateFlow<List<OrderListItem>>(emptyList())
+        val orders: StateFlow<List<OrderListItem>> = _orders.asStateFlow()
+
+        private val cache = mutableMapOf<String, OrderListItem>()
+        private var job: Job? = null
+        private var currentAccountId: String? = null
+
+        private val scope =
+            CoroutineScope(
+                Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
+                    CoroutineExceptionHandler { _, e ->
+                        AppLogger.e(TAG, "Uncaught error in order stream", e)
+                    },
+            )
+
+        /**
+         * Запускает агрегацию заявок для [accountId].
+         * Идемпотентен для одного и того же accountId. При смене
+         * счёта — перезапускает оба источника (polling и stream)
+         * и очищает кэш.
+         */
+        fun start(accountId: String) {
+            if (job?.isActive == true && currentAccountId == accountId) {
+                AppLogger.d(TAG, "Поток заявок уже запущен для $accountId")
+                return
+            }
+            val switching = currentAccountId != accountId
+            if (switching) {
+                AppLogger.d(TAG, "Перезапуск потока заявок: $currentAccountId → $accountId")
+            }
+            job?.cancel()
+            currentAccountId = accountId
+            job =
+                scope.launch {
+                    if (switching) {
+                        cache.clear()
+                        _orders.value = emptyList()
+                    }
+                    val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
+                    if (broker == null || !broker.isInitialized) {
+                        AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
+                        return@launch
+                    }
+                    coroutineScope {
+                        launch { collectPolling(broker, accountId) }
+                        launch { collectStream(broker, accountId) }
+                    }
+                }
+        }
+
+        /**
+         * Останавливает агрегацию и очищает кэш. Следующий [start]
+         * снова поднимется с чистого листа.
+         */
+        fun stop() {
+            job?.cancel()
+            job = null
+            currentAccountId = null
+            scope.launch {
+                // Если между stop() и этой корутиной уже вызвали
+                // start() — не затираем свежие данные.
+                if (currentAccountId == null) {
+                    cache.clear()
+                    _orders.value = emptyList()
+                }
+            }
+        }
+
+        private suspend fun collectPolling(
+            broker: TInvestBrokerAPI,
+            accountId: String,
+        ) {
+            while (currentCoroutineContext().isActive) {
+                try {
+                    val snapshot = broker.getOrders(accountId) + broker.getStopOrders(accountId)
+                    AppLogger.d(TAG, "polling: ${snapshot.size} orders")
+                    for (item in snapshot) {
+                        cache[item.orderId] = item
+                    }
+                    _orders.value = sortedCache()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "polling error: ${e.message}")
+                }
+                delay(POLLING_INTERVAL_MS)
+            }
+        }
+
+        private suspend fun collectStream(
+            broker: TInvestBrokerAPI,
+            accountId: String,
+        ) {
+            try {
+                broker.subscribeOrderState(accountId).collect { state ->
+                    val item = state.toOrderListItem()
+                    AppLogger.d(TAG, "stream: ${item.orderId} status=${item.status}")
+                    if (item.status in TERMINAL_STATUSES) {
+                        cache.remove(item.orderId)
+                    } else {
+                        cache[item.orderId] = item
+                    }
+                    _orders.value = sortedCache()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "stream error: ${e.message}", e)
+            }
+        }
+
+        private fun sortedCache(): List<OrderListItem> =
+            cache.values.sortedWith(
+                compareBy<OrderListItem> { it.orderDate ?: Long.MAX_VALUE }
+                    .thenBy { it.price },
+            )
+    }
