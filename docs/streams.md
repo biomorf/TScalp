@@ -83,7 +83,7 @@
 - **Уровень 2 — polling.** `fetchPositionsSnapshot` раз в
   10–30 секунд. Даёт полные снимки с `averagePositionPrice`,
   `expectedYield`, `pointValue`.
-- **Обогащение в `PositionStreamManager`.** Менеджер хранит
+- **Обогащение в `PositionFlowManager`.** Менеджер хранит
   последний полный снимок от polling. При gRPC-событии эмитит
   событие с `balance` из gRPC и остальными полями из кэша.
   UI получает консистентные данные и не мерцает.
@@ -95,7 +95,7 @@
 раньше. Стрим позиций **не дублирует** подписку на last price.
 
 **Текущая альтернатива (до реализации):** polling через
-`PositionStreamManager` с периодом 10 секунд. P&L корректно
+`PositionFlowManager` с периодом 10 секунд. P&L корректно
 отображается с задержкой.
 
 ## WebSocket (T-Invest)
@@ -252,7 +252,7 @@ UI-задачи (см. `docs/ROADMAP.md` → «UI: отображение blocke
   Для цен: gRPC + polling параллельно (см. `PriceFlowManager`).
 - **Обогащение — в менеджере, не в UI.** Если источник отдаёт
   неполные данные (только часть полей), обогащение — задача
-  посредника между брокером и UI (`PositionStreamManager`,
+  посредника между брокером и UI (`PositionFlowManager`,
   `PriceFlowManager`). UI получает консистентные данные.
 - **P&L подтягивается с polling.** Стрим позиций не даёт
   `expectedYield` / `averagePositionPrice`. Это не баг стрима —

@@ -1277,7 +1277,7 @@ hotfix-веток.
 
 - **Domain-слой** оперирует `tscalpInstrumentId` — универсальным
   идентификатором инструмента. В domain-моделях, usecase'ах и
-  domain-API (`PriceFlowManager`, `PositionStreamManager`)
+  domain-API (`PriceFlowManager`, `PositionFlowManager`)
   ключ инструмента называется `tscalpInstrumentId`, а не `uid`
   и не `figi`.
 - **Data-слой** (`data/api/*`, `data/repository/*`) — на границе

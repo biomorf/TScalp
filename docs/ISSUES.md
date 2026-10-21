@@ -159,7 +159,7 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
    она не будет вытеснена никогда. Отсюда «залипшие» позиции.
 
 Подтверждение по коду: `start()` и `stop()` в
-`PositionStreamManager`; смена счёта в `OrdersViewModel`
+`PositionFlowManager`; смена счёта в `OrdersViewModel`
 (`startPositionUpdates()`, строка ~905) и `PortfolioViewModel`
 (`startPositionUpdates(accountId)`, строка ~150) — обе без
 `stop()` у менеджера.
@@ -264,7 +264,7 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 - Параллельная схема (gRPC + polling) в `subscribePositions`.
   Отказ от последовательного каскада: gRPC может молчать, а
   polling обязан работать.
-- Обогащение в `PositionStreamManager`: gRPC-события дополняются
+- Обогащение в `PositionFlowManager`: gRPC-события дополняются
   `currentPrice`, `averagePositionPrice`, `expectedYield` из кэша
   polling.
 - Автопереподключение gRPC с backoff [1s, 5s, 15s, 30s, 60s].
@@ -670,8 +670,8 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
 **Причина:** не подтверждена. Гипотезы:
 1. `TInvestOrchestrator.positionsStream` вызывается дважды —
    например, `subscribePositions` собирается из двух мест
-   (прямой вызов + через `PositionStreamManager`).
-2. `PositionStreamManager` перезапускает поток и создаёт
+   (прямой вызов + через `PositionFlowManager`).
+2. `PositionFlowManager` перезапускает поток и создаёт
    второй `collect` на WS-flow, оставляя первый активным.
 3. `TInvestPositionsWebSocket.subscribePositions` возвращает
    `flow { ... }` — каждый `collect` создаёт новую
@@ -698,7 +698,7 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
 устранение двойного вызова на уровне оркестратора.
 
 **Когда вернуться:**
-- При следующей правке `PositionStreamManager` или
+- При следующей правке `PositionFlowManager` или
   `TInvestOrchestrator`.
 - При появлении жалоб на нагрузку или лаги от WS.
 - При подключении WS к ценам и ордерам (та же природа

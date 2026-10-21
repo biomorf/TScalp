@@ -108,7 +108,7 @@ proot; сборка и тесты — на десктопе).
 **Контекст:** семантическое разделение слоёв.
 - **Оркестратор** (`TInvestOrchestrator`) — владеет транспортами,
   работает со стримами (gRPC, WS) и unary-запросами.
-- **Менеджеры** (`PositionStreamManager`, `PriceFlowManager`,
+- **Менеджеры** (`PositionFlowManager`, `PriceFlowManager`,
   `OrderFlowManager`) — агрегируют данные из разных
   источников (транспортные стримы, polling) в единый `StateFlow`
   для ViewModel.
@@ -345,7 +345,7 @@ proot; сборка и визуальная проверка — на дескт
 polling — рубли), без разбивки на свободные/заблокированные.
 
 **Предусловия:**
-- WS-интеграция money/blocked в `PositionStreamManager`
+- WS-интеграция money/blocked в `PositionFlowManager`
   закрыта (сделано, коммит `0167c03`).
 - Формула связи `money`, `blocked`, `quantity` — не
   подтверждена (`docs/ROADMAP.md` → «Оркестратор стримов
@@ -401,7 +401,7 @@ polling — рубли), без разбивки на свободные/заб�
   (фаза 2, money/blocked merge).
 - `docs/ISSUES.md` → «PositionsStream over WS не отдаёт
   данные в песочнице» (prod-only поведение).
-- `TInvestPositionsWsMapperTest`, `PositionStreamManagerTest` —
+- `TInvestPositionsWsMapperTest`, `PositionFlowManagerTest` —
   образец тестов на доменный merge.
 
 **Ограничения:**
@@ -1196,7 +1196,7 @@ AppMetrica, отладки.
    MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
    Обновлять при переходе между gRPC и polling, при ошибках,
    при отсутствии обновлений > 15 секунд (→ STALE).
-3. В `PositionStreamManager` — аналогично. Порог STALE — 30 секунд.
+3. В `PositionFlowManager` — аналогично. Порог STALE — 30 секунд.
 4. «Биржа закрыта» ≠ STALE: если polling возвращает цену
    (пусть и неизменную), состояние остаётся POLLING.
 
@@ -1548,7 +1548,7 @@ Finam в UI.
 5. Миграция `PortfolioViewModel` (+ фикс карточек в `OrdersScreen`:
    цена берётся из `uiState.currentPrice`, а не из медленного
    `portfolioPositions`).
-6. Переименование `SharedPositionStreamManager` → `PositionStreamManager`.
+6. Переименование `SharedPositionStreamManager` → `PositionFlowManager`.
 
 ### ✅ Унификация profitPercent для PortfolioPosition
 
@@ -1738,7 +1738,7 @@ polling остаётся параллельным fallback'ом.
 - **Автопереподключение gRPC** с экспоненциальным
   backoff `[1s, 5s, 15s, 30s, 60s]`. Ожидание появления
   API внутри flow (без early-return).
-- **Обогащение в `PositionStreamManager`.** Полные события
+- **Обогащение в `PositionFlowManager`.** Полные события
   (от polling, `currentPrice != null`) обновляют
   `snapshotCache`. Неполные события (от gRPC, без P&L)
   дополняются `currentPrice`, `averagePositionPrice`,
@@ -1766,7 +1766,7 @@ polling остаётся параллельным fallback'ом.
 
 **Итог:** задача разблокирует WS-уровень в каскаде позиций
 (см. `### Каскад обновления позиций`). Миграция
-`PositionStreamManager` на стрим как единственный источник
+`PositionFlowManager` на стрим как единственный источник
 не потребовалась — параллельная схема оказалась надёжнее.
 
 Один коммит с закрытием — см. `docs/ROADMAP.md` → этот
