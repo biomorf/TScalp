@@ -660,9 +660,25 @@ fun positionsStream(accountId: String): Flow<PositionStreamItem> =
 
 **Фаза 3 — Раскат на цены и ордера.**
 
-**Статус:** в работе. Код готов (DTO, клиенты, мапперы,
-wiring), покрыт unit-тестами. Ожидает live-теста на
-проде (WS цен и ордеров end-to-end) перед merge в `dev`.
+**Статус:** в работе. Код готов, покрыт unit-тестами.
+Live-тест WS цен пройден на проде 2026-10-21 (SBER:
+`SUBSCRIPTION_STATUS_SUCCESS` + поток `lastPrice`, ~1–2 сек
+между обновлениями). WS ордеров — не live-тестирован:
+нет UI-потребителя `subscribeOrderState`, клиент написан
+по образцу positions и покрыт unit-тестами DTO/маппера.
+Готово к PR в `dev`.
+
+**Ключевые находки live-теста (2026-10-21):**
+
+- `MarketDataServerSideStream` и `MarketDataStream`
+  (bidirectional) — оба работают.
+- `instrumentId` принимает uid (`instrumentUid` из
+  `PositionStreamItem`) и `ticker_classCode`. В коде
+  используется uid — маппинг не нужен.
+- `subscriptionAction: "SUBSCRIPTION_ACTION_SUBSCRIBE"`
+  обязателен в payload. Без него —
+  `SUBSCRIPTION_STATUS_SUBSCRIPTION_ACTION_IS_INVALID`,
+  кадров нет.
 
 **Контекст:** Фаза 2 (позиции) закрыта. Для цен и ордеров
 нужны отдельные WS-каналы и DTO, отличные от `PositionsStream`.
