@@ -193,81 +193,6 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 
 ---
 
-### Add stop() to TInvestOrderStateWebSocket
-
-**Мобильная работа:** полное закрытие. Правки `.kt` — через
-proot; сборка и гейт — на десктопе. Оценка ~15 минут.
-
-**Статус:** в работе.
-**Ветка:** feature/order-state-ws-stop.
-
-**Триггер сработал (2026-10-21):** `OrderStreamManager`
-подписывается на `subscribeOrderState` постоянно (не одноразово).
-Без `stop()` коллектор живёт до `onCleared` ViewModel — WS-соединение
-переживает `deinitialize()`.
-
-**Контекст:** архитектурный дисбаланс между WS-клиентами.
-`TInvestPricesWebSocket` имеет `stop()` и собственный
-`wsScope` (`TInvestBrokerAPI.deinitialize` вызывает
-`pricesWebSocket?.stop()` и `wsScope?.cancel()`).
-`TInvestOrderStateWebSocket` — `flow { }`, живущий в scope
-коллектора, без `stop()`. Сейчас не проявляется: у
-`subscribeOrderState` нет UI-потребителя (grep по
-`app/src/main/` — только объявления и вызовы из
-оркестратора). Но когда потребитель появится, `deinitialize`
-не остановит WS-соединение ордеров — оно будет жить до
-отмены родительского scope.
-
-**Файлы:**
-- `transport-ktor/src/commonMain/.../TInvestOrderStateWebSocket.kt` —
-  добавить `scope: CoroutineScope` в конструктор, `stop()`,
-  `connectionLoop()` по образцу `TInvestPricesWebSocket`.
-- `app/src/main/kotlin/.../data/api/TInvestBrokerApi.kt` —
-  в `deinitialize` вызвать `orderStateWebSocket?.stop()`
-  до обнуления.
-- `transport-ktor/src/commonMain/.../TInvestOrderStateWebSocket.kt`
-  KDoc — удалить warning про отсутствие `stop()`.
-
-**Шаги:**
-1. Добавить `scope: CoroutineScope` в конструктор
-   `TInvestOrderStateWebSocket`.
-2. Переписать `subscribeOrderState` как поле класса
-   `SharedFlow<OrderStateStreamResponseDto>` + `setInterest(accountId)` /
-   `stop()` (по образцу prices, но с одним accountId).
-3. В `TInvestBrokerAPI.initialize` передать `wsScope` в
-   конструктор; в `deinitialize` — `orderStateWebSocket?.stop()`.
-4. Гейт: `testDebugUnitTest :lintDebug :ktlintCheck :detekt`.
-5. Удалить warning в KDoc.
-
-**Референсы:**
-- `TInvestPricesWebSocket.kt` — образец (incremental, scope,
-  stop, hot SharedFlow).
-- `TInvestBrokerApi.kt` → `deinitialize` — где сейчас
-  `orderStateWebSocket = null` без отмены.
-
-**Ограничения:**
-- Не менять контракт `BrokerApi.subscribeOrderState` — он
-  suspend-fun, возвращающая Flow. Lifecycle — внутренняя
-  деталь клиента.
-- Если UI-потребитель появится раньше — задача становится
-  блокером, не откладывать.
-
-**Критерий готовности:**
-- `TInvestOrderStateWebSocket` имеет `stop()` и `scope`.
-- `TInvestBrokerAPI.deinitialize` вызывает `stop()` для
-  order state до обнуления.
-- Гейт зелёный.
-- KDoc без warning'а.
-
-**Оценка:** ~15 минут.
-
-**Зависимости:** нет. **Разблокирует** корректный lifecycle
-ордеров при появлении UI-потребителя.
-
-**Открытые вопросы:** нет.
-
----
-
 ### UI: отображение blocked на валютной карточке
 
 **Мобильная работа:** частичное (план и правки `.kt` — через
@@ -755,118 +680,6 @@ snapshot тоже недоступен — только REST. Поэтому RES
 
 
 ---
-
-Набросок правки ROADMAP
-
-Ниже — компактный план, что менять. Сохрани в черновик, на десктопе применим.
-
----
-
-Проблема в текущем планировании
-
-Три задачи пересекаются, но описаны как независимые:
-
-1. ### Каскад обновления позиций — описывает последовательный каскад внутри TInvestMarketDataService. Устарело: gRPC-уровень сделан, последовательный каскад отменён в пользу параллельного.
-2. ### Унификация каскадов стримов — статус «отложено». По обсуждению — должно быть «в работе», потому что де-факто унификация нужна.
-3. ### Миграция сетевого слоя на Ktor Client — описывает миграцию REST-запросов на Ktor. Устарело: реально нужен Ktor для WebSocket как fallback для стримов.
-
----
-
-Целевая архитектура (набросок)
-
-```
-ViewModel
-    ↓
-PositionStreamManager / PriceStreamManager (domain)
-    ↓
-BrokerApi (domain interface)
-    ↓
-TInvestBrokerAPI (data adapter)
-    ↓
-StreamOrchestrator (data — НОВЫЙ слой)
-    ├── gRPC transport    (T-Invest only)
-    ├── Ktor WS transport (все брокеры с WS)
-    └── Ktor REST polling (все брокеры)
-```
-
-Ключевое:
-
-· Оркестратор — общий. Брокер только композиция транспортов.
-· Отсутствующие транспорты — null (ветка замьючена).
-· Логика fallback — в оркестраторе, не в брокере.
-
-Матрица брокеров:
-
-Транспорт T-Invest BCS Finam
-gRPC stream ✅ ❌ ❌
-Ktor WS stream ✅ ? ❌
-Ktor REST polling ✅ ✅ ✅
-
----
-
-Правки в ROADMAP
-
-1. Переформулировать «Каскад обновления позиций»
-
-Убрать всё про последовательный каскад и LevelOutcome. Заменить на:
-
-· Что сделано: gRPC-стрим + параллельный polling (PR #20).
-· Что осталось: WS-уровень (через Ktor).
-· Куда идёт: становится частью «Унификации каскадов».
-
-Или закрыть как отдельную задачу — всё её содержимое уже в других местах.
-
-2. Переформулировать «Унификация каскадов стримов»
-
-Из «отложено» → «в работе». Новое содержание:
-
-· Зачем: три транспорта (gRPC, Ktor WS, Ktor REST) × несколько стримов (позиции, цены, ордера) × три брокера (T-Invest, BCS, Finam). Без общего движка — дублирование.
-· Что унифицируется:
-  · StreamOrchestrator — класс композиции.
-  · streamWithFallback(primary, fallback, polling) — утилита.
-  · Единый формат [stream]-логов.
-  · Общий механизм backoff.
-· Что НЕ унифицируется: доменная логика (позиции ≠ цены по семантике).
-· Фазы:
-  1. Выделить оркестратор из TInvestMarketDataService (рефакторинг без изменений поведения).
-  2. Добавить Ktor WS-транспорт для позиций.
-  3. Раскатать на цены и ордера.
-  4. HTTP REST fallback для polling.
-
-3. Переформулировать «Миграция на Ktor Client»
-
-Сузить: первый этап — только WS. REST-миграция — отдельная задача после.
-
-Или удалить и создать новую: «Ktor WebSocket transport».
-
-4. Новая задача: :transport-ktor (KMP-модуль)
-
-Создать модуль с одним androidTarget(), Ktor 3.6.0, WS-клиент для позиций T-Invest.
-
----
-
-Открытые вопросы
-
-1. Где живёт StreamOrchestrator:
-   · :app/data/orchestrator/ — просто, но не KMP.
-   · :transport-ktor/orchestrator/ — модуль назван неточно (оркестратор не про транспорт).
-   · Новый :streams модуль — чище, но +1 модуль.
-2. Имя модуля: :transport-ktor — вариант для транспорта. Для оркестратора — :stream-core, :streams.
-3. Порядок фаз: сначала оркестратор (рефакторинг) или сразу WS (быстрая польза)?
-
----
-
-Что делать на десктопе
-
-1. Открыть docs/ROADMAP.md.
-2. Пройти по трём задачам, применить правки выше.
-3. Решить открытые вопросы (1, 2, 3).
-4. Коммит docs(roadmap): rework stream cascade planning.
-
----
-
-
-
 
 ### Рефакторинг расчёта P&L для PortfolioPosition
 
@@ -1885,4 +1698,33 @@ wrapper + content) — остаётся в задаче «Рефакторинг
   план).
 - Доменная модель в `sealed interface Order { Regular, Stop }`:
   ROADMAP → «Split order domain into sealed Regular/Stop».
+
+---
+
+### ✅ Add stop() to TInvestOrderStateWebSocket
+
+`TInvestOrderStateWebSocket` приведён к lifecycle
+`TInvestPricesWebSocket`: соединение живёт в переданном `scope`,
+управляется `setInterest(accountId)` / `stop()`.
+
+**Что сделано:**
+- `scope: CoroutineScope` в конструктор.
+- `setInterest(accountId)` вместо `subscribeOrderState(accountId)`:
+  идемпотентен для того же счёта, пересоздаёт соединение при
+  смене счёта (incremental в `OrderStateStream` нет).
+- `stop()` — cancel соединения и сброс интереса.
+- `states: SharedFlow<OrderStateStreamResponseDto>` — hot, без
+  буфера (SUSPEND). Заявки критичны (`CANCELLED` / `FILL` нельзя
+  терять); Ktor буферизует кадры при отсутствии подписчика.
+- `logFrames: Boolean` — паритет с prices, `BuildConfig.DEBUG`.
+- `TInvestBrokerApi.deinitialize` вызывает
+  `orderStateWebSocket?.stop()` перед обнулением.
+- `buildOrderStateWsFallback` — через `setInterest` + `states`.
+
+**Триггер (сработал 2026-10-21):** `OrderStreamManager` стал
+постоянным потребителем `subscribeOrderState`. Без `stop()`
+WS-соединение переживало `deinitialize()`.
+
+**Гейт:** `testDebugUnitTest / lintDebug / ktlintCheck / detekt /
+transport-ktor:allTests` — зелёные.
 
