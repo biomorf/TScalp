@@ -68,7 +68,7 @@ class OrderStreamManager
         private val _hasLoaded = MutableStateFlow(false)
         val hasLoaded: StateFlow<Boolean> = _hasLoaded.asStateFlow()
 
-        private val cache = mutableMapOf<String, OrderListItem>()
+        private val cache = OrderCache(ttlMs = POLLING_INTERVAL_MS * 2)
         private var job: Job? = null
         private var currentAccountId: String? = null
 
@@ -143,10 +143,15 @@ class OrderStreamManager
                 try {
                     val snapshot = broker.getOrders(accountId) + broker.getStopOrders(accountId)
                     AppLogger.d(TAG, "polling: ${snapshot.size} orders")
+                    val now = System.currentTimeMillis()
                     for (item in snapshot) {
-                        cache[item.orderId] = item
+                        cache.putFromPolling(item, now)
                     }
-                    _orders.value = sortedCache()
+                    // Эвикция только при успешном цикле: если polling
+                    // упал, lastSeenAt не обновляется у валидных
+                    // заявок, и эвикция снесла бы их.
+                    cache.evictStale(now)
+                    _orders.value = cache.snapshot()
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -169,9 +174,9 @@ class OrderStreamManager
                     if (item.status in TERMINAL_STATUSES) {
                         cache.remove(item.orderId)
                     } else {
-                        cache[item.orderId] = item
+                        cache.putFromStream(item, System.currentTimeMillis())
                     }
-                    _orders.value = sortedCache()
+                    _orders.value = cache.snapshot()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -179,10 +184,4 @@ class OrderStreamManager
                 AppLogger.e(TAG, "stream error: ${e.message}", e)
             }
         }
-
-        private fun sortedCache(): List<OrderListItem> =
-            cache.values.sortedWith(
-                compareBy<OrderListItem> { it.orderDate ?: Long.MAX_VALUE }
-                    .thenBy { it.price },
-            )
     }
