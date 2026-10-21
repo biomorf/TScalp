@@ -622,42 +622,40 @@ class TInvestMarketDataService(
                         if (!value.hasOrderState()) return
                         val s = value.orderState
 
-                        val figi =
-                            s.descriptorForType
-                                .findFieldByName("figi")
-                                ?.let { s.getField(it) } as? String ?: ""
-                        val ticker =
-                            s.descriptorForType
-                                .findFieldByName("ticker")
-                                ?.let { s.getField(it) } as? String ?: figi
-                        val date =
-                            (
-                                s.descriptorForType.findFieldByName("order_date")
-                                    ?: s.descriptorForType.findFieldByName("create_date")
-                            )?.let { s.getField(it) } as? com.google.protobuf.Timestamp
-                        val epochSeconds = date?.seconds
-
-                        val initPrice =
-                            s.descriptorForType
-                                .findFieldByName("initial_order_price")
-                                ?.let { s.getField(it) } as? MoneyValue
-                        val execPrice =
-                            s.descriptorForType
-                                .findFieldByName("executed_order_price")
-                                ?.let { s.getField(it) } as? MoneyValue
+                        val limitPrice =
+                            if (s.hasInitialOrderPrice()) {
+                                s.initialOrderPrice.let { it.units + it.nano / 1_000_000_000.0 }
+                            } else {
+                                null
+                            }
+                        val executedPrice =
+                            if (s.hasExecutedOrderPrice()) {
+                                s.executedOrderPrice.let { it.units + it.nano / 1_000_000_000.0 }
+                            } else {
+                                null
+                            }
+                        val updateTime = if (s.hasCreatedAt()) s.createdAt.seconds else null
+                        val orderTypeValue =
+                            s.orderType.name
+                                .removePrefix("ORDER_TYPE_")
+                                .ifBlank { null }
+                        val tscalpInstrumentIdValue =
+                            s.instrumentUid.ifBlank { null }
 
                         trySend(
                             OrderState(
                                 orderId = s.orderId,
                                 orderRequestId = s.orderRequestId.ifBlank { null },
-                                ticker = ticker,
+                                ticker = s.ticker,
                                 direction = s.direction.name.removePrefix("ORDER_DIRECTION_"),
-                                limitPrice = initPrice?.let { it.units + it.nano / 1_000_000_000.0 },
-                                executedPrice = execPrice?.let { it.units + it.nano / 1_000_000_000.0 },
+                                limitPrice = limitPrice,
+                                executedPrice = executedPrice,
                                 quantity = s.lotsRequested,
                                 executedQuantity = s.lotsExecuted,
                                 status = s.executionReportStatus.name.removePrefix("EXECUTION_REPORT_STATUS_"),
-                                updateTime = epochSeconds,
+                                updateTime = updateTime,
+                                orderType = orderTypeValue,
+                                tscalpInstrumentId = tscalpInstrumentIdValue,
                             ),
                         )
                     }
