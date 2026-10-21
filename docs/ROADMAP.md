@@ -11,6 +11,183 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### OrderStreamManager — snapshot + stream merge
+
+**Мобильная работа:** невозможно (сборка + live-тест на
+реальных заявках — на десктопе; правки `.kt` через proot
+возможны, но без проверки).
+
+**Статус:** в работе.
+**Ветка:** `feature/order-stream-manager`.
+
+**Контекст:** `OrdersListViewModel.loadOrders()` загружает
+заявки одноразово через `getAllOrdersResult` (unary).
+Stream `subscribeOrderState` (gRPC + WS) реализован и
+live-tested, но **UI его не потребляет** — новые заявки,
+изменения статусов (исполнение, отмена) не видны до
+ручного refresh. Для заявок, выставленных с другого
+устройства (терминал брокера), — не видны вообще до
+первого refresh.
+
+Проблема: `OrderStateStream` event-only (asyncapi):
+- не отдаёт snapshot — только события;
+- не отдаёт stop-orders — только обычные.
+
+Решение: `OrderStreamManager` — единая точка агрегации:
+- snapshot polling (gRPC unary `getOrders` + `getStopOrders`
+  раз в 15 сек) — покрывает «чужие» заявки и stop-orders;
+- stream (gRPC/WS `subscribeOrderState`) — мгновенные
+  события;
+- merge + дедупликация по `orderId` → `StateFlow<List<OrderListItem>>`
+  для UI.
+
+**Предусловия:**
+- WS transport для ордеров (Phase 3) — сделано.
+- `OrderState` расширен полями `orderType`, `tscalpInstrumentId`
+  (коммиты A1a/A1b, ветка `feature/order-stream-manager`).
+
+**Архитектура:**
+
+    OrderStreamManager (@Singleton, @Inject)
+        ↓
+    scope.launch {
+        merge(
+            ordersPolling(accountId),      // gRPC unary раз в 15 сек
+            orderStateStream(accountId),   // gRPC-stream + WS fallback
+        ).collect { item -> mergeIntoCache(item) }
+    }
+        ↓
+    StateFlow<List<OrderListItem>> (отсортировано по orderDate desc)
+
+**Формат эмита:** `StateFlow<List<OrderListItem>>` — актуальный
+snapshot. UI (`OrdersListViewModel`) копирует в `uiState.orders`.
+Не плоский `SharedFlow<OrderListItem>`: для заявок важен именно
+список (удаление отменённых, сортировка), а не поток отдельных
+событий.
+
+**Файлы:**
+- `domain/api/OrderStreamManager.kt` (новый).
+- `domain/models/OrderModels.kt` — маппер `OrderState.toOrderListItem()`
+  (internal extension, не отдельный файл — 20 строк, простой).
+- `ui/components/OrdersListViewModel.kt` — подписка на менеджер
+  вместо одноразового `loadOrders()`.
+- `di/` — Hilt-провайдер не нужен: `@Singleton @Inject` на
+  конструкторе, как у `PositionStreamManager`.
+
+**Шаги:**
+
+1. Создать `domain/api/OrderStreamManager.kt`:
+   - `@Singleton @Inject constructor(brokerManager: BrokerManager)`.
+   - `private val cache = mutableMapOf<String, OrderListItem>()`
+     (последнее состояние по `orderId`).
+   - `private val _orders = MutableStateFlow<List<OrderListItem>>(emptyList())`
+     + `val orders: StateFlow<List<OrderListItem>>`.
+   - `private var job: Job?` + `currentAccountId: String?`.
+   - `private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + CoroutineExceptionHandler)`.
+   - `fun start(accountId: String)` — идемпотентен для одного
+     accountId, при смене — перезапуск. Запускает `merge` в
+     `scope.launch`, `collect { mergeIntoCache(it) }`, затем
+     `_orders.value = sortedCache()`.
+   - `fun stop()` — cancel job, clear cache, `_orders.value = emptyList()`.
+   - `private suspend fun ordersPolling(accountId: String): Flow<OrderListItem>`:
+     `flow { while (isActive) { emit broker.getOrders + broker.getStopOrders;
+     delay(15_000) } }`. Cast к `TInvestBrokerAPI` — как в
+     `PositionStreamManager`, но без блокирующей проверки
+     `isInitialized` (логировать и пропустить итерацию).
+   - `private fun mergeIntoCache(item: OrderListItem)`: если
+     `cache[item.orderId]` есть и `cache.orderDate > item.orderDate`
+     — пропустить (старые данные из polling не должны
+     перетирать свежие из stream); иначе положить. Если
+     `orderDate` null у обоих — приоритет polling (полный
+     snapshot).
+   - `private fun sortedCache(): List<OrderListItem>` — сортировка
+     `orderDate desc`.
+
+2. Добавить маппер `OrderState.toOrderListItem()` в
+   `OrderModels.kt`:
+   - `orderId = orderId`, `ticker`, `direction`, `status`,
+     `orderDate = updateTime`, `quantity`.
+   - `tscalpInstrumentId = tscalpInstrumentId ?: ""`.
+   - `price = limitPrice ?: executedPrice ?: 0.0`.
+   - `stopPrice = null`, `isStopOrder = false` (stream не отдаёт
+     stop-orders).
+   - `type = orderType ?: "LIMIT"` (gRPC может дать null —
+     fallback для совместимости).
+   - `instrumentType = ""` (OrderState не знает).
+
+3. Обновить `OrdersListViewModel`:
+   - `@Inject constructor(..., orderStreamManager: OrderStreamManager)`.
+   - В `init { viewModelScope.launch { orderStreamManager.orders.collect { ... update uiState.orders ... } } }`.
+   - `loadOrders()` — оставить для первичного `getAccounts` (нужен
+     для `accountId` перед `start`). После получения accountId —
+     `orderStreamManager.start(accountId)` вместо одноразового
+     `getAllOrdersResult`.
+   - `onCleared()` → `orderStreamManager.stop()`.
+
+4. Гейт: `testDebugUnitTest :lintDebug :ktlintCheck :detekt`.
+
+5. Live-тест:
+   - Открыть экран заявок.
+   - Выставить заявку в терминале брокера (или нашем app на
+     другом устройстве).
+   - Проверить, что она появилась в UI ≤15 сек (snapshot polling).
+   - Отменить — проверить, что исчезла / статус обновился
+     мгновенно (stream).
+
+**Референсы:**
+- `PositionStreamManager.kt` — образец (start/stop/scope/cache).
+- `TInvestMarketDataService.subscribeOrderState` — stream-источник.
+- `TInvestBrokerAPI.getOrders` / `.getStopOrders` — unary.
+- `TInvestOrdersMapper` — маппер proto → `OrderListItem` для
+  polling (уже готов).
+- `TInvestOrderStateWsMapper` — WS DTO → `OrderState` (для
+  stream).
+
+**Ограничения:**
+- Не менять `OrderListItem` — рефакторинг в `sealed interface`
+  отдельной задачей (ROADMAP → «Split order domain into sealed
+  Regular/Stop»). Здесь работаем с текущей моделью.
+- Не удалять `loadOrders()` полностью: `getAccounts` остаётся
+  (нужен для accountId перед `start`).
+- Не использовать `SharedFlow<List<OrderListItem>>` — именно
+  `StateFlow` (UI получает актуальное состояние при подписке).
+- Дубли из polling и stream гасятся по `orderId` + `orderDate`,
+  не по `==` (OrderListItem не data class в строгом смысле).
+- 15 сек polling — стартовая цифра, регулируется по результатам
+  live-теста.
+
+**Критерий готовности:**
+- `OrderStreamManager` — `@Singleton`, `start`/`stop` идемпотентны,
+  `StateFlow<List<OrderListItem>>` отдаёт актуальный список.
+- Заявка с другого устройства появляется в UI ≤15 сек.
+- Отмена/исполнение из stream отражаются в UI мгновенно.
+- `OrdersListViewModel` использует менеджер, не одноразовый
+  unary.
+- Тесты зелёные, гейт зелёный.
+
+**Оценка:** ~3–4 часа (менеджер 1.5 ч, маппер 0.5 ч, ViewModel
+0.5 ч, тесты + гейт 1 ч, live-тест 0.5 ч).
+
+**Зависимости:** нет. **Разблокирует** «Split order domain into
+sealed Regular/Stop» (задача B) — после A будет ясно, какие
+поля stream реально нужны UI.
+
+**Открытые вопросы:**
+- Порог polling (15 сек) — стартовое. Если polling слишком
+  частый — rate-limit (6 unary/сек у T-Invest, но `getOrders`
+  + `getStopOrders` = 2 вызова на цикл, при 15 сек = 0.13/сек).
+  Безопасно.
+- Что делать, если polling падает (gRPC down): polling-цикл
+  логирует ошибку и продолжает. Stream (WS) продолжает давать
+  события. UI видит только новые события, старые заявки —
+  из последнего успешного snapshot.
+- Формат `orderType` fallback для gRPC — после A1b гRPC даёт
+  `orderType` через typed getter, fallback "LIMIT" не нужен.
+  Проверить live-тестом, что gRPC-событие приходит с
+  непустым `orderType`.
+
+---
+
 ### Split order domain into sealed Regular/Stop
 
 **Мобильная работа:** невозможно (массовый рефакторинг,
