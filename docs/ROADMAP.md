@@ -11,6 +11,57 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### Установка GrpcExceptionGuard
+
+**Мобильная работа:** невозможно (требует сборки и проверки
+краша на устройстве/эмуляторе).
+
+**Статус:** запланировано. **Триггер сработал (2026-10-21):**
+AppMetrica зафиксировала краш `io.grpc.StatusException`.
+
+**Контекст:** `io.grpc.kotlin.ClientCalls` при ошибке канала
+доставляет `StatusException` через поздний callback в уже
+завершённую suspend-корутину. Доставить некому → исключение
+уходит в `Thread.getDefaultUncaughtExceptionHandler()` →
+kill process. `CoroutineExceptionHandler` и `.catch { }` не
+помогают.
+
+**Файлы:**
+- `app/src/main/kotlin/.../TScalpApplication.kt` — установка
+  глобального `UncaughtExceptionHandler`.
+
+**Шаги:**
+1. В `TScalpApplication.onCreate` обернуть оригинальный
+   `Thread.getDefaultUncaughtExceptionHandler()`.
+2. Если `throwable is StatusException || throwable is StatusRuntimeException`:
+   - логировать через `AppLogger.e` (с расшифровкой из
+     `TInvestErrorMessages`);
+   - отправить в AppMetrica как **нефатальную** ошибку
+     (`AppMetrica.reportError("Unhandled gRPC", throwable)`);
+   - **не пробрасывать** дальше в оригинальный handler
+     (приложение выживает).
+3. Иначе — пробросить в оригинальный handler (пусть падает
+   как обычно).
+4. Проверка: включить авиарежим на эмуляторе, дождаться
+   gRPC-ошибки, убедиться, что приложение не падает, а в
+   логах есть запись об ошибке.
+
+**Ограничения:**
+- Не глотать ошибку молча — обязательно логировать и
+  отправлять в AppMetrica. Иначе скроем реальные сетевые
+  проблемы (см. `docs/ISSUES.md`).
+- Не перехватывать `CancellationException` — это штатная
+  отмена, она не должна попадать в handler.
+
+**Критерий готовности:**
+- Приложение не падает при gRPC-ошибках в фоне.
+- Ошибки видны в AppMetrica (как non-fatal) и в логах.
+- Остальные краши (не gRPC) по-прежнему валят приложение и
+  видны в AppMetrica.
+
+**Оценка:** ~1 час.
+
+---
 ### Переименование `*StreamManager` → `*FlowManager`
 
 **Мобильная работа:** полное закрытие (правки `.kt` — через
