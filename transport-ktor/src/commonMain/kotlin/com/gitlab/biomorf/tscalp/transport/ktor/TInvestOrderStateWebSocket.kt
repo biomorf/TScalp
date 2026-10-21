@@ -8,11 +8,15 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -24,24 +28,28 @@ import kotlinx.serialization.json.Json
  * Канал: /tinkoff.public.invest.api.contract.v1.OrdersStreamService/OrderStateStream.
  *
  * Подписка — per-account, как у PositionsStream: один счёт —
- * одно соединение. Для нескольких счетов — несколько экземпляров
- * (или отдельный вызов subscribeOrderState на каждый счёт).
+ * одно соединение. Для смены счёта — [setInterest] с новым
+ * accountId, соединение пересоздаётся.
  *
- * Эмитит сырые DTO (OrderStateStreamResponseDto), включая:
+ * Эмитит сырые DTO через [states] (hot SharedFlow):
  * - orderState — обновления заявки;
  * - subscription — подтверждение (trackingId, status, error);
  * - ping — keepalive.
  *
- * Конвертация в доменные модели — в :app (маппер).
+ * **SharedFlow без буфера (SUSPEND).** Для заявок каждое событие
+ * критично (`CANCELLED`, `FILL` нельзя терять). Если подписчика
+ * нет, WS-reader блокируется на `emit`; Ktor буферизует входящие
+ * кадры (с backpressure на сокет). При появлении подписчика всё
+ * доставляется без потерь. Подписчик (`OrderStreamManager.collectStream`)
+ * работает быстро — долгих пауз не бывает.
  *
- * Переподключение — экспоненциальный backoff [1s, 5s, 15s, 30s, 60s].
+ * **Lifecycle.** Соединение живёт в [scope] (передаётся в
+ * конструктор) и управляется методами [setInterest] / [stop].
+ * `TInvestBrokerAPI.deinitialize` вызывает [stop] перед
+ * обнулением поля.
  *
- * **Lifecycle: нет stop().** Flow живёт в scope коллектора.
- * `TInvestBrokerAPI.deinitialize` обнуляет поле без отмены
- * активных коллекторов. Сейчас безопасно (у метода нет
- * UI-потребителя), но при его появлении — добавить stop()
- * по образцу `TInvestPricesWebSocket`. См. ROADMAP →
- * «Add stop() to TInvestOrderStateWebSocket».
+ * Переподключение при ошибках — экспоненциальный backoff
+ * [1s, 5s, 15s, 30s, 60s].
  *
  * НЕ использует Hilt. НЕ использует Android API. Готов к KMP.
  */
@@ -49,21 +57,58 @@ class TInvestOrderStateWebSocket(
     private val client: HttpClient,
     private val url: String,
     private val token: String,
+    private val scope: CoroutineScope,
     private val json: Json =
         Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
         },
     private val logger: (String) -> Unit = { },
+    private val logFrames: Boolean = false,
 ) {
     companion object {
         private const val TAG = "[transport-ktor/orders-ws]"
         private val RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
     }
 
-    fun subscribeOrderState(accountId: String): Flow<OrderStateStreamResponseDto> = flow {
+    // SUSPEND без буфера: см. KDoc. Подписчик должен быть готов
+    // принимать до того, как WS начнёт читать кадры.
+    private val _states = MutableSharedFlow<OrderStateStreamResponseDto>()
+    val states: SharedFlow<OrderStateStreamResponseDto> = _states.asSharedFlow()
+
+    private var connectionJob: Job? = null
+    private var currentAccountId: String? = null
+
+    /**
+     * Устанавливает интерес на [accountId]. Если интерес уже тот же
+     * и соединение активно — no-op. Иначе — пересоздаёт соединение
+     * (смена счёта требует новой подписки, incremental в
+     * OrderStateStream нет).
+     */
+    fun setInterest(accountId: String) {
+        if (currentAccountId == accountId && connectionJob?.isActive == true) return
+        logger("$TAG setInterest: accountId=$accountId")
+        currentAccountId = accountId
+        restartConnection()
+    }
+
+    /** Закрывает WS-соединение и сбрасывает интерес. */
+    fun stop() {
+        connectionJob?.cancel()
+        connectionJob = null
+        currentAccountId = null
+    }
+
+    private fun restartConnection() {
+        connectionJob?.cancel()
+        connectionJob = scope.launch { connectionLoop() }
+    }
+
+    private suspend fun connectionLoop() {
+        val accountId = currentAccountId ?: return
         var attempt = 0
         while (currentCoroutineContext().isActive) {
+            if (currentAccountId != accountId) return
             try {
                 logger("$TAG connecting (attempt=${attempt + 1})")
                 client.webSocket(
@@ -86,13 +131,15 @@ class TInvestOrderStateWebSocket(
                     for (frame in incoming) {
                         if (frame !is Frame.Text) continue
                         val text = frame.readText()
-                        logger("$TAG frame received: $text")
-                        try {
-                            val response = json.decodeFromString(OrderStateStreamResponseDto.serializer(), text)
-                            emit(response)
-                        } catch (e: Exception) {
-                            logger("$TAG parse error: ${e.message}")
-                        }
+                        if (logFrames) logger("$TAG frame received: $text")
+                        val response =
+                            try {
+                                json.decodeFromString(OrderStateStreamResponseDto.serializer(), text)
+                            } catch (e: Exception) {
+                                logger("$TAG parse error: ${e.message}")
+                                continue
+                            }
+                        _states.emit(response)
                     }
                     logger("$TAG stream closed by server, reconnecting")
                     attempt = 0
