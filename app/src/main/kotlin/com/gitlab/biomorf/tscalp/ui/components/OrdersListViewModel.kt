@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.OrderStreamManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
@@ -12,6 +13,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -22,6 +24,7 @@ class OrdersListViewModel
     constructor(
         private val repository: InvestRepository,
         private val settingsRepository: SettingsRepository,
+        private val orderStreamManager: OrderStreamManager,
     ) : ViewModel() {
         data class OrdersListState(
             val orders: List<OrderListItem> = emptyList(),
@@ -33,16 +36,36 @@ class OrdersListViewModel
         private val _uiState = MutableStateFlow(OrdersListState())
         val uiState: StateFlow<OrdersListState> = _uiState.asStateFlow()
 
+        init {
+            viewModelScope.launch {
+                combine(
+                    orderStreamManager.orders,
+                    orderStreamManager.hasLoaded,
+                ) { orders, loaded -> orders to loaded }.collect { (orders, loaded) ->
+                    _uiState.update { current ->
+                        current.copy(
+                            orders = orders,
+                            isLoading = !loaded,
+                            statusMessage =
+                                when {
+                                    !loaded -> null
+                                    orders.isNotEmpty() -> null
+                                    current.isError -> current.statusMessage
+                                    else -> "Нет активных заявок"
+                                },
+                        )
+                    }
+                }
+            }
+        }
+
         companion object {
             private const val TAG = "OrdersListViewModel"
         }
 
-        // Архитектурный долг: функция требует декомпозиции.
-        // См. ROADMAP → «Рефакторинг Compose-компонентов».
-        @Suppress("LongMethod")
         fun loadOrders() {
             viewModelScope.launch {
-                _uiState.update { it.copy(isLoading = true, statusMessage = null) }
+                _uiState.update { it.copy(isLoading = true, statusMessage = null, isError = false) }
 
                 val sandboxMode = settingsRepository.isSandboxMode()
 
@@ -75,37 +98,11 @@ class OrdersListViewModel
                 }
                 val accountId = accounts.first().id
 
-                // Шаг 2: получить заявки через репозиторий
-                when (val result = repository.getAllOrdersResult(BrokerName.TINVEST, accountId)) {
-                    is AppResult.Success -> {
-                        val allOrders =
-                            result.data.sortedWith(
-                                compareBy<OrderListItem> { it.orderDate ?: Long.MAX_VALUE }
-                                    .thenBy { it.price },
-                            )
-                        _uiState.update {
-                            it.copy(
-                                orders = allOrders,
-                                isLoading = false,
-                                statusMessage = if (allOrders.isEmpty()) "Нет активных заявок" else null,
-                            )
-                        }
-                    }
-                    is AppResult.Failure -> {
-                        AppLogger.e(
-                            TAG,
-                            "loadOrders: getAllOrders failed: ${result.error.message}",
-                            result.error.cause,
-                        )
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                statusMessage = "Ошибка: ${result.error.message}",
-                                isError = true,
-                            )
-                        }
-                    }
-                }
+                // Шаг 2: запустить агрегацию (snapshot polling + stream).
+                // Дальше UI обновляется через orderStreamManager.orders
+                // (см. init). start() идемпотентен для того же accountId.
+                orderStreamManager.start(accountId)
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
 
@@ -157,5 +154,9 @@ class OrdersListViewModel
                     }
                 }
             }
+        }
+
+        override fun onCleared() {
+            orderStreamManager.stop()
         }
     }

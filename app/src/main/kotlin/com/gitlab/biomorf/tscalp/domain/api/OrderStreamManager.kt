@@ -64,6 +64,10 @@ class OrderStreamManager
         private val _orders = MutableStateFlow<List<OrderListItem>>(emptyList())
         val orders: StateFlow<List<OrderListItem>> = _orders.asStateFlow()
 
+        /** true после первой итерации polling (успешной или с ошибкой). */
+        private val _hasLoaded = MutableStateFlow(false)
+        val hasLoaded: StateFlow<Boolean> = _hasLoaded.asStateFlow()
+
         private val cache = mutableMapOf<String, OrderListItem>()
         private var job: Job? = null
         private var currentAccountId: String? = null
@@ -98,6 +102,7 @@ class OrderStreamManager
                     if (switching) {
                         cache.clear()
                         _orders.value = emptyList()
+                        _hasLoaded.value = false
                     }
                     val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
                     if (broker == null || !broker.isInitialized) {
@@ -125,6 +130,7 @@ class OrderStreamManager
                 if (currentAccountId == null) {
                     cache.clear()
                     _orders.value = emptyList()
+                    _hasLoaded.value = false
                 }
             }
         }
@@ -145,6 +151,8 @@ class OrderStreamManager
                     throw e
                 } catch (e: Exception) {
                     AppLogger.w(TAG, "polling error: ${e.message}")
+                } finally {
+                    _hasLoaded.value = true
                 }
                 delay(POLLING_INTERVAL_MS)
             }
