@@ -44,7 +44,7 @@ import javax.inject.Singleton
  * подтягивает сам через `broker.pricesSnapshot` (оркестратор).
  */
 @Singleton
-class PriceStreamManager
+class PriceFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerManager,

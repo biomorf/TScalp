@@ -5,7 +5,7 @@ import com.gitlab.biomorf.tscalp.transport.ktor.dto.MarketDataResponseDto
 /**
  * WS DTO → пара (tscalpInstrumentId, цена).
  *
- * Используется PriceStreamManager через оркестратор.
+ * Используется PriceFlowManager через оркестратор.
  * subscribeLastPriceResponse и ping игнорируются — это не данные.
  *
  * Возвращает null, если сообщение не содержит lastPrice или price null.

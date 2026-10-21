@@ -11,7 +11,7 @@ import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
-import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -54,7 +54,7 @@ class SettingsViewModel
         private val tradingStateRepository: TradingStateRepository,
         private val brokerManager: BrokerManager,
         private val positionStreamManager: PositionStreamManager,
-        private val priceStreamManager: PriceStreamManager,
+        private val priceFlowManager: PriceFlowManager,
         private val repository: InvestRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
@@ -340,7 +340,7 @@ class SettingsViewModel
             AppLogger.d("SettingsVM", "toggleRest: enabled=$enabled")
             DebugConfig.forceRest = enabled
             _uiState.update { it.copy(forceRest = DebugConfig.forceRest) }
-            priceStreamManager.reapplyDebugFlags()
+            priceFlowManager.reapplyDebugFlags()
             positionStreamManager.reapplyDebugFlags()
         }
     }

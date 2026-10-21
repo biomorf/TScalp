@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.models
 
 /**
- * Обновление цены от PriceStreamManager.
+ * Обновление цены от PriceFlowManager.
  *
  * Содержит брокера, потому что `tscalpInstrumentId` уникален
  * только внутри брокера. Пока активен TInvest, но структура

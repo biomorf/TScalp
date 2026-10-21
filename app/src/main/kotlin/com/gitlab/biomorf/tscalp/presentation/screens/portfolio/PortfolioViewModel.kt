@@ -7,7 +7,7 @@ import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
-import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
@@ -38,7 +38,7 @@ class PortfolioViewModel
         private val repository: InvestRepository,
         private val brokerManager: BrokerManager,
         private val settingsRepository: SettingsRepository,
-        private val priceStreamManager: PriceStreamManager,
+        private val priceFlowManager: PriceFlowManager,
         private val positionStreamManager: PositionStreamManager,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
@@ -61,7 +61,7 @@ class PortfolioViewModel
             // priceChangePercent у соответствующей позиции. Набор tscalpInstrumentId задаётся
             // через syncPriceInterest() после каждой загрузки портфеля.
             viewModelScope.launch {
-                priceStreamManager.prices.collect { update ->
+                priceFlowManager.prices.collect { update ->
                     updatePriceFromStream(update)
                 }
             }
@@ -89,7 +89,7 @@ class PortfolioViewModel
                 // Logout: останавливаем фоновые задачи, снимаем интерес к ценам
                 // и очищаем состояние, чтобы UI не показывал устаревшие позиции.
                 stopPositionUpdates()
-                priceStreamManager.clearInterest(PriceConsumer.PORTFOLIO)
+                priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
                 positionStreamManager.stop()
                 _uiState.update {
                     it.copy(
@@ -165,7 +165,7 @@ class PortfolioViewModel
 
         /**
          * Собирает текущий набор tscalpInstrumentId из портфельных позиций
-         * и передаёт в PriceStreamManager. Рублёвый кэш (RUB000UTSTOM)
+         * и передаёт в PriceFlowManager. Рублёвый кэш (RUB000UTSTOM)
          * исключается: его цена фиксирована на 1.0 и не идёт через биржевой стрим.
          * Менеджер пересоздаст стрим только при фактическом изменении union.
          */
@@ -175,11 +175,11 @@ class PortfolioViewModel
                     .filter { it.ticker != "RUB000UTSTOM" }
                     .map { it.tscalpInstrumentId }
                     .toSet()
-            priceStreamManager.setInterest(PriceConsumer.PORTFOLIO, tscalpInstrumentIds)
+            priceFlowManager.setInterest(PriceConsumer.PORTFOLIO, tscalpInstrumentIds)
         }
 
         /**
-         * Применяет обновление цены из PriceStreamManager к позиции
+         * Применяет обновление цены из PriceFlowManager к позиции
          * с соответствующим tscalpInstrumentId. Пересчитывает totalValue,
          * priceChangePercent и суммарную стоимость портфеля. Для
          * неизвестного tscalpInstrumentId — no-op.
@@ -215,7 +215,7 @@ class PortfolioViewModel
         }
 
         override fun onCleared() {
-            priceStreamManager.clearInterest(PriceConsumer.PORTFOLIO)
+            priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
         }
 
         private fun updatePortfolioItem(item: PositionStreamItem) {
