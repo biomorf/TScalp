@@ -140,12 +140,12 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 
 **Причина (подтверждена аудитом 2026-10-18):**
 
-`PositionStreamManager._flow` — `MutableSharedFlow(replay = 1)`.
+`PositionFlowManager._flow` — `MutableSharedFlow(replay = 1)`.
 `stop()` вызывает `_flow.resetReplayCache()`, а `start(newAccountId)`
 — **нет**. При смене счёта:
 
 1. `OrdersViewModel` / `PortfolioViewModel` вызывают
-   `positionStreamManager.start(newAccountId)` без
+   `positionFlowManager.start(newAccountId)` без
    предварительного `stop()`. `stop()` есть **только в
    logout-ветке** (`else` от `isInitialized`), а не при смене
    счёта.
@@ -166,13 +166,13 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 
 **Решение:**
 
-В `PositionStreamManager.start(accountId)` при
+В `PositionFlowManager.start(accountId)` при
 `currentAccountId != accountId` — вызвать
 `_flow.resetReplayCache()` (до `job?.cancel()`, чтобы новый
 подписчик гарантированно не получил старый элемент). Это
 симметрично `stop()`, который уже делает сброс.
 
-Альтернатива — добавить `positionStreamManager.stop()` в
+Альтернатива — добавить `positionFlowManager.stop()` в
 `startPositionUpdates()` ViewModel'ей перед `start()`, но это
 задевает три ViewModel и оставляет возможность вызвать
 `start()` напрямую (например, из `TScalpApplication`). Фикс в
@@ -190,7 +190,7 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 
 **Файлы:**
 
-- `domain/api/PositionStreamManager.kt` — фикс (`start()`).
+- `domain/api/PositionFlowManager.kt` — фикс (`start()`).
 - `presentation/screens/portfolio/PortfolioViewModel.kt` —
   контекст (смена счёта).
 - `presentation/screens/orders/OrdersViewModel.kt` — контекст.
@@ -397,7 +397,7 @@ handshake проходит за миллисекунды.
 
 **Симптом:** если `getAccounts` в `TScalpApplication.restoreTInvest`
 возвращает `UNAVAILABLE: upstream connect error`, весь метод
-падает в `catch`, `positionStreamManager.start(accountId)` не
+падает в `catch`, `positionFlowManager.start(accountId)` не
 вызывается. Стримы gRPC, polling и WS не стартуют. UI показывает
 пустоту, даже если `savedAccountId` сохранён в DataStore и
 валиден.
@@ -411,7 +411,7 @@ handshake проходит за миллисекунды.
       accounts = tInvest.getAccounts(sandbox)   // падает UNAVAILABLE
       savedAccountId = loadDefaultAccountId(TINVEST)
       accountId = when { ... }                  // не доходит
-      positionStreamManager.start(accountId)    // не вызывается
+      positionFlowManager.start(accountId)    // не вызывается
     } catch (e) { log }
 
 - `savedAccountId` читается **после** `getAccounts`. Если
@@ -426,11 +426,11 @@ handshake проходит за миллисекунды.
 1. Читать `savedAccountId` **до** `getAccounts`.
 2. Обернуть `getAccounts` в отдельный `try/catch`. При падении:
    - если `savedAccountId != null` — использовать его,
-     продолжить к `positionStreamManager.start()`;
+     продолжить к `positionFlowManager.start()`;
    - если `savedAccountId == null` и sandbox — попробовать
      `openSandboxAccount()` в отдельном `try/catch`;
    - если `savedAccountId == null` и не sandbox — лог и выход.
-3. `positionStreamManager.start()` вызывать независимо от
+3. `positionFlowManager.start()` вызывать независимо от
    того, прошёл ли `getAccounts`.
 4. При успешном `getAccounts` — валидировать `savedAccountId`
    (как сейчас: `accounts.any { it.id == savedAccountId }`).
@@ -439,7 +439,7 @@ handshake проходит за миллисекунды.
 (`restoreTInvest` / `resolveTInvestAccountId` / `tryOpenSandboxAccount`),
 `savedAccountId` читается до `getAccounts`, `getAccounts` обёрнут
 в отдельный `try/catch` с fallback на сохранённый счёт,
-`positionStreamManager.start()` вызывается независимо от результата
+`positionFlowManager.start()` вызывается независимо от результата
 `getAccounts`.
 
 **Проверено:** в live-тесте при `UNAVAILABLE: UNAUTHENTICATED: 40003`
@@ -552,7 +552,7 @@ TLS BCS, или когда понадобится shared OkHttpClient из DI.
 
 ---
 
-## PriceStreamManager.runGrcpStream: потенциальный busy loop
+## PriceFlowManager.runGrcpStream: потенциальный busy loop
 
 **Статус:** открыт. Латентный, не воспроизводится сейчас. Не для WS.
 
@@ -580,7 +580,7 @@ T-Invest `subscribeLastPrices` не пустой. Латентный: стане
 через `first()` с таймаутом и трактовать отсутствие эмиссии как
 ошибку (ретрай с delay).
 
-**Файлы:** `domain/api/PriceStreamManager.kt`.
+**Файлы:** `domain/api/PriceFlowManager.kt`.
 
 **Когда вернуться:** при добавлении BCS / Finam в
 `PriceFlowManager`, или при жалобах на батарею в фоновом режиме.
@@ -685,10 +685,10 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
   `collect`).
 - `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` —
   вызов `wsFallback(accountId)`.
-- `domain/api/PositionStreamManager.kt` — `start()`, защита
+- `domain/api/PositionFlowManager.kt` — `start()`, защита
   «уже запущен», сбор flow.
 - `presentation/screens/portfolio/PortfolioViewModel.kt` —
-  точка подписки на `PositionStreamManager.positions`.
+  точка подписки на `PositionFlowManager.positions`.
 
 **Решение:** пока не принято. Функционально не блокирует
 (сервер принимает обе подписки), но создаёт лишнюю нагрузку
@@ -717,13 +717,13 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
 нагрузкой. Наблюдалось в live-тесте 2026-10-21 при открытии
 портфеля:
 
-    W PriceStreamManager: REST poll failed: INTERNAL: 70001
+    W PriceFlowManager: REST poll failed: INTERNAL: 70001
     io.grpc.StatusException: INTERNAL: 70001
         at io.grpc.Status.asException(Status.java:547)
         ...
 
 Один цикл polling упал, следующий (через 5 сек) прошёл
-успешно — `try/catch` в `PriceStreamManager.runPolling`
+успешно — `try/catch` в `PriceFlowManager.runPolling`
 корректно обрабатывает, цикл продолжается.
 
 **Причина:** подтверждена по документации T-Invest
@@ -737,7 +737,7 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
 следующий цикл polling (через 5 сек) прошёл успешно.
 
 **Решение (сделано):**
-- В `PriceStreamManager.runPolling` логирование переведено
+- В `PriceFlowManager.runPolling` логирование переведено
   на `toAppError(BrokerName.TINVEST).message` — в логах
   теперь расшифровка, а не сырой `INTERNAL: 70001`.
 - Цикл polling корректно продолжается после ошибки

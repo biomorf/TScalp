@@ -221,7 +221,7 @@ ticker).
 `TInvestPositionsWsMapper` группирует `money` и `blocked`
 по `currency` в один `PositionStreamItem` на валюту
 (`instrumentType = "currency"`, пустой `tscalpInstrumentId`).
-`PositionStreamManager.enrichAndCache` склеивает этот item
+`PositionFlowManager.enrichAndCache` склеивает этот item
 с валютной позицией из polling по полю `currency`.
 
 `money` и `blocked` хранятся на `PositionStreamItem`

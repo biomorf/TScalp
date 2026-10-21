@@ -237,7 +237,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
   `mapStopOrder` → `Order.Stop` (без `isStopOrder: true`).
 - `data/api/TInvestOrderStateWsMapper.kt`: `mapOrderState` →
   `Order.Regular` (stream не отдаёт stop).
-- `domain/api/OrderStreamManager.kt` (из A): `Map<orderId, Order>`.
+- `domain/api/OrderFlowManager.kt` (из A): `Map<orderId, Order>`.
 - `data/repository/InvestRepository.kt`: `getAllOrdersResult` →
   `List<Order>`.
 - `domain/api/BrokerApi.kt`: `getOrders`, `getStopOrders`,
@@ -280,7 +280,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
 - `data/repository/InvestRepository.kt`
 - `domain/api/BrokerApi.kt`
 - `data/api/BcsBrokerApi.kt`, `data/api/FinamBrokerApi.kt`
-- `domain/api/OrderStreamManager.kt` (A)
+- `domain/api/OrderFlowManager.kt` (A)
 - `ui/components/OrdersListViewModel.kt`
 - `ui/components/OrderCard.kt`, `OrdersListDialog.kt`,
   `OrdersScreen.kt`
@@ -761,9 +761,9 @@ flowchart BT
 
     subgraph Managers["Domain managers (агрегация для UI)"]
         direction TB
-        M1["PositionStreamManager"]
-        M2["PriceStreamManager"]
-        M3["OrderStreamManager"]
+        M1["PositionFlowManager"]
+        M2["PriceFlowManager"]
+        M3["OrderFlowManager"]
     end
 
     subgraph Orchestrator["TInvestOrchestrator<br/>(владеет транспортами)"]
@@ -805,8 +805,8 @@ flowchart BT
 - Гейт, коммит.
 
 **Шаг 1b — переключение менеджеров на оркестратор.**
-- `PriceStreamManager.runPolling`: `repository.getLastPricesResult(...)` → `orchestrator.pricesSnapshot(...)`.
-- `OrderStreamManager.collectPolling`: `broker.getOrders(...)` + `broker.getStopOrders(...)` → `orchestrator.ordersSnapshot(...)`.
+- `PriceFlowManager.runPolling`: `repository.getLastPricesResult(...)` → `orchestrator.pricesSnapshot(...)`.
+- `OrderFlowManager.collectPolling`: `broker.getOrders(...)` + `broker.getStopOrders(...)` → `orchestrator.ordersSnapshot(...)`.
 - Поведение не меняется, fallback пока нет.
 - Гейт, live-тест (цены и заявки обновляются), коммит.
 
@@ -1126,8 +1126,8 @@ gRPC-стрима позиций — иначе переход на стрим �
 **UI-описание:**
 
 - **Бейдж-точка** на иконке вкладки:
-  - Заявки → `PriceStreamManager.connectionState`;
-  - Портфель → `PositionStreamManager.connectionState`;
+  - Заявки → `PriceFlowManager.connectionState`;
+  - Портфель → `PositionFlowManager.connectionState`;
   - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
   - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
   - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
@@ -1185,9 +1185,9 @@ AppMetrica, отладки.
 
 **Файлы:**
 - `domain/models/StreamState.kt` — новый файл.
-- `domain/api/PriceStreamManager.kt` — добавить
+- `domain/api/PriceFlowManager.kt` — добавить
   `connectionState: StateFlow<StreamState>`.
-- `domain/api/PositionStreamManager.kt` — то же.
+- `domain/api/PositionFlowManager.kt` — то же.
 
 **Шаги:**
 
