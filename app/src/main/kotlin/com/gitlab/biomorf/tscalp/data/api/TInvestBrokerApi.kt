@@ -128,7 +128,9 @@ class TInvestBrokerAPI(
                     client = httpClient,
                     url = buildWsUrl(sandbox, WS_ORDER_STATE_CHANNEL),
                     token = token,
+                    scope = wsScope!!,
                     logger = { msg -> AppLogger.d("TInvestWS/orders", msg) },
+                    logFrames = BuildConfig.DEBUG,
                 )
         }
     }
@@ -145,6 +147,7 @@ class TInvestBrokerAPI(
         positionsWebSocket = null
         pricesWebSocket?.stop()
         pricesWebSocket = null
+        orderStateWebSocket?.stop()
         orderStateWebSocket = null
         orderStateDebugJob?.cancel()
         orderStateDebugJob = null
@@ -172,10 +175,11 @@ class TInvestBrokerAPI(
         return ws.prices.mapNotNull { TInvestPricesWsMapper.mapLastPrice(it) }
     }
 
-    private fun buildOrderStateWsFallback(accountId: String): Flow<OrderState>? =
-        orderStateWebSocket
-            ?.subscribeOrderState(accountId)
-            ?.mapNotNull { TInvestOrderStateWsMapper.mapOrderState(it) }
+    private fun buildOrderStateWsFallback(accountId: String): Flow<OrderState>? {
+        val ws = orderStateWebSocket ?: return null
+        ws.setInterest(accountId)
+        return ws.states.mapNotNull { TInvestOrderStateWsMapper.mapOrderState(it) }
+    }
 
     // ---------- BrokerApi: делегирование ----------
 
