@@ -65,6 +65,7 @@ class TInvestPricesWebSocket(
             encodeDefaults = true
         },
     private val logger: (String) -> Unit = { },
+    private val logFrames: Boolean = false,
 ) {
     companion object {
         private const val TAG = "[transport-ktor/prices-ws]"
@@ -132,9 +133,12 @@ class TInvestPricesWebSocket(
                     coroutineScope {
                         val watcher = launch { watchInterest(subscribed) }
                         try {
+                            logger("$TAG incoming loop started")
                             for (frame in incoming) {
+                                if (logFrames) logger("$TAG frame type=${frame::class.simpleName}")
                                 if (frame !is Frame.Text) continue
                                 val text = frame.readText()
+                                if (logFrames) logger("$TAG frame received: $text")
                                 try {
                                     val response = json.decodeFromString(MarketDataResponseDto.serializer(), text)
                                     _prices.tryEmit(response)
@@ -142,6 +146,7 @@ class TInvestPricesWebSocket(
                                     logger("$TAG parse error: ${e.message}")
                                 }
                             }
+                            logger("$TAG incoming loop finished")
                         } finally {
                             watcher.cancel()
                         }

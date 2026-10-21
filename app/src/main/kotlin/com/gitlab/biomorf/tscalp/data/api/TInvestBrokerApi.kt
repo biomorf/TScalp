@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api
 
+import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -116,6 +117,7 @@ class TInvestBrokerAPI(
                     token = token,
                     scope = wsScope!!,
                     logger = { msg -> AppLogger.d("TInvestWS/prices", msg) },
+                    logFrames = BuildConfig.DEBUG,
                 )
             orderStateWebSocket =
                 TInvestOrderStateWebSocket(
