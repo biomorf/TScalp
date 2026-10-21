@@ -9,7 +9,7 @@ import com.gitlab.biomorf.tscalp.data.repository.SearchCache
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
-import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -60,7 +60,7 @@ class OrdersViewModel
         private val priceFlowManager: PriceFlowManager,
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val prepareOrderRequest: PrepareOrderRequestUseCase,
-        private val positionStreamManager: PositionStreamManager,
+        private val positionFlowManager: PositionFlowManager,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
         val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
@@ -136,7 +136,7 @@ class OrdersViewModel
                 // и очищаем состояние.
                 stopPositionUpdates()
                 priceFlowManager.clearInterest(PriceConsumer.ORDERS)
-                positionStreamManager.stop()
+                positionFlowManager.stop()
                 _uiState.update {
                     it.copy(
                         accounts = emptyList(),
@@ -913,14 +913,14 @@ class OrdersViewModel
         fun startPositionUpdates() {
             stopPositionUpdates()
             val accountId = _uiState.value.selectedAccountId ?: return
-            positionStreamManager.start(accountId)
+            positionFlowManager.start(accountId)
             positionStreamJob =
                 viewModelScope.launch {
-                    // Ошибки потока логирует сам PositionStreamManager
+                    // Ошибки потока логирует сам PositionFlowManager
                     // через свой CoroutineExceptionHandler — сюда они не доходят.
                     // .catch на SharedFlow смысла не имеет: поток не завершается
                     // и не бросает исключения подписчику.
-                    positionStreamManager.flow.collect { item ->
+                    positionFlowManager.flow.collect { item ->
                         updatePositionPnl(item)
                     }
                 }

@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
-import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -39,7 +39,7 @@ class PortfolioViewModel
         private val brokerManager: BrokerManager,
         private val settingsRepository: SettingsRepository,
         private val priceFlowManager: PriceFlowManager,
-        private val positionStreamManager: PositionStreamManager,
+        private val positionFlowManager: PositionFlowManager,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
         val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
@@ -90,7 +90,7 @@ class PortfolioViewModel
                 // и очищаем состояние, чтобы UI не показывал устаревшие позиции.
                 stopPositionUpdates()
                 priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
-                positionStreamManager.stop()
+                positionFlowManager.stop()
                 _uiState.update {
                     it.copy(
                         positions = emptyList(),
@@ -142,17 +142,17 @@ class PortfolioViewModel
         }
 
         /**
-         * Запускает подписку на PositionStreamManager.flow.
+         * Запускает подписку на PositionFlowManager.flow.
          * Перед новой подпиской отменяет предыдущую — иначе каждый вызов
          * loadPortfolio (init, refresh, payInSandbox) добавлял бы новый
          * вечный коллектор к бесконечному SharedFlow.
          */
         private fun startPositionUpdates(accountId: String) {
             stopPositionUpdates()
-            positionStreamManager.start(accountId)
+            positionFlowManager.start(accountId)
             positionStreamJob =
                 viewModelScope.launch {
-                    positionStreamManager.flow.collect { item ->
+                    positionFlowManager.flow.collect { item ->
                         updatePortfolioItem(item)
                     }
                 }

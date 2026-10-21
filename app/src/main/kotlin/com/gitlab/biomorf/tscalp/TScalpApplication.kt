@@ -6,7 +6,7 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
-import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import dagger.hilt.android.HiltAndroidApp
@@ -30,7 +30,7 @@ private val appScope =
 @HiltAndroidApp
 class TScalpApplication : Application() {
     @Inject
-    lateinit var positionStreamManager: PositionStreamManager
+    lateinit var positionFlowManager: PositionFlowManager
 
     @Inject
     lateinit var brokerManager: BrokerManager
@@ -75,7 +75,7 @@ class TScalpApplication : Application() {
      * при падении — сохранённый (если есть), иначе в песочнице
      * открывается новый.
      *
-     * `positionStreamManager.start()` вызывается независимо от того,
+     * `positionFlowManager.start()` вызывается независимо от того,
      * удалось ли получить список счетов — это позволяет стримам
      * работать при временном сбое `getAccounts`.
      */
@@ -108,7 +108,7 @@ class TScalpApplication : Application() {
         if (accountId != savedAccountId) {
             settingsRepository.saveDefaultAccountId(BrokerName.TINVEST, accountId)
         }
-        positionStreamManager.start(accountId)
+        positionFlowManager.start(accountId)
     }
 
     /**

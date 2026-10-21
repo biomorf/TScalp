@@ -12,7 +12,7 @@ import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsStreamResponseDto
  *
  * Даёт только неполные события (количество + идентификаторы),
  * без currentPrice / P&L — те же ограничения, что у gRPC-стрима.
- * Обогащение — задача PositionStreamManager.
+ * Обогащение — задача PositionFlowManager.
  *
  * ping / subscriptions / пустые сообщения игнорируются.
  */
@@ -68,7 +68,7 @@ object TInvestPositionsWsMapper {
      *
      * tscalpInstrumentId оставлен пустым: WS не знает uid валютной
      * позиции. Слияние с item'ом из polling выполняется в
-     * PositionStreamManager по полю currency.
+     * PositionFlowManager по полю currency.
      */
     private fun fromMoneyAndBlocked(
         money: List<MoneyValueDto>,

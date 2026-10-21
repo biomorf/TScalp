@@ -9,8 +9,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 
-class PositionStreamManagerTest {
-    private fun manager(): PositionStreamManager = PositionStreamManager(BrokerManager(emptyMap()))
+class PositionFlowManagerTest {
+    private fun manager(): PositionFlowManager = PositionFlowManager(BrokerManager(emptyMap()))
 
     @Test
     fun `ws currency without polling cache returns null`() {

@@ -223,7 +223,7 @@ class TInvestMarketDataService(
      * Даёт только изменения количества и идентификаторы.
      * Поля `currentPrice`, `averagePositionPrice`, `expectedYield`,
      * `pointValue` в стриме отсутствуют. Обогащение P&L —
-     * задача `PositionStreamManager` (см. `docs/streams.md`).
+     * задача `PositionFlowManager` (см. `docs/streams.md`).
      *
      * `withInitialPositions = true` — сервер пришлёт снапшот
      * позиций сразу при подключении, отдельный REST-запрос

@@ -19,7 +19,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class PositionStreamManager
+class PositionFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerManager,
