@@ -109,7 +109,7 @@ proot; сборка и тесты — на десктопе).
 - **Оркестратор** (`TInvestOrchestrator`) — владеет транспортами,
   работает со стримами (gRPC, WS) и unary-запросами.
 - **Менеджеры** (`PositionStreamManager`, `PriceStreamManager`,
-  `OrderStreamManager`) — агрегируют данные из разных
+  `OrderFlowManager`) — агрегируют данные из разных
   источников (транспортные стримы, polling) в единый `StateFlow`
   для ViewModel.
 
@@ -151,7 +151,7 @@ proot; сборка и тесты — на десктопе).
 сборка и визуальная проверка UI — на десктопе).
 
 **Статус:** запланировано. **Ревизия после завершения
-`OrderStreamManager` (задача A):** уточнить форму по
+`OrderFlowManager` (задача A):** уточнить форму по
 фактическим потребностям UI, обновить оценку.
 
 **Триггер к реализации:** UI начнёт использовать поля из
@@ -168,7 +168,7 @@ stream-событий (`executedQuantity`, `executedPrice`), которые
   → UI. Содержит `isStopOrder: Boolean` + `stopPrice: Double?`
   как sum-type через флаг.
 - `OrderState` — используется stream-путём
-  (`subscribeOrderState` → `OrderStreamManager` — A).
+  (`subscribeOrderState` → `OrderFlowManager` — A).
   Transport-модель WS/gRPC, без stop-полей (asyncapi:
   `OrderStateStream` не стримит stop-orders).
 
@@ -225,7 +225,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
    есть; см. «Связанный вопрос» ниже.
 
 **Предусловия:**
-- `OrderStreamManager` (задача A) реализован и вмержен.
+- `OrderFlowManager` (задача A) реализован и вмержен.
 - Ревизия формы по фактическим полям, которые UI потребляет
   из stream: возможно, `executedQuantity` / `executedPrice`
   не нужны в UI вообще — тогда `Regular` не расширяем.
@@ -261,7 +261,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
 4. Обновить `InvestRepository`: сигнатура `getAllOrdersResult`.
 5. Обновить `BrokerApi`: три сигнатуры.
 6. Обновить `BcsBrokerApi`, `FinamBrokerApi` — сигнатуры.
-7. Обновить `OrderStreamManager` (A): `Map<String, Order>`.
+7. Обновить `OrderFlowManager` (A): `Map<String, Order>`.
 8. Обновить `OrdersListViewModel`: коллекция `List<Order>`,
    `when` для отмены (`Regular` → `cancelOrder`,
    `Stop` → `cancelStopOrder`).
@@ -307,7 +307,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
 BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 ручная проверка 1–1.5 ч).
 
-**Зависимости:** блокируется задачей A (`OrderStreamManager`).
+**Зависимости:** блокируется задачей A (`OrderFlowManager`).
 **Разблокирует** унификацию доменных моделей заявок между
 брокерами (BCS, Finam).
 
@@ -835,7 +835,7 @@ flowchart BT
 до подписки, не видны. Для полной картины нужен unary-snapshot
 `getOrders` + `getStopOrders`. При отказе gRPC (WS работает) этот
 snapshot тоже недоступен — только REST. Поэтому REST-fallback для
-этих методов — часть фундамента для `OrderStreamManager`.
+этих методов — часть фундамента для `OrderFlowManager`.
 
 **Зачем:** fallback для polling-уровня. Плюс — единый стиль на Ktor для всех REST-запросов (BCS мигрирует с OkHttp). Ktor даёт единый HTTP-клиент для KMP, OkHttp — нет.
 
@@ -847,7 +847,7 @@ snapshot тоже недоступен — только REST. Поэтому RES
 - `TInvestRestTransport` в `:transport-ktor/commonMain`.
 - Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`,
   **`getOrders`, `getStopOrders`** (snapshot заявок для
-  `OrderStreamManager`).
+  `OrderFlowManager`).
 - Прокси над REST-эндпоинтами T-Invest.
 
 **Фаза 2 — Fallback для polling T-Invest.**
@@ -855,7 +855,7 @@ snapshot тоже недоступен — только REST. Поэтому RES
 - При недоступности gRPC polling идёт через REST.
 - Логика переключения — в оркестраторе, не в брокере.
 - Потребители REST-snapshot: `fetchPositionsSnapshot` (уже),
-  `OrderStreamManager` (snapshot заявок, после реализации),
+  `OrderFlowManager` (snapshot заявок, после реализации),
   `PriceStreamManager` (последние цены).
 
 **Фаза 3 — Миграция BCS на Ktor.**
@@ -1864,7 +1864,7 @@ wrapper + content) — остаётся в задаче «Рефакторинг
   в задаче «Ktor REST transport для polling».
 
 **Что осталось (в отдельных задачах):**
-- `OrderStreamManager` с map + polling — отдельная задача.
+- `OrderFlowManager` с map + polling — отдельная задача.
 - REST fallback для unary (`getOrders`, `getStopOrders`).
 - UI-потребитель `subscribeOrderState` — когда появится,
   добавить `stop()` в `TInvestOrderStateWebSocket`
@@ -1944,7 +1944,7 @@ wrapper + content) — остаётся в задаче «Рефакторинг
   `orderStateWebSocket?.stop()` перед обнулением.
 - `buildOrderStateWsFallback` — через `setInterest` + `states`.
 
-**Триггер (сработал 2026-10-21):** `OrderStreamManager` стал
+**Триггер (сработал 2026-10-21):** `OrderFlowManager` стал
 постоянным потребителем `subscribeOrderState`. Без `stop()`
 WS-соединение переживало `deinitialize()`.
 
