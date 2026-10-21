@@ -108,7 +108,7 @@ proot; сборка и тесты — на десктопе).
 **Контекст:** семантическое разделение слоёв.
 - **Оркестратор** (`TInvestOrchestrator`) — владеет транспортами,
   работает со стримами (gRPC, WS) и unary-запросами.
-- **Менеджеры** (`PositionStreamManager`, `PriceStreamManager`,
+- **Менеджеры** (`PositionStreamManager`, `PriceFlowManager`,
   `OrderFlowManager`) — агрегируют данные из разных
   источников (транспортные стримы, polling) в единый `StateFlow`
   для ViewModel.
@@ -856,7 +856,7 @@ snapshot тоже недоступен — только REST. Поэтому RES
 - Логика переключения — в оркестраторе, не в брокере.
 - Потребители REST-snapshot: `fetchPositionsSnapshot` (уже),
   `OrderFlowManager` (snapshot заявок, после реализации),
-  `PriceStreamManager` (последние цены).
+  `PriceFlowManager` (последние цены).
 
 **Фаза 3 — Миграция BCS на Ktor.**
 - Перевести `BcsBrokerApi` с OkHttp на Ktor REST.
@@ -1192,7 +1192,7 @@ AppMetrica, отладки.
 **Шаги:**
 
 1. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`.
-2. В `PriceStreamManager` завести `private val _connectionState =
+2. В `PriceFlowManager` завести `private val _connectionState =
    MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
    Обновлять при переходе между gRPC и polling, при ошибках,
    при отсутствии обновлений > 15 секунд (→ STALE).
@@ -1541,7 +1541,7 @@ Finam в UI.
 ### ✅ Единый источник цен (PriceStreamManager)
 
 Реализовано в серии из 6 подкоммитов:
-1. `PriceConsumer` enum + скелет `PriceStreamManager`.
+1. `PriceConsumer` enum + скелет `PriceFlowManager`.
 2. Union + gRPC-стрим с пересозданием при смене union.
 3. REST-fallback раз в 5 секунд.
 4. Миграция `OrdersViewModel`.

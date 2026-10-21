@@ -571,9 +571,9 @@ TLS BCS, или когда понадобится shared OkHttpClient из DI.
 вызов, снова мгновенно. **Busy loop без задержки** — CPU 100%,
 батарея в ноль.
 
-Сейчас `PriceStreamManager` хардкодит `BrokerName.TINVEST`, у
+Сейчас `PriceFlowManager` хардкодит `BrokerName.TINVEST`, у
 T-Invest `subscribeLastPrices` не пустой. Латентный: станет
-реальным при расширении `PriceStreamManager` на BCS / Finam.
+реальным при расширении `PriceFlowManager` на BCS / Finam.
 
 **Решение:** если `collect` завершился без единой эмиссии за N
 секунд — `delay(1_000)` перед следующим кругом. Или проверять
@@ -583,7 +583,7 @@ T-Invest `subscribeLastPrices` не пустой. Латентный: стане
 **Файлы:** `domain/api/PriceStreamManager.kt`.
 
 **Когда вернуться:** при добавлении BCS / Finam в
-`PriceStreamManager`, или при жалобах на батарею в фоновом режиме.
+`PriceFlowManager`, или при жалобах на батарею в фоновом режиме.
 
 ---
 

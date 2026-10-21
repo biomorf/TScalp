@@ -79,7 +79,7 @@ BCS / Finam — заполнить по мере интеграции.
 
 **Применительно к TScalp:**
 
-- `PriceStreamManager` держит **один** gRPC-стрим на котировки
+- `PriceFlowManager` держит **один** gRPC-стрим на котировки
   (union всех интересов) — укладывается в 1 (лимит грейда 1).
 - `TInvestMarketDataService.subscribePositionsGrpcWithReconnect`
   держит **один** стрим на позиции — укладывается в 1.
