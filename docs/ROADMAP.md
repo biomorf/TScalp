@@ -9,8 +9,9 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
----
 
+
+---
 ### Полировка debug-переключателей
 
 **Мобильная работа:** невозможно (требует сборки и визуальной
@@ -44,8 +45,9 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 **Оценка:** ~1–2 часа.
 
----
 
+
+---
 ### Установка GrpcExceptionGuard
 
 **Мобильная работа:** невозможно (требует сборки и проверки
@@ -96,62 +98,16 @@ kill process. `CoroutineExceptionHandler` и `.catch { }` не
 
 **Оценка:** ~1 час.
 
----
-### Переименование `*StreamManager` → `*FlowManager`
 
-**Мобильная работа:** полное закрытие (правки `.kt` — через
-proot; сборка и тесты — на десктопе).
-
-**Статус:** в работе.
-**Ветка:** chore/rename-flow-managers.
-
-**Контекст:** семантическое разделение слоёв.
-- **Оркестратор** (`TInvestOrchestrator`) — владеет транспортами,
-  работает со стримами (gRPC, WS) и unary-запросами.
-- **Менеджеры** (`PositionStreamManager`, `PriceStreamManager`,
-  `OrderStreamManager`) — агрегируют данные из разных
-  источников (транспортные стримы, polling) в единый `StateFlow`
-  для ViewModel.
-
-Слово `Stream` в названии менеджеров перегружено: оно означает
-и транспортный стрим, и Kotlin `Flow`. По сути менеджер
-производит `Flow` (в виде `StateFlow`) из данных от разных
-источников. Имя `*FlowManager` лучше отражает эту роль и
-разводит семантику с оркестратором.
-
-**Файлы:**
-- `domain/api/PositionStreamManager.kt` → `PositionFlowManager.kt`
-- `domain/api/PriceStreamManager.kt` → `PriceFlowManager.kt`
-- `domain/api/OrderStreamManager.kt` → `OrderFlowManager.kt`
-- Все места использования: ViewModel, DI, тесты, KDoc.
-
-**Шаги:**
-1. `git mv` трёх файлов менеджеров.
-2. Переименовать классы и переменные во всех ссылках.
-3. Сборка и тесты.
-4. Обновить документацию (`AGENTS.md`, `docs/*.md`), если там
-   упоминаются старые имена.
-
-**Ограничения:**
-- Не менять логику менеджеров, только имена.
-- Не смешивать с задачей «Ktor REST transport для polling» —
-  отдельный PR (chore).
-
-**Критерий готовности:**
-- В кодовой базе не осталось `*StreamManager`.
-- Сборка и тесты зелёные.
-
-**Оценка:** ~30–40 минут.
 
 ---
-
 ### Split order domain into sealed Regular/Stop
 
 **Мобильная работа:** невозможно (массовый рефакторинг,
 сборка и визуальная проверка UI — на десктопе).
 
 **Статус:** запланировано. **Ревизия после завершения
-`OrderStreamManager` (задача A):** уточнить форму по
+`OrderFlowManager` (задача A):** уточнить форму по
 фактическим потребностям UI, обновить оценку.
 
 **Триггер к реализации:** UI начнёт использовать поля из
@@ -168,7 +124,7 @@ stream-событий (`executedQuantity`, `executedPrice`), которые
   → UI. Содержит `isStopOrder: Boolean` + `stopPrice: Double?`
   как sum-type через флаг.
 - `OrderState` — используется stream-путём
-  (`subscribeOrderState` → `OrderStreamManager` — A).
+  (`subscribeOrderState` → `OrderFlowManager` — A).
   Transport-модель WS/gRPC, без stop-полей (asyncapi:
   `OrderStateStream` не стримит stop-orders).
 
@@ -225,7 +181,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
    есть; см. «Связанный вопрос» ниже.
 
 **Предусловия:**
-- `OrderStreamManager` (задача A) реализован и вмержен.
+- `OrderFlowManager` (задача A) реализован и вмержен.
 - Ревизия формы по фактическим полям, которые UI потребляет
   из stream: возможно, `executedQuantity` / `executedPrice`
   не нужны в UI вообще — тогда `Regular` не расширяем.
@@ -237,7 +193,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
   `mapStopOrder` → `Order.Stop` (без `isStopOrder: true`).
 - `data/api/TInvestOrderStateWsMapper.kt`: `mapOrderState` →
   `Order.Regular` (stream не отдаёт stop).
-- `domain/api/OrderStreamManager.kt` (из A): `Map<orderId, Order>`.
+- `domain/api/OrderFlowManager.kt` (из A): `Map<orderId, Order>`.
 - `data/repository/InvestRepository.kt`: `getAllOrdersResult` →
   `List<Order>`.
 - `domain/api/BrokerApi.kt`: `getOrders`, `getStopOrders`,
@@ -261,7 +217,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
 4. Обновить `InvestRepository`: сигнатура `getAllOrdersResult`.
 5. Обновить `BrokerApi`: три сигнатуры.
 6. Обновить `BcsBrokerApi`, `FinamBrokerApi` — сигнатуры.
-7. Обновить `OrderStreamManager` (A): `Map<String, Order>`.
+7. Обновить `OrderFlowManager` (A): `Map<String, Order>`.
 8. Обновить `OrdersListViewModel`: коллекция `List<Order>`,
    `when` для отмены (`Regular` → `cancelOrder`,
    `Stop` → `cancelStopOrder`).
@@ -280,7 +236,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
 - `data/repository/InvestRepository.kt`
 - `domain/api/BrokerApi.kt`
 - `data/api/BcsBrokerApi.kt`, `data/api/FinamBrokerApi.kt`
-- `domain/api/OrderStreamManager.kt` (A)
+- `domain/api/OrderFlowManager.kt` (A)
 - `ui/components/OrdersListViewModel.kt`
 - `ui/components/OrderCard.kt`, `OrdersListDialog.kt`,
   `OrdersScreen.kt`
@@ -307,7 +263,7 @@ nullable-поля сделает её хуже. `isStopOrder: Boolean` —
 BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 ручная проверка 1–1.5 ч).
 
-**Зависимости:** блокируется задачей A (`OrderStreamManager`).
+**Зависимости:** блокируется задачей A (`OrderFlowManager`).
 **Разблокирует** унификацию доменных моделей заявок между
 брокерами (BCS, Finam).
 
@@ -325,8 +281,9 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
   пройдёт гладко и выявит реальную пользу `sealed interface`,
   вернуться к `AppResult`. Отдельная задача пока не заводится.
 
----
 
+
+---
 ### UI: отображение blocked на валютной карточке
 
 **Мобильная работа:** частичное (план и правки `.kt` — через
@@ -345,7 +302,7 @@ proot; сборка и визуальная проверка — на дескт
 polling — рубли), без разбивки на свободные/заблокированные.
 
 **Предусловия:**
-- WS-интеграция money/blocked в `PositionStreamManager`
+- WS-интеграция money/blocked в `PositionFlowManager`
   закрыта (сделано, коммит `0167c03`).
 - Формула связи `money`, `blocked`, `quantity` — не
   подтверждена (`docs/ROADMAP.md` → «Оркестратор стримов
@@ -401,7 +358,7 @@ polling — рубли), без разбивки на свободные/заб�
   (фаза 2, money/blocked merge).
 - `docs/ISSUES.md` → «PositionsStream over WS не отдаёт
   данные в песочнице» (prod-only поведение).
-- `TInvestPositionsWsMapperTest`, `PositionStreamManagerTest` —
+- `TInvestPositionsWsMapperTest`, `PositionFlowManagerTest` —
   образец тестов на доменный merge.
 
 **Ограничения:**
@@ -441,8 +398,9 @@ polling — рубли), без разбивки на свободные/заб�
   позиции в контексте заявки) — сейчас нет, но при
   блокировке инструмента биржей может быть полезно.
 
----
 
+
+---
 ### Rate-limiter для unary-запросов T-Invest
 
 **Мобильная работа:** невозможно (сборка + тесты на десктопе;
@@ -573,9 +531,7 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 
 
-
 ---
-
 ### Плавный переход Hilt → Koin
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts` — через
@@ -730,9 +686,7 @@ iOS-задачи миграция станет обязательной. Сей�
 
 
 
-
 ---
-
 ### Ktor REST transport для polling
 
 **Мобильная работа:** невозможно (требует сборки и проверки на реальных данных).
@@ -761,9 +715,9 @@ flowchart BT
 
     subgraph Managers["Domain managers (агрегация для UI)"]
         direction TB
-        M1["PositionStreamManager"]
-        M2["PriceStreamManager"]
-        M3["OrderStreamManager"]
+        M1["PositionFlowManager"]
+        M2["PriceFlowManager"]
+        M3["OrderFlowManager"]
     end
 
     subgraph Orchestrator["TInvestOrchestrator<br/>(владеет транспортами)"]
@@ -805,8 +759,8 @@ flowchart BT
 - Гейт, коммит.
 
 **Шаг 1b — переключение менеджеров на оркестратор.**
-- `PriceStreamManager.runPolling`: `repository.getLastPricesResult(...)` → `orchestrator.pricesSnapshot(...)`.
-- `OrderStreamManager.collectPolling`: `broker.getOrders(...)` + `broker.getStopOrders(...)` → `orchestrator.ordersSnapshot(...)`.
+- `PriceFlowManager.runPolling`: `repository.getLastPricesResult(...)` → `orchestrator.pricesSnapshot(...)`.
+- `OrderFlowManager.collectPolling`: `broker.getOrders(...)` + `broker.getStopOrders(...)` → `orchestrator.ordersSnapshot(...)`.
 - Поведение не меняется, fallback пока нет.
 - Гейт, live-тест (цены и заявки обновляются), коммит.
 
@@ -835,7 +789,7 @@ flowchart BT
 до подписки, не видны. Для полной картины нужен unary-snapshot
 `getOrders` + `getStopOrders`. При отказе gRPC (WS работает) этот
 snapshot тоже недоступен — только REST. Поэтому REST-fallback для
-этих методов — часть фундамента для `OrderStreamManager`.
+этих методов — часть фундамента для `OrderFlowManager`.
 
 **Зачем:** fallback для polling-уровня. Плюс — единый стиль на Ktor для всех REST-запросов (BCS мигрирует с OkHttp). Ktor даёт единый HTTP-клиент для KMP, OkHttp — нет.
 
@@ -847,7 +801,7 @@ snapshot тоже недоступен — только REST. Поэтому RES
 - `TInvestRestTransport` в `:transport-ktor/commonMain`.
 - Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`,
   **`getOrders`, `getStopOrders`** (snapshot заявок для
-  `OrderStreamManager`).
+  `OrderFlowManager`).
 - Прокси над REST-эндпоинтами T-Invest.
 
 **Фаза 2 — Fallback для polling T-Invest.**
@@ -855,8 +809,8 @@ snapshot тоже недоступен — только REST. Поэтому RES
 - При недоступности gRPC polling идёт через REST.
 - Логика переключения — в оркестраторе, не в брокере.
 - Потребители REST-snapshot: `fetchPositionsSnapshot` (уже),
-  `OrderStreamManager` (snapshot заявок, после реализации),
-  `PriceStreamManager` (последние цены).
+  `OrderFlowManager` (snapshot заявок, после реализации),
+  `PriceFlowManager` (последние цены).
 
 **Фаза 3 — Миграция BCS на Ktor.**
 - Перевести `BcsBrokerApi` с OkHttp на Ktor REST.
@@ -901,9 +855,7 @@ snapshot тоже недоступен — только REST. Поэтому RES
 
 
 
-
 ---
-
 ### Рефакторинг расчёта P&L для PortfolioPosition
 
 **Мобильная работа:** невозможно (требует сборки и проверки
@@ -1048,9 +1000,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
-
 ---
-
 ### Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
 
 **Мобильная работа:** частичное (парсер + unit-тест — с
@@ -1103,9 +1053,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
-
 ---
-
 ### UI-индикатор состояния стримов
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -1126,8 +1074,8 @@ gRPC-стрима позиций — иначе переход на стрим �
 **UI-описание:**
 
 - **Бейдж-точка** на иконке вкладки:
-  - Заявки → `PriceStreamManager.connectionState`;
-  - Портфель → `PositionStreamManager.connectionState`;
+  - Заявки → `PriceFlowManager.connectionState`;
+  - Портфель → `PositionFlowManager.connectionState`;
   - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
   - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
   - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
@@ -1166,9 +1114,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
-
 ---
-
 ### StreamState в data-слое
 
 **Мобильная работа:** невозможно (требует сборки и проверки
@@ -1185,18 +1131,18 @@ AppMetrica, отладки.
 
 **Файлы:**
 - `domain/models/StreamState.kt` — новый файл.
-- `domain/api/PriceStreamManager.kt` — добавить
+- `domain/api/PriceFlowManager.kt` — добавить
   `connectionState: StateFlow<StreamState>`.
-- `domain/api/PositionStreamManager.kt` — то же.
+- `domain/api/PositionFlowManager.kt` — то же.
 
 **Шаги:**
 
 1. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`.
-2. В `PriceStreamManager` завести `private val _connectionState =
+2. В `PriceFlowManager` завести `private val _connectionState =
    MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
    Обновлять при переходе между gRPC и polling, при ошибках,
    при отсутствии обновлений > 15 секунд (→ STALE).
-3. В `PositionStreamManager` — аналогично. Порог STALE — 30 секунд.
+3. В `PositionFlowManager` — аналогично. Порог STALE — 30 секунд.
 4. «Биржа закрыта» ≠ STALE: если polling возвращает цену
    (пусть и неизменную), состояние остаётся POLLING.
 
@@ -1220,9 +1166,7 @@ WS transport» — нужен финальный слой композиции, 
 
 
 
-
 ---
-
 ### Переход на edge-to-edge (statusBarColor deprecated)
 
 **Статус:** запланировано, требует отдельной подготовки.
@@ -1243,9 +1187,7 @@ WS transport» — нужен финальный слой композиции, 
 
 
 
-
 ---
-
 ### Рефакторинг архитектурного долга (detekt-группа 3)
 
 **Статус:** запланировано.
@@ -1419,9 +1361,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 
 
-
 ---
-
 ### Реализация Finam Broker API
 
 **Статус:** запланировано.
@@ -1508,9 +1448,7 @@ Finam в UI.
 
 
 
-
 ---
-
 ### Расшифровка кодов ошибок брокеров
 
 **Статус:** частично закрыто.
@@ -1533,22 +1471,20 @@ Finam в UI.
 
 
 
-
 ---
-
 ## Закрытые задачи
 
 ### ✅ Единый источник цен (PriceStreamManager)
 
 Реализовано в серии из 6 подкоммитов:
-1. `PriceConsumer` enum + скелет `PriceStreamManager`.
+1. `PriceConsumer` enum + скелет `PriceFlowManager`.
 2. Union + gRPC-стрим с пересозданием при смене union.
 3. REST-fallback раз в 5 секунд.
 4. Миграция `OrdersViewModel`.
 5. Миграция `PortfolioViewModel` (+ фикс карточек в `OrdersScreen`:
    цена берётся из `uiState.currentPrice`, а не из медленного
    `portfolioPositions`).
-6. Переименование `SharedPositionStreamManager` → `PositionStreamManager`.
+6. Переименование `SharedPositionStreamManager` → `PositionFlowManager`.
 
 ### ✅ Унификация profitPercent для PortfolioPosition
 
@@ -1738,7 +1674,7 @@ polling остаётся параллельным fallback'ом.
 - **Автопереподключение gRPC** с экспоненциальным
   backoff `[1s, 5s, 15s, 30s, 60s]`. Ожидание появления
   API внутри flow (без early-return).
-- **Обогащение в `PositionStreamManager`.** Полные события
+- **Обогащение в `PositionFlowManager`.** Полные события
   (от polling, `currentPrice != null`) обновляют
   `snapshotCache`. Неполные события (от gRPC, без P&L)
   дополняются `currentPrice`, `averagePositionPrice`,
@@ -1766,14 +1702,15 @@ polling остаётся параллельным fallback'ом.
 
 **Итог:** задача разблокирует WS-уровень в каскаде позиций
 (см. `### Каскад обновления позиций`). Миграция
-`PositionStreamManager` на стрим как единственный источник
+`PositionFlowManager` на стрим как единственный источник
 не потребовалась — параллельная схема оказалась надёжнее.
 
 Один коммит с закрытием — см. `docs/ROADMAP.md` → этот
 раздел.
 
----
 
+
+---
 ### ✅ Compose Preview для компонентов
 
 Добавлены `@Preview`-функции для ключевых Compose-компонентов.
@@ -1803,8 +1740,9 @@ wrapper + content) — остаётся в задаче «Рефакторинг
 Проверено: сборка зелёная, 63 теста, ktlint и detekt
 чистые, превью рендерятся в Android Studio.
 
----
 
+
+---
 ### ✅ Оркестратор стримов и Ktor WS transport
 
 Полный WS-транспорт для T-Invest: позиции, цены, статусы
@@ -1864,15 +1802,16 @@ wrapper + content) — остаётся в задаче «Рефакторинг
   в задаче «Ktor REST transport для polling».
 
 **Что осталось (в отдельных задачах):**
-- `OrderStreamManager` с map + polling — отдельная задача.
+- `OrderFlowManager` с map + polling — отдельная задача.
 - REST fallback для unary (`getOrders`, `getStopOrders`).
 - UI-потребитель `subscribeOrderState` — когда появится,
   добавить `stop()` в `TInvestOrderStateWebSocket`
   (ROADMAP → «Add stop() to TInvestOrderStateWebSocket»).
 - BCS / Finam WS.
 
----
 
+
+---
 ### ✅ OrderStreamManager — snapshot + stream merge
 
 Единая точка агрегации активных заявок счёта. Polling
@@ -1922,8 +1861,9 @@ wrapper + content) — остаётся в задаче «Рефакторинг
 - Доменная модель в `sealed interface Order { Regular, Stop }`:
   ROADMAP → «Split order domain into sealed Regular/Stop».
 
----
 
+
+---
 ### ✅ Add stop() to TInvestOrderStateWebSocket
 
 `TInvestOrderStateWebSocket` приведён к lifecycle
@@ -1944,10 +1884,56 @@ wrapper + content) — остаётся в задаче «Рефакторинг
   `orderStateWebSocket?.stop()` перед обнулением.
 - `buildOrderStateWsFallback` — через `setInterest` + `states`.
 
-**Триггер (сработал 2026-10-21):** `OrderStreamManager` стал
+**Триггер (сработал 2026-10-21):** `OrderFlowManager` стал
 постоянным потребителем `subscribeOrderState`. Без `stop()`
 WS-соединение переживало `deinitialize()`.
 
 **Гейт:** `testDebugUnitTest / lintDebug / ktlintCheck / detekt /
 transport-ktor:allTests` — зелёные.
+
+
+
+---
+### ✅ Переименование `*StreamManager` → `*FlowManager`
+
+**Мобильная работа:** полное закрытие (правки `.kt` — через
+proot; сборка и тесты — на десктопе).
+
+**Контекст:** семантическое разделение слоёв.
+- **Оркестратор** (`TInvestOrchestrator`) — владеет транспортами,
+  работает со стримами (gRPC, WS) и unary-запросами.
+- **Менеджеры** (`PositionFlowManager`, `PriceFlowManager`,
+  `OrderFlowManager`) — агрегируют данные из разных
+  источников (транспортные стримы, polling) в единый `StateFlow`
+  для ViewModel.
+
+Слово `Stream` в названии менеджеров перегружено: оно означает
+и транспортный стрим, и Kotlin `Flow`. По сути менеджер
+производит `Flow` (в виде `StateFlow`) из данных от разных
+источников. Имя `*FlowManager` лучше отражает эту роль и
+разводит семантику с оркестратором.
+
+**Файлы:**
+- `domain/api/PositionStreamManager.kt` → `PositionFlowManager.kt`
+- `domain/api/PriceStreamManager.kt` → `PriceFlowManager.kt`
+- `domain/api/OrderStreamManager.kt` → `OrderFlowManager.kt`
+- Все места использования: ViewModel, DI, тесты, KDoc.
+
+**Шаги:**
+1. `git mv` трёх файлов менеджеров.
+2. Переименовать классы и переменные во всех ссылках.
+3. Сборка и тесты.
+4. Обновить документацию (`AGENTS.md`, `docs/*.md`), если там
+   упоминаются старые имена.
+
+**Ограничения:**
+- Не менять логику менеджеров, только имена.
+- Не смешивать с задачей «Ktor REST transport для polling» —
+  отдельный PR (chore).
+
+**Критерий готовности:**
+- В кодовой базе не осталось `*StreamManager`.
+- Сборка и тесты зелёные.
+
+**Оценка:** ~30–40 минут.
 

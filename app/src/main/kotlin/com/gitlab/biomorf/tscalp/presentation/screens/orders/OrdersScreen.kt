@@ -161,7 +161,7 @@ fun OrdersScreen() {
                         uiState.selectedInstrument?.let { instrument: InstrumentUi ->
                             val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
 
-                            // Цену берём из PriceStreamManager (uiState.currentPrice) —
+                            // Цену берём из PriceFlowManager (uiState.currentPrice) —
                             // это быстрый источник (gRPC + REST раз в 5 сек).
                             // portfolioPositions обновляется реже (10 сек), поэтому
                             // его currentPrice перезаписываем свежим значением.
@@ -475,7 +475,7 @@ fun OrdersScreen() {
                             uiState.pairedInstrument?.let { instrument: InstrumentUi ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
                                 val pairedPointValue = uiState.pairedPointValue
-                                // Цену берём из PriceStreamManager (uiState.pairCurrentPrice).
+                                // Цену берём из PriceFlowManager (uiState.pairCurrentPrice).
                                 val pairPrice =
                                     uiState.pairCurrentPrice
                                         ?: portfolioPos?.currentPrice

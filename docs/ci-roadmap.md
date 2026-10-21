@@ -936,7 +936,7 @@ push и PR в `dev` / `master`.
     - TODO-комментарии `FinamBrokerApi` → class-level KDoc
       со ссылкой на «Реализация Finam Broker API»;
     - `PositionFormatterTest` перемещён в `util/`;
-    - `PositionStreamManager` перемещён в `domain.api`;
+    - `PositionFlowManager` перемещён в `domain.api`;
     - `BcsBrokerApi.obtainAccessToken` разбит на
       `obtainAccessToken` + `parseAccessTokenResponse`
       (фикс `ThrowsCount`);

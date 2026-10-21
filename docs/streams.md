@@ -83,7 +83,7 @@
 - **Уровень 2 — polling.** `fetchPositionsSnapshot` раз в
   10–30 секунд. Даёт полные снимки с `averagePositionPrice`,
   `expectedYield`, `pointValue`.
-- **Обогащение в `PositionStreamManager`.** Менеджер хранит
+- **Обогащение в `PositionFlowManager`.** Менеджер хранит
   последний полный снимок от polling. При gRPC-событии эмитит
   событие с `balance` из gRPC и остальными полями из кэша.
   UI получает консистентные данные и не мерцает.
@@ -91,11 +91,11 @@
   единственным источником. UI продолжает получать обновления
   с задержкой 10–30 секунд.
 
-**Роль `PriceStreamManager`:** цены берутся оттуда, как и
+**Роль `PriceFlowManager`:** цены берутся оттуда, как и
 раньше. Стрим позиций **не дублирует** подписку на last price.
 
 **Текущая альтернатива (до реализации):** polling через
-`PositionStreamManager` с периодом 10 секунд. P&L корректно
+`PositionFlowManager` с периодом 10 секунд. P&L корректно
 отображается с задержкой.
 
 ## WebSocket (T-Invest)
@@ -221,7 +221,7 @@ ticker).
 `TInvestPositionsWsMapper` группирует `money` и `blocked`
 по `currency` в один `PositionStreamItem` на валюту
 (`instrumentType = "currency"`, пустой `tscalpInstrumentId`).
-`PositionStreamManager.enrichAndCache` склеивает этот item
+`PositionFlowManager.enrichAndCache` склеивает этот item
 с валютной позицией из polling по полю `currency`.
 
 `money` и `blocked` хранятся на `PositionStreamItem`
@@ -249,11 +249,11 @@ UI-задачи (см. `docs/ROADMAP.md` → «UI: отображение blocke
   не существует.
 - **Каскад, а не единый источник.** Любой стрим, который может
   упасть, оставляем с fallback'ом. Для позиций: gRPC → polling.
-  Для цен: gRPC + polling параллельно (см. `PriceStreamManager`).
+  Для цен: gRPC + polling параллельно (см. `PriceFlowManager`).
 - **Обогащение — в менеджере, не в UI.** Если источник отдаёт
   неполные данные (только часть полей), обогащение — задача
-  посредника между брокером и UI (`PositionStreamManager`,
-  `PriceStreamManager`). UI получает консистентные данные.
+  посредника между брокером и UI (`PositionFlowManager`,
+  `PriceFlowManager`). UI получает консистентные данные.
 - **P&L подтягивается с polling.** Стрим позиций не даёт
   `expectedYield` / `averagePositionPrice`. Это не баг стрима —
   он для количества. P&L — отдельный слой (см.

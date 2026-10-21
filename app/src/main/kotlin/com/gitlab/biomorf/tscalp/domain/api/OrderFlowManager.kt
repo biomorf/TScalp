@@ -50,13 +50,13 @@ import javax.inject.Singleton
  * stream выполняются последовательно на одном worker'е.
  */
 @Singleton
-class OrderStreamManager
+class OrderFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerManager,
     ) {
         companion object {
-            private const val TAG = "OrderStream"
+            private const val TAG = "OrderFlowManager"
             private const val POLLING_INTERVAL_MS = 15_000L
             private val TERMINAL_STATUSES = setOf("FILL", "CANCELLED", "REJECTED")
         }

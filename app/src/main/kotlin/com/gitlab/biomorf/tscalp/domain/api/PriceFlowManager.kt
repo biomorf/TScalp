@@ -44,14 +44,14 @@ import javax.inject.Singleton
  * подтягивает сам через `broker.pricesSnapshot` (оркестратор).
  */
 @Singleton
-class PriceStreamManager
+class PriceFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerManager,
         private val repository: InvestRepository,
     ) {
         companion object {
-            private const val TAG = "PriceStreamManager"
+            private const val TAG = "PriceFlowManager"
 
             /**
              * Задержки между попытками переподключения gRPC-стрима

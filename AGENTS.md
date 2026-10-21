@@ -1268,7 +1268,7 @@ hotfix-веток.
   - `[unary/gRPC/TInvest] ...`
   - `[manager/stream] ...` (менеджер получил данные из любого стрима)
   - `[manager/polling] ...` (менеджер получил данные из любого polling)
-- **Цены** — только через `PriceStreamManager`. Не вызывать
+- **Цены** — только через `PriceFlowManager`. Не вызывать
   `broker.subscribeLastPrices` и `repository.getLastPricesResult`
   из ViewModel напрямую. Регистрировать интерес через
   `setInterest(PriceConsumer, uids)`.
@@ -1277,7 +1277,7 @@ hotfix-веток.
 
 - **Domain-слой** оперирует `tscalpInstrumentId` — универсальным
   идентификатором инструмента. В domain-моделях, usecase'ах и
-  domain-API (`PriceStreamManager`, `PositionStreamManager`)
+  domain-API (`PriceFlowManager`, `PositionFlowManager`)
   ключ инструмента называется `tscalpInstrumentId`, а не `uid`
   и не `figi`.
 - **Data-слой** (`data/api/*`, `data/repository/*`) — на границе

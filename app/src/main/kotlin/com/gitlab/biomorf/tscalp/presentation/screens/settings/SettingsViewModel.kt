@@ -10,8 +10,8 @@ import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
-import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
-import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -53,8 +53,8 @@ class SettingsViewModel
         private val settingsRepository: SettingsRepository,
         private val tradingStateRepository: TradingStateRepository,
         private val brokerManager: BrokerManager,
-        private val positionStreamManager: PositionStreamManager,
-        private val priceStreamManager: PriceStreamManager,
+        private val positionFlowManager: PositionFlowManager,
+        private val priceFlowManager: PriceFlowManager,
         private val repository: InvestRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
@@ -142,7 +142,7 @@ class SettingsViewModel
                 // Останавливаем общий стрим позиций сразу, не дожидаясь,
                 // будет ли создан PortfolioViewModel.
                 if (brokerName == BrokerName.TINVEST) {
-                    positionStreamManager.stop()
+                    positionFlowManager.stop()
                 }
 
                 brokerManager.refreshInitializationState()
@@ -340,7 +340,7 @@ class SettingsViewModel
             AppLogger.d("SettingsVM", "toggleRest: enabled=$enabled")
             DebugConfig.forceRest = enabled
             _uiState.update { it.copy(forceRest = DebugConfig.forceRest) }
-            priceStreamManager.reapplyDebugFlags()
-            positionStreamManager.reapplyDebugFlags()
+            priceFlowManager.reapplyDebugFlags()
+            positionFlowManager.reapplyDebugFlags()
         }
     }

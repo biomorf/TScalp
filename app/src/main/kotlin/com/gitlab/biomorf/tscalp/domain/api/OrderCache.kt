@@ -13,7 +13,7 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
  *
  * [evictStale] удаляет записи, у которых **оба** источника старше
  * `now - ttlMs`. TTL задаётся параметром конструктора; в
- * [OrderStreamManager] — `2 × POLLING_INTERVAL_MS` (30 сек при
+ * [OrderFlowManager] — `2 × POLLING_INTERVAL_MS` (30 сек при
  * интервале polling 15 сек).
  *
  * Фактическое удержание без подтверждения = `ttlMs + один
@@ -29,10 +29,10 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
  *
  * Вызывается **только при успешном polling-цикле**. Если polling
  * упал (gRPC down), `lastSeenAt` не обновляется, и эвикция
- * удалила бы валидные заявки. Поэтому [OrderStreamManager] не
+ * удалила бы валидные заявки. Поэтому [OrderFlowManager] не
  * вызывает [evictStale] при ошибке.
  *
- * Синхронизация: `OrderStreamManager` использует
+ * Синхронизация: `OrderFlowManager` использует
  * `Dispatchers.IO.limitedParallelism(1)`, поэтому polling и stream
  * вызываются последовательно на одном worker'е. Мutex не нужен.
  */

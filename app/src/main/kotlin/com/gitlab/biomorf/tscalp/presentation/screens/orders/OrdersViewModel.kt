@@ -9,9 +9,9 @@ import com.gitlab.biomorf.tscalp.data.repository.SearchCache
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
-import com.gitlab.biomorf.tscalp.domain.api.PositionStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceConsumer
-import com.gitlab.biomorf.tscalp.domain.api.PriceStreamManager
+import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
@@ -57,10 +57,10 @@ class OrdersViewModel
         private val settingsRepository: SettingsRepository,
         private val tradingStateRepository: TradingStateRepository,
         private val brokerManager: BrokerManager,
-        private val priceStreamManager: PriceStreamManager,
+        private val priceFlowManager: PriceFlowManager,
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val prepareOrderRequest: PrepareOrderRequestUseCase,
-        private val positionStreamManager: PositionStreamManager,
+        private val positionFlowManager: PositionFlowManager,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
         val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
@@ -103,7 +103,7 @@ class OrdersViewModel
             // задаётся через syncPriceInterest() при изменении
             // selectedInstrument / pairedInstrument.
             viewModelScope.launch {
-                priceStreamManager.prices.collect { update ->
+                priceFlowManager.prices.collect { update ->
                     updateInstrumentPrice(update)
                 }
             }
@@ -135,8 +135,8 @@ class OrdersViewModel
                 // Logout: останавливаем фоновые задачи, снимаем интерес к ценам
                 // и очищаем состояние.
                 stopPositionUpdates()
-                priceStreamManager.clearInterest(PriceConsumer.ORDERS)
-                positionStreamManager.stop()
+                priceFlowManager.clearInterest(PriceConsumer.ORDERS)
+                positionFlowManager.stop()
                 _uiState.update {
                     it.copy(
                         accounts = emptyList(),
@@ -913,14 +913,14 @@ class OrdersViewModel
         fun startPositionUpdates() {
             stopPositionUpdates()
             val accountId = _uiState.value.selectedAccountId ?: return
-            positionStreamManager.start(accountId)
+            positionFlowManager.start(accountId)
             positionStreamJob =
                 viewModelScope.launch {
-                    // Ошибки потока логирует сам PositionStreamManager
+                    // Ошибки потока логирует сам PositionFlowManager
                     // через свой CoroutineExceptionHandler — сюда они не доходят.
                     // .catch на SharedFlow смысла не имеет: поток не завершается
                     // и не бросает исключения подписчику.
-                    positionStreamManager.flow.collect { item ->
+                    positionFlowManager.flow.collect { item ->
                         updatePositionPnl(item)
                     }
                 }
@@ -951,7 +951,7 @@ class OrdersViewModel
         /**
          * Собирает текущий набор tscalpInstrumentId
          * (selectedInstrument + pairedInstrument) и передаёт в
-         * PriceStreamManager. Менеджер пересоздаст стрим только при
+         * PriceFlowManager. Менеджер пересоздаст стрим только при
          * фактическом изменении union.
          */
         private fun syncPriceInterest() {
@@ -961,11 +961,11 @@ class OrdersViewModel
                     state.selectedInstrument?.let { add(it.tscalpInstrumentId) }
                     state.pairedInstrument?.let { add(it.tscalpInstrumentId) }
                 }
-            priceStreamManager.setInterest(PriceConsumer.ORDERS, uids)
+            priceFlowManager.setInterest(PriceConsumer.ORDERS, uids)
         }
 
         /**
-         * Применяет обновление цены из PriceStreamManager к соответствующему
+         * Применяет обновление цены из PriceFlowManager к соответствующему
          * инструменту в UI: selectedInstrument или pairedInstrument.
          * Для неизвестного tscalpInstrumentId — no-op.
          */
@@ -999,7 +999,7 @@ class OrdersViewModel
         }
 
         override fun onCleared() {
-            priceStreamManager.clearInterest(PriceConsumer.ORDERS)
+            priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
         private fun updatePositionPnl(item: PositionStreamItem) {

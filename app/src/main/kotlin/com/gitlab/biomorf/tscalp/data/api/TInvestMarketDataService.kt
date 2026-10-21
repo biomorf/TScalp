@@ -74,7 +74,7 @@ class TInvestMarketDataService(
 
         /**
          * Экспоненциальный backoff для переподключения gRPC-стрима.
-         * Cap 60 секунд — по аналогии с [PriceStreamManager].
+         * Cap 60 секунд — по аналогии с [PriceFlowManager].
          */
         private val GRPC_RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
     }
@@ -223,7 +223,7 @@ class TInvestMarketDataService(
      * Даёт только изменения количества и идентификаторы.
      * Поля `currentPrice`, `averagePositionPrice`, `expectedYield`,
      * `pointValue` в стриме отсутствуют. Обогащение P&L —
-     * задача `PositionStreamManager` (см. `docs/streams.md`).
+     * задача `PositionFlowManager` (см. `docs/streams.md`).
      *
      * `withInitialPositions = true` — сервер пришлёт снапшот
      * позиций сразу при подключении, отдельный REST-запрос
