@@ -17,7 +17,8 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 **Мобильная работа:** частичное (правки `.kt` — через proot;
 сборка и тесты — на десктопе).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** bugfix/manager-start-race.
 
 **Контекст:** в `start/stop/reapplyDebugFlags` трёх менеджеров
 (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`)
