@@ -38,6 +38,7 @@ class OrdersListViewModel
 
         init {
             viewModelScope.launch {
+                AppLogger.d(TAG, "subscribed to orders+hasLoaded")
                 combine(
                     orderFlowManager.orders,
                     orderFlowManager.hasLoaded,
@@ -65,6 +66,7 @@ class OrdersListViewModel
 
         fun loadOrders() {
             viewModelScope.launch {
+                AppLogger.d(TAG, "loadOrders: start")
                 _uiState.update { it.copy(isLoading = true, statusMessage = null, isError = false) }
 
                 val sandboxMode = settingsRepository.isSandboxMode()
@@ -102,12 +104,14 @@ class OrdersListViewModel
                 // Дальше UI обновляется через orderFlowManager.orders
                 // (см. init). start() идемпотентен для того же accountId.
                 orderFlowManager.start(accountId)
+                AppLogger.i(TAG, "loadOrders: account=$accountId, aggregation started")
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
 
         fun cancelOrder(order: OrderListItem) {
             viewModelScope.launch {
+                AppLogger.d(TAG, "cancelOrder: orderId=${order.orderId}, isStop=${order.isStopOrder}")
                 val sandboxMode = settingsRepository.isSandboxMode()
 
                 // Шаг 1: счета
@@ -157,6 +161,7 @@ class OrdersListViewModel
         }
 
         override fun onCleared() {
+            AppLogger.d(TAG, "onCleared")
             orderFlowManager.stop()
         }
     }

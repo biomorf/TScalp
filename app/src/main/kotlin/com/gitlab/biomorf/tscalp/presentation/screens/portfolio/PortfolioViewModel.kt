@@ -53,6 +53,7 @@ class PortfolioViewModel
             // Реагируем на изменение состояния инициализации брокеров.
             // StateFlow отдаёт текущее значение сразу при подписке.
             viewModelScope.launch {
+                AppLogger.d(TAG, "subscribed to anyInitialized")
                 brokerManager.anyInitialized.collect {
                     checkApiInitialization()
                 }
@@ -61,6 +62,7 @@ class PortfolioViewModel
             // priceChangePercent у соответствующей позиции. Набор tscalpInstrumentId задаётся
             // через syncPriceInterest() после каждой загрузки портфеля.
             viewModelScope.launch {
+                AppLogger.d(TAG, "subscribed to prices")
                 priceFlowManager.prices.collect { update ->
                     updatePriceFromStream(update)
                 }
@@ -81,6 +83,7 @@ class PortfolioViewModel
             // проверка «есть ли хоть один инициализированный брокер»
             val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
             val sandbox = settingsRepository.isSandboxMode()
+            AppLogger.d(TAG, "checkApiInitialization: anyApiInitialized=$isApiInit, sandbox=$sandbox")
             _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
 
             if (isApiInit) {
@@ -107,14 +110,17 @@ class PortfolioViewModel
 
                 val accountId =
                     settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: run {
+                        AppLogger.d(TAG, "loadPortfolio: no default account")
                         _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                         return@launch
                     }
                 val sandbox = settingsRepository.isSandboxMode()
+                AppLogger.d(TAG, "loadPortfolio: account=$accountId, sandbox=$sandbox")
 
                 // Первичный запрос для немедленного отображения
                 when (val result = repository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
                     is AppResult.Success -> {
+                        AppLogger.i(TAG, "loadPortfolio: success, positions=${result.data.size}")
                         _uiState.update { it.copy(positions = result.data, isLoading = false) }
                     }
                     is AppResult.Failure -> {
@@ -215,6 +221,7 @@ class PortfolioViewModel
         }
 
         override fun onCleared() {
+            AppLogger.d(TAG, "onCleared")
             priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
         }
 

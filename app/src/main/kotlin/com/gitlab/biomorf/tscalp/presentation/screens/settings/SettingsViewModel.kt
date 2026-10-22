@@ -60,6 +60,10 @@ class SettingsViewModel
         private val _uiState = MutableStateFlow(SettingsUiState())
         val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+        companion object {
+            private const val TAG = "SettingsViewModel"
+        }
+
         init {
             // Первичная синхронизация состояния с DataStore.
             // Два launch в одном init, а не в двух отдельных блоках:
@@ -86,6 +90,7 @@ class SettingsViewModel
             // Реактивный флаг «есть ли хотя бы один инициализированный брокер»
             viewModelScope.launch {
                 brokerManager.anyInitialized.collect { isInit ->
+                    AppLogger.d(TAG, "anyInitialized = $isInit")
                     _uiState.update { it.copy(anyApiInitialized = isInit) }
                 }
             }
@@ -113,6 +118,7 @@ class SettingsViewModel
          */
         fun clearBrokerCredentials(brokerName: BrokerName) {
             viewModelScope.launch {
+                AppLogger.d(TAG, "clearBrokerCredentials: $brokerName")
                 settingsRepository.clearBrokerCredentials(brokerName)
                 if (brokerName == BrokerName.TINVEST) {
                     tradingStateRepository.clear()
@@ -148,6 +154,7 @@ class SettingsViewModel
                         BrokerName.FINAM -> it.copy(finamConnected = false)
                     }
                 }
+                AppLogger.d(TAG, "clearBrokerCredentials: $brokerName deinitialized")
             }
         }
 
@@ -184,6 +191,7 @@ class SettingsViewModel
 
         fun setSandboxMode(enabled: Boolean) {
             viewModelScope.launch {
+                AppLogger.d(TAG, "setSandboxMode: $enabled")
                 settingsRepository.setSandboxMode(enabled)
                 _uiState.update { it.copy(isSandboxMode = enabled) }
             }
@@ -217,6 +225,7 @@ class SettingsViewModel
             token: String,
             sandbox: Boolean,
         ): Boolean {
+            AppLogger.d(TAG, "initializeTInvest: sandbox=$sandbox")
             val cleanToken = token.trim()
             return try {
                 settingsRepository.saveBrokerCredentials(BrokerName.TINVEST, cleanToken, sandbox)
@@ -234,8 +243,10 @@ class SettingsViewModel
                         tInvestConnected = true,
                     )
                 }
+                AppLogger.d(TAG, "initializeTInvest: success")
                 true
             } catch (e: Exception) {
+                AppLogger.e(TAG, "initializeTInvest failed", e)
                 _uiState.update {
                     it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
                 }
@@ -247,6 +258,7 @@ class SettingsViewModel
             refreshToken: String,
             isWriteMode: Boolean,
         ): Boolean {
+            AppLogger.d(TAG, "initializeBcs: isWriteMode=$isWriteMode")
             val cleanToken = refreshToken.trim()
             return try {
                 val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
@@ -262,8 +274,10 @@ class SettingsViewModel
                         bcsConnected = true,
                     )
                 }
+                AppLogger.d(TAG, "initializeBcs: success")
                 true
             } catch (e: Exception) {
+                AppLogger.e(TAG, "initializeBcs failed", e)
                 _uiState.update {
                     it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
                 }
@@ -272,6 +286,7 @@ class SettingsViewModel
         }
 
         suspend fun initializeFinam(token: String): Boolean {
+            AppLogger.d(TAG, "initializeFinam")
             val cleanToken = token.trim()
             return try {
                 settingsRepository.saveToken(BrokerName.FINAM, cleanToken)
@@ -284,8 +299,10 @@ class SettingsViewModel
                         finamConnected = true,
                     )
                 }
+                AppLogger.d(TAG, "initializeFinam: success")
                 true
             } catch (e: Exception) {
+                AppLogger.e(TAG, "initializeFinam failed", e)
                 _uiState.update {
                     it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
                 }
@@ -315,19 +332,19 @@ class SettingsViewModel
         }
 
         fun toggleGrpc(enabled: Boolean) {
-            AppLogger.d("SettingsVM", "toggleGrpc: enabled=$enabled")
+            AppLogger.d(TAG, "toggleGrpc: enabled=$enabled")
             DebugConfig.disableGrpc = enabled
             _uiState.update { it.copy(disableGrpc = DebugConfig.disableGrpc) }
         }
 
         fun toggleWs(enabled: Boolean) {
-            AppLogger.d("SettingsVM", "toggleWs: enabled=$enabled")
+            AppLogger.d(TAG, "toggleWs: enabled=$enabled")
             DebugConfig.disableWs = enabled
             _uiState.update { it.copy(disableWs = DebugConfig.disableWs) }
         }
 
         fun toggleRest(enabled: Boolean) {
-            AppLogger.d("SettingsVM", "toggleRest: enabled=$enabled")
+            AppLogger.d(TAG, "toggleRest: enabled=$enabled")
             DebugConfig.forceRest = enabled
             _uiState.update { it.copy(forceRest = DebugConfig.forceRest) }
             priceFlowManager.reapplyDebugFlags()

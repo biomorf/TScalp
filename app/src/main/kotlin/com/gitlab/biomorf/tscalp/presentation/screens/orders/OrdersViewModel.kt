@@ -85,6 +85,7 @@ class OrdersViewModel
             // StateFlow отдаёт текущее значение сразу при подписке — аналог
             // прежнего прямого вызова checkApiInitialization() в init.
             viewModelScope.launch {
+                AppLogger.d(TAG, "subscribed to anyInitialized")
                 brokerManager.anyInitialized.collect {
                     checkApiInitialization()
                 }
@@ -94,6 +95,7 @@ class OrdersViewModel
             // в Настройках DataStore эмитит изменение, Flow доставляет,
             // state обновляется, onClick видит свежее значение.
             viewModelScope.launch {
+                AppLogger.d(TAG, "subscribed to confirmOrdersEnabledFlow")
                 settingsRepository.confirmOrdersEnabledFlow.collect { enabled ->
                     _uiState.update { it.copy(confirmOrdersEnabled = enabled) }
                 }
@@ -103,6 +105,7 @@ class OrdersViewModel
             // задаётся через syncPriceInterest() при изменении
             // selectedInstrument / pairedInstrument.
             viewModelScope.launch {
+                AppLogger.d(TAG, "subscribed to prices")
                 priceFlowManager.prices.collect { update ->
                     updateInstrumentPrice(update)
                 }
@@ -124,6 +127,7 @@ class OrdersViewModel
 
         fun checkApiInitialization() {
             val isAnyApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
+            AppLogger.d(TAG, "checkApiInitialization: anyApiInitialized=$isAnyApiInit")
             _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
 
             if (isAnyApiInit) {
@@ -216,6 +220,7 @@ class OrdersViewModel
 
         fun loadAccounts() {
             viewModelScope.launch {
+                AppLogger.d(TAG, "loadAccounts: start")
                 _uiState.update { it.copy(isLoading = true) }
 
                 val sandboxMode = settingsRepository.isSandboxMode()
@@ -241,6 +246,10 @@ class OrdersViewModel
                                     },
                             )
                         }
+                        AppLogger.i(
+                            TAG,
+                            "loadAccounts: success, accounts=${accounts.size}, selected=${_uiState.value.selectedAccountId}",
+                        )
                         if (_uiState.value.selectedAccountId != null) {
                             startPositionUpdates()
                         }
@@ -419,6 +428,10 @@ class OrdersViewModel
             val state = _uiState.value
             val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return
             val quantity = state.quantityAsLong ?: return
+            AppLogger.d(
+                TAG,
+                "postOrder: direction=$direction, ticker=$ticker, qty=$quantity, orderType=${state.orderType}",
+            )
 
             val activeCard = state.lastSelectedInstruments.find { it.instrument.ticker == ticker }
             val brokerName = activeCard?.brokerName ?: BrokerName.TINVEST
@@ -999,6 +1012,7 @@ class OrdersViewModel
         }
 
         override fun onCleared() {
+            AppLogger.d(TAG, "onCleared")
             priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
