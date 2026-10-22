@@ -1080,55 +1080,116 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 ---
-### Парсинг expireDate для stop-order'ов GOOD_TILL_DATE
+### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
 
-**Мобильная работа:** частичное (парсер + unit-тест — с
-телефона; сборка и прогон теста — с десктопа).
+**Мобильная работа:** частичное (правки `.kt` — через proot;
+сборка и UI-проверка — на десктопе).
 
-**Статус:** запланировано. Потерянная логика.
+**Статус:** запланировано. **UI — требует санкции.**
 
-**Контекст:** в `TInvestOrdersService.kt:155` устанавливался
-`expireDate` через `parseDate(request.expireDate)`, но метод
-`parseDate` возвращал пустой `com.google.protobuf.Timestamp` —
-то есть фактически ничего не парсил. Это была недописанная
-логика. При чистке detekt-issues (UnusedParameter) метод
-и его вызов удалены, чтобы не оставлять сломанный код.
+**Контекст:** `GOOD_TILL_DATE` в домене и proto есть, но
+пользователь физически не может его выбрать — UI всегда
+отправляет `GOOD_TILL_CANCEL` (`OrdersUiState.expirationType`
+дефолт, DatePicker'а нет).
 
-**Последствие:** при создании stop-order с типом экспирации
-`GOOD_TILL_DATE` поле `expireDate` в `PostStopOrderRequest`
-не устанавливается. Такие заявки либо отклоняются биржей,
-либо обрабатываются некорректно.
+Диагностика 2026-10-22 показала: цепочка `expireDate` рвётся
+в **четырёх** местах, а не в одном `parseDate`.
+Восстановление только backend'а (`parseDate` + `setExpireDate`)
+эффекта не даст — `expireDate` из UI не приходит. Это не
+«потерянная логика», а **нереализованная UI-фича**.
+
+**Цепочка (что сломано):**
+1. **UI (`OrdersScreen.kt`)** — нет поля выбора даты
+   (ни DatePicker, ни текстового ввода). `expirationType`
+   не переключается с `GOOD_TILL_CANCEL`.
+2. **`OrdersUiState`** — поле `expireDate: String?` есть,
+   но UI его не заполняет. `expirationType` фиксирован.
+3. **`OrdersViewModel.postOrder`** — не передаёт
+   `state.expireDate` в `PrepareOrderRequestUseCase.prepare`.
+4. **`PrepareOrderRequestUseCase.prepare`** — нет параметра
+   `expireDate`, `StopOrderRequest.expireDate` всегда `null`.
+5. **`TInvestOrdersService.postStopOrder`** — вызов
+   `builder.setExpireDate(parseDate(...))` закомментирован.
+6. **`parseDate`** — закомментирован, в исходной версии
+   возвращал пустой `Timestamp` (ничего не парсил).
+
+**Что уже есть:** домен `StopOrderRequest.expireDate: String?`,
+enum `StopOrderExpirationType { GOOD_TILL_CANCEL,
+GOOD_TILL_DATE }`, proto-поле `PostStopOrderRequest.expire_date`
+(`com.google.protobuf.Timestamp`).
 
 **Файлы:**
-- `data/api/TInvestOrdersService.kt` — восстановить парсинг.
-- `domain/models/OrderModels.kt` — `expireDate` в
-  `StopOrderRequest` (нужно уточнить формат — String?).
+- `presentation/screens/orders/OrdersScreen.kt` — UI:
+  DatePicker или текстовое поле.
+- `presentation/screens/orders/OrdersUiState.kt` — модель
+  (уже есть, не трогать).
+- `presentation/screens/orders/OrdersViewModel.kt` — проброс
+  `expireDate` в use case.
+- `domain/usecases/PrepareOrderRequestUseCase.kt` — параметр
+  `expireDate`, проброс в `StopOrderRequest`.
+- `data/api/TInvestOrdersService.kt` — восстановить
+  `parseDate` + `builder.setExpireDate(...)`.
 
 **Шаги:**
-1. Уточнить формат `expireDate`, приходящего из UI
-   (ISO-8601? unix timestamp? yyyy-MM-dd?).
-2. Уточнить формат, ожидаемый T-Invest API:
-   `com.google.protobuf.Timestamp` (секунды + наносекунды
-   от epoch UTC).
-3. Реализовать парсер с обработкой ошибок
-   (невалидный формат → возвращать `AppResult.Failure`).
-4. Восстановить вызов `builder.setExpireDate(...)` при
-   `expirationType == GOOD_TILL_DATE`.
-5. Покрыть unit-тестом.
+1. **Санкция на UI** (правило 1 AGENTS.md): согласовать
+   формат выбора даты (DatePicker vs текстовое поле) и
+   тексты.
+2. UI: добавить поле выбора даты + переключатель
+   `expirationType`. Показывать дату только при
+   `GOOD_TILL_DATE`.
+3. ViewModel: прокинуть `state.expireDate` в
+   `prepareOrderRequest.prepare(...)`.
+4. UseCase: добавить параметр `expireDate: String?`,
+   пробросить в `StopOrderRequest`.
+5. Service: реализовать `parseDate` — формат из UI →
+   `com.google.protobuf.Timestamp` (seconds + nanos).
+   Восстановить `builder.setExpireDate(...)` при
+   `GOOD_TILL_DATE`. Ошибка парсинга → `AppResult.Failure`.
+6. Тесты: `parseDate` (валидный формат, невалидный → null),
+   `prepare` (expireDate пробрасывается).
+7. Live-тест: stop-заявка с `GOOD_TILL_DATE` создаётся
+   и принимается биржей.
 
-**Референс:**
-- Документация T-Invest API → PostStopOrder → expireDate.
-- `com.google.protobuf.Timestamp` — стандартный proto-тип,
-  поля `seconds` (int64), `nanos` (int32).
+**Референсы:**
+- Документация T-Invest API → PostStopOrder → `expire_date`.
+- `com.google.protobuf.Timestamp` (seconds, nanos).
+- Текущее состояние секции — в git-истории (первоначальная
+  неверная постановка «потерянная логика»).
+
+**Ограничения:**
+- UI-изменение требует санкции (правило 1 AGENTS.md).
+- Не менять публичный контракт `StopOrderRequest` без
+  миграции вызывающих.
+- Не смешивать с «Split order domain into sealed
+  Regular/Stop» — `StopOrderRequest` там не трогается.
+- Формат `expireDate` в домене — `String?` (ISO-8601 или
+  дата без времени — решить при санкции). После парсинга
+  в `Timestamp` — UTC.
 
 **Критерий готовности:**
-- Stop-order с `GOOD_TILL_DATE` создаётся и принимается
-  биржей; `expireDate` в запросе совпадает с UI-значением.
-- Покрыто тестом.
+- В UI можно выбрать `GOOD_TILL_DATE` и дату.
+- Stop-заявка с датой создаётся и принимается биржей.
+- `expireDate` в `PostStopOrderRequest` совпадает с UI.
+- Ошибка парсинга → `AppResult.Failure` с понятным
+  сообщением (не падение).
+- Покрыто тестами.
 
-**Оценка:** ~1 час.
+**Оценка:** ~2–3 часа (санкция на UI 10 мин, UI 1 ч,
+ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
+тесты 30 мин, live-тест 30 мин).
 
-**Зависимости:** нет.
+**Зависимости:** нет. **Разблокирует:** пользовательский
+сценарий `GOOD_TILL_DATE` (сейчас недоступен).
+
+**Открытые вопросы:**
+- Формат выбора: DatePicker (с ограничениями диапазона?) или
+  текстовое поле (ISO-8601)? Решить на санкции.
+- Ограничения T-Invest на `expire_date` — минимальная /
+  максимальная дата? Проверить в документации.
+- Смена типа с `GOOD_TILL_DATE` на `GOOD_TILL_CANCEL` —
+  очищать `expireDate` или оставлять?
+
+
 
 
 
