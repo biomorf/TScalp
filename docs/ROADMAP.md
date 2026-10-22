@@ -53,8 +53,10 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 **Мобильная работа:** невозможно (требует сборки и проверки
 краша на устройстве/эмуляторе).
 
-**Статус:** запланировано. **Триггер сработал (2026-10-21):**
-AppMetrica зафиксировала краш `io.grpc.StatusException`.
+**Статус:** в работе.
+**Ветка:** bugfix/grpc-exception-guard.
+**Триггер сработал (2026-10-21):** AppMetrica зафиксировала
+краш `io.grpc.StatusException`.
 
 **Контекст:** `io.grpc.kotlin.ClientCalls` при ошибке канала
 доставляет `StatusException` через поздний callback в уже
