@@ -927,13 +927,47 @@ debug-флаги (`disableGrpc` / `disableWs` / `forceRest`).
   PR #34 (`TInvestOrchestrator: pricesSnapshot: forceRest=true`
   → `TInvestRest: POST .../GetLastPrices` → `[manager/polling]`).
   Находка про непустой union как предусловие для проверки
-  `forceRest` — требует отдельной записи в «Полировка
-  debug-переключателей» (ROADMAP). По правилу 5g правка
-  планов — категория 2, идёт прямо в `dev` после merge
-  этого PR (не в feature-ветке).
+  `forceRest` — записана в «Полировка debug-переключателей»
+  (`docs/ROADMAP.md`, коммит `ccd363c`).
 
 **Когда вернуться:** следующая UI-задача по `SettingsScreen`
 или в рамках «Рефакторинг ViewModel-слоя»
 (ROADMAP → «Рефакторинг архитектурного долга»).
+
+---
+
+## Strip warnings в debug APK
+
+**Статус:** отложен. Не наш код.
+
+**Симптом:** при `./gradlew :app:assembleDebug` (или
+`:app:installDebug`) в выводе:
+
+    > Task :app:stripDebugDebugSymbols
+    Unable to strip the following libraries, packaging them as
+    they are: libandroidx.graphics.path.so, libconscrypt_jni.so,
+    libdatastore_shared_counter.so.
+
+**Причина:** `stripDebugDebugSymbols` пытается удалить отладочные
+символы из `.so` библиотек для уменьшения APK. Часть библиотек
+не содержит strip-таблиц (собраны без них), поэтому strip не
+может их обработать и оставляет как есть. Сборка не падает —
+`.so` попадают в APK в исходном виде.
+
+**Последствия:** нет. Единственное — debug APK чуть больше.
+В release-сборке (`minifyEnabled = false`) strip выполняется,
+на маленьких библиотеках разница незначительна.
+
+**Решение:** не наша проблема. Все три — сторонние:
+- `libandroidx.graphics.path.so` — AndroidX (core).
+- `libconscrypt_jni.so` — Conscrypt (SSL на Android).
+- `libdatastore_shared_counter.so` — DataStore (Preferences).
+
+Если понадобится убрать warning — `packaging { jniLibs {
+keepDebugSymbols += "..." } }` или `doNotStrip`. Лишний конфиг
+ради косметики.
+
+**Когда вернуться:** если warning начнёт накапливаться новыми
+библиотеками (5+) или размер debug APK станет проблемой.
 
 ---
