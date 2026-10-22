@@ -116,8 +116,8 @@ connecting (attempt=1)`, два `[WS/ktor/TInvest] connecting`.
 **Файлы:**
 - `presentation/screens/settings/SettingsViewModel.kt`
 - `presentation/screens/settings/SettingsScreen.kt`
-- `domain/api/PriceStreamManager.kt`
-- `domain/api/PositionStreamManager.kt`
+- `domain/api/PriceFlowManager.kt`
+- `domain/api/PositionFlowManager.kt`
 
 **Шаги:**
 1. Прогнать все 8 комбинаций тумблеров.
