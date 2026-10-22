@@ -652,60 +652,147 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
 
 ---
 
-## Двойное WS-подключение к PositionsStream
+## Race в start/stop *FlowManager — дублирование стримов
 
-**Статус:** отложен, требует подтверждения.
+**Статус:** открыт, подтверждён по логу 2026-10-22.
+**Приоритет:** высокий — блокирует корректность при добавлении
+BCS / Finam.
 
-**Симптом:** в logcat `TInvestWS` периодически видны два
-параллельных WS-подключения с одинаковым `accountId`. Оба
-проходят handshake и подписку, сервер подтверждает обе
-(`POSITIONS_SUBSCRIPTION_STATUS_SUCCESS`). В других сессиях
-— одно подключение.
+**Симптом:** при старте приложения в logcat видно **по два
+параллельных подключения** одного и того же транспорта на
+каждом менеджере. Пример из live-смоука 2026-10-22
+(Pixel 8a, Android 14, старт приложения):
 
-**Наблюдение:** факт зафиксирован один раз, в логе от
-2026-10-20 17:41:28.988 — два `connecting (attempt=1)` из
-разных тредов (12745 и 12752). В логах 18:53 и 19:00 —
-одно подключение. Значит, воспроизводится не всегда.
+    D PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    D PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    D TInvestMarketData: [stream/gRPC/TInvest]: connecting (attempt=1)
+    D TInvestMarketData: [stream/gRPC/TInvest]: connecting (attempt=1)
+    D TInvestWS:          [WS/ktor/TInvest]  connecting (attempt=1)
+    D TInvestWS:          [WS/ktor/TInvest]  connecting (attempt=1)
 
-**Причина:** не подтверждена. Гипотезы:
-1. `TInvestOrchestrator.positionsStream` вызывается дважды —
-   например, `subscribePositions` собирается из двух мест
-   (прямой вызов + через `PositionFlowManager`).
-2. `PositionFlowManager` перезапускает поток и создаёт
-   второй `collect` на WS-flow, оставляя первый активным.
-3. `TInvestPositionsWebSocket.subscribePositions` возвращает
-   `flow { ... }` — каждый `collect` создаёт новую
-   корутину и новое `client.webSocket(...)`. Если flow
-   собирается дважды (рекомпозиция во ViewModel, два
-   подписчика), получаем два параллельных подключения.
+Две строки `Перезапуск` — из разных нитей в одну миллисекунду:
+`4138-4138` (main, `PortfolioViewModel.loadPortfolio` →
+`startPositionUpdates`) и `4138-4224` (worker, `TScalpApplication.restoreTInvest`
+→ `positionFlowManager.start`). Оба вызова легитимны, оба
+защищены идемпотентностью — она не срабатывает из-за race.
 
-**Файлы для отладки:**
-- `transport-ktor/src/commonMain/.../TInvestPositionsWebSocket.kt` —
-  `subscribePositions` (создание корутин-канала на каждый
-  `collect`).
-- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` —
-  вызов `wsFallback(accountId)`.
-- `domain/api/PositionFlowManager.kt` — `start()`, защита
-  «уже запущен», сбор flow.
-- `presentation/screens/portfolio/PortfolioViewModel.kt` —
-  точка подписки на `PositionFlowManager.positions`.
+Та же картина на `PriceFlowManager` (два `TInvestWS/prices connecting`
+подряд от двух `setInterest` из `PortfolioViewModel` и
+`OrdersViewModel`) и на `OrderFlowManager` (симметричный код).
 
-**Решение:** пока не принято. Функционально не блокирует
-(сервер принимает обе подписки), но создаёт лишнюю нагрузку
-и шум в логах. При подтверждении — либо защита от повторного
-`collect` в `TInvestPositionsWebSocket` (например,
-`shareIn` / `stateIn` с уникальным upstream), либо
-устранение двойного вызова на уровне оркестратора.
+**Причина (подтверждена чтением кода):** `start()` в
+`PositionFlowManager` / `PriceFlowManager` / `OrderFlowManager`
+имеет критическую секцию без синхронизации между проверкой
+идемпотентности и присвоением `job`:
 
-**Когда вернуться:**
-- При следующей правке `PositionFlowManager` или
-  `TInvestOrchestrator`.
-- При появлении жалоб на нагрузку или лаги от WS.
-- При подключении WS к ценам и ордерам (та же природа
-  проблемы, проявится вероятнее на частых стримах).
+    fun start(accountId: String, forceRestart: Boolean = false) {
+        if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
+            return
+        }
+        if (currentAccountId != accountId) { /* snapshotCache.clear() */ }
+        job?.cancel()                 // ← нет синхронизации
+        currentAccountId = accountId  // ← нет синхронизации
+        job = scope.launch { ... }    // ← нет синхронизации
+    }
+
+Interleaving при двух параллельных вызовах (A из main, B из worker):
+
+1. A: `job?.isActive == true && currentAccountId == accountId` →
+   `false` (оба null) → проверка пройдена.
+2. B: то же → проверка пройдена.
+3. A: `job?.cancel()` (no-op), `currentAccountId = acc`, `job_A = launch{...}`.
+4. B: `job?.cancel()` (no-op или отменяет `job_A` в зависимости от
+   точного момента), `currentAccountId = acc`, `job_B = launch{...}`
+   — перезаписывает ссылку.
+
+**Результат:** два активных job'а, ссылка на один (`job_B`).
+`job_A` — orphan: продолжает эмитить в `_flow` до перезапуска
+процесса. Следующий `stop()` отменит только `job_B`, `job_A`
+останется. Это **утечка job'ов**, а не только дубль транспорта.
+
+**Уточнение к старой записи «Двойное WS-подключение к PositionsStream»**
+(была отложена, требует подтверждения — теперь подтверждена и
+расширена):
+- Гипотеза №3 (два подписчика на cold flow
+  `broker.subscribePositions()`) **не подтвердилась**: подписчики
+  на `_flow` (hot `SharedFlow`), не на cold flow брокера.
+- Гипотеза №2 (перезапуск создаёт второй `collect`, оставляя
+  первый активным) — подтвердилась, но **механизм другой**:
+  не «оставил активным», а «создал orphan из-за race в
+  `start/stop`».
+- Гипотеза №1 (двойной вызов `start`) — подтвердилась:
+  `TScalpApplication` + ViewModel.
+
+**Происхождение:** паттерн «cancel-then-restart» вошёл в код
+вместе с задачей «Ktor REST transport для polling» и
+debug-переключателями транспортов (`toggleRest` →
+`reapplyDebugFlags()`). В `PositionFlowManager.reapplyDebugFlags`
+и `PriceFlowManager.reapplyDebugFlags` используется та же схема
+`job?.cancel(); start(..., forceRestart = true)` — потенциально
+с той же race-природой. **Сами переключатели нужны** для
+динамических live-тестов транспортов — их не удалять. Фикс
+(`synchronized`) закрывает и их случай тоже.
+
+**Последствия без фикса (усугубление при BCS / Finam):**
+
+1. **Больше вызовов.** `TScalpApplication.restoreBrokerConnection`
+   вызывается в цикле по всем брокерам. N брокеров × M ViewModel =
+   N×M потенциальных гонок.
+2. **Больше транспортов на один дубль.** У Finam три транспорта
+   (gRPC / WS / REST) — двойной `start()` = двойной набор всех
+   трёх, не одного.
+3. **Rate-limits.** T-Invest: `80001` «превышен лимит одновременных
+   stream-соединений»; BCS: 429 Too Many Requests; Finam — свои
+   лимиты. Дубль подключений съедает квоты без пользы.
+4. **Диагностика.** События приходят в два потока, UI получает
+   один из них — расследование инцидентов в проде усложняется
+   пропорционально числу дублей.
+
+**Решение:**
+
+1. Добавить приватный lock-объект в каждый менеджер:
+
+        private val startLock = Any()
+
+2. Обернуть в `synchronized(startLock) { ... }`:
+   - `PositionFlowManager.start` / `stop` / `reapplyDebugFlags`
+   - `PriceFlowManager.setInterest` / `clearInterest` /
+     `reapplyDebugFlags`
+   - `OrderFlowManager.start` / `stop`
+3. Критическая секция — короткая: только чтение `job` /
+   `currentAccountId`, изменение, `launch`. Внутрь секции
+   `scope.launch` кладётся без `join` (сам launch — не suspend),
+   так что блокировки на IO не будет.
+4. Покрыть unit-тестом: два параллельных `start(accountId)`
+   из разных корутин → `job` одинаковый (сравнение ссылок),
+   `broker.subscribePositions()` вызван один раз (мок-счётчик).
+
+**Почему `synchronized`, а не `Mutex`:**
+- `start()/stop()/setInterest()` — не `suspend`, ни одного
+  suspension point в критической секции. `synchronized` проще,
+  не требует `coroutineScope`/`runBlocking` на вызывающей стороне.
+- Если в будущем понадобится suspend внутри (например,
+  асинхронная проверка инициализации брокера) — заменить на
+  `Mutex`, но сейчас это over-engineering.
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/api/PositionFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/PriceFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/OrderFlowManager.kt`
+- `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt`
+  (дополнить тест на race)
+
+**Когда вернуться:** сейчас. Фикс изолированный, разблокирует
+BCS / Finam без утечек.
+
+**Связанные записи:**
+- «Двойное WS-подключение к PositionsStream» — объединено в
+  эту запись (2026-10-22).
+- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport» —
+  оркестратор как downstream потребитель корректен, проблема
+  upstream (в менеджерах).
 
 ---
-
 
 ## INTERNAL: 70001 при параллельных unary-запросах
 
