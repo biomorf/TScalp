@@ -161,7 +161,10 @@ production-код, race проверяется реально.
 краша на устройстве/эмуляторе).
 
 **Статус:** в работе.
-**Ветка:** bugfix/grpc-exception-guard.
+**Подтверждение:** ожидает (PR #33 merged, ветка удалена;
+AppMetrica, 2–3 дня после релиза; критерий: нет новых fatal
+`io.grpc.StatusException`, появились non-fatal
+`"Unhandled gRPC"`; детали — «Критерий закрытия» ниже).
 **Триггер сработал (2026-10-21):** AppMetrica зафиксировала
 краш `io.grpc.StatusException`.
 
