@@ -110,122 +110,6 @@ production-код, race проверяется реально.
   + мокнутого брокера. Уточнить при написании первого теста.
 
 
-
----
-### Race в start/stop `*FlowManager` — дублирование стримов
-
-**Мобильная работа:** частичное (правки `.kt` — через proot;
-сборка и тесты — на десктопе).
-
-**Статус:** в работе.
-**Ветка:** bugfix/manager-start-race.
-
-**Контекст:** в `start/stop/reapplyDebugFlags` трёх менеджеров
-(`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`)
-есть критическая секция без синхронизации между проверкой
-идемпотентности и присваиванием `job`. При двух параллельных
-вызовах (main + worker) оба проходят проверку и создают по
-job'у, второй перезаписывает ссылку — первый становится orphan
-и продолжает эмитить в `_flow` до перезапуска процесса.
-
-Подтверждено логом 2026-10-22: два `Перезапуск потока позиций`
-из разных нитей в одну миллисекунду, два `[stream/gRPC/TInvest]:
-connecting (attempt=1)`, два `[WS/ktor/TInvest] connecting`.
-Полный разбор — `docs/ISSUES.md` → «Race в start/stop
-*FlowManager — дублирование стримов».
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `app/src/main/kotlin/.../domain/api/PositionFlowManager.kt`
-- `app/src/main/kotlin/.../domain/api/PriceFlowManager.kt`
-- `app/src/main/kotlin/.../domain/api/OrderFlowManager.kt`
-- `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt`
-  (дополнить тест на конкурентный `start`)
-
-**Шаги:**
-1. В каждый менеджер добавить `private val startLock = Any()`.
-2. Обернуть в `synchronized(startLock)`:
-   - `PositionFlowManager`: `start` / `stop` / `reapplyDebugFlags`;
-   - `PriceFlowManager`: `setInterest` / `clearInterest` /
-     `reapplyDebugFlags`;
-   - `OrderFlowManager`: `start` / `stop`.
-3. Гейт: полный набор.
-
-Unit-тест на race (два параллельных `start()` → один
-`subscribePositions`) вынесен в отдельную задачу
-(«Race-тесты для `*FlowManager`»): без fake-broker
-`TInvestBrokerAPI` (final class, `@Inject constructor`) тест
-не воспроизводит race, а sequential-вариант утверждает
-неверное поведение.
-
-**Референсы:**
-- `docs/ISSUES.md` → «Race в start/stop *FlowManager —
-  дублирование стримов» — симптом, interleaving, последствия.
-- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport»
-  — downstream композиция корректна, проблема upstream.
-
-**Ограничения:**
-- Не менять публичные контракты (`start` / `stop` / `setInterest`
-  — те же сигнатуры).
-- Не удалять debug-тумблеры — они нужны для live-тестов
-  транспортов. Фикс `synchronized` закрывает и их race.
-- `synchronized`, не `Mutex`: в критической секции нет
-  suspension points.
-
-**Критерий готовности:**
-- При старте приложения в logcat — **по одному** `connecting`
-  на каждый транспорт (gRPC, WS), не два.
-- Полный гейт зелёный.
-
-**Live-тест (2026-10-22, эмулятор Pixel 8a, Android 14):**
-
-Было (до фикса, лог 2026-10-22, старая сборка):
-
-    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
-    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
-    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
-    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
-    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
-    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
-
-Стало (после фикса, новая сборка):
-
-    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
-    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
-    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
-    PositionFlowManager: Поток позиций уже запущен для 2309452027
-    PositionFlowManager: Поток позиций уже запущен для 2309452027
-
-Второй вызов `start()` (из `PortfolioViewModel`) теперь корректно
-отсекается проверкой идемпотентности — race между проверкой и
-присвоением `job` закрыт `synchronized(startLock)`.
-
-`PriceFlowManager`: два `setInterest` (из разных ViewModel) идут
-**последовательно**, с законным изменением union
-(`0 → 1 → 2`), каждое изменение → ровно один `restart`. Дублей
-транспорта нет.
-
-Debug-тумблеры (`toggleGrpc` / `toggleWs` / `toggleRest`) проверены
-на лету: `reapplyDebugFlags` даёт ровно один `stopped` + один
-`started`, `forceRest` перенаправляет polling на
-`[REST/ktor/TInvest]`. Приложение живо, крашей в logcat нет.
-
-**Оценка:** ~40 минут.
-
-**Зависимости:** нет. **Разблокирует** корректное поведение
-менеджеров при добавлении BCS / Finam (без orphan job'ов и
-лишнего расхода rate-limits), а также корректную проверку
-8 комбинаций debug-переключателей
-(ROADMAP → «Полировка debug-переключателей») — иначе
-проверка ловит race самого `reapplyDebugFlags`, а не
-тестируемую логику.
-
-**Открытые вопросы:** нет.
-
-
-
----
 ### Полировка debug-переключателей
 
 **Мобильная работа:** невозможно (требует сборки и визуальной
@@ -2188,3 +2072,117 @@ proot; сборка и тесты — на десктопе).
 
 **Оценка:** ~30–40 минут.
 
+
+---
+
+### ✅ Race в start/stop `*FlowManager` — дублирование стримов
+
+**Мобильная работа:** частичное (правки `.kt` — через proot;
+сборка и тесты — на десктопе).
+
+**Контекст:** в `start/stop/reapplyDebugFlags` трёх менеджеров
+(`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`)
+есть критическая секция без синхронизации между проверкой
+идемпотентности и присваиванием `job`. При двух параллельных
+вызовах (main + worker) оба проходят проверку и создают по
+job'у, второй перезаписывает ссылку — первый становится orphan
+и продолжает эмитить в `_flow` до перезапуска процесса.
+
+Подтверждено логом 2026-10-22: два `Перезапуск потока позиций`
+из разных нитей в одну миллисекунду, два `[stream/gRPC/TInvest]:
+connecting (attempt=1)`, два `[WS/ktor/TInvest] connecting`.
+Полный разбор — `docs/ISSUES.md` → «Race в start/stop
+*FlowManager — дублирование стримов».
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/api/PositionFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/PriceFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/OrderFlowManager.kt`
+- `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt`
+  (дополнить тест на конкурентный `start`)
+
+**Шаги:**
+1. В каждый менеджер добавить `private val startLock = Any()`.
+2. Обернуть в `synchronized(startLock)`:
+   - `PositionFlowManager`: `start` / `stop` / `reapplyDebugFlags`;
+   - `PriceFlowManager`: `setInterest` / `clearInterest` /
+     `reapplyDebugFlags`;
+   - `OrderFlowManager`: `start` / `stop`.
+3. Гейт: полный набор.
+
+Unit-тест на race (два параллельных `start()` → один
+`subscribePositions`) вынесен в отдельную задачу
+(«Race-тесты для `*FlowManager`»): без fake-broker
+`TInvestBrokerAPI` (final class, `@Inject constructor`) тест
+не воспроизводит race, а sequential-вариант утверждает
+неверное поведение.
+
+**Референсы:**
+- `docs/ISSUES.md` → «Race в start/stop *FlowManager —
+  дублирование стримов» — симптом, interleaving, последствия.
+- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport»
+  — downstream композиция корректна, проблема upstream.
+
+**Ограничения:**
+- Не менять публичные контракты (`start` / `stop` / `setInterest`
+  — те же сигнатуры).
+- Не удалять debug-тумблеры — они нужны для live-тестов
+  транспортов. Фикс `synchronized` закрывает и их race.
+- `synchronized`, не `Mutex`: в критической секции нет
+  suspension points.
+
+**Критерий готовности:**
+- При старте приложения в logcat — **по одному** `connecting`
+  на каждый транспорт (gRPC, WS), не два.
+- Полный гейт зелёный.
+
+**Live-тест (2026-10-22, эмулятор Pixel 8a, Android 14):**
+
+Было (до фикса, лог 2026-10-22, старая сборка):
+
+    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
+    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
+    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
+    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
+
+Стало (после фикса, новая сборка):
+
+    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
+    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
+    PositionFlowManager: Поток позиций уже запущен для 2309452027
+    PositionFlowManager: Поток позиций уже запущен для 2309452027
+
+Второй вызов `start()` (из `PortfolioViewModel`) теперь корректно
+отсекается проверкой идемпотентности — race между проверкой и
+присвоением `job` закрыт `synchronized(startLock)`.
+
+`PriceFlowManager`: два `setInterest` (из разных ViewModel) идут
+**последовательно**, с законным изменением union
+(`0 → 1 → 2`), каждое изменение → ровно один `restart`. Дублей
+транспорта нет.
+
+Debug-тумблеры (`toggleGrpc` / `toggleWs` / `toggleRest`) проверены
+на лету: `reapplyDebugFlags` даёт ровно один `stopped` + один
+`started`, `forceRest` перенаправляет polling на
+`[REST/ktor/TInvest]`. Приложение живо, крашей в logcat нет.
+
+**Оценка:** ~40 минут.
+
+**Зависимости:** нет. **Разблокирует** корректное поведение
+менеджеров при добавлении BCS / Finam (без orphan job'ов и
+лишнего расхода rate-limits), а также корректную проверку
+8 комбинаций debug-переключателей
+(ROADMAP → «Полировка debug-переключателей») — иначе
+проверка ловит race самого `reapplyDebugFlags`, а не
+тестируемую логику.
+
+**Открытые вопросы:** нет.
+
+
+
+---
