@@ -841,19 +841,35 @@ BCS / Finam без утечек.
 
 ## Дублирующий init {} в SettingsViewModel
 
-**Статус:** открыт.
+**Статус:** в работе.
+**Ветка:** bugfix/settingsvm-duplicate-init.
 
 **Симптом:** в `SettingsViewModel` два блока `init {}` подряд
-(строки ~72–108). Оба запускают `viewModelScope.launch` с
+(строки ~63–95). Оба запускают `viewModelScope.launch` с
 идентичным по составу `_uiState.update` (`isSandboxMode`,
 `isConfirmOrdersEnabled`, `hasSavedToken` ×3,
 `loadDefaultAccountId`). Первый дополнительно устанавливает
 debug-флаги (`disableGrpc` / `disableWs` / `forceRest`).
 Второй также подписывается на `brokerManager.anyInitialized`.
 
-**Причина:** при добавлении debug-флагов (тумблеров gRPC/WS/REST
-в задаче «Ktor REST transport для polling») создан новый `init`
-с расширенным `_uiState.update`, а исходный `init` не удалён.
+**Git-история (уточнено 2026-10-22):**
+- Второй `init` появился в `79b3543` (drop OrdersViewModel,
+  2026-10-06): в диффе — `}init {` без перевода строки
+  (признак копипаста «на скорую руку»), первый `launch`
+  полностью дублирует существующий `init`, второй —
+  подписка на `brokerManager.anyInitialized`.
+  В commit message — только про отвязку от OrdersViewModel,
+  про FlowManagers ни слова.
+- Debug-флаги добавлены позже, в `952f975` (2026-10-22),
+  в **первый** `init`. Второй при этом не тронут.
+
+**Причина:** копипаст при добавлении подписки
+`brokerManager.anyInitialized` в `79b3543`. Автор скопировал
+существующий `init` целиком, добавил второй `launch`,
+исходный оставил. Гипотеза о «workaround для FlowManagers
+после restart» **не подтверждается git-историей**: ни в
+`79b3543`, ни в связанном `5c90c01` (deinitialize on logout)
+не было правок FlowManagers внутри `init`.
 
 **Последствия:**
 - Два `_uiState.update` подряд при создании ViewModel — два
