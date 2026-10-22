@@ -248,6 +248,18 @@ start/stop `*FlowManager`» в `dev` (PR #34), тест проверяет
 3. Добавить сохранение состояния тумблеров в DataStore
    (опционально).
 
+**Находка из live-теста 2026-10-22 (PR #35,
+`settingsvm-duplicate-init`):** проверка `forceRest` требует
+**непустого union** цен — быть на экране «Заявки» или
+«Портфель», не в «Настройках». Иначе
+`PriceFlowManager.restart(emptySet())` ничего не запускает,
+ветка `forceRest` не проверяется (в логе — `Union empty,
+gRPC stream stopped`). Покрыто отдельно в live-тесте PR #34
+(`pricesSnapshot: forceRest=true` → `TInvestRest: POST
+.../GetLastPrices` → `[manager/polling]`). При прогоне
+8 комбинаций — учитывать: сначала открыть экран с
+активными ценами, потом переключать.
+
 **Оценка:** ~1–2 часа.
 
 **Зависимости:** нет. Разблокирована — фикс race в
