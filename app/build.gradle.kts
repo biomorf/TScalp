@@ -124,6 +124,13 @@ android {
                 "NewerVersionAvailable",
             )
     }
+
+    // JVM unit-тесты: android.util.Log (через AppLogger) недоступен
+    // без Robolectric. Возвращать значения по умолчанию, не бросать.
+    // Используется тестами flow-менеджеров (start() логирует через AppLogger).
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // Теперь блок kotlin на верхнем уровне (вне android)
