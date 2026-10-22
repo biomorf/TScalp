@@ -72,6 +72,13 @@ class OrderFlowManager
         private var job: Job? = null
         private var currentAccountId: String? = null
 
+        /**
+         * Защищает check-then-set в [start] / [stop] от race: два
+         * параллельных вызова иначе проходят проверку идемпотентности
+         * и создают по job'у (первый — orphan).
+         */
+        private val startLock = Any()
+
         private val scope =
             CoroutineScope(
                 Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
@@ -86,7 +93,12 @@ class OrderFlowManager
          * счёта — перезапускает оба источника (polling и stream)
          * и очищает кэш.
          */
-        fun start(accountId: String) {
+        fun start(accountId: String) =
+            synchronized(startLock) {
+                doStart(accountId)
+            }
+
+        private fun doStart(accountId: String) {
             if (job?.isActive == true && currentAccountId == accountId) {
                 AppLogger.d(TAG, "Поток заявок уже запущен для $accountId")
                 return
@@ -120,20 +132,21 @@ class OrderFlowManager
          * Останавливает агрегацию и очищает кэш. Следующий [start]
          * снова поднимется с чистого листа.
          */
-        fun stop() {
-            job?.cancel()
-            job = null
-            currentAccountId = null
-            scope.launch {
-                // Если между stop() и этой корутиной уже вызвали
-                // start() — не затираем свежие данные.
-                if (currentAccountId == null) {
-                    cache.clear()
-                    _orders.value = emptyList()
-                    _hasLoaded.value = false
+        fun stop() =
+            synchronized(startLock) {
+                job?.cancel()
+                job = null
+                currentAccountId = null
+                scope.launch {
+                    // Если между stop() и этой корутиной уже вызвали
+                    // start() — не затираем свежие данные.
+                    if (currentAccountId == null) {
+                        cache.clear()
+                        _orders.value = emptyList()
+                        _hasLoaded.value = false
+                    }
                 }
             }
-        }
 
         private suspend fun collectPolling(
             broker: TInvestBrokerAPI,
