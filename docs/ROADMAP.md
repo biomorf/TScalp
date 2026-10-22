@@ -929,7 +929,8 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 **Мобильная работа:** невозможно (требует сборки и проверки
 реактивного поведения).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/streamstate.
 
 **Контекст:** нужна индикация того, получает ли менеджер данные
 из быстрого источника (стрим) или из медленного (polling),
@@ -938,43 +939,259 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 **Важно:** `StreamState` сигнализирует **менеджер** (так как он
 агрегирует данные и знает источники), а не оркестратор.
 
+**Предусловия:** нет (разблокировано PR #30, #37; фикс
+race — PR #34 — в `dev`).
+
 **Файлы:**
 - `domain/models/StreamState.kt` — новый файл.
-- `domain/api/PriceFlowManager.kt` — добавить
-  `connectionState: StateFlow<StreamState>`.
-- `domain/api/PositionFlowManager.kt` — то же.
-- `domain/api/OrderFlowManager.kt` — то же.
+- `data/orchestrator/TInvestOrchestrator.kt` — разделить
+  `positionsStream` (stream-only) и `positionsSnapshot`
+  (unary с fallback).
+- `data/api/TInvestBrokerAPI.kt` — новый `positionsSnapshot`
+  (TInvest-specific, по образцу `ordersSnapshot`).
+- `domain/api/BrokerApi.kt` — KDoc `subscribePositions`
+  (обновить: stream-only).
+- `domain/api/PositionFlowManager.kt` — рефакторинг (Вариант B) +
+  `connectionState`.
+- `domain/api/PriceFlowManager.kt` — `connectionState`.
+- `domain/api/OrderFlowManager.kt` — `connectionState`.
+- `domain/models/PositionStreamItem.kt` — KDoc (центральная модель).
+- `docs/streams.md` — раздел «PositionsStream» (polling перенесён
+  в менеджер).
 
 **Шаги:**
 
-1. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`.
-2. В `PriceFlowManager` завести `private val _connectionState =
-   MutableStateFlow(StreamState.STOPPED)` и `val connectionState`.
-   - `LIVE` — данные приходят из стрима (gRPC/WS).
-   - `POLLING` — данные приходят из polling (стрим молчит > N сек).
-   - `STALE` — данные не приходят ни откуда > 15 сек.
-   - `STOPPED` — union пуст.
-3. В `PositionFlowManager` — аналогично. Порог STALE — 30 секунд.
-4. В `OrderFlowManager` — аналогично (stream + polling).
-5. «Биржа закрыта» ≠ STALE: если polling возвращает цену
+1. **Рефакторинг `PositionFlowManager` (Вариант B).**
+   Сейчас `TInvestOrchestrator.positionsStream` возвращает
+   **готовый merge** stream+polling
+   (`streamWithFallback(primary, fallback, polling = positionsPolling(...))`),
+   а `PositionFlowManager` просто собирает его — не зная источника.
+   Привести к схеме `OrderFlowManager` (Order-style):
+   - В `TInvestOrchestrator.positionsStream` убрать `polling =
+     positionsPolling(...)` — оставить stream-only (gRPC + WS).
+     Удалить private `positionsPolling`.
+   - `positionsSnapshot(accountId, sandboxMode): List<PositionStreamItem>`
+     — return type меняется с `List<PortfolioPosition>`;
+     конвертация через `marketData.convertToStreamItem`.
+   - `TInvestBrokerAPI.positionsSnapshot(accountId): List<PositionStreamItem>`
+     — новый TInvest-specific метод, делегирует в оркестратор.
+   - `PositionFlowManager.start` — Order-style:
+     - scope → `Dispatchers.IO.limitedParallelism(1)` (mutable
+       `snapshotCache` разделяется stream/polling, нужна
+       сериализация; Price без этого — у него нет mutable state).
+     - один `job`, внутри `coroutineScope { launch { collectStream };
+       launch { runPolling } }`.
+     - при смене accountId — `snapshotCache.clear()` +
+       `_flow.resetReplayCache()` (фикс ISSUES «Позиции не
+       обновляются при смене счёта»).
+     - `synchronized(startLock)` сохранить (регрессия race-фикса
+       PR #34 недопустима).
+   - `collectStream(broker, accountId)`:
+     `broker.subscribePositions(accountId).collect { emitEnriched(it) }`.
+   - `runPolling(broker, accountId)`: цикл раз в 10 сек через
+     `broker.positionsSnapshot(accountId)`, `emitEnriched` на
+     каждый элемент; NOT_FOUND → выход из цикла; прочие ошибки —
+     лог + продолжение.
+   - `emitEnriched(item)`: `enrichAndCache(item)?.let { _flow.emit(it) }`.
+   - `enrichAndCache` — `private` (Clean: детали реализации не
+     торчат наружу; тесты — через `_flow.collect`).
+   - `reapplyDebugFlags` — `doStart(accountId, forceRestart = true)`.
+   - `stop` — cancel `job`, `_flow.resetReplayCache()`,
+     `currentAccountId = null`.
+2. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`
+   в `domain/models/StreamState.kt`.
+3. `PriceFlowManager` — `connectionState: StateFlow<StreamState>`:
+   - LIVE — эмиссия из `runGrcpStream` за последние 15 сек;
+   - POLLING — эмиссия только из `runPolling`, стрим молчит > 15 сек;
+   - STALE — нет эмиссий из обоих > 30 сек;
+   - STOPPED — union пуст (`restart(emptySet())`).
+4. `PositionFlowManager` — аналогично (LIVE = эмиссия из
+   `collectStream`, POLLING = только `runPolling`, STALE = нет
+   эмиссий > 30 сек, STOPPED = `stop()` или пустой accountId).
+5. `OrderFlowManager` — аналогично (LIVE = эмиссия из
+   `collectStream`, POLLING = только `collectPolling`, STALE =
+   нет эмиссий > 30 сек, STOPPED = `stop()`). Переименование
+   `collectPolling` → `runPolling` — в задаче унификации,
+   здесь не трогаем.
+6. «Биржа закрыта» ≠ STALE: если polling возвращает цену
    (пусть и неизменную), состояние остаётся POLLING.
 
-**Референсы:** нет.
+**Референсы:**
+- `OrderFlowManager.kt` — образец Order-style (один job,
+  `limitedParallelism(1)`, `collectStream`/`collectPolling`).
+- `PriceFlowManager.kt` — образец `_connectionState`-поля.
 
 **Ограничения:**
 - **Не менять** публичный контракт `prices: SharedFlow<...>`.
 - Не путать STALE с отсутствием интереса — STOPPED при пустом union.
+- `synchronized(startLock)` сохранить — регрессия race-фикса
+  PR #34 недопустима.
+- `enrichAndCache` — `private`. `PositionFlowManagerTest.kt`
+  переписать: тесты через `_flow.collect` вместо прямого
+  вызова `enrichAndCache`.
 
 **Критерий готовности:**
 - `connectionState` реактивно меняется при переключении
   источников и при отсутствии данных.
 - В `logcat` при смене состояния видно `[stream] state: LIVE → POLLING`
   (или аналогичное).
+- При старте — ровно один `connecting` на транспорт
+  (регрессия race не вернулась).
+- `docs/streams.md` обновлён: раздел «PositionsStream» →
+  polling перенесён в `PositionFlowManager`.
+- `TInvestOrchestratorFallbackTest` обновлён под новый
+  `positionsSnapshot`.
 
-**Оценка:** ~30 минут.
+**Оценка:** ~2 часа (оркестратор 20 мин, broker 10 мин,
+менеджер 45 мин, KDoc PositionStreamItem 15 мин, StreamState
+в трёх менеджерах 30 мин, тесты 30 мин, docs 10 мин).
 
-**Зависимости:** нет. Разблокирована — Оркестратор и методы
-`xxxSnapshot` готовы (PR #30).
+**Зависимости:** нет.
+
+**Связанные задачи (обязательны к закрытию после):**
+- `### Унификация имён и KDoc в *FlowManager` — переименования
+  в Price/Order, KDoc.
+- `### DebugConfig: только для debug-сборок` — флаги в release.
+
+
+
+---
+### Унификация имён и KDoc в *FlowManager
+
+**Мобильная работа:** невозможно (сборка и тесты).
+
+**Статус:** запланировано. **Связанная:** обязательна к
+закрытию сразу после `### StreamState в data-слое`.
+
+**Контекст:** после рефакторинга `PositionFlowManager` (StreamState,
+Variant B) три менеджера организованы единообразно по структуре
+(Order-style), но имена методов и redundant-проверки различаются.
+
+**Что меняется:**
+- `PriceFlowManager`: `runGrcpStream` → `collectStream`
+  (опечатка `Grcp` → `Grpc`, глагол `run` → `collect`).
+  Убрать redundant `if (DebugConfig.forceRest) return` в начале
+  `runGrcpStream` — оркестратор уже проверяет (в
+  `TInvestOrchestrator.pricesStream`).
+- `OrderFlowManager`: `collectPolling` → `runPolling` (природа
+  polling — unary, не stream; глагол `run`).
+- KDoc на `PortfolioPosition` — рассмотреть, добавить по полям
+  (часть полей неочевидна: `pointValue`, `profit` — серверный
+  или клиентский, `instrumentType` — строковый enum).
+- KDoc на `PriceFlowManager` / `OrderFlowManager` — проверить
+  полноту (какие поля, зачем, откуда).
+- KDoc на `_prices: replay=0` — объяснить семантику (цены —
+  one-shot updates; `_flow: replay=1` позиции — stateful
+  snapshot; это не консистентно, но осознанно).
+
+**Файлы:**
+- `domain/api/PriceFlowManager.kt`
+- `domain/api/OrderFlowManager.kt`
+- `domain/models/Portfolio.kt` (KDoc на `PortfolioPosition`)
+
+**Оценка:** ~1 час.
+
+**Связано:**
+- блокируется `### StreamState в data-слое`.
+
+
+
+---
+### TInvest-specific методы в *FlowManager
+
+**Мобильная работа:** невозможно.
+
+**Статус:** запланировано. **Ревизия после StreamState.**
+
+**Контекст:** `PriceFlowManager`, `OrderFlowManager`,
+`PositionFlowManager` кастуют
+`brokerManager.getBroker(TINVEST) as? TInvestBrokerAPI` и
+вызывают TInvest-specific `pricesSnapshot`/`ordersSnapshot`/
+`positionsSnapshot`. Эти методы — **не** методы `BrokerApi`.
+Причина: polling с fallback gRPC→REST живёт в оркестраторе,
+методы брокер-специфичны. Отступление от Clean: domain-слой
+знает про data-implementation (`TInvestBrokerAPI`).
+
+**Вопросы к разбору:**
+- Выносить ли `*Snapshot` в `BrokerApi` (с fallback-логикой на
+  уровне брокера: `fetchPositionsSnapshot` уже есть — может,
+  `pricesSnapshot`/`ordersSnapshot` тоже)?
+- Или оставить TInvest-specific с KDoc на каст (объяснить, почему
+  cast, какие брокеры что поддерживают)?
+- Что делать с BCS/Finam — у них нет `*Snapshot` с fallback. Если
+  выносить в `BrokerApi` — default-реализация `emptyMap`/`emptyList`
+  или ошибка?
+
+**Оценка:** ~1 час на анализ + реализация (если выносим — ~2-3 ч).
+
+**Связано:**
+- блокируется `### StreamState в data-слое`.
+- разблокирует корректную работу при BCS/Finam.
+
+
+
+---
+### DebugConfig: только для debug-сборок
+
+**Мобильная работа:** невозможно.
+
+**Статус:** запланировано. **Обязательна к закрытию сразу
+после `### StreamState в data-слое`.**
+
+**Контекст:** в задаче «Ktor REST transport для polling»
+добавлены флаги `DebugConfig.forceRest` / `disableGrpc` /
+`disableWs` + UI-тумблеры в Settings для динамической проверки
+транспортов. Флаги доступны в release-сборке, UI-секция
+отображается. Идея — активировать только в debug.
+
+**Что меняется:**
+- `DebugConfig`: флаги проверяют `BuildConfig.DEBUG` (в release
+  всегда `false`).
+- Settings: секция debug-переключателей отображается только
+  при `BuildConfig.DEBUG`.
+- Проверить: есть ли `BuildConfig.DEBUG` в других местах проекта
+  для консистентности.
+
+**Файлы:**
+- `data/orchestrator/DebugConfig.kt`
+- `presentation/screens/settings/SettingsViewModel.kt`
+- `presentation/screens/settings/SettingsScreen.kt`
+
+**Оценка:** ~1-1.5 часа.
+
+**Связано:**
+- блокируется `### StreamState в data-слое`.
+
+
+
+---
+### KDoc на PortfolioPosition
+
+**Мобильная работа:** невозможно (небольшая, но требует сборки).
+
+**Статус:** запланировано. **Разобраться и рассмотреть
+целесообразность.**
+
+**Контекст:** при добавлении KDoc на `PositionStreamItem`
+(StreamState) обнаружилось, что `PortfolioPosition` и другие
+domain-модели не имеют KDoc — неясно, что означает каждое
+поле, откуда приходит, может ли быть null.
+
+**Что:**
+- Пройтись по `PortfolioPosition`, добавить KDoc на поля.
+- Рассмотреть, нужен ли KDoc на других domain-моделях
+  (`InstrumentUi`, `OrderListItem`, `OrderState`,
+  `PositionStreamItem` — уже сделано в StreamState).
+- Решить: это разовая задача или нужен консистентный подход
+  (KDoc на всех domain-моделях).
+
+**Оценка:** ~1 час (на PortfolioPosition) + ~1-2 часа
+(на остальные, если решим).
+
+**Связано:**
+- блокируется `### StreamState в data-слое` (KDoc на
+  PositionStreamItem — в StreamState).
+- связана с `### Унификация имён и KDoc в *FlowManager`.
 
 
 
