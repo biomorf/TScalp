@@ -1016,6 +1016,17 @@ race — PR #34 — в `dev`).
 6. «Биржа закрыта» ≠ STALE: если polling возвращает цену
    (пусть и неизменную), состояние остаётся POLLING.
 
+**Тесты:**
+- `enrichAndCache` — `private`. `PositionFlowManagerTest.kt` переписать:
+  тесты 1–4 (ws currency × 3, full share × 1) — через `_flow.collect`
+  вместо прямого вызова.
+- Тесты 5–6 (`concurrent start`, `reapplyDebugFlags`) — без изменений.
+- Новые тесты на `StreamState`-переходы: для Price / Position / Order
+  — LIVE → POLLING → STALE → STOPPED. Fake-clock через `runTest` /
+  `advanceTimeBy` либо таймаут через fake-эмиттеры.
+- `TInvestOrchestratorFallbackTest` — обновить под новый
+  `positionsSnapshot: List<PositionStreamItem>`.
+
 **Референсы:**
 - `OrderFlowManager.kt` — образец Order-style (один job,
   `limitedParallelism(1)`, `collectStream`/`collectPolling`).
