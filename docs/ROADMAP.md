@@ -12,6 +12,109 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 
 ---
+### Ktor REST для позиций/заявок/баланса
+
+**Мобильная работа:** невозможно (сборка и проверка на
+реальных данных).
+
+**Статус:** запланировано.
+
+**Контекст:** в рамках задачи «Ktor REST transport для
+polling» реализован REST fallback только для цен
+(`getLastPrices`). Для полного REST-фолбэка нужны ещё четыре
+метода: позиции, баланс, заявки regular, заявки stop.
+
+**Зачем:** snapshot заявок (`getOrders` / `getStopOrders`)
+недоступен через gRPC при обрыве транспорта — только REST.
+Позиции и баланс — та же проблема. Без REST-фолбэка для
+этих методов отказ gRPC означает, что polling не работает,
+и UI показывает пустоту.
+
+**Файлы:**
+- `transport-ktor/src/commonMain/kotlin/.../TInvestRestTransport.kt`
+  — добавить методы.
+- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt`
+  — `positionsRestFallback`, `ordersRestFallback`,
+  `balanceRestFallback`.
+- `app/src/main/kotlin/.../di/DataModule.kt` — прокинуть
+  fallback'и в оркестратор.
+
+**Шаги:**
+1. `TInvestRestTransport`:
+   - `fetchPositionsSnapshot(accountId, sandboxMode): List<PortfolioPosition>`
+   - `getBalance(accountId): Double`
+   - `getOrders(accountId): List<OrderListItem>`
+   - `getStopOrders(accountId): List<OrderListItem>`
+2. Оркестратор — новые fallback-функции по образцу
+   `pricesRestFallback`.
+3. DI — прокинуть в `provideTInvestBrokerAPI`.
+4. Live-тест: `forceRest=true` → позиции, заявки, баланс
+   обновляются через REST.
+5. Гейт: полный набор.
+
+**Референсы:**
+- `docs/ROADMAP.md` → закрытая
+  «Ktor REST transport для polling (prices)».
+- `TInvestRestTransport.getLastPrices` — образец.
+- `docs/rate-limits.md` — REST лимиты (6 запросов/сек).
+
+**Ограничения:**
+- Не трогать BCS — отдельная задача (отложена).
+- Не менять публичный контракт `BrokerApi`.
+- Логика fallback — в оркестраторе (как `pricesRestFallback`).
+
+**Критерий готовности:**
+- REST-фолбэк работает для всех четырёх методов.
+- `forceRest` перенаправляет позиции, заявки, баланс на REST.
+- Тесты зелёные.
+
+**Оценка:** ~2–3 часа.
+
+**Зависимости:** нет. **Разблокирует:** устойчивость polling
+при полном отказе gRPC.
+
+**Открытые вопросы:**
+- Формат REST-ответов для `getOrders` / `getStopOrders` —
+  совпадает ли с gRPC-ответом по структуре? Уточнить при
+  реализации.
+- `getPositions` и `fetchPositionsSnapshot` — REST-метод
+  один и тот же или разные? Уточнить по Swagger.
+
+
+
+---
+### Миграция BCS на Ktor
+
+**Мобильная работа:** невозможно (сборка и проверка на
+реальных данных).
+
+**Статус:** отложено.
+
+**Контекст:** `BcsBrokerApi` работает на отдельном
+`OkHttpClient()` (без shared `CustomTrustManager`). В задаче
+«Ktor REST transport для polling» планировалась фаза 3 —
+перевод BCS на Ktor, единый HTTP-клиент для всех REST-брокеров.
+
+**Причина отложенности:** BCS не блокирует текущую работу —
+работает на OkHttp, TLS на стандартных CA. Приоритет —
+T-Invest (там REST-fallback для всех методов ещё не готов).
+Отдельная миграция BCS добавляет риск без прямого benefit.
+
+**Когда возобновить:**
+- при интеграции BCS WS (WS на Ktor уже используется —
+  логично унифицировать клиент);
+- при первой жалобе на TLS BCS (см. `docs/ISSUES.md` →
+  «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager»);
+- при появлении третьего брокера (Finam), где Ktor уже
+  обязателен — тогда унифицировать сразу все.
+
+**Оценка:** ~2 часа.
+
+**Зависимости:** нет.
+
+
+
+---
 ### Race-тесты для `*FlowManager` (мок-инфраструктура)
 
 **Мобильная работа:** невозможно (сборка и прогон тестов —
@@ -99,8 +202,9 @@ production-код, race проверяется реально.
 **Оценка:** ~1–1.5 часа (mockk setup 15 мин, 3 теста 45 мин,
 проверка «красный без fix» 15 мин).
 
-**Зависимости:** блокируется задачей «Race в start/stop
-`*FlowManager`» (нужен фикс, который тест проверяет).
+**Зависимости:** нет. Разблокирована — фикс из «Race в
+start/stop `*FlowManager`» в `dev` (PR #34), тест проверяет
+его от регрессии.
 
 **Открытые вопросы:**
 - mockk inline-agent может конфликтовать с существующими
@@ -146,11 +250,9 @@ production-код, race проверяется реально.
 
 **Оценка:** ~1–2 часа.
 
-**Зависимости:** блокируется задачей «Race в start/stop
-`*FlowManager`» — иначе проверка комбинаций ловит race самого
-`reapplyDebugFlags`, а не тестируемую логику. См.
-`docs/ROADMAP.md` → «Race в start/stop `*FlowManager` —
-дублирование стримов».
+**Зависимости:** нет. Разблокирована — фикс race в
+`reapplyDebugFlags` в `dev` (PR #34). См.
+`docs/ROADMAP.md` → закрытая «Race в start/stop `*FlowManager`».
 
 
 
@@ -675,8 +777,16 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 **Мобильная работа:** частичное (правки `.kt`/`.kts` — через
 proot; сборка и проверка графа — на десктопе).
 
-**Статус:** в работе.
-**Ветка:** feature/hilt-koin-inventory
+**Статус:** отложено.
+**Ветка:** feature/hilt-koin-inventory (последний коммит
+2026-10-17 18:47, `e6b093a` — inventory-фаза).
+
+**Причина приостановки:** приоритет отдан задачам,
+разблокирующим BCS/Finam (race, REST polling). Миграция не
+блокирует текущую работу; в KMP-фазу не идёт.
+
+**Когда возобновить:** перед стартом iOS/KMP-фазы
+(эта задача — предусловие).
 
 **Контекст:** Hilt не поддерживает Kotlin Multiplatform —
 Android/JVM only. Koin — основной KMP-совместимый DI,
@@ -821,175 +931,6 @@ iOS-задачи миграция станет обязательной. Сей�
 - `startKoin` до Hilt — что именно «до»: в `onCreate`
   перед `super.onCreate()` или после? Проверить по
   документации bridge.
-
-
-
----
-### Ktor REST transport для polling
-
-**Мобильная работа:** невозможно (требует сборки и проверки на реальных данных).
-
-**Статус:** в работе.
-**Ветка:** feature/rest-polling-fallback.
-
-**Прогресс:**
-- [x] Шаг 1a: unary-обёртки в оркестраторе (PR #30).
-- [x] Шаг 1b: переключение менеджеров на оркестратор (PR #30).
-- [ ] Шаг 2: TInvestRestTransport + fallback gRPC -> REST.
-- [ ] Шаг 3: live-тест с DebugConfig.FORCE_REST_FOR_POLLING.
-
-**Целевая архитектура транспорта (уточнение от 2026-10-21):**
-
-Оркестратор — единственное место, где живёт транспорт. Стримы (Flow) и unary (suspend) оба проходят через него. Менеджеры вызывают `xxxStream` для стрима и `xxxSnapshot` в polling-loop, не зная про REST. Fallback gRPC→REST живёт только в оркестраторе.
-
-```mermaid
-flowchart BT
-    subgraph VM["ViewModels"]
-        direction TB
-        V1["PortfolioViewModel"]
-        V2["OrdersViewModel"]
-        V3["OrdersListViewModel"]
-    end
-
-    subgraph Managers["Domain managers (агрегация для UI)"]
-        direction TB
-        M1["PositionFlowManager"]
-        M2["PriceFlowManager"]
-        M3["OrderFlowManager"]
-    end
-
-    subgraph Orchestrator["TInvestOrchestrator<br/>(владеет транспортами)"]
-        direction TB
-        S["Streams (Flow)<br/>positionsStream<br/>pricesStream<br/>orderStateStream"]
-        U["Unary (suspend)<br/>positionsSnapshot<br/>pricesSnapshot<br/>ordersSnapshot<br/>balanceSnapshot"]
-        F["Fallback: try gRPC unary<br/>catch UNAVAILABLE/DEADLINE<br/>→ REST"]
-        U --> F
-    end
-
-    V1 -->|observes| M1
-    V1 -->|observes| M2
-    V2 -->|observes| M2
-    V2 -->|calls| U
-    V3 -->|observes| M2
-    V3 -->|observes| M3
-
-    M1 -->|uses| S
-    M1 -->|uses| U
-    M2 -->|uses| S
-    M2 -->|uses| U
-    M3 -->|uses| S
-    M3 -->|uses| U
-
-    style Orchestrator fill:#e1f5ff,stroke:#333,stroke-width:2px
-    style Managers fill:#fff4e1,stroke:#333,stroke-width:2px
-    style VM fill:#fff9c4,stroke:#333,stroke-width:2px
-    style F fill:#ffe1e1,stroke:#333,stroke-width:2px
-```
-
-**Порядок реализации (по шагам):**
-
-**Шаг 1a — unary-обёртки в оркестраторе (рефакторинг, без смены поведения).**
-- `positionsSnapshot(accountId, sandbox): List<PortfolioPosition>`
-- `pricesSnapshot(uids): Map<String, Double?>`
-- `ordersSnapshot(accountId): List<OrderListItem>`
-- `balanceSnapshot(accountId): Double`
-- Внутри — тонкие обёртки над `marketData.*` / `orders.*`. Fallback пока нет.
-- Гейт, коммит.
-
-**Шаг 1b — переключение менеджеров на оркестратор.**
-- `PriceFlowManager.runPolling`: `repository.getLastPricesResult(...)` → `orchestrator.pricesSnapshot(...)`.
-- `OrderFlowManager.collectPolling`: `broker.getOrders(...)` + `broker.getStopOrders(...)` → `orchestrator.ordersSnapshot(...)`.
-- Поведение не меняется, fallback пока нет.
-- Гейт, live-тест (цены и заявки обновляются), коммит.
-
-**Шаг 2 — REST transport и fallback.**
-- `TInvestRestTransport` в `:transport-ktor` (Ktor Client).
-- В `TInvestOrchestrator` unary-методы: `try { gRPC } catch (UNAVAILABLE | DEADLINE_EXCEEDED | UNIMPLEMENTED) { REST }`.
-- Логика: только на транспортные ошибки, не на бизнес-ошибки.
-- Гейт, коммит.
-
-**Шаг 3 — live-тест fallback.**
-- `DebugConfig.FORCE_REST_FOR_POLLING` — принудительный REST (debug-only).
-- Live-тест: позиции, цены, заявки обновляются через REST при `FORCE_REST` и при физическом отключении gRPC (например, через VPN).
-- Коммит, закрытие задачи.
-
-**Что НЕ в этой задаче:**
-- `getTradingStatuses` — отдельная задача «REST fallback для getTradingStatuses» (отложено). Причина: параллельные N запросов через REST дорого, критичность метода низкая (индикатор доступности, не данные).
-- Миграция BCS на Ktor REST — фаза 3 (после T-Invest).
-
-
-**Статус:** запланировано.
-
-**Контекст:** polling у T-Invest идёт через gRPC unary. REST API у T-Invest — прокси Swagger над gRPC unary-методами. Если gRPC-протокол недоступен (блокировка портов, региональные ограничения), REST даёт альтернативу. У BCS REST — уже основной транспорт, сейчас на OkHttp.
-
-**Снапшот заявок.** `OrderStateStream` (gRPC и WS) отдаёт только
-события, без replay — заявки, выставленные на другом устройстве
-до подписки, не видны. Для полной картины нужен unary-snapshot
-`getOrders` + `getStopOrders`. При отказе gRPC (WS работает) этот
-snapshot тоже недоступен — только REST. Поэтому REST-fallback для
-этих методов — часть фундамента для `OrderFlowManager`.
-
-**Зачем:** fallback для polling-уровня. Плюс — единый стиль на Ktor для всех REST-запросов (BCS мигрирует с OkHttp). Ktor даёт единый HTTP-клиент для KMP, OkHttp — нет.
-
-**Предусловия:** выполнена задача «Оркестратор стримов и Ktor WS transport» — нужен оркестратор как точка композиции.
-
-**Фазы:**
-
-**Фаза 1 — Ktor REST-клиент для T-Invest.**
-- `TInvestRestTransport` в `:transport-ktor/commonMain`.
-- Методы: `fetchPositionsSnapshot`, `getLastPrices`, `getBalance`,
-  **`getOrders`, `getStopOrders`** (snapshot заявок для
-  `OrderFlowManager`).
-- Прокси над REST-эндпоинтами T-Invest.
-
-**Фаза 2 — Fallback для polling T-Invest.**
-- Оркестратор композирует gRPC-unary + REST в polling-уровне.
-- При недоступности gRPC polling идёт через REST.
-- Логика переключения — в оркестраторе, не в брокере.
-- Потребители REST-snapshot: `fetchPositionsSnapshot` (уже),
-  `OrderFlowManager` (snapshot заявок, после реализации),
-  `PriceFlowManager` (последние цены).
-
-**Фаза 3 — Миграция BCS на Ktor.**
-- Перевести `BcsBrokerApi` с OkHttp на Ktor REST.
-- Удалить прямые OkHttp-зависимости (если не останется).
-- Опционально — сделать `:transport-ktor` точкой входа для всех REST-брокеров.
-
-**Файлы:**
-
-- `transport-ktor/src/commonMain/kotlin/.../TInvestRestTransport.kt` (новый).
-- `transport-ktor/src/commonMain/kotlin/.../BcsRestTransport.kt` (новый).
-- `app/data/api/TInvestMarketDataService.kt` — обновить.
-- `app/data/api/BcsBrokerApi.kt` — миграция.
-- `app/data/orchestrator/TInvestOrchestrator.kt` — композиция polling с REST.
-
-**Референсы:**
-
-- REST API T-Invest: `https://developer.tbank.ru/invest/intro/developer/protocols/restapi`.
-- Формат запроса: `POST https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1.<Service>/<Method>`.
-- Ktor Client: `https://ktor.io/docs/client-create-new-application.html`.
-- Существующая реализация `BcsBrokerApi` — образец REST-клиента.
-
-**Ограничения:**
-
-- Не смешивать с WS-транспортом (отдельные фазы, отдельные PR).
-- Логика fallback — в оркестраторе.
-- Лимиты REST те же, что у gRPC unary: 6 запросов/сек.
-- Не удалять OkHttp полностью, пока gRPC-транспорт использует его как engine.
-- Транспорт не знает про домен — возвращает DTO или сырой JSON, конвертация — в репозитории.
-
-**Критерий готовности:**
-
-- При недоступности gRPC polling идёт через REST.
-- `BcsBrokerApi` использует Ktor REST.
-- `TInvestOrchestrator` композирует gRPC unary + REST.
-- `getOrders` / `getStopOrders` работают через REST
-  (snapshot заявок доступен без gRPC).
-- Все unit-тесты зелёные (сейчас 94+), ktlint и detekt чистые.
-
-**Оценка:** ~4–6 часов.
-
-**Зависимости:** блокируется «Оркестратор стримов и Ktor WS transport».
 
 
 
@@ -2185,6 +2126,41 @@ Debug-тумблеры (`toggleGrpc` / `toggleWs` / `toggleRest`) провере
 тестируемую логику.
 
 **Открытые вопросы:** нет.
+
+
+
+---
+
+
+---
+### ✅ Ktor REST transport для polling (prices)
+
+**Мобильная работа:** невозможно (требует сборки и проверки
+на реальных данных).
+
+Реализован REST fallback только для цен — единственный
+REST-метод, доведённый до production в этой задаче. Остальные
+методы вынесены в отдельные задачи (см. ниже).
+
+**Что сделано (PR #30, PR #31):**
+- `TInvestRestTransport` в `:transport-ktor` — Ktor Client,
+  метод `getLastPrices`.
+- `pricesRestFallback` в `TInvestOrchestrator` — автоматический
+  fallback gRPC → REST на `UNAVAILABLE` / `DEADLINE_EXCEEDED`.
+- `DebugConfig.forceRest` — принудительный REST для live-теста.
+- Unary-обёртки в оркестраторе (шаги 1a/1b, PR #30).
+- Live-тест (2026-10-22 17:13): `forceRest=true` →
+  `[REST/ktor/TInvest] POST .../GetLastPrices` → цены
+  обновляются, крашей нет.
+
+**Что НЕ вошло (вынесено в отдельные задачи):**
+- REST для позиций / заявок / баланса — см.
+  `### Ktor REST для позиций/заявок/баланса`.
+- Миграция BCS на Ktor — см. `### Миграция BCS на Ktor`
+  (отложено, приоритет — T-Invest).
+
+**Гейт:** `testDebugUnitTest / lintDebug / ktlintCheck /
+detekt` — зелёные.
 
 
 
