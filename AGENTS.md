@@ -766,6 +766,24 @@ refspec: `git push gitlab refs/heads/*:refs/heads/* refs/tags/*:refs/tags/*`.
 Триггер: сессия 2026-10-21, токен T-Invest вставлен в чат
 открытым текстом через websocat-команду.
 
+**Правило 5 — не пайпить Gradle в `grep -q` / `head -1`.**
+Команды вроде `if ./gradlew ... | grep -q "FAILED"; then ...`
+опасны: `grep -q` закрывает pipe при первом матче, долгоживущий
+процесс (Gradle) получает SIGPIPE и может уронить shell. На
+proot / ограниченной машине это вырубало терминал дважды
+(2026-10-22, задачи SettingsViewModel и Race-тесты).
+
+Безопасно:
+- `./gradlew ... 2>&1 | tail -20` — читает до конца.
+- `./gradlew ... > /tmp/out.log 2>&1; grep -c PATTERN /tmp/out.log` —
+  сначала полный прогон, потом анализ.
+- В цикле `for i in 1..N` — **без** `grep -q`, результаты
+  копить в файл, разбирать после.
+
+Правило касается любого долгоживущего процесса в pipe: Gradle,
+adb logcat, adb shell с длинным выводом, python3 heredoc с
+интерактивным вводом.
+
 ### 5. Коммит после каждой задачи
 
 Как только задача завершена и проверена (сборка зелёная,
@@ -1374,6 +1392,36 @@ hotfix-веток.
 - Ожидаемый результат: 84 теста зелёных, только известные
   warning'и (список — в `docs/ISSUES.md`).
 - Новые warning'и, новые ошибки — разбираются, не игнорируются.
+
+### Unit-тесты: mockk для suspend-функций
+
+Для `suspend`-функций в mockk — **только** `coEvery` / `coVerify`
+(или `coAnswers`), не `every` / `verify`. На неверную версию
+компилятор ругается `Suspension functions can only be called
+within coroutine body` — ошибка указывает на строку `verify`,
+а не на функцию, что путает.
+
+Правило:
+- `suspend fun` → `coEvery { ... } returns ...`, `coVerify { ... }`.
+- обычная `fun` (включая `fun ... : Flow<T>`) → `every` / `verify`.
+
+Пример из проекта (`OrderFlowManager`):
+- `broker.subscribeOrderState(accountId): Flow<OrderState>` —
+  suspend → `coEvery` / `coVerify`.
+- `broker.ordersSnapshot(accountId): List<OrderListItem>` —
+  suspend → `coEvery` / `coVerify`.
+- `repository.subscribeLastPrices(broker, ids): Flow<Pair<String, Double>>`
+  — **не** suspend (обычный `fun`) → `every` / `verify`.
+
+При написании теста: посмотреть сигнатуру в исходнике, не
+догадываться по имени (`getX`, `subscribeX` — не признак suspend).
+
+**JVM-тесты и `android.util.Log`.** Если production-код в тесте
+вызывает `AppLogger` → `android.util.Log`, тест упадёт с
+`RuntimeException at Log.java:-1`. Лечится
+`testOptions { unitTests.isReturnDefaultValues = true }` в
+`app/build.gradle.kts`. Уже включено; причина — в
+`docs/gradle-setup.md` → «Unit-тесты».
 
 ### Самодостаточность инфраструктурных скриптов
 
