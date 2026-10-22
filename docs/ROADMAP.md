@@ -12,6 +12,106 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 
 ---
+### Race-тесты для `*FlowManager` (мок-инфраструктура)
+
+**Мобильная работа:** невозможно (сборка и прогон тестов —
+на десктопе).
+
+**Статус:** запланировано.
+
+**Контекст:** при фиксе race в `start/stop` (задача «Race в
+start/stop `*FlowManager`») unit-тест на конкурентный `start`
+не был написан: `TInvestBrokerAPI` — final class с
+`@Inject constructor` и множеством зависимостей
+(`channelFactory`, `httpClient`, `orchestrator`), а мокинг
+инфраструктуры (mockk) в проекте отсутствует. Без fake-broker
+тест либо не воспроизводит race (job завершается мгновенно на
+`null` broker), либо утверждает неверное поведение.
+
+**Зачем:** синхронизация сейчас держится на код-ревью. Без
+теста регрессия (убрали `synchronized` при рефакторинге) не
+будет поймана. При добавлении BCS / Finam race повторится на
+каждом новом менеджере — тест-контракт должен существовать
+до этого.
+
+**Варианты:**
+
+- **A. Добавить `mockk`.** `io.mockk:mockk` подключается,
+  мокирует `TInvestBrokerAPI` (final class — mockk справится
+  через inline-agent). Тест: 50 параллельных `start()` из
+  разных корутин → `subscribePositions` вызван ровно 1 раз.
+- **B. Рефакторинг `BrokerApi`.** Вынести интерфейс
+  `BrokerStreamSource` для `subscribePositions` /
+  `subscribeOrderState` / `subscribeLastPrices`, инжектить
+  в менеджеры, fake реализация в тестах. ~2–3 ч (рефакторинг
+  + тесты).
+- **C. Тест-хук.** `@VisibleForTesting internal fun
+  startCountForTest()` — счётчик внутри менеджера, тест
+  на sequential идемпотентность. Race не проверяется
+  (полумера).
+
+**Рекомендация:** **A**. Минимальное проникновение в
+production-код, race проверяется реально.
+
+**Файлы:**
+- `app/build.gradle.kts` — зависимость mockk (testImplementation).
+- `gradle/libs.versions.toml` — версия mockk.
+- `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt` —
+  новый тест `concurrent start creates single job`.
+- `app/src/test/kotlin/.../domain/api/OrderFlowManagerTest.kt` —
+  аналогичный тест.
+- `app/src/test/kotlin/.../domain/api/PriceFlowManagerTest.kt` —
+  тест на `setInterest` race.
+
+**Шаги:**
+1. Добавить `mockk` в `libs.versions.toml` + `build.gradle.kts`
+   (testImplementation).
+2. `PositionFlowManager`: тест — 50 параллельных `start("acc")`
+   из `runBlocking` + `coroutineScope { (1..50).map { async {...} }.awaitAll() }`,
+   verify `subscribePositions` called once.
+3. `OrderFlowManager`: аналогичный тест.
+4. `PriceFlowManager`: тест на `setInterest` — два параллельных
+   `setInterest` с одинаковым union → `restart` вызван один раз.
+5. Гейт: полный набор.
+
+**Референсы:**
+- `docs/ISSUES.md` → «Race в start/stop `*FlowManager` —
+  дублирование стримов» — симптом, interleaving.
+- `docs/ROADMAP.md` → «Race в start/stop `*FlowManager`» —
+  фикс без теста (deferred test).
+
+**Ограничения:**
+- Не менять production-код под тесты (никаких
+  `@VisibleForTesting` хуков, никаких open-модификаторов на
+  `TInvestBrokerAPI`).
+- Не использовать mockk вне этого теста — только точечно
+  для fake-broker.
+- Не смешивать с рефакторингом `BrokerApi` — отдельная задача,
+  если понадобится.
+
+**Критерий готовности:**
+- Тест на race для каждого из трёх менеджеров — красный при
+  удалённом `synchronized`, зелёный с ним (проверка:
+  временно убрать `synchronized` в одной ветке, прогнать —
+  должен упасть).
+- Полный гейт зелёный.
+
+**Оценка:** ~1–1.5 часа (mockk setup 15 мин, 3 теста 45 мин,
+проверка «красный без fix» 15 мин).
+
+**Зависимости:** блокируется задачей «Race в start/stop
+`*FlowManager`» (нужен фикс, который тест проверяет).
+
+**Открытые вопросы:**
+- mockk inline-agent может конфликтовать с существующими
+  instrumentation-тестами (если появятся). Проверить при
+  старте.
+- Нужны ли фейки для `BrokerManager` или хватит `emptyMap()`
+  + мокнутого брокера. Уточнить при написании первого теста.
+
+
+
+---
 ### Race в start/stop `*FlowManager` — дублирование стримов
 
 **Мобильная работа:** частичное (правки `.kt` — через proot;
@@ -50,10 +150,14 @@ connecting (attempt=1)`, два `[WS/ktor/TInvest] connecting`.
    - `PriceFlowManager`: `setInterest` / `clearInterest` /
      `reapplyDebugFlags`;
    - `OrderFlowManager`: `start` / `stop`.
-3. Unit-тест: два параллельных `start(accountId)` из разных
-   корутин → `broker.subscribePositions()` вызван один раз
-   (mock-счётчик), `job` один (сравнение ссылок).
-4. Гейт: полный набор.
+3. Гейт: полный набор.
+
+Unit-тест на race (два параллельных `start()` → один
+`subscribePositions`) вынесен в отдельную задачу
+(«Race-тесты для `*FlowManager`»): без fake-broker
+`TInvestBrokerAPI` (final class, `@Inject constructor`) тест
+не воспроизводит race, а sequential-вариант утверждает
+неверное поведение.
 
 **Референсы:**
 - `docs/ISSUES.md` → «Race в start/stop *FlowManager —
@@ -72,8 +176,6 @@ connecting (attempt=1)`, два `[WS/ktor/TInvest] connecting`.
 **Критерий готовности:**
 - При старте приложения в logcat — **по одному** `connecting`
   на каждый транспорт (gRPC, WS), не два.
-- Unit-тест на конкурентный `start` подтверждает один вызов
-  `subscribePositions()`.
 - Полный гейт зелёный.
 
 **Оценка:** ~40 минут.
