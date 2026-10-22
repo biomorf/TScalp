@@ -61,7 +61,13 @@ class SettingsViewModel
         val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
         init {
-            // Первичная синхронизация состояния с DataStore
+            // Первичная синхронизация состояния с DataStore.
+            // Два launch в одном init, а не в двух отдельных блоках:
+            // оба относятся к первичной синхронизации _uiState
+            // (данные DataStore + реактивный флаг anyApiInitialized).
+            // Раньше было два init, и при добавлении подписки на
+            // anyInitialized первый launch скопировали целиком — см.
+            // docs/ISSUES.md → «Дублирующий init {} в SettingsViewModel».
             viewModelScope.launch {
                 _uiState.update {
                     it.copy(
@@ -74,22 +80,6 @@ class SettingsViewModel
                         disableGrpc = DebugConfig.disableGrpc,
                         disableWs = DebugConfig.disableWs,
                         forceRest = DebugConfig.forceRest,
-                    )
-                }
-            }
-        }
-
-        init {
-            // Первичная синхронизация состояния с DataStore
-            viewModelScope.launch {
-                _uiState.update {
-                    it.copy(
-                        isSandboxMode = settingsRepository.isSandboxMode(),
-                        isConfirmOrdersEnabled = settingsRepository.isConfirmOrdersEnabled(),
-                        tInvestConnected = settingsRepository.hasSavedToken(BrokerName.TINVEST),
-                        bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
-                        finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
-                        defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: "",
                     )
                 }
             }

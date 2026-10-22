@@ -892,6 +892,46 @@ debug-флаги (`disableGrpc` / `disableWs` / `forceRest`).
 - `app/src/main/kotlin/.../presentation/screens/settings/SettingsViewModel.kt` —
   строки ~72–108 (два `init {}`).
 
+**Live-тест (2026-10-22, эмулятор Pixel 8a, Android 14):**
+
+Сценарий A — debug-флаги переживают пересоздание VM:
+- В Настройках включить `disableGrpc` и `forceRest`.
+- Перейти на «Заявки» (Settings VM уничтожается).
+- Вернуться в Настройки.
+- **Ожидание / результат:** оба тумблера сохранили `true`.
+  До фикса второй `init` перезаписывал `_uiState` без debug-полей —
+  race мог сбросить `true → false`.
+
+Сценарий B — `anyApiInitialized` работает (logout/login):
+- Logout TInvest → вкладка «Заявки» показывает «API не подключён».
+  В логе: `Channel shutdownNow invoked`, `[unary/gRPC/TInvest]:
+  stopped`, `clearInterest(ORDERS), union changed: 2 → 0`,
+  `Union empty, gRPC stream stopped`.
+- Login TInvest → стримы поднимаются.
+  В логе: `setInterest(ORDERS), union changed: 0 → 2`,
+  `Перезапуск потока позиций: null → 2309452027`,
+  `[stream/gRPC/TInvest]: SUBSCRIBED → INITIAL_POSITIONS`,
+  три `Поток позиций уже запущен` (race-фикс PR #34 работает,
+  дублей нет).
+
+Сценарий C — `toggleRest` без дублей:
+- Включить `forceRest`. В логе: `toggleRest: enabled=true`
+  (ровно 1), `PositionFlowManager: reapplyDebugFlags` (ровно 1),
+  `[unary/gRPC/TInvest]: stopped` + `started`, один
+  `[stream/gRPC/TInvest]: connecting (attempt=1)`.
+- Выключить `forceRest`. Тот же паттерн, без дублей.
+- **Наблюдение:** в сценарии C был открыт экран Настроек —
+  интерес к ценам пуст, `PriceFlowManager: Union empty, gRPC
+  stream stopped`, ветка `forceRest` для `PriceFlowManager`
+  в этом сценарии не проверялась. Покрыта отдельно в live-тесте
+  PR #34 (`TInvestOrchestrator: pricesSnapshot: forceRest=true`
+  → `TInvestRest: POST .../GetLastPrices` → `[manager/polling]`).
+  Находка про непустой union как предусловие для проверки
+  `forceRest` — требует отдельной записи в «Полировка
+  debug-переключателей» (ROADMAP). По правилу 5g правка
+  планов — категория 2, идёт прямо в `dev` после merge
+  этого PR (не в feature-ветке).
+
 **Когда вернуться:** следующая UI-задача по `SettingsScreen`
 или в рамках «Рефакторинг ViewModel-слоя»
 (ROADMAP → «Рефакторинг архитектурного долга»).
