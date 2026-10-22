@@ -21,6 +21,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
 
 class PositionFlowManagerTest {
     private fun manager(): PositionFlowManager = PositionFlowManager(BrokerManager(emptyMap()))
@@ -149,6 +150,45 @@ class PositionFlowManagerTest {
             delay(200)
 
             verify(exactly = 1) { mockBroker.subscribePositions("acc-1") }
+
+            manager.stop()
+        }
+
+    @Test
+    fun `concurrent reapplyDebugFlags creates single active job`() =
+        runBlocking {
+            val activeCount = AtomicInteger(0)
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            coEvery { mockBroker.subscribePositions(any()) } returns
+                flow {
+                    activeCount.incrementAndGet()
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        activeCount.decrementAndGet()
+                    }
+                }
+
+            val manager = PositionFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+
+            // Дать первому стриму (из start) стартовать — иначе
+            // reapplyDebugFlags увидит currentAccountId=null и no-op.
+            manager.start("acc-1")
+            delay(100)
+
+            // 50 параллельных reapplyDebugFlags — каждый cancel'ит
+            // предыдущий job и запускает новый. С synchronized(startLock)
+            // cancel'ы последовательны, к концу активен 1 job.
+            // Без synchronized — несколько job'ов выживают, activeCount > 1.
+            coroutineScope {
+                (1..50)
+                    .map { async(Dispatchers.Default) { manager.reapplyDebugFlags() } }
+                    .awaitAll()
+            }
+            delay(500)
+
+            assertEquals(1, activeCount.get())
 
             manager.stop()
         }

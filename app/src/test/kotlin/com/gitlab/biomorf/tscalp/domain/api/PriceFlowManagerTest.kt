@@ -92,4 +92,48 @@ class PriceFlowManagerTest {
             manager.clearInterest(PriceConsumer.ORDERS)
         }
     }
+
+    @Test
+    fun `concurrent reapplyDebugFlags creates single active stream`() =
+        runBlocking {
+            val activeCount = AtomicInteger(0)
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
+            val mockRepo = mockk<InvestRepository>(relaxed = true)
+            every { mockRepo.subscribeLastPrices(any(), any()) } returns
+                flow {
+                    activeCount.incrementAndGet()
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        activeCount.decrementAndGet()
+                    }
+                }
+
+            val manager =
+                PriceFlowManager(
+                    BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    mockRepo,
+                )
+
+            // Дать первому стриму стартовать — иначе union пуст
+            // и reapplyDebugFlags увидит restart(emptySet()) = no-op.
+            manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
+            delay(100)
+
+            // 50 параллельных reapplyDebugFlags — каждый restart'ит
+            // текущий union. С synchronized(startLock) cancel'ы
+            // последовательны, к концу активен 1. Без synchronized —
+            // несколько streamJob выживают, activeCount > 1.
+            coroutineScope {
+                (1..50)
+                    .map { async(Dispatchers.Default) { manager.reapplyDebugFlags() } }
+                    .awaitAll()
+            }
+            delay(500)
+
+            assertEquals(1, activeCount.get())
+
+            manager.clearInterest(PriceConsumer.ORDERS)
+        }
 }
