@@ -9,9 +9,14 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
+import com.gitlab.biomorf.tscalp.util.TInvestErrorMessages
 import dagger.hilt.android.HiltAndroidApp
 import io.appmetrica.analytics.AppMetrica
 import io.appmetrica.analytics.AppMetricaConfig
+import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +47,7 @@ class TScalpApplication : Application() {
         super.onCreate()
 
         initAppMetrica()
+        installGrpcExceptionGuard()
 
         // Восстанавливаем подключение каждого брокера, если сохранены учётные данные.
         // SettingsRepository работает на DataStore — все чтения suspend.
@@ -175,6 +181,62 @@ class TScalpApplication : Application() {
             brokerManager.refreshInitializationState()
         } catch (e: Exception) {
             AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS", e)
+        }
+    }
+
+    /**
+     * Устанавливает глобальный [Thread.UncaughtExceptionHandler], который
+     * перехватывает `io.grpc.StatusException` / `StatusRuntimeException`,
+     * доставленные в уже завершённую корутину `ClientCalls`, и не даёт им
+     * убить процесс. Остальные исключения пробрасываются в оригинальный
+     * handler (в проде это handler AppMetrica, поставленный SDK при
+     * `activate`). `CancellationException` не считается ошибкой и не
+     * репортится.
+     *
+     * Если оригинальный handler отсутствует (теоретически возможно, на
+     * Android не должно случаться — `RuntimeInit` ставит
+     * `KillApplicationHandler` до `Application.onCreate`), пробрасываем
+     * исключение вверх: лучше упасть, чем молча проглотить фатальный краш.
+     */
+    private fun installGrpcExceptionGuard() {
+        val original = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            when {
+                throwable is CancellationException -> {
+                    AppLogger.w(
+                        "TScalpApplication",
+                        "Uncaught CancellationException (ignored)",
+                        throwable,
+                    )
+                }
+
+                throwable is StatusException || throwable is StatusRuntimeException -> {
+                    val status = Status.fromThrowable(throwable)
+                    val description = status.description
+                    val humanMessage =
+                        description?.let { TInvestErrorMessages.messages[it] }
+                            ?: "gRPC ${status.code}"
+                    AppLogger.e(
+                        "TScalpApplication",
+                        "Unhandled gRPC ${status.code}: $humanMessage (description=$description)",
+                        throwable,
+                    )
+                    AppMetrica.reportError("Unhandled gRPC", throwable)
+                }
+
+                else -> {
+                    if (original != null) {
+                        original.uncaughtException(thread, throwable)
+                    } else {
+                        AppLogger.e(
+                            "TScalpApplication",
+                            "No original UncaughtExceptionHandler; rethrowing to kill process",
+                            throwable,
+                        )
+                        throw throwable
+                    }
+                }
+            }
         }
     }
 
