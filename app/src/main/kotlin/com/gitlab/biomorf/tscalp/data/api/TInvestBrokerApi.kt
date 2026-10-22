@@ -233,7 +233,7 @@ class TInvestBrokerAPI(
 
     override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId, state.sandboxMode)
 
-    override suspend fun getBalance(accountId: String) = marketData.getBalance(accountId)
+    override suspend fun getBalance(accountId: String) = orchestrator.balanceSnapshot(accountId)
 
     override suspend fun sandboxPayIn(
         accountId: String,
