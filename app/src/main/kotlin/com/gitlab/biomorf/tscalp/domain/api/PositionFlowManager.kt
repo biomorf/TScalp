@@ -44,6 +44,14 @@ class PositionFlowManager
 
         private var job: Job? = null
         private var currentAccountId: String? = null
+
+        /**
+         * Защищает check-then-set в [start] / [stop] / [reapplyDebugFlags]
+         * от race: два параллельных вызова иначе проходят проверку
+         * идемпотентности и создают по job'у (первый — orphan).
+         */
+        private val startLock = Any()
+
         private val scope =
             CoroutineScope(
                 Dispatchers.IO + SupervisorJob() +
@@ -60,6 +68,13 @@ class PositionFlowManager
         fun start(
             accountId: String,
             forceRestart: Boolean = false,
+        ) = synchronized(startLock) {
+            doStart(accountId, forceRestart)
+        }
+
+        private fun doStart(
+            accountId: String,
+            forceRestart: Boolean,
         ) {
             if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
                 AppLogger.d(TAG, "Поток позиций уже запущен для $accountId")
@@ -138,20 +153,22 @@ class PositionFlowManager
         }
 
         @OptIn(ExperimentalCoroutinesApi::class)
-        fun reapplyDebugFlags() {
-            val accountId = currentAccountId ?: return
-            AppLogger.d(TAG, "reapplyDebugFlags: restarting stream")
-            job?.cancel()
-            start(accountId, forceRestart = true)
-        }
+        fun reapplyDebugFlags() =
+            synchronized(startLock) {
+                val accountId = currentAccountId ?: return@synchronized
+                AppLogger.d(TAG, "reapplyDebugFlags: restarting stream")
+                job?.cancel()
+                doStart(accountId, forceRestart = true)
+            }
 
         @OptIn(ExperimentalCoroutinesApi::class)
-        fun stop() {
-            job?.cancel()
-            job = null
-            currentAccountId = null
-            // Сбрасываем replay-кэш, чтобы новые подписчики
-            // не получили устаревший элемент от прошлой сессии.
-            _flow.resetReplayCache()
-        }
+        fun stop() =
+            synchronized(startLock) {
+                job?.cancel()
+                job = null
+                currentAccountId = null
+                // Сбрасываем replay-кэш, чтобы новые подписчики
+                // не получили устаревший элемент от прошлой сессии.
+                _flow.resetReplayCache()
+            }
     }

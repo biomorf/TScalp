@@ -74,6 +74,15 @@ class PriceFlowManager
         /** Job REST-polling. Пересоздаётся при изменении union. */
         private var pollingJob: Job? = null
 
+        /**
+         * Защищает check-then-set в [setInterest] / [clearInterest] /
+         * [reapplyDebugFlags] от race: два параллельных вызова иначе
+         * проходят проверку union и создают по job'у (первый — orphan).
+         * Все три метода вызывают [restart] — он приватный и ожидает,
+         * что caller уже держит lock.
+         */
+        private val startLock = Any()
+
         private val scope =
             CoroutineScope(
                 Dispatchers.IO + SupervisorJob() +
@@ -91,7 +100,7 @@ class PriceFlowManager
         fun setInterest(
             consumer: PriceConsumer,
             tscalpIds: Set<String>,
-        ) {
+        ) = synchronized(startLock) {
             val oldUnion = currentUnion()
             interests.update { it + (consumer to tscalpIds) }
             val newUnion = currentUnion()
@@ -106,15 +115,16 @@ class PriceFlowManager
          * Если union опустел — останавливает стрим.
          * tscalpIds — набор `tscalpInstrumentId`, а не брокерских идентификаторов.
          */
-        fun clearInterest(consumer: PriceConsumer) {
-            val oldUnion = currentUnion()
-            interests.update { it - consumer }
-            val newUnion = currentUnion()
-            if (newUnion != oldUnion) {
-                AppLogger.d(TAG, "clearInterest($consumer), union changed: ${oldUnion.size} → ${newUnion.size}")
-                restart(newUnion)
+        fun clearInterest(consumer: PriceConsumer) =
+            synchronized(startLock) {
+                val oldUnion = currentUnion()
+                interests.update { it - consumer }
+                val newUnion = currentUnion()
+                if (newUnion != oldUnion) {
+                    AppLogger.d(TAG, "clearInterest($consumer), union changed: ${oldUnion.size} → ${newUnion.size}")
+                    restart(newUnion)
+                }
             }
-        }
 
         /** Объединение всех активных наборов tscalpInstrumentId. */
         private fun currentUnion(): Set<String> =
@@ -127,13 +137,19 @@ class PriceFlowManager
          * флагами DebugConfig. Вызывается из UI при переключении
          * тумблеров (gRPC, WS, REST), чтобы применить их на лету.
          */
-        fun reapplyDebugFlags() {
-            restart(currentUnion())
-        }
+        fun reapplyDebugFlags() =
+            synchronized(startLock) {
+                restart(currentUnion())
+            }
 
         /**
          * Пересоздаёт gRPC-стрим под новый набор tscalpInstrumentId.
          * Пустой union → стрим остановлен, ничего не запускаем.
+         *
+         * **Caller must hold [startLock].** Метод не синхронизирован
+         * сам по себе — вызывается только из [setInterest],
+         * [clearInterest] и [reapplyDebugFlags], которые уже под
+         * `synchronized(startLock)`.
          */
         private fun restart(union: Set<String>) {
             streamJob?.cancel()
