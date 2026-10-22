@@ -98,6 +98,32 @@ kill process. `CoroutineExceptionHandler` и `.catch { }` не
 - Остальные краши (не gRPC) по-прежнему валят приложение и
   видны в AppMetrica.
 
+**Live-смоук (2026-10-22, эмулятор Pixel 8a, Android 14):**
+- Guard установлен, старт приложения не сломан
+  (`initAppMetrica` → `installGrpcExceptionGuard`, порядок
+  сохраняет fatal-reпортинг AppMetrica).
+- Авиарежим → `UNAVAILABLE` во всех стримах; guard молчит
+  (штатные ошибки ловятся в своих корутинах — `try/catch`,
+  `.catch` — до глобального handler не доходят). Ожидаемое
+  поведение.
+- Возврат сети → gRPC-reconnect и WS-reconnect, данные
+  пошли, приложение живо.
+- `AndroidRuntime: FATAL EXCEPTION` — нет.
+- Исходный race (`ClientCalls` доставляет `StatusException`
+  в уже завершённую корутину) по команде не воспроизводится —
+  этим смоуком не проверялся. Регрессий не внёс, но и
+  доказательством работы guard не является.
+
+**Критерий закрытия:** наблюдение AppMetrica 2–3 дня после
+релиза. Задача подтверждена, если одновременно:
+- не появляются новые **fatal** `io.grpc.StatusException`;
+- появляются **non-fatal** `"Unhandled gRPC"` (из
+  `AppMetrica.reportError` в guard).
+
+Если оба условия выполнены — `docs(roadmap): mark
+grpc-exception-guard done`. Если появились новые fatal —
+guard не срабатывает, разбираться отдельно.
+
 **Оценка:** ~1 час.
 
 
