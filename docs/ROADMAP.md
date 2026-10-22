@@ -10,219 +10,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 ## Планируемые задачи
 
 
-
----
-### Ktor REST для позиций/заявок/баланса
-
-**Мобильная работа:** невозможно (сборка и проверка на реальных данных).
-
-**Статус:** в работе.
-**Ветка:** feature/rest-polling-fallback.
-
-**Целевая архитектура транспорта:**
-
-Оркестратор — единственное место, где живёт транспорт. Стримы (Flow) и unary (suspend) оба проходят через него. Менеджеры вызывают `xxxStream` для стрима и `xxxSnapshot` в polling-loop, не зная про REST. Fallback gRPC→REST живёт только в оркестраторе.
-
-```mermaid
-flowchart BT
-    subgraph VM["ViewModels"]
-        direction TB
-        V1["PortfolioViewModel"]
-        V2["OrdersViewModel"]
-        V3["OrdersListViewModel"]
-    end
-
-    subgraph Managers["Domain managers (агрегация для UI)"]
-        direction TB
-        M1["PositionFlowManager"]
-        M2["PriceFlowManager"]
-        M3["OrderFlowManager"]
-    end
-
-    subgraph Orchestrator["TInvestOrchestrator<br/>(владеет транспортами)"]
-        direction TB
-        S["Streams (Flow)<br/>positionsStream<br/>pricesStream<br/>orderStateStream"]
-        U["Unary (suspend)<br/>positionsSnapshot<br/>pricesSnapshot<br/>ordersSnapshot<br/>balanceSnapshot"]
-        F["Fallback: try gRPC unary<br/>catch UNAVAILABLE/DEADLINE<br/>→ REST"]
-        U --> F
-    end
-
-    V1 -->|observes| M1
-    V1 -->|observes| M2
-    V2 -->|observes| M2
-    V2 -->|calls| U
-    V3 -->|observes| M2
-    V3 -->|observes| M3
-
-    M1 -->|uses| S
-    M1 -->|uses| U
-    M2 -->|uses| S
-    M2 -->|uses| U
-    M3 -->|uses| S
-    M3 -->|uses| U
-
-    style Orchestrator fill:#e1f5ff,stroke:#333,stroke-width:2px
-    style Managers fill:#fff4e1,stroke:#333,stroke-width:2px
-    style VM fill:#fff9c4,stroke:#333,stroke-width:2px
-    style F fill:#ffe1e1,stroke:#333,stroke-width:2px
-```
-
-**Что уже сделано (PR #30):**
-- **Шаг 1a** — unary-обёртки в оркестраторе: `positionsSnapshot`, `pricesSnapshot`, `ordersSnapshot`, `balanceSnapshot`. Тонкие делегаты, без fallback.
-- **Шаг 1b** — переключение менеджеров на эти обёртки: `PriceFlowManager.runPolling` и `OrderFlowManager.collectPolling` больше не дёргают репозиторий напрямую, а идут через `broker.pricesSnapshot()` / `broker.ordersSnapshot()`, которые делегируют в оркестратор.
-
-**Что осталось (Шаг 2 и 3):**
-- **Шаг 2** — REST transport и fallback:
-  - `TInvestRestTransport` в `:transport-ktor` (Ktor Client).
-  - В `TInvestOrchestrator` обернуть unary-методы: `try { gRPC } catch (UNAVAILABLE | DEADLINE_EXCEEDED | UNIMPLEMENTED) { REST }`.
-  - Логика: только на транспортные ошибки, не на бизнес-ошибки.
-- **Шаг 3** — live-тест fallback:
-  - `DebugConfig.FORCE_REST_FOR_POLLING` (уже есть для цен, расширить на позиции/заявки/баланс).
-  - Live-тест: позиции, заявки, баланс обновляются через REST при `FORCE_REST` и при физическом отключении gRPC.
-
-**Файлы:**
-- `transport-ktor/src/commonMain/kotlin/.../TInvestRestTransport.kt` — добавить методы `fetchPositionsSnapshot`, `getBalance`, `getOrders`, `getStopOrders`.
-- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — добавить fallback (сейчас там только `pricesRestFallback`).
-- `app/src/main/kotlin/.../di/DataModule.kt` — прокинуть REST-транспорт в оркестратор для новых методов.
-
-**Референсы:**
-- `TInvestRestTransport.getLastPrices` — образец.
-- `docs/rate-limits.md` — REST лимиты (6 запросов/сек).
-
-**Ограничения:**
-- Не трогать BCS — отдельная задача.
-- Не менять публичный контракт `BrokerApi`.
-- Логика fallback — в оркестраторе (как `pricesRestFallback`).
-
-**Критерий готовности:**
-- REST-фолбэк работает для всех четырёх методов.
-- `forceRest` перенаправляет позиции, заявки, баланс на REST.
-- Тесты зелёные.
-
-**Оценка:** ~2–3 часа.
-
-**Зависимости:** нет. **Разблокирует:** устойчивость polling при полном отказе gRPC.
-
-**Открытые вопросы:**
-- Формат REST-ответов для `getOrders` / `getStopOrders` — совпадает ли с gRPC по структуре? Уточнить при реализации.
-- `getPositions` и `fetchPositionsSnapshot` — REST-метод один и тот же или разные? Уточнить по Swagger.
-
----
-
-### Миграция BCS на Ktor
-
-**Мобильная работа:** невозможно (сборка и проверка на
-реальных данных).
-
-**Статус:** отложено.
-
-**Контекст:** `BcsBrokerApi` работает на отдельном
-`OkHttpClient()` (без shared `CustomTrustManager`). В задаче
-«Ktor REST transport для polling» планировалась фаза 3 —
-перевод BCS на Ktor, единый HTTP-клиент для всех REST-брокеров.
-
-**Причина отложенности:** BCS не блокирует текущую работу —
-работает на OkHttp, TLS на стандартных CA. Приоритет —
-T-Invest (там REST-fallback для всех методов ещё не готов).
-Отдельная миграция BCS добавляет риск без прямого benefit.
-
-**Когда возобновить:**
-- при интеграции BCS WS (WS на Ktor уже используется —
-  логично унифицировать клиент);
-- при первой жалобе на TLS BCS (см. `docs/ISSUES.md` →
-  «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager»);
-- при появлении третьего брокера (Finam), где Ktor уже
-  обязателен — тогда унифицировать сразу все.
-
-**Оценка:** ~2 часа.
-
-**Зависимости:** нет.
-
-
-### Установка GrpcExceptionGuard
-
-**Мобильная работа:** невозможно (требует сборки и проверки
-краша на устройстве/эмуляторе).
-
-**Статус:** в работе.
-**Подтверждение:** ожидает (PR #33 merged, ветка удалена;
-AppMetrica, 2–3 дня после релиза; критерий: нет новых fatal
-`io.grpc.StatusException`, появились non-fatal
-`"Unhandled gRPC"`; детали — «Критерий закрытия» ниже).
-**Триггер сработал (2026-10-21):** AppMetrica зафиксировала
-краш `io.grpc.StatusException`.
-
-**Контекст:** `io.grpc.kotlin.ClientCalls` при ошибке канала
-доставляет `StatusException` через поздний callback в уже
-завершённую suspend-корутину. Доставить некому → исключение
-уходит в `Thread.getDefaultUncaughtExceptionHandler()` →
-kill process. `CoroutineExceptionHandler` и `.catch { }` не
-помогают.
-
-**Файлы:**
-- `app/src/main/kotlin/.../TScalpApplication.kt` — установка
-  глобального `UncaughtExceptionHandler`.
-
-**Шаги:**
-1. В `TScalpApplication.onCreate` обернуть оригинальный
-   `Thread.getDefaultUncaughtExceptionHandler()`.
-2. Если `throwable is StatusException || throwable is StatusRuntimeException`:
-   - логировать через `AppLogger.e` (с расшифровкой из
-     `TInvestErrorMessages`);
-   - отправить в AppMetrica как **нефатальную** ошибку
-     (`AppMetrica.reportError("Unhandled gRPC", throwable)`);
-   - **не пробрасывать** дальше в оригинальный handler
-     (приложение выживает).
-3. Иначе — пробросить в оригинальный handler (пусть падает
-   как обычно).
-4. Проверка: включить авиарежим на эмуляторе, дождаться
-   gRPC-ошибки, убедиться, что приложение не падает, а в
-   логах есть запись об ошибке.
-
-**Ограничения:**
-- Не глотать ошибку молча — обязательно логировать и
-  отправлять в AppMetrica. Иначе скроем реальные сетевые
-  проблемы (см. `docs/ISSUES.md`).
-- Не перехватывать `CancellationException` — это штатная
-  отмена, она не должна попадать в handler.
-
-**Критерий готовности:**
-- Приложение не падает при gRPC-ошибках в фоне.
-- Ошибки видны в AppMetrica (как non-fatal) и в логах.
-- Остальные краши (не gRPC) по-прежнему валят приложение и
-  видны в AppMetrica.
-
-**Live-смоук (2026-10-22, эмулятор Pixel 8a, Android 14):**
-- Guard установлен, старт приложения не сломан
-  (`initAppMetrica` → `installGrpcExceptionGuard`, порядок
-  сохраняет fatal-reпортинг AppMetrica).
-- Авиарежим → `UNAVAILABLE` во всех стримах; guard молчит
-  (штатные ошибки ловятся в своих корутинах — `try/catch`,
-  `.catch` — до глобального handler не доходят). Ожидаемое
-  поведение.
-- Возврат сети → gRPC-reconnect и WS-reconnect, данные
-  пошли, приложение живо.
-- `AndroidRuntime: FATAL EXCEPTION` — нет.
-- Исходный race (`ClientCalls` доставляет `StatusException`
-  в уже завершённую корутину) по команде не воспроизводится —
-  этим смоуком не проверялся. Регрессий не внёс, но и
-  доказательством работы guard не является.
-
-**Критерий закрытия:** наблюдение AppMetrica 2–3 дня после
-релиза. Задача подтверждена, если одновременно:
-- не появляются новые **fatal** `io.grpc.StatusException`;
-- появляются **non-fatal** `"Unhandled gRPC"` (из
-  `AppMetrica.reportError` в guard).
-
-Если оба условия выполнены — `docs(roadmap): mark
-grpc-exception-guard done`. Если появились новые fatal —
-guard не срабатывает, разбираться отдельно.
-
-**Оценка:** ~1 час.
-
-
-
----
 ### Split order domain into sealed Regular/Stop
 
 **Мобильная работа:** невозможно (массовый рефакторинг,
@@ -2274,6 +2061,217 @@ gRPC stream stopped`). Покрыто отдельно в live-тесте PR #34
 **Зависимости:** нет. Разблокирована — фикс race в
 `reapplyDebugFlags` в `dev` (PR #34). См.
 `docs/ROADMAP.md` → закрытая «Race в start/stop `*FlowManager`».
+
+
+
+---
+
+
+---
+### ✅ Ktor REST для позиций/заявок/баланса
+
+**Мобильная работа:** невозможно (сборка и проверка на реальных данных).
+
+**Целевая архитектура транспорта:**
+
+Оркестратор — единственное место, где живёт транспорт. Стримы (Flow) и unary (suspend) оба проходят через него. Менеджеры вызывают `xxxStream` для стрима и `xxxSnapshot` в polling-loop, не зная про REST. Fallback gRPC→REST живёт только в оркестраторе.
+
+```mermaid
+flowchart BT
+    subgraph VM["ViewModels"]
+        direction TB
+        V1["PortfolioViewModel"]
+        V2["OrdersViewModel"]
+        V3["OrdersListViewModel"]
+    end
+
+    subgraph Managers["Domain managers (агрегация для UI)"]
+        direction TB
+        M1["PositionFlowManager"]
+        M2["PriceFlowManager"]
+        M3["OrderFlowManager"]
+    end
+
+    subgraph Orchestrator["TInvestOrchestrator<br/>(владеет транспортами)"]
+        direction TB
+        S["Streams (Flow)<br/>positionsStream<br/>pricesStream<br/>orderStateStream"]
+        U["Unary (suspend)<br/>positionsSnapshot<br/>pricesSnapshot<br/>ordersSnapshot<br/>balanceSnapshot"]
+        F["Fallback: try gRPC unary<br/>catch UNAVAILABLE/DEADLINE<br/>→ REST"]
+        U --> F
+    end
+
+    V1 -->|observes| M1
+    V1 -->|observes| M2
+    V2 -->|observes| M2
+    V2 -->|calls| U
+    V3 -->|observes| M2
+    V3 -->|observes| M3
+
+    M1 -->|uses| S
+    M1 -->|uses| U
+    M2 -->|uses| S
+    M2 -->|uses| U
+    M3 -->|uses| S
+    M3 -->|uses| U
+
+    style Orchestrator fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style Managers fill:#fff4e1,stroke:#333,stroke-width:2px
+    style VM fill:#fff9c4,stroke:#333,stroke-width:2px
+    style F fill:#ffe1e1,stroke:#333,stroke-width:2px
+```
+
+**Что уже сделано (PR #30):**
+- **Шаг 1a** — unary-обёртки в оркестраторе: `positionsSnapshot`, `pricesSnapshot`, `ordersSnapshot`, `balanceSnapshot`. Тонкие делегаты, без fallback.
+- **Шаг 1b** — переключение менеджеров на эти обёртки: `PriceFlowManager.runPolling` и `OrderFlowManager.collectPolling` больше не дёргают репозиторий напрямую, а идут через `broker.pricesSnapshot()` / `broker.ordersSnapshot()`, которые делегируют в оркестратор.
+
+**Что осталось (Шаг 2 и 3):**
+- **Шаг 2** — REST transport и fallback:
+  - `TInvestRestTransport` в `:transport-ktor` (Ktor Client).
+  - В `TInvestOrchestrator` обернуть unary-методы: `try { gRPC } catch (UNAVAILABLE | DEADLINE_EXCEEDED | UNIMPLEMENTED) { REST }`.
+  - Логика: только на транспортные ошибки, не на бизнес-ошибки.
+- **Шаг 3** — live-тест fallback:
+  - `DebugConfig.FORCE_REST_FOR_POLLING` (уже есть для цен, расширить на позиции/заявки/баланс).
+  - Live-тест: позиции, заявки, баланс обновляются через REST при `FORCE_REST` и при физическом отключении gRPC.
+
+**Файлы:**
+- `transport-ktor/src/commonMain/kotlin/.../TInvestRestTransport.kt` — добавить методы `fetchPositionsSnapshot`, `getBalance`, `getOrders`, `getStopOrders`.
+- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — добавить fallback (сейчас там только `pricesRestFallback`).
+- `app/src/main/kotlin/.../di/DataModule.kt` — прокинуть REST-транспорт в оркестратор для новых методов.
+
+**Референсы:**
+- `TInvestRestTransport.getLastPrices` — образец.
+- `docs/rate-limits.md` — REST лимиты (6 запросов/сек).
+
+**Ограничения:**
+- Не трогать BCS — отдельная задача.
+- Не менять публичный контракт `BrokerApi`.
+- Логика fallback — в оркестраторе (как `pricesRestFallback`).
+
+**Критерий готовности:**
+- REST-фолбэк работает для всех четырёх методов.
+- `forceRest` перенаправляет позиции, заявки, баланс на REST.
+- Тесты зелёные.
+
+**Оценка:** ~2–3 часа.
+
+**Зависимости:** нет. **Разблокирует:** устойчивость polling при полном отказе gRPC.
+
+**Открытые вопросы:**
+- Формат REST-ответов для `getOrders` / `getStopOrders` — совпадает ли с gRPC по структуре? Уточнить при реализации.
+- `getPositions` и `fetchPositionsSnapshot` — REST-метод один и тот же или разные? Уточнить по Swagger.
+
+---
+
+### Миграция BCS на Ktor
+
+**Мобильная работа:** невозможно (сборка и проверка на
+реальных данных).
+
+**Статус:** отложено.
+
+**Контекст:** `BcsBrokerApi` работает на отдельном
+`OkHttpClient()` (без shared `CustomTrustManager`). В задаче
+«Ktor REST transport для polling» планировалась фаза 3 —
+перевод BCS на Ktor, единый HTTP-клиент для всех REST-брокеров.
+
+**Причина отложенности:** BCS не блокирует текущую работу —
+работает на OkHttp, TLS на стандартных CA. Приоритет —
+T-Invest (там REST-fallback для всех методов ещё не готов).
+Отдельная миграция BCS добавляет риск без прямого benefit.
+
+**Когда возобновить:**
+- при интеграции BCS WS (WS на Ktor уже используется —
+  логично унифицировать клиент);
+- при первой жалобе на TLS BCS (см. `docs/ISSUES.md` →
+  «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager»);
+- при появлении третьего брокера (Finam), где Ktor уже
+  обязателен — тогда унифицировать сразу все.
+
+**Оценка:** ~2 часа.
+
+**Зависимости:** нет.
+
+
+### Установка GrpcExceptionGuard
+
+**Мобильная работа:** невозможно (требует сборки и проверки
+краша на устройстве/эмуляторе).
+
+**Статус:** в работе.
+**Подтверждение:** ожидает (PR #33 merged, ветка удалена;
+AppMetrica, 2–3 дня после релиза; критерий: нет новых fatal
+`io.grpc.StatusException`, появились non-fatal
+`"Unhandled gRPC"`; детали — «Критерий закрытия» ниже).
+**Триггер сработал (2026-10-21):** AppMetrica зафиксировала
+краш `io.grpc.StatusException`.
+
+**Контекст:** `io.grpc.kotlin.ClientCalls` при ошибке канала
+доставляет `StatusException` через поздний callback в уже
+завершённую suspend-корутину. Доставить некому → исключение
+уходит в `Thread.getDefaultUncaughtExceptionHandler()` →
+kill process. `CoroutineExceptionHandler` и `.catch { }` не
+помогают.
+
+**Файлы:**
+- `app/src/main/kotlin/.../TScalpApplication.kt` — установка
+  глобального `UncaughtExceptionHandler`.
+
+**Шаги:**
+1. В `TScalpApplication.onCreate` обернуть оригинальный
+   `Thread.getDefaultUncaughtExceptionHandler()`.
+2. Если `throwable is StatusException || throwable is StatusRuntimeException`:
+   - логировать через `AppLogger.e` (с расшифровкой из
+     `TInvestErrorMessages`);
+   - отправить в AppMetrica как **нефатальную** ошибку
+     (`AppMetrica.reportError("Unhandled gRPC", throwable)`);
+   - **не пробрасывать** дальше в оригинальный handler
+     (приложение выживает).
+3. Иначе — пробросить в оригинальный handler (пусть падает
+   как обычно).
+4. Проверка: включить авиарежим на эмуляторе, дождаться
+   gRPC-ошибки, убедиться, что приложение не падает, а в
+   логах есть запись об ошибке.
+
+**Ограничения:**
+- Не глотать ошибку молча — обязательно логировать и
+  отправлять в AppMetrica. Иначе скроем реальные сетевые
+  проблемы (см. `docs/ISSUES.md`).
+- Не перехватывать `CancellationException` — это штатная
+  отмена, она не должна попадать в handler.
+
+**Критерий готовности:**
+- Приложение не падает при gRPC-ошибках в фоне.
+- Ошибки видны в AppMetrica (как non-fatal) и в логах.
+- Остальные краши (не gRPC) по-прежнему валят приложение и
+  видны в AppMetrica.
+
+**Live-смоук (2026-10-22, эмулятор Pixel 8a, Android 14):**
+- Guard установлен, старт приложения не сломан
+  (`initAppMetrica` → `installGrpcExceptionGuard`, порядок
+  сохраняет fatal-reпортинг AppMetrica).
+- Авиарежим → `UNAVAILABLE` во всех стримах; guard молчит
+  (штатные ошибки ловятся в своих корутинах — `try/catch`,
+  `.catch` — до глобального handler не доходят). Ожидаемое
+  поведение.
+- Возврат сети → gRPC-reconnect и WS-reconnect, данные
+  пошли, приложение живо.
+- `AndroidRuntime: FATAL EXCEPTION` — нет.
+- Исходный race (`ClientCalls` доставляет `StatusException`
+  в уже завершённую корутину) по команде не воспроизводится —
+  этим смоуком не проверялся. Регрессий не внёс, но и
+  доказательством работы guard не является.
+
+**Критерий закрытия:** наблюдение AppMetrica 2–3 дня после
+релиза. Задача подтверждена, если одновременно:
+- не появляются новые **fatal** `io.grpc.StatusException`;
+- появляются **non-fatal** `"Unhandled gRPC"` (из
+  `AppMetrica.reportError` в guard).
+
+Если оба условия выполнены — `docs(roadmap): mark
+grpc-exception-guard done`. Если появились новые fatal —
+guard не срабатывает, разбираться отдельно.
+
+**Оценка:** ~1 час.
 
 
 
