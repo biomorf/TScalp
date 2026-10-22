@@ -178,6 +178,39 @@ Unit-тест на race (два параллельных `start()` → один
   на каждый транспорт (gRPC, WS), не два.
 - Полный гейт зелёный.
 
+**Live-тест (2026-10-22, эмулятор Pixel 8a, Android 14):**
+
+Было (до фикса, лог 2026-10-22, старая сборка):
+
+    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
+    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
+    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
+    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
+
+Стало (после фикса, новая сборка):
+
+    PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    TInvestMarketData:   [stream/gRPC/TInvest]: connecting (attempt=1)
+    TInvestWS:           [WS/ktor/TInvest]  connecting (attempt=1)
+    PositionFlowManager: Поток позиций уже запущен для 2309452027
+    PositionFlowManager: Поток позиций уже запущен для 2309452027
+
+Второй вызов `start()` (из `PortfolioViewModel`) теперь корректно
+отсекается проверкой идемпотентности — race между проверкой и
+присвоением `job` закрыт `synchronized(startLock)`.
+
+`PriceFlowManager`: два `setInterest` (из разных ViewModel) идут
+**последовательно**, с законным изменением union
+(`0 → 1 → 2`), каждое изменение → ровно один `restart`. Дублей
+транспорта нет.
+
+Debug-тумблеры (`toggleGrpc` / `toggleWs` / `toggleRest`) проверены
+на лету: `reapplyDebugFlags` даёт ровно один `stopped` + один
+`started`, `forceRest` перенаправляет polling на
+`[REST/ktor/TInvest]`. Приложение живо, крашей в logcat нет.
+
 **Оценка:** ~40 минут.
 
 **Зависимости:** нет. **Разблокирует** корректное поведение
