@@ -70,7 +70,24 @@ class TInvestBrokerAPI(
             wsFallback = { accountId -> buildWsFallback(accountId) },
             pricesWsFallback = { uids -> buildPricesWsFallback(uids) },
             orderStateWsFallback = { accountId -> buildOrderStateWsFallback(accountId) },
-            pricesRestFallback = { uids -> restTransport!!.getLastPrices(uids) },
+            pricesRestFallback = { uids ->
+                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
+                rest.getLastPrices(uids)
+            },
+            positionsRestFallback = { accountId, _ ->
+                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
+                rest.fetchPositionsSnapshot(accountId).positions.map { it.toPortfolioPosition() }
+            },
+            ordersRestFallback = { accountId ->
+                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
+                val orders = rest.getOrders(accountId).map { it.toOrderListItem() }
+                val stopOrders = rest.getStopOrders(accountId).map { it.toOrderListItem() }
+                orders + stopOrders
+            },
+            balanceRestFallback = { accountId ->
+                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
+                rest.getBalance(accountId, state.sandboxMode)
+            },
         )
 
     /**
@@ -209,9 +226,9 @@ class TInvestBrokerAPI(
         sandboxMode: Boolean,
     ) = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId, state.sandboxMode)
 
-    override suspend fun getBalance(accountId: String) = marketData.getBalance(accountId)
+    override suspend fun getBalance(accountId: String) = orchestrator.balanceSnapshot(accountId)
 
     override suspend fun sandboxPayIn(
         accountId: String,
