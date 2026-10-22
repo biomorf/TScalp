@@ -1,8 +1,21 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
+import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -111,4 +124,32 @@ class PositionFlowManagerTest {
 
         assertSame(share, result)
     }
+
+    @Test
+    fun `concurrent start creates single job`() =
+        runBlocking {
+            // Мок брокера: subscribePositions возвращает бесконечный flow,
+            // чтобы job внутри start() не завершился сам и race не маскировался.
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            coEvery { mockBroker.subscribePositions(any()) } returns
+                flow { awaitCancellation() }
+
+            val manager = PositionFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+
+            // 50 параллельных вызовов start() — race между check-then-set
+            // в synchronized(startLock). Без synchronized создавались бы
+            // несколько job'ов, и subscribePositions вызывался бы >1 раза.
+            coroutineScope {
+                (1..50)
+                    .map { async(Dispatchers.Default) { manager.start("acc-1") } }
+                    .awaitAll()
+            }
+            // Дать scope.launch внутри start() успеть выполниться.
+            delay(200)
+
+            verify(exactly = 1) { mockBroker.subscribePositions("acc-1") }
+
+            manager.stop()
+        }
 }
