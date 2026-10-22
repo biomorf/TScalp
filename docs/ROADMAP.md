@@ -12,6 +12,84 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 
 ---
+### Race в start/stop `*FlowManager` — дублирование стримов
+
+**Мобильная работа:** частичное (правки `.kt` — через proot;
+сборка и тесты — на десктопе).
+
+**Статус:** запланировано.
+
+**Контекст:** в `start/stop/reapplyDebugFlags` трёх менеджеров
+(`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`)
+есть критическая секция без синхронизации между проверкой
+идемпотентности и присваиванием `job`. При двух параллельных
+вызовах (main + worker) оба проходят проверку и создают по
+job'у, второй перезаписывает ссылку — первый становится orphan
+и продолжает эмитить в `_flow` до перезапуска процесса.
+
+Подтверждено логом 2026-10-22: два `Перезапуск потока позиций`
+из разных нитей в одну миллисекунду, два `[stream/gRPC/TInvest]:
+connecting (attempt=1)`, два `[WS/ktor/TInvest] connecting`.
+Полный разбор — `docs/ISSUES.md` → «Race в start/stop
+*FlowManager — дублирование стримов».
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/api/PositionFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/PriceFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/OrderFlowManager.kt`
+- `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt`
+  (дополнить тест на конкурентный `start`)
+
+**Шаги:**
+1. В каждый менеджер добавить `private val startLock = Any()`.
+2. Обернуть в `synchronized(startLock)`:
+   - `PositionFlowManager`: `start` / `stop` / `reapplyDebugFlags`;
+   - `PriceFlowManager`: `setInterest` / `clearInterest` /
+     `reapplyDebugFlags`;
+   - `OrderFlowManager`: `start` / `stop`.
+3. Unit-тест: два параллельных `start(accountId)` из разных
+   корутин → `broker.subscribePositions()` вызван один раз
+   (mock-счётчик), `job` один (сравнение ссылок).
+4. Гейт: полный набор.
+
+**Референсы:**
+- `docs/ISSUES.md` → «Race в start/stop *FlowManager —
+  дублирование стримов» — симптом, interleaving, последствия.
+- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport»
+  — downstream композиция корректна, проблема upstream.
+
+**Ограничения:**
+- Не менять публичные контракты (`start` / `stop` / `setInterest`
+  — те же сигнатуры).
+- Не удалять debug-тумблеры — они нужны для live-тестов
+  транспортов. Фикс `synchronized` закрывает и их race.
+- `synchronized`, не `Mutex`: в критической секции нет
+  suspension points.
+
+**Критерий готовности:**
+- При старте приложения в logcat — **по одному** `connecting`
+  на каждый транспорт (gRPC, WS), не два.
+- Unit-тест на конкурентный `start` подтверждает один вызов
+  `subscribePositions()`.
+- Полный гейт зелёный.
+
+**Оценка:** ~40 минут.
+
+**Зависимости:** нет. **Разблокирует** корректное поведение
+менеджеров при добавлении BCS / Finam (без orphan job'ов и
+лишнего расхода rate-limits), а также корректную проверку
+8 комбинаций debug-переключателей
+(ROADMAP → «Полировка debug-переключателей») — иначе
+проверка ловит race самого `reapplyDebugFlags`, а не
+тестируемую логику.
+
+**Открытые вопросы:** нет.
+
+
+
+---
 ### Полировка debug-переключателей
 
 **Мобильная работа:** невозможно (требует сборки и визуальной
@@ -29,7 +107,10 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 **Триггер:** обнаружение аномалий (зависания, лишние
 переподключения, дубли логов) в следующих задачах (например,
-`GrpcExceptionGuard`).
+`GrpcExceptionGuard`). **Триггер сработал (2026-10-22):** дубли
+подключений (gRPC и WS) в logcat при старте приложения — см.
+`docs/ISSUES.md` → «Race в start/stop *FlowManager —
+дублирование стримов».
 
 **Файлы:**
 - `presentation/screens/settings/SettingsViewModel.kt`
@@ -44,6 +125,12 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
    (опционально).
 
 **Оценка:** ~1–2 часа.
+
+**Зависимости:** блокируется задачей «Race в start/stop
+`*FlowManager`» — иначе проверка комбинаций ловит race самого
+`reapplyDebugFlags`, а не тестируемую логику. См.
+`docs/ROADMAP.md` → «Race в start/stop `*FlowManager` —
+дублирование стримов».
 
 
 
