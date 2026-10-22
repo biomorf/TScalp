@@ -127,10 +127,14 @@ T-Invest (там REST-fallback для всех методов ещё не гот
 start/stop `*FlowManager`») unit-тест на конкурентный `start`
 не был написан: `TInvestBrokerAPI` — final class с
 `@Inject constructor` и множеством зависимостей
-(`channelFactory`, `httpClient`, `orchestrator`), а мокинг
-инфраструктуры (mockk) в проекте отсутствует. Без fake-broker
-тест либо не воспроизводит race (job завершается мгновенно на
-`null` broker), либо утверждает неверное поведение.
+(`channelFactory`, `httpClient`, `orchestrator`).
+
+**Уточнение 2026-10-22 (при старте задачи):** `mockk` **уже
+подключён** в `app/build.gradle.kts`
+(`testImplementation("io.mockk:mockk:1.13.13")`). ROADMAP
+говорил «mockk отсутствует» — это устарело, mockk добавлен в
+одной из предыдущих сессий и не использовался. Значит,
+setup-шага нет, начинаем сразу с тестов.
 
 **Зачем:** синхронизация сейчас держится на код-ревью. Без
 теста регрессия (убрали `synchronized` при рефакторинге) не
@@ -158,24 +162,27 @@ start/stop `*FlowManager`») unit-тест на конкурентный `start`
 production-код, race проверяется реально.
 
 **Файлы:**
-- `app/build.gradle.kts` — зависимость mockk (testImplementation).
-- `gradle/libs.versions.toml` — версия mockk.
 - `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt` —
   новый тест `concurrent start creates single job`.
 - `app/src/test/kotlin/.../domain/api/OrderFlowManagerTest.kt` —
-  аналогичный тест.
+  новый файл, аналогичный тест.
 - `app/src/test/kotlin/.../domain/api/PriceFlowManagerTest.kt` —
-  тест на `setInterest` race.
+  новый файл, тест на `setInterest` race.
 
 **Шаги:**
-1. Добавить `mockk` в `libs.versions.toml` + `build.gradle.kts`
-   (testImplementation).
-2. `PositionFlowManager`: тест — 50 параллельных `start("acc")`
+1. `PositionFlowManager`: тест — 50 параллельных `start("acc")`
    из `runBlocking` + `coroutineScope { (1..50).map { async {...} }.awaitAll() }`,
-   verify `subscribePositions` called once.
-3. `OrderFlowManager`: аналогичный тест.
-4. `PriceFlowManager`: тест на `setInterest` — два параллельных
-   `setInterest` с одинаковым union → `restart` вызван один раз.
+   verify `subscribePositions` called once. Мок: реальный
+   `BrokerManager(mapOf(TINVEST to mockBroker))`,
+   `mockk<TInvestBrokerAPI>(relaxed = true)`,
+   `subscribePositions` → `flow { awaitCancellation() }`.
+2. `OrderFlowManager`: аналогичный тест
+   (`subscribeOrderState` once, `ordersSnapshot` → `emptyList()`).
+3. `PriceFlowManager`: тест на `setInterest` race —
+   `subscribeLastPrices` once. Мок: `InvestRepository` +
+   `TInvestBrokerAPI.pricesSnapshot` → `emptyMap()`.
+4. Проверка «красный без fix»: временно убрать `synchronized`
+   в одной из веток, прогнать 5 раз, вернуть.
 5. Гейт: полный набор.
 
 **Референсы:**
@@ -200,8 +207,8 @@ production-код, race проверяется реально.
   должен упасть).
 - Полный гейт зелёный.
 
-**Оценка:** ~1–1.5 часа (mockk setup 15 мин, 3 теста 45 мин,
-проверка «красный без fix» 15 мин).
+**Оценка:** ~1 час (3 теста 40 мин, проверка «красный без
+fix» 15 мин, гейт 5 мин). Mockk setup не нужен — уже подключён.
 
 **Зависимости:** нет. Разблокирована — фикс из «Race в
 start/stop `*FlowManager`» в `dev` (PR #34), тест проверяет
