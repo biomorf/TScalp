@@ -25,7 +25,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -299,22 +298,6 @@ class TInvestMarketDataService(
     // ---------- Стрим позиций (параллельно) ----------
 
     /**
-     * Параллельный каскад: gRPC-стрим + polling работают одновременно.
-     *
-     * Каждый уровень эмитит события в общий поток. Polling прикрывает
-     * паузы, когда gRPC молчит (в песочнице, при отсутствии прав,
-     * или если сервер не отвечает). gRPC переподключается при ошибке
-     * с экспоненциальным backoff.
-     *
-     * Fatal (NOT_FOUND по счёту) завершает оба уровня.
-     */
-    fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
-        merge(
-            subscribePositionsGrpcWithReconnect(accountId),
-            subscribePositionsPolling(accountId),
-        )
-
-    /**
      * gRPC-стрим с автопереподключением.
      *
      * Возвращает `null`, если API не инициализирован.
@@ -356,46 +339,12 @@ class TInvestMarketDataService(
             }
         }
 
-    /**
-     * Polling позиций раз в [RETRY_DELAY_MS] миллисекунд.
-     *
-     * Стартовый снапшот делается сразу, чтобы UI не ждал 10 секунд
-     * при первом открытии портфеля. Далее — по циклу.
-     *
-     * NOT_FOUND по счёту завершает поток.
-     */
-    internal fun subscribePositionsPolling(accountId: String): Flow<PositionStreamItem> =
-        flow {
-            AppLogger.d(TAG, "[unary/gRPC/TInvest]: started (account=$accountId)")
-            try {
-                while (currentCoroutineContext().isActive) {
-                    try {
-                        val sandbox = state.sandboxMode
-                        val snapshot = fetchPositionsSnapshot(accountId, sandbox)
-                        AppLogger.d(TAG, "[unary/gRPC/TInvest]: fetched ${snapshot.size} positions")
-                        for (pos in snapshot) emit(convertToStreamItem(pos))
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        if (e.message?.contains("NOT_FOUND") == true) {
-                            AppLogger.w(TAG, "[unary/gRPC/TInvest]: account not found — stopping")
-                            return@flow
-                        }
-                        AppLogger.w(TAG, "[unary/gRPC/TInvest]: error (${e.message})")
-                    }
-                    delay(RETRY_DELAY_MS)
-                }
-            } finally {
-                AppLogger.d(TAG, "[unary/gRPC/TInvest]: stopped (account=$accountId)")
-            }
-        }
-
     private fun retryDelayMs(attempt: Int): Long {
         val idx = (attempt - 1).coerceIn(0, GRPC_RETRY_DELAYS_MS.lastIndex)
         return GRPC_RETRY_DELAYS_MS[idx]
     }
 
-    private fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
+    internal fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
         PositionStreamItem(
             tscalpInstrumentId = pos.tscalpInstrumentId,
             brokerName = BrokerName.TINVEST,
