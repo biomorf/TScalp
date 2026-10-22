@@ -751,3 +751,46 @@ reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
   ожиданием / повтором.
 
 ---
+
+## Дублирующий init {} в SettingsViewModel
+
+**Статус:** открыт.
+
+**Симптом:** в `SettingsViewModel` два блока `init {}` подряд
+(строки ~72–108). Оба запускают `viewModelScope.launch` с
+идентичным по составу `_uiState.update` (`isSandboxMode`,
+`isConfirmOrdersEnabled`, `hasSavedToken` ×3,
+`loadDefaultAccountId`). Первый дополнительно устанавливает
+debug-флаги (`disableGrpc` / `disableWs` / `forceRest`).
+Второй также подписывается на `brokerManager.anyInitialized`.
+
+**Причина:** при добавлении debug-флагов (тумблеров gRPC/WS/REST
+в задаче «Ktor REST transport для polling») создан новый `init`
+с расширенным `_uiState.update`, а исходный `init` не удалён.
+
+**Последствия:**
+- Два `_uiState.update` подряд при создании ViewModel — два
+  эмита `StateFlow` вместо одного.
+- Порядок `viewModelScope.launch` не гарантирован: если второй
+  `launch` выполнится раньше первого, debug-флаги на мгновение
+  окажутся `false` (default `SettingsUiState`), затем
+  установятся первым. Микро-race на первом отображении
+  экрана настроек.
+- Читателю неочевидно, какой блок «главный».
+
+**Решение:**
+1. Объединить два `init {}` в один.
+2. Debug-флаги (`disableGrpc` / `disableWs` / `forceRest`) —
+   в тот же `_uiState.copy`, что и остальные поля.
+3. Подписку `brokerManager.anyInitialized.collect` оставить
+   в том же объединённом `init` отдельным `launch`.
+
+**Файлы:**
+- `app/src/main/kotlin/.../presentation/screens/settings/SettingsViewModel.kt` —
+  строки ~72–108 (два `init {}`).
+
+**Когда вернуться:** следующая UI-задача по `SettingsScreen`
+или в рамках «Рефакторинг ViewModel-слоя»
+(ROADMAP → «Рефакторинг архитектурного долга»).
+
+---
