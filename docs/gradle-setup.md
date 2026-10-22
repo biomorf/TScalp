@@ -38,6 +38,44 @@
 Красивое имя APK (`tscalp-debug-v1.XXX.apk`) появляется
 автоматически через `finalizedBy` на `assembleDebug`.
 
+## Unit-тесты: android.util.Log в JVM
+
+**Проблема:** production-код логирует через `AppLogger` →
+`android.util.Log`. В обычном JVM unit-тесте (без Robolectric)
+`android.util.Log.*` бросает `RuntimeException at Log.java:-1`.
+Первый же вызов `AppLogger.d(...)` в тестируемом коде роняет
+тест — без указания на реальную причину.
+
+Воспроизведение (2026-10-22, `PositionFlowManagerTest`):
+`PositionFlowManager.start()` логирует через `AppLogger.d`,
+тест падает с `RuntimeException at Log.java:-1`. Старые тесты
+(`enrichAndCache`, `ws currency`) не падали — они не идут через
+`start()` и, соответственно, не логируют.
+
+**Решение:** в `app/build.gradle.kts` в блоке `android {}`:
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
+`android.util.Log` и другие методы Android-фреймворка возвращают
+значения по умолчанию (`0`, `null`, `false`) вместо `RuntimeException`.
+
+**Что это даёт:** тесты, проходящие через `start()` / `stop()` /
+`reapplyDebugFlags()` менеджеров (и любой другой код с
+`AppLogger`), работают без Robolectric. Стек-трейсы в логах
+теста не выводятся, но для проверки логики это не нужно.
+
+**Что это НЕ даёт:** не заменяет Robolectric. `AppLogger`
+в тесте «молчит» (Log.d ничего не делает), не эмитит сообщения
+в logcat. Если нужна проверка «был ли вызов Log» — это отдельная
+задача (Robolectric, mockk static). Сейчас такой потребности нет:
+проверяется поведение (`subscribePositions called once`), а не
+логи.
+
+**Связано:** `AGENTS.md` → «Unit-тесты: mockk для suspend-функций».
+
+
 ## Замечания
 
 - **Configuration cache:** флаг `--no-configuration-cache` нельзя
