@@ -446,14 +446,19 @@ Variant B) три менеджера организованы единообра
 **Что меняется:**
 - `PriceFlowManager`: `runGrcpStream` → `collectStream`
   (опечатка `Grcp` → `Grpc`, глагол `run` → `collect`).
-  Убрать redundant `if (DebugConfig.forceRest) return` в начале
-  `runGrcpStream` — оркестратор уже проверяет (в
-  `TInvestOrchestrator.pricesStream`).
+  Убрать `if (DebugConfig.forceRest) return` в начале
+  `runGrcpStream` — **семантически неверно**: `forceRest`
+  переключает unary на REST, а не отключает стрим. Стрим
+  отключается через `disableGrpc && disableWs` (эта проверка
+  остаётся). При `forceRest=true` стрим должен работать —
+  через gRPC/WS согласно `disableGrpc`/`disableWs`.
 - `OrderFlowManager`: `collectPolling` → `runPolling` (природа
   polling — unary, не stream; глагол `run`).
-- KDoc на `PortfolioPosition` — рассмотреть, добавить по полям
-  (часть полей неочевидна: `pointValue`, `profit` — серверный
-  или клиентский, `instrumentType` — строковый enum).
+- KDoc на domain-модели в `Portfolio.kt`: `PortfolioPosition`
+  и **`PositionStreamItem`** (хвост StreamState — сейчас inline
+  `//`, не KDoc). По полям — часть неочевидна: `pointValue`,
+  `profit` (серверный `expectedYield` при >0, иначе клиентский),
+  `instrumentType` (строковый enum), `money`/`blocked` у currency.
 - KDoc на `PriceFlowManager` / `OrderFlowManager` — проверить
   полноту (какие поля, зачем, откуда).
 - KDoc на `_prices: replay=0` — объяснить семантику (цены —
@@ -480,7 +485,8 @@ Variant B) три менеджера организованы единообра
 **Файлы:**
 - `domain/api/PriceFlowManager.kt`
 - `domain/api/OrderFlowManager.kt`
-- `domain/models/Portfolio.kt` (KDoc на `PortfolioPosition`)
+- `domain/models/Portfolio.kt` (KDoc на `PortfolioPosition`
+  и `PositionStreamItem`)
 
 **Оценка:** ~1 час.
 
