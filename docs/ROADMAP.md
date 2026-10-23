@@ -20,12 +20,15 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 merge; критерий: `[PositionFlowManager] state: INITIALIZING → LIVE`
 при старте, `state: LIVE → INITIALIZING → POLLING` при
 `disableGrpc && disableWs` (`INITIALIZING` — это `onStart()` в
-`reapplyDebugFlags`), `state: POLLING → STOPPED` при `stop()`;
+`reapplyDebugFlags`), `state: → STALE` через 30+ сек после
+авиарежима, `state: STALE → POLLING` или `STALE → LIVE` при
+возврате сети, `state: POLLING → STOPPED` при `stop()`;
 аналогично для `PriceFlowManager` и `OrderFlowManager`.
 Процедура — `docs/live-test.md`).
 
-**Следующий шаг:** live-тест на десктопе (logcat: три перехода
-для трёх менеджеров) → `docs(roadmap): mark streamstate done`
+**Следующий шаг:** live-тест на десктопе (logcat: четыре
+перехода для трёх менеджеров — старт, toggle, STALE через
+авиарежим, logout) → `docs(roadmap): mark streamstate done`
 в `dev`. После — `### Унификация имён и KDoc в *FlowManager`
 (следующая по приоритету, «не менее горячая»).
 
