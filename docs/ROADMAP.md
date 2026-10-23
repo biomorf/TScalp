@@ -184,7 +184,8 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 
 **Мобильная работа:** невозможно.
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/tinvest-specific-snapshot.
 
 **Контекст:** `PriceFlowManager`, `OrderFlowManager`,
 `PositionFlowManager` кастуют
