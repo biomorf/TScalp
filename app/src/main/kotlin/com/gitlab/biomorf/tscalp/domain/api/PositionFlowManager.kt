@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -17,6 +18,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -58,10 +60,16 @@ class PositionFlowManager
         companion object {
             private const val TAG = "PositionFlowManager"
             private const val POLLING_INTERVAL_MS = 10_000L
+            private const val STATE_TICK_MS = 1_000L
         }
 
         private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)
         val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
+
+        private val stateTracker = StreamStateTracker(tag = "PositionFlowManager")
+
+        /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
+        val connectionState: StateFlow<StreamState> = stateTracker.state
 
         /**
          * Кэш последних полных снимков по инструментам.
@@ -122,16 +130,19 @@ class PositionFlowManager
             }
             job?.cancel()
             currentAccountId = accountId
+            stateTracker.onStart()
             job =
                 scope.launch {
                     val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
                     if (broker == null || !broker.isInitialized) {
                         AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
+                        stateTracker.onStop()
                         return@launch
                     }
                     coroutineScope {
                         launch { collectStream(broker, accountId) }
                         launch { runPolling(broker, accountId) }
+                        launch { stateWatchdog() }
                     }
                 }
         }
@@ -142,6 +153,7 @@ class PositionFlowManager
         ) {
             try {
                 broker.subscribePositions(accountId).collect { item ->
+                    stateTracker.onStreamEmit()
                     emitEnriched(item, source = "stream")
                 }
             } catch (e: CancellationException) {
@@ -158,6 +170,7 @@ class PositionFlowManager
             while (currentCoroutineContext().isActive) {
                 try {
                     val snapshot = broker.positionsSnapshot(accountId)
+                    stateTracker.onPollingSuccess()
                     AppLogger.d(TAG, "polling: ${snapshot.size} positions")
                     for (item in snapshot) {
                         emitEnriched(item, source = "polling")
@@ -242,12 +255,20 @@ class PositionFlowManager
                 doStart(accountId, forceRestart = true)
             }
 
+        private suspend fun stateWatchdog() {
+            while (currentCoroutineContext().isActive) {
+                delay(STATE_TICK_MS)
+                stateTracker.tick()
+            }
+        }
+
         @OptIn(ExperimentalCoroutinesApi::class)
         fun stop() =
             synchronized(startLock) {
                 job?.cancel()
                 job = null
                 currentAccountId = null
+                stateTracker.onStop()
                 // Сбрасываем replay-кэш, чтобы новые подписчики
                 // не получили устаревший элемент от прошлой сессии.
                 _flow.resetReplayCache()
