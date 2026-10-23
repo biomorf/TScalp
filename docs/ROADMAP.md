@@ -9,6 +9,7 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
+---
 
 ### Архитектурный документ (docs/architecture.md)
 
@@ -29,90 +30,90 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 **Известные архитектурные особенности (собраны 2026-10-23):**
 
 1. **Слои и границы.**
-   - presentation → domain → data. ViewModel не ходит к брокеру —
-     только через `InvestRepository` или `*FlowManager`.
-   - Orchestrator (`TInvestOrchestrator`) — транспорты.
-   - Managers (`PriceFlowManager`, `PositionFlowManager`,
-     `OrderFlowManager`) — merge stream + polling + домен.
-   - Repository (`InvestRepository`) — навигация по брокерам.
+    - presentation → domain → data. ViewModel не ходит к брокеру —
+      только через `InvestRepository` или `*FlowManager`.
+    - Orchestrator (`TInvestOrchestrator`) — транспорты.
+    - Managers (`PriceFlowManager`, `PositionFlowManager`,
+      `OrderFlowManager`) — merge stream + polling + домен.
+    - Repository (`InvestRepository`) — навигация по брокерам.
 
 2. **Транспорты и fallback.**
-   - Stream-уровень (orchestrator): gRPC stream ↔ WS stream через
-     `streamWithFallback(primary, fallback, polling = null)`.
-     Polling — `null` с StreamState (перенесён в managers).
-   - Unary-уровень (orchestrator): gRPC unary → REST unary на
-     транспортные ошибки (`UNAVAILABLE` / `DEADLINE_EXCEEDED` /
-     `UNIMPLEMENTED`); бизнес-ошибки не fallback.
-   - Merge-уровень (managers): stream ↔ polling. Обогащение
-     (P&L, money/blocked, TTL-эвикция) — в managers.
-   - Fallback-логика принадлежит оркестратору (transport-level);
-     managers видят только `Flow` + `suspend fun`.
+    - Stream-уровень (orchestrator): gRPC stream ↔ WS stream через
+      `streamWithFallback(primary, fallback, polling = null)`.
+      Polling — `null` с StreamState (перенесён в managers).
+    - Unary-уровень (orchestrator): gRPC unary → REST unary на
+      транспортные ошибки (`UNAVAILABLE` / `DEADLINE_EXCEEDED` /
+      `UNIMPLEMENTED`); бизнес-ошибки не fallback.
+    - Merge-уровень (managers): stream ↔ polling. Обогащение
+      (P&L, money/blocked, TTL-эвикция) — в managers.
+    - Fallback-логика принадлежит оркестратору (transport-level);
+      managers видят только `Flow` + `suspend fun`.
 
 3. **Managers lifecycle.**
-   - `start` / `stop` / `reapplyDebugFlags` — единая точка.
-   - `synchronized(startLock)` — защита check-then-set
-     (race-фикс PR #34; регрессия покрыта тестами).
-   - `job: Job?` + `coroutineScope { launch × 3 }` (stream,
-     polling, `stateWatchdog`).
-   - `Dispatchers.IO.limitedParallelism(1)` — сериализация
-     мутабельного состояния; `synchronized` не нужен.
-   - `stateTracker: StreamStateTracker` — `LIVE` / `POLLING` /
-     `STALE` / `STOPPED`. Watchdog tick 1s.
-   - `reapplyDebugFlags` — no-op, если менеджер не запущен.
+    - `start` / `stop` / `reapplyDebugFlags` — единая точка.
+    - `synchronized(startLock)` — защита check-then-set
+      (race-фикс PR #34; регрессия покрыта тестами).
+    - `job: Job?` + `coroutineScope { launch × 3 }` (stream,
+      polling, `stateWatchdog`).
+    - `Dispatchers.IO.limitedParallelism(1)` — сериализация
+      мутабельного состояния; `synchronized` не нужен.
+    - `stateTracker: StreamStateTracker` — `LIVE` / `POLLING` /
+      `STALE` / `STOPPED`. Watchdog tick 1s.
+    - `reapplyDebugFlags` — no-op, если менеджер не запущен.
 
 4. **Идентификаторы.**
-   - `tscalpInstrumentId` (domain) ↔ `uid` (T-Invest) / `figi`
-     (BCS) / `ticker+exchange` (Finam).
-   - Трансляция — в data-слое (репозиторий / брокер).
-   - `InstrumentUi.ttech_uid` — специфика T-Invest (исключение).
+    - `tscalpInstrumentId` (domain) ↔ `uid` (T-Invest) / `figi`
+      (BCS) / `ticker+exchange` (Finam).
+    - Трансляция — в data-слое (репозиторий / брокер).
+    - `InstrumentUi.ttech_uid` — специфика T-Invest (исключение).
 
 5. **Потоки данных (domain).**
-   - `PriceFlowManager._prices: SharedFlow(replay = 0)` — one-shot
-     updates; подписчик подтягивает через `pricesSnapshot`.
-   - `PositionFlowManager._flow: SharedFlow(replay = 1)` —
-     stateful snapshot; сброс при смене счёта.
-   - `OrderFlowManager._orders: StateFlow` + `_hasLoaded`.
+    - `PriceFlowManager._prices: SharedFlow(replay = 0)` — one-shot
+      updates; подписчик подтягивает через `pricesSnapshot`.
+    - `PositionFlowManager._flow: SharedFlow(replay = 1)` —
+      stateful snapshot; сброс при смене счёта.
+    - `OrderFlowManager._orders: StateFlow` + `_hasLoaded`.
 
 6. **Domain-модели.**
-   - `PositionStreamItem` — full / partial; маркер
-     `currentPrice != null`.
-   - `PortfolioPosition` — always full, для UI.
-   - `OrderState` — transport event; `OrderListItem` — sum-type
-     через `isStopOrder` (антипаттерн, план: `sealed interface
+    - `PositionStreamItem` — full / partial; маркер
+      `currentPrice != null`.
+    - `PortfolioPosition` — always full, для UI.
+    - `OrderState` — transport event; `OrderListItem` — sum-type
+      через `isStopOrder` (антипаттерн, план: `sealed interface
      Order { Regular, Stop }`).
-   - `InstrumentUi` — open class, `FutureUi` / `ShareUi`,
-     `pointValue` только у futures.
+    - `InstrumentUi` — open class, `FutureUi` / `ShareUi`,
+      `pointValue` только у futures.
 
 7. **BrokerApi.**
-   - 19 функций + `snapshot: BrokerSnapshotApi?`,
-     `@Suppress("TooManyFunctions")`.
-   - `fetchPositionsSnapshot` — unary с fallback на уровне
-     брокера; полный `PortfolioPosition` (UI + база для
-     оркестратора, конвертируется в `PositionStreamItem` в
-     `positionsSnapshot`). Известный долг: возвращает
-     presentation-модель — кандидат на унификацию на
-     `PositionStreamItem`.
-   - `pricesSnapshot` / `ordersSnapshot` / `positionsSnapshot` —
-     `BrokerSnapshotApi` (композиция через `BrokerApi.snapshot`).
-     `TInvestBrokerAPI`: `snapshot = this`. `BcsBrokerApi` /
-     `FinamBrokerApi`: `snapshot = null` → в менеджере `return`
-     + `AppLogger.e` (STALE, не POLLING).
-   - Ролевые интерфейсы (`PortfolioApi`, `OrdersApi`,
-     `MarketDataApi`, `StreamsApi`, `SnapshotApi`) — отдельная
-     задача `### Рефакторинг BrokerApi-реализаций` (D).
+    - 19 функций + `snapshot: BrokerSnapshotApi?`,
+      `@Suppress("TooManyFunctions")`.
+    - `fetchPositionsSnapshot` — unary с fallback на уровне
+      брокера; полный `PortfolioPosition` (UI + база для
+      оркестратора, конвертируется в `PositionStreamItem` в
+      `positionsSnapshot`). Известный долг: возвращает
+      presentation-модель — кандидат на унификацию на
+      `PositionStreamItem`.
+    - `pricesSnapshot` / `ordersSnapshot` / `positionsSnapshot` —
+      `BrokerSnapshotApi` (композиция через `BrokerApi.snapshot`).
+      `TInvestBrokerAPI`: `snapshot = this`. `BcsBrokerApi` /
+      `FinamBrokerApi`: `snapshot = null` → в менеджере `return`
+        + `AppLogger.e` (STALE, не POLLING).
+    - Ролевые интерфейсы (`PortfolioApi`, `OrdersApi`,
+      `MarketDataApi`, `StreamsApi`, `SnapshotApi`) — отдельная
+      задача `### Рефакторинг BrokerApi-реализаций` (D).
 
 8. **Обработка ошибок.**
-   - `AppResult<T>` (Success/Failure) на границах слоёв.
-   - `BrokerErrorMessages` — расшифровка кодов брокеров.
-   - `GrpcExceptionGuard` — глобальный
-     `UncaughtExceptionHandler` для `io.grpc.StatusException`
-     (late callback); non-fatal.
+    - `AppResult<T>` (Success/Failure) на границах слоёв.
+    - `BrokerErrorMessages` — расшифровка кодов брокеров.
+    - `GrpcExceptionGuard` — глобальный
+      `UncaughtExceptionHandler` для `io.grpc.StatusException`
+      (late callback); non-fatal.
 
 9. **Debug-инфраструктура.**
-   - `DebugConfig` gated `BuildConfig.DEBUG` (release — `false`).
-   - `AppLogger` — `Log.d` только в debug.
-   - WS `logFrames` — `BuildConfig.DEBUG`.
-   - Матрица 8 комбинаций флагов — `### Debug-тумблеры`.
+    - `DebugConfig` gated `BuildConfig.DEBUG` (release — `false`).
+    - `AppLogger` — `Log.d` только в debug.
+    - WS `logFrames` — `BuildConfig.DEBUG`.
+    - Матрица 8 комбинаций флагов — `### Debug-тумблеры`.
 
 **Ссылки на существующие docs (не дублировать):**
 `docs/streams.md`, `docs/live-test.md`, `docs/brokers.md`,
@@ -174,6 +175,225 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 - Clean архитектура (umbrella-задача) — создаётся после
   `docs/architecture.md`, из раздела «Известные долги».
   Не входит в эту задачу.
+
+
+
+
+---
+
+### TInvest-specific: fetchFullInstrument
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст:** после `### TInvest-specific` (C-вариант, `2153b03`)
+в коде остался **один** `as? TInvestBrokerAPI` для метода
+`fetchFullInstrument` (полный доменный инструмент по uid).
+`InstrumentRepository:35` кастует к data-implementation —
+тот же layer violation, что был у `*Snapshot`, но другая
+семантика (полный `InstrumentUi`, не partial stream item).
+
+Остальные 3 каста (`TScalpApplication.restoreTInvest`,
+`SettingsViewModel.initialize/deinitialize`) — lifecycle/auth,
+**другая задача** `### Broker lifecycle API` (см. ниже).
+
+**Предусловия:** `### TInvest-specific` закрыта (`2153b03`).
+
+**Файлы:**
+- `domain/api/BrokerInstrumentApi.kt` (новый) —
+  `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`.
+- `domain/api/BrokerApi.kt` — `val instrument: BrokerInstrumentApi?`.
+- `data/api/TInvestBrokerApi.kt` — `override val instrument = this`;
+  `fetchFullInstrument` → `override`.
+- `data/api/BcsBrokerApi.kt` / `FinamBrokerApi.kt` —
+  `override val instrument: BrokerInstrumentApi? = null`.
+- `data/repository/InstrumentRepository.kt` — без каста:
+  `broker.instrument?.fetchFullInstrument(uid)`.
+- Тесты: `InstrumentRepositoryTest` (если есть) — мок
+  `every { broker.instrument } returns mockk(...)`.
+
+**Шаги:**
+
+1. Создать `BrokerInstrumentApi` (1 метод + KDoc).
+2. `BrokerApi.instrument: BrokerInstrumentApi?` (KDoc: опциональный,
+   `null` = не поддерживает — InstrumentRepository вернёт `null`).
+3. `TInvestBrokerAPI`: `override val instrument = this`;
+   `override suspend fun fetchFullInstrument`.
+4. `BcsBrokerApi` / `FinamBrokerApi`: `override val instrument = null`.
+5. `InstrumentRepository.fetchFullInstrument`: без каста, при
+   `instrument == null` → `null`.
+6. Тесты (если `InstrumentRepositoryTest` есть).
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Ограничения:**
+- Не менять поведение `fetchFullInstrument` (TInvest возвращает
+  `InstrumentUi`, как сейчас).
+- BCS/Finam `instrument = null` → `InstrumentRepository` вернёт
+  `null` (текущее поведение — `BcsBrokerApi`/`FinamBrokerApi` не
+  реализуют метод).
+- Не смешивать с `### Broker lifecycle API` — отдельная задача.
+
+**Критерий готовности:**
+- `BrokerInstrumentApi` создан, 1 метод.
+- `BrokerApi.instrument` добавлен.
+- `TInvestBrokerAPI.instrument = this`.
+- BCS/Finam `instrument = null`.
+- `grep "as? TInvestBrokerAPI" InstrumentRepository.kt` — пусто.
+- Гейт зелёный.
+
+**Оценка:** ~30–40 мин (интерфейс 10, BrokerApi 5, TInvest 10,
+BCS/Finam 5, repository 5, гейт 5).
+
+**Зависимости:** разблокирована (`### TInvest-specific` закрыта).
+
+**Связано:**
+- `### Broker lifecycle API` — оставшиеся 3 каста (auth).
+- `### Архитектурный документ` — раздел 7 дополнить
+  `BrokerInstrumentApi`.
+
+**Открытые вопросы:** нет.
+
+
+
+
+---
+
+### Broker lifecycle API
+
+**Мобильная работа:** невозможно (сборка + live-тест login/logout/restart).
+
+**Статус:** запланировано.
+
+**Контекст:** в коде 3 `as? TInvestBrokerAPI` в lifecycle/auth:
+- `TScalpApplication:89` (`restoreTInvest` → `initialize(token, sandbox)`);
+- `SettingsViewModel:133` (`deinitialize()` при logout);
+- `SettingsViewModel:236` (`initialize(cleanToken, sandbox)` при login).
+
+Сигнатуры `initialize` **разные** у трёх брокеров:
+TInvest — `(token, sandbox: Boolean)`, BCS — `(refreshToken,
+isWriteMode: Boolean)`, Finam — `(token)`. Прямой общий
+интерфейс невозможен без унификации credentials.
+
+**Цель:** убрать касты, ввести общий lifecycle-контракт с
+типизированными credentials. Clean: domain не знает про
+data-implementation (`TInvestBrokerAPI`, `BcsBrokerApi`,
+`FinamBrokerApi`).
+
+**Предусловия:**
+- `### TInvest-specific` закрыта (`2153b03`) — прецедент
+  C-варианта (`BrokerApi.snapshot`, `BrokerInstrumentApi`).
+- **Желательно после** `### Архитектурный документ` — lifecycle
+  слой должен быть описан (раздел 1 «Слои», раздел 8
+  «Обработка ошибок» / auth).
+
+**Варианты:**
+
+- **A. Sealed credentials + lifecycle interface.**
+  `sealed interface BrokerCredentials { TInvest(token, sandbox);
+  Bcs(refreshToken, isWriteMode); Finam(token) }`.
+  `BrokerLifecycleApi { suspend fun initialize(credentials:
+  BrokerCredentials); fun deinitialize() }`.
+  `BrokerApi.lifecycle: BrokerLifecycleApi?`. Каждый брокер
+  реализует `initialize(credentials)` через `when` (принимает
+  только свой тип, иначе `IllegalArgumentException`).
+  **+** Полный Clean, типизация на compile-time.
+  **−** `when` + runtime проверка типа; `IllegalArgumentException`
+  при неверном типе.
+
+- **B. Три метода в `BrokerLifecycleApi`:**
+  `initializeTInvest(token, sandbox)` /
+  `initializeBcs(refreshToken, isWriteMode)` /
+  `initializeFinam(token)` — все `null` по умолчанию.
+  Брокер реализует только свой.
+  **+** Без `when`, compile-time проверка на уровне интерфейса.
+  **−** Интерфейс знает про всех брокеров (протекание).
+
+- **C. Оставить как есть, KDoc на каст.**
+  **−** Не Clean, отклонено (как в `### TInvest-specific`).
+
+**Рекомендация: A** — единый контракт, типизация, минимальное
+протекание (sealed credentials — domain-модель, не data).
+
+**Файлы:**
+- `domain/api/BrokerCredentials.kt` (новый) — sealed interface.
+- `domain/api/BrokerLifecycleApi.kt` (новый) — `initialize`,
+  `deinitialize`.
+- `domain/api/BrokerApi.kt` — `val lifecycle: BrokerLifecycleApi?`.
+- `data/api/TInvestBrokerApi.kt` — `override val lifecycle = this`;
+  `initialize(credentials)` через `when (credentials) { is TInvest
+  -> ...; else -> error }`.
+- `data/api/BcsBrokerApi.kt`, `FinamBrokerApi.kt` — аналогично.
+- `TScalpApplication.restoreTInvest` / `restoreBcs` — без каста:
+  `broker.lifecycle?.initialize(credentials)`.
+- `SettingsViewModel.clearBrokerCredentials` / `initializeTInvest` /
+  `initializeBcs` / `initializeFinam` — без каста: через
+  `broker.lifecycle?.initialize(credentials)` /
+  `broker.lifecycle?.deinitialize()`.
+- Тесты: **сложно** (mock DataStore + BrokerManager + 3 брокера).
+  **Дефолт** — без unit-тестов, live-тест.
+
+**Шаги:**
+
+1. `BrokerCredentials` (sealed interface, 3 data-класса).
+2. `BrokerLifecycleApi` (initialize, deinitialize + KDoc).
+3. `BrokerApi.lifecycle: BrokerLifecycleApi?`.
+4. TInvest / BCS / Finam: `override val lifecycle = this` +
+   `initialize(credentials)` через `when` с проверкой типа.
+5. `TScalpApplication`: убрать касты, через `lifecycle`.
+6. `SettingsViewModel`: убрать касты, через `lifecycle`.
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+8. **Live-тест** (обязателен): login TInvest / BCS / Finam →
+   logout → restart приложения. Проверить:
+   - login: `initialize` через lifecycle, `isInitialized = true`;
+   - logout: `deinitialize`, `isInitialized = false`;
+   - restart: `restoreTInvest` восстанавливает по сохранённым
+     credentials.
+
+**Ограничения:**
+- **Не менять поведение** login/logout/restore — только каст → lifecycle.
+- `lifecycle == null` (BCS/Finam без реализации) — `AppLogger.e`
+  + `return` (no-op). После реализации `lifecycle` в BCS/Finam —
+  отдельные задачи.
+- **Live-тест обязателен** — critical path (старт приложения).
+- `synchronized(startLock)` в менеджерах не трогать.
+- Не смешивать с `### TInvest-specific: fetchFullInstrument`
+  (отдельная задача, `BrokerInstrumentApi`).
+
+**Критерий готовности:**
+- `BrokerCredentials` + `BrokerLifecycleApi` созданы.
+- `BrokerApi.lifecycle` добавлен.
+- TInvest/BCS/Finam — `lifecycle = this` + `initialize` через `when`.
+- `grep "as? TInvestBrokerAPI" TScalpApplication.kt SettingsViewModel.kt` — пусто.
+- Login / logout / restart приложения работают (live-тест).
+- Гейт зелёный.
+
+**Оценка:** ~2–3 часа (credentials 15, lifecycle 15, BrokerApi 5,
+TInvest/BCS/Finam 30, TScalpApplication 20, SettingsViewModel 20,
+гейт 15, live-тест 30). Если с unit-тестами — +2 ч (сложная
+mock-инфраструктура).
+
+**Зависимости:**
+- **Желательно после** `### Архитектурный документ` (lifecycle
+  слой должен быть описан).
+- **Требует** `### TInvest-specific` закрытой (`2153b03`) —
+  прецедент C-варианта.
+
+**Связано:**
+- `### TInvest-specific: fetchFullInstrument` — другой каст
+  (не auth), отдельная задача.
+- `### Архитектурный документ` — раздел 1 (слои) и раздел 8
+  (ошибки/auth).
+- `### Рефакторинг BrokerApi-реализаций` (D) — lifecycle в
+  ролевых интерфейсах.
+
+**Открытые вопросы:**
+- Вариант A (sealed credentials) или B (три метода)? Дефолт — A.
+- После реализации `lifecycle` в BCS/Finam — `deinitialize`
+  у BCS уже есть, `initialize` — по месту. Отдельные задачи
+  при интеграции BCS/Finam.
+- Unit-тесты для lifecycle — **сложно** (mock DataStore +
+  BrokerManager + 3 брокера). Дефолт — без, live-тест.
 
 
 
@@ -388,6 +608,140 @@ TInvest 20, BCS/Finam 10, managers 30, KDoc 15, тесты 30,
 
 
 
+
+---
+
+### Rate-limiter для unary-запросов T-Invest
+
+**Мобильная работа:** невозможно (сборка + тесты на десктопе;
+правки `.kt` через proot — можно, но без проверки).
+
+**Статус:** запланировано.
+
+**Контекст:** в проекте **нет rate-limiter для unary-запросов**
+к T-Invest. Единственные механизмы ограничения частоты —
+периодичность polling (`RETRY_DELAY_MS = 10_000L` для позиций,
+`5_000L` для цен) и backoff переподключения стримов
+(`GRPC_RETRY_DELAYS_MS`, `RETRY_DELAYS_MS`). Это не ограничители
+частоты API, а расписания. При параллельных запросах
+(например, `getTradingStatuses` через
+`coroutineScope { awaitAll() }` — N параллельных unary на
+N инструментов) лимит легко превышается.
+
+Официальные лимиты T-Invest записаны в `docs/rate-limits.md`:
+не более 50 запросов в секунду суммарно, плюс по-сервисные
+лимиты в минуту (Instruments 200, Users 100, MarketData 300,
+Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
+и т.д.).
+
+**Зачем:** без rate-limiter'а возможны `RESOURCE_EXHAUSTED`
+от API, троттлинг на стороне сервера, деградация UX
+(запросы уходят в отказ, UI показывает ошибки). Особенно
+критично для `postOrder` (15/сек) и `getTradingStatuses`
+(N параллельных).
+
+**Предусловия:** нет.
+
+**Файлы:**
+
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestRateLimiter.kt` (новый) —
+  rate-limiter (токен-бакет) с учётом лимитов по сервисам и
+  общего лимита 50/сек.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestMarketDataService.kt` —
+  обернуть `getLastPricesByTscalpInstrumentId`,
+  `getTradingStatuses`, `getPortfolio`, `fetchPositionsSnapshot`
+  (внутри — unary) в rate-limiter.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestOrdersService.kt` —
+  обернуть `postOrder` (15/сек), `postStopOrder`,
+  `getOrders`/`getStopOrders`, `cancel*`.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/DataModule.kt` —
+  Hilt-провайдер `TInvestRateLimiter` как `@Singleton`.
+
+**Шаги:**
+
+1. **Вынести лимиты в константы** (`TInvestRateLimits` в
+   `data/api/`): таблицы из `docs/rate-limits.md` — по каждому
+   сервису, отдельные строки для `getOrders` и `postOrder`,
+   общий лимит 50/сек.
+2. **Реализовать токен-бакет** (`TInvestRateLimiter`): метод
+   `suspend fun <T> withPermission(service: TInvestService, block: suspend () -> T): T`.
+   Внутри — `Semaphore` или `Channel`-based limiter с
+   двумя уровнями: per-service (N/мин) и глобальный (50/сек).
+3. **Интегрировать** в `TInvestMarketDataService` и
+   `TInvestOrdersService`: обернуть каждый unary-вызов в
+   `rateLimiter.withPermission(...) { broker.method() }`.
+4. **Особый случай `getTradingStatuses`:** сейчас
+   `coroutineScope { ids.map { async { ... } }.awaitAll() }` —
+   N параллельных. С rate-limiter'ом либо (а) последовательно
+   через limiter, либо (б) батчинг (если API даст метод
+   batch-запроса), либо (в) ограничить concurrency — например,
+   `Semaphore(10)` поверх rate-limiter'а.
+5. **Опционально: `GetUserTariff`** — unary-метод, возвращает
+   актуальные лимиты для пользователя. Вызывать при старте
+   приложения (после `initialize`), кэшировать, использовать
+   в rate-limiter вместо статических констант. Для грейдов
+   4–5 лимиты выше, чем в таблице.
+6. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
+   запросов не превышают лимит, что `postOrder` не чаще
+   15/сек, что общий лимит 50/сек соблюдается.
+
+**Референсы:**
+
+- `docs/rate-limits.md` — официальные лимиты (полные таблицы).
+- Официальная документация T-Invest:
+  `https://developer.tbank.ru/invest/intro/developer/limits` —
+  раздел «Лимиты запросов».
+- `GetUserTariff` в proto-контракте:
+  `ru.tinkoff.piapi.contract.v1.UsersService/GetUserTariff`.
+
+**Ограничения:**
+
+- Не менять публичные контракты `BrokerApi`. Rate-limiter —
+  внутренняя деталь `TInvestBrokerAPI` и его сервисов.
+- Не смешивать с задачей `stream-orchestrator` — это отдельная
+  работа по data-слою, не про WS.
+- Не трогать BCS / Finam — у них свои лимиты, отдельные задачи
+  при интеграции.
+- Держать поведение `getTradingStatuses` прежним по контракту
+  (тот же `Map<uid, TradingAvailability>`), меняется только
+  внутренняя реализация.
+- Если rate-limiter не может дать разрешение (запрос ждёт
+  слишком долго) — вернуть `AppResult.Failure` с
+  `AppError.Unknown("rate limit")` или дождаться с таймаутом.
+  Решение зафиксировать в KDoc.
+
+**Критерий готовности:**
+
+- `TInvestRateLimiter` реализован, покрыт unit-тестами.
+- Все unary-вызовы в `TInvestMarketDataService` и
+  `TInvestOrdersService` проходят через rate-limiter.
+- `getTradingStatuses` не превышает лимит `MarketData`
+  (300/мин для gRPC) даже при 100 инструментах за раз.
+- `postOrder` не чаще 15/сек.
+- Общий лимит 50/сек с одного IP соблюдается (замер в unit-тесте).
+- 63 теста зелёные, ktlint и detekt чистые.
+
+**Оценка:** ~3–5 часов (токен-бакет 1–1.5 ч, интеграция
+1–1.5 ч, `GetUserTariff` 0.5–1 ч, тесты 0.5–1 ч).
+
+**Зависимости:** нет. **Разблокирует:** безопасный переход на
+более агрессивный polling, добавление батч-операций по
+инструментам, торговлю без риска `RESOURCE_EXHAUSTED`.
+
+**Открытые вопросы:**
+
+- Использовать `GetUserTariff` сразу или начать со статических
+  лимитов и добавить динамические позже. Решить при старте.
+- Как вести себя при долгом ожидании (timeout vs fail vs
+  ждать) — унифицировать через `AppResult`.
+- Нужен ли отдельный rate-limiter для REST-эндпоинтов T-Invest
+  (REST-прокси), если они будут использоваться — у REST
+  лимиты ниже (см. таблицу). Пока REST не используется,
+  не актуально.
+
+
+
+
 ---
 
 ### UI-индикатор состояния стримов
@@ -451,6 +805,7 @@ live-теста. UI-индикатор блокируется **закрытие
 **Оценка:** ~2 часа.
 
 **Зависимости:** блокируется StreamState.
+
 
 
 
@@ -638,6 +993,7 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 
 
 
+
 ---
 
 ### UI: отображение blocked на валютной карточке
@@ -754,137 +1110,6 @@ polling — рубли), без разбивки на свободные/заб�
   позиции в контексте заявки) — сейчас нет, но при
   блокировке инструмента биржей может быть полезно.
 
-
-
----
-
-### Rate-limiter для unary-запросов T-Invest
-
-**Мобильная работа:** невозможно (сборка + тесты на десктопе;
-правки `.kt` через proot — можно, но без проверки).
-
-**Статус:** запланировано.
-
-**Контекст:** в проекте **нет rate-limiter для unary-запросов**
-к T-Invest. Единственные механизмы ограничения частоты —
-периодичность polling (`RETRY_DELAY_MS = 10_000L` для позиций,
-`5_000L` для цен) и backoff переподключения стримов
-(`GRPC_RETRY_DELAYS_MS`, `RETRY_DELAYS_MS`). Это не ограничители
-частоты API, а расписания. При параллельных запросах
-(например, `getTradingStatuses` через
-`coroutineScope { awaitAll() }` — N параллельных unary на
-N инструментов) лимит легко превышается.
-
-Официальные лимиты T-Invest записаны в `docs/rate-limits.md`:
-не более 50 запросов в секунду суммарно, плюс по-сервисные
-лимиты в минуту (Instruments 200, Users 100, MarketData 300,
-Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
-и т.д.).
-
-**Зачем:** без rate-limiter'а возможны `RESOURCE_EXHAUSTED`
-от API, троттлинг на стороне сервера, деградация UX
-(запросы уходят в отказ, UI показывает ошибки). Особенно
-критично для `postOrder` (15/сек) и `getTradingStatuses`
-(N параллельных).
-
-**Предусловия:** нет.
-
-**Файлы:**
-
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestRateLimiter.kt` (новый) —
-  rate-limiter (токен-бакет) с учётом лимитов по сервисам и
-  общего лимита 50/сек.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestMarketDataService.kt` —
-  обернуть `getLastPricesByTscalpInstrumentId`,
-  `getTradingStatuses`, `getPortfolio`, `fetchPositionsSnapshot`
-  (внутри — unary) в rate-limiter.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestOrdersService.kt` —
-  обернуть `postOrder` (15/сек), `postStopOrder`,
-  `getOrders`/`getStopOrders`, `cancel*`.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/DataModule.kt` —
-  Hilt-провайдер `TInvestRateLimiter` как `@Singleton`.
-
-**Шаги:**
-
-1. **Вынести лимиты в константы** (`TInvestRateLimits` в
-   `data/api/`): таблицы из `docs/rate-limits.md` — по каждому
-   сервису, отдельные строки для `getOrders` и `postOrder`,
-   общий лимит 50/сек.
-2. **Реализовать токен-бакет** (`TInvestRateLimiter`): метод
-   `suspend fun <T> withPermission(service: TInvestService, block: suspend () -> T): T`.
-   Внутри — `Semaphore` или `Channel`-based limiter с
-   двумя уровнями: per-service (N/мин) и глобальный (50/сек).
-3. **Интегрировать** в `TInvestMarketDataService` и
-   `TInvestOrdersService`: обернуть каждый unary-вызов в
-   `rateLimiter.withPermission(...) { broker.method() }`.
-4. **Особый случай `getTradingStatuses`:** сейчас
-   `coroutineScope { ids.map { async { ... } }.awaitAll() }` —
-   N параллельных. С rate-limiter'ом либо (а) последовательно
-   через limiter, либо (б) батчинг (если API даст метод
-   batch-запроса), либо (в) ограничить concurrency — например,
-   `Semaphore(10)` поверх rate-limiter'а.
-5. **Опционально: `GetUserTariff`** — unary-метод, возвращает
-   актуальные лимиты для пользователя. Вызывать при старте
-   приложения (после `initialize`), кэшировать, использовать
-   в rate-limiter вместо статических констант. Для грейдов
-   4–5 лимиты выше, чем в таблице.
-6. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
-   запросов не превышают лимит, что `postOrder` не чаще
-   15/сек, что общий лимит 50/сек соблюдается.
-
-**Референсы:**
-
-- `docs/rate-limits.md` — официальные лимиты (полные таблицы).
-- Официальная документация T-Invest:
-  `https://developer.tbank.ru/invest/intro/developer/limits` —
-  раздел «Лимиты запросов».
-- `GetUserTariff` в proto-контракте:
-  `ru.tinkoff.piapi.contract.v1.UsersService/GetUserTariff`.
-
-**Ограничения:**
-
-- Не менять публичные контракты `BrokerApi`. Rate-limiter —
-  внутренняя деталь `TInvestBrokerAPI` и его сервисов.
-- Не смешивать с задачей `stream-orchestrator` — это отдельная
-  работа по data-слою, не про WS.
-- Не трогать BCS / Finam — у них свои лимиты, отдельные задачи
-  при интеграции.
-- Держать поведение `getTradingStatuses` прежним по контракту
-  (тот же `Map<uid, TradingAvailability>`), меняется только
-  внутренняя реализация.
-- Если rate-limiter не может дать разрешение (запрос ждёт
-  слишком долго) — вернуть `AppResult.Failure` с
-  `AppError.Unknown("rate limit")` или дождаться с таймаутом.
-  Решение зафиксировать в KDoc.
-
-**Критерий готовности:**
-
-- `TInvestRateLimiter` реализован, покрыт unit-тестами.
-- Все unary-вызовы в `TInvestMarketDataService` и
-  `TInvestOrdersService` проходят через rate-limiter.
-- `getTradingStatuses` не превышает лимит `MarketData`
-  (300/мин для gRPC) даже при 100 инструментах за раз.
-- `postOrder` не чаще 15/сек.
-- Общий лимит 50/сек с одного IP соблюдается (замер в unit-тесте).
-- 63 теста зелёные, ktlint и detekt чистые.
-
-**Оценка:** ~3–5 часов (токен-бакет 1–1.5 ч, интеграция
-1–1.5 ч, `GetUserTariff` 0.5–1 ч, тесты 0.5–1 ч).
-
-**Зависимости:** нет. **Разблокирует:** безопасный переход на
-более агрессивный polling, добавление батч-операций по
-инструментам, торговлю без риска `RESOURCE_EXHAUSTED`.
-
-**Открытые вопросы:**
-
-- Использовать `GetUserTariff` сразу или начать со статических
-  лимитов и добавить динамические позже. Решить при старте.
-- Как вести себя при долгом ожидании (timeout vs fail vs
-  ждать) — унифицировать через `AppResult`.
-- Нужен ли отдельный rate-limiter для REST-эндпоинтов T-Invest
-  (REST-прокси), если они будут использоваться — у REST
-  лимиты ниже (см. таблицу). Пока REST не используется,
-  не актуально.
 
 
 
@@ -1052,6 +1277,7 @@ iOS-задачи миграция станет обязательной. Сей�
 
 
 
+
 ---
 
 ### Рефакторинг расчёта P&L для PortfolioPosition
@@ -1198,6 +1424,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
+
 ---
 
 ### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
@@ -1311,6 +1538,7 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 
 
+
 ---
 
 ### Переход на edge-to-edge (statusBarColor deprecated)
@@ -1330,6 +1558,7 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 **Оценка:** ~2 часа + прогон на устройствах разных версий.
 **Когда:** при подготовке релиза под Android 15 или target SDK 36.
+
 
 
 
@@ -1367,6 +1596,11 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 **Зависимости:** нет.
 
+
+
+
+---
+
 #### Compose-экраны
 
 **Файлы:**
@@ -1395,6 +1629,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 **Оценка:** ~6 часов на рефакторинг + ~1–2 часа на preview
 всех экранов (вариант C).
 
+
+
+
+---
+
 #### Compose-компоненты
 
 **Файлы:**
@@ -1405,6 +1644,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
   (62 строки).
 
 **Оценка:** ~2 часа.
+
+
+
+
+---
 
 #### ViewModel-слой
 
@@ -1422,6 +1666,10 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 `OrderFormViewModel` / `OrderListViewModel`.
 
 **Оценка:** ~5 часов.
+
+
+
+---
 
 #### BrokerApi-реализации
 
@@ -1461,6 +1709,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
   структуру.
 - `docs/architecture.md`, раздел 7 — целевая архитектура.
 
+
+
+
+---
+
 #### Репозитории
 
 **Файлы:** `data/repository/InvestRepository.kt` (17 функций),
@@ -1471,6 +1724,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 настройки UI, режим sandbox — для `SettingsRepository`).
 
 **Оценка:** ~2 часа.
+
+
+
+
+---
 
 #### UseCase-слой
 
@@ -1485,6 +1743,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 валидацию, сборку request, разрешение uid в отдельные шаги.
 
 **Оценка:** ~2 часа.
+
+
+
+
+---
 
 #### Data-слой T-Invest
 
@@ -1501,6 +1764,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 **Оценка:** ~2 часа.
 
+
+
+
+---
+
 #### Классификатор ошибок
 
 **Файлы:**
@@ -1512,6 +1780,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 диспетчеризацией по `BrokerName`.
 
 **Оценка:** ~1 час.
+
+
+
+
+---
 
 #### Индикатор доступности инструмента в карточке позиции
 
@@ -1529,6 +1802,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 **Оценка:** ~1 час (после санкции на UI).
 
 **Когда вернуться:** при следующей итерации по UI портфеля.
+
 
 
 
@@ -1617,6 +1891,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 **Зависимости:** нет. Блокирует полноценное использование
 Finam в UI.
+
 
 
 
