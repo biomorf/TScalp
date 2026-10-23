@@ -80,9 +80,9 @@
 
 - **Уровень 1 — gRPC-стрим.** Первичный источник изменений
   количества. Даёт неполные `PositionStreamItem` (без P&L).
-- **Уровень 2 — polling.** `fetchPositionsSnapshot` раз в
-  10–30 секунд. Даёт полные снимки с `averagePositionPrice`,
-  `expectedYield`, `pointValue`.
+- **Уровень 2 — polling.** `broker.positionsSnapshot` раз в
+  10 секунд (`PositionFlowManager.runPolling`). Даёт полные
+  снимки с `averagePositionPrice`, `expectedYield`, `pointValue`.
 - **Обогащение в `PositionFlowManager`.** Менеджер хранит
   последний полный снимок от polling. При gRPC-событии эмитит
   событие с `balance` из gRPC и остальными полями из кэша.
@@ -94,9 +94,16 @@
 **Роль `PriceFlowManager`:** цены берутся оттуда, как и
 раньше. Стрим позиций **не дублирует** подписку на last price.
 
-**Текущая альтернатива (до реализации):** polling через
-`PositionFlowManager` с периодом 10 секунд. P&L корректно
-отображается с задержкой.
+**Состояние источника.** После рефакторинга (PR «StreamState
+в data-слое») polling позиций перенесён из
+`TInvestOrchestrator.positionsStream` в
+`PositionFlowManager.runPolling` — все три менеджера
+(`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`)
+агрегируют источники сами (stream + polling), оркестратор
+владеет только транспортами. Каждый менеджер отдаёт
+`connectionState: StateFlow<StreamState>` (`LIVE` / `POLLING` /
+`STALE` / `STOPPED`). UI-индикатор — отдельная задача
+(ROADMAP → «UI-индикатор состояния стримов»).
 
 ## WebSocket (T-Invest)
 

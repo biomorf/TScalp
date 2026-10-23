@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import com.gitlab.biomorf.tscalp.domain.models.toOrderListItem
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.CancellationException
@@ -58,6 +59,7 @@ class OrderFlowManager
         companion object {
             private const val TAG = "OrderFlowManager"
             private const val POLLING_INTERVAL_MS = 15_000L
+            private const val STATE_TICK_MS = 1_000L
             private val TERMINAL_STATUSES = setOf("FILL", "CANCELLED", "REJECTED")
         }
 
@@ -67,6 +69,11 @@ class OrderFlowManager
         /** true после первой итерации polling (успешной или с ошибкой). */
         private val _hasLoaded = MutableStateFlow(false)
         val hasLoaded: StateFlow<Boolean> = _hasLoaded.asStateFlow()
+
+        private val stateTracker = StreamStateTracker(tag = "OrderFlowManager")
+
+        /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
+        val connectionState: StateFlow<StreamState> = stateTracker.state
 
         private val cache = OrderCache(ttlMs = POLLING_INTERVAL_MS * 2)
         private var job: Job? = null
@@ -109,6 +116,7 @@ class OrderFlowManager
             }
             job?.cancel()
             currentAccountId = accountId
+            stateTracker.onStart()
             job =
                 scope.launch {
                     if (switching) {
@@ -119,11 +127,13 @@ class OrderFlowManager
                     val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
                     if (broker == null || !broker.isInitialized) {
                         AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
+                        stateTracker.onStop()
                         return@launch
                     }
                     coroutineScope {
                         launch { collectPolling(broker, accountId) }
                         launch { collectStream(broker, accountId) }
+                        launch { stateWatchdog() }
                     }
                 }
         }
@@ -137,6 +147,7 @@ class OrderFlowManager
                 job?.cancel()
                 job = null
                 currentAccountId = null
+                stateTracker.onStop()
                 scope.launch {
                     // Если между stop() и этой корутиной уже вызвали
                     // start() — не затираем свежие данные.
@@ -165,6 +176,7 @@ class OrderFlowManager
                     // заявок, и эвикция снесла бы их.
                     cache.evictStale(now)
                     _orders.value = cache.snapshot()
+                    stateTracker.onPollingSuccess()
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -182,6 +194,7 @@ class OrderFlowManager
         ) {
             try {
                 broker.subscribeOrderState(accountId).collect { state ->
+                    stateTracker.onStreamEmit()
                     val item = state.toOrderListItem()
                     AppLogger.d(TAG, "stream: ${item.orderId} status=${item.status}")
                     if (item.status in TERMINAL_STATUSES) {
@@ -195,6 +208,13 @@ class OrderFlowManager
                 throw e
             } catch (e: Exception) {
                 AppLogger.e(TAG, "stream error: ${e.message}", e)
+            }
+        }
+
+        private suspend fun stateWatchdog() {
+            while (currentCoroutineContext().isActive) {
+                delay(STATE_TICK_MS)
+                stateTracker.tick()
             }
         }
     }

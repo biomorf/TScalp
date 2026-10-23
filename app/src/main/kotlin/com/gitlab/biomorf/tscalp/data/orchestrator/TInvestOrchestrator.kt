@@ -9,12 +9,7 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.util.AppLogger
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.isActive
 
 /**
  * Оркестратор стримов T-Invest.
@@ -39,13 +34,9 @@ class TInvestOrchestrator(
 ) {
     private companion object {
         private const val TAG = "TInvestOrchestrator"
-        private const val POSITIONS_POLLING_DELAY_MS = 10_000L
     }
 
-    fun positionsStream(
-        accountId: String,
-        sandboxMode: Boolean,
-    ): Flow<PositionStreamItem> =
+    fun positionsStream(accountId: String): Flow<PositionStreamItem> =
         streamWithFallback(
             primary =
                 if (DebugConfig.disableGrpc) {
@@ -59,12 +50,7 @@ class TInvestOrchestrator(
                 } else {
                     wsFallback(accountId)
                 },
-            polling =
-                if (DebugConfig.DISABLE_POLLING) {
-                    null
-                } else {
-                    positionsPolling(accountId, sandboxMode)
-                },
+            polling = null,
         )
 
     fun pricesStream(uids: Set<String>): Flow<Pair<String, Double>> =
@@ -101,52 +87,24 @@ class TInvestOrchestrator(
             polling = null,
         )
 
-    private fun positionsPolling(
-        accountId: String,
-        sandboxMode: Boolean,
-    ): Flow<PositionStreamItem> =
-        flow {
-            AppLogger.d(TAG, "[orchestrator/polling/TInvest]: started (account=$accountId)")
-            try {
-                while (currentCoroutineContext().isActive) {
-                    try {
-                        val snapshot = positionsSnapshot(accountId, sandboxMode)
-                        AppLogger.d(TAG, "[orchestrator/polling/TInvest]: fetched ${snapshot.size} positions")
-                        for (pos in snapshot) emit(marketData.convertToStreamItem(pos))
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        if (e.message?.contains("NOT_FOUND") == true) {
-                            AppLogger.w(TAG, "[orchestrator/polling/TInvest]: account not found — stopping")
-                            return@flow
-                        }
-                        AppLogger.w(TAG, "[orchestrator/polling/TInvest]: error (${e.message})")
-                    }
-                    delay(POSITIONS_POLLING_DELAY_MS)
-                }
-            } finally {
-                AppLogger.d(TAG, "[orchestrator/polling/TInvest]: stopped (account=$accountId)")
-            }
-        }
-
     // ---------- Unary snapshots (без fallback, фаза 1a) ----------
     // Fallback gRPC → REST будет добавлен в шаге 2.
 
     suspend fun positionsSnapshot(
         accountId: String,
         sandboxMode: Boolean,
-    ): List<PortfolioPosition> {
+    ): List<PositionStreamItem> {
         if (DebugConfig.forceRest) {
             val rest = positionsRestFallback ?: throw IllegalStateException("REST fallback not configured")
             AppLogger.w(TAG, "forceRest: bypassing gRPC for positions")
-            return rest(accountId, sandboxMode)
+            return rest(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
         }
         return try {
-            marketData.fetchPositionsSnapshot(accountId, sandboxMode)
+            marketData.fetchPositionsSnapshot(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
         } catch (e: Throwable) {
             if (isTransportError(e) && positionsRestFallback != null) {
                 AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")
-                positionsRestFallback(accountId, sandboxMode)
+                positionsRestFallback(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
             } else {
                 throw e
             }

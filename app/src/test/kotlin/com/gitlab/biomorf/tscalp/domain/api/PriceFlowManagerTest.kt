@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -135,5 +136,30 @@ class PriceFlowManagerTest {
             assertEquals(1, activeCount.get())
 
             manager.clearInterest(PriceConsumer.ORDERS)
+        }
+
+    @Test
+    fun `connectionState transitions to LIVE on stream emit and STOPPED on clearInterest`() =
+        runBlocking {
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
+            val mockRepo = mockk<InvestRepository>(relaxed = true)
+            every { mockRepo.subscribeLastPrices(any(), any()) } returns
+                flow {
+                    emit("uid-1" to 100.0)
+                    awaitCancellation()
+                }
+
+            val manager =
+                PriceFlowManager(
+                    BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    mockRepo,
+                )
+            manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
+            delay(200)
+            assertEquals(StreamState.LIVE, manager.connectionState.value)
+
+            manager.clearInterest(PriceConsumer.ORDERS)
+            assertEquals(StreamState.STOPPED, manager.connectionState.value)
         }
 }
