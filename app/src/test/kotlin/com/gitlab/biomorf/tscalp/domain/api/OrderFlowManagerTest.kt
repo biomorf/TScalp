@@ -31,6 +31,7 @@ class OrderFlowManagerTest {
             // уходит в delay(POLLING_INTERVAL_MS).
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
@@ -62,6 +63,7 @@ class OrderFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             val orderState =
                 OrderState(
@@ -98,6 +100,7 @@ class OrderFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
@@ -118,6 +121,7 @@ class OrderFlowManagerTest {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow {
@@ -152,6 +156,7 @@ class OrderFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }

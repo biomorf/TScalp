@@ -14,6 +14,15 @@ interface BrokerApi {
     val name: BrokerName
     val isInitialized: Boolean
 
+    /**
+     * Опциональный контракт unary-снимков (polling в менеджерах).
+     *
+     * `null` — брокер не поддерживает; менеджер делает `return`
+     * с логированием (StreamState остаётся `INITIALIZING` →
+     * `STALE`, не `POLLING`).
+     */
+    val snapshot: BrokerSnapshotApi?
+
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 
     suspend fun openSandboxAccount(): String // возвращает accountId нового счёта
@@ -28,9 +37,16 @@ interface BrokerApi {
      * gRPC unary ([getPortfolio][ru.tinkoff.piapi.contract.v1.PortfolioResponse]),
      * у BCS / Finam — REST (парсинг JSON).
      *
-     * Используется в polling и при первой загрузке только
-     * внутри сервисных реализаций, не должен вызываться
-     * Presentation или Repository.
+     * **Полная модель для UI.** Возвращает [PortfolioPosition]
+     * (`totalValue`, `profitPercent`, `priceChangePercent` —
+     * вычисляемые для карточки). Используется в
+     * `InvestRepository` (UI-путь) и как база для
+     * [BrokerSnapshotApi.positionsSnapshot] (конвертация в
+     * [PositionStreamItem] в оркестраторе).
+     *
+     * **Не путать** с [BrokerSnapshotApi.positionsSnapshot]:
+     * тот partial [PositionStreamItem] (без вычисляемых полей),
+     * для merge со stream в `PositionFlowManager`.
      */
     suspend fun fetchPositionsSnapshot(
         accountId: String,

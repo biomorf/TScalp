@@ -27,6 +27,8 @@ class PriceFlowManagerTest {
         runBlocking {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
             val mockRepo = mockk<InvestRepository>(relaxed = true)
             every { mockRepo.subscribeLastPrices(any(), any()) } returns
@@ -71,6 +73,8 @@ class PriceFlowManagerTest {
     fun `sequential setInterest with same union creates single stream`() {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
             val mockRepo = mockk<InvestRepository>(relaxed = true)
             every { mockRepo.subscribeLastPrices(any(), any()) } returns
@@ -99,6 +103,8 @@ class PriceFlowManagerTest {
         runBlocking {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
             val mockRepo = mockk<InvestRepository>(relaxed = true)
             every { mockRepo.subscribeLastPrices(any(), any()) } returns
@@ -142,6 +148,8 @@ class PriceFlowManagerTest {
     fun `connectionState transitions to LIVE on stream emit and STOPPED on clearInterest`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
             val mockRepo = mockk<InvestRepository>(relaxed = true)
             every { mockRepo.subscribeLastPrices(any(), any()) } returns

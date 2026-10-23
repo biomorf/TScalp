@@ -1,6 +1,5 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
@@ -265,15 +264,20 @@ class PriceFlowManager
          */
         private suspend fun runPolling(union: Set<String>) {
             val brokerName = BrokerName.TINVEST
-            val broker = brokerManager.getBroker(brokerName) as? TInvestBrokerAPI
-            if (broker == null) {
+            val broker = brokerManager.getBroker(brokerName)
+            if (broker == null || !broker.isInitialized) {
                 AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, polling не запускаем")
+                return
+            }
+            val snapshotApi = broker.snapshot
+            if (snapshotApi == null) {
+                AppLogger.e(TAG, "${brokerName.key}: *Snapshot не поддерживается, polling не запускаем")
                 return
             }
             while (currentCoroutineContext().isActive) {
                 delay(5_000)
                 try {
-                    val prices = broker.pricesSnapshot(union.toList())
+                    val prices = snapshotApi.pricesSnapshot(union.toList())
                     stateTracker.onPollingSuccess()
                     prices.forEach { (tscalpId, price) ->
                         if (price != null) {

@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
@@ -62,6 +63,7 @@ class BcsBrokerApi : BrokerApi {
     private var tokenExpiry: Long = 0
 
     override val name: BrokerName = BrokerName.BCS
+    override val snapshot: BrokerSnapshotApi? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean

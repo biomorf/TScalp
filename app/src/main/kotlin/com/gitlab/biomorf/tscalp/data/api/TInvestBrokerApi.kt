@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.api
 import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
@@ -39,7 +40,8 @@ import ru.ttech.piapi.core.InvestApi
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
     private val httpClient: HttpClient,
-) : BrokerApi {
+) : BrokerApi,
+    BrokerSnapshotApi {
     private companion object {
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
         const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
@@ -110,6 +112,8 @@ class TInvestBrokerAPI(
 
     override val name: BrokerName = BrokerName.TINVEST
     override val isInitialized: Boolean get() = state.api != null
+
+    override val snapshot: BrokerSnapshotApi get() = this
 
     /**
      * Инициализация API с явным токеном и режимом.
@@ -285,11 +289,11 @@ class TInvestBrokerAPI(
     // ---------- Unary snapshots (для менеджеров) ----------
     // Делегируют в оркестратор, где будет fallback gRPC → REST (шаг 2).
 
-    suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(ids)
+    override suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(ids)
 
-    suspend fun ordersSnapshot(accountId: String): List<OrderListItem> = orchestrator.ordersSnapshot(accountId)
+    override suspend fun ordersSnapshot(accountId: String): List<OrderListItem> = orchestrator.ordersSnapshot(accountId)
 
-    suspend fun positionsSnapshot(accountId: String): List<PositionStreamItem> = orchestrator.positionsSnapshot(accountId, state.sandboxMode)
+    override suspend fun positionsSnapshot(accountId: String): List<PositionStreamItem> = orchestrator.positionsSnapshot(accountId, state.sandboxMode)
 
     /**
      * Возвращает полный доменный инструмент по uid.

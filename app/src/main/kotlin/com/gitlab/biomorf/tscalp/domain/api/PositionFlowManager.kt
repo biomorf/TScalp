@@ -1,6 +1,5 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -45,11 +44,13 @@ import javax.inject.Singleton
  * поэтому доступ к [snapshotCache] не требует синхронизации:
  * stream и polling выполняются последовательно на одном worker'е.
  *
- * TInvest-specific: [brokerManager.getBroker] приводится к
- * [TInvestBrokerAPI] ради вызова `positionsSnapshot`, который не
- * входит в `BrokerApi` (polling с fallback gRPC→REST живёт в
- * оркестраторе). Для BCS / Finam — отдельная задача
- * (см. ROADMAP → «TInvest-specific методы в *FlowManager»).
+ * Polling позиций идёт через `BrokerApi.snapshot`
+ * ([BrokerSnapshotApi], опциональный контракт). Fallback
+ * gRPC→REST живёт в оркестраторе (реализация TInvest).
+ * `snapshot == null` (BCS / Finam) → polling не запускается;
+ * `stateTracker` остаётся `INITIALIZING`, watchdog через
+ * 30 сек → `STALE` (честно «брокер не поддерживает polling»,
+ * не «пустые данные»). Stream при этом работает.
  */
 @Singleton
 class PositionFlowManager
@@ -133,22 +134,28 @@ class PositionFlowManager
             stateTracker.onStart()
             job =
                 scope.launch {
-                    val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
+                    val broker = brokerManager.getBroker(BrokerName.TINVEST)
                     if (broker == null || !broker.isInitialized) {
                         AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
                         stateTracker.onStop()
                         return@launch
                     }
+                    val snapshotApi = broker.snapshot
+                    if (snapshotApi == null) {
+                        AppLogger.e(TAG, "${broker.name.key}: *Snapshot не поддерживается, polling не запускаем")
+                    }
                     coroutineScope {
                         launch { collectStream(broker, accountId) }
-                        launch { runPolling(broker, accountId) }
+                        if (snapshotApi != null) {
+                            launch { runPolling(snapshotApi, accountId) }
+                        }
                         launch { stateWatchdog() }
                     }
                 }
         }
 
         private suspend fun collectStream(
-            broker: TInvestBrokerAPI,
+            broker: BrokerApi,
             accountId: String,
         ) {
             try {
@@ -164,15 +171,15 @@ class PositionFlowManager
         }
 
         private suspend fun runPolling(
-            broker: TInvestBrokerAPI,
+            snapshotApi: BrokerSnapshotApi,
             accountId: String,
         ) {
             while (currentCoroutineContext().isActive) {
                 try {
-                    val snapshot = broker.positionsSnapshot(accountId)
+                    val positions = snapshotApi.positionsSnapshot(accountId)
                     stateTracker.onPollingSuccess()
-                    AppLogger.d(TAG, "polling: ${snapshot.size} positions")
-                    for (item in snapshot) {
+                    AppLogger.d(TAG, "polling: ${positions.size} positions")
+                    for (item in positions) {
                         emitEnriched(item, source = "polling")
                     }
                 } catch (e: CancellationException) {

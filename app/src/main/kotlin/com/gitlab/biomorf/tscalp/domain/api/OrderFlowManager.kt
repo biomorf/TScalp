@@ -1,6 +1,5 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
@@ -128,15 +127,21 @@ class OrderFlowManager
                         _orders.value = emptyList()
                         _hasLoaded.value = false
                     }
-                    val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI
+                    val broker = brokerManager.getBroker(BrokerName.TINVEST)
                     if (broker == null || !broker.isInitialized) {
                         AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
                         stateTracker.onStop()
                         return@launch
                     }
+                    val snapshotApi = broker.snapshot
+                    if (snapshotApi == null) {
+                        AppLogger.e(TAG, "${broker.name.key}: *Snapshot не поддерживается, polling не запускаем")
+                    }
                     coroutineScope {
-                        launch { runPolling(broker, accountId) }
                         launch { collectStream(broker, accountId) }
+                        if (snapshotApi != null) {
+                            launch { runPolling(snapshotApi, accountId) }
+                        }
                         launch { stateWatchdog() }
                     }
                 }
@@ -189,15 +194,15 @@ class OrderFlowManager
          * цикла: транспорт жив. INITIALIZING/STALE → POLLING.
          */
         private suspend fun runPolling(
-            broker: TInvestBrokerAPI,
+            snapshotApi: BrokerSnapshotApi,
             accountId: String,
         ) {
             while (currentCoroutineContext().isActive) {
                 try {
-                    val snapshot = broker.ordersSnapshot(accountId)
-                    AppLogger.d(TAG, "polling: ${snapshot.size} orders")
+                    val orders = snapshotApi.ordersSnapshot(accountId)
+                    AppLogger.d(TAG, "polling: ${orders.size} orders")
                     val now = System.currentTimeMillis()
-                    for (item in snapshot) {
+                    for (item in orders) {
                         cache.putFromPolling(item, now)
                     }
                     // Эвикция только при успешном цикле: если polling
@@ -225,7 +230,7 @@ class OrderFlowManager
          * удаление из кэша, остальные — `putFromStream`.
          */
         private suspend fun collectStream(
-            broker: TInvestBrokerAPI,
+            broker: BrokerApi,
             accountId: String,
         ) {
             try {
