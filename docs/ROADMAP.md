@@ -18,9 +18,11 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 **Ветка:** feature/streamstate.
 **Подтверждение:** ожидает (live logcat на десктопе, 1–2 дня после
 merge; критерий: `[PositionFlowManager] state: INITIALIZING → LIVE`
-при старте, `state: LIVE → POLLING` при `disableGrpc && disableWs`,
-`state: POLLING → STOPPED` при `stop()`; аналогично для
-`PriceFlowManager` и `OrderFlowManager`).
+при старте, `state: LIVE → INITIALIZING → POLLING` при
+`disableGrpc && disableWs` (`INITIALIZING` — это `onStart()` в
+`reapplyDebugFlags`), `state: POLLING → STOPPED` при `stop()`;
+аналогично для `PriceFlowManager` и `OrderFlowManager`.
+Процедура — `docs/live-test.md`).
 
 **Следующий шаг:** live-тест на десктопе (logcat: три перехода
 для трёх менеджеров) → `docs(roadmap): mark streamstate done`
