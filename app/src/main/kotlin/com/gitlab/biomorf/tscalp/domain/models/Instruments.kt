@@ -6,10 +6,26 @@ import java.time.Instant
 
 /**
  * Базовый класс торгового инструмента.
+ *
  * Содержит поля, общие для всех типов, а также поля,
  * специфичные для отдельных типов (акции, фьючерсы, опционы и т.д.).
- * * Остаётся открытым для наследования.
- * Поля, не применимые к конкретному типу, остаются null.
+ * Остаётся открытым для наследования: [FutureUi], [ShareUi] —
+ * подтипы с переопределёнными полями. Поля, не применимые к
+ * конкретному типу, остаются `null`.
+ *
+ * @property tscalpInstrumentId универсальный идентификатор
+ *   инструмента в TScalp (не `uid`/`figi`). Domain-слой оперирует
+ *   только им; трансляция в брокерские id — в data-слое.
+ * @property ttech_uid `instrument_uid` из T-Invest API.
+ *   **T-Invest-специфичное поле** (см. AGENTS.md:
+ *   «`InstrumentUi.ttech_uid` — исключение: специфика T-Invest»).
+ *   Используется при вызовах T-Invest API и в маппинге.
+ * @property ttech_figi `figi` из T-Invest API. **Временно** — нужен
+ *   для подписки на `LastPrice` через gRPC-стрим (там figi, не uid).
+ *   Уйдёт, когда стрим перейдёт на `instrumentUid`.
+ * @property instrumentType строковый enum: `"share"`, `"futures"`,
+ *   `"currency"`, `"etf"`, `"bond"`, `"option"`. Не sealed-тип,
+ *   потому что часть моделей использует один общий класс.
  */
 open class InstrumentUi(
     open val tscalpInstrumentId: String, // универсальный идентификатор TScalp
