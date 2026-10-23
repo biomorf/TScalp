@@ -26,6 +26,28 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 `LIVE → INITIALIZING → POLLING` невозможен без фикса тумблеров,
 а `→ STOPPED` для Order не срабатывает.
 
+**Матрица флагов (семантика, полная, 8 комбинаций):**
+
+`disableGrpc` / `disableWs` отключают только соответствующие
+стримы, unary (polling) не трогают. `forceRest` переключает
+unary с gRPC на REST, стримы не трогает. Полная матрица:
+
+| `disableGrpc` | `disableWs` | `forceRest` | Стримы    | Unary (polling) |
+| ------------- | ----------- | ----------- | --------- | --------------- |
+| off           | off         | off         | gRPC + WS | gRPC unary      |
+| on            | off         | off         | WS only   | gRPC unary      |
+| off           | on          | off         | gRPC only | gRPC unary      |
+| on            | on          | off         | нет       | gRPC unary      |
+| off           | off         | on          | gRPC + WS | REST            |
+| on            | off         | on          | WS only   | REST            |
+| off           | on          | on          | gRPC only | REST            |
+| on            | on          | on          | нет       | REST            |
+
+Ключевое следствие: `forceRest=true` сам по себе **не**
+отключает стрим — только unary уходит на REST. Отключение
+стрима — через `disableGrpc` / `disableWs`. Этот контракт —
+для live-тестов и `DebugConfig: только для debug-сборок`.
+
 **Диагностика (по коду, 2026-10-23):**
 
 Для каждого бага — файл, симптом, причина, как чинить.
