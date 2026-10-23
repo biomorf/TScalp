@@ -226,7 +226,7 @@ class TInvestBrokerAPI(
         sandboxMode: Boolean,
     ) = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
 
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId, state.sandboxMode)
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
 
     override suspend fun getBalance(accountId: String) = orchestrator.balanceSnapshot(accountId)
 
@@ -288,6 +288,8 @@ class TInvestBrokerAPI(
     suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(ids)
 
     suspend fun ordersSnapshot(accountId: String): List<OrderListItem> = orchestrator.ordersSnapshot(accountId)
+
+    suspend fun positionsSnapshot(accountId: String): List<PositionStreamItem> = orchestrator.positionsSnapshot(accountId, state.sandboxMode)
 
     /**
      * Возвращает полный доменный инструмент по uid.
