@@ -84,14 +84,22 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
      `pointValue` только у futures.
 
 7. **BrokerApi.**
-   - 19 функций, `@Suppress("TooManyFunctions")`.
+   - 19 функций + `snapshot: BrokerSnapshotApi?`,
+     `@Suppress("TooManyFunctions")`.
    - `fetchPositionsSnapshot` — unary с fallback на уровне
-     брокера.
+     брокера; полный `PortfolioPosition` (UI + база для
+     оркестратора, конвертируется в `PositionStreamItem` в
+     `positionsSnapshot`). Известный долг: возвращает
+     presentation-модель — кандидат на унификацию на
+     `PositionStreamItem`.
    - `pricesSnapshot` / `ordersSnapshot` / `positionsSnapshot` —
-     TInvest-specific, не в `BrokerApi`. Cast
-     `brokerManager.getBroker(TINVEST) as? TInvestBrokerAPI` в
-     трёх managers — layer violation, ревизия в
-     `### TInvest-specific`.
+     `BrokerSnapshotApi` (композиция через `BrokerApi.snapshot`).
+     `TInvestBrokerAPI`: `snapshot = this`. `BcsBrokerApi` /
+     `FinamBrokerApi`: `snapshot = null` → в менеджере `return`
+     + `AppLogger.e` (STALE, не POLLING).
+   - Ролевые интерфейсы (`PortfolioApi`, `OrdersApi`,
+     `MarketDataApi`, `StreamsApi`, `SnapshotApi`) — отдельная
+     задача `### Рефакторинг BrokerApi-реализаций` (D).
 
 8. **Обработка ошибок.**
    - `AppResult<T>` (Success/Failure) на границах слоёв.
@@ -152,13 +160,14 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 **Оценка:** ~2–3 часа (разделы 1–3 — 1 ч, 4–6 — 40 мин,
 7–9 — 40 мин, ссылки + AGENTS — 20 мин).
 
-**Зависимости:** **блокируется** `### TInvest-specific методы
-в *FlowManager` — его решение (куда `*Snapshot`: `BrokerApi`
-или TInvest-specific) влияет на разделы 2 (fallback) и 7
-(BrokerApi).
+**Зависимости:** `### TInvest-specific` — решение принято
+(C-вариант, `BrokerApi.snapshot: BrokerSnapshotApi?`), раздел 7
+обновлён (2026-10-23). Задача больше не блокирована.
 
 **Открытые вопросы:**
-- Раздел 7 (BrokerApi) — финализировать после TInvest-specific.
+- Раздел 7 (BrokerApi) — **решено 2026-10-23**: C-вариант
+  (`BrokerApi.snapshot: BrokerSnapshotApi?`), см. обновлённый
+  раздел 7 и `### TInvest-specific`.
 - `InstrumentUi.ttech_uid` — в раздел 4 (идентификаторы) или
   отдельный пункт в 6 (domain-модели)? По смыслу — в 4
   (исключение), ссылка из 6.
@@ -175,7 +184,7 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 
 **Мобильная работа:** невозможно.
 
-**Статус:** запланировано. **Ревизия после StreamState.**
+**Статус:** запланировано.
 
 **Контекст:** `PriceFlowManager`, `OrderFlowManager`,
 `PositionFlowManager` кастуют
@@ -189,28 +198,152 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 **Планировали / Сделали (ревизия 2026-10-23):**
 
 - **Планировали:** ревизия после StreamState.
-- **Сделали:** ничего — задача не начиналась.
+- **Сделали:** ничего в коде — задача не начиналась. Решение принято: **C-вариант** (Clean).
 - **Отличие:** после StreamState у всех трёх менеджеров есть
   `*Snapshot`-вызов через каст к `TInvestBrokerAPI`
   (`positionsSnapshot` добавлен в StreamState). Вопрос «выносить
   ли в `BrokerApi`» стал острее: теперь каст в трёх местах, а
   не в двух.
 
-**Вопросы к разбору:**
-- Выносить ли `*Snapshot` в `BrokerApi` (с fallback-логикой на
-  уровне брокера: `fetchPositionsSnapshot` уже есть — может,
-  `pricesSnapshot`/`ordersSnapshot` тоже)?
-- Или оставить TInvest-specific с KDoc на каст (объяснить, почему
-  cast, какие брокеры что поддерживают)?
-- Что делать с BCS/Finam — у них нет `*Snapshot` с fallback. Если
-  выносить в `BrokerApi` — default-реализация `emptyMap`/`emptyList`
-  или ошибка?
+**Решение (Clean, 2026-10-23):**
 
-**Оценка:** ~1 час на анализ + реализация (если выносим — ~2-3 ч).
+Вариант **C — композиция**: `BrokerApi.snapshot: BrokerSnapshotApi?`.
+
+- `BrokerSnapshotApi` (новый, `domain/api/`) — три метода:
+  `pricesSnapshot`, `ordersSnapshot`, `positionsSnapshot`.
+- `BrokerApi.snapshot: BrokerSnapshotApi?` — опциональный
+  контракт. `TInvestBrokerAPI`: `override val snapshot = this`.
+  `BcsBrokerApi` / `FinamBrokerApi`: `override val snapshot = null`.
+- Managers: `brokerManager.getBroker(TINVEST)?.snapshot` вместо
+  каста `as? TInvestBrokerAPI`. При `null` — `return` +
+  `AppLogger.e` (STALE, не POLLING: честно «брокер не
+  поддерживает», а не «пустые данные»).
+
+**Отклонено:**
+
+- **A. Расширить `BrokerApi`** тремя `*Snapshot` с default
+  `emptyMap`/`emptyList` — God-interface (22 функции), default
+  маскирует «не поддерживает» под «пусто».
+- **B. Каст к `BrokerSnapshotApi`** (`broker as?
+  BrokerSnapshotApi`) — каст остаётся, только к абстракции.
+  C чище: явный контракт через `null`.
+- **D. Ролевые интерфейсы** (`PortfolioApi`, `OrdersApi`,
+  `MarketDataApi`, `StreamsApi`, `SnapshotApi`) — **отдельная
+  задача** `### Рефакторинг BrokerApi-реализаций` (в
+  «Рефакторинг архитектурного долга»). План — обновляется
+  отдельно.
+
+**Известный долг (B из обсуждения):** `fetchPositionsSnapshot`
+возвращает `PortfolioPosition` (presentation-модель) —
+кандидат на унификацию на `PositionStreamItem`. Отдельная
+задача, не в этой. Упомянуто в arch-doc (раздел 7).
+
+**Что меняется:**
+
+- Новый `domain/api/BrokerSnapshotApi.kt`:
+  `suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?>`,
+  `suspend fun ordersSnapshot(accountId: String): List<OrderListItem>`,
+  `suspend fun positionsSnapshot(accountId: String): List<PositionStreamItem>`.
+- `domain/api/BrokerApi.kt`: `val snapshot: BrokerSnapshotApi?`.
+- `data/api/TInvestBrokerApi.kt`: `override val snapshot =
+  this` + `override` на трёх `*Snapshot` (перенести из «вне
+  BrokerApi»).
+- `data/api/BcsBrokerApi.kt` / `FinamBrokerApi.kt`: `override
+  val snapshot: BrokerSnapshotApi? get() = null`.
+- `domain/api/PositionFlowManager.kt` / `PriceFlowManager.kt` /
+  `OrderFlowManager.kt`: заменить `as? TInvestBrokerAPI` →
+  `?.snapshot`, при `null` — `AppLogger.e` + `return`.
+- `fetchPositionsSnapshot` (в `BrokerApi`) — **оставить**,
+  KDoc: полный `PortfolioPosition` для UI + база для
+  оркестратора; не дубль `positionsSnapshot` (partial).
+
+**Файлы:**
+- `domain/api/BrokerSnapshotApi.kt` (новый)
+- `domain/api/BrokerApi.kt`
+- `data/api/TInvestBrokerApi.kt`
+- `data/api/BcsBrokerApi.kt`
+- `data/api/FinamBrokerApi.kt`
+- `domain/api/PositionFlowManager.kt`
+- `domain/api/PriceFlowManager.kt`
+- `domain/api/OrderFlowManager.kt`
+- Тесты: `PositionFlowManagerTest.kt`,
+  `PriceFlowManagerTest.kt`, `OrderFlowManagerTest.kt`
+
+**Шаги:**
+
+1. Создать `BrokerSnapshotApi` (3 метода + KDoc).
+2. `BrokerApi.snapshot: BrokerSnapshotApi?` (KDoc: опциональный,
+   `null` = не поддерживает).
+3. `TInvestBrokerAPI`: `override val snapshot = this`;
+   три метода → `override`.
+4. `BcsBrokerApi` / `FinamBrokerApi`: `override val snapshot =
+   null`.
+5. Managers (3): `brokerManager.getBroker(TINVEST)?.snapshot`;
+   при `null` — `AppLogger.e` + `return`.
+6. KDoc на `BrokerApi.fetchPositionsSnapshot` — развести с
+   `positionsSnapshot`.
+7. Тесты (3): `*Snapshot`-моки переезжают на
+   `BrokerSnapshotApi` (мок через `every { mockBroker.snapshot }
+   returns mockSnapshot`). Остальные моки `TInvestBrokerAPI`
+   без изменений.
+8. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Ограничения:**
+
+- Не менять поведение `fetchPositionsSnapshot` (UI-путь).
+- `snapshot == null` в менеджере — `return` (no-op), не
+  `emptyMap`/`emptyList` (иначе ложный POLLING вместо STALE).
+- `synchronized(startLock)` в managers сохранить.
+- Не смешивать с D (ролевые интерфейсы) — отдельная задача.
+- BCS / Finam `snapshot = null` — до реализации `*Snapshot` в
+  этих брокерах (отдельные задачи).
+
+**Критерий готовности:**
+
+- `BrokerSnapshotApi` создан, 3 метода.
+- `BrokerApi.snapshot` добавлен.
+- `TInvestBrokerAPI.snapshot = this`; три метода — `override`.
+- `BcsBrokerApi` / `FinamBrokerApi` — `snapshot = null`.
+- Три менеджера не кастуют `TInvestBrokerAPI` для `*Snapshot`
+  (grep `as? TInvestBrokerAPI` в managers — пусто).
+- KDoc на `fetchPositionsSnapshot` — разведён с
+  `positionsSnapshot`.
+- Все тесты зелёные.
+- Гейт зелёный.
+
+**Резюме по тестам:**
+
+- Unit (меняются): `PositionFlowManagerTest`,
+  `PriceFlowManagerTest`, `OrderFlowManagerTest` —
+  `*Snapshot`-моки переезжают на `BrokerSnapshotApi`.
+- Unit (без изменений): `subscribePositions` /
+  `subscribeOrderState` / start/stop — `TInvestBrokerAPI`-мок
+  сохраняется.
+- Live — не нужен (refactor без изменения поведения;
+  fallback-логика уже в оркестраторе).
+- Оценка тестов: +15 мин на три файла.
+
+**Оценка:** ~2-3 часа (BrokerSnapshotApi 20 мин, BrokerApi 10,
+TInvest 20, BCS/Finam 10, managers 30, KDoc 15, тесты 30,
+гейт 15).
 
 **Связано:**
-- блокируется `### StreamState в data-слое`.
-- разблокирует корректную работу при BCS/Finam.
+- с `### StreamState в data-слое` — закрыта 2026-10-23
+  (`a02ce24`), предпосылка выполнена.
+- разблокирует корректную работу BCS / Finam (после
+  реализации `snapshot` в этих брокерах — отдельные задачи).
+- D (ролевые интерфейсы) — `### Рефакторинг
+  BrokerApi-реализаций` (в «Рефакторинг архитектурного
+  долга»).
+- `### Архитектурный документ` — раздел 7 обновлён
+  C-вариантом.
+
+**Открытые вопросы:**
+- BCS / Finam `snapshot = null` — до реализации `*Snapshot`
+  в этих брокерах. Fallback polling (`subscribePositions` →
+  `fetchPositionsSnapshot`) на уровне брокера работает.
+- D (ролевые) — план в `### Рефакторинг BrokerApi-реализаций`
+  (обновляется отдельной правкой).
 
 
 
