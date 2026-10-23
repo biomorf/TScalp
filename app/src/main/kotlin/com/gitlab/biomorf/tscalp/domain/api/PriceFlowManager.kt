@@ -171,7 +171,7 @@ class PriceFlowManager
             job =
                 scope.launch {
                     coroutineScope {
-                        launch { runGrcpStream(union) }
+                        launch { collectStream(union) }
                         launch { runPolling(union) }
                         launch { stateWatchdog() }
                     }
@@ -186,13 +186,9 @@ class PriceFlowManager
          * (1s / 5s / 15s / 30s / 60s, cap 60s). Polling работает
          * параллельно и прикрывает паузы между попытками.
          */
-        private suspend fun runGrcpStream(union: Set<String>) {
-            if (DebugConfig.forceRest) {
-                AppLogger.d(TAG, "forceRest enabled: runGrcpStream bypassed")
-                return
-            }
+        private suspend fun collectStream(union: Set<String>) {
             if (DebugConfig.disableGrpc && DebugConfig.disableWs) {
-                AppLogger.d(TAG, "gRPC and WS disabled: runGrcpStream bypassed")
+                AppLogger.d(TAG, "gRPC and WS disabled: collectStream bypassed")
                 return
             }
             val broker = BrokerName.TINVEST

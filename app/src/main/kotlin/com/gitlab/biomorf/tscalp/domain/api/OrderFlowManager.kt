@@ -134,7 +134,7 @@ class OrderFlowManager
                         return@launch
                     }
                     coroutineScope {
-                        launch { collectPolling(broker, accountId) }
+                        launch { runPolling(broker, accountId) }
                         launch { collectStream(broker, accountId) }
                         launch { stateWatchdog() }
                     }
@@ -177,7 +177,7 @@ class OrderFlowManager
                 }
             }
 
-        private suspend fun collectPolling(
+        private suspend fun runPolling(
             broker: TInvestBrokerAPI,
             accountId: String,
         ) {
