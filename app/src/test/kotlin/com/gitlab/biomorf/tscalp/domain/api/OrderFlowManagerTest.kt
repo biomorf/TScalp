@@ -3,6 +3,8 @@ package com.gitlab.biomorf.tscalp.domain.api
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.OrderState
+import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -15,6 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class OrderFlowManagerTest {
@@ -52,4 +55,59 @@ class OrderFlowManagerTest {
             manager.stop()
         }
     }
+
+    @Test
+    fun `connectionState transitions to LIVE on stream emit and STOPPED on stop`() =
+        runBlocking {
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
+            val orderState =
+                OrderState(
+                    orderId = "order-1",
+                    orderRequestId = null,
+                    ticker = "SBER",
+                    direction = "BUY",
+                    limitPrice = 100.0,
+                    executedPrice = null,
+                    quantity = 1L,
+                    executedQuantity = 0L,
+                    status = "NEW",
+                    updateTime = null,
+                    orderType = "LIMIT",
+                    tscalpInstrumentId = "uid-sber",
+                )
+            coEvery { mockBroker.subscribeOrderState(any()) } returns
+                flow {
+                    emit(orderState)
+                    awaitCancellation()
+                }
+
+            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            manager.start("acc-1")
+            delay(200)
+            assertEquals(StreamState.LIVE, manager.connectionState.value)
+
+            manager.stop()
+            assertEquals(StreamState.STOPPED, manager.connectionState.value)
+        }
+
+    @Test
+    fun `connectionState transitions to POLLING on polling-only`() =
+        runBlocking {
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
+            coEvery { mockBroker.subscribeOrderState(any()) } returns
+                flow { awaitCancellation() }
+
+            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            manager.start("acc-1")
+            delay(300)
+
+            assertEquals(StreamState.POLLING, manager.connectionState.value)
+
+            manager.stop()
+            assertEquals(StreamState.STOPPED, manager.connectionState.value)
+        }
 }

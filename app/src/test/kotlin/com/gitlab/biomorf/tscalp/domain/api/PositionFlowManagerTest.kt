@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -250,6 +251,63 @@ class PositionFlowManagerTest {
             delay(500)
 
             assertEquals(1, activeCount.get())
+
+            manager.stop()
+        }
+
+    @Test
+    fun `connectionState transitions to LIVE on stream emit and STOPPED on stop`() =
+        runBlocking {
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            val share =
+                PositionStreamItem(
+                    tscalpInstrumentId = "uid-sber",
+                    brokerName = BrokerName.TINVEST,
+                    ticker = "SBER",
+                    quantity = 1L,
+                    currentPrice = 292.6,
+                    instrumentType = "share",
+                )
+            every { mockBroker.subscribePositions(any()) } returns
+                flow {
+                    emit(share)
+                    awaitCancellation()
+                }
+            coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
+
+            val manager = PositionFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            manager.start("acc-1")
+            delay(200)
+            assertEquals(StreamState.LIVE, manager.connectionState.value)
+
+            manager.stop()
+            assertEquals(StreamState.STOPPED, manager.connectionState.value)
+        }
+
+    @Test
+    fun `connectionState transitions to POLLING on polling-only`() =
+        runBlocking {
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            val share =
+                PositionStreamItem(
+                    tscalpInstrumentId = "uid-sber",
+                    brokerName = BrokerName.TINVEST,
+                    ticker = "SBER",
+                    quantity = 1L,
+                    currentPrice = 292.6,
+                    instrumentType = "share",
+                )
+            every { mockBroker.subscribePositions(any()) } returns
+                flow { awaitCancellation() }
+            coEvery { mockBroker.positionsSnapshot(any()) } returns listOf(share)
+
+            val manager = PositionFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            manager.start("acc-1")
+            delay(300)
+
+            assertEquals(StreamState.POLLING, manager.connectionState.value)
 
             manager.stop()
         }
