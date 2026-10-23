@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
+import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.util.toAppError
 import kotlinx.coroutines.CancellationException
@@ -14,11 +15,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -59,6 +62,8 @@ class PriceFlowManager
              * см. ROADMAP → «Reconnect-loop для gRPC-стрима цен».
              */
             private val RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
+
+            private const val STATE_TICK_MS = 1_000L
         }
 
         /** Текущие интересы: ключ потребителя → набор tscalpInstrumentId. */
@@ -68,11 +73,13 @@ class PriceFlowManager
         private val _prices = MutableSharedFlow<PriceUpdate>(replay = 0)
         val prices: SharedFlow<PriceUpdate> = _prices.asSharedFlow()
 
-        /** Job gRPC-стрима. Пересоздаётся при изменении union. */
-        private var streamJob: Job? = null
+        /** Единый job: stream + polling + watchdog под одним родителем. */
+        private var job: Job? = null
 
-        /** Job REST-polling. Пересоздаётся при изменении union. */
-        private var pollingJob: Job? = null
+        private val stateTracker = StreamStateTracker(tag = "PriceFlowManager")
+
+        /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
+        val connectionState: StateFlow<StreamState> = stateTracker.state
 
         /**
          * Защищает check-then-set в [setInterest] / [clearInterest] /
@@ -85,7 +92,7 @@ class PriceFlowManager
 
         private val scope =
             CoroutineScope(
-                Dispatchers.IO + SupervisorJob() +
+                Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
                     CoroutineExceptionHandler { _, e ->
                         AppLogger.e(TAG, "Uncaught error in price stream", e)
                     },
@@ -152,23 +159,23 @@ class PriceFlowManager
          * `synchronized(startLock)`.
          */
         private fun restart(union: Set<String>) {
-            streamJob?.cancel()
-            streamJob = null
-            pollingJob?.cancel()
-            pollingJob = null
+            job?.cancel()
+            job = null
             if (union.isEmpty()) {
                 AppLogger.d(TAG, "Union empty, gRPC stream stopped")
+                stateTracker.onStop()
                 return
             }
-            if (DebugConfig.forceRest) {
-                AppLogger.d(TAG, "forceRest enabled: skipping gRPC stream, polling only")
-            } else if (DebugConfig.disableGrpc && DebugConfig.disableWs) {
-                AppLogger.d(TAG, "gRPC and WS disabled: skipping stream job, polling only")
-            } else {
-                AppLogger.d(TAG, "Starting gRPC stream for ${union.size} tscalpInstrumentId(s)")
-                streamJob = scope.launch { runGrcpStream(union) }
-            }
-            pollingJob = scope.launch { runPolling(union) }
+            stateTracker.onStart()
+            AppLogger.d(TAG, "Starting stream + polling for ${union.size} tscalpInstrumentId(s)")
+            job =
+                scope.launch {
+                    coroutineScope {
+                        launch { runGrcpStream(union) }
+                        launch { runPolling(union) }
+                        launch { stateWatchdog() }
+                    }
+                }
         }
 
         /**
@@ -184,6 +191,10 @@ class PriceFlowManager
                 AppLogger.d(TAG, "forceRest enabled: runGrcpStream bypassed")
                 return
             }
+            if (DebugConfig.disableGrpc && DebugConfig.disableWs) {
+                AppLogger.d(TAG, "gRPC and WS disabled: runGrcpStream bypassed")
+                return
+            }
             val broker = BrokerName.TINVEST
             var attempt = 0
             while (currentCoroutineContext().isActive) {
@@ -191,6 +202,7 @@ class PriceFlowManager
                     repository
                         .subscribeLastPrices(broker, union.toList())
                         .collect { (tscalpId, price) ->
+                            stateTracker.onStreamEmit()
                             AppLogger.d(TAG, "[manager/stream] $tscalpId = $price")
                             _prices.emit(PriceUpdate(broker, tscalpId, price))
                         }
@@ -246,6 +258,7 @@ class PriceFlowManager
                 delay(5_000)
                 try {
                     val prices = broker.pricesSnapshot(union.toList())
+                    stateTracker.onPollingSuccess()
                     prices.forEach { (tscalpId, price) ->
                         if (price != null) {
                             AppLogger.d(TAG, "[manager/polling/${brokerName.key}] $tscalpId = $price")
@@ -255,6 +268,13 @@ class PriceFlowManager
                 } catch (e: Exception) {
                     AppLogger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)
                 }
+            }
+        }
+
+        private suspend fun stateWatchdog() {
+            while (currentCoroutineContext().isActive) {
+                delay(STATE_TICK_MS)
+                stateTracker.tick()
             }
         }
     }
