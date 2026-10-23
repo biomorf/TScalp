@@ -19,62 +19,134 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 повторный live-тест StreamState не пройдёт.
 
 **Контекст:** во время live-теста StreamState (2026-10-23,
-`docs/live-test.md`, режим B) обнаружены три бага в
-`SettingsViewModel`. Планировали StreamState без этой задачи —
-выяснилось, что сценарий `LIVE → INITIALIZING → POLLING`
-невозможен без фикса тумблеров:
+`docs/live-test.md`, режим B) обнаружены четыре бага в
+`SettingsViewModel` и `OrderFlowManager`. Планировали StreamState
+без этой задачи — выяснилось, что сценарий
+`LIVE → INITIALIZING → POLLING` невозможен без фикса тумблеров,
+а `→ STOPPED` для Order не срабатывает.
 
-- **B1.** `toggleGrpc` / `toggleWs` устанавливают
-  `DebugConfig.disableGrpc` / `disableWs`, обновляют `_uiState`,
-  но **не вызывают** `reapplyDebugFlags()`. Флаги применяются
-  только при следующем `setInterest` / `clearInterest` / `start`
-  — до этого живут «вхолостую».
-- **B2.** `toggleRest` вызывает
-  `priceFlowManager.reapplyDebugFlags()` и
-  `positionFlowManager.reapplyDebugFlags()`, но **не**
-  `orderFlowManager`.
-- **B3.** У `OrderFlowManager` **нет метода**
-  `reapplyDebugFlags` вовсе. У `PositionFlowManager` (251)
-  и `PriceFlowManager` (147) — есть.
+**Диагностика (по коду, 2026-10-23):**
 
-Следствие: сценарий live-теста `disableGrpc && disableWs →
+Для каждого бага — файл, симптом, причина, как чинить.
+
+**B1 — `toggleGrpc` / `toggleWs` не применяют флаги на лету.**
+
+- **Файл:** `presentation/screens/settings/SettingsViewModel.kt`
+  (`toggleGrpc` ~334, `toggleWs` ~340).
+- **Симптом:** включение `disableGrpc` / `disableWs` в Настройках
+  не даёт `LIVE → INITIALIZING` ни у одного менеджера. Флаги
+  применяются только при следующем
+  `setInterest` / `clearInterest` / `start`.
+- **Причина:** оба метода устанавливают `DebugConfig.*`,
+  обновляют `_uiState`, но **не вызывают** `reapplyDebugFlags()`.
+- **Fix:** в обоих методах после `_uiState.update` — три вызова:
+  `priceFlowManager.reapplyDebugFlags()`,
+  `positionFlowManager.reapplyDebugFlags()`,
+  `orderFlowManager.reapplyDebugFlags()`.
+
+**B2 — `toggleRest` не перезапускает Order.**
+
+- **Файл:** `presentation/screens/settings/SettingsViewModel.kt`
+  (`toggleRest` ~346).
+- **Симптом:** включение `forceRest` не переводит Order на REST.
+- **Причина:** `toggleRest` вызывает reapply только для Price и
+  Position, `orderFlowManager` пропущен.
+- **Fix:** добавить `orderFlowManager.reapplyDebugFlags()`.
+
+**B3 — у `OrderFlowManager` нет `reapplyDebugFlags()`.**
+
+- **Файл:** `domain/api/OrderFlowManager.kt`.
+- **Симптом:** B1/B2-фиксы без этого метода не скомпилируются.
+- **Причина:** метод есть только у `PositionFlowManager` (~251)
+  и `PriceFlowManager` (~147). Order добавлен в агрегацию
+  позже, метод не добавлен.
+- **Fix:** симметрично `PositionFlowManager`:
+
+  ```kotlin
+  fun reapplyDebugFlags() =
+      synchronized(startLock) {
+          val accountId = currentAccountId ?: return@synchronized
+          AppLogger.d(TAG, "reapplyDebugFlags: restarting stream")
+          doStart(accountId, forceRestart = true)
+      }
+  ```
+
+  **No-op** если `currentAccountId == null` — не стартовать
+  Order по тумблеру, если UI ещё не открывал вкладку «Заявки».
+
+**B4 — logout не останавливает `OrderFlowManager`.**
+
+- **Файл:** `presentation/screens/settings/SettingsViewModel.kt`
+  (`clearBrokerCredentials`, TInvest-ветка ~150).
+- **Симптом:** при logout `PositionFlowManager` и `PriceFlowManager`
+  уходят в STOPPED (в live-тесте: 17:15:03.167 / .170), а Order
+  остаётся в POLLING.
+- **Причина:** в `clearBrokerCredentials` есть
+  `positionFlowManager.stop()`, но `orderFlowManager.stop()` —
+  нет. `OrdersListViewModel.onCleared()` вызывает `stop()`, но
+  при logout из «Настроек» VM не уничтожается (`onCleared` не
+  срабатывает). `PriceFlowManager` останавливается через
+  `clearInterest` из ViewModel-цепочки — у Order такого
+  механизма нет, только `stop()`.
+- **Fix:** в TInvest-ветке `clearBrokerCredentials`, рядом с
+  `positionFlowManager.stop()` — `orderFlowManager.stop()`.
+
+**Дополнительно — инъекция в `SettingsViewModel`.**
+
+- **Файл:** `presentation/screens/settings/SettingsViewModel.kt`.
+- `@Inject` конструктор — добавить `orderFlowManager: OrderFlowManager`.
+  Без неё B1/B2/B4-фиксы не скомпилируются.
+
+**Следствие:** сценарий live-теста `disableGrpc && disableWs →
 LIVE → INITIALIZING → POLLING` невозможен ни для одного
-менеджера.
+менеджера (B1/B2/B3), а `→ STOPPED` для Order не наступает
+(B4).
 
 **Предусловия:** нет.
 
 **Файлы:**
 - `domain/api/OrderFlowManager.kt` — новый
-  `reapplyDebugFlags()`.
+  `reapplyDebugFlags()` (B3).
 - `presentation/screens/settings/SettingsViewModel.kt` —
-  `toggleGrpc` / `toggleWs` / `toggleRest` → reapply на всех
-  трёх.
+  - `@Inject` конструктор: `orderFlowManager: OrderFlowManager`
+    (без этого B1/B2/B4 не компилируются);
+  - `toggleGrpc` / `toggleWs` → reapply на всех трёх (B1);
+  - `toggleRest` → добавить Order (B2);
+  - `clearBrokerCredentials` (TInvest-ветка) → добавить
+    `orderFlowManager.stop()` рядом с
+    `positionFlowManager.stop()` (B4).
 - `domain/api/OrderFlowManagerTest.kt` — тесты на
-  `reapplyDebugFlags`.
+  `reapplyDebugFlags` (B3).
 
 **Шаги:**
 
-1. `OrderFlowManager.reapplyDebugFlags()` — симметрично
+1. **B3.** `OrderFlowManager.reapplyDebugFlags()` — симметрично
    `PositionFlowManager`: `synchronized(startLock) {
-   currentAccountId ?: return; doStart(accountId,
+   currentAccountId ?: return@synchronized; doStart(accountId,
    forceRestart = true) }`. **No-op** если менеджер не
    запущен — не стартовать Order по тумблеру, если UI ещё
    не открывал вкладку «Заявки».
-2. `SettingsViewModel.toggleGrpc` — добавить
+2. `SettingsViewModel` — `@Inject` конструктор: добавить
+   `orderFlowManager: OrderFlowManager`.
+3. **B1.** `SettingsViewModel.toggleGrpc` — добавить
    `priceFlowManager.reapplyDebugFlags()`,
    `positionFlowManager.reapplyDebugFlags()`,
    `orderFlowManager.reapplyDebugFlags()`.
-3. `SettingsViewModel.toggleWs` — то же.
-4. `SettingsViewModel.toggleRest` — добавить
+4. **B1.** `SettingsViewModel.toggleWs` — то же.
+5. **B2.** `SettingsViewModel.toggleRest` — добавить
    `orderFlowManager.reapplyDebugFlags()`.
-5. `OrderFlowManagerTest`:
-   `reapplyDebugFlags after start creates single active stream`
-   (симметрия с `PositionFlowManagerTest` /
-   `PriceFlowManagerTest`), плюс
-   `reapplyDebugFlags before start is no-op`.
-6. Гейт: полный набор.
-7. Live-тест (`docs/live-test.md`, режим B): `disableGrpc &&
-   disableWs` → три `LIVE → INITIALIZING → POLLING`.
+6. **B4.** `SettingsViewModel.clearBrokerCredentials`
+   (TInvest-ветка) — добавить `orderFlowManager.stop()`
+   рядом с `positionFlowManager.stop()`. **Не трогать**
+   `priceFlowManager` — Price останавливается через
+   `clearInterest` из ViewModel-цепочки (подтверждено
+   live-тестом).
+7. `OrderFlowManagerTest` — B3-тесты (см. «Резюме по тестам»).
+8. Гейт: полный набор (`testDebugUnitTest / lintDebug /
+   ktlintCheck / detekt`).
+9. Live-тест (`docs/live-test.md`, режим B):
+   `disableGrpc` → `disableWs` → `toggleRest` → logout.
+   Критерии — в «Резюме по тестам».
 
 **Референсы:**
 - `PositionFlowManager.kt:251` — образец метода.
@@ -100,8 +172,28 @@ LIVE → INITIALIZING → POLLING` невозможен ни для одного
 - Тест на `reapplyDebugFlags` в Order зелёный.
 - Полный гейт зелёный.
 
-**Оценка:** ~1 час (метод в Order 15 мин, SettingsViewModel
-15 мин, тест 15 мин, gate + live 15 мин).
+**Резюме по тестам:**
+
+- **Unit (покрывается):** B3 — `OrderFlowManagerTest`:
+  - `reapplyDebugFlags after start creates single active stream`
+    (симметрия с `PositionFlowManagerTest` /
+    `PriceFlowManagerTest`);
+  - `reapplyDebugFlags before start is no-op`.
+- **Unit (не покрывается, причина):** B1, B2, B4 — фиксы в
+  `SettingsViewModel`, для unit-теста нужна mock-инфраструктура
+  (`DataStore`, `BrokerManager`, `TInvestBrokerAPI`,
+  `InvestRepository`, `TradingStateRepository`, три
+  `*FlowManager`). Это отдельная задача по тестам ViewModel-слоя
+  (ROADMAP → «Рефакторинг ViewModel-слоя»). Покрытие — live-тест.
+- **Live (по `docs/live-test.md`, режим B, один сценарий):**
+  - `disableGrpc` → три `LIVE → INITIALIZING → POLLING`;
+  - `disableWs` → без изменений в состоянии (уже POLLING);
+  - `toggleRest` → Order перезапускается (видно в логе
+    `OrderFlowManager: reapplyDebugFlags`);
+  - logout → три `→ STOPPED` (Position / Price / Order).
+
+**Оценка:** ~1.5 часа (B3 15 мин, `@Inject` 5 мин, B1 10 мин,
+B2 5 мин, B4 5 мин, B3-тесты 15 мин, gate 5 мин, live 30 мин).
 
 **Зависимости:** нет. **Блокирует** `### StreamState в
 data-слое`. **Предшествует** `### DebugConfig: только для
@@ -314,9 +406,23 @@ Live-тест (`docs/live-test.md`, режим B) показал: старт-п�
 не проверен (logout в окне захвата не выполнен).
 
 **Текущее состояние:** не закрыта. `**Подтверждение:**` —
-deferred closure. Закрытие — после
-`### Debug-тумблеры: применить ко всем менеджерам` и
-повторного live-теста (включая `→ STOPPED`).
+deferred closure. По результатам live-теста (2026-10-23,
+`docs/live-test.md`, режим B):
+
+- **Position:** полный цикл пройден —
+  `STOPPED → INITIALIZING → LIVE → POLLING → INITIALIZING →
+  POLLING → STOPPED`. Watchdog `LIVE → POLLING` (через 15 сек
+  без стрим-эмиссий) — корректно.
+- **Price:** полный цикл пройден —
+  `STOPPED → INITIALIZING → LIVE → INITIALIZING → POLLING →
+  STOPPED`. `POLLING` при `forceRest=true` — корректно.
+- **Order:** не закрыт. `STOPPED → INITIALIZING → POLLING` при
+  старте — корректно, но `reapplyDebugFlags` (B3) и `stop()`
+  при logout (B4) — не срабатывают. Подробно —
+  `### Debug-тумблеры`.
+
+Закрытие — после `### Debug-тумблеры: применить ко всем
+менеджерам` и повторного live-теста.
 
 
 
