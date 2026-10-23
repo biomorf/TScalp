@@ -208,7 +208,8 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
   `fetchFullInstrument` → `override`.
 - `data/api/BcsBrokerApi.kt` / `FinamBrokerApi.kt` —
   `override val instrument: BrokerInstrumentApi? = null`.
-- `data/repository/InstrumentRepository.kt` — без каста:
+- `data/repository/InstrumentRepository.kt` — `loadAndCache`
+  (private, каст сейчас там на строке 35): без каста,
   `broker.instrument?.fetchFullInstrument(uid)`.
 - Тесты: `InstrumentRepositoryTest` (если есть) — мок
   `every { broker.instrument } returns mockk(...)`.
@@ -221,10 +222,26 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 3. `TInvestBrokerAPI`: `override val instrument = this`;
    `override suspend fun fetchFullInstrument`.
 4. `BcsBrokerApi` / `FinamBrokerApi`: `override val instrument = null`.
-5. `InstrumentRepository.fetchFullInstrument`: без каста, при
+5. `InstrumentRepository.loadAndCache`: без каста, при
    `instrument == null` → `null`.
-6. Тесты (если `InstrumentRepositoryTest` есть).
+6. **Тесты:** `InstrumentRepositoryTest` **не существует** —
+   добавлять не нужно (прокси-метод, тривиальная делегация;
+   тест `loadAndCache` потребовал бы mock `BrokerManager` +
+   `BrokerInstrumentApi` ради одной строки — не окупается).
+   Если позже появится — `every { broker.instrument } returns
+   mockk(...)`.
 7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Референсы:**
+- `5c2bfc0` (`BrokerSnapshotApi`, `### TInvest-specific`) — образец
+  C-варианта: новый интерфейс `domain/api/BrokerXxxApi.kt` с
+  одним–тремя методами; `BrokerApi.xxx: BrokerXxxApi?`;
+  `TInvest = this`; BCS/Finam = `null`; при `null` в
+  repository — `return null` + `AppLogger.e` (не путать с
+  STALE в менеджерах). `synchronized` не нужен (stateless).
+- `TInvestBrokerApi:302` — текущая сигнатура
+  `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`
+  (не `override`, т.к. не в `BrokerApi`).
 
 **Ограничения:**
 - Не менять поведение `fetchFullInstrument` (TInvest возвращает
@@ -239,11 +256,13 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 - `BrokerApi.instrument` добавлен.
 - `TInvestBrokerAPI.instrument = this`.
 - BCS/Finam `instrument = null`.
-- `grep "as? TInvestBrokerAPI" InstrumentRepository.kt` — пусто.
+- `grep "as? TInvestBrokerAPI" InstrumentRepository.kt` — пусто
+  (был в `loadAndCache`, строки 35–36).
 - Гейт зелёный.
 
-**Оценка:** ~30–40 мин (интерфейс 10, BrokerApi 5, TInvest 10,
-BCS/Finam 5, repository 5, гейт 5).
+**Оценка:** ~35–45 мин (интерфейс 10, BrokerApi 5, TInvest 10,
+BCS/Finam 5, repository 5, KDoc-правка `TInvestBrokerApi:300` 5,
+гейт 5).
 
 **Зависимости:** разблокирована (`### TInvest-specific` закрыта).
 
@@ -251,6 +270,15 @@ BCS/Finam 5, repository 5, гейт 5).
 - `### Broker lifecycle API` — оставшиеся 3 каста (auth).
 - `### Архитектурный документ` — раздел 7 дополнить
   `BrokerInstrumentApi`.
+
+**Находки вне scope (зафиксировано 2026-10-23):**
+- KDoc `TInvestBrokerApi:300` устарел: «Используется
+  `InstrumentRepository` и `OrdersViewModel`». Grep
+  `fetchFullInstrument` в `app/src/main` → только
+  `InstrumentRepository:36` и `TInvestMarketDataService:414`.
+  `OrdersViewModel` **не использует**. Правка KDoc — отдельным
+  коммитом (см. `docs(domain): fix stale KDoc on
+  fetchFullInstrument`).
 
 **Открытые вопросы:** нет.
 
