@@ -10,232 +10,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 ## Планируемые задачи
 
 
-### StreamState в data-слое
-
-**Мобильная работа:** невозможно (требует сборки и проверки
-реактивного поведения).
-**Статус:** в работе.
-**Ветка:** feature/streamstate.
-**Подтверждение:** ожидает (live logcat на десктопе, 1–2 дня после
-merge; критерий: `[PositionFlowManager] state: INITIALIZING → LIVE`
-при старте, `state: LIVE → INITIALIZING → POLLING` при
-`disableGrpc && disableWs` (`INITIALIZING` — это `onStart()` в
-`reapplyDebugFlags`), `state: → STALE` через 30+ сек после
-авиарежима, `state: STALE → POLLING` или `STALE → LIVE` при
-возврате сети, `state: POLLING → STOPPED` при `stop()`;
-аналогично для `PriceFlowManager` и `OrderFlowManager`.
-Процедура — `docs/live-test.md`).
-
-**Следующий шаг:** live-тест на десктопе (logcat: четыре
-перехода для трёх менеджеров — старт, toggle, STALE через
-авиарежим, logout) → `docs(roadmap): mark streamstate done`
-в `dev`. После — `### Унификация имён и KDoc в *FlowManager`
-(следующая по приоритету, «не менее горячая»).
-
-
-**Контекст:** нужна индикация того, получает ли менеджер данные
-из быстрого источника (стрим) или из медленного (polling),
-или данные вообще перестали поступать.
-
-**Важно:** `StreamState` сигнализирует **менеджер** (так как он
-агрегирует данные и знает источники), а не оркестратор.
-
-**Предусловия:** нет (разблокировано PR #30, #37; фикс
-race — PR #34 — в `dev`).
-
-**Файлы:**
-- `domain/models/StreamState.kt` — новый файл.
-- `data/orchestrator/TInvestOrchestrator.kt` — разделить
-  `positionsStream` (stream-only) и `positionsSnapshot`
-  (unary с fallback).
-- `data/api/TInvestBrokerAPI.kt` — новый `positionsSnapshot`
-  (TInvest-specific, по образцу `ordersSnapshot`).
-- `domain/api/BrokerApi.kt` — KDoc `subscribePositions`
-  (обновить: stream-only).
-- `domain/api/PositionFlowManager.kt` — рефакторинг (Вариант B) +
-  `connectionState`.
-- `domain/api/PriceFlowManager.kt` — структурный рефакторинг
-  (Order-style) + `connectionState`.
-- `domain/api/OrderFlowManager.kt` — `connectionState`.
-- `domain/models/PositionStreamItem.kt` — KDoc (центральная модель).
-- `docs/streams.md` — раздел «PositionsStream» (polling перенесён
-  в менеджер).
-
-**Шаги:**
-
-1. **Рефакторинг `PositionFlowManager` (Вариант B).**
-   Сейчас `TInvestOrchestrator.positionsStream` возвращает
-   **готовый merge** stream+polling
-   (`streamWithFallback(primary, fallback, polling = positionsPolling(...))`),
-   а `PositionFlowManager` просто собирает его — не зная источника.
-   Привести к схеме `OrderFlowManager` (Order-style):
-   - В `TInvestOrchestrator.positionsStream` убрать `polling =
-     positionsPolling(...)` — оставить stream-only (gRPC + WS).
-     Удалить private `positionsPolling`.
-   - `positionsSnapshot(accountId, sandboxMode): List<PositionStreamItem>`
-     — return type меняется с `List<PortfolioPosition>`;
-     конвертация через `marketData.convertToStreamItem`.
-   - `TInvestBrokerAPI.positionsSnapshot(accountId): List<PositionStreamItem>`
-     — новый TInvest-specific метод, делегирует в оркестратор.
-   - `PositionFlowManager.start` — Order-style:
-     - scope → `Dispatchers.IO.limitedParallelism(1)` (mutable
-       `snapshotCache` разделяется stream/polling, нужна
-       сериализация; Price без этого — у него нет mutable state).
-     - один `job`, внутри `coroutineScope { launch { collectStream };
-       launch { runPolling } }`.
-     - при смене accountId — `snapshotCache.clear()` +
-       `_flow.resetReplayCache()` (фикс ISSUES «Позиции не
-       обновляются при смене счёта»).
-     - `synchronized(startLock)` сохранить (регрессия race-фикса
-       PR #34 недопустима).
-   - `collectStream(broker, accountId)`:
-     `broker.subscribePositions(accountId).collect { emitEnriched(it) }`.
-   - `runPolling(broker, accountId)`: цикл раз в 10 сек через
-     `broker.positionsSnapshot(accountId)`, `emitEnriched` на
-     каждый элемент; NOT_FOUND → выход из цикла; прочие ошибки —
-     лог + продолжение.
-   - `emitEnriched(item)`: `enrichAndCache(item)?.let { _flow.emit(it) }`.
-   - `enrichAndCache` — `private` (Clean: детали реализации не
-     торчат наружу; тесты — через `_flow.collect`).
-   - `reapplyDebugFlags` — `doStart(accountId, forceRestart = true)`.
-   - `stop` — cancel `job`, `_flow.resetReplayCache()`,
-     `currentAccountId = null`.
-2. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`
-   в `domain/models/StreamState.kt`.
-3. `PriceFlowManager` — структурный рефакторинг + `connectionState`:
-   - Структура: `streamJob` / `pollingJob` (два независимых `Job?`)
-     → один `job` + `coroutineScope { launch { runGrcpStream };
-     launch { runPolling }; launch { stateWatchdog } }` (Order-style).
-     Отмена всех трёх job'ов одним `job.cancel()`.
-   - `connectionState: StateFlow<StreamState>`:
-     - LIVE — эмиссия из `runGrcpStream` за последние 15 сек;
-     - POLLING — эмиссия только из `runPolling`, стрим молчит > 15 сек;
-     - STALE — нет эмиссий из обоих > 30 сек;
-     - STOPPED — union пуст (`restart(emptySet())`).
-4. `PositionFlowManager` — аналогично (LIVE = эмиссия из
-   `collectStream`, POLLING = только `runPolling`, STALE = нет
-   эмиссий > 30 сек, STOPPED = `stop()` или пустой accountId).
-5. `OrderFlowManager` — аналогично (LIVE = эмиссия из
-   `collectStream`, POLLING = только `collectPolling`, STALE =
-   нет эмиссий > 30 сек, STOPPED = `stop()`). Переименование
-   `collectPolling` → `runPolling` — в задаче унификации,
-   здесь не трогаем.
-6. «Биржа закрыта» ≠ STALE: если polling возвращает цену
-   (пусть и неизменную), состояние остаётся POLLING.
-
-**Тесты:**
-- `enrichAndCache` — `private`. `PositionFlowManagerTest.kt` переписать:
-  тесты 1–4 (ws currency × 3, full share × 1) — через `_flow.collect`
-  вместо прямого вызова.
-- Тесты 5–6 (`concurrent start`, `reapplyDebugFlags`) — без изменений.
-- Новые тесты на `StreamState`-переходы (integration, в каждом
-  `*FlowManagerTest`): Position — LIVE + polling-only POLLING;
-  Price — LIVE; Order — LIVE + polling-only POLLING.
-- Price polling-only намеренно не покрыт: `runPolling` стартует с
-  `delay(5_000)`, тест занял бы 5+ секунд. Путь
-  `INITIALIZING + onPollingSuccess → POLLING` покрыт
-  `StreamStateTrackerTest`, плюс live-тест на десктопе.
-- `TInvestOrchestratorFallbackTest` — обновить под новый
-  `positionsSnapshot: List<PositionStreamItem>`.
-
-**Референсы:**
-- `OrderFlowManager.kt` — образец Order-style (один job,
-  `limitedParallelism(1)`, `collectStream`/`collectPolling`).
-- `PriceFlowManager.kt` — образец `_connectionState`-поля.
-
-**Ограничения:**
-- **Не менять** публичный контракт `prices: SharedFlow<...>`.
-- Не путать STALE с отсутствием интереса — STOPPED при пустом union.
-- `synchronized(startLock)` сохранить — регрессия race-фикса
-  PR #34 недопустима.
-- `enrichAndCache` — `private`. `PositionFlowManagerTest.kt`
-  переписать: тесты через `_flow.collect` вместо прямого
-  вызова `enrichAndCache`.
-
-**Критерий готовности:**
-- `connectionState` реактивно меняется при переключении
-  источников и при отсутствии данных.
-- В `logcat` при смене состояния видно `[stream] state: LIVE → POLLING`
-  (или аналогичное).
-- При старте — ровно один `connecting` на транспорт
-  (регрессия race не вернулась).
-- `docs/streams.md` обновлён: раздел «PositionsStream» →
-  polling перенесён в `PositionFlowManager`.
-- `TInvestOrchestratorFallbackTest` обновлён под новый
-  `positionsSnapshot`.
-
-**Оценка:** ~2.5 часа (оркестратор 20 мин, broker 10 мин,
-PositionFlowManager 45 мин, PriceFlowManager структурный
-рефакторинг + StreamState 45 мин, StreamState в Position/Order
-20 мин, KDoc PositionStreamItem 15 мин, тесты 30 мин, docs 10 мин).
-
-**Зависимости:** нет.
-
-**Связанные задачи (обязательны к закрытию после):**
-- `### Унификация имён и KDoc в *FlowManager` — переименования
-  в Price/Order, KDoc.
-- `### DebugConfig: только для debug-сборок` — флаги в release.
-
-**Планировали / Сделали (ревизия 2026-10-23):**
-
-- **Планировали:** enum + `connectionState` в трёх менеджерах;
-  рефакторинг `PositionFlowManager` (Variant B); структурный
-  рефакторинг `PriceFlowManager` — как отдельная задача.
-- **Сделали:** всё, кроме пункта «структурный рефакторинг Price
-  отдельно» — он вошёл в эту задачу по решению 2026-10-23
-  (Option B). Плюс создан `docs/live-test.md` (процедура
-  live-теста, не планировалась).
-- **Отличие:** `PriceFlowManager` реструктурирован здесь, а не
-  в `### Унификация имён и KDoc в *FlowManager`. Обоснование:
-  без единого `job` нельзя добавить третий (stateWatchdog) без
-  трёх независимых `Job?` — структурный рефакторинг стал
-  необходимым для StreamState, а не отдельной чисткой.
-
-**Что сделано (фактически):**
-
-- `StreamState` enum + `StreamStateTracker` (14 тестов на fake-time)
-- `PositionFlowManager`: Order-style, polling перенесён из оркестратора
-- `PriceFlowManager`: единый `job` + `coroutineScope`, `disableGrpc && disableWs` в `runGrcpStream`
-- `OrderFlowManager`: `connectionState` hooks только
-  (`reapplyDebugFlags` — **не добавлен**, см. ниже)
-- `connectionState: StateFlow<StreamState>` во всех трёх менеджерах
-- Фикс replay-cache при смене счёта (ISSUES)
-- `docs/streams.md` обновлён
-- `docs/live-test.md` создан (процедура, режимы A/B)
-
-**Обнаружено при live-тесте (2026-10-23) — блокер закрытия:**
-
-Live-тест (`docs/live-test.md`, режим B) показал: старт-переходы
-`INITIALIZING → LIVE` у Position и Price — корректны; Order
-стартует в `POLLING` (стрим не успел). Но сценарий
-`disableGrpc && disableWs → LIVE → INITIALIZING → POLLING`
-**не срабатывает** из-за трёх багов в `SettingsViewModel`
-(B1/B2/B3, см. `### Debug-тумблеры`). Переход `→ STOPPED`
-не проверен (logout в окне захвата не выполнен).
-
-**Текущее состояние:** не закрыта. `**Подтверждение:**` —
-deferred closure. По результатам live-теста (2026-10-23,
-`docs/live-test.md`, режим B):
-
-- **Position:** полный цикл пройден —
-  `STOPPED → INITIALIZING → LIVE → POLLING → INITIALIZING →
-  POLLING → STOPPED`. Watchdog `LIVE → POLLING` (через 15 сек
-  без стрим-эмиссий) — корректно.
-- **Price:** полный цикл пройден —
-  `STOPPED → INITIALIZING → LIVE → INITIALIZING → POLLING →
-  STOPPED`. `POLLING` при `forceRest=true` — корректно.
-- **Order:** не закрыт. `STOPPED → INITIALIZING → POLLING` при
-  старте — корректно, но `reapplyDebugFlags` (B3) и `stop()`
-  при logout (B4) — не срабатывают. Подробно —
-  `### Debug-тумблеры`.
-
-Закрытие — после `### Debug-тумблеры: применить ко всем
-менеджерам` и повторного live-теста.
-
-
-
----
-
 ### Унификация имён и KDoc в *FlowManager
 
 **Мобильная работа:** невозможно (сборка и тесты).
@@ -2764,6 +2538,244 @@ debug-сборок`.
 - Матрица 8 комбинаций флагов — `docs/ROADMAP.md` (`3304f07`).
 - Live-тест (2026-10-23): 4 угла матрицы + logout, B1–B4 подтверждены; `19:09:10.075 Order: POLLING → STOPPED`.
 - 2 unit-теста в `OrderFlowManagerTest` (race + no-op).
+
+---
+
+### ✅ StreamState в data-слое
+
+**Мобильная работа:** невозможно (требует сборки и проверки
+реактивного поведения).
+**Подтверждение:** выполнено (2026-10-23, `docs/live-test.md`,
+режим B). Live-лог подтвердил переходы для Position / Price /
+Order:
+
+- старт: `STOPPED → INITIALIZING → LIVE` (Position — сразу,
+  Price — через ~6 сек; Order — `→ POLLING`, event-only);
+- toggle (`disableGrpc` + `disableWs`): `LIVE/POLLING →
+  INITIALIZING → POLLING` (несколько раз за сессию);
+- STALE (авиарежим 31–35 сек): три `POLLING → STALE`
+  (19:32:13–19:32:21);
+- восстановление (возврат сети): три `STALE → POLLING`
+  (19:34:21–19:34:29);
+- logout: три `→ STOPPED` (19:34:52).
+
+**Следующий шаг:** выполнен — live-тест StreamState
+(2026-10-23, см. `**Подтверждение:**`). Следующий —
+`### Унификация имён и KDoc в *FlowManager` (приоритет,
+«не менее горячая»).
+
+**Контекст:** нужна индикация того, получает ли менеджер данные
+из быстрого источника (стрим) или из медленного (polling),
+или данные вообще перестали поступать.
+
+**Важно:** `StreamState` сигнализирует **менеджер** (так как он
+агрегирует данные и знает источники), а не оркестратор.
+
+**Предусловия:** нет (разблокировано PR #30, #37; фикс
+race — PR #34 — в `dev`).
+
+**Файлы:**
+- `domain/models/StreamState.kt` — новый файл.
+- `data/orchestrator/TInvestOrchestrator.kt` — разделить
+  `positionsStream` (stream-only) и `positionsSnapshot`
+  (unary с fallback).
+- `data/api/TInvestBrokerAPI.kt` — новый `positionsSnapshot`
+  (TInvest-specific, по образцу `ordersSnapshot`).
+- `domain/api/BrokerApi.kt` — KDoc `subscribePositions`
+  (обновить: stream-only).
+- `domain/api/PositionFlowManager.kt` — рефакторинг (Вариант B) +
+  `connectionState`.
+- `domain/api/PriceFlowManager.kt` — структурный рефакторинг
+  (Order-style) + `connectionState`.
+- `domain/api/OrderFlowManager.kt` — `connectionState`.
+- `domain/models/PositionStreamItem.kt` — KDoc (центральная модель).
+- `docs/streams.md` — раздел «PositionsStream» (polling перенесён
+  в менеджер).
+
+**Шаги:**
+
+1. **Рефакторинг `PositionFlowManager` (Вариант B).**
+   Сейчас `TInvestOrchestrator.positionsStream` возвращает
+   **готовый merge** stream+polling
+   (`streamWithFallback(primary, fallback, polling = positionsPolling(...))`),
+   а `PositionFlowManager` просто собирает его — не зная источника.
+   Привести к схеме `OrderFlowManager` (Order-style):
+   - В `TInvestOrchestrator.positionsStream` убрать `polling =
+     positionsPolling(...)` — оставить stream-only (gRPC + WS).
+     Удалить private `positionsPolling`.
+   - `positionsSnapshot(accountId, sandboxMode): List<PositionStreamItem>`
+     — return type меняется с `List<PortfolioPosition>`;
+     конвертация через `marketData.convertToStreamItem`.
+   - `TInvestBrokerAPI.positionsSnapshot(accountId): List<PositionStreamItem>`
+     — новый TInvest-specific метод, делегирует в оркестратор.
+   - `PositionFlowManager.start` — Order-style:
+     - scope → `Dispatchers.IO.limitedParallelism(1)` (mutable
+       `snapshotCache` разделяется stream/polling, нужна
+       сериализация; Price без этого — у него нет mutable state).
+     - один `job`, внутри `coroutineScope { launch { collectStream };
+       launch { runPolling } }`.
+     - при смене accountId — `snapshotCache.clear()` +
+       `_flow.resetReplayCache()` (фикс ISSUES «Позиции не
+       обновляются при смене счёта»).
+     - `synchronized(startLock)` сохранить (регрессия race-фикса
+       PR #34 недопустима).
+   - `collectStream(broker, accountId)`:
+     `broker.subscribePositions(accountId).collect { emitEnriched(it) }`.
+   - `runPolling(broker, accountId)`: цикл раз в 10 сек через
+     `broker.positionsSnapshot(accountId)`, `emitEnriched` на
+     каждый элемент; NOT_FOUND → выход из цикла; прочие ошибки —
+     лог + продолжение.
+   - `emitEnriched(item)`: `enrichAndCache(item)?.let { _flow.emit(it) }`.
+   - `enrichAndCache` — `private` (Clean: детали реализации не
+     торчат наружу; тесты — через `_flow.collect`).
+   - `reapplyDebugFlags` — `doStart(accountId, forceRestart = true)`.
+   - `stop` — cancel `job`, `_flow.resetReplayCache()`,
+     `currentAccountId = null`.
+2. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`
+   в `domain/models/StreamState.kt`.
+3. `PriceFlowManager` — структурный рефакторинг + `connectionState`:
+   - Структура: `streamJob` / `pollingJob` (два независимых `Job?`)
+     → один `job` + `coroutineScope { launch { runGrcpStream };
+     launch { runPolling }; launch { stateWatchdog } }` (Order-style).
+     Отмена всех трёх job'ов одним `job.cancel()`.
+   - `connectionState: StateFlow<StreamState>`:
+     - LIVE — эмиссия из `runGrcpStream` за последние 15 сек;
+     - POLLING — эмиссия только из `runPolling`, стрим молчит > 15 сек;
+     - STALE — нет эмиссий из обоих > 30 сек;
+     - STOPPED — union пуст (`restart(emptySet())`).
+4. `PositionFlowManager` — аналогично (LIVE = эмиссия из
+   `collectStream`, POLLING = только `runPolling`, STALE = нет
+   эмиссий > 30 сек, STOPPED = `stop()` или пустой accountId).
+5. `OrderFlowManager` — аналогично (LIVE = эмиссия из
+   `collectStream`, POLLING = только `collectPolling`, STALE =
+   нет эмиссий > 30 сек, STOPPED = `stop()`). Переименование
+   `collectPolling` → `runPolling` — в задаче унификации,
+   здесь не трогаем.
+6. «Биржа закрыта» ≠ STALE: если polling возвращает цену
+   (пусть и неизменную), состояние остаётся POLLING.
+
+**Тесты:**
+- `enrichAndCache` — `private`. `PositionFlowManagerTest.kt` переписать:
+  тесты 1–4 (ws currency × 3, full share × 1) — через `_flow.collect`
+  вместо прямого вызова.
+- Тесты 5–6 (`concurrent start`, `reapplyDebugFlags`) — без изменений.
+- Новые тесты на `StreamState`-переходы (integration, в каждом
+  `*FlowManagerTest`): Position — LIVE + polling-only POLLING;
+  Price — LIVE; Order — LIVE + polling-only POLLING.
+- Price polling-only намеренно не покрыт: `runPolling` стартует с
+  `delay(5_000)`, тест занял бы 5+ секунд. Путь
+  `INITIALIZING + onPollingSuccess → POLLING` покрыт
+  `StreamStateTrackerTest`, плюс live-тест на десктопе.
+- `TInvestOrchestratorFallbackTest` — обновить под новый
+  `positionsSnapshot: List<PositionStreamItem>`.
+
+**Референсы:**
+- `OrderFlowManager.kt` — образец Order-style (один job,
+  `limitedParallelism(1)`, `collectStream`/`collectPolling`).
+- `PriceFlowManager.kt` — образец `_connectionState`-поля.
+
+**Ограничения:**
+- **Не менять** публичный контракт `prices: SharedFlow<...>`.
+- Не путать STALE с отсутствием интереса — STOPPED при пустом union.
+- `synchronized(startLock)` сохранить — регрессия race-фикса
+  PR #34 недопустима.
+- `enrichAndCache` — `private`. `PositionFlowManagerTest.kt`
+  переписать: тесты через `_flow.collect` вместо прямого
+  вызова `enrichAndCache`.
+
+**Критерий готовности:**
+- `connectionState` реактивно меняется при переключении
+  источников и при отсутствии данных.
+- В `logcat` при смене состояния видно `[stream] state: LIVE → POLLING`
+  (или аналогичное).
+- При старте — ровно один `connecting` на транспорт
+  (регрессия race не вернулась).
+- `docs/streams.md` обновлён: раздел «PositionsStream» →
+  polling перенесён в `PositionFlowManager`.
+- `TInvestOrchestratorFallbackTest` обновлён под новый
+  `positionsSnapshot`.
+
+**Оценка:** ~2.5 часа (оркестратор 20 мин, broker 10 мин,
+PositionFlowManager 45 мин, PriceFlowManager структурный
+рефакторинг + StreamState 45 мин, StreamState в Position/Order
+20 мин, KDoc PositionStreamItem 15 мин, тесты 30 мин, docs 10 мин).
+
+**Зависимости:** нет.
+
+**Связанные задачи (обязательны к закрытию после):**
+- `### Унификация имён и KDoc в *FlowManager` — переименования
+  в Price/Order, KDoc.
+- `### DebugConfig: только для debug-сборок` — флаги в release.
+
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** enum + `connectionState` в трёх менеджерах;
+  рефакторинг `PositionFlowManager` (Variant B); структурный
+  рефакторинг `PriceFlowManager` — как отдельная задача.
+- **Сделали:** всё, кроме пункта «структурный рефакторинг Price
+  отдельно» — он вошёл в эту задачу по решению 2026-10-23
+  (Option B). Плюс создан `docs/live-test.md` (процедура
+  live-теста, не планировалась).
+- **Отличие:** `PriceFlowManager` реструктурирован здесь, а не
+  в `### Унификация имён и KDoc в *FlowManager`. Обоснование:
+  без единого `job` нельзя добавить третий (stateWatchdog) без
+  трёх независимых `Job?` — структурный рефакторинг стал
+  необходимым для StreamState, а не отдельной чисткой.
+
+**Что сделано (фактически):**
+
+- `StreamState` enum + `StreamStateTracker` (14 тестов на fake-time)
+- `PositionFlowManager`: Order-style, polling перенесён из оркестратора
+- `PriceFlowManager`: единый `job` + `coroutineScope`, `disableGrpc && disableWs` в `runGrcpStream`
+- `OrderFlowManager`: `connectionState` hooks только
+  (`reapplyDebugFlags` — **не добавлен**, см. ниже)
+- `connectionState: StateFlow<StreamState>` во всех трёх менеджерах
+- Фикс replay-cache при смене счёта (ISSUES)
+- `docs/streams.md` обновлён
+- `docs/live-test.md` создан (процедура, режимы A/B)
+
+**Обнаружено и решено (2026-10-23):**
+
+Live-тест (`docs/live-test.md`, режим B) показал: старт-переходы
+`INITIALIZING → LIVE` у Position и Price — корректны; Order
+стартует в `POLLING` (стрим не успел). Но сценарий
+`disableGrpc && disableWs → LIVE → INITIALIZING → POLLING`
+**не срабатывает** из-за трёх багов в `SettingsViewModel`
+(B1/B2/B3, см. `### Debug-тумблеры`). Переход `→ STOPPED`
+не проверен (logout в окне захвата не выполнен).
+
+**Решено:** B1/B2/B3 (toggle flags — `reapplyDebugFlags` на
+всех трёх менеджерах, Order `reapplyDebugFlags`, `@Inject`
+`orderFlowManager` в `SettingsViewModel`) и B4 (Order
+`stop()` при logout) — fixed in PR #39 (`0ca10f1`).
+Повторный live-тест StreamState (2026-10-23) — зелёный,
+все переходы подтверждены (см. `**Подтверждение:**`).
+
+**Текущее состояние:** закрыта 2026-10-23. Live-тест
+(`docs/live-test.md`, режим B) подтвердил все переходы:
+
+- **Position:** `STOPPED → INITIALIZING → LIVE` при старте;
+  watchdog `LIVE → POLLING` (15 сек без стрим-эмиссий);
+  toggle → `POLLING → INITIALIZING → POLLING`; авиарежим →
+  `POLLING → STALE` (через ~34 сек); возврат сети →
+  `STALE → POLLING`; logout → `LIVE → STOPPED`.
+- **Price:** `STOPPED → INITIALIZING → POLLING` при старте
+  (event-only, первый `lastPrice` не успел за 6 сек);
+  toggle → `POLLING → INITIALIZING → POLLING`; авиарежим →
+  `POLLING → STALE` (через ~35 сек); возврат сети →
+  `STALE → POLLING`; далее toggle → `INITIALIZING → LIVE`;
+  logout → `LIVE → STOPPED`.
+- **Order:** `STOPPED → INITIALIZING → POLLING` при старте
+  (event-only); toggle → `POLLING → INITIALIZING → POLLING`;
+  авиарежим → `POLLING → STALE` (через ~38 сек); возврат
+  сети → `STALE → POLLING`; logout → `POLLING → STOPPED`.
+
+Все четыре перехода (`INITIALIZING → LIVE/POLLING`, toggle,
+STALE/восстановление, STOPPED) подтверждены. `STALE` ранее
+не входил в критерий — добавлен перед live-тестом (коммит
+`8627b4a`). B1–B4 из live-теста Debug-тумблеров исправлены
+(PR #39, `0ca10f1`), повторный live-тест StreamState —
+зелёный.
 
 ---
 
