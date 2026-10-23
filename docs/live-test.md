@@ -189,6 +189,76 @@ Position / Price / Order:
 - `state: POLLING → STOPPED` — при `stop()` (logout, смена
   счёта, `clearInterest` для Price при пустом union).
 
+### Debug-тумблеры (задача `Debug-тумблеры: применить ко всем менеджерам`)
+
+**Режим:** B (ручной).
+
+**Критерий:** 4 репрезентативные комбинации флагов (углы
+матрицы — `docs/ROADMAP.md` → `### Debug-тумблеры` →
+«Матрица флагов») + logout. Промежуточные 4 комбинации
+(`disableGrpc` XOR `disableWs`) — по симметрии, отдельно
+не прогоняются.
+
+**Сценарий:**
+
+1. **Старт (всё off).** Открыть вкладку «Заявки» (Order
+   стартует по требованию UI).
+   - Position: `STOPPED → INITIALIZING → LIVE`;
+   - Price: `STOPPED → INITIALIZING → LIVE`;
+   - Order: `STOPPED → INITIALIZING → LIVE` (если стрим
+     прислал событие) или `→ POLLING` (если событий нет —
+     event-only стрим, первый snapshot приходит из polling).
+   Матрица: `gRPC + WS` / `gRPC unary`.
+
+2. **`disableGrpc` + `disableWs` (forceRest off).**
+   Настройки → включить оба тумблера.
+   - Каждый менеджер получает `reapplyDebugFlags()`
+     (`restart` → `onStart()` → `INITIALIZING`).
+   - Первый успешный polling → `INITIALIZING → POLLING`.
+     Тайминг: Position / Order — ~1s (polling без стартовой
+     задержки); Price — ~5s (`runPolling` стартует с
+     `delay(5_000)`).
+   В логе: `gRPC and WS disabled: runGrcpStream bypassed`.
+   Матрица: `нет стримов` / `gRPC unary`.
+
+3. **`forceRest` (toggleRest, при уже отключённых grpc/ws).**
+   Настройки → включить `forceRest`.
+   - Unary уходит на REST; стримы уже отключены.
+   - Состояние без изменений (уже POLLING).
+   В логе: `forceRest: bypassing gRPC for prices`,
+   `forceRest: bypassing gRPC for orders`,
+   `forceRest: bypassing gRPC for positions`,
+   `[REST/ktor/TInvest] POST ...`.
+   Матрица: `нет стримов` / `REST`.
+
+4. **`disableGrpc` + `disableWs` обратно в off (forceRest on).**
+   Настройки → выключить оба тумблера.
+   - Стримы возвращаются, unary остаётся на REST.
+   - Ожидаемые переходы:
+     - Position: `POLLING → INITIALIZING → LIVE` (initial
+       snapshot из `positionsStream` приходит быстро);
+     - Price: `POLLING → INITIALIZING → LIVE` (первый
+       `lastPrice` идёт в первые секунды);
+     - Order: `POLLING → INITIALIZING → LIVE` если есть
+       событие `orderState`, иначе остаётся `POLLING`
+       (event-only стрим, событий нет — норма).
+   Матрица: `gRPC + WS` / `REST`.
+
+5. **Logout.** Настройки → T-Invest → Logout.
+   - Position: `→ STOPPED`;
+   - Price: `→ STOPPED`;
+   - Order: `→ STOPPED` (B4-фикс: logout вызывает
+     `orderFlowManager.stop()`).
+
+**Проверенные 4 из 8:** `(off, off, off)`, `(on, on, off)`,
+`(on, on, on)`, `(off, off, on)` — покрывают углы матрицы:
+стрим × unary (gRPC/REST). Промежуточные `(on, off, *)` и
+`(off, on, *)` — по симметрии.
+
+**Если live-тест зелёный** → `docs(roadmap): mark
+debug-toggles done` в `dev`. Дальше — live-тест StreamState
+(полный цикл для трёх менеджеров).
+
 ### DebugConfig (задача `DebugConfig: только для debug-сборок`)
 
 **Критерий:** в debug-сборке — тумблеры видны и работают;
