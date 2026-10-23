@@ -102,11 +102,14 @@ class OrderFlowManager
          */
         fun start(accountId: String) =
             synchronized(startLock) {
-                doStart(accountId)
+                doStart(accountId, forceRestart = false)
             }
 
-        private fun doStart(accountId: String) {
-            if (job?.isActive == true && currentAccountId == accountId) {
+        private fun doStart(
+            accountId: String,
+            forceRestart: Boolean,
+        ) {
+            if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
                 AppLogger.d(TAG, "Поток заявок уже запущен для $accountId")
                 return
             }
@@ -137,6 +140,21 @@ class OrderFlowManager
                     }
                 }
         }
+
+        /**
+         * Принудительно перезапускает агрегацию с текущими флагами
+         * DebugConfig. Вызывается из UI при переключении тумблеров
+         * (gRPC, WS, REST), чтобы применить их на лету.
+         *
+         * No-op, если менеджер не запущен (`currentAccountId == null`).
+         * Симметрично `PositionFlowManager.reapplyDebugFlags`.
+         */
+        fun reapplyDebugFlags() =
+            synchronized(startLock) {
+                val accountId = currentAccountId ?: return@synchronized
+                AppLogger.d(TAG, "reapplyDebugFlags: restarting stream")
+                doStart(accountId, forceRestart = true)
+            }
 
         /**
          * Останавливает агрегацию и очищает кэш. Следующий [start]

@@ -10,6 +10,7 @@ import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -55,6 +56,7 @@ class SettingsViewModel
         private val brokerManager: BrokerManager,
         private val positionFlowManager: PositionFlowManager,
         private val priceFlowManager: PriceFlowManager,
+        private val orderFlowManager: OrderFlowManager,
         private val repository: InvestRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
