@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
 
 class OrderFlowManagerTest {
     @Test
@@ -109,5 +110,58 @@ class OrderFlowManagerTest {
 
             manager.stop()
             assertEquals(StreamState.STOPPED, manager.connectionState.value)
+        }
+
+    @Test
+    fun `concurrent reapplyDebugFlags creates single active stream`() =
+        runBlocking {
+            val activeCount = AtomicInteger(0)
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
+            coEvery { mockBroker.subscribeOrderState(any()) } returns
+                flow {
+                    activeCount.incrementAndGet()
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        activeCount.decrementAndGet()
+                    }
+                }
+
+            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+
+            manager.start("acc-1")
+            delay(100)
+
+            coroutineScope {
+                (1..50)
+                    .map { async(Dispatchers.Default) { manager.reapplyDebugFlags() } }
+                    .awaitAll()
+            }
+            delay(500)
+
+            assertEquals(1, activeCount.get())
+
+            manager.stop()
+            assertEquals(StreamState.STOPPED, manager.connectionState.value)
+        }
+
+    @Test
+    fun `reapplyDebugFlags before start is no-op`() =
+        runBlocking {
+            val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.isInitialized } returns true
+            coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
+            coEvery { mockBroker.subscribeOrderState(any()) } returns
+                flow { awaitCancellation() }
+
+            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+
+            manager.reapplyDebugFlags()
+            delay(200)
+
+            coVerify(exactly = 0) { mockBroker.subscribeOrderState(any()) }
+            coVerify(exactly = 0) { mockBroker.ordersSnapshot(any()) }
         }
 }

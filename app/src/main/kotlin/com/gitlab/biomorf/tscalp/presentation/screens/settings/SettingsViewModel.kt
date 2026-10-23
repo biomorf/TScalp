@@ -10,6 +10,7 @@ import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -55,6 +56,7 @@ class SettingsViewModel
         private val brokerManager: BrokerManager,
         private val positionFlowManager: PositionFlowManager,
         private val priceFlowManager: PriceFlowManager,
+        private val orderFlowManager: OrderFlowManager,
         private val repository: InvestRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
@@ -139,6 +141,7 @@ class SettingsViewModel
                 // будет ли создан PortfolioViewModel.
                 if (brokerName == BrokerName.TINVEST) {
                     positionFlowManager.stop()
+                    orderFlowManager.stop()
                 }
 
                 brokerManager.refreshInitializationState()
@@ -335,12 +338,18 @@ class SettingsViewModel
             AppLogger.d(TAG, "toggleGrpc: enabled=$enabled")
             DebugConfig.disableGrpc = enabled
             _uiState.update { it.copy(disableGrpc = DebugConfig.disableGrpc) }
+            priceFlowManager.reapplyDebugFlags()
+            positionFlowManager.reapplyDebugFlags()
+            orderFlowManager.reapplyDebugFlags()
         }
 
         fun toggleWs(enabled: Boolean) {
             AppLogger.d(TAG, "toggleWs: enabled=$enabled")
             DebugConfig.disableWs = enabled
             _uiState.update { it.copy(disableWs = DebugConfig.disableWs) }
+            priceFlowManager.reapplyDebugFlags()
+            positionFlowManager.reapplyDebugFlags()
+            orderFlowManager.reapplyDebugFlags()
         }
 
         fun toggleRest(enabled: Boolean) {
@@ -349,5 +358,6 @@ class SettingsViewModel
             _uiState.update { it.copy(forceRest = DebugConfig.forceRest) }
             priceFlowManager.reapplyDebugFlags()
             positionFlowManager.reapplyDebugFlags()
+            orderFlowManager.reapplyDebugFlags()
         }
     }
