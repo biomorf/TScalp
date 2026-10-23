@@ -297,7 +297,11 @@ class TInvestBrokerAPI(
 
     /**
      * Возвращает полный доменный инструмент по uid.
-     * Используется InstrumentRepository и OrdersViewModel.
+     * Используется `InstrumentRepository.loadAndCache`.
+     *
+     * Не входит в `BrokerApi` — TInvest-specific. Планируется
+     * вынос в `BrokerInstrumentApi` (см. ROADMAP →
+     * `### TInvest-specific: fetchFullInstrument`).
      */
     suspend fun fetchFullInstrument(uid: String): InstrumentUi? = marketData.fetchFullInstrument(uid)
 
