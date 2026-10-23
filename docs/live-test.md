@@ -102,11 +102,21 @@ echo ""
 
 adb shell am start -n com.gitlab.biomorf.tscalp/.MainActivity
 
-adb logcat -v time | grep --line-buffered -E "${FILTER}" | tee "${LOG}"
+adb logcat | grep --line-buffered -E "${FILTER}" | tee "${LOG}"
 ```
 
 Остановка — Ctrl+C, когда сценарий завершён. Файл `${LOG}`
 остаётся для повторного разбора и для отчёта.
+
+**Почему без `-v time`.** Флаг `-v time` меняет формат строки:
+`D/PositionFlowManager(19091): state: ...` — с PID в скобках
+между тегом и сообщением. Подстрока `FlowManager: state:` в
+таком формате **не совпадает** (между `FlowManager` и
+`: state:` стоит `(pid): `), grep молча пропускает все
+state-переходы. Без `-v time` формат `D PositionFlowManager:
+state: ...` — подстрока совпадает. Если нужна точная метка
+времени в файле — добавить `-v threadtime` и поправить
+`FILTER` под формат `D(<tid>) PositionFlowManager:`.
 
 Альтернатива без `grep` — теги через `-s` (silent mode):
 
