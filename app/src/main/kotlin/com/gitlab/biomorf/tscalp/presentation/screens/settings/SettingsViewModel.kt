@@ -141,6 +141,7 @@ class SettingsViewModel
                 // будет ли создан PortfolioViewModel.
                 if (brokerName == BrokerName.TINVEST) {
                     positionFlowManager.stop()
+                    orderFlowManager.stop()
                 }
 
                 brokerManager.refreshInitializationState()
@@ -337,12 +338,18 @@ class SettingsViewModel
             AppLogger.d(TAG, "toggleGrpc: enabled=$enabled")
             DebugConfig.disableGrpc = enabled
             _uiState.update { it.copy(disableGrpc = DebugConfig.disableGrpc) }
+            priceFlowManager.reapplyDebugFlags()
+            positionFlowManager.reapplyDebugFlags()
+            orderFlowManager.reapplyDebugFlags()
         }
 
         fun toggleWs(enabled: Boolean) {
             AppLogger.d(TAG, "toggleWs: enabled=$enabled")
             DebugConfig.disableWs = enabled
             _uiState.update { it.copy(disableWs = DebugConfig.disableWs) }
+            priceFlowManager.reapplyDebugFlags()
+            positionFlowManager.reapplyDebugFlags()
+            orderFlowManager.reapplyDebugFlags()
         }
 
         fun toggleRest(enabled: Boolean) {
@@ -351,5 +358,6 @@ class SettingsViewModel
             _uiState.update { it.copy(forceRest = DebugConfig.forceRest) }
             priceFlowManager.reapplyDebugFlags()
             positionFlowManager.reapplyDebugFlags()
+            orderFlowManager.reapplyDebugFlags()
         }
     }
