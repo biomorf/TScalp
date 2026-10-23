@@ -69,7 +69,20 @@ class PriceFlowManager
         /** Текущие интересы: ключ потребителя → набор tscalpInstrumentId. */
         private val interests = MutableStateFlow<Map<PriceConsumer, Set<String>>>(emptyMap())
 
-        /** Единый поток цен для всех потребителей. */
+        /**
+         * Единый поток цен для всех потребителей.
+         *
+         * **Почему `replay = 0`.** Цены — one-shot updates: каждая
+         * эмиссия — новое значение в моменте. Подписчик, которому
+         * нужна актуальная цена при подписке, подтягивает её сам
+         * через `broker.pricesSnapshot()` (оркестратор). Replay-кэш
+         * здесь не нужен и вреден: старые тики в replay-буфере
+         * выдавались бы новому подписчику как «текущие».
+         *
+         * Контраст: `PositionFlowManager._flow` использует
+         * `replay = 1` — позиция это stateful snapshot, и новый
+         * подписчик должен сразу увидеть текущее состояние.
+         */
         private val _prices = MutableSharedFlow<PriceUpdate>(replay = 0)
         val prices: SharedFlow<PriceUpdate> = _prices.asSharedFlow()
 
@@ -90,6 +103,13 @@ class PriceFlowManager
          */
         private val startLock = Any()
 
+        /**
+         * Scope: stream + polling + watchdog.
+         *
+         * `limitedParallelism(1)` — сериализация: `stateTracker`
+         * (мутабельный) дёргается из трёх корутин, без
+         * ограничения — race. `synchronized` не нужен.
+         */
         private val scope =
             CoroutineScope(
                 Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
@@ -171,7 +191,7 @@ class PriceFlowManager
             job =
                 scope.launch {
                     coroutineScope {
-                        launch { runGrcpStream(union) }
+                        launch { collectStream(union) }
                         launch { runPolling(union) }
                         launch { stateWatchdog() }
                     }
@@ -186,13 +206,9 @@ class PriceFlowManager
          * (1s / 5s / 15s / 30s / 60s, cap 60s). Polling работает
          * параллельно и прикрывает паузы между попытками.
          */
-        private suspend fun runGrcpStream(union: Set<String>) {
-            if (DebugConfig.forceRest) {
-                AppLogger.d(TAG, "forceRest enabled: runGrcpStream bypassed")
-                return
-            }
+        private suspend fun collectStream(union: Set<String>) {
             if (DebugConfig.disableGrpc && DebugConfig.disableWs) {
-                AppLogger.d(TAG, "gRPC and WS disabled: runGrcpStream bypassed")
+                AppLogger.d(TAG, "gRPC and WS disabled: collectStream bypassed")
                 return
             }
             val broker = BrokerName.TINVEST
@@ -271,6 +287,11 @@ class PriceFlowManager
             }
         }
 
+        /**
+         * Watchdog: раз в [STATE_TICK_MS] (1 сек) двигает
+         * [StreamState] (LIVE → POLLING по молчанию stream,
+         * → STALE по молчанию polling). См. `StreamStateTracker.tick`.
+         */
         private suspend fun stateWatchdog() {
             while (currentCoroutineContext().isActive) {
                 delay(STATE_TICK_MS)

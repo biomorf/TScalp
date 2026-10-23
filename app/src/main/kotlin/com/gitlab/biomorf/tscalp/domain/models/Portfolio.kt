@@ -1,5 +1,42 @@
 package com.gitlab.biomorf.tscalp.domain.models
 
+/**
+ * Элемент потока позиций — событие от одного из источников
+ * (gRPC stream, WS, polling).
+ *
+ * Может быть **полным** (от polling, все поля заполнены) или
+ * **неполным** (от стрима — только количество и идентификаторы,
+ * без P&L). Обогащение неполных событий полями из кэша полных —
+ * задача `PositionFlowManager.enrichAndCache`.
+ *
+ * @property tscalpInstrumentId универсальный ключ инструмента
+ *   (не `uid`/`figi`). Пустой для валютных позиций из WS
+ *   (`instrumentType = "currency"`) — там только `currency`,
+ *   склейка с polling по `currency`.
+ * @property brokerName брокер-источник события.
+ * @property ticker биржевой тикер (`SBER`, `TMON@`). Пустой
+ *   для валютных позиций из WS.
+ * @property quantity количество (balance, лоты/единицы).
+ * @property currentPrice текущая цена. `null` — событие
+ *   неполное (от стрима). Непустой (даже `0.0`) — маркер
+ *   полного события от polling.
+ * @property averagePositionPrice средняя цена позиции. `null`
+ *   в неполных событиях; заполняется из polling.
+ * @property expectedYield P&L от брокера (в рублях). `null`
+ *   в неполных событиях; заполняется из polling.
+ * @property classCode код режима торгов (`TQBR`, `SPBRU`).
+ * @property isin ISIN инструмента.
+ * @property pointValue стоимость шага цены (только фьючерсы).
+ * @property instrumentType строковый тип: `"share"`, `"futures"`,
+ *   `"currency"`, `"etf"`.
+ * @property money для валютных позиций: свободный остаток.
+ *   См. inline-комментарий ниже — формула связи с `blocked`
+ *   и `quantity` не подтверждена.
+ * @property blocked для валютных позиций: заблокированный
+ *   остаток. См. inline-комментарий ниже.
+ * @property currency ISO-4217 код валюты (`"rub"`). Только
+ *   для `instrumentType = "currency"`.
+ */
 data class PositionStreamItem(
     // Обязательные: без них позицию нельзя идентифицировать
     val tscalpInstrumentId: String,
@@ -37,6 +74,43 @@ data class PositionStreamItem(
     val currency: String? = null,
 )
 
+/**
+ * Доменная модель портфельной позиции для UI.
+ *
+ * Получается из [PositionStreamItem] через
+ * [toPortfolioPosition] после обогащения в
+ * `PositionFlowManager`. В отличие от [PositionStreamItem] —
+ * всегда полная (все поля, которые нужны карточке).
+ *
+ * @property tscalpInstrumentId универсальный ключ инструмента.
+ * @property brokerName брокер-источник.
+ * @property name отображаемое имя (сейчас — `ticker`).
+ * @property ticker биржевой тикер.
+ * @property quantity количество (лоты/единицы).
+ * @property currentPrice текущая цена (`0.0`, если от стрима
+ *   пришло `null` до обогащения).
+ * @property totalValue `currentPrice * quantity`.
+ * @property instrumentType строковый тип: `"share"`,
+ *   `"futures"`, `"currency"`, `"etf"`.
+ * @property classCode код режима торгов.
+ * @property isin ISIN инструмента.
+ * @property averagePrice средняя цена позиции. `null` — нет
+ *   данных (например, позиция только что открыта).
+ * @property profit P&L в рублях. Источник: `expectedYield`
+ *   от брокера (если > 0), иначе клиентский расчёт
+ *   `(currentPrice - averagePrice) * quantity` (см.
+ *   `TInvestMarketDataService.fetchPositionsSnapshot`).
+ *   Формула неоднозначна — задача `### Рефакторинг расчёта
+ *   P&L для PortfolioPosition`.
+ * @property profitPercent P&L в процентах от вложенных
+ *   средств. Считается через [calculateProfitPercent] —
+ *   учитывает `pointValue` для фьючерсов.
+ * @property priceChangePercent изменение цены в процентах
+ *   (может быть `null`).
+ * @property pointValue стоимость шага цены (только фьючерсы).
+ * @property currency ISO-4217 код валюты (для
+ *   `instrumentType = "currency"`); нужен для склейки с WS.
+ */
 data class PortfolioPosition(
     // Обязательные: без них позицию нельзя корректно отрисовать
     val tscalpInstrumentId: String,

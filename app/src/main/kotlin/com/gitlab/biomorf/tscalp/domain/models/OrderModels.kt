@@ -1,5 +1,36 @@
 package com.gitlab.biomorf.tscalp.domain.models
 
+/**
+ * Событие stream-стрима `subscribeOrderState` (gRPC + WS fallback).
+ *
+ * **Неполная transport-модель:** приходит только из stream, содержит
+ * текущее состояние заявки, но **не содержит stop-полей**
+ * (`stopPrice`, `isStopOrder`). Для stop-заявок используется
+ * [OrderListItem] через unary (`getOrders` + `getStopOrders`).
+ *
+ * В `OrderFlowManager` события [OrderState] конвертируются в
+ * [OrderListItem] (`toOrderListItem`) и мержатся с polling-снимком.
+ *
+ * @property orderId идентификатор заявки у брокера.
+ * @property orderRequestId клиентский идентификатор запроса (если
+ *   брокер вернул). `null` — нет.
+ * @property ticker биржевой тикер.
+ * @property direction `"BUY"` / `"SELL"` (без префикса
+ *   `ORDER_DIRECTION_`).
+ * @property limitPrice начальная лимитная цена (для лимитных).
+ *   `null` — рыночная или не применимо.
+ * @property executedPrice цена исполнения. `null` — не исполнена.
+ * @property quantity заявленное количество (лоты).
+ * @property executedQuantity исполненное количество (лоты).
+ * @property status `"NEW"`, `"FILL"`, `"PARTIALLYFILL"` и т.д.
+ *   (без префикса `EXECUTION_REPORT_STATUS_`).
+ * @property updateTime время создания/обновления (epoch seconds).
+ * @property orderType `"LIMIT"`, `"MARKET"`, `"BESTPRICE"` (без
+ *   префикса `ORDER_TYPE_`). `null` — источник не дал (старый API,
+ *   gRPC без маппинга).
+ * @property tscalpInstrumentId uid инструмента для склейки с
+ *   позициями / заявками из polling. `null` — не пришёл.
+ */
 data class OrderState(
     val orderId: String,
     val orderRequestId: String?,
@@ -31,6 +62,33 @@ data class OrderResult(
     val orderRequestId: String? = null,
 )
 
+/**
+ * Универсальная модель заявки для UI — unary-путь
+ * (`getOrders` + `getStopOrders`).
+ *
+ * **Sum-type через флаг:** обычная и stop-заявка в одной модели,
+ * различаются полями [isStopOrder] и [stopPrice]. Это осознанный
+ * временный компромисс — антипаттерн «флаг + опциональное поле».
+ * Планируется рефакторинг в `sealed interface Order { Regular, Stop }`
+ * (см. `### Split order domain into sealed Regular/Stop` в ROADMAP).
+ *
+ * @property orderId идентификатор заявки у брокера.
+ * @property ticker биржевой тикер.
+ * @property tscalpInstrumentId универсальный ключ инструмента.
+ * @property instrumentType строковый тип: `"share"`, `"futures"`,
+ *   `"currency"`, `"etf"`.
+ * @property direction `"BUY"` / `"SELL"`.
+ * @property price лимитная цена (для обычной) **или** цена
+ *   срабатывания (для stop-заявки, дублирует `stopPrice`).
+ * @property stopPrice стоп-цена. `null` для обычной заявки.
+ * @property quantity заявленное количество (лоты).
+ * @property type `"LIMIT"`, `"MARKET"`, `"STOP_LOSS"`,
+ *   `"TAKE_PROFIT"`, `"STOP_LIMIT"` (строковый enum).
+ * @property status `"NEW"`, `"FILL"`, `"PARTIALLYFILL"` и т.д.
+ * @property orderDate время создания (epoch seconds).
+ * @property isStopOrder `true` → отмена через `cancelStopOrder`,
+ *   `false` → `cancelOrder`. См. sum-type-компромисс выше.
+ */
 data class OrderListItem(
     val orderId: String,
     val ticker: String,
