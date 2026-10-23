@@ -70,6 +70,7 @@ class OrderFlowManager
         private val _hasLoaded = MutableStateFlow(false)
         val hasLoaded: StateFlow<Boolean> = _hasLoaded.asStateFlow()
 
+        /** Трекер [StreamState]: LIVE / POLLING / STALE / STOPPED. */
         private val stateTracker = StreamStateTracker(tag = "OrderFlowManager")
 
         /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
@@ -177,6 +178,16 @@ class OrderFlowManager
                 }
             }
 
+        /**
+         * Polling-loop: раз в [POLLING_INTERVAL_MS] (15 сек) снимает
+         * `ordersSnapshot` (gRPC unary, fallback REST), обновляет
+         * кэш и `_hasLoaded`. TTL-эвикция — только при успешном
+         * цикле (если polling упал, `lastSeenAt` не обновляется
+         * у валидных заявок, эвикция снесла бы их).
+         *
+         * `stateTracker.onPollingSuccess()` — после успешного
+         * цикла: транспорт жив. INITIALIZING/STALE → POLLING.
+         */
         private suspend fun runPolling(
             broker: TInvestBrokerAPI,
             accountId: String,
@@ -206,6 +217,13 @@ class OrderFlowManager
             }
         }
 
+        /**
+         * Stream-loop: подписка на `subscribeOrderState`
+         * (gRPC-stream + WS fallback). На каждое событие:
+         * `stateTracker.onStreamEmit()` (→ LIVE), обновление
+         * кэша. Терминальные статусы ([TERMINAL_STATUSES]) —
+         * удаление из кэша, остальные — `putFromStream`.
+         */
         private suspend fun collectStream(
             broker: TInvestBrokerAPI,
             accountId: String,
@@ -229,6 +247,10 @@ class OrderFlowManager
             }
         }
 
+        /**
+         * Watchdog: раз в [STATE_TICK_MS] (1 сек) двигает
+         * [StreamState] через `stateTracker.tick()`.
+         */
         private suspend fun stateWatchdog() {
             while (currentCoroutineContext().isActive) {
                 delay(STATE_TICK_MS)
