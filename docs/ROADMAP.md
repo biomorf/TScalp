@@ -10,6 +10,167 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 ## Планируемые задачи
 
 
+### Архитектурный документ (docs/architecture.md)
+
+**Мобильная работа:** полное закрытие (правки .md — через proot;
+mermaid-рендер — визуальная проверка, не блокирует).
+
+**Статус:** запланировано.
+
+**Контекст:** архитектурные решения разбросаны по AGENTS.md,
+ROADMAP (закрытые задачи), docs/streams.md, docs/live-test.md,
+KDoc. Нет единой точки входа. Нужен `docs/architecture.md` —
+справочник с mermaid-диаграммами.
+
+**Цель:** новый читатель за одно чтение понимает: слои, где
+живёт fallback, как managers агрегируют данные, какие
+идентификаторы, какие долги известны.
+
+**Известные архитектурные особенности (собраны 2026-10-23):**
+
+1. **Слои и границы.**
+   - presentation → domain → data. ViewModel не ходит к брокеру —
+     только через `InvestRepository` или `*FlowManager`.
+   - Orchestrator (`TInvestOrchestrator`) — транспорты.
+   - Managers (`PriceFlowManager`, `PositionFlowManager`,
+     `OrderFlowManager`) — merge stream + polling + домен.
+   - Repository (`InvestRepository`) — навигация по брокерам.
+
+2. **Транспорты и fallback.**
+   - Stream-уровень (orchestrator): gRPC stream ↔ WS stream через
+     `streamWithFallback(primary, fallback, polling = null)`.
+     Polling — `null` с StreamState (перенесён в managers).
+   - Unary-уровень (orchestrator): gRPC unary → REST unary на
+     транспортные ошибки (`UNAVAILABLE` / `DEADLINE_EXCEEDED` /
+     `UNIMPLEMENTED`); бизнес-ошибки не fallback.
+   - Merge-уровень (managers): stream ↔ polling. Обогащение
+     (P&L, money/blocked, TTL-эвикция) — в managers.
+   - Fallback-логика принадлежит оркестратору (transport-level);
+     managers видят только `Flow` + `suspend fun`.
+
+3. **Managers lifecycle.**
+   - `start` / `stop` / `reapplyDebugFlags` — единая точка.
+   - `synchronized(startLock)` — защита check-then-set
+     (race-фикс PR #34; регрессия покрыта тестами).
+   - `job: Job?` + `coroutineScope { launch × 3 }` (stream,
+     polling, `stateWatchdog`).
+   - `Dispatchers.IO.limitedParallelism(1)` — сериализация
+     мутабельного состояния; `synchronized` не нужен.
+   - `stateTracker: StreamStateTracker` — `LIVE` / `POLLING` /
+     `STALE` / `STOPPED`. Watchdog tick 1s.
+   - `reapplyDebugFlags` — no-op, если менеджер не запущен.
+
+4. **Идентификаторы.**
+   - `tscalpInstrumentId` (domain) ↔ `uid` (T-Invest) / `figi`
+     (BCS) / `ticker+exchange` (Finam).
+   - Трансляция — в data-слое (репозиторий / брокер).
+   - `InstrumentUi.ttech_uid` — специфика T-Invest (исключение).
+
+5. **Потоки данных (domain).**
+   - `PriceFlowManager._prices: SharedFlow(replay = 0)` — one-shot
+     updates; подписчик подтягивает через `pricesSnapshot`.
+   - `PositionFlowManager._flow: SharedFlow(replay = 1)` —
+     stateful snapshot; сброс при смене счёта.
+   - `OrderFlowManager._orders: StateFlow` + `_hasLoaded`.
+
+6. **Domain-модели.**
+   - `PositionStreamItem` — full / partial; маркер
+     `currentPrice != null`.
+   - `PortfolioPosition` — always full, для UI.
+   - `OrderState` — transport event; `OrderListItem` — sum-type
+     через `isStopOrder` (антипаттерн, план: `sealed interface
+     Order { Regular, Stop }`).
+   - `InstrumentUi` — open class, `FutureUi` / `ShareUi`,
+     `pointValue` только у futures.
+
+7. **BrokerApi.**
+   - 19 функций, `@Suppress("TooManyFunctions")`.
+   - `fetchPositionsSnapshot` — unary с fallback на уровне
+     брокера.
+   - `pricesSnapshot` / `ordersSnapshot` / `positionsSnapshot` —
+     TInvest-specific, не в `BrokerApi`. Cast
+     `brokerManager.getBroker(TINVEST) as? TInvestBrokerAPI` в
+     трёх managers — layer violation, ревизия в
+     `### TInvest-specific`.
+
+8. **Обработка ошибок.**
+   - `AppResult<T>` (Success/Failure) на границах слоёв.
+   - `BrokerErrorMessages` — расшифровка кодов брокеров.
+   - `GrpcExceptionGuard` — глобальный
+     `UncaughtExceptionHandler` для `io.grpc.StatusException`
+     (late callback); non-fatal.
+
+9. **Debug-инфраструктура.**
+   - `DebugConfig` gated `BuildConfig.DEBUG` (release — `false`).
+   - `AppLogger` — `Log.d` только в debug.
+   - WS `logFrames` — `BuildConfig.DEBUG`.
+   - Матрица 8 комбинаций флагов — `### Debug-тумблеры`.
+
+**Ссылки на существующие docs (не дублировать):**
+`docs/streams.md`, `docs/live-test.md`, `docs/brokers.md`,
+`docs/rate-limits.md`, `docs/git-flow.md`, `AGENTS.md`.
+
+**Файлы:**
+- `docs/architecture.md` (новый)
+- `AGENTS.md` → «Документы проекта» — добавить ссылку
+- `README.md` — ссылка (опционально)
+
+**Шаги:**
+
+1. Создать `docs/architecture.md`: шапка, обзор, ссылки.
+2. Разделы 1–3 с mermaid: `flowchart` (слои), `sequenceDiagram`
+   (fallback), `stateDiagram-v2` (StreamState).
+3. Разделы 4–6: `flowchart` (идентификаторы), таблица (replay
+   semantics).
+4. Разделы 7–9: таблицы + ссылки.
+5. Раздел «Ссылки на docs».
+6. Обновить `AGENTS.md` → «Документы проекта».
+7. Проверка mermaid — визуальная (десктоп / GitLab UI).
+
+**Референсы:**
+- `docs/streams.md` — T-Invest стримы, WS.
+- `docs/live-test.md` — процедура, сценарии.
+- `docs/git-flow.md` — образец mermaid.
+- ROADMAP → `### Ktor REST для позиций/заявок/баланса` —
+  образец `flowchart` слоёв.
+
+**Ограничения:**
+- Не дублировать `docs/streams.md`, `docs/live-test.md`,
+  `docs/brokers.md`, `docs/rate-limits.md` — только ссылки.
+- Не переносить рабочие правила из AGENTS.md.
+- Mermaid: не дублировать текст дословно.
+- Не менять код в этой задаче.
+- Язык документа — русский (как весь проект).
+
+**Критерий готовности:**
+- `docs/architecture.md` создан, все 9 разделов + ссылки.
+- Mermaid-диаграммы: 3+ (слои, fallback, StreamState).
+- Cross-references на 5+ существующих docs.
+- `AGENTS.md` → «Документы проекта» содержит ссылку.
+- Нет дублирования с `docs/streams.md` / `docs/live-test.md`.
+
+**Оценка:** ~2–3 часа (разделы 1–3 — 1 ч, 4–6 — 40 мин,
+7–9 — 40 мин, ссылки + AGENTS — 20 мин).
+
+**Зависимости:** **блокируется** `### TInvest-specific методы
+в *FlowManager` — его решение (куда `*Snapshot`: `BrokerApi`
+или TInvest-specific) влияет на разделы 2 (fallback) и 7
+(BrokerApi).
+
+**Открытые вопросы:**
+- Раздел 7 (BrokerApi) — финализировать после TInvest-specific.
+- `InstrumentUi.ttech_uid` — в раздел 4 (идентификаторы) или
+  отдельный пункт в 6 (domain-модели)? По смыслу — в 4
+  (исключение), ссылка из 6.
+- Clean архитектура (umbrella-задача) — создаётся после
+  `docs/architecture.md`, из раздела «Известные долги».
+  Не входит в эту задачу.
+
+
+
+
+---
+
 ### TInvest-specific методы в *FlowManager
 
 **Мобильная работа:** невозможно.
