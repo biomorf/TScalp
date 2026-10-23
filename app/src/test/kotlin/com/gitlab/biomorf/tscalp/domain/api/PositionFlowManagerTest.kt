@@ -30,6 +30,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             val wsItem =
                 PositionStreamItem(
                     tscalpInstrumentId = "",
@@ -67,6 +68,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             val pollingItem =
                 PositionStreamItem(
                     tscalpInstrumentId = "uid-rub",
@@ -117,6 +119,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             val usdItem =
                 PositionStreamItem(
                     tscalpInstrumentId = "uid-usd",
@@ -165,6 +168,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             val share =
                 PositionStreamItem(
                     tscalpInstrumentId = "uid-sber",
@@ -203,6 +207,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow { awaitCancellation() }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
@@ -227,6 +232,7 @@ class PositionFlowManagerTest {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow {
                     activeCount.incrementAndGet()
@@ -260,6 +266,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             val share =
                 PositionStreamItem(
                     tscalpInstrumentId = "uid-sber",
@@ -290,6 +297,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
+            every { mockBroker.snapshot } returns mockBroker
             val share =
                 PositionStreamItem(
                     tscalpInstrumentId = "uid-sber",
