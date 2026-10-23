@@ -233,7 +233,7 @@ Position / Price / Order:
      Тайминг: Position / Order — ~1s (polling без стартовой
      задержки); Price — ~5s (`runPolling` стартует с
      `delay(5_000)`).
-   В логе: `gRPC and WS disabled: runGrcpStream bypassed`.
+   В логе: `gRPC and WS disabled: collectStream bypassed`.
    Матрица: `нет стримов` / `gRPC unary`.
 
 3. **`forceRest` (toggleRest, при уже отключённых grpc/ws).**

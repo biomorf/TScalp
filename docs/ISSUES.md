@@ -552,7 +552,7 @@ TLS BCS, или когда понадобится shared OkHttpClient из DI.
 
 ---
 
-## PriceFlowManager.runGrcpStream: потенциальный busy loop
+## PriceFlowManager.collectStream: потенциальный busy loop
 
 **Статус:** открыт. Латентный, не воспроизводится сейчас. Не для WS.
 
