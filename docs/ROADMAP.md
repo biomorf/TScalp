@@ -22,6 +22,11 @@ merge; критерий: `[PositionFlowManager] state: INITIALIZING → LIVE`
 `state: POLLING → STOPPED` при `stop()`; аналогично для
 `PriceFlowManager` и `OrderFlowManager`).
 
+**Следующий шаг:** live-тест на десктопе (logcat: три перехода
+для трёх менеджеров) → `docs(roadmap): mark streamstate done`
+в `dev`. После — `### Унификация имён и KDoc в *FlowManager`
+(следующая по приоритету, «не менее горячая»).
+
 
 **Контекст:** нужна индикация того, получает ли менеджер данные
 из быстрого источника (стрим) или из медленного (polling),
@@ -1096,6 +1101,9 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 **Статус:** запланировано. **Связанная:** обязательна к
 закрытию сразу после `### StreamState в data-слое`.
+**Приоритет:** следующая после закрытия StreamState (после
+live-теста). «Не менее горячая» — не откладывать за
+DebugConfig и другими задачами.
 
 **Контекст:** после рефакторинга `PositionFlowManager` (StreamState,
 Variant B) три менеджера организованы единообразно по структуре
