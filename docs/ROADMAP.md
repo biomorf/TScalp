@@ -10,6 +10,109 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 ## Планируемые задачи
 
 
+### Debug-тумблеры: применить ко всем менеджерам
+
+**Мобильная работа:** невозможно (сборка + live-тест).
+
+**Статус:** запланировано.
+**Приоритет:** блокер `### StreamState в data-слое` — без него
+повторный live-тест StreamState не пройдёт.
+
+**Контекст:** во время live-теста StreamState (2026-10-23,
+`docs/live-test.md`, режим B) обнаружены три бага в
+`SettingsViewModel`. Планировали StreamState без этой задачи —
+выяснилось, что сценарий `LIVE → INITIALIZING → POLLING`
+невозможен без фикса тумблеров:
+
+- **B1.** `toggleGrpc` / `toggleWs` устанавливают
+  `DebugConfig.disableGrpc` / `disableWs`, обновляют `_uiState`,
+  но **не вызывают** `reapplyDebugFlags()`. Флаги применяются
+  только при следующем `setInterest` / `clearInterest` / `start`
+  — до этого живут «вхолостую».
+- **B2.** `toggleRest` вызывает
+  `priceFlowManager.reapplyDebugFlags()` и
+  `positionFlowManager.reapplyDebugFlags()`, но **не**
+  `orderFlowManager`.
+- **B3.** У `OrderFlowManager` **нет метода**
+  `reapplyDebugFlags` вовсе. У `PositionFlowManager` (251)
+  и `PriceFlowManager` (147) — есть.
+
+Следствие: сценарий live-теста `disableGrpc && disableWs →
+LIVE → INITIALIZING → POLLING` невозможен ни для одного
+менеджера.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/api/OrderFlowManager.kt` — новый
+  `reapplyDebugFlags()`.
+- `presentation/screens/settings/SettingsViewModel.kt` —
+  `toggleGrpc` / `toggleWs` / `toggleRest` → reapply на всех
+  трёх.
+- `domain/api/OrderFlowManagerTest.kt` — тесты на
+  `reapplyDebugFlags`.
+
+**Шаги:**
+
+1. `OrderFlowManager.reapplyDebugFlags()` — симметрично
+   `PositionFlowManager`: `synchronized(startLock) {
+   currentAccountId ?: return; doStart(accountId,
+   forceRestart = true) }`. **No-op** если менеджер не
+   запущен — не стартовать Order по тумблеру, если UI ещё
+   не открывал вкладку «Заявки».
+2. `SettingsViewModel.toggleGrpc` — добавить
+   `priceFlowManager.reapplyDebugFlags()`,
+   `positionFlowManager.reapplyDebugFlags()`,
+   `orderFlowManager.reapplyDebugFlags()`.
+3. `SettingsViewModel.toggleWs` — то же.
+4. `SettingsViewModel.toggleRest` — добавить
+   `orderFlowManager.reapplyDebugFlags()`.
+5. `OrderFlowManagerTest`:
+   `reapplyDebugFlags after start creates single active stream`
+   (симметрия с `PositionFlowManagerTest` /
+   `PriceFlowManagerTest`), плюс
+   `reapplyDebugFlags before start is no-op`.
+6. Гейт: полный набор.
+7. Live-тест (`docs/live-test.md`, режим B): `disableGrpc &&
+   disableWs` → три `LIVE → INITIALIZING → POLLING`.
+
+**Референсы:**
+- `PositionFlowManager.kt:251` — образец метода.
+- `PriceFlowManager.kt:147` — образец.
+- `docs/live-test.md` — процедура повторного live-теста.
+- `docs/ISSUES.md` — запись про race в `start/stop`
+  (PR #34) — `synchronized(startLock)` обязателен.
+
+**Ограничения:**
+- Не менять поведение `forceRest` — только добавить Order
+  в `toggleRest`.
+- `OrderFlowManager.reapplyDebugFlags()` не должен
+  запускать Order, если `currentAccountId == null`
+  (симметрия с `stop()`).
+- `synchronized(startLock)` в Order сохранить — регрессия
+  race-фикса PR #34 недопустима.
+
+**Критерий готовности:**
+- `disableGrpc && disableWs` в Настройках → три
+  `LIVE → INITIALIZING → POLLING` (Position, Price, Order).
+- Live-тест StreamState проходит полностью (включая
+  `→ STOPPED`).
+- Тест на `reapplyDebugFlags` в Order зелёный.
+- Полный гейт зелёный.
+
+**Оценка:** ~1 час (метод в Order 15 мин, SettingsViewModel
+15 мин, тест 15 мин, gate + live 15 мин).
+
+**Зависимости:** нет. **Блокирует** `### StreamState в
+data-слое`. **Предшествует** `### DebugConfig: только для
+debug-сборок`.
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
 ### StreamState в data-слое
 
 **Мобильная работа:** невозможно (требует сборки и проверки
@@ -173,13 +276,310 @@ PositionFlowManager 45 мин, PriceFlowManager структурный
   в Price/Order, KDoc.
 - `### DebugConfig: только для debug-сборок` — флаги в release.
 
-**Что сделано:**
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** enum + `connectionState` в трёх менеджерах;
+  рефакторинг `PositionFlowManager` (Variant B); структурный
+  рефакторинг `PriceFlowManager` — как отдельная задача.
+- **Сделали:** всё, кроме пункта «структурный рефакторинг Price
+  отдельно» — он вошёл в эту задачу по решению 2026-10-23
+  (Option B). Плюс создан `docs/live-test.md` (процедура
+  live-теста, не планировалась).
+- **Отличие:** `PriceFlowManager` реструктурирован здесь, а не
+  в `### Унификация имён и KDoc в *FlowManager`. Обоснование:
+  без единого `job` нельзя добавить третий (stateWatchdog) без
+  трёх независимых `Job?` — структурный рефакторинг стал
+  необходимым для StreamState, а не отдельной чисткой.
+
+**Что сделано (фактически):**
+
 - `StreamState` enum + `StreamStateTracker` (14 тестов на fake-time)
 - `PositionFlowManager`: Order-style, polling перенесён из оркестратора
 - `PriceFlowManager`: единый `job` + `coroutineScope`, `disableGrpc && disableWs` в `runGrcpStream`
+- `OrderFlowManager`: `connectionState` hooks только
+  (`reapplyDebugFlags` — **не добавлен**, см. ниже)
 - `connectionState: StateFlow<StreamState>` во всех трёх менеджерах
 - Фикс replay-cache при смене счёта (ISSUES)
 - `docs/streams.md` обновлён
+- `docs/live-test.md` создан (процедура, режимы A/B)
+
+**Обнаружено при live-тесте (2026-10-23) — блокер закрытия:**
+
+Live-тест (`docs/live-test.md`, режим B) показал: старт-переходы
+`INITIALIZING → LIVE` у Position и Price — корректны; Order
+стартует в `POLLING` (стрим не успел). Но сценарий
+`disableGrpc && disableWs → LIVE → INITIALIZING → POLLING`
+**не срабатывает** из-за трёх багов в `SettingsViewModel`
+(B1/B2/B3, см. `### Debug-тумблеры`). Переход `→ STOPPED`
+не проверен (logout в окне захвата не выполнен).
+
+**Текущее состояние:** не закрыта. `**Подтверждение:**` —
+deferred closure. Закрытие — после
+`### Debug-тумблеры: применить ко всем менеджерам` и
+повторного live-теста (включая `→ STOPPED`).
+
+
+
+---
+
+### Унификация имён и KDoc в *FlowManager
+
+**Мобильная работа:** невозможно (сборка и тесты).
+
+**Статус:** запланировано. **Связанная:** обязательна к
+закрытию сразу после `### StreamState в data-слое`.
+**Приоритет:** следующая после закрытия StreamState (после
+live-теста). «Не менее горячая» — не откладывать за
+DebugConfig и другими задачами.
+
+**Контекст:** после рефакторинга `PositionFlowManager` (StreamState,
+Variant B) три менеджера организованы единообразно по структуре
+(Order-style), но имена методов и redundant-проверки различаются.
+
+**Что меняется:**
+- `PriceFlowManager`: `runGrcpStream` → `collectStream`
+  (опечатка `Grcp` → `Grpc`, глагол `run` → `collect`).
+  Убрать redundant `if (DebugConfig.forceRest) return` в начале
+  `runGrcpStream` — оркестратор уже проверяет (в
+  `TInvestOrchestrator.pricesStream`).
+- `OrderFlowManager`: `collectPolling` → `runPolling` (природа
+  polling — unary, не stream; глагол `run`).
+- KDoc на `PortfolioPosition` — рассмотреть, добавить по полям
+  (часть полей неочевидна: `pointValue`, `profit` — серверный
+  или клиентский, `instrumentType` — строковый enum).
+- KDoc на `PriceFlowManager` / `OrderFlowManager` — проверить
+  полноту (какие поля, зачем, откуда).
+- KDoc на `_prices: replay=0` — объяснить семантику (цены —
+  one-shot updates; `_flow: replay=1` позиции — stateful
+  snapshot; это не консистентно, но осознанно).
+
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** переименования (`runGrcpStream` →
+  `collectStream`, `collectPolling` → `runPolling`, `Grcp` →
+  `Grpc`), убрать redundant `DebugConfig` в Price, KDoc.
+- **Сделали:** ничего — задача не начиналась. Структурный
+  рефакторинг Price (`streamJob`/`pollingJob` → единый `job`)
+  выполнен в `### StreamState в data-слое`, поэтому из этой
+  задачи исключён.
+- **Отличие:** планировали структурный рефакторинг Price
+  здесь — сделали в StreamState (см. «Не входит в задачу»
+  ниже).
+
+**Не входит в задачу:** структурный рефакторинг Price
+(`streamJob`/`pollingJob` → один `job` + `coroutineScope`) —
+выполнен в `### StreamState в data-слое`.
+
+**Файлы:**
+- `domain/api/PriceFlowManager.kt`
+- `domain/api/OrderFlowManager.kt`
+- `domain/models/Portfolio.kt` (KDoc на `PortfolioPosition`)
+
+**Оценка:** ~1 час.
+
+**Связано:**
+- блокируется `### StreamState в data-слое`.
+
+
+
+---
+
+### DebugConfig: только для debug-сборок
+
+**Мобильная работа:** невозможно.
+
+**Статус:** запланировано. **Обязательна к закрытию сразу
+после `### StreamState в data-слое`.**
+
+**Контекст:** в задаче «Ktor REST transport для polling»
+добавлены флаги `DebugConfig.forceRest` / `disableGrpc` /
+`disableWs` + UI-тумблеры в Settings для динамической проверки
+транспортов. Флаги доступны в release-сборке, UI-секция
+отображается. Идея — активировать только в debug.
+
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** `BuildConfig.DEBUG`-гейт в `DebugConfig` +
+  скрыть UI-секцию в Settings.
+- **Сделали:** ничего — задача не начиналась.
+- **Отличие:** из live-теста StreamState выяснилось, что флаги
+  не применяются на лету (B1/B2/B3 в `### Debug-тумблеры`).
+  Эта задача — про скрытие в release, не про применение.
+  Порядок: сначала Debug-тумблеры (флаги работают), потом
+  DebugConfig (флаги скрыты в release).
+
+**Что меняется:**
+- `DebugConfig`: флаги проверяют `BuildConfig.DEBUG` (в release
+  всегда `false`).
+- Settings: секция debug-переключателей отображается только
+  при `BuildConfig.DEBUG`.
+- Проверить: есть ли `BuildConfig.DEBUG` в других местах проекта
+  для консистентности.
+
+**Файлы:**
+- `data/orchestrator/DebugConfig.kt`
+- `presentation/screens/settings/SettingsViewModel.kt`
+- `presentation/screens/settings/SettingsScreen.kt`
+
+**Оценка:** ~1-1.5 часа.
+
+**Связано:**
+- блокируется `### StreamState в data-слое`.
+
+
+
+---
+
+### TInvest-specific методы в *FlowManager
+
+**Мобильная работа:** невозможно.
+
+**Статус:** запланировано. **Ревизия после StreamState.**
+
+**Контекст:** `PriceFlowManager`, `OrderFlowManager`,
+`PositionFlowManager` кастуют
+`brokerManager.getBroker(TINVEST) as? TInvestBrokerAPI` и
+вызывают TInvest-specific `pricesSnapshot`/`ordersSnapshot`/
+`positionsSnapshot`. Эти методы — **не** методы `BrokerApi`.
+Причина: polling с fallback gRPC→REST живёт в оркестраторе,
+методы брокер-специфичны. Отступление от Clean: domain-слой
+знает про data-implementation (`TInvestBrokerAPI`).
+
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** ревизия после StreamState.
+- **Сделали:** ничего — задача не начиналась.
+- **Отличие:** после StreamState у всех трёх менеджеров есть
+  `*Snapshot`-вызов через каст к `TInvestBrokerAPI`
+  (`positionsSnapshot` добавлен в StreamState). Вопрос «выносить
+  ли в `BrokerApi`» стал острее: теперь каст в трёх местах, а
+  не в двух.
+
+**Вопросы к разбору:**
+- Выносить ли `*Snapshot` в `BrokerApi` (с fallback-логикой на
+  уровне брокера: `fetchPositionsSnapshot` уже есть — может,
+  `pricesSnapshot`/`ordersSnapshot` тоже)?
+- Или оставить TInvest-specific с KDoc на каст (объяснить, почему
+  cast, какие брокеры что поддерживают)?
+- Что делать с BCS/Finam — у них нет `*Snapshot` с fallback. Если
+  выносить в `BrokerApi` — default-реализация `emptyMap`/`emptyList`
+  или ошибка?
+
+**Оценка:** ~1 час на анализ + реализация (если выносим — ~2-3 ч).
+
+**Связано:**
+- блокируется `### StreamState в data-слое`.
+- разблокирует корректную работу при BCS/Finam.
+
+
+
+---
+
+### UI-индикатор состояния стримов
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** пользователь не может оценить на глаз,
+актуальны ли данные. Индикатор снимает вопрос
+«это задержка или данные устарели».
+
+**Предусловия:** `StreamState` реализован во всех трёх
+менеджерах (факт), но задача StreamState **не закрыта** —
+deferred closure, ждёт фикса debug-тумблеров и повторного
+live-теста. UI-индикатор блокируется **закрытием** StreamState,
+не реализацией.
+
+**Файлы:**
+- `presentation/.../MainScreen.kt` (или где определён NavBar) —
+  бейдж-точка на иконке вкладки.
+- `presentation/.../SettingsScreen.kt` — раздел «Диагностика».
+- `presentation/.../MainViewModel.kt` (или соответствующие
+  ViewModels) — проброс `StreamState` в UI.
+
+**UI-описание:**
+
+- **Бейдж-точка** на иконке вкладки:
+  - Заявки → `PriceFlowManager.connectionState`;
+  - Портфель → `PositionFlowManager.connectionState`;
+  - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
+  - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
+  - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
+- **Snackbar** при переходе в деградацию:
+  - debounce 3 секунды;
+  - тексты: см. п. «Тексты» ниже;
+  - восстановление в LIVE — без Snackbar.
+- **Раздел «Диагностика»** в Настройках:
+  - текущее состояние обоих стримов;
+  - время последнего обновления;
+  - источник (gRPC/REST/WS);
+  - расшифровка цветов бейджа.
+
+**Тексты:**
+- POLLING (цены): «Стрим цен: резервный режим. Обновление раз в 5 секунд.»
+- POLLING (позиции): «Стрим позиций: резервный режим. Обновление раз в 10 секунд.»
+- STALE (цены): «Стрим цен: нет данных. Проверьте соединение.»
+- STALE (позиции): «Стрим позиций: нет данных. Проверьте соединение.»
+
+**Ограничения:**
+- **Не менять** цвет текста NavBar — конфликт с семантикой
+  selected/unselected.
+- **Не делать** long-press на вкладке — не discoverable,
+  конфликт с системным long-press. Подсказка доступна через
+  раздел «Диагностика».
+
+**Критерий готовности:**
+- При переходе стрима в POLLING появляется жёлтая точка
+  и один Snackbar (не повторяется каждые N секунд).
+- При STALE — красная точка и Snackbar.
+- Раздел «Диагностика» показывает актуальное состояние.
+
+**Оценка:** ~2 часа.
+
+**Зависимости:** блокируется StreamState.
+
+
+
+---
+
+### KDoc на PortfolioPosition
+
+**Мобильная работа:** невозможно (небольшая, но требует сборки).
+
+**Статус:** запланировано. **Разобраться и рассмотреть
+целесообразность.**
+
+**Контекст:** при добавлении KDoc на `PositionStreamItem`
+(StreamState) обнаружилось, что `PortfolioPosition` и другие
+domain-модели не имеют KDoc — неясно, что означает каждое
+поле, откуда приходит, может ли быть null.
+
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** KDoc на `PortfolioPosition`, рассмотреть
+  остальные domain-модели.
+- **Сделали частично:** KDoc на `PositionStreamItem` — в
+  StreamState (модель центральная, файл трогали). KDoc на
+  `PortfolioPosition` — **не сделан** (файл не трогали).
+- **Отличие:** планировали одним куском, по факту
+  `PositionStreamItem` ушёл в StreamState, остальное — здесь.
+
+**Что:**
+- Пройтись по `PortfolioPosition`, добавить KDoc на поля.
+- Рассмотреть, нужен ли KDoc на других domain-моделях
+  (`InstrumentUi`, `OrderListItem`, `OrderState`,
+  `PositionStreamItem` — уже сделано в StreamState).
+- Решить: это разовая задача или нужен консистентный подход
+  (KDoc на всех domain-моделях).
+
+**Оценка:** ~1 час (на PortfolioPosition) + ~1-2 часа
+(на остальные, если решим).
+
+**Связано:**
+- блокируется `### StreamState в data-слое` (KDoc на
+  PositionStreamItem — в StreamState).
+- связана с `### Унификация имён и KDoc в *FlowManager`.
+
+
 
 ---
 
@@ -366,6 +766,7 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 
 
 ---
+
 ### UI: отображение blocked на валютной карточке
 
 **Мобильная работа:** частичное (план и правки `.kt` — через
@@ -483,6 +884,7 @@ polling — рубли), без разбивки на свободные/заб�
 
 
 ---
+
 ### Rate-limiter для unary-запросов T-Invest
 
 **Мобильная работа:** невозможно (сборка + тесты на десктопе;
@@ -614,6 +1016,7 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 
 ---
+
 ### Плавный переход Hilt → Koin
 
 **Мобильная работа:** частичное (правки `.kt`/`.kts` — через
@@ -777,6 +1180,7 @@ iOS-задачи миграция станет обязательной. Сей�
 
 
 ---
+
 ### Рефакторинг расчёта P&L для PortfolioPosition
 
 **Мобильная работа:** невозможно (требует сборки и проверки
@@ -922,6 +1326,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 ---
+
 ### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
 
 **Мобильная работа:** частичное (правки `.kt` — через proot;
@@ -1033,217 +1438,8 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 
 
-
-
 ---
-### UI-индикатор состояния стримов
 
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** пользователь не может оценить на глаз,
-актуальны ли данные. Индикатор снимает вопрос
-«это задержка или данные устарели».
-
-**Предусловия:** StreamState реализован в обоих менеджерах.
-
-**Файлы:**
-- `presentation/.../MainScreen.kt` (или где определён NavBar) —
-  бейдж-точка на иконке вкладки.
-- `presentation/.../SettingsScreen.kt` — раздел «Диагностика».
-- `presentation/.../MainViewModel.kt` (или соответствующие
-  ViewModels) — проброс `StreamState` в UI.
-
-**UI-описание:**
-
-- **Бейдж-точка** на иконке вкладки:
-  - Заявки → `PriceFlowManager.connectionState`;
-  - Портфель → `PositionFlowManager.connectionState`;
-  - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
-  - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
-  - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
-- **Snackbar** при переходе в деградацию:
-  - debounce 3 секунды;
-  - тексты: см. п. «Тексты» ниже;
-  - восстановление в LIVE — без Snackbar.
-- **Раздел «Диагностика»** в Настройках:
-  - текущее состояние обоих стримов;
-  - время последнего обновления;
-  - источник (gRPC/REST/WS);
-  - расшифровка цветов бейджа.
-
-**Тексты:**
-- POLLING (цены): «Стрим цен: резервный режим. Обновление раз в 5 секунд.»
-- POLLING (позиции): «Стрим позиций: резервный режим. Обновление раз в 10 секунд.»
-- STALE (цены): «Стрим цен: нет данных. Проверьте соединение.»
-- STALE (позиции): «Стрим позиций: нет данных. Проверьте соединение.»
-
-**Ограничения:**
-- **Не менять** цвет текста NavBar — конфликт с семантикой
-  selected/unselected.
-- **Не делать** long-press на вкладке — не discoverable,
-  конфликт с системным long-press. Подсказка доступна через
-  раздел «Диагностика».
-
-**Критерий готовности:**
-- При переходе стрима в POLLING появляется жёлтая точка
-  и один Snackbar (не повторяется каждые N секунд).
-- При STALE — красная точка и Snackbar.
-- Раздел «Диагностика» показывает актуальное состояние.
-
-**Оценка:** ~2 часа.
-
-**Зависимости:** блокируется StreamState.
-
-
-
----
-### Унификация имён и KDoc в *FlowManager
-
-**Мобильная работа:** невозможно (сборка и тесты).
-
-**Статус:** запланировано. **Связанная:** обязательна к
-закрытию сразу после `### StreamState в data-слое`.
-**Приоритет:** следующая после закрытия StreamState (после
-live-теста). «Не менее горячая» — не откладывать за
-DebugConfig и другими задачами.
-
-**Контекст:** после рефакторинга `PositionFlowManager` (StreamState,
-Variant B) три менеджера организованы единообразно по структуре
-(Order-style), но имена методов и redundant-проверки различаются.
-
-**Что меняется:**
-- `PriceFlowManager`: `runGrcpStream` → `collectStream`
-  (опечатка `Grcp` → `Grpc`, глагол `run` → `collect`).
-  Убрать redundant `if (DebugConfig.forceRest) return` в начале
-  `runGrcpStream` — оркестратор уже проверяет (в
-  `TInvestOrchestrator.pricesStream`).
-- `OrderFlowManager`: `collectPolling` → `runPolling` (природа
-  polling — unary, не stream; глагол `run`).
-- KDoc на `PortfolioPosition` — рассмотреть, добавить по полям
-  (часть полей неочевидна: `pointValue`, `profit` — серверный
-  или клиентский, `instrumentType` — строковый enum).
-- KDoc на `PriceFlowManager` / `OrderFlowManager` — проверить
-  полноту (какие поля, зачем, откуда).
-- KDoc на `_prices: replay=0` — объяснить семантику (цены —
-  one-shot updates; `_flow: replay=1` позиции — stateful
-  snapshot; это не консистентно, но осознанно).
-
-**Не входит в задачу:** структурный рефакторинг Price
-(`streamJob`/`pollingJob` → один `job` + `coroutineScope`) —
-выполнен в `### StreamState в data-слое`.
-
-**Файлы:**
-- `domain/api/PriceFlowManager.kt`
-- `domain/api/OrderFlowManager.kt`
-- `domain/models/Portfolio.kt` (KDoc на `PortfolioPosition`)
-
-**Оценка:** ~1 час.
-
-**Связано:**
-- блокируется `### StreamState в data-слое`.
-
-
-
----
-### TInvest-specific методы в *FlowManager
-
-**Мобильная работа:** невозможно.
-
-**Статус:** запланировано. **Ревизия после StreamState.**
-
-**Контекст:** `PriceFlowManager`, `OrderFlowManager`,
-`PositionFlowManager` кастуют
-`brokerManager.getBroker(TINVEST) as? TInvestBrokerAPI` и
-вызывают TInvest-specific `pricesSnapshot`/`ordersSnapshot`/
-`positionsSnapshot`. Эти методы — **не** методы `BrokerApi`.
-Причина: polling с fallback gRPC→REST живёт в оркестраторе,
-методы брокер-специфичны. Отступление от Clean: domain-слой
-знает про data-implementation (`TInvestBrokerAPI`).
-
-**Вопросы к разбору:**
-- Выносить ли `*Snapshot` в `BrokerApi` (с fallback-логикой на
-  уровне брокера: `fetchPositionsSnapshot` уже есть — может,
-  `pricesSnapshot`/`ordersSnapshot` тоже)?
-- Или оставить TInvest-specific с KDoc на каст (объяснить, почему
-  cast, какие брокеры что поддерживают)?
-- Что делать с BCS/Finam — у них нет `*Snapshot` с fallback. Если
-  выносить в `BrokerApi` — default-реализация `emptyMap`/`emptyList`
-  или ошибка?
-
-**Оценка:** ~1 час на анализ + реализация (если выносим — ~2-3 ч).
-
-**Связано:**
-- блокируется `### StreamState в data-слое`.
-- разблокирует корректную работу при BCS/Finam.
-
-
-
----
-### DebugConfig: только для debug-сборок
-
-**Мобильная работа:** невозможно.
-
-**Статус:** запланировано. **Обязательна к закрытию сразу
-после `### StreamState в data-слое`.**
-
-**Контекст:** в задаче «Ktor REST transport для polling»
-добавлены флаги `DebugConfig.forceRest` / `disableGrpc` /
-`disableWs` + UI-тумблеры в Settings для динамической проверки
-транспортов. Флаги доступны в release-сборке, UI-секция
-отображается. Идея — активировать только в debug.
-
-**Что меняется:**
-- `DebugConfig`: флаги проверяют `BuildConfig.DEBUG` (в release
-  всегда `false`).
-- Settings: секция debug-переключателей отображается только
-  при `BuildConfig.DEBUG`.
-- Проверить: есть ли `BuildConfig.DEBUG` в других местах проекта
-  для консистентности.
-
-**Файлы:**
-- `data/orchestrator/DebugConfig.kt`
-- `presentation/screens/settings/SettingsViewModel.kt`
-- `presentation/screens/settings/SettingsScreen.kt`
-
-**Оценка:** ~1-1.5 часа.
-
-**Связано:**
-- блокируется `### StreamState в data-слое`.
-
-
-
----
-### KDoc на PortfolioPosition
-
-**Мобильная работа:** невозможно (небольшая, но требует сборки).
-
-**Статус:** запланировано. **Разобраться и рассмотреть
-целесообразность.**
-
-**Контекст:** при добавлении KDoc на `PositionStreamItem`
-(StreamState) обнаружилось, что `PortfolioPosition` и другие
-domain-модели не имеют KDoc — неясно, что означает каждое
-поле, откуда приходит, может ли быть null.
-
-**Что:**
-- Пройтись по `PortfolioPosition`, добавить KDoc на поля.
-- Рассмотреть, нужен ли KDoc на других domain-моделях
-  (`InstrumentUi`, `OrderListItem`, `OrderState`,
-  `PositionStreamItem` — уже сделано в StreamState).
-- Решить: это разовая задача или нужен консистентный подход
-  (KDoc на всех domain-моделях).
-
-**Оценка:** ~1 час (на PortfolioPosition) + ~1-2 часа
-(на остальные, если решим).
-
-**Связано:**
-- блокируется `### StreamState в data-слое` (KDoc на
-  PositionStreamItem — в StreamState).
-- связана с `### Унификация имён и KDoc в *FlowManager`.
-
-
-
----
 ### Переход на edge-to-edge (statusBarColor deprecated)
 
 **Статус:** запланировано, требует отдельной подготовки.
@@ -1265,6 +1461,7 @@ domain-модели не имеют KDoc — неясно, что означае
 
 
 ---
+
 ### Рефакторинг архитектурного долга (detekt-группа 3)
 
 **Статус:** запланировано.
@@ -1439,6 +1636,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 
 ---
+
 ### Реализация Finam Broker API
 
 **Статус:** запланировано.
@@ -1526,6 +1724,7 @@ Finam в UI.
 
 
 ---
+
 ### Расшифровка кодов ошибок брокеров
 
 **Статус:** частично закрыто.
@@ -1549,6 +1748,7 @@ Finam в UI.
 
 
 ---
+
 ## Закрытые задачи
 
 ### ✅ Единый источник цен (PriceStreamManager)
