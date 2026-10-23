@@ -37,9 +37,16 @@ interface BrokerApi {
      * gRPC unary ([getPortfolio][ru.tinkoff.piapi.contract.v1.PortfolioResponse]),
      * у BCS / Finam — REST (парсинг JSON).
      *
-     * Используется в polling и при первой загрузке только
-     * внутри сервисных реализаций, не должен вызываться
-     * Presentation или Repository.
+     * **Полная модель для UI.** Возвращает [PortfolioPosition]
+     * (`totalValue`, `profitPercent`, `priceChangePercent` —
+     * вычисляемые для карточки). Используется в
+     * `InvestRepository` (UI-путь) и как база для
+     * [BrokerSnapshotApi.positionsSnapshot] (конвертация в
+     * [PositionStreamItem] в оркестраторе).
+     *
+     * **Не путать** с [BrokerSnapshotApi.positionsSnapshot]:
+     * тот partial [PositionStreamItem] (без вычисляемых полей),
+     * для merge со stream в `PositionFlowManager`.
      */
     suspend fun fetchPositionsSnapshot(
         accountId: String,
