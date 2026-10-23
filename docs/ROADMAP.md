@@ -10,52 +10,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 ## Планируемые задачи
 
 
-### DebugConfig: только для debug-сборок
-
-**Мобильная работа:** невозможно.
-
-**Статус:** запланировано. **Обязательна к закрытию сразу
-после `### StreamState в data-слое`.**
-
-**Контекст:** в задаче «Ktor REST transport для polling»
-добавлены флаги `DebugConfig.forceRest` / `disableGrpc` /
-`disableWs` + UI-тумблеры в Settings для динамической проверки
-транспортов. Флаги доступны в release-сборке, UI-секция
-отображается. Идея — активировать только в debug.
-
-**Планировали / Сделали (ревизия 2026-10-23):**
-
-- **Планировали:** `BuildConfig.DEBUG`-гейт в `DebugConfig` +
-  скрыть UI-секцию в Settings.
-- **Сделали:** ничего — задача не начиналась.
-- **Отличие:** из live-теста StreamState выяснилось, что флаги
-  не применяются на лету (B1/B2/B3 в `### Debug-тумблеры`).
-  Эта задача — про скрытие в release, не про применение.
-  Порядок: сначала Debug-тумблеры (флаги работают), потом
-  DebugConfig (флаги скрыты в release).
-
-**Что меняется:**
-- `DebugConfig`: флаги проверяют `BuildConfig.DEBUG` (в release
-  всегда `false`).
-- Settings: секция debug-переключателей отображается только
-  при `BuildConfig.DEBUG`.
-- Проверить: есть ли `BuildConfig.DEBUG` в других местах проекта
-  для консистентности.
-
-**Файлы:**
-- `data/orchestrator/DebugConfig.kt`
-- `presentation/screens/settings/SettingsViewModel.kt`
-- `presentation/screens/settings/SettingsScreen.kt`
-
-**Оценка:** ~1-1.5 часа.
-
-**Связано:**
-- блокируется `### StreamState в data-слое`.
-
-
-
----
-
 ### TInvest-specific методы в *FlowManager
 
 **Мобильная работа:** невозможно.
@@ -2874,6 +2828,63 @@ Variant B) три менеджера организованы единообра
   (содержимое в этой задаче).
 - **Гейт** зелёный на каждом шаге; тесты не менялись
   (private-методы).
+
+---
+
+### ✅ DebugConfig: только для debug-сборок
+
+**Мобильная работа:** невозможно.
+
+**Контекст:** в задаче «Ktor REST transport для polling»
+добавлены флаги `DebugConfig.forceRest` / `disableGrpc` /
+`disableWs` + UI-тумблеры в Settings для динамической проверки
+транспортов. Флаги доступны в release-сборке, UI-секция
+отображается. Идея — активировать только в debug.
+
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** `BuildConfig.DEBUG`-гейт в `DebugConfig` +
+  скрыть UI-секцию в Settings.
+- **Сделали:** полностью. Код уже был корректен к моменту старта — задача закрыта статической проверкой (grep + чтение кода), без правок. См. `**Что сделано:**`.
+- **Отличие:** из live-теста StreamState выяснилось, что флаги
+  не применяются на лету (B1/B2/B3 в `### Debug-тумблеры`).
+  Эта задача — про скрытие в release, не про применение.
+  Порядок: сначала Debug-тумблеры (флаги работают), потом
+  DebugConfig (флаги скрыты в release).
+
+**Что меняется:**
+- `DebugConfig`: флаги проверяют `BuildConfig.DEBUG` (в release
+  всегда `false`).
+- Settings: секция debug-переключателей отображается только
+  при `BuildConfig.DEBUG`.
+- Проверить: есть ли `BuildConfig.DEBUG` в других местах проекта
+  для консистентности.
+
+**Файлы:**
+- `data/orchestrator/DebugConfig.kt`
+- `presentation/screens/settings/SettingsViewModel.kt`
+- `presentation/screens/settings/SettingsScreen.kt`
+
+**Оценка:** ~1-1.5 часа.
+
+**Связано:** с `### StreamState` — закрыта 2026-10-23 (`a02ce24`).
+
+**Что сделано:**
+- **Гейт в `DebugConfig`** (сеттеры): `field = BuildConfig.DEBUG && value`
+  в `disableGrpc` / `disableWs` / `forceRest`. В release
+  (`BuildConfig.DEBUG == false`) любое присваивание даёт `false` —
+  даже если кто-то вызовет `toggle*` из release-кода.
+- **KDoc** на `DebugConfig`: «Не для прода. В release-сборке
+  все флаги принудительно `false`». `internal object` — не виден
+  за пределами модуля.
+- **UI-секция скрыта** (`SettingsScreen.kt:976`):
+  `if (BuildConfig.DEBUG) { DebugSwitchesSection(uiState, viewModel) }`.
+- **Консистентность `BuildConfig.DEBUG`** в проекте (5 мест):
+  `DebugConfig` (3 сеттера), `SettingsScreen:976`, `AppLogger:18`,
+  `TInvestBrokerApi:147,156` (`logFrames`), `TScalpApplication:251`
+  (AppMetrica `withLogs`).
+- **Live-тест не требуется:** критерий задачи — статический
+  гейт, не runtime-поведение. Закрытие по grep + чтению кода.
 
 ---
 
