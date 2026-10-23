@@ -14,6 +14,15 @@ interface BrokerApi {
     val name: BrokerName
     val isInitialized: Boolean
 
+    /**
+     * Опциональный контракт unary-снимков (polling в менеджерах).
+     *
+     * `null` — брокер не поддерживает; менеджер делает `return`
+     * с логированием (StreamState остаётся `INITIALIZING` →
+     * `STALE`, не `POLLING`).
+     */
+    val snapshot: BrokerSnapshotApi?
+
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 
     suspend fun openSandboxAccount(): String // возвращает accountId нового счёта
