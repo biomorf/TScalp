@@ -953,7 +953,8 @@ race — PR #34 — в `dev`).
   (обновить: stream-only).
 - `domain/api/PositionFlowManager.kt` — рефакторинг (Вариант B) +
   `connectionState`.
-- `domain/api/PriceFlowManager.kt` — `connectionState`.
+- `domain/api/PriceFlowManager.kt` — структурный рефакторинг
+  (Order-style) + `connectionState`.
 - `domain/api/OrderFlowManager.kt` — `connectionState`.
 - `domain/models/PositionStreamItem.kt` — KDoc (центральная модель).
 - `docs/streams.md` — раздел «PositionsStream» (polling перенесён
@@ -1000,11 +1001,16 @@ race — PR #34 — в `dev`).
      `currentAccountId = null`.
 2. Создать `enum class StreamState { INITIALIZING, LIVE, POLLING, STALE, STOPPED }`
    в `domain/models/StreamState.kt`.
-3. `PriceFlowManager` — `connectionState: StateFlow<StreamState>`:
-   - LIVE — эмиссия из `runGrcpStream` за последние 15 сек;
-   - POLLING — эмиссия только из `runPolling`, стрим молчит > 15 сек;
-   - STALE — нет эмиссий из обоих > 30 сек;
-   - STOPPED — union пуст (`restart(emptySet())`).
+3. `PriceFlowManager` — структурный рефакторинг + `connectionState`:
+   - Структура: `streamJob` / `pollingJob` (два независимых `Job?`)
+     → один `job` + `coroutineScope { launch { runGrcpStream };
+     launch { runPolling }; launch { stateWatchdog } }` (Order-style).
+     Отмена всех трёх job'ов одним `job.cancel()`.
+   - `connectionState: StateFlow<StreamState>`:
+     - LIVE — эмиссия из `runGrcpStream` за последние 15 сек;
+     - POLLING — эмиссия только из `runPolling`, стрим молчит > 15 сек;
+     - STALE — нет эмиссий из обоих > 30 сек;
+     - STOPPED — union пуст (`restart(emptySet())`).
 4. `PositionFlowManager` — аналогично (LIVE = эмиссия из
    `collectStream`, POLLING = только `runPolling`, STALE = нет
    эмиссий > 30 сек, STOPPED = `stop()` или пустой accountId).
@@ -1053,9 +1059,10 @@ race — PR #34 — в `dev`).
 - `TInvestOrchestratorFallbackTest` обновлён под новый
   `positionsSnapshot`.
 
-**Оценка:** ~2 часа (оркестратор 20 мин, broker 10 мин,
-менеджер 45 мин, KDoc PositionStreamItem 15 мин, StreamState
-в трёх менеджерах 30 мин, тесты 30 мин, docs 10 мин).
+**Оценка:** ~2.5 часа (оркестратор 20 мин, broker 10 мин,
+PositionFlowManager 45 мин, PriceFlowManager структурный
+рефакторинг + StreamState 45 мин, StreamState в Position/Order
+20 мин, KDoc PositionStreamItem 15 мин, тесты 30 мин, docs 10 мин).
 
 **Зависимости:** нет.
 
@@ -1094,6 +1101,10 @@ Variant B) три менеджера организованы единообра
 - KDoc на `_prices: replay=0` — объяснить семантику (цены —
   one-shot updates; `_flow: replay=1` позиции — stateful
   snapshot; это не консистентно, но осознанно).
+
+**Не входит в задачу:** структурный рефакторинг Price
+(`streamJob`/`pollingJob` → один `job` + `coroutineScope`) —
+выполнен в `### StreamState в data-слое`.
 
 **Файлы:**
 - `domain/api/PriceFlowManager.kt`
