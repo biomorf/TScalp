@@ -1389,12 +1389,36 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 (22), `domain/api/BrokerApi.kt` (интерфейс, 19).
 
 **Пути решения:**
-- Разделить `BrokerApi` на ролевые интерфейсы (`AccountsApi`,
-  `OrdersApi`, `MarketDataApi`, `StreamsApi`) с агрегацией.
+- Разделить `BrokerApi` на ролевые интерфейсы с агрегацией:
+  - `AccountsApi` — `getAccounts`, `openSandboxAccount`,
+    `closeSandboxAccount`;
+  - `OrdersApi` — `postOrder`, `postStopOrder`, `getOrders`,
+    `getStopOrders`, `cancelOrder`, `cancelStopOrder`;
+  - `MarketDataApi` — `getLastPricesByTscalpInstrumentId`,
+    `getTradingStatuses`, `fetchPositionsSnapshot`,
+    `getBalance`, `sandboxPayIn`, `findInstruments`,
+    `checkTradeAvailability`;
+  - `StreamsApi` — `subscribePositions`,
+    `subscribeOrderState`, `subscribeLastPrices`;
+  - `SnapshotApi` — `pricesSnapshot`, `ordersSnapshot`,
+    `positionsSnapshot` (переезд `BrokerSnapshotApi` из
+    `### TInvest-specific`).
 - Разбить реализации на сервисы по образцу
   `TInvestMarketDataService` / `TInvestOrdersService`.
 
-**Оценка:** ~3 часа.
+**Известный долг (включается в D):**
+- `fetchPositionsSnapshot` возвращает `PortfolioPosition`
+  (presentation-модель) — кандидат на унификацию на
+  `PositionStreamItem`. См. `docs/architecture.md`, раздел 7.
+
+**Оценка:** ~3–4 часа (было ~3; +1 ч на `SnapshotApi` и явное
+разделение `MarketDataApi`/`StreamsApi`).
+
+**Связано:**
+- `### TInvest-specific` (C-вариант) реализуется до D;
+  `SnapshotApi` — переезд `BrokerSnapshotApi` в ролевую
+  структуру.
+- `docs/architecture.md`, раздел 7 — целевая архитектура.
 
 #### Репозитории
 
