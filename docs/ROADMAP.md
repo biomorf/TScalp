@@ -10,197 +10,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 ## Планируемые задачи
 
 
-### Унификация имён и KDoc в *FlowManager
-
-**Мобильная работа:** невозможно (сборка и тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/unification.
-**Связанная:** обязательна к закрытию сразу после
-`### StreamState в data-слое` (закрыта 2026-10-23, `a02ce24`).
-**Приоритет:** следующая после закрытия StreamState.
-«Не менее горячая» — не откладывать за DebugConfig и другими
-задачами.
-
-**Контекст:** после рефакторинга `PositionFlowManager` (StreamState,
-Variant B) три менеджера организованы единообразно по структуре
-(Order-style), но имена методов и redundant-проверки различаются.
-
-**Что меняется:**
-- `PriceFlowManager`: `runGrcpStream` → `collectStream`
-  (опечатка `Grcp` → `Grpc`, глагол `run` → `collect`).
-  Убрать `if (DebugConfig.forceRest) return` в начале
-  `runGrcpStream` — **семантически неверно**: `forceRest`
-  переключает unary на REST, а не отключает стрим. Стрим
-  отключается через `disableGrpc && disableWs` (эта проверка
-  остаётся). При `forceRest=true` стрим должен работать —
-  через gRPC/WS согласно `disableGrpc`/`disableWs`.
-- `OrderFlowManager`: `collectPolling` → `runPolling` (природа
-  polling — unary, не stream; глагол `run`).
-- KDoc на domain-модели в `Portfolio.kt`: `PortfolioPosition`
-  и **`PositionStreamItem`** (хвост StreamState — сейчас inline
-  `//`, не KDoc). По полям — часть неочевидна: `pointValue`,
-  `profit` (серверный `expectedYield` при >0, иначе клиентский),
-  `instrumentType` (строковый enum), `money`/`blocked` у currency.
-- KDoc на `PriceFlowManager` / `OrderFlowManager` — проверить
-  полноту (какие поля, зачем, откуда).
-- KDoc на `_prices: replay=0` — объяснить семантику (цены —
-  one-shot updates; `_flow: replay=1` позиции — stateful
-  snapshot; это не консистентно, но осознанно).
-- **Рассмотреть** KDoc на `InstrumentUi`, `OrderListItem`,
-  `OrderState` (поглощено из `### KDoc на PortfolioPosition`).
-- **Решить:** разовая задача (только эти модели) или
-  консистентный подход — KDoc на всех domain-моделях.
-  Решение — в этой задаче, при старте.
-
-**Планировали / Сделали (ревизия 2026-10-23):**
-
-- **Планировали:** переименования (`runGrcpStream` →
-  `collectStream`, `collectPolling` → `runPolling`, `Grcp` →
-  `Grpc`), убрать redundant `DebugConfig` в Price, KDoc.
-- **Сделали:** ничего — задача не начиналась. Структурный
-  рефакторинг Price (`streamJob`/`pollingJob` → единый `job`)
-  выполнен в `### StreamState в data-слое`, поэтому из этой
-  задачи исключён.
-- **Отличие:** планировали структурный рефакторинг Price
-  здесь — сделали в StreamState (см. «Не входит в задачу»
-  ниже).
-
-**Не входит в задачу:** структурный рефакторинг Price
-(`streamJob`/`pollingJob` → один `job` + `coroutineScope`) —
-выполнен в `### StreamState в data-слое`.
-
-**Поглощает задачи:** `### KDoc на PortfolioPosition` —
-удалена этой правкой. Содержимое (рассмотреть `InstrumentUi`,
-`OrderListItem`, `OrderState`; решение разовая vs консистентный;
-оценка) перенесено в «Что меняется» и «Оценка». Ревизия
-2026-10-23 сохранена в истории (коммит `ccabc4a`).
-
-**Файлы:**
-- `domain/api/PriceFlowManager.kt`
-- `domain/api/OrderFlowManager.kt`
-- `domain/models/Portfolio.kt` (KDoc на `PortfolioPosition`
-  и `PositionStreamItem`)
-- `domain/models/Instruments.kt` — рассмотреть KDoc на `InstrumentUi`
-- `domain/models/OrderModels.kt` — рассмотреть KDoc на
-  `OrderListItem`, `OrderState`
-
-**Шаги:**
-
-1. **Price.** `runGrcpStream` → `collectStream` (опечатка
-   `Grcp` → `Grpc`, глагол `run` → `collect`). Обновить вызов
-   в `restart` (`launch { collectStream(union) }`), сигнатуру,
-   KDoc, все `AppLogger.d(TAG, "... runGrcpStream ...")` — на
-   `collectStream`. `runPolling` — без изменений (уже верно).
-2. **Price.** Удалить `if (DebugConfig.forceRest) return` в
-   начале `collectStream` (было `runGrcpStream`). `if
-   (DebugConfig.disableGrpc && disableWs) return` — **оставить**.
-   `forceRest` = unary через REST, стрим не трогает;
-   отключение стрима — `disableGrpc && disableWs`.
-3. **Order.** `collectPolling` → `runPolling` (симметрия с
-   `PriceFlowManager`: polling — unary, глагол `run`).
-   Обновить `launch { collectPolling(broker, accountId) }`,
-   сигнатуру, KDoc, все `AppLogger.d(TAG, "... collectPolling ...")`.
-   `collectStream` — без изменений (уже верно).
-4. **KDoc на `Portfolio.kt`.** `PortfolioPosition` — KDoc на
-   поля: `profit` (серверный `expectedYield` при >0, иначе
-   клиентский), `profitPercent` (формула),
-   `pointValue` (только futures), `instrumentType` (строковый
-   enum — какие значения), `averagePrice` (nullable — что
-   значит null). `PositionStreamItem` — inline `//` → KDoc
-   (хвост StreamState, обещали): `money`/`blocked` (валюта,
-   формула не подтверждена), `currency`, `tscalpInstrumentId`.
-5. **KDoc на `PriceFlowManager` / `OrderFlowManager`** —
-   проверить полноту: что за `job`, `stateTracker`,
-   `startLock`, `_prices` / `_orders`, зачем `limitedParallelism(1)`.
-6. **KDoc на `PriceFlowManager._prices: replay=0`** —
-   объяснить контраст с `_flow: replay=1` (Position): цены —
-   one-shot updates (подписчик подтягивает актуальное через
-   `pricesSnapshot`); позиции — stateful snapshot (нужен
-   replay=1, чтобы новый подписчик получил текущее состояние).
-   Не консистентно, но осознанно.
-7. **Рассмотреть KDoc на `InstrumentUi`, `OrderListItem`,
-   `OrderState`** — решить на старте задачи: разовая (в этой
-   задаче) или консистентный подход (отдельная задача в
-   ROADMAP). Если отдельная — записать в ROADMAP, не
-   блокировать эту.
-8. **Гейт:** `testDebugUnitTest / lintDebug / ktlintCheck /
-   detekt` — зелёный. Тесты не меняются: `runGrcpStream` /
-   `collectPolling` — private, тесты на них не ссылаются
-   (проверено `grep`).
-
-**Референсы:**
-- `PositionFlowManager` — образец пары `collectStream` /
-  `runPolling` (уже после StreamState).
-- `StreamStateTracker.kt` — образец KDoc на `internal`-классе.
-- `docs/ROADMAP.md` → `### Debug-тумблеры` → «Матрица флагов» —
-  семантика `forceRest` / `disableGrpc` / `disableWs`.
-
-**Ограничения:**
-- Не менять поведение — только переименования + KDoc.
-- `if (DebugConfig.disableGrpc && disableWs) return` в
-  `collectStream` — **оставить** (стрим отключается здесь,
-  не через `forceRest`).
-- Логи: `AppLogger.d(TAG, "... runGrcpStream ...")` и
-  `"... collectPolling ..."` — обновить на новые имена
-  (иначе лог врёт).
-- KDoc на `InstrumentUi` / `OrderListItem` / `OrderState` —
-  **только если** решено «разовая»; иначе — отдельная задача,
-  в этой не трогаем.
-
-**Критерий готовности:**
-- `runGrcpStream` → `collectStream` в `PriceFlowManager.kt`
-  (вызов, сигнатура, KDoc, логи); `Grcp` → `Grpc` в KDoc.
-- `collectPolling` → `runPolling` в `OrderFlowManager.kt`
-  (вызов, сигнатура, KDoc, логи).
-- `if (DebugConfig.forceRest) return` удалён в
-  `collectStream`; `disableGrpc && disableWs` — остался.
-- KDoc на `PortfolioPosition` и `PositionStreamItem` —
-  все неочевидные поля (см. шаг 4).
-- KDoc на `PriceFlowManager` / `OrderFlowManager` /
-  `_prices: replay=0` — см. шаги 5, 6.
-- Решение по `InstrumentUi` / `OrderListItem` / `OrderState`
-  зафиксировано: сделано в этой задаче или отдельная задача
-  в ROADMAP.
-- Гейт зелёный.
-
-**Резюме по тестам:**
-- Unit — **не меняются**: `runGrcpStream` / `collectPolling` —
-  private, тесты на них не ссылаются; `setInterest` / `start` /
-  `stop` — сигнатуры не меняются. Гейт — доказательство.
-- KDoc — тесты не нужны.
-- Live — **не нужен** (refactor без изменения поведения).
-- Если `InstrumentUi` / `OrderListItem` / `OrderState` KDoc
-  попадут в эту задачу — +30 мин, без тестов.
-
-**Оценка:** ~1.5-2 часа (переименования + удаление
-`forceRest`-check 30 мин; KDoc на `PortfolioPosition` +
-`PositionStreamItem` 30-40 мин; KDoc на Price/Order + `_prices`
-20-30 мин; решение по `InstrumentUi` / `OrderListItem` /
-`OrderState` 10-15 мин; гейт 5 мин). Если 3 модели — в
-отдельную задачу, оценка ~1-1.5 часа.
-
-**Связано:**
-- блокируется `### StreamState в data-слое` (закрыта 2026-10-23,
-  `a02ce24`).
-- поглощает `### KDoc на PortfolioPosition` (удалена этой правкой).
-- **Разблокирует** `### DebugConfig: только для debug-сборок` —
-  после переименований `DebugConfig`-флаги проверяются по
-  актуальным именам.
-
-**Открытые вопросы:**
-- `InstrumentUi` / `OrderListItem` / `OrderState` — разовая
-  задача (в этой) или консистентный подход (отдельная)?
-  Решить при старте.
-- `runGrcpStream` → `collectStream`: переименовывать ли
-  `runPolling` → тоже `collectPolling` (для симметрии
-  `collectStream` + `collectPolling`)? ROADMAP фиксирует
-  пару `collectStream` / `runPolling` (Q-U1) — `runPolling`
-  **не** переименовываем. Если решение пересматривается —
-  зафиксировать явно.
-
----
-
 ### DebugConfig: только для debug-сборок
 
 **Мобильная работа:** невозможно.
@@ -2857,6 +2666,214 @@ STALE/восстановление, STOPPED) подтверждены. `STALE` �
 `8627b4a`). B1–B4 из live-теста Debug-тумблеров исправлены
 (PR #39, `0ca10f1`), повторный live-тест StreamState —
 зелёный.
+
+---
+
+### ✅ Унификация имён и KDoc в *FlowManager
+
+**Мобильная работа:** невозможно (сборка и тесты).
+
+**Связанная:** с `### StreamState` — закрыта 2026-10-23 (`a02ce24`).
+**Контекст:** после рефакторинга `PositionFlowManager` (StreamState,
+Variant B) три менеджера организованы единообразно по структуре
+(Order-style), но имена методов и redundant-проверки различаются.
+
+**Что меняется:**
+- `PriceFlowManager`: `runGrcpStream` → `collectStream`
+  (опечатка `Grcp` → `Grpc`, глагол `run` → `collect`).
+  Убрать `if (DebugConfig.forceRest) return` в начале
+  `runGrcpStream` — **семантически неверно**: `forceRest`
+  переключает unary на REST, а не отключает стрим. Стрим
+  отключается через `disableGrpc && disableWs` (эта проверка
+  остаётся). При `forceRest=true` стрим должен работать —
+  через gRPC/WS согласно `disableGrpc`/`disableWs`.
+- `OrderFlowManager`: `collectPolling` → `runPolling` (природа
+  polling — unary, не stream; глагол `run`).
+- KDoc на domain-модели в `Portfolio.kt`: `PortfolioPosition`
+  и **`PositionStreamItem`** (хвост StreamState — сейчас inline
+  `//`, не KDoc). По полям — часть неочевидна: `pointValue`,
+  `profit` (серверный `expectedYield` при >0, иначе клиентский),
+  `instrumentType` (строковый enum), `money`/`blocked` у currency.
+- KDoc на `PriceFlowManager` / `OrderFlowManager` — проверить
+  полноту (какие поля, зачем, откуда).
+- KDoc на `_prices: replay=0` — объяснить семантику (цены —
+  one-shot updates; `_flow: replay=1` позиции — stateful
+  snapshot; это не консистентно, но осознанно).
+- **Рассмотреть** KDoc на `InstrumentUi`, `OrderListItem`,
+  `OrderState` (поглощено из `### KDoc на PortfolioPosition`).
+- **Решить:** разовая задача (только эти модели) или
+  консистентный подход — KDoc на всех domain-моделях.
+  Решение — в этой задаче, при старте.
+
+**Планировали / Сделали (ревизия 2026-10-23):**
+
+- **Планировали:** переименования (`runGrcpStream` →
+  `collectStream`, `collectPolling` → `runPolling`, `Grcp` →
+  `Grpc`), убрать redundant `DebugConfig` в Price, KDoc.
+- **Сделали:** полностью (см. `**Что сделано:**`). Задача начата и закрыта 2026-10-23.
+- **Отличие:** планировали структурный рефакторинг Price
+  здесь — сделали в StreamState (см. «Не входит в задачу»
+  ниже).
+
+**Не входит в задачу:** структурный рефакторинг Price
+(`streamJob`/`pollingJob` → один `job` + `coroutineScope`) —
+выполнен в `### StreamState в data-слое`.
+
+**Поглощает задачи:** `### KDoc на PortfolioPosition` —
+удалена этой правкой. Содержимое (рассмотреть `InstrumentUi`,
+`OrderListItem`, `OrderState`; решение разовая vs консистентный;
+оценка) перенесено в «Что меняется» и «Оценка». Ревизия
+2026-10-23 сохранена в истории (коммит `ccabc4a`).
+
+**Файлы:**
+- `domain/api/PriceFlowManager.kt`
+- `domain/api/OrderFlowManager.kt`
+- `domain/models/Portfolio.kt` (KDoc на `PortfolioPosition`
+  и `PositionStreamItem`)
+- `domain/models/Instruments.kt` — рассмотреть KDoc на `InstrumentUi`
+- `domain/models/OrderModels.kt` — рассмотреть KDoc на
+  `OrderListItem`, `OrderState`
+
+**Шаги:**
+
+1. **Price.** `runGrcpStream` → `collectStream` (опечатка
+   `Grcp` → `Grpc`, глагол `run` → `collect`). Обновить вызов
+   в `restart` (`launch { collectStream(union) }`), сигнатуру,
+   KDoc, все `AppLogger.d(TAG, "... runGrcpStream ...")` — на
+   `collectStream`. `runPolling` — без изменений (уже верно).
+2. **Price.** Удалить `if (DebugConfig.forceRest) return` в
+   начале `collectStream` (было `runGrcpStream`). `if
+   (DebugConfig.disableGrpc && disableWs) return` — **оставить**.
+   `forceRest` = unary через REST, стрим не трогает;
+   отключение стрима — `disableGrpc && disableWs`.
+3. **Order.** `collectPolling` → `runPolling` (симметрия с
+   `PriceFlowManager`: polling — unary, глагол `run`).
+   Обновить `launch { collectPolling(broker, accountId) }`,
+   сигнатуру, KDoc, все `AppLogger.d(TAG, "... collectPolling ...")`.
+   `collectStream` — без изменений (уже верно).
+4. **KDoc на `Portfolio.kt`.** `PortfolioPosition` — KDoc на
+   поля: `profit` (серверный `expectedYield` при >0, иначе
+   клиентский), `profitPercent` (формула),
+   `pointValue` (только futures), `instrumentType` (строковый
+   enum — какие значения), `averagePrice` (nullable — что
+   значит null). `PositionStreamItem` — inline `//` → KDoc
+   (хвост StreamState, обещали): `money`/`blocked` (валюта,
+   формула не подтверждена), `currency`, `tscalpInstrumentId`.
+5. **KDoc на `PriceFlowManager` / `OrderFlowManager`** —
+   проверить полноту: что за `job`, `stateTracker`,
+   `startLock`, `_prices` / `_orders`, зачем `limitedParallelism(1)`.
+6. **KDoc на `PriceFlowManager._prices: replay=0`** —
+   объяснить контраст с `_flow: replay=1` (Position): цены —
+   one-shot updates (подписчик подтягивает актуальное через
+   `pricesSnapshot`); позиции — stateful snapshot (нужен
+   replay=1, чтобы новый подписчик получил текущее состояние).
+   Не консистентно, но осознанно.
+7. **Рассмотреть KDoc на `InstrumentUi`, `OrderListItem`,
+   `OrderState`** — решить на старте задачи: разовая (в этой
+   задаче) или консистентный подход (отдельная задача в
+   ROADMAP). Если отдельная — записать в ROADMAP, не
+   блокировать эту.
+8. **Гейт:** `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt` — зелёный. Тесты не меняются: `runGrcpStream` /
+   `collectPolling` — private, тесты на них не ссылаются
+   (проверено `grep`).
+
+**Референсы:**
+- `PositionFlowManager` — образец пары `collectStream` /
+  `runPolling` (уже после StreamState).
+- `StreamStateTracker.kt` — образец KDoc на `internal`-классе.
+- `docs/ROADMAP.md` → `### Debug-тумблеры` → «Матрица флагов» —
+  семантика `forceRest` / `disableGrpc` / `disableWs`.
+
+**Ограничения:**
+- Не менять поведение — только переименования + KDoc.
+- `if (DebugConfig.disableGrpc && disableWs) return` в
+  `collectStream` — **оставить** (стрим отключается здесь,
+  не через `forceRest`).
+- Логи: `AppLogger.d(TAG, "... runGrcpStream ...")` и
+  `"... collectPolling ..."` — обновить на новые имена
+  (иначе лог врёт).
+- KDoc на `InstrumentUi` / `OrderListItem` / `OrderState` —
+  **только если** решено «разовая»; иначе — отдельная задача,
+  в этой не трогаем.
+
+**Критерий готовности:**
+- `runGrcpStream` → `collectStream` в `PriceFlowManager.kt`
+  (вызов, сигнатура, KDoc, логи); `Grcp` → `Grpc` в KDoc.
+- `collectPolling` → `runPolling` в `OrderFlowManager.kt`
+  (вызов, сигнатура, KDoc, логи).
+- `if (DebugConfig.forceRest) return` удалён в
+  `collectStream`; `disableGrpc && disableWs` — остался.
+- KDoc на `PortfolioPosition` и `PositionStreamItem` —
+  все неочевидные поля (см. шаг 4).
+- KDoc на `PriceFlowManager` / `OrderFlowManager` /
+  `_prices: replay=0` — см. шаги 5, 6.
+- Решение по `InstrumentUi` / `OrderListItem` / `OrderState`
+  зафиксировано: сделано в этой задаче или отдельная задача
+  в ROADMAP.
+- Гейт зелёный.
+
+**Резюме по тестам:**
+- Unit — **не меняются**: `runGrcpStream` / `collectPolling` —
+  private, тесты на них не ссылаются; `setInterest` / `start` /
+  `stop` — сигнатуры не меняются. Гейт — доказательство.
+- KDoc — тесты не нужны.
+- Live — **не нужен** (refactor без изменения поведения).
+- Если `InstrumentUi` / `OrderListItem` / `OrderState` KDoc
+  попадут в эту задачу — +30 мин, без тестов.
+
+**Оценка:** ~1.5-2 часа (переименования + удаление
+`forceRest`-check 30 мин; KDoc на `PortfolioPosition` +
+`PositionStreamItem` 30-40 мин; KDoc на Price/Order + `_prices`
+20-30 мин; решение по `InstrumentUi` / `OrderListItem` /
+`OrderState` 10-15 мин; гейт 5 мин). Если 3 модели — в
+отдельную задачу, оценка ~1-1.5 часа.
+
+**Связано:**
+- блокируется `### StreamState в data-слое` (закрыта 2026-10-23,
+  `a02ce24`).
+- поглощает `### KDoc на PortfolioPosition` (удалена этой правкой).
+- **Разблокирует** `### DebugConfig: только для debug-сборок` —
+  после переименований `DebugConfig`-флаги проверяются по
+  актуальным именам.
+
+**Открытые вопросы (решены 2026-10-23):**
+
+- `InstrumentUi` / `OrderListItem` / `OrderState` — разовая
+  задача (в этой) или консистентный подход (отдельная)?
+  **Решено:** variant A — KDoc в этой задаче, коммит
+  `95c1960`.
+- `runGrcpStream` → `collectStream`: переименовывать ли
+  `runPolling` → тоже `collectPolling` (для симметрии
+  `collectStream` + `collectPolling`)?
+  **Решено:** `runPolling` **не** переименовываем — пара
+  `collectStream` / `runPolling` (Q-U1).
+
+**Что сделано:**
+- **Переименования:** `runGrcpStream` → `collectStream` в
+  `PriceFlowManager` (вызов, сигнатура, логи);
+  `collectPolling` → `runPolling` в `OrderFlowManager`
+  (вызов, сигнатура).
+- **`forceRest`-check удалён** в `collectStream`
+  (`PriceFlowManager`). `disableGrpc && disableWs` —
+  оставлен. Семантика флагов — по матрице
+  (`### Debug-тумблеры`).
+- **KDoc на `Portfolio.kt`:** `PortfolioPosition` и
+  `PositionStreamItem` — `@property` на все неочевидные поля,
+  inline-комментарии сохранены дословно.
+- **KDoc на `*FlowManager`:** `_prices: replay=0`
+  (контраст с `_flow: replay=1`), `scope`
+  (`limitedParallelism(1)`), `stateWatchdog`, `runPolling`,
+  `collectStream`, `stateTracker`.
+- **KDoc на domain-моделях** (variant A): `InstrumentUi`
+  (`ttech_uid` T-Invest-specific, `ttech_figi` временно),
+  `OrderState` (transport, без stop), `OrderListItem`
+  (sum-type через `isStopOrder`, ссылка на
+  `### Split order domain`).
+- **Поглощена** `### KDoc на PortfolioPosition` — удалена
+  (содержимое в этой задаче).
+- **Гейт** зелёный на каждом шаге; тесты не менялись
+  (private-методы).
 
 ---
 
