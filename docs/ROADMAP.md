@@ -760,7 +760,8 @@ BCS/Finam 5, repository 5, KDoc-правка `TInvestBrokerApi:300` 5,
 
 **Мобильная работа:** невозможно (сборка + live-тест login/logout/restart).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/broker-lifecycle-api
 
 **Контекст:** в коде 8 `as? <ConcreteApi>` в lifecycle/auth
 (проверено grep 2026-10-25):
