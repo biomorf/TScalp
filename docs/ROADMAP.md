@@ -731,22 +731,28 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 
 **Контекст:** после `### TInvest-specific` (C-вариант, `2153b03`)
 в коде остался **один** `as? TInvestBrokerAPI` для метода
-`fetchFullInstrument` (полный доменный инструмент по uid).
-`InstrumentRepository:35` кастует к data-implementation —
-тот же layer violation, что был у `*Snapshot`, но другая
-семантика (полный `InstrumentUi`, не partial stream item).
+`fetchFullInstrument` (полный доменный инструмент по uid) —
+`InstrumentRepository:35`. Тот же layer violation, что был у
+`*Snapshot`, но другая семантика (полный `InstrumentUi`,
+не partial stream item).
 
-Остальные 3 каста (`TScalpApplication.restoreTInvest`,
-`SettingsViewModel.initialize/deinitialize`) — lifecycle/auth,
-**другая задача** `### Broker lifecycle API` (см. ниже).
+*2026-10-25: остальные касты (`TScalpApplication.restoreTInvest`,
+`TScalpApplication.restoreBcs`, `SettingsViewModel.initialize*`,
+`SettingsViewModel.deinitialize*`) устранены в задаче
+`### Broker lifecycle API` (#2 umbrella, закрыта 2026-10-25,
+merge `0318a8c`). Единственный оставшийся каст lifecycle /
+`*Snapshot` пути в `app/src/main` — этот (`fetchFullInstrument`).*
 
-**Предусловия:** `### TInvest-specific` закрыта (`2153b03`).
+**Предусловия:** нет. `### TInvest-specific` закрыта (`2153b03`),
+`### Broker lifecycle API` закрыта (`0318a8c`).
 
 **Файлы:**
 - `domain/api/BrokerInstrumentApi.kt` (новый) —
   `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`.
 - `domain/api/BrokerApi.kt` — `val instrument: BrokerInstrumentApi?`.
-- `data/api/TInvestBrokerApi.kt` — `override val instrument = this`;
+- `data/api/TInvestBrokerApi.kt` — `BrokerInstrumentApi` в
+  supertypes (сейчас `BrokerApi, BrokerSnapshotApi, StreamsApi,
+  BrokerLifecycleApi`; станет 5); `override val instrument = this`;
   `fetchFullInstrument` → `override`.
 - `data/api/BcsBrokerApi.kt` / `FinamBrokerApi.kt` —
   `override val instrument: BrokerInstrumentApi? = null`.
@@ -761,8 +767,10 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 1. Создать `BrokerInstrumentApi` (1 метод + KDoc).
 2. `BrokerApi.instrument: BrokerInstrumentApi?` (KDoc: опциональный,
    `null` = не поддерживает — InstrumentRepository вернёт `null`).
-3. `TInvestBrokerAPI`: `override val instrument = this`;
-   `override suspend fun fetchFullInstrument`.
+3. `TInvestBrokerAPI`: `BrokerInstrumentApi` в supertypes
+   (`BrokerApi, BrokerSnapshotApi, StreamsApi, BrokerLifecycleApi,
+   BrokerInstrumentApi`); `override val instrument: BrokerInstrumentApi
+   get() = this`; `override suspend fun fetchFullInstrument`.
 4. `BcsBrokerApi` / `FinamBrokerApi`: `override val instrument = null`.
 5. `InstrumentRepository.loadAndCache`: без каста, при
    `instrument == null` → `null`.
@@ -781,7 +789,7 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
   `TInvest = this`; BCS/Finam = `null`; при `null` в
   repository — `return null` + `AppLogger.e` (не путать с
   STALE в менеджерах). `synchronized` не нужен (stateless).
-- `TInvestBrokerApi:302` — текущая сигнатура
+- `TInvestBrokerApi:334` — текущая сигнатура
   `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`
   (не `override`, т.к. не в `BrokerApi`).
 
@@ -802,27 +810,18 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
   (был в `loadAndCache`, строки 35–36).
 - Гейт зелёный.
 
-**Оценка:** ~35–45 мин (интерфейс 10, BrokerApi 5, TInvest 10,
-BCS/Finam 5, repository 5, KDoc-правка `TInvestBrokerApi:300` 5,
-гейт 5).
+**Оценка:** ~30–40 мин (интерфейс 10, BrokerApi 5, TInvest 10,
+BCS/Finam 5, repository 5, гейт 5).
 
 **Зависимости:** разблокирована (`### TInvest-specific` закрыта).
 
 **Связано:**
 - `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #3 в порядке.
-- `### Broker lifecycle API` — оставшиеся 3 каста (auth).
+- `### Broker lifecycle API` — закрыта 2026-10-25 (`0318a8c`),
+  устранила 8 кастов lifecycle/auth. Настоящая задача —
+  последний оставшийся каст в `app/src/main`.
 - `### Архитектурный документ` — раздел 7 дополнить
   `BrokerInstrumentApi`.
-
-**Находки вне scope (зафиксировано 2026-10-23):**
-- KDoc `TInvestBrokerApi:300` устарел: «Используется
-  `InstrumentRepository` и `OrdersViewModel`». Grep
-  `fetchFullInstrument` в `app/src/main` → только
-  `InstrumentRepository:36` и `TInvestMarketDataService:414`.
-  `OrdersViewModel` **не использует**. Правка KDoc — отдельным
-  коммитом (см. `docs(domain): fix stale KDoc on
-  fetchFullInstrument`).
-
 **Открытые вопросы:** нет.
 
 
