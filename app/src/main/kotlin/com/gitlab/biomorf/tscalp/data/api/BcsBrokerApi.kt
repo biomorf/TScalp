@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
@@ -21,12 +22,9 @@ import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -64,6 +62,7 @@ class BcsBrokerApi : BrokerApi {
 
     override val name: BrokerName = BrokerName.BCS
     override val snapshot: BrokerSnapshotApi? = null
+    override val streams: StreamsApi? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean
@@ -234,32 +233,13 @@ class BcsBrokerApi : BrokerApi {
     }
 
     /**
-     * Получает позиции портфеля.
-     * Ответ от сервера — массив JSON-объектов.
+     * Заглушка: стрим позиций BCS не реализован.
+     *
+     * Polling-loop был сломан (транспорт BCS не отлажен до
+     * успешного соединения), удалён. Восстановление — задача
+     * `### Реализация BCS Broker API` в ROADMAP.
      */
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
-        callbackFlow {
-            // Стартовый снапшот
-            try {
-                val positions = fetchPositionsSnapshot(accountId, false)
-                positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "BCS snapshot failed", e)
-            }
-
-            // Периодический опрос
-            while (isActive) {
-                delay(10_000)
-                try {
-                    val positions = fetchPositionsSnapshot(accountId, false)
-                    positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
-                } catch (e: Exception) {
-                    AppLogger.w(TAG, "BCS polling error", e)
-                }
-            }
-
-            awaitClose { /* cleanup if needed */ }
-        }
+    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = emptyFlow()
 
     private fun convertToStreamItem(pos: PortfolioPosition) =
         PositionStreamItem(

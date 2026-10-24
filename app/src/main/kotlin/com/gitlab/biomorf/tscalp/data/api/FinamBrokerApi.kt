@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -54,6 +55,7 @@ class FinamBrokerApi : BrokerApi {
 
     override val name: BrokerName = BrokerName.FINAM
     override val snapshot: BrokerSnapshotApi? = null
+    override val streams: StreamsApi? = null
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null
 

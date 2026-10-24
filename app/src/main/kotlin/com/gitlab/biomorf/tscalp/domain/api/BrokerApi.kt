@@ -23,6 +23,15 @@ interface BrokerApi {
      */
     val snapshot: BrokerSnapshotApi?
 
+    /**
+     * Опциональный контракт стрим-методов (gRPC / WS).
+     *
+     * `null` — брокер не поддерживает; менеджеры делают
+     * `broker.streams?.<метод>` и при `null` полагаются на polling
+     * (см. [BrokerSnapshotApi]).
+     */
+    val streams: StreamsApi?
+
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 
     suspend fun openSandboxAccount(): String // возвращает accountId нового счёта
