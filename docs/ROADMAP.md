@@ -163,7 +163,30 @@ KDoc + фиксация отклонения по 2c).
 (nullable-val) — чтобы `PortfolioApi` вписался в единый паттерн.
 
 **Связано:**
-- `### StreamsApi: выделение роли из BrokerApi
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #9 в порядке.
+- `### TInvest-specific методы в *FlowManager` — там
+  `BrokerSnapshotApi.positionsSnapshot` (partial), здесь
+  `fetchPositionsSnapshot` (полный).
+- `### Рефакторинг архитектурного долга (detekt-группа 3)` →
+  `#### BrokerApi-реализации` — общий рефакторинг `BrokerApi`.
+- `docs/architecture.md` (раздел 7) — при создании добавить
+  ссылку на эту задачу.
+
+**Открытые вопросы:**
+- `PortfolioPosition` содержит `profit` (серверный `expectedYield`
+  при >0, иначе клиентский — см. `### Рефакторинг расчёта P&L для
+  PortfolioPosition`). При варианте B конвертация в domain — где
+  именно? `InvestRepository` или отдельный usecase? Решить при
+  старте.
+- Объединять `fetchPositionsSnapshot` и `positionsSnapshot` в
+  один метод или оставить два с разной семантикой? Решить на
+  шаге 1 (ревизия).
+
+
+
+---
+
+### StreamsApi: выделение роли из BrokerApi
 
 **Мобильная работа:** невозможно (сборка + тесты).
 
@@ -371,34 +394,6 @@ OrderFlowManager 20, PriceFlowManager 30, InvestRepository
 
 
 ---
-
-
----
-
-### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #9 в порядке.
-- `### TInvest-specific методы в *FlowManager` — там
-  `BrokerSnapshotApi.positionsSnapshot` (partial), здесь
-  `fetchPositionsSnapshot` (полный).
-- `### Рефакторинг архитектурного долга (detekt-группа 3)` →
-  `#### BrokerApi-реализации` — общий рефакторинг `BrokerApi`.
-- `docs/architecture.md` (раздел 7) — при создании добавить
-  ссылку на эту задачу.
-
-**Открытые вопросы:**
-- `PortfolioPosition` содержит `profit` (серверный `expectedYield`
-  при >0, иначе клиентский — см. `### Рефакторинг расчёта P&L для
-  PortfolioPosition`). При варианте B конвертация в domain — где
-  именно? `InvestRepository` или отдельный usecase? Решить при
-  старте.
-- Объединять `fetchPositionsSnapshot` и `positionsSnapshot` в
-  один метод или оставить два с разной семантикой? Решить на
-  шаге 1 (ревизия).
-
-
-
-
----
-
 
 ### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)
 
