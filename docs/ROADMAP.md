@@ -163,7 +163,219 @@ KDoc + фиксация отклонения по 2c).
 (nullable-val) — чтобы `PortfolioApi` вписался в единый паттерн.
 
 **Связано:**
-- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #9 в порядке.
+- `### StreamsApi: выделение роли из BrokerApi
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.**
+
+`BrokerApi` содержит три стрим-метода: `subscribePositions`,
+`subscribeOrderState`, `subscribeLastPrices`. Их потребители:
+
+- `PositionFlowManager` — `broker.subscribePositions(accountId)`.
+- `OrderFlowManager` — `broker.subscribeOrderState(accountId)`.
+- `PriceFlowManager` — `repository.subscribeLastPrices(broker, union)`
+  (legacy-обёртка в `InvestRepository`, единственный потребитель
+  которой — `PriceFlowManager`, подтверждено grep).
+
+Все три потребителя берут `brokerManager.getBroker(TINVEST)` и
+вызывают один метод. Это идеальные кандидаты на роль. Паттерн
+nullable-val уже работает для `BrokerSnapshotApi`
+(`val snapshot: BrokerSnapshotApi?`), три менеджера используют
+`broker.snapshot` без кастов.
+
+**Проблема.** Сейчас менеджеры видят fat `BrokerApi` (19 методов)
+ради одного метода каждый. Рефакторинг на nullable-val роль
+сужает зависимость до 3 методов, честно декларирует
+«не поддерживаю» для BCS/Finam.
+
+**Цель:** `StreamsApi` — отдельная роль в `domain.api` по образцу
+`BrokerSnapshotApi`. `BrokerApi.streams: StreamsApi?`. Менеджеры
+инжектят `BrokerApi` (fat, до шага гибрид-DI) и берут
+`broker.streams?.<метод>`. Legacy `InvestRepository.subscribeLastPrices`
+удаляется — `PriceFlowManager` идёт напрямую.
+
+**Решение (nullable-val, Scenario2).**
+
+- Методы `StreamsApi`:
+  `subscribePositions(accountId): Flow<PositionStreamItem>`,
+  `subscribeOrderState(accountId): Flow<OrderState>`,
+  `subscribeLastPrices(uids): Flow<Pair<String, Double>>`.
+- `BrokerApi.streams: StreamsApi?` — nullable.
+- TInvest: `streams = this` — все 3 работают (gRPC + WS fallback
+  через `TInvestOrchestrator`).
+- BCS: `streams = null` — ни один из 3 не работает как стрим.
+  `subscribePositions` — polling-loop, транспорт соединения с BCS
+  сломан, отладка отложена. `subscribeOrderState` → `flowOf()`;
+  `subscribeLastPrices` → `emptyFlow()`. Заглушки.
+- Finam: `streams = null` — все методы заглушки.
+- Потребители:
+  - `PositionFlowManager.collectStream`:
+    `broker.streams?.subscribePositions(accountId)`.
+    При `null` — стрим не запускается, polling остаётся
+    (через `broker.snapshot?.positionsSnapshot`).
+  - `OrderFlowManager.collectStream`:
+    `broker.streams?.subscribeOrderState(accountId)`.
+  - `PriceFlowManager.collectStream`:
+    `broker.streams?.subscribeLastPrices(union)`.
+    Убрать зависимость от `repository`.
+
+**Предусловия.**
+
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`
+  утверждена (`f0847f6`, `5cc8251`).
+- `BrokerSnapshotApi` работает как прецедент (три менеджера
+  используют `broker.snapshot`, кастов нет).
+
+**Файлы.**
+
+Новые:
+- `domain/api/StreamsApi.kt`.
+
+Правятся:
+- `domain/api/BrokerApi.kt` — `val streams: StreamsApi?`.
+- `data/api/TInvestBrokerApi.kt` — `override val streams = this`.
+- `data/api/BcsBrokerApi.kt` — `override val streams = null` +
+  закомментировать polling-loop в `subscribePositions`, заглушка
+  `emptyFlow()` + KDoc.
+- `data/api/FinamBrokerApi.kt` — `override val streams = null`
+  (заглушки уже, проверить).
+- `domain/api/PositionFlowManager.kt` —
+  `broker.streams?.subscribePositions`.
+- `domain/api/OrderFlowManager.kt` —
+  `broker.streams?.subscribeOrderState`.
+- `domain/api/PriceFlowManager.kt` —
+  `broker.streams?.subscribeLastPrices`. Убрать зависимость от
+  `InvestRepository`.
+- `data/repository/InvestRepository.kt` — удалить метод
+  `subscribeLastPrices` (строки 223, 231).
+
+Тесты:
+- `app/src/test/.../PositionFlowManagerTest.kt` —
+  `every { broker.streams } returns broker` (поддерживает) +
+  `returns null` (не поддерживает).
+- `app/src/test/.../OrderFlowManagerTest.kt` — то же.
+- `app/src/test/.../PriceFlowManagerTest.kt` — убрать
+  `mockRepo.subscribeLastPrices` (5 мест), добавить `mockStreams`.
+
+**Шаги.**
+
+1. Создать `StreamsApi` (3 метода + KDoc).
+2. `BrokerApi.streams: StreamsApi?` (KDoc: nullable-val,
+   `null` = не поддерживает).
+3. `TInvestBrokerAPI`: `override val streams: StreamsApi get() = this`.
+4. `BcsBrokerApi`: `override val streams: StreamsApi? get() = null`
+   + закомментировать polling-loop в `subscribePositions`,
+   заменить на `emptyFlow()` + KDoc.
+5. `FinamBrokerApi`: `override val streams: StreamsApi? get() = null`.
+6. `PositionFlowManager.collectStream`:
+   `broker.streams?.subscribePositions(accountId)?.collect { ... }`.
+   При `null` — стрим не запускается, polling остаётся.
+7. `OrderFlowManager.collectStream`: аналогично
+   `broker.streams?.subscribeOrderState(accountId)`.
+8. `PriceFlowManager.collectStream`:
+   `broker.streams?.subscribeLastPrices(union)?.collect { ... }`.
+   Убрать `repository: InvestRepository` из конструктора.
+9. `InvestRepository`: удалить `subscribeLastPrices` (метод +
+   импорты).
+10. Тесты: `PositionFlowManagerTest`, `OrderFlowManagerTest` —
+    `every { broker.streams } returns broker` в настройке;
+    `PriceFlowManagerTest` — 5 моков `mockRepo.subscribeLastPrices`
+    → `mockStreams.subscribeLastPrices`.
+11. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты.**
+
+- `PositionFlowManagerTest`:
+  - стрим работает (`streams != null`) — события приходят через
+    `subscribePositions`;
+  - стрим не работает (`streams = null`) — polling работает
+    (если `snapshot != null`), `StreamState` переходит в
+    `POLLING`.
+- `OrderFlowManagerTest`: то же.
+- `PriceFlowManagerTest`: замена моков `mockRepo` на
+  `mockStreams.subscribeLastPrices(any())`.
+
+**Референсы.**
+
+- `BrokerSnapshotApi.kt` — прецедент nullable-val роли.
+- `PositionFlowManager.kt:162`, `OrderFlowManager.kt:237`,
+  `PriceFlowManager.kt:218` — текущие callsite'ы.
+- `BcsBrokerApi.kt` (`subscribePositions` с polling-loop) —
+  заглушка.
+- `InvestRepository.kt:223, 231` — legacy-метод.
+
+**Ограничения.**
+
+- **Не менять публичный контракт `BrokerApi`.** `subscribePositions`,
+  `subscribeOrderState`, `subscribeLastPrices` — остаются (fat,
+  для `InvestRepository`). Добавляется только `val streams`.
+- **BCS `subscribePositions` — закомментировать**, не удалять
+  полностью. Сохраняет след для будущей реализации.
+- **Не выводить `PriceFlowManager` из `BrokerApi`.** Он инжектит
+  `brokerManager.getBroker(TINVEST)` (уже так), плюс `streams`.
+- **`synchronized(startLock)`** в менеджерах сохранить.
+- **Прямая Hilt-инъекция роли** — не на этом шаге. Гибрид-DI
+  применяем после #1–#9 (паттерн должен устояться).
+
+**Критерий готовности.**
+
+- `StreamsApi` создан (3 метода + KDoc).
+- `BrokerApi.streams: StreamsApi?` добавлен.
+- TInvest: `streams = this`; BCS: `streams = null` (заглушки);
+  Finam: `streams = null`.
+- Три менеджера используют `broker.streams?.<метод>` вместо
+  `broker.<метод>` / `repository.subscribeLastPrices`.
+- `InvestRepository.subscribeLastPrices` удалён.
+- `grep "broker.subscribe" app/src/main` в трёх менеджерах —
+  пусто (только через `broker.streams?.`).
+- `grep "repository.subscribeLastPrices" app/src` — пусто.
+- Все тесты зелёные.
+- Гейт зелёный.
+
+**Оценка:** ~2.5–3 ч (StreamsApi 15 мин, BrokerApi 5, TInvest 5,
+BCS 20 + заглушка, Finam 5, PositionFlowManager 20,
+OrderFlowManager 20, PriceFlowManager 30, InvestRepository
+удаление 5, тесты 30–40, гейт 10).
+
+**Зависимости.**
+
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`
+  (`f0847f6`, `5cc8251`).
+- `BrokerSnapshotApi` как прецедент (закрыт).
+
+**Связанные задачи.**
+
+- Umbrella — `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`.
+- `### Broker lifecycle API` — #2 в порядке, следующий шаг.
+- `### TInvest-specific: fetchFullInstrument` — #3.
+- `### PortfolioApi: ревизия fetchPositionsSnapshot` — #9.
+- `### Рефакторинг BrokerApi-реализаций` (D) — #11 (уборка
+  после всех ролей).
+
+**Открытые вопросы.**
+
+- `BcsBrokerApi.subscribePositions` — заглушка `emptyFlow()`,
+  закомментировать polling-loop. Восстановление — задача
+  `### Реализация BCS Broker API` (в ROADMAP явно не выделена,
+  это пробел; может быть создана позже, но не в этой задаче).
+- `BcsBrokerApi.subscribeOrderState` — `flowOf()`,
+  `subscribeLastPrices` — `emptyFlow()`. Уже заглушки, ничего
+  не меняется.
+- После #1 (StreamsApi) — следующая роль `### Broker lifecycle API`
+  (#2), по плану из этой секции.
+
+
+
+
+---
+
+
+---
+
+### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #9 в порядке.
 - `### TInvest-specific методы в *FlowManager` — там
   `BrokerSnapshotApi.positionsSnapshot` (partial), здесь
   `fetchPositionsSnapshot` (полный).
@@ -270,7 +482,7 @@ fat-интерфейс подходит). Если остановиться по
 
 | # | Роль / задача | Где | Потребители (callsite) | Касты | Оценка |
 |---|---|---|---|---|---|
-| 1 | `StreamsApi` | новая | 3 менеджера (по 1) | 0 | ~2 ч |
+| 1 | `StreamsApi` | новая | 3 менеджера (по 1) + `InvestRepository.subscribeLastPrices` (legacy, удаляется) | 0 | 2.5–3 ч |
 | 2 | `BrokerLifecycleApi` | ROADMAP | `SettingsViewModel` (3), `TScalpApplication` (1) | 6 | 2–3 ч |
 | 3 | `BrokerInstrumentApi` | ROADMAP | `InstrumentRepository` (1) | 1 | 45 мин |
 | 4 | `OrdersApi` | новая | `InvestRepository` (6) | 0 | 1.5 ч |
@@ -289,42 +501,7 @@ fat-интерфейс подходит). Если остановиться по
 Для #2, #3, #9, #11 — подробные планы в отдельных секциях
 (ссылки в «Связанные задачи» ниже), здесь не дублируются.
 
-**#1 StreamsApi (~2 ч).**
-- Методы: `subscribePositions(accountId): Flow<PositionStreamItem>`,
-  `subscribeOrderState(accountId): Flow<OrderState>`,
-  `subscribeLastPrices(uids): Flow<Pair<String, Double>>`.
-- Файл: `domain/api/roles/StreamsApi.kt` (новый).
-- `BrokerApi.streams: StreamsApi?`.
-- TInvest: `streams = this`. BCS: `streams = null` (сейчас
-  `subscribePositions` — свой polling-loop, не стрим;
-  `subscribeOrderState` → `flowOf()`; `subscribeLastPrices` →
-  `emptyFlow()`. Честно — не поддерживает). Finam: `null`.
-- Потребители:
-  - `PositionFlowManager`: `broker.streams?.subscribePositions(accountId)`
-    (было `broker.subscribePositions`). При `null` — стрим не
-    запускается, polling остаётся.
-  - `OrderFlowManager`: `broker.streams?.subscribeOrderState(accountId)`.
-  - `PriceFlowManager`: `subscribeLastPrices` идёт через
-    `repository.subscribeLastPrices(broker, union)`, а тот —
-    через `broker.subscribeLastPrices`. Заменить на
-    `broker.streams?.subscribeLastPrices`. Либо оставить через
-    `repository` (InvestRepository — фасад, ему fat подходит),
-    но тогда `StreamsApi` для Price не даёт выгоды. **Решение:**
-    в `InvestRepository.subscribeLastPrices` — `.streams?.subscribeLastPrices(uids)`.
-    В `PriceFlowManager` — без изменений.
-- Что меняется в `BrokerApi`: `subscribePositions`,
-  `subscribeOrderState`, `subscribeLastPrices` — оставить
-  (fat для `InvestRepository`), добавить `val streams: StreamsApi?`.
-- Тесты: `PositionFlowManagerTest`, `OrderFlowManagerTest`,
-  `PriceFlowManagerTest` — мок `every { broker.streams } returns
-  mockBroker` для поддерживающих сценариев, `returns null` для
-  «не поддерживает» (STALE при polling-only). Тесты
-  `subscribeLastPrices` в `InvestRepository` — мок `every {
-  broker.streams } returns mockStreams`.
-- Критерий: в 3 менеджерах grep `broker.subscribe` — пусто
-  (только через `broker.streams?.`). `InvestRepository` —
-  через `broker.streams?.subscribeLastPrices`.
-- Зависимости: нет.
+**#1 StreamsApi (~2.5–3 ч).** См. отдельную секцию `### StreamsApi: выделение роли из BrokerApi` (шаг #1 в порядке). Содержит полный план: файлы, шаги, тесты, критерий готовности.
 
 **#4 OrdersApi (~1.5 ч).**
 - Методы: `postOrder(BrokerOrderRequest): OrderResult`,
@@ -439,6 +616,7 @@ fat-интерфейс подходит). Если остановиться по
 
 **Связанные задачи.**
 
+- `### StreamsApi: выделение роли из BrokerApi` — #1. Отдельная секция, полный план.
 - `### Broker lifecycle API` — #2. Отдельная секция, полный
   план (вариант A: `BrokerCredentials` sealed +
   `BrokerLifecycleApi?`).
