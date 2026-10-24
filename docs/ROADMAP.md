@@ -269,7 +269,7 @@ fat-интерфейс подходит). Если остановиться по
 | # | Роль / задача | Где | Потребители (callsite) | Касты | Оценка |
 |---|---|---|---|---|---|
 | 1 | `StreamsApi` | новая | 3 менеджера (по 1) + `InvestRepository.subscribeLastPrices` (legacy, удаляется) | 0 | 2.5–3 ч |
-| 2 | `BrokerLifecycleApi` | ROADMAP | `SettingsViewModel` (3), `TScalpApplication` (1) | 6 | 2–3 ч |
+| 2 | `BrokerLifecycleApi` | ROADMAP | `SettingsViewModel` (6), `TScalpApplication` (2) | 8 | 3–4 ч |
 | 3 | `BrokerInstrumentApi` | ROADMAP | `InstrumentRepository` (1) | 1 | 45 мин |
 | 4 | `OrdersApi` | новая | `InvestRepository` (6) | 0 | 1.5 ч |
 | 5 | `AccountsApi` | новая | `TScalpApplication` (2), `InvestRepository` (2) | 2 | 1 ч |
@@ -762,15 +762,33 @@ BCS/Finam 5, repository 5, KDoc-правка `TInvestBrokerApi:300` 5,
 
 **Статус:** запланировано.
 
-**Контекст:** в коде 3 `as? TInvestBrokerAPI` в lifecycle/auth:
-- `TScalpApplication:89` (`restoreTInvest` → `initialize(token, sandbox)`);
-- `SettingsViewModel:133` (`deinitialize()` при logout);
-- `SettingsViewModel:236` (`initialize(cleanToken, sandbox)` при login).
+**Контекст:** в коде 8 `as? <ConcreteApi>` в lifecycle/auth
+(проверено grep 2026-10-25):
+
+| Файл:строка | Каст | Метод |
+|---|---|---|
+| `TScalpApplication:89` | `as? TInvestBrokerAPI` | `initialize` |
+| `TScalpApplication:180` | `as? BcsBrokerApi` | `initialize` |
+| `SettingsViewModel:133` | `as? TInvestBrokerAPI` | `deinitialize` |
+| `SettingsViewModel:135` | `as? BcsBrokerApi` | `deinitialize` |
+| `SettingsViewModel:137` | `as? FinamBrokerApi` | `deinitialize` |
+| `SettingsViewModel:236` | `as? TInvestBrokerAPI` | `initialize` |
+| `SettingsViewModel:268` | `as? BcsBrokerApi` | `initialize` |
+| `SettingsViewModel:296` | `as? FinamBrokerApi` | `initialize` |
+
+(`InstrumentRepository:35` — `fetchFullInstrument`, это #3
+`### TInvest-specific: fetchFullInstrument`, не #2.)
 
 Сигнатуры `initialize` **разные** у трёх брокеров:
-TInvest — `(token, sandbox: Boolean)`, BCS — `(refreshToken,
-isWriteMode: Boolean)`, Finam — `(token)`. Прямой общий
-интерфейс невозможен без унификации credentials.
+- TInvest — `fun initialize(token, sandbox: Boolean)`;
+- BCS — **`suspend fun initialize(refreshToken, clientId)`**;
+- Finam — `fun initialize(token)`.
+
+`SettingsViewModel.initializeTInvest/Bcs/Finam` возвращают
+`Boolean` (успех/провал для UI). BCS `clientId` — derived
+(`trade-api-write` / `trade-api-read`) из `isWriteMode`,
+конвертация сейчас снаружи (`TScalpApplication:180`,
+`SettingsViewModel:268`).
 
 **Цель:** убрать касты, ввести общий lifecycle-контракт с
 типизированными credentials. Clean: domain не знает про
@@ -778,11 +796,14 @@ data-implementation (`TInvestBrokerAPI`, `BcsBrokerApi`,
 `FinamBrokerApi`).
 
 **Предусловия:**
-- `### TInvest-specific` закрыта (`2153b03`) — прецедент
-  C-варианта (`BrokerApi.snapshot`, `BrokerInstrumentApi`).
 - **Желательно после** `### Архитектурный документ` — lifecycle
   слой должен быть описан (раздел 1 «Слои», раздел 8
-  «Обработка ошибок» / auth).
+  «Обработка ошибок» / auth). Не блокер.
+
+*2026-10-25: предусловие «требует `### TInvest-specific`
+закрытой» удалено — это #3 в порядке, идёт после #2, не
+блокирует. `StreamsApi` (#1) закрыт, паттерн nullable-val
+установлен.*
 
 **Варианты:**
 
@@ -798,31 +819,61 @@ data-implementation (`TInvestBrokerAPI`, `BcsBrokerApi`,
   **−** `when` + runtime проверка типа; `IllegalArgumentException`
   при неверном типе.
 
-- **B. Три метода в `BrokerLifecycleApi`:**
-  `initializeTInvest(token, sandbox)` /
-  `initializeBcs(refreshToken, isWriteMode)` /
-  `initializeFinam(token)` — все `null` по умолчанию.
-  Брокер реализует только свой.
+- **B. Три метода в `BrokerLifecycleApi`** — **отклонено
+  по 2c.** `initializeTInvest` / `initializeBcs` /
+  `initializeFinam` с default-реализациями no-op.
   **+** Без `when`, compile-time проверка на уровне интерфейса.
-  **−** Интерфейс знает про всех брокеров (протекание).
+  **−** Интерфейс знает про всех брокеров (протекание data
+  в domain); у BCS/Finam — no-op заглушки вместо честной
+  типизации. Нарушение Clean, отклонено.
 
-- **C. Оставить как есть, KDoc на каст.**
-  **−** Не Clean, отклонено (как в `### TInvest-specific`).
+- **C. Оставить как есть, KDoc на каст.** — **отклонено.**
+  Не Clean, каст остаётся.
 
-**Рекомендация: A** — единый контракт, типизация, минимальное
-протекание (sealed credentials — domain-модель, не data).
+**Рекомендация и решение: A** (утверждено 2026-10-25) —
+единый контракт, типизация, минимальное протекание (sealed
+credentials — domain-модель, не data).
+
+**Решение (форма, утверждено 2026-10-25).**
+
+    sealed interface BrokerCredentials {
+        data class TInvest(val token: String, val sandbox: Boolean) : BrokerCredentials
+        data class Bcs(val refreshToken: String, val isWriteMode: Boolean) : BrokerCredentials
+        data class Finam(val token: String) : BrokerCredentials
+    }
+
+    interface BrokerLifecycleApi {
+        suspend fun initialize(credentials: BrokerCredentials): Boolean
+        fun deinitialize()
+    }
+
+- `initialize` — `suspend` (у BCS `initialize` suspend),
+  возвращает `Boolean` (успех/провал для UI;
+  `SettingsViewModel.initializeTInvest/Bcs/Finam` сейчас
+  возвращают `Boolean`).
+- `deinitialize` — `Unit` (сейчас у всех трёх — `Unit`).
+- BCS `clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"`
+  — конвертация **внутри** `BcsBrokerApi.initialize`, не
+  снаружи. `TScalpApplication:180` и `SettingsViewModel:268`
+  перестают конвертировать.
 
 **Файлы:**
 - `domain/api/BrokerCredentials.kt` (новый) — sealed interface.
 - `domain/api/BrokerLifecycleApi.kt` (новый) — `initialize`,
   `deinitialize`.
 - `domain/api/BrokerApi.kt` — `val lifecycle: BrokerLifecycleApi?`.
-- `data/api/TInvestBrokerApi.kt` — `override val lifecycle = this`;
+- `data/api/TInvestBrokerApi.kt` — `BrokerLifecycleApi` в
+  supertypes (рядом с `BrokerApi, BrokerSnapshotApi, StreamsApi`);
+  `override val lifecycle: BrokerLifecycleApi get() = this`;
   `initialize(credentials)` через `when (credentials) { is TInvest
   -> ...; else -> error }`.
-- `data/api/BcsBrokerApi.kt`, `FinamBrokerApi.kt` — аналогично.
-- `TScalpApplication.restoreTInvest` / `restoreBcs` — без каста:
-  `broker.lifecycle?.initialize(credentials)`.
+- `data/api/BcsBrokerApi.kt`, `FinamBrokerApi.kt` — то же, свой
+  `when`.
+- `TScalpApplication` — без каста:
+  - `restoreTInvest` (line 89): `broker.lifecycle?.initialize(BrokerCredentials.TInvest(token, sandbox))`;
+  - `restoreBcs` (line 180): `broker.lifecycle?.initialize(BrokerCredentials.Bcs(refreshToken, isWriteMode))`;
+    `clientId` больше не вычисляется снаружи — уехал в
+    `BcsBrokerApi.initialize`.
 - `SettingsViewModel.clearBrokerCredentials` / `initializeTInvest` /
   `initializeBcs` / `initializeFinam` — без каста: через
   `broker.lifecycle?.initialize(credentials)` /
@@ -835,8 +886,11 @@ data-implementation (`TInvestBrokerAPI`, `BcsBrokerApi`,
 1. `BrokerCredentials` (sealed interface, 3 data-класса).
 2. `BrokerLifecycleApi` (initialize, deinitialize + KDoc).
 3. `BrokerApi.lifecycle: BrokerLifecycleApi?`.
-4. TInvest / BCS / Finam: `override val lifecycle = this` +
-   `initialize(credentials)` через `when` с проверкой типа.
+4. TInvest / BCS / Finam: `BrokerLifecycleApi` в supertypes
+   (`TInvestBrokerAPI : BrokerApi, BrokerSnapshotApi, StreamsApi,
+   BrokerLifecycleApi`); `override val lifecycle: BrokerLifecycleApi
+   get() = this`; `initialize(credentials)` через `when` с
+   проверкой типа (неверный тип — `IllegalArgumentException`).
 5. `TScalpApplication`: убрать касты, через `lifecycle`.
 6. `SettingsViewModel`: убрать касты, через `lifecycle`.
 7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
@@ -865,8 +919,8 @@ data-implementation (`TInvestBrokerAPI`, `BcsBrokerApi`,
 - Login / logout / restart приложения работают (live-тест).
 - Гейт зелёный.
 
-**Оценка:** ~2–3 часа (credentials 15, lifecycle 15, BrokerApi 5,
-TInvest/BCS/Finam 30, TScalpApplication 20, SettingsViewModel 20,
+**Оценка:** ~3–4 часа (credentials 20, lifecycle 15, BrokerApi 5,
+TInvest/BCS/Finam 40, TScalpApplication 25, SettingsViewModel 30,
 гейт 15, live-тест 30). Если с unit-тестами — +2 ч (сложная
 mock-инфраструктура).
 
@@ -878,8 +932,11 @@ mock-инфраструктура).
 
 **Связано:**
 - `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #2 в порядке.
-- `### TInvest-specific: fetchFullInstrument` — другой каст
-  (не auth), отдельная задача.
+- `### StreamsApi: выделение роли из BrokerApi` (#1, закрыт
+  2026-10-25) — установил паттерн nullable-val, на который
+  опирается эта задача.
+- `### TInvest-specific: fetchFullInstrument` (#3) — другой
+  каст (не auth), идёт **после** этой задачи, не блокирует.
 - `### Архитектурный документ` — раздел 1 (слои) и раздел 8
   (ошибки/auth).
 - `### Рефакторинг BrokerApi-реализаций` (D) — lifecycle в
