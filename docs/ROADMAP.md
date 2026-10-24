@@ -348,7 +348,7 @@ fat-интерфейс подходит). Если остановиться по
 | 4 | `OrdersApi` | новая | `InvestRepository` (6) | 0 | 1.5 ч |
 | 5 | `AccountsApi` | новая | `TScalpApplication` (2), `InvestRepository` (2) | 2 | 1 ч |
 | 6 | `SandboxApi` | новая | `InvestRepository` (3) | 0 | 1 ч |
-| 7 | `InstrumentsApi` | новая | `SearchCache` (1), `InvestRepository` (1) | 0 | 1 ч |
+| 7 | `UserInstrumentsApi` | новая | `SearchCache` (1), `InvestRepository` (1) | 0 | 1 ч |
 | 8 | `BalanceApi` | новая | `InvestRepository` (1) | 0 | 30 мин |
 | 9 | `PortfolioApi` | ROADMAP | `InvestRepository` (1) | 0 | 2–3 ч |
 | 10 | KDoc на `BrokerApi` (fat, отклонение по 2c) | в плане | — | — | 15 мин |
@@ -430,11 +430,11 @@ fat-интерфейс подходит). Если остановиться по
   `closeSandboxAccount` напрямую — пусто.
 - Зависимости: после #5 (симметрия).
 
-**#7 InstrumentsApi (~1 ч).**
+**#7 UserInstrumentsApi (~1 ч).**
 - Методы: `findInstruments(query): List<InstrumentUi>`,
   `getTradingStatuses(ids): Map<String, TradingAvailability>`.
-- Файл: `domain/api/roles/InstrumentsApi.kt` (новый).
-- `BrokerApi.instruments: InstrumentsApi?`.
+- Файл: `domain/api/roles/UserInstrumentsApi.kt` (новый).
+- `BrokerApi.instruments: UserInstrumentsApi?`.
 - TInvest: `instruments = this`. BCS: `instruments = null`
   (`findInstruments` → `emptyList`, `getTradingStatuses` →
   `UNKNOWN` — заглушки). Finam: `null`.
@@ -503,7 +503,7 @@ fat-интерфейс подходит). Если остановиться по
 
 - Все 9 ролей выделены (#1–#9): `StreamsApi`,
   `BrokerLifecycleApi`, `BrokerInstrumentApi`, `OrdersApi`,
-  `AccountsApi`, `SandboxApi`, `InstrumentsApi`, `BalanceApi`,
+  `AccountsApi`, `SandboxApi`, `UserInstrumentsApi`, `BalanceApi`,
   `PortfolioApi`.
 - `BrokerApi` содержит 9 nullable-val (snapshot + 8 новых ролей,
   включая `lifecycle`, `instrument`, `portfolio`).
