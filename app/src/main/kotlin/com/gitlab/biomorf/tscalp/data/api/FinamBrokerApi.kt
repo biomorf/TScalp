@@ -1,6 +1,8 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerCredentials
+import com.gitlab.biomorf.tscalp.domain.api.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
@@ -41,7 +43,9 @@ import java.util.concurrent.TimeUnit
  * Архитектурный долг: 24 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
  */
 @Suppress("TooManyFunctions")
-class FinamBrokerApi : BrokerApi {
+class FinamBrokerApi :
+    BrokerApi,
+    BrokerLifecycleApi {
     companion object {
         private const val TAG = "FinamBrokerApi"
         private const val BASE_URL = "https://api.finam.ru/v1/"
@@ -55,6 +59,7 @@ class FinamBrokerApi : BrokerApi {
 
     override val name: BrokerName = BrokerName.FINAM
     override val snapshot: BrokerSnapshotApi? = null
+    override val lifecycle: BrokerLifecycleApi get() = this
     override val streams: StreamsApi? = null
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null
@@ -69,7 +74,28 @@ class FinamBrokerApi : BrokerApi {
         jwtToken = token
     }
 
-    fun deinitialize() {
+    /**
+     * Typed lifecycle initialize via [BrokerLifecycleApi].
+     * Delegates to [initialize] with Finam credentials.
+     * Returns false on any exception.
+     */
+    override suspend fun initialize(credentials: BrokerCredentials): Boolean =
+        when (credentials) {
+            is BrokerCredentials.Finam -> {
+                try {
+                    initialize(credentials.token)
+                    true
+                } catch (e: Exception) {
+                    AppLogger.e("FinamBrokerApi", "lifecycle.initialize failed", e)
+                    false
+                }
+            }
+            else -> throw IllegalArgumentException(
+                "FinamBrokerApi.initialize: expected Finam credentials, got ${credentials::class.simpleName}",
+            )
+        }
+
+    override fun deinitialize() {
         jwtToken = null
         client = null
     }

@@ -3,6 +3,8 @@ package com.gitlab.biomorf.tscalp.data.api
 import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerCredentials
+import com.gitlab.biomorf.tscalp.domain.api.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -43,7 +45,8 @@ class TInvestBrokerAPI(
     private val httpClient: HttpClient,
 ) : BrokerApi,
     BrokerSnapshotApi,
-    StreamsApi {
+    StreamsApi,
+    BrokerLifecycleApi {
     private companion object {
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
         const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
@@ -117,6 +120,7 @@ class TInvestBrokerAPI(
 
     override val snapshot: BrokerSnapshotApi get() = this
     override val streams: StreamsApi get() = this
+    override val lifecycle: BrokerLifecycleApi get() = this
 
     /**
      * Инициализация API с явным токеном и режимом.
@@ -173,11 +177,32 @@ class TInvestBrokerAPI(
     }
 
     /**
+     * Typed lifecycle initialize via [BrokerLifecycleApi].
+     * Delegates to [initialize] with TInvest credentials.
+     * Returns false on any exception.
+     */
+    override suspend fun initialize(credentials: BrokerCredentials): Boolean =
+        when (credentials) {
+            is BrokerCredentials.TInvest -> {
+                try {
+                    initialize(credentials.token, credentials.sandbox)
+                    true
+                } catch (e: Exception) {
+                    AppLogger.e("TInvestBrokerAPI", "lifecycle.initialize failed", e)
+                    false
+                }
+            }
+            else -> throw IllegalArgumentException(
+                "TInvestBrokerAPI.initialize: expected TInvest credentials, got ${credentials::class.simpleName}",
+            )
+        }
+
+    /**
      * Сбрасывает состояние брокера: закрывает каналы, обнуляет api.
      * После вызова isInitialized == false.
      * Вызывается при logout через SettingsViewModel.
      */
-    fun deinitialize() {
+    override fun deinitialize() {
         state.channels?.shutdownAll()
         state.channels = null
         state.api = null
