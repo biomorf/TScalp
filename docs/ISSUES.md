@@ -971,3 +971,69 @@ keepDebugSymbols += "..." } }` или `doNotStrip`. Лишний конфиг
 библиотеками (5+) или размер debug APK станет проблемой.
 
 ---
+
+## Асимметрия lifecycle: старт менеджеров после login vs restore
+
+**Статус:** открыт.
+
+**Симптом:** после fresh login через
+`SettingsViewModel.initializeTInvest` стримы поднимаются не мгновенно,
+а с задержкой, зависящей от того, активны ли ViewModel экранов. В
+live-тесте #2 (2026-10-25 05:18:28–34, лог `~/lifecycle-live.log`):
+- позиции (gRPC+WS): `05:18:28.884 connecting` — через 0.7 сек после
+  `initializeTInvest: success`;
+- цены: `05:18:29.089 setInterest: 2 uids` — через 1.0 сек;
+- заказы: `05:18:34.622 setInterest: accountId=2309452027` — через
+  6.6 сек.
+
+При старте приложения (`TScalpApplication.restoreTInvest`) стрим
+позиций поднимается **сразу** — `restoreTInvest` вызывает
+`positionFlowManager.start(accountId)` напрямую.
+
+**Причина:** асимметрия между двумя путями инициализации:
+- `TScalpApplication.restoreTInvest` → `lifecycle.initialize` **и**
+  `positionFlowManager.start(accountId)`;
+- `SettingsViewModel.initializeTInvest/Bcs/Finam` → `lifecycle.initialize`,
+  **без** `positionFlowManager.start` / `priceFlowManager.setInterest` /
+  `orderFlowManager.start`.
+
+Старт менеджеров после свежего login остаётся на ViewModel'ях
+экранов (`PortfolioViewModel`, `OrdersViewModel`) — вероятно, они
+триггерят `start` / `setInterest`, когда UI активен. Если
+пользователь логинится и остаётся на экране настроек, менеджеры
+могут не стартовать до первого перехода на другую вкладку. В
+live-тесте #2 задержки почти не было видно — ViewModel'и
+предыдущего сеанса были активны (recomposition), триггер сработал
+быстро.
+
+**Решение (варианты, не приняты в #2):**
+- (A) `SettingsViewModel.initializeTInvest/Bcs/Finam` после успешного
+  `lifecycle.initialize` вызывают `positionFlowManager.start(accountId)` /
+  `priceFlowManager.setInterest(...)` / `orderFlowManager.start(...)` —
+  симметрично `restoreTInvest`. Минус: ViewModel знает про менеджеры
+  (уже знает — инжектит для `clearBrokerCredentials.stop()`).
+- (B) Менеджеры реактивно подписываются на `brokerManager.anyInitialized`
+  + `defaultAccountId` и стартуют сами при их смене. Дороже, но
+  убирает специфику старта в `TScalpApplication`.
+- (C) Оставить как есть, зафиксировать known behavior.
+
+**Когда вернуться:** при появлении UI-индикатора состояния стримов
+(`docs/ROADMAP.md` → `### UI-индикатор состояния стримов`) или при
+следующей итерации lifecycle (после `### Реализация BCS Broker API` /
+`### Реализация Finam Broker API` — там тоже понадобится решение,
+как стартуют менеджеры после login).
+
+**Первое обнаружение:** live-тест #2 `### Broker lifecycle API`,
+2026-10-25, лог `~/lifecycle-live.log`. До этой задачи
+`TScalpApplication` и `SettingsViewModel` ходили через касты
+`as? <ConcreteApi>`, единого пути не было — асимметрия была не
+видна. С унификацией через `BrokerLifecycleApi` она проявилась в
+логах как разное время старта трёх стримов после login.
+
+**Связанные файлы:**
+- `presentation/screens/settings/SettingsViewModel.kt` —
+  `initializeTInvest` / `initializeBcs` / `initializeFinam`.
+- `TScalpApplication.kt` — `restoreTInvest` / `restoreBcs`.
+- `domain/api/PositionFlowManager.kt` /
+  `PriceFlowManager.kt` / `OrderFlowManager.kt` — точки `start` /
+  `setInterest`, вызываемые из ViewModel.
