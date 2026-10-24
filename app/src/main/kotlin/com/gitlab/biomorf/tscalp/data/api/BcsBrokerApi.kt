@@ -1,6 +1,8 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerCredentials
+import com.gitlab.biomorf.tscalp.domain.api.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
@@ -39,7 +41,9 @@ import java.io.IOException
  * См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
  */
 @Suppress("TooManyFunctions")
-class BcsBrokerApi : BrokerApi {
+class BcsBrokerApi :
+    BrokerApi,
+    BrokerLifecycleApi {
     companion object {
         private const val TAG = "BcsBrokerApi"
         private const val PROD_BASE_URL = "https://be.broker.ru"
@@ -62,6 +66,7 @@ class BcsBrokerApi : BrokerApi {
 
     override val name: BrokerName = BrokerName.BCS
     override val snapshot: BrokerSnapshotApi? = null
+    override val lifecycle: BrokerLifecycleApi get() = this
     override val streams: StreamsApi? = null
 
     // Флаг инициализации
@@ -81,7 +86,29 @@ class BcsBrokerApi : BrokerApi {
         obtainAccessToken()
     }
 
-    fun deinitialize() {
+    /**
+     * Typed lifecycle initialize via [BrokerLifecycleApi].
+     * Derives clientId from isWriteMode, obtains access token.
+     * Returns false on any exception.
+     */
+    override suspend fun initialize(credentials: BrokerCredentials): Boolean =
+        when (credentials) {
+            is BrokerCredentials.Bcs -> {
+                try {
+                    val clientId = if (credentials.isWriteMode) "trade-api-write" else "trade-api-read"
+                    initialize(credentials.refreshToken, clientId)
+                    true
+                } catch (e: Exception) {
+                    AppLogger.e("BcsBrokerApi", "lifecycle.initialize failed", e)
+                    false
+                }
+            }
+            else -> throw IllegalArgumentException(
+                "BcsBrokerApi.initialize: expected Bcs credentials, got ${credentials::class.simpleName}",
+            )
+        }
+
+    override fun deinitialize() {
         accessToken = null
         refreshToken = null
         clientId = null

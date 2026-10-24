@@ -32,6 +32,17 @@ interface BrokerApi {
      */
     val streams: StreamsApi?
 
+    /**
+     * Опциональный контракт lifecycle (login / logout).
+     *
+     * `null` — брокер не поддерживает; потребитель (UI, старт приложения)
+     * делает `broker.lifecycle?.initialize(credentials)` и при `null`
+     * пропускает инициализацию (no-op + `AppLogger.e`).
+     *
+     * См. [BrokerLifecycleApi] и [BrokerCredentials].
+     */
+    val lifecycle: BrokerLifecycleApi?
+
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 
     suspend fun openSandboxAccount(): String // возвращает accountId нового счёта
