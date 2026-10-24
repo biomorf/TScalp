@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
-import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
@@ -30,8 +29,9 @@ class PriceFlowManagerTest {
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
-            val mockRepo = mockk<InvestRepository>(relaxed = true)
-            every { mockRepo.subscribeLastPrices(any(), any()) } returns
+            val mockStreams = mockk<StreamsApi>(relaxed = true)
+            every { mockBroker.streams } returns mockStreams
+            every { mockStreams.subscribeLastPrices(any()) } returns
                 flow {
                     activeCount.incrementAndGet()
                     try {
@@ -44,7 +44,6 @@ class PriceFlowManagerTest {
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
-                    mockRepo,
                 )
 
             // 50 параллельных setInterest с разными union.
@@ -76,14 +75,14 @@ class PriceFlowManagerTest {
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
-            val mockRepo = mockk<InvestRepository>(relaxed = true)
-            every { mockRepo.subscribeLastPrices(any(), any()) } returns
+            val mockStreams = mockk<StreamsApi>(relaxed = true)
+            every { mockBroker.streams } returns mockStreams
+            every { mockStreams.subscribeLastPrices(any()) } returns
                 flow { awaitCancellation() }
 
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
-                    mockRepo,
                 )
 
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
@@ -92,7 +91,7 @@ class PriceFlowManagerTest {
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
             delay(100)
 
-            verify(exactly = 1) { mockRepo.subscribeLastPrices(any(), any()) }
+            verify(exactly = 1) { mockStreams.subscribeLastPrices(any()) }
 
             manager.clearInterest(PriceConsumer.ORDERS)
         }
@@ -106,8 +105,9 @@ class PriceFlowManagerTest {
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
-            val mockRepo = mockk<InvestRepository>(relaxed = true)
-            every { mockRepo.subscribeLastPrices(any(), any()) } returns
+            val mockStreams = mockk<StreamsApi>(relaxed = true)
+            every { mockBroker.streams } returns mockStreams
+            every { mockStreams.subscribeLastPrices(any()) } returns
                 flow {
                     activeCount.incrementAndGet()
                     try {
@@ -120,7 +120,6 @@ class PriceFlowManagerTest {
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
-                    mockRepo,
                 )
 
             // Дать первому стриму стартовать — иначе union пуст
@@ -151,8 +150,9 @@ class PriceFlowManagerTest {
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
-            val mockRepo = mockk<InvestRepository>(relaxed = true)
-            every { mockRepo.subscribeLastPrices(any(), any()) } returns
+            val mockStreams = mockk<StreamsApi>(relaxed = true)
+            every { mockBroker.streams } returns mockStreams
+            every { mockStreams.subscribeLastPrices(any()) } returns
                 flow {
                     emit("uid-1" to 100.0)
                     awaitCancellation()
@@ -161,7 +161,6 @@ class PriceFlowManagerTest {
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
-                    mockRepo,
                 )
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
             delay(200)
