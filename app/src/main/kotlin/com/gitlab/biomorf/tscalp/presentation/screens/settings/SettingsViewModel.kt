@@ -2,14 +2,12 @@ package com.gitlab.biomorf.tscalp.presentation.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
 import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.PriceFlowManager
@@ -128,14 +126,8 @@ class SettingsViewModel
 
                 // Деинициализируем брокера — иначе state.api остаётся non-null,
                 // isInitialized возвращает true, и anyInitialized не переключается.
-                when (brokerName) {
-                    BrokerName.TINVEST ->
-                        (brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI)?.deinitialize()
-                    BrokerName.BCS ->
-                        (brokerManager.getBroker(BrokerName.BCS) as? BcsBrokerApi)?.deinitialize()
-                    BrokerName.FINAM ->
-                        (brokerManager.getBroker(BrokerName.FINAM) as? FinamBrokerApi)?.deinitialize()
-                }
+                // lifecycle == null — брокер не поддерживает (no-op).
+                brokerManager.getBroker(brokerName)?.lifecycle?.deinitialize()
 
                 // Останавливаем общий стрим позиций сразу, не дожидаясь,
                 // будет ли создан PortfolioViewModel.
@@ -232,10 +224,14 @@ class SettingsViewModel
             val cleanToken = token.trim()
             return try {
                 settingsRepository.saveBrokerCredentials(BrokerName.TINVEST, cleanToken, sandbox)
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    (brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI)
-                        ?.initialize(cleanToken, sandbox)
-                }
+                val initialized =
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        brokerManager
+                            .getBroker(BrokerName.TINVEST)
+                            ?.lifecycle
+                            ?.initialize(BrokerCredentials.TInvest(cleanToken, sandbox)) ?: false
+                    }
+                if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
                 brokerManager.refreshInitializationState()
                 _uiState.update {
                     it.copy(
@@ -264,8 +260,14 @@ class SettingsViewModel
             AppLogger.d(TAG, "initializeBcs: isWriteMode=$isWriteMode")
             val cleanToken = refreshToken.trim()
             return try {
-                val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-                (brokerManager.getBroker(BrokerName.BCS) as? BcsBrokerApi)?.initialize(cleanToken, clientId)
+                val initialized =
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        brokerManager
+                            .getBroker(BrokerName.BCS)
+                            ?.lifecycle
+                            ?.initialize(BrokerCredentials.Bcs(cleanToken, isWriteMode)) ?: false
+                    }
+                if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
                 settingsRepository.saveBrokerCredentials(BrokerName.BCS, cleanToken, isWriteMode)
                 brokerManager.refreshInitializationState()
                 _uiState.update {
@@ -293,7 +295,14 @@ class SettingsViewModel
             val cleanToken = token.trim()
             return try {
                 settingsRepository.saveToken(BrokerName.FINAM, cleanToken)
-                (brokerManager.getBroker(BrokerName.FINAM) as? FinamBrokerApi)?.initialize(cleanToken)
+                val initialized =
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        brokerManager
+                            .getBroker(BrokerName.FINAM)
+                            ?.lifecycle
+                            ?.initialize(BrokerCredentials.Finam(cleanToken)) ?: false
+                    }
+                if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
                 brokerManager.refreshInitializationState()
                 _uiState.update {
                     it.copy(
