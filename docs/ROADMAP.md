@@ -163,6 +163,7 @@ KDoc + фиксация отклонения по 2c).
 (nullable-val) — чтобы `PortfolioApi` вписался в единый паттерн.
 
 **Связано:**
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #9 в порядке.
 - `### TInvest-specific методы в *FlowManager` — там
   `BrokerSnapshotApi.positionsSnapshot` (partial), здесь
   `fetchPositionsSnapshot` (полный).
@@ -186,6 +187,333 @@ KDoc + фиксация отклонения по 2c).
 
 ---
 
+
+### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)
+
+**Мобильная работа:** невозможно (сборка + тесты на десктопе).
+
+**Статус:** запланировано.
+
+**Контекст.**
+
+`BrokerApi` — fat-интерфейс: 19 методов + 3 свойства
+(`name`, `isInitialized`, `snapshot`). Три реализации:
+`TInvestBrokerAPI` (полная), `BcsBrokerApi` (25 функций,
+большинство — заглушки: `UnsupportedOperationException`,
+`emptyList`, no-op), `FinamBrokerApi` (24 функции, все —
+заглушки). Потребителей: 52 callsite в 9 файлах (по grep
+`broker\.` — нижняя граница). Кастов `as? <ConcreteApi>` — 9
+в 3 файлах (`TScalpApplication`, `SettingsViewModel`,
+`InstrumentRepository`).
+
+**Прецедент.** Паттерн nullable-val уже работает для
+`BrokerSnapshotApi`: `val snapshot: BrokerSnapshotApi?` в
+`BrokerApi`; `TInvestBrokerAPI.snapshot = this`,
+`BcsBrokerApi.snapshot = null`, `FinamBrokerApi.snapshot = null`.
+Используется тремя менеджерами (`PositionFlowManager`,
+`OrderFlowManager`, `PriceFlowManager`) через `broker.snapshot`,
+без кастов. Это то, что расширяем.
+
+**Решение (Scenario2).**
+
+Каждая роль — отдельный интерфейс в `domain.api.roles`; в
+`BrokerApi` — `val <role>: <RoleApi>?`. Брокер:
+`override val <role> = this` (поддерживает) или `= null`
+(не поддерживает). Потребители с узкими нуждами (менеджеры,
+`SettingsViewModel`, `TScalpApplication`, `SearchCache`,
+`InstrumentRepository`) инжектят роль напрямую (гибрид DI:
+resolver + инъекция для дефолтного брокера — утверждено).
+`InvestRepository` остаётся на fat `BrokerApi` — осознанное
+отклонение.
+
+**Обоснование по 2c (3 обязательных элемента).**
+
+1. **Правило Clean, которое нарушено.** Interface Segregation
+   Principle: `InvestRepository` зависит от fat `BrokerApi`
+   (19 методов, 29 callsite, использует все). `BrokerApi`
+   остаётся fat — нет ISP на callsite для `InvestRepository`.
+
+2. **Clean-альтернатива (B→A).** Супертипы
+   (`BrokerApi : Roles`) → `BrokerRoleResolver` → удаление
+   `BrokerApi`. Все потребители, включая `InvestRepository`,
+   мигрируют на resolver.
+   - **+:** полный ISP на определении и на callsite;
+     `BrokerApi` удалён; единый механизм DI.
+   - **−:** +5–7 ч и +2 PR; риск переделки 29 callsite в
+     `InvestRepository`; при супертипах у BCS/Finam — заглушки
+     (`throw` / `emptyList`), то есть фиктивный контракт
+     («метод есть, но не работает») — тоже не Clean.
+
+3. **Выгоды Scenario2 относительно B→A.**
+   - Продолжает **существующий паттерн** (`snapshot` уже
+     nullable-val), не ломает его.
+   - **2 из 9 шагов уже в ROADMAP** (`### Broker lifecycle API`,
+     `### TInvest-specific: fetchFullInstrument`) — не новая
+     работа, а закрытие существующих задач в едином стиле.
+   - Каждый PR **независим** — можно остановиться на любом
+     шаге, откат тривиален.
+   - **`InvestRepository` (29 callsite) не трогается** —
+     самый рискованный файл вне работы.
+   - **Честная опциональность:** `null` = «не поддерживаю»,
+     компилятор заставляет проверить (`?.`, `?:`, `!!`).
+   - **Меньше на ~5–7 ч и ~2 PR** (по сравнению с B→A).
+   - **Цена:** `BrokerApi` остаётся fat — фиксация в KDoc
+     (шаг #10).
+
+**Порядок работ (#1–#11).**
+
+Сверху — роли с потребителями-**не-фасадами** (менеджеры,
+`SearchCache`, `TScalpApplication`, `SettingsViewModel`).
+Низ — роли, нужные только `InvestRepository` (фасад, ему
+fat-интерфейс подходит). Если остановиться после #3 —
+3/4 потребителей мигрированы.
+
+| # | Роль / задача | Где | Потребители (callsite) | Касты | Оценка |
+|---|---|---|---|---|---|
+| 1 | `StreamsApi` | новая | 3 менеджера (по 1) | 0 | ~2 ч |
+| 2 | `BrokerLifecycleApi` | ROADMAP | `SettingsViewModel` (3), `TScalpApplication` (1) | 6 | 2–3 ч |
+| 3 | `BrokerInstrumentApi` | ROADMAP | `InstrumentRepository` (1) | 1 | 45 мин |
+| 4 | `OrdersApi` | новая | `InvestRepository` (6) | 0 | 1.5 ч |
+| 5 | `AccountsApi` | новая | `TScalpApplication` (2), `InvestRepository` (2) | 2 | 1 ч |
+| 6 | `SandboxApi` | новая | `InvestRepository` (3) | 0 | 1 ч |
+| 7 | `InstrumentsApi` | новая | `SearchCache` (1), `InvestRepository` (1) | 0 | 1 ч |
+| 8 | `BalanceApi` | новая | `InvestRepository` (1) | 0 | 30 мин |
+| 9 | `PortfolioApi` | ROADMAP | `InvestRepository` (1) | 0 | 2–3 ч |
+| 10 | KDoc на `BrokerApi` (fat, отклонение по 2c) | в плане | — | — | 15 мин |
+| 11 | `Рефакторинг BrokerApi-реализаций` (D) | ROADMAP | — | — | 3–4 ч |
+
+Суммарно по ролям (#1–#10): **~11.5–13.5 ч**. `#11` — отдельно,
+**~3–4 ч**.
+
+**Детали по новым ролям (#1, #4–#8, #10).**
+Для #2, #3, #9, #11 — подробные планы в отдельных секциях
+(ссылки в «Связанные задачи» ниже), здесь не дублируются.
+
+**#1 StreamsApi (~2 ч).**
+- Методы: `subscribePositions(accountId): Flow<PositionStreamItem>`,
+  `subscribeOrderState(accountId): Flow<OrderState>`,
+  `subscribeLastPrices(uids): Flow<Pair<String, Double>>`.
+- Файл: `domain/api/roles/StreamsApi.kt` (новый).
+- `BrokerApi.streams: StreamsApi?`.
+- TInvest: `streams = this`. BCS: `streams = null` (сейчас
+  `subscribePositions` — свой polling-loop, не стрим;
+  `subscribeOrderState` → `flowOf()`; `subscribeLastPrices` →
+  `emptyFlow()`. Честно — не поддерживает). Finam: `null`.
+- Потребители:
+  - `PositionFlowManager`: `broker.streams?.subscribePositions(accountId)`
+    (было `broker.subscribePositions`). При `null` — стрим не
+    запускается, polling остаётся.
+  - `OrderFlowManager`: `broker.streams?.subscribeOrderState(accountId)`.
+  - `PriceFlowManager`: `subscribeLastPrices` идёт через
+    `repository.subscribeLastPrices(broker, union)`, а тот —
+    через `broker.subscribeLastPrices`. Заменить на
+    `broker.streams?.subscribeLastPrices`. Либо оставить через
+    `repository` (InvestRepository — фасад, ему fat подходит),
+    но тогда `StreamsApi` для Price не даёт выгоды. **Решение:**
+    в `InvestRepository.subscribeLastPrices` — `.streams?.subscribeLastPrices(uids)`.
+    В `PriceFlowManager` — без изменений.
+- Что меняется в `BrokerApi`: `subscribePositions`,
+  `subscribeOrderState`, `subscribeLastPrices` — оставить
+  (fat для `InvestRepository`), добавить `val streams: StreamsApi?`.
+- Тесты: `PositionFlowManagerTest`, `OrderFlowManagerTest`,
+  `PriceFlowManagerTest` — мок `every { broker.streams } returns
+  mockBroker` для поддерживающих сценариев, `returns null` для
+  «не поддерживает» (STALE при polling-only). Тесты
+  `subscribeLastPrices` в `InvestRepository` — мок `every {
+  broker.streams } returns mockStreams`.
+- Критерий: в 3 менеджерах grep `broker.subscribe` — пусто
+  (только через `broker.streams?.`). `InvestRepository` —
+  через `broker.streams?.subscribeLastPrices`.
+- Зависимости: нет.
+
+**#4 OrdersApi (~1.5 ч).**
+- Методы: `postOrder(BrokerOrderRequest): OrderResult`,
+  `postStopOrder(StopOrderRequest): String`,
+  `getOrders(accountId): List<OrderListItem>`,
+  `getStopOrders(accountId): List<OrderListItem>`,
+  `cancelOrder(accountId, orderId)`,
+  `cancelStopOrder(accountId, stopOrderId)`.
+- Файл: `domain/api/roles/OrdersApi.kt` (новый).
+- `BrokerApi.orders: OrdersApi?`.
+- TInvest: `orders = this` (все 6 через
+  `TInvestOrdersService` — работают). BCS: `orders = null`
+  (у BCS работают только `postOrder`; `postStopOrder` —
+  заглушка, `getOrders`/`getStopOrders` — `emptyList`,
+  `cancel*` — `UnsupportedOperationException`. Частичная
+  поддержка не выражается nullable-val одной роли — честно
+  `null`). Finam: `null`.
+- Потребители: `InvestRepository` — 6 callsite (`postOrderResult`,
+  `postStopOrderResult`, `getAllOrdersResult` — `getOrders` +
+  `getStopOrders`, `cancelOrderResult`, `cancelStopOrderResult`).
+  Замены: `broker.postOrder` → `broker.orders?.postOrder ?: throw
+  AppError.Unknown("Брокер не поддерживает заявки")` (внутри
+  `runCatchingAppResult` — упадёт в `Failure`, ок).
+- Тесты: `InvestRepositoryTest` (если есть) — мок `broker.orders`.
+- Критерий: `InvestRepository` не вызывает `broker.postOrder`
+  напрямую, только через `broker.orders?.`.
+- Зависимости: после #1 (паттерн nullable-val обкатан).
+
+**#5 AccountsApi (~1 ч).**
+- Метод: `getAccounts(sandboxMode): List<BrokerAccount>`.
+  Sandbox-операции — в `SandboxApi` (#6), чтобы BCS честно
+  поддерживал `getAccounts`, но не sandbox.
+- Файл: `domain/api/roles/AccountsApi.kt` (новый).
+- `BrokerApi.accounts: AccountsApi?`.
+- TInvest: `accounts = this`. BCS: `accounts = this`
+  (`getAccounts` реализован через портфель). Finam: `null`.
+- Потребители:
+  - `TScalpApplication`: `broker.getAccounts(sandbox)` →
+    `broker.accounts?.getAccounts(sandbox)` (в
+    `restoreTInvest` — каст уходит по #2, но `getAccounts`
+    остаётся). При `null` — fallback на `savedAccountId`.
+  - `InvestRepository.getAccountsResult` —
+    `broker.accounts?.getAccounts(sandbox)`.
+- Тесты: `InvestRepositoryTest` (если есть) — мок `broker.accounts`.
+  `TScalpApplication` — live-тест.
+- Критерий: `broker.getAccounts` напрямую — пусто (только через
+  `broker.accounts?.`).
+- Зависимости: после #1.
+
+**#6 SandboxApi (~1 ч).**
+- Методы: `openSandboxAccount(): String`,
+  `closeSandboxAccount(accountId)`,
+  `sandboxPayIn(accountId, amount: SandboxMoney)`.
+- Файл: `domain/api/roles/SandboxApi.kt` (новый).
+- `BrokerApi.sandbox: SandboxApi?`.
+- TInvest: `sandbox = this`. BCS: `sandbox = null` (у BCS
+  `open`/`close` → `UnsupportedOperationException`, `payIn` —
+  no-op с warning. Смешанное поведение — честно `null`).
+  Finam: `null`.
+- Потребители: `InvestRepository` — 3 callsite
+  (`sandboxPayInResult`, `openSandboxAccountResult`,
+  `closeSandboxAccountResult`). Замены:
+  `broker.sandbox?.` + `?: AppResult.Failure(AppError.Unknown("Брокер не поддерживает песочницу"))`.
+- Тесты: `InvestRepositoryTest` (если есть) — мок `broker.sandbox`.
+- Критерий: `broker.openSandboxAccount` / `sandboxPayIn` /
+  `closeSandboxAccount` напрямую — пусто.
+- Зависимости: после #5 (симметрия).
+
+**#7 InstrumentsApi (~1 ч).**
+- Методы: `findInstruments(query): List<InstrumentUi>`,
+  `getTradingStatuses(ids): Map<String, TradingAvailability>`.
+- Файл: `domain/api/roles/InstrumentsApi.kt` (новый).
+- `BrokerApi.instruments: InstrumentsApi?`.
+- TInvest: `instruments = this`. BCS: `instruments = null`
+  (`findInstruments` → `emptyList`, `getTradingStatuses` →
+  `UNKNOWN` — заглушки). Finam: `null`.
+- Потребители: `SearchCache` — 1 callsite
+  (`broker.findInstruments` → `broker.instruments?.findInstruments
+  ?: emptyList()`), `InvestRepository.getTradingStatusesResult`
+  — 1 (`broker.instruments?.getTradingStatuses`).
+- Тесты: `SearchCacheTest` (если есть) — мок `broker.instruments`.
+- Критерий: `broker.findInstruments` / `broker.getTradingStatuses`
+  напрямую — пусто.
+- Зависимости: после #1.
+
+**#8 BalanceApi (~30 мин).**
+- Метод: `getBalance(accountId): Double`.
+- Файл: `domain/api/roles/BalanceApi.kt` (новый).
+- `BrokerApi.balance: BalanceApi?`.
+- TInvest: `balance = this`. BCS: `balance = null` (у BCS
+  `getBalance` возвращает `0.0` — заглушка). Finam: `null`.
+- Потребители: `InvestRepository.getBalanceResult` — 1
+  (`broker.balance?.getBalance ?: 0.0`).
+- Тесты: `InvestRepositoryTest` (если есть).
+- Критерий: `broker.getBalance` напрямую — пусто.
+- Зависимости: после #1.
+
+**#10 KDoc на BrokerApi (~15 мин).**
+- Файл: `domain/api/BrokerApi.kt` — KDoc на интерфейсе.
+- Что: «fat-интерфейс осознанно. Потребители с узкими нуждами
+  инжектят роль напрямую (`StreamsApi`, `BrokerLifecycleApi`,
+  ...); доступ — через `broker.<role>?`. `InvestRepository` —
+  мультиброкерный фасад на fat `BrokerApi`: 29 callsite, все
+  методы. Отклонение по 2c: нарушено ISP для `InvestRepository`;
+  Clean-альтернатива — B→A (супертипы → `BrokerRoleResolver`,
+  +5–7 ч, +2 PR, риск 29 callsite); выгоды Scenario2 —
+  продолжает существующий паттерн `snapshot`, каждый PR
+  независим, `InvestRepository` не трогается, честная
+  опциональность».
+- Оценка: 15 мин.
+- Зависимости: после #1–#9 (фиксация итогового состояния).
+
+**Связанные задачи.**
+
+- `### Broker lifecycle API` — #2. Отдельная секция, полный
+  план (вариант A: `BrokerCredentials` sealed +
+  `BrokerLifecycleApi?`).
+- `### TInvest-specific: fetchFullInstrument` — #3. Отдельная
+  секция, полный план (`BrokerInstrumentApi?`).
+- `### PortfolioApi: ревизия fetchPositionsSnapshot` — #9.
+  Отдельная секция (ревизия `fetchPositionsSnapshot` vs
+  `positionsSnapshot`; варианты A/B/C).
+- `### Рефакторинг BrokerApi-реализаций` (detekt-группа 3,
+  `#### BrokerApi-реализации`) — #11. «Уборка» после всех
+  ролей: разбить `TInvestBrokerAPI` / `BcsBrokerApi` /
+  `FinamBrokerApi` на сервисы по образцу
+  `TInvestMarketDataService` / `TInvestOrdersService`.
+- `### TInvest-specific методы в *FlowManager` (закрыта) —
+  **предшественник** umbrella: паттерн nullable-val
+  (`BrokerSnapshotApi?`) установлен здесь.
+- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
+  общий контекст: `TooManyFunctions` на `BrokerApi` (19) и
+  реализациях (25/24/22).
+- `docs/architecture.md` → раздел 7 (BrokerApi) — обновить
+  после umbrella: перечислить все роли и паттерн nullable-val.
+
+**Критерий готовности (umbrella).**
+
+- Все 9 ролей выделены (#1–#9): `StreamsApi`,
+  `BrokerLifecycleApi`, `BrokerInstrumentApi`, `OrdersApi`,
+  `AccountsApi`, `SandboxApi`, `InstrumentsApi`, `BalanceApi`,
+  `PortfolioApi`.
+- `BrokerApi` содержит 9 nullable-val (snapshot + 8 новых ролей,
+  включая `lifecycle`, `instrument`, `portfolio`).
+- `InvestRepository` — на fat `BrokerApi`; вызовы, затронутые
+  nullable-val ролями, адаптированы (`broker.<role>?.`).
+- KDoc на `BrokerApi` фиксирует отклонение по 2c (все три
+  элемента: правило, альтернатива, выгоды).
+- 9 кастов `as? <ConcreteApi>` устранены (#2 — 6, #3 — 1,
+  #5 — 2).
+- Гейт (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`)
+  зелёный на каждом шаге.
+
+**Оценка.** ~11.5–13.5 ч по ролям (#1–#10). #11 — отдельно,
+~3–4 ч.
+
+**Зависимости.** Нет. **Разблокирует**
+`### Рефакторинг BrokerApi-реализаций` (D).
+
+**Открытые вопросы.**
+
+- `PortfolioApi` (#9): форма — `fetchFullPortfolio` с
+  `PortfolioPosition` (презентационная модель, отклонение по
+  2c с KDoc) или унификация на `PositionStreamItem` (чистый
+  domain-контракт)? Решится в `### PortfolioApi: ревизия
+  fetchPositionsSnapshot` на шаге 1 (ревизия
+  `fetchPositionsSnapshot` vs `BrokerSnapshotApi.positionsSnapshot`).
+- `BcsBrokerApi.orders`: `postOrder` работает, остальное —
+  заглушки. Честный nullable-val → `orders = null`.
+  Если BCS-торговля через `postOrder` понадобится —
+  разделить `OrdersApi` на `OrdersQueryApi` /
+  `OrdersCommandApi` (отдельная задача
+  `### Реализация BCS Broker API`).
+- `BcsBrokerApi.sandbox`: `payIn` — no-op, `open`/`close` —
+  throw. Честный nullable-val → `sandbox = null`.
+- После umbrella — нужен ли `BrokerRoleResolver`? Пока нет
+  (один потребитель fat — `InvestRepository`). Пересмотреть
+  при появлении второго мультиброкерного фасада или второго
+  разработчика.
+- `:domain-api` отдельным Gradle-модулем — в рамках
+  KMP-миграции, не сейчас (утверждено).
+
+
+
+
+---
+
+
+---
 
 ### Архитектурный документ (docs/architecture.md)
 
@@ -443,6 +771,7 @@ BCS/Finam 5, repository 5, KDoc-правка `TInvestBrokerApi:300` 5,
 **Зависимости:** разблокирована (`### TInvest-specific` закрыта).
 
 **Связано:**
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #3 в порядке.
 - `### Broker lifecycle API` — оставшиеся 3 каста (auth).
 - `### Архитектурный документ` — раздел 7 дополнить
   `BrokerInstrumentApi`.
@@ -584,6 +913,7 @@ mock-инфраструктура).
   прецедент C-варианта.
 
 **Связано:**
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #2 в порядке.
 - `### TInvest-specific: fetchFullInstrument` — другой каст
   (не auth), отдельная задача.
 - `### Архитектурный документ` — раздел 1 (слои) и раздел 8
@@ -1697,6 +2027,7 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 разделение `MarketDataApi`/`StreamsApi`).
 
 **Связано:**
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #11 в порядке; уборка после всех ролей.
 - `### TInvest-specific` (C-вариант) реализуется до D;
   `SnapshotApi` — переезд `BrokerSnapshotApi` в ролевую
   структуру.
