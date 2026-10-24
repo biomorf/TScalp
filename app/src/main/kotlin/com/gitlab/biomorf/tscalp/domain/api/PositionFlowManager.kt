@@ -159,7 +159,7 @@ class PositionFlowManager
             accountId: String,
         ) {
             try {
-                broker.subscribePositions(accountId).collect { item ->
+                broker.streams?.subscribePositions(accountId)?.collect { item ->
                     stateTracker.onStreamEmit()
                     emitEnriched(item, source = "stream")
                 }
