@@ -1,11 +1,10 @@
 package com.gitlab.biomorf.tscalp
 
 import android.app.Application
-import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.util.AppLogger
@@ -74,7 +73,7 @@ class TScalpApplication : Application() {
     }
 
     /**
-     * Инициализирует TInvestBrokerAPI и запускает стрим позиций.
+     * Инициализирует TInvest через lifecycle и запускает стрим позиций.
      *
      * Счёт выбирается через [resolveTInvestAccountId]: при успешном
      * `getAccounts` используется сохранённый или первый доступный счёт,
@@ -86,8 +85,6 @@ class TScalpApplication : Application() {
      * работать при временном сбое `getAccounts`.
      */
     private suspend fun restoreTInvest(broker: BrokerApi) {
-        val tInvest = broker as? TInvestBrokerAPI ?: return
-
         val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
         if (creds == null) {
             AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
@@ -95,16 +92,16 @@ class TScalpApplication : Application() {
         }
         val (token, sandbox) = creds
 
-        try {
-            tInvest.initialize(token, sandbox)
-            brokerManager.refreshInitializationState()
-        } catch (e: Exception) {
-            AppLogger.e("TScalpApplication", "TInvest: не удалось инициализировать API", e)
+        val initialized =
+            broker.lifecycle?.initialize(BrokerCredentials.TInvest(token, sandbox)) ?: false
+        if (!initialized) {
+            AppLogger.e("TScalpApplication", "TInvest: не удалось инициализировать API")
             return
         }
+        brokerManager.refreshInitializationState()
 
         val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
-        val accountId = resolveTInvestAccountId(tInvest, sandbox, savedAccountId)
+        val accountId = resolveTInvestAccountId(broker, sandbox, savedAccountId)
 
         if (accountId == null) {
             AppLogger.w("TScalpApplication", "TInvest: не удалось выбрать/создать счёт")
@@ -132,23 +129,23 @@ class TScalpApplication : Application() {
      *    - иначе null.
      */
     private suspend fun resolveTInvestAccountId(
-        tInvest: TInvestBrokerAPI,
+        broker: BrokerApi,
         sandbox: Boolean,
         savedAccountId: String?,
     ): String? {
         val accounts =
             try {
-                tInvest.getAccounts(sandbox)
+                broker.getAccounts(sandbox)
             } catch (e: Exception) {
                 AppLogger.w("TScalpApplication", "TInvest: getAccounts failed, fallback to savedAccountId", e)
                 null
             }
 
         return when {
-            accounts == null -> savedAccountId ?: tryOpenSandboxAccount(tInvest, sandbox)
+            accounts == null -> savedAccountId ?: tryOpenSandboxAccount(broker, sandbox)
             savedAccountId != null && accounts.any { it.id == savedAccountId } -> savedAccountId
             accounts.isNotEmpty() -> accounts.first().id
-            sandbox -> tryOpenSandboxAccount(tInvest, sandbox)
+            sandbox -> tryOpenSandboxAccount(broker, sandbox)
             else -> null
         }
     }
@@ -157,12 +154,12 @@ class TScalpApplication : Application() {
      * Открывает новый счёт в песочнице. Null вне sandbox или при ошибке.
      */
     private suspend fun tryOpenSandboxAccount(
-        tInvest: TInvestBrokerAPI,
+        broker: BrokerApi,
         sandbox: Boolean,
     ): String? {
         if (!sandbox) return null
         return try {
-            tInvest.openSandboxAccount()
+            broker.openSandboxAccount()
         } catch (e: Exception) {
             AppLogger.w("TScalpApplication", "TInvest: openSandboxAccount failed", e)
             null
@@ -170,18 +167,18 @@ class TScalpApplication : Application() {
     }
 
     /**
-     * Инициализирует BcsBrokerApi по сохранённым refresh-токену и режиму записи.
+     * Инициализирует BCS через lifecycle по сохранённым refresh-токену и режиму записи.
      */
     private suspend fun restoreBcs(broker: BrokerApi) {
         val creds = settingsRepository.loadBrokerCredentials(BrokerName.BCS) ?: return
         val (refreshToken, isWriteMode) = creds
-        val clientId = if (isWriteMode) "trade-api-write" else "trade-api-read"
-        try {
-            (broker as? BcsBrokerApi)?.initialize(refreshToken, clientId)
-            brokerManager.refreshInitializationState()
-        } catch (e: Exception) {
-            AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS", e)
+        val initialized =
+            broker.lifecycle?.initialize(BrokerCredentials.Bcs(refreshToken, isWriteMode)) ?: false
+        if (!initialized) {
+            AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS")
+            return
         }
+        brokerManager.refreshInitializationState()
     }
 
     /**
