@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
 import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
-import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
@@ -50,7 +49,6 @@ class PriceFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerManager,
-        private val repository: InvestRepository,
     ) {
         companion object {
             private const val TAG = "PriceFlowManager"
@@ -211,11 +209,17 @@ class PriceFlowManager
                 return
             }
             val broker = BrokerName.TINVEST
+            val streams =
+                brokerManager.getBroker(broker)?.streams
+                    ?: run {
+                        AppLogger.d(TAG, "[prices] broker.streams unavailable, stream skipped")
+                        return
+                    }
             var attempt = 0
             while (currentCoroutineContext().isActive) {
                 try {
-                    repository
-                        .subscribeLastPrices(broker, union.toList())
+                    streams
+                        .subscribeLastPrices(union.toList())
                         .collect { (tscalpId, price) ->
                             stateTracker.onStreamEmit()
                             AppLogger.d(TAG, "[manager/stream] $tscalpId = $price")

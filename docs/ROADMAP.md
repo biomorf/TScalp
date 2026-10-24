@@ -186,216 +186,6 @@ KDoc + фиксация отклонения по 2c).
 
 ---
 
-### StreamsApi: выделение роли из BrokerApi
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/streams-api
-
-**Контекст.**
-
-`BrokerApi` содержит три стрим-метода: `subscribePositions`,
-`subscribeOrderState`, `subscribeLastPrices`. Их потребители:
-
-- `PositionFlowManager` — `broker.subscribePositions(accountId)`.
-- `OrderFlowManager` — `broker.subscribeOrderState(accountId)`.
-- `PriceFlowManager` — `repository.subscribeLastPrices(broker, union)`
-  (legacy-обёртка в `InvestRepository`, единственный потребитель
-  которой — `PriceFlowManager`, подтверждено grep).
-
-Все три потребителя берут `brokerManager.getBroker(TINVEST)` и
-вызывают один метод. Это идеальные кандидаты на роль. Паттерн
-nullable-val уже работает для `BrokerSnapshotApi`
-(`val snapshot: BrokerSnapshotApi?`), три менеджера используют
-`broker.snapshot` без кастов.
-
-**Проблема.** Сейчас менеджеры видят fat `BrokerApi` (19 методов)
-ради одного метода каждый. Рефакторинг на nullable-val роль
-сужает зависимость до 3 методов, честно декларирует
-«не поддерживаю» для BCS/Finam.
-
-**Цель:** `StreamsApi` — отдельная роль в `domain.api` по образцу
-`BrokerSnapshotApi`. `BrokerApi.streams: StreamsApi?`. Менеджеры
-инжектят `BrokerApi` (fat, до шага гибрид-DI) и берут
-`broker.streams?.<метод>`. Legacy `InvestRepository.subscribeLastPrices`
-удаляется — `PriceFlowManager` идёт напрямую.
-
-**Решение (nullable-val, Scenario2).**
-
-- Методы `StreamsApi`:
-  `subscribePositions(accountId): Flow<PositionStreamItem>`,
-  `subscribeOrderState(accountId): Flow<OrderState>`,
-  `subscribeLastPrices(uids): Flow<Pair<String, Double>>`.
-- `BrokerApi.streams: StreamsApi?` — nullable.
-- TInvest: `streams = this` — все 3 работают (gRPC + WS fallback
-  через `TInvestOrchestrator`).
-- BCS: `streams = null` — ни один из 3 не работает как стрим.
-  `subscribePositions` — polling-loop, транспорт соединения с BCS
-  сломан, отладка отложена. `subscribeOrderState` → `flowOf()`;
-  `subscribeLastPrices` → `emptyFlow()`. Заглушки.
-- Finam: `streams = null` — все методы заглушки.
-- Потребители:
-  - `PositionFlowManager.collectStream`:
-    `broker.streams?.subscribePositions(accountId)`.
-    При `null` — стрим не запускается, polling остаётся
-    (через `broker.snapshot?.positionsSnapshot`).
-  - `OrderFlowManager.collectStream`:
-    `broker.streams?.subscribeOrderState(accountId)`.
-  - `PriceFlowManager.collectStream`:
-    `broker.streams?.subscribeLastPrices(union)`.
-    Убрать зависимость от `repository`.
-
-**Предусловия.**
-
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`
-  утверждена (`f0847f6`, `5cc8251`).
-- `BrokerSnapshotApi` работает как прецедент (три менеджера
-  используют `broker.snapshot`, кастов нет).
-
-**Файлы.**
-
-Новые:
-- `domain/api/StreamsApi.kt`.
-
-Правятся:
-- `domain/api/BrokerApi.kt` — `val streams: StreamsApi?`.
-- `data/api/TInvestBrokerApi.kt` — `override val streams = this`.
-- `data/api/BcsBrokerApi.kt` — `override val streams = null` +
-  закомментировать polling-loop в `subscribePositions`, заглушка
-  `emptyFlow()` + KDoc.
-- `data/api/FinamBrokerApi.kt` — `override val streams = null`
-  (заглушки уже, проверить).
-- `domain/api/PositionFlowManager.kt` —
-  `broker.streams?.subscribePositions`.
-- `domain/api/OrderFlowManager.kt` —
-  `broker.streams?.subscribeOrderState`.
-- `domain/api/PriceFlowManager.kt` —
-  `broker.streams?.subscribeLastPrices`. Убрать зависимость от
-  `InvestRepository`.
-- `data/repository/InvestRepository.kt` — удалить метод
-  `subscribeLastPrices` (строки 223, 231).
-
-Тесты:
-- `app/src/test/.../PositionFlowManagerTest.kt` —
-  `every { broker.streams } returns broker` (поддерживает) +
-  `returns null` (не поддерживает).
-- `app/src/test/.../OrderFlowManagerTest.kt` — то же.
-- `app/src/test/.../PriceFlowManagerTest.kt` — убрать
-  `mockRepo.subscribeLastPrices` (5 мест), добавить `mockStreams`.
-
-**Шаги.**
-
-1. Создать `StreamsApi` (3 метода + KDoc).
-2. `BrokerApi.streams: StreamsApi?` (KDoc: nullable-val,
-   `null` = не поддерживает).
-3. `TInvestBrokerAPI`: `override val streams: StreamsApi get() = this`.
-4. `BcsBrokerApi`: `override val streams: StreamsApi? get() = null`
-   + закомментировать polling-loop в `subscribePositions`,
-   заменить на `emptyFlow()` + KDoc.
-5. `FinamBrokerApi`: `override val streams: StreamsApi? get() = null`.
-6. `PositionFlowManager.collectStream`:
-   `broker.streams?.subscribePositions(accountId)?.collect { ... }`.
-   При `null` — стрим не запускается, polling остаётся.
-7. `OrderFlowManager.collectStream`: аналогично
-   `broker.streams?.subscribeOrderState(accountId)`.
-8. `PriceFlowManager.collectStream`:
-   `broker.streams?.subscribeLastPrices(union)?.collect { ... }`.
-   Убрать `repository: InvestRepository` из конструктора.
-9. `InvestRepository`: удалить `subscribeLastPrices` (метод +
-   импорты).
-10. Тесты: `PositionFlowManagerTest`, `OrderFlowManagerTest` —
-    `every { broker.streams } returns broker` в настройке;
-    `PriceFlowManagerTest` — 5 моков `mockRepo.subscribeLastPrices`
-    → `mockStreams.subscribeLastPrices`.
-11. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты.**
-
-- `PositionFlowManagerTest`:
-  - стрим работает (`streams != null`) — события приходят через
-    `subscribePositions`;
-  - стрим не работает (`streams = null`) — polling работает
-    (если `snapshot != null`), `StreamState` переходит в
-    `POLLING`.
-- `OrderFlowManagerTest`: то же.
-- `PriceFlowManagerTest`: замена моков `mockRepo` на
-  `mockStreams.subscribeLastPrices(any())`.
-
-**Референсы.**
-
-- `BrokerSnapshotApi.kt` — прецедент nullable-val роли.
-- `PositionFlowManager.kt:162`, `OrderFlowManager.kt:237`,
-  `PriceFlowManager.kt:218` — текущие callsite'ы.
-- `BcsBrokerApi.kt` (`subscribePositions` с polling-loop) —
-  заглушка.
-- `InvestRepository.kt:223, 231` — legacy-метод.
-
-**Ограничения.**
-
-- **Не менять публичный контракт `BrokerApi`.** `subscribePositions`,
-  `subscribeOrderState`, `subscribeLastPrices` — остаются (fat,
-  для `InvestRepository`). Добавляется только `val streams`.
-- **BCS `subscribePositions` — закомментировать**, не удалять
-  полностью. Сохраняет след для будущей реализации.
-- **Не выводить `PriceFlowManager` из `BrokerApi`.** Он инжектит
-  `brokerManager.getBroker(TINVEST)` (уже так), плюс `streams`.
-- **`synchronized(startLock)`** в менеджерах сохранить.
-- **Прямая Hilt-инъекция роли** — не на этом шаге. Гибрид-DI
-  применяем после #1–#9 (паттерн должен устояться).
-
-**Критерий готовности.**
-
-- `StreamsApi` создан (3 метода + KDoc).
-- `BrokerApi.streams: StreamsApi?` добавлен.
-- TInvest: `streams = this`; BCS: `streams = null` (заглушки);
-  Finam: `streams = null`.
-- Три менеджера используют `broker.streams?.<метод>` вместо
-  `broker.<метод>` / `repository.subscribeLastPrices`.
-- `InvestRepository.subscribeLastPrices` удалён.
-- `grep "broker.subscribe" app/src/main` в трёх менеджерах —
-  пусто (только через `broker.streams?.`).
-- `grep "repository.subscribeLastPrices" app/src` — пусто.
-- Все тесты зелёные.
-- Гейт зелёный.
-
-**Оценка:** ~2.5–3 ч (StreamsApi 15 мин, BrokerApi 5, TInvest 5,
-BCS 20 + заглушка, Finam 5, PositionFlowManager 20,
-OrderFlowManager 20, PriceFlowManager 30, InvestRepository
-удаление 5, тесты 30–40, гейт 10).
-
-**Зависимости.**
-
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`
-  (`f0847f6`, `5cc8251`).
-- `BrokerSnapshotApi` как прецедент (закрыт).
-
-**Связанные задачи.**
-
-- Umbrella — `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`.
-- `### Broker lifecycle API` — #2 в порядке, следующий шаг.
-- `### TInvest-specific: fetchFullInstrument` — #3.
-- `### PortfolioApi: ревизия fetchPositionsSnapshot` — #9.
-- `### Рефакторинг BrokerApi-реализаций` (D) — #11 (уборка
-  после всех ролей).
-
-**Открытые вопросы.**
-
-- `BcsBrokerApi.subscribePositions` — заглушка `emptyFlow()`,
-  закомментировать polling-loop. Восстановление — задача
-  `### Реализация BCS Broker API` (в ROADMAP явно не выделена,
-  это пробел; может быть создана позже, но не в этой задаче).
-- `BcsBrokerApi.subscribeOrderState` — `flowOf()`,
-  `subscribeLastPrices` — `emptyFlow()`. Уже заглушки, ничего
-  не меняется.
-- После #1 (StreamsApi) — следующая роль `### Broker lifecycle API`
-  (#2), по плану из этой секции.
-
-
-
-
----
-
 ### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)
 
 **Мобильная работа:** невозможно (сборка + тесты на десктопе).
@@ -4338,5 +4128,247 @@ guard не срабатывает, разбираться отдельно.
 **Оценка:** ~1 час.
 
 
+---
+
+### ✅ StreamsApi: выделение роли из BrokerApi
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст.**
+
+`BrokerApi` содержит три стрим-метода: `subscribePositions`,
+`subscribeOrderState`, `subscribeLastPrices`. Их потребители:
+
+- `PositionFlowManager` — `broker.subscribePositions(accountId)`.
+- `OrderFlowManager` — `broker.subscribeOrderState(accountId)`.
+- `PriceFlowManager` — `repository.subscribeLastPrices(broker, union)`
+  (legacy-обёртка в `InvestRepository`, единственный потребитель
+  которой — `PriceFlowManager`, подтверждено grep).
+
+Все три потребителя берут `brokerManager.getBroker(TINVEST)` и
+вызывают один метод. Это идеальные кандидаты на роль. Паттерн
+nullable-val уже работает для `BrokerSnapshotApi`
+(`val snapshot: BrokerSnapshotApi?`), три менеджера используют
+`broker.snapshot` без кастов.
+
+**Проблема.** Сейчас менеджеры видят fat `BrokerApi` (19 методов)
+ради одного метода каждый. Рефакторинг на nullable-val роль
+сужает зависимость до 3 методов, честно декларирует
+«не поддерживаю» для BCS/Finam.
+
+**Цель:** `StreamsApi` — отдельная роль в `domain.api` по образцу
+`BrokerSnapshotApi`. `BrokerApi.streams: StreamsApi?`. Менеджеры
+инжектят `BrokerApi` (fat, до шага гибрид-DI) и берут
+`broker.streams?.<метод>`. Legacy `InvestRepository.subscribeLastPrices`
+удаляется — `PriceFlowManager` идёт напрямую.
+
+**Решение (nullable-val, Scenario2).**
+
+- Методы `StreamsApi`:
+  `subscribePositions(accountId): Flow<PositionStreamItem>`,
+  `subscribeOrderState(accountId): Flow<OrderState>`,
+  `subscribeLastPrices(uids): Flow<Pair<String, Double>>`.
+- `BrokerApi.streams: StreamsApi?` — nullable.
+- TInvest: `streams = this` — все 3 работают (gRPC + WS fallback
+  через `TInvestOrchestrator`).
+- BCS: `streams = null` — ни один из 3 не работает как стрим.
+  `subscribePositions` — polling-loop, транспорт соединения с BCS
+  сломан, отладка отложена. `subscribeOrderState` → `flowOf()`;
+  `subscribeLastPrices` → `emptyFlow()`. Заглушки.
+- Finam: `streams = null` — все методы заглушки.
+- Потребители:
+  - `PositionFlowManager.collectStream`:
+    `broker.streams?.subscribePositions(accountId)`.
+    При `null` — стрим не запускается, polling остаётся
+    (через `broker.snapshot?.positionsSnapshot`).
+  - `OrderFlowManager.collectStream`:
+    `broker.streams?.subscribeOrderState(accountId)`.
+  - `PriceFlowManager.collectStream`:
+    `broker.streams?.subscribeLastPrices(union)`.
+    Убрать зависимость от `repository`.
+
+**Предусловия.**
+
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`
+  утверждена (`f0847f6`, `5cc8251`).
+- `BrokerSnapshotApi` работает как прецедент (три менеджера
+  используют `broker.snapshot`, кастов нет).
+
+**Файлы.**
+
+Новые:
+- `domain/api/StreamsApi.kt`.
+
+Правятся:
+- `domain/api/BrokerApi.kt` — `val streams: StreamsApi?`.
+- `data/api/TInvestBrokerApi.kt` — `override val streams = this`.
+- `data/api/BcsBrokerApi.kt` — `override val streams = null` +
+  закомментировать polling-loop в `subscribePositions`, заглушка
+  `emptyFlow()` + KDoc.
+- `data/api/FinamBrokerApi.kt` — `override val streams = null`
+  (заглушки уже, проверить).
+- `domain/api/PositionFlowManager.kt` —
+  `broker.streams?.subscribePositions`.
+- `domain/api/OrderFlowManager.kt` —
+  `broker.streams?.subscribeOrderState`.
+- `domain/api/PriceFlowManager.kt` —
+  `broker.streams?.subscribeLastPrices`. Убрать зависимость от
+  `InvestRepository`.
+- `data/repository/InvestRepository.kt` — удалить метод
+  `subscribeLastPrices` (строки 223, 231).
+
+Тесты:
+- `app/src/test/.../PositionFlowManagerTest.kt` —
+  `every { broker.streams } returns broker` (поддерживает) +
+  `returns null` (не поддерживает).
+- `app/src/test/.../OrderFlowManagerTest.kt` — то же.
+- `app/src/test/.../PriceFlowManagerTest.kt` — убрать
+  `mockRepo.subscribeLastPrices` (5 мест), добавить `mockStreams`.
+
+**Шаги.**
+
+1. Создать `StreamsApi` (3 метода + KDoc).
+2. `BrokerApi.streams: StreamsApi?` (KDoc: nullable-val,
+   `null` = не поддерживает).
+3. `TInvestBrokerAPI`: `override val streams: StreamsApi get() = this`.
+4. `BcsBrokerApi`: `override val streams: StreamsApi? get() = null`
+   + закомментировать polling-loop в `subscribePositions`,
+   заменить на `emptyFlow()` + KDoc.
+5. `FinamBrokerApi`: `override val streams: StreamsApi? get() = null`.
+6. `PositionFlowManager.collectStream`:
+   `broker.streams?.subscribePositions(accountId)?.collect { ... }`.
+   При `null` — стрим не запускается, polling остаётся.
+7. `OrderFlowManager.collectStream`: аналогично
+   `broker.streams?.subscribeOrderState(accountId)`.
+8. `PriceFlowManager.collectStream`:
+   `broker.streams?.subscribeLastPrices(union)?.collect { ... }`.
+   Убрать `repository: InvestRepository` из конструктора.
+9. `InvestRepository`: удалить `subscribeLastPrices` (метод +
+   импорты).
+10. Тесты: `PositionFlowManagerTest`, `OrderFlowManagerTest` —
+    `every { broker.streams } returns broker` в настройке;
+    `PriceFlowManagerTest` — 5 моков `mockRepo.subscribeLastPrices`
+    → `mockStreams.subscribeLastPrices`.
+11. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты.**
+
+- `PositionFlowManagerTest`:
+  - стрим работает (`streams != null`) — события приходят через
+    `subscribePositions`;
+  - стрим не работает (`streams = null`) — polling работает
+    (если `snapshot != null`), `StreamState` переходит в
+    `POLLING`.
+- `OrderFlowManagerTest`: то же.
+- `PriceFlowManagerTest`: замена моков `mockRepo` на
+  `mockStreams.subscribeLastPrices(any())`.
+
+**Референсы.**
+
+- `BrokerSnapshotApi.kt` — прецедент nullable-val роли.
+- `PositionFlowManager.kt:162`, `OrderFlowManager.kt:237`,
+  `PriceFlowManager.kt:218` — текущие callsite'ы.
+- `BcsBrokerApi.kt` (`subscribePositions` с polling-loop) —
+  заглушка.
+- `InvestRepository.kt:223, 231` — legacy-метод.
+
+**Ограничения.**
+
+- **Не менять публичный контракт `BrokerApi`.** `subscribePositions`,
+  `subscribeOrderState`, `subscribeLastPrices` — остаются (fat,
+  для `InvestRepository`). Добавляется только `val streams`.
+- **BCS `subscribePositions` — закомментировать**, не удалять
+  полностью. Сохраняет след для будущей реализации.
+- **Не выводить `PriceFlowManager` из `BrokerApi`.** Он инжектит
+  `brokerManager.getBroker(TINVEST)` (уже так), плюс `streams`.
+- **`synchronized(startLock)`** в менеджерах сохранить.
+- **Прямая Hilt-инъекция роли** — не на этом шаге. Гибрид-DI
+  применяем после #1–#9 (паттерн должен устояться).
+
+**Критерий готовности.**
+
+- `StreamsApi` создан (3 метода + KDoc).
+- `BrokerApi.streams: StreamsApi?` добавлен.
+- TInvest: `streams = this`; BCS: `streams = null` (заглушки);
+  Finam: `streams = null`.
+- Три менеджера используют `broker.streams?.<метод>` вместо
+  `broker.<метод>` / `repository.subscribeLastPrices`.
+- `InvestRepository.subscribeLastPrices` удалён.
+- `grep "broker.subscribe" app/src/main` в трёх менеджерах —
+  пусто (только через `broker.streams?.`).
+- `grep "repository.subscribeLastPrices" app/src` — пусто.
+- Все тесты зелёные.
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-25, 5 коммитов в
+`feature/streams-api` (5d3e80c → 4a3143f).
+
+- **#1** `StreamsApi` — новый интерфейс в `domain.api` (3 метода:
+  `subscribePositions`, `subscribeOrderState` (`suspend`), `subscribeLastPrices`)
+  + KDoc. Коммит `5d3e80c`.
+- **#2–5** `BrokerApi.streams: StreamsApi?`; TInvest `streams = this`
+  (`override`, `StreamsApi` добавлен в supertypes); BCS `streams = null`,
+  сломанный polling-loop в `subscribePositions` закомментирован и
+  заменён на `emptyFlow()` (транспорт BCS не отлажен до успешного
+  соединения — решение зафиксировано в KDoc); Finam `streams = null`.
+  Все три брокера + `BrokerApi` в одном коммите `f8569ee`.
+- **#6** `PositionFlowManager` → `broker.streams?.subscribePositions`,
+  `PositionFlowManagerTest` — `every { mockBroker.streams } returns mockBroker`
+  во всех 8 тестах. Коммит `42b651b`.
+- **#7** `OrderFlowManager` → `broker.streams?.subscribeOrderState`,
+  `OrderFlowManagerTest` — то же в 5 тестах. Коммит `14f9fff`.
+- **#8** `PriceFlowManager` → `broker.streams?.subscribeLastPrices`
+  (через локальную `val streams = brokerManager.getBroker(broker)?.streams`
+  перед `while`); убрана зависимость от `InvestRepository`;
+  `InvestRepository.subscribeLastPrices` удалён (легаси-обёртка,
+  единственный потребитель — `PriceFlowManager`, подтверждено grep);
+  `PriceFlowManagerTest` — `mockRepo` → `mockStreams`, `every` в 4 тестах,
+  `verify` → `mockStreams.subscribeLastPrices(any())`. Коммит `4a3143f`.
+- **#9** Поглощён #8: `InvestRepository.subscribeLastPrices` удалён в том
+  же коммите `4a3143f`, отдельного не потребовалось.
+- **#10** Поглощён #6–#8: тесты правились в каждом шаге по 5a (коммит
+  только после зелёного гейта); отдельного коммита под тесты нет.
+- **#11** Финальный прогон гейта (2026-10-25):
+  `testDebugUnitTest / lintDebug / ktlintCheck / detekt` — зелёные,
+  143 теста, только известный warning `statusBarColor`
+  (`Theme.kt:48`, в `docs/ISSUES.md`).
+- **Критерий готовности** — все три grep-проверки пройдены:
+  `broker.subscribe` в трёх менеджерах — пусто;
+  `repository.subscribeLastPrices` в `app/src` — пусто;
+  все три менеджера маршрутизируют через `broker.streams`
+  (Position/Order напрямую, Price через локальную `val streams`).
+
+**Оценка:** ~2.5–3 ч (StreamsApi 15 мин, BrokerApi 5, TInvest 5,
+BCS 20 + заглушка, Finam 5, PositionFlowManager 20,
+OrderFlowManager 20, PriceFlowManager 30, InvestRepository
+удаление 5, тесты 30–40, гейт 10).
+
+**Зависимости.**
+
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`
+  (`f0847f6`, `5cc8251`).
+- `BrokerSnapshotApi` как прецедент (закрыт).
+
+**Связанные задачи.**
+
+- Umbrella — `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`.
+- `### Broker lifecycle API` — #2 в порядке, следующий шаг.
+- `### TInvest-specific: fetchFullInstrument` — #3.
+- `### PortfolioApi: ревизия fetchPositionsSnapshot` — #9.
+- `### Рефакторинг BrokerApi-реализаций` (D) — #11 (уборка
+  после всех ролей).
+
+**Открытые вопросы.**
+
+- `BcsBrokerApi.subscribePositions` — заглушка `emptyFlow()`,
+  закомментировать polling-loop. Восстановление — задача
+  `### Реализация BCS Broker API` (в ROADMAP явно не выделена,
+  это пробел; может быть создана позже, но не в этой задаче).
+- `BcsBrokerApi.subscribeOrderState` — `flowOf()`,
+  `subscribeLastPrices` — `emptyFlow()`. Уже заглушки, ничего
+  не меняется.
+- После #1 (StreamsApi) — следующая роль `### Broker lifecycle API`
+  (#2), по плану из этой секции.
 
 ---

@@ -217,21 +217,6 @@ class InvestRepository(
         }
 
     /**
-     * Стрим последних цен. Ошибки (включая отсутствие брокера)
-     * идут через поток — вызывающий ловит их оператором .catch {}.
-     */
-    fun subscribeLastPrices(
-        brokerName: BrokerName,
-        ids: List<String>,
-    ): Flow<Pair<String, Double>> =
-        flow {
-            val broker =
-                brokerManager.getBroker(brokerName)
-                    ?: throw IllegalStateException("Брокер ${brokerName.displayName} не зарегистрирован")
-            emitAll(broker.subscribeLastPrices(ids))
-        }
-
-    /**
      * Стрим позиций. Ошибки идут через поток — вызывающий ловит их оператором .catch {}.
      */
     fun subscribePositions(

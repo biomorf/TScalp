@@ -234,7 +234,7 @@ class OrderFlowManager
             accountId: String,
         ) {
             try {
-                broker.subscribeOrderState(accountId).collect { state ->
+                broker.streams?.subscribeOrderState(accountId)?.collect { state ->
                     stateTracker.onStreamEmit()
                     val item = state.toOrderListItem()
                     AppLogger.d(TAG, "stream: ${item.orderId} status=${item.status}")

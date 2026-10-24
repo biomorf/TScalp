@@ -42,6 +42,7 @@ class PositionFlowManagerTest {
                     money = 2415.31,
                     blocked = null,
                 )
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow {
                     emit(wsItem)
@@ -91,6 +92,7 @@ class PositionFlowManagerTest {
                     blocked = 100.0,
                 )
             coEvery { mockBroker.positionsSnapshot(any()) } returns listOf(pollingItem)
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow {
                     delay(100) // дать polling успеть в первый раунд
@@ -141,6 +143,7 @@ class PositionFlowManagerTest {
                     money = 100.0,
                 )
             coEvery { mockBroker.positionsSnapshot(any()) } returns listOf(usdItem)
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow {
                     delay(100)
@@ -179,6 +182,7 @@ class PositionFlowManagerTest {
                     instrumentType = "share",
                     expectedYield = 14.73,
                 )
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow {
                     emit(share)
@@ -208,6 +212,7 @@ class PositionFlowManagerTest {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow { awaitCancellation() }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
@@ -233,6 +238,7 @@ class PositionFlowManagerTest {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow {
                     activeCount.incrementAndGet()
@@ -276,6 +282,7 @@ class PositionFlowManagerTest {
                     currentPrice = 292.6,
                     instrumentType = "share",
                 )
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow {
                     emit(share)
@@ -307,6 +314,7 @@ class PositionFlowManagerTest {
                     currentPrice = 292.6,
                     instrumentType = "share",
                 )
+            every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
                 flow { awaitCancellation() }
             coEvery { mockBroker.positionsSnapshot(any()) } returns listOf(share)

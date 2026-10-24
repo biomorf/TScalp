@@ -32,6 +32,7 @@ class OrderFlowManagerTest {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
+            every { mockBroker.streams } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
@@ -64,6 +65,7 @@ class OrderFlowManagerTest {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
+            every { mockBroker.streams } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             val orderState =
                 OrderState(
@@ -101,6 +103,7 @@ class OrderFlowManagerTest {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
+            every { mockBroker.streams } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
@@ -122,6 +125,7 @@ class OrderFlowManagerTest {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
+            every { mockBroker.streams } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow {
@@ -157,6 +161,7 @@ class OrderFlowManagerTest {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
+            every { mockBroker.streams } returns mockBroker
             coEvery { mockBroker.ordersSnapshot(any()) } returns emptyList()
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
