@@ -89,7 +89,8 @@ success, стримы не идут» — не проверка, а конста
 
 **Мобильная работа:** невозможно (сборка + тесты).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/portfolio-snapshot-refactor
 
 **Контекст.** `BrokerApi.fetchPositionsSnapshot(accountId, sandboxMode)`
 возвращает `List<PortfolioPosition>` — presentation-модель
