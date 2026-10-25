@@ -553,139 +553,260 @@ fat-интерфейс подходит). Если остановиться по
 
 **Статус:** запланировано.
 
-**Контекст.** `InvestRepository` (`data/repository/`,
-357 строк, 16 функций по grep 2026-10-26) — последний
-fat-репозиторий проекта. Уже разбиты: `InstrumentRepository`,
+**Контекст.**
+
+`InvestRepository` (`data/repository/`, 357 строк, 16 функций
+по grep 2026-10-26; KDoc «17 функций» устарел) — последний
+fat-репозиторий. Уже разбиты: `InstrumentRepository`,
 `SearchCache`, `SettingsRepository`, `TradingStateRepository`.
-`InvestRepository` совмещает 4 доменные области и 2 роли:
-фасад над `BrokerApi` и точка обогащения presentation-моделями
-(`PortfolioPosition` через `toPortfolioPosition`).
+`InvestRepository` совмещает 4 доменные области + 2 роли:
+фасад над `BrokerApi` и точка конвертации в `PortfolioPosition`
+(domain-модель для UI) через `toPortfolioPosition`.
 
-**Clean-граница (второй слой долга).** `InvestRepository`
-лежит в `data.repository.*`, а ViewModels
-(`PortfolioViewModel`, `OrdersViewModel`, `SettingsViewModel`,
-`OrdersListViewModel`) импортируют его **напрямую**. В Clean
-ViewModel должен зависеть от **domain-интерфейса**
-(`domain.api.repository.*`), а data — реализовывать. Сейчас
-граница слоя нарушена; разбивка без выноса интерфейсов не
-закрывает ISP.
+**Clean-граница (второй слой долга).**
 
-**Доменные области (предложение).**
+`InvestRepository` в `data.repository.*`; 4 ViewModel импортируют
+его **напрямую**. В Clean ViewModel → domain-интерфейс, data —
+реализует. Сейчас граница слоя нарушена. Разбивка без выноса
+интерфейсов ISP не закрывает.
 
-- `AccountsRepository` — `getAccountsResult`,
-  `openSandboxAccountResult`, `closeSandboxAccountResult`,
-  `sandboxPayInResult` (4). Sandbox — T-Invest-specific, но
-  в UI через `SettingsViewModel`/`PortfolioViewModel`; не
-  отдельный репозиторий (по 2c: `SandboxApi` — T-Invest,
-  но в `InvestRepository` методы универсальны по контракту).
-- `MarketDataRepository` — `searchInstrumentsResult`,
-  `getLastPricesResult`, `getTradingStatusesResult` (3).
-- `OrdersRepository` — `postOrderResult`, `postStopOrderResult`,
-  `cancelStopOrderResult`, `getAllOrdersResult`,
-  `cancelOrderResult`, `checkTradeAvailabilityResult` (6).
-- `PortfolioRepository` — `fetchPositionsResult`,
-  `subscribePositions`, `getBalanceResult` (3).
+**Потребители (grep 2026-10-26).**
 
-Итого 16 (KDoc класса говорит «17 функций» — устарело,
-обновить в фазе 3).
+| Потребитель | Методы `InvestRepository` | Интерфейсы |
+|---|---|---|
+| `PortfolioViewModel` | `fetchPositionsResult`, `getTradingStatusesResult`, `getAccountsResult`, `sandboxPayInResult` | Portfolio, MarketData, Accounts |
+| `OrdersViewModel` | `getAccountsResult` (×3), `getLastPricesResult` (×2), `checkTradeAvailabilityResult`, `postStopOrderResult`, `postOrderResult`, `getBalanceResult`, `getTradingStatusesResult`, `fetchPositionsResult` | Accounts, MarketData, Orders, Portfolio (все 4) |
+| `SettingsViewModel` | `getAccountsResult`, `openSandboxAccountResult`, `closeSandboxAccountResult` | Accounts |
+| `OrdersListViewModel` | `getAccountsResult` (×2), `cancelStopOrderResult`, `cancelOrderResult` | Accounts, Orders |
+| `PriceFlowManager` | ? (импорт `InvestRepository` в конструкторе есть, `repository.` вызовов grep не нашёл — проверить на старте) | TBD |
 
-**Потребители (проверить grep на старте).** По grep 2026-10-26:
-4 ViewModel + `PriceFlowManager` (через
-`repository.subscribeLastPrices`). Точные методы по каждому —
-шаг 1 диагностики.
+**Возможные мёртвые методы (проверить на старте Фазы 1).**
 
-**Три фазы — три PR (по 4b: одна фаза = один логически
-завершённый шаг, зелёный гейт в конце).**
+- `searchInstrumentsResult` — не вызывается ни одним ViewModel
+  (`SearchCache` покрывает поиск); вероятно мёртв.
+- `subscribePositions` — не вызывается из ViewModel (менеджеры
+  ходят через `broker.subscribePositions`).
+- `subscribeLastPrices` — не вызывается из ViewModel; в
+  `PriceFlowManager` был удалён в #1 step 8 (StreamsApi);
+  вероятно мёртв.
+- `getAllOrdersResult` — не вызывается (`OrderFlowManager`
+  ходит через `broker.orders?.getOrders + getStopOrders`).
 
-**Фаза 1 — разбивка на data-репозитории.**
-1. Диагностика потребителей: `grep "repository\.\|investRepository\."` в
-   `presentation/` и `domain/api/managers/` — зафиксировать
-   методы по каждому потребителю.
-2. Создать 4 data-класса в `data/repository/`:
-   `AccountsRepository`, `MarketDataRepository`,
-   `OrdersRepository`, `PortfolioRepository`. Каждый —
-   constructor `(brokerManager: BrokerManager)`,
-   `@Singleton`, соответствующие методы.
-3. `RepositoryModule`: 4 `@Provides` вместо одного
-   `provideInvestRepository`.
-4. Мигрировать 4 ViewModel + `PriceFlowManager` на новые
-   репозитории (constructor injection, правка импортов).
-5. Удалить `InvestRepository.kt`.
-6. Гейт.
+Если подтверждено — удалить в Фазе 1 **до** создания
+интерфейсов (сокращает поверхность).
 
-**Фаза 2 — domain-интерфейсы.**
-1. Создать 4 интерфейса в `domain/api/repository/` с теми же
-   методами (`AccountsRepository`, `MarketDataRepository`,
-   `OrdersRepository`, `PortfolioRepository`). KDoc —
-   назначение, ссылка на задачу.
-2. Data-классы → `...Impl`, реализуют интерфейсы.
-3. DI: биндинг «интерфейс → реализация» (`@Binds` в
-   `RepositoryModule`).
-4. Мигрировать ViewModel на domain-интерфейсы (импорт
-   `data.repository.*` → `domain.api.repository.*`).
-5. Гейт.
+**Цель.** 4 domain-интерфейса в `domain.api.repository.*`,
+4 data-реализации. ViewModel → domain. `InvestRepository`
+удалён. Каждый PR — зелёный, откат тривиален.
 
-**Фаза 3 — cleanup.**
-1. Обновить KDoc `BrokerApi`: упоминания «InvestRepository»
-   заменить на актуальные (`OrdersRepository`,
-   `PortfolioRepository`, ...).
-2. Обновить KDoc класса (если что-то осталось от старого).
-3. Гейт.
+**Три фазы — три PR** (по 4b: одна фаза — один логически
+завершённый шаг, зелёный гейт в конце).
 
-**Файлы:**
-- `data/repository/AccountsRepository.kt` (новый).
-- `data/repository/MarketDataRepository.kt` (новый).
-- `data/repository/OrdersRepository.kt` (новый).
-- `data/repository/PortfolioRepository.kt` (новый).
-- `domain/api/repository/AccountsRepository.kt` (новый,
-  фаза 2).
-- `domain/api/repository/MarketDataRepository.kt` (новый,
-  фаза 2).
-- `domain/api/repository/OrdersRepository.kt` (новый, фаза 2).
-- `domain/api/repository/PortfolioRepository.kt` (новый,
-  фаза 2).
-- `data/repository/InvestRepository.kt` — удалить в фазе 1.
-- `di/RepositoryModule.kt` — 4 провайдера / `@Binds`.
-- 4 ViewModel + `PriceFlowManager` — миграция.
-- `domain/api/BrokerApi.kt` — KDoc (фаза 3).
+### Фаза 1 — domain-интерфейсы + data-реализации (без миграции)
 
-**Шаги — см. фазы выше. Один шаг — одна фаза, отдельный PR.**
+**Цель.** Новая структура работает рядом со старой.
+`InvestRepository` не тронут, потребители работают как есть.
+
+**Шаги.**
+
+1. Диагностика мёртвых методов (4 grep на весь `app/src`).
+   Удалить мёртвые из `InvestRepository` (если подтверждено).
+2. Создать 4 интерфейса в `domain/api/repository/`
+   (сигнатуры — ниже).
+3. Создать 4 `*Impl` в `data/repository/`, каждый —
+   constructor `(brokerManager: BrokerManager)`, `@Singleton`,
+   реализует интерфейс, тела методов **дословно** из
+   `InvestRepository`.
+4. `di/RepositoryModule`: 4 `@Binds` `interface -> Impl`.
+   `provideInvestRepository` **оставить** (потребители ещё
+   на нём).
+5. Гейт. PR #1.
+
+**Сигнатуры интерфейсов (только реально используемые методы;
+если мёртвые подтвердятся — не включать).**
+
+`domain/api/repository/AccountsRepository.kt`:
+
+    interface AccountsRepository {
+        suspend fun getAccountsResult(
+            brokerName: BrokerName,
+            sandboxMode: Boolean,
+        ): AppResult<List<BrokerAccount>>
+
+        suspend fun openSandboxAccountResult(
+            brokerName: BrokerName,
+        ): AppResult<String>
+
+        suspend fun closeSandboxAccountResult(
+            brokerName: BrokerName,
+            accountId: String,
+        ): AppResult<Unit>
+
+        suspend fun sandboxPayInResult(
+            accountId: String,
+            amount: SandboxMoney,
+        ): AppResult<Unit>
+    }
+
+`domain/api/repository/MarketDataRepository.kt`:
+
+    interface MarketDataRepository {
+        suspend fun getLastPricesResult(
+            ids: List<String>,
+        ): AppResult<Map<String, Double?>>
+
+        suspend fun getTradingStatusesResult(
+            brokerName: BrokerName,
+            ids: List<String>,
+        ): AppResult<Map<String, TradingAvailability>>
+
+        // searchInstrumentsResult — добавить, если окажется
+        // используемым; иначе не включать.
+    }
+
+`domain/api/repository/OrdersRepository.kt`:
+
+    interface OrdersRepository {
+        suspend fun postOrderResult(
+            request: BrokerOrderRequest,
+        ): AppResult<OrderResult>
+
+        suspend fun postStopOrderResult(
+            request: StopOrderRequest,
+        ): AppResult<String>
+
+        suspend fun cancelStopOrderResult(
+            accountId: String,
+            orderId: String,
+        ): AppResult<Unit>
+
+        suspend fun cancelOrderResult(
+            brokerName: BrokerName,
+            accountId: String,
+            orderId: String,
+        ): AppResult<Unit>
+
+        suspend fun checkTradeAvailabilityResult(
+            brokerName: BrokerName,
+            accountId: String,
+            tscalpInstrumentId: String,
+            direction: OrderDirection,
+            quantity: Long,
+        ): AppResult<TradeCheckResult>
+    }
+
+`domain/api/repository/PortfolioRepository.kt`:
+
+    interface PortfolioRepository {
+        suspend fun fetchPositionsResult(
+            brokerName: BrokerName,
+            accountId: String,
+            sandboxMode: Boolean,
+        ): AppResult<List<PortfolioPosition>>
+
+        suspend fun getBalanceResult(
+            accountId: String,
+        ): AppResult<Double>
+    }
+
+**Замечание по `PortfolioPosition`.** `PortfolioPosition` —
+domain-модель (`domain/models/Portfolio.kt`), не presentation.
+Возврат из domain-интерфейса корректен. UI-конвертация
+(`PositionStreamItem → PortfolioPosition`) — уже в
+`fetchPositionsResult` через `toPortfolioPosition()` (#9).
+
+**Оценка Фазы 1:** ~2–2.5 ч.
+
+### Фаза 2 — миграция потребителей, удаление InvestRepository
+
+**Цель.** Все потребители на domain-интерфейсах,
+`InvestRepository.kt` удалён.
+
+**Шаги.**
+
+1. Мигрировать по одному (порядок — по простоте):
+   - `SettingsViewModel` (1 интерфейс — `AccountsRepository`);
+   - `OrdersListViewModel` (2 — `Accounts`, `Orders`);
+   - `PortfolioViewModel` (3 — `Portfolio`, `MarketData`,
+     `Accounts`);
+   - `OrdersViewModel` (4 — все).
+   Каждый — свой коммит, гейт после каждого.
+2. `PriceFlowManager`: если `repository` не используется —
+   удалить параметр из конструктора; если используется —
+   мигрировать на `MarketDataRepository`.
+3. Удалить `InvestRepository.kt`.
+4. `RepositoryModule`: удалить `provideInvestRepository`.
+5. Гейт. PR #2.
+
+**Оценка Фазы 2:** ~2 ч.
+
+### Фаза 3 — cleanup
+
+**Шаги.**
+
+1. KDoc `BrokerApi` — заменить упоминания `InvestRepository`
+   на актуальные (`OrdersRepository`, `PortfolioRepository`,
+   `AccountsRepository`, `MarketDataRepository`).
+2. `docs/architecture.md` (при создании) — учесть 4
+   domain-интерфейса.
+3. Гейт. PR #3.
+
+**Оценка Фазы 3:** ~30 мин.
+
+**Файлы (по фазам).**
+
+Фаза 1:
+- `domain/api/repository/{Accounts,MarketData,Orders,Portfolio}Repository.kt`
+  (новые).
+- `data/repository/{Accounts,MarketData,Orders,Portfolio}RepositoryImpl.kt`
+  (новые).
+- `data/repository/InvestRepository.kt` — удалить мёртвые методы
+  (если подтверждено).
+- `di/RepositoryModule.kt` — 4 `@Binds`.
+
+Фаза 2:
+- 4 ViewModel + `PriceFlowManager` — конструктор + импорты.
+- `data/repository/InvestRepository.kt` — удалить.
+- `di/RepositoryModule.kt` — удалить `provideInvestRepository`.
+
+Фаза 3:
+- `domain/api/BrokerApi.kt` — KDoc.
 
 **Тесты.**
-- Unit-тестов на репозитории нет (`InvestRepositoryTest` не
-  существует). Миграция — чистый рефакторинг, поведение
-  не меняется.
-- Если в ходе миграции обнаружится новая логика — точечный
-  тест в соответствующем data-репозитории.
-- Гейт (`testDebugUnitTest / lintDebug / ktlintCheck /
-  detekt`) — доказательство неизменности поведения.
+
+Unit-тестов на репозитории нет (`InvestRepositoryTest` не
+существует). Миграция — чистый рефакторинг, поведение не
+меняется. Гейт (`testDebugUnitTest / lintDebug / ktlintCheck /
+detekt`) — доказательство неизменности. Если в ходе миграции
+обнаружится новая логика — точечный тест в соответствующем
+data-репозитории.
 
 **Референсы.**
 - `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга
-  (detekt-группа 3)` → `#### Репозитории` — старая секция,
-  ref на эту задачу.
+  (detekt-группа 3)` → `#### Репозитории` — ref.
 - `docs/ROADMAP.md` → `### Рефакторинг ролей BrokerApi
-  (nullable-val, Scenario2)` — параллельная работа в
-  `domain.api`, паттерн nullable-val.
-- `app/src/main/kotlin/.../di/RepositoryModule.kt` — как
-  сейчас биндится `InvestRepository`.
-- `docs/architecture.md` (раздел 1 «Слои») — при создании.
+  (nullable-val, Scenario2)` — паттерн nullable-val в
+  `domain.api`.
+- `app/src/main/kotlin/.../di/RepositoryModule.kt` — текущий
+  биндинг.
 
 **Ограничения.**
-- Не менять поведение репозиториев — только структуру
-  (разбивка и вынос интерфейсов).
-- Не смешивать с `SettingsRepository` (15 функций) —
-  отдельная задача (по 2d, вне scope).
-- Не смешивать с `### Рефакторинг ролей BrokerApi` —
-  там domain.api (роли), здесь data.repository (фасады).
-- По 5a: полный локальный гейт перед каждым PR. CI `gate`
-  на PR — подтверждение.
-- `InvestRepository` — **осознанное отклонение по 2c**
-  (fat для мультиброкерного фасада, зафиксировано в KDoc
-  `BrokerApi`). Разбивка **не удаляет** это отклонение
-  полностью: 4 репозитория — тоже фасады над `BrokerApi`,
-  просто меньшего размера. Главная выгода — Clean-граница
-  (ViewModel зависит от domain), а не удаление фасада.
+- Не менять поведение репозиториев — только структуру.
+- Не смешивать с `SettingsRepository` (15 функций) — отдельная
+  задача (по 2d).
+- Не смешивать с #11 (уборка реализаций `BrokerApi`) — там
+  `data/api` (брокеры), здесь `data/repository` (фасады).
+- **`InvestRepository` — осознанное отклонение по 2c** (fat для
+  мультиброкерного фасада, зафиксировано в KDoc `BrokerApi`).
+  Разбивка **не устраняет** отклонение полностью: 4 репозитория
+  тоже фасады над `BrokerApi`. Главная выгода — Clean-граница
+  (ViewModel → domain), не удаление фасада. Clean-альтернатива —
+  супертипы + resolver (отклонена в `BrokerApi` KDoc).
+- Другие репозитории (`SettingsRepository`,
+  `InstrumentRepository`, `SearchCache`,
+  `TradingStateRepository`) остаются на прямых data-зависимостях
+  от ViewModel — это **отдельный** Clean-долг, не в scope.
+- Полный локальный гейт перед каждым PR (5a).
 
 **Критерий готовности.**
 - 4 domain-интерфейса в `domain.api.repository.*`.
@@ -694,40 +815,42 @@ ViewModel должен зависеть от **domain-интерфейса**
 - `grep "import com.gitlab.biomorf.tscalp.data.repository.InvestRepository"`
   в `presentation/` и `domain/` — пусто.
 - `InvestRepository.kt` удалён.
-- KDoc `BrokerApi` обновлён (нет висячих ссылок на
-  `InvestRepository`).
+- KDoc `BrokerApi` обновлён (нет висячих ссылок).
 - Гейт зелёный.
 
-**Оценка:** ~4–4.5 ч (фаза 1 — 2–2.5 ч, фаза 2 — 1.5 ч,
-фаза 3 — 30 мин). Старая оценка `~2 часа` в `#### Репозитории`
-устарела (без Clean-границы и миграции ViewModel).
+**Оценка:** ~5–6 ч (Фаза 1 — 2–2.5 ч, Фаза 2 — 2 ч,
+Фаза 3 — 30 мин, резерв — 30 мин). Старая `~2 часа` в
+`#### Репозитории` устарела (без Clean-границы и миграции
+ViewModel).
 
 **Зависимости:**
-- **После** `### Рефакторинг BrokerApi-реализаций` (#11,
-  закрывается в umbrella) — `BrokerApi` в финальном виде.
-- **До** KMP-миграции — обязательное условие (data-слой
-  может быть Android-only, domain-интерфейсы — KMP).
+- **После** `### Рефакторинг BrokerApi-реализаций` (#11) —
+  `BrokerApi` в финальном виде.
+- **До** KMP-миграции — обязательное условие (data может быть
+  Android-only, domain-интерфейсы — KMP).
 
 **Связано:**
 - `### Рефакторинг архитектурного долга (detekt-группа 3)`
-  → `#### Репозитории` — ref со ссылкой на эту задачу.
+  → `#### Репозитории` — ref.
 - `### Рефакторинг ролей BrokerApi (nullable-val,
   Scenario2)` — параллельная работа в `domain.api`.
-- `docs/architecture.md` — раздел 1 (слои) и раздел 7
-  (BrokerApi) при создании.
+- `docs/architecture.md` — раздел 1 при создании.
 
 **Открытые вопросы.**
-- **Sandbox отдельным репозиторием или в `AccountsRepository`?**
-  Рекомендация — `AccountsRepository` (счета + sandbox:
-  близкие домены, оба про «счёт»).
-- **3 PR (фазы) или 1 PR с 3 коммитами?** Рекомендация —
-  **3 PR** (по 4b, каждая фаза — зелёный гейт, откат
-  тривиален).
-- **`SettingsRepository` (15 функций) — разбивать в этой
-  задаче или отдельной?** Рекомендация — **отдельной**
-  (вне scope).
+- `PriceFlowManager`: параметр `repository: InvestRepository`
+  в конструкторе, но вызовов `repository.` нет (grep
+  2026-10-26). Если unused — удалить в Фазе 2 (не мигрировать).
+- `searchInstrumentsResult`, `subscribePositions`,
+  `subscribeLastPrices`, `getAllOrdersResult` — вероятно мёртвы.
+  Проверить на старте Фазы 1 (перед созданием интерфейсов).
+- Sandbox — в `AccountsRepository` (счета + sandbox) или
+  отдельный репозиторий? Рекомендация: в `AccountsRepository`
+  (близкие домены: оба про «счёт»).
+- `SettingsRepository` (15 функций) — отдельная задача, не в
+  scope.
 
 ---
+
 
 
 ### Архитектурный документ (docs/architecture.md)
@@ -2023,7 +2146,7 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 задачи, отдельная работа).
 
 **Оценка:** ~2 часа (устаревшая оценка для `InvestRepository`;
-актуально — см. новую задачу, ~4–4.5 ч с Clean-границей.
+актуально — см. новую задачу, ~5–6 ч с Clean-границей.
 Для `SettingsRepository` — ~2 ч, оценка актуальна).
 
 
