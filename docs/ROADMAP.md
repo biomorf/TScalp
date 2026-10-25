@@ -11,6 +11,132 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### BalanceApi
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.**
+
+`BrokerApi` содержит один метод баланса:
+`getBalance(accountId): Double` — свободный остаток по счёту
+(в рублях или в валюте счёта).
+
+Реализации (grep 2026-10-25):
+- `TInvestBrokerAPI` — реальный (`orchestrator.balanceSnapshot`,
+  gRPC unary с REST fallback; prod — `getMarginAttributes`,
+  sandbox — расчёт из портфеля);
+- `BcsBrokerApi` — заглушка (`return 0.0`, «API БКС не
+  предоставляет прямого метода баланса»);
+- `FinamBrokerApi` — заглушка (`return 0.0`).
+
+Потребитель: `InvestRepository.getBalanceResult` (стр. 88) —
+обёртка над `broker.getBalance`. Прямой потребитель
+`OrdersViewModel:592` — **через репозиторий**, не через
+`BrokerApi`.
+
+Конфликта `private val balance` в брокерах нет (проверено
+grep).
+
+**Цель.** `BalanceApi` — nullable-val роль по образцу
+`AccountsApi` / `OrdersApi` / `SandboxApi` /
+`UserInstrumentsApi`. `BrokerApi.balance: BalanceApi?`.
+`InvestRepository` переходит на `broker.balance ?:
+return Failure(...)` + `balanceApi.getBalance(...)`.
+
+**Решение (nullable-val, Scenario2).**
+- Метод `BalanceApi`: `getBalance(accountId): Double`.
+- TInvest: supertype `BalanceApi`, `balance = this` (1/1).
+- BCS: `balance = null`, **без** supertype (0/1 —
+  заглушка `return 0.0`).
+- Finam: `balance = null`, **без** supertype (0/1 —
+  заглушка `return 0.0`).
+- `InvestRepository.getBalanceResult`: `broker.balance
+  ?: return Failure(...)` + `balanceApi.getBalance(...)`.
+
+**Предусловия:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #1–#7 закрыты.
+
+**Файлы:**
+- `domain/api/roles/BalanceApi.kt` (новый).
+- `domain/api/BrokerApi.kt` — `val balance: BalanceApi?`.
+- `data/api/TInvestBrokerApi.kt` — supertype `BalanceApi`,
+  `balance = this`, `getBalance` → `override` (уже
+  `override`, сигнатура совпадает — доп. правок нет).
+- `data/api/BcsBrokerApi.kt` — `balance = null`, **без**
+  supertype.
+- `data/api/FinamBrokerApi.kt` — `balance = null`, **без**
+  supertype.
+- `data/repository/InvestRepository.kt` — 1 callsite
+  (`getBalanceResult:88`).
+
+**Шаги:**
+1. `BalanceApi` (1 метод + KDoc).
+2. `BrokerApi.balance: BalanceApi?`.
+3. TInvest: supertype + `balance = this`, `getBalance` →
+   `override`.
+4. BCS: `balance = null` (без supertype).
+5. Finam: `balance = null` (без supertype).
+6. `InvestRepository`: 1 callsite → `broker.balance ?:
+   return Failure` + `balanceApi.getBalance(...)`.
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+
+**Тесты.** `InvestRepositoryTest` не существует. Замена —
+тривиальная делегация. **Дефолт:** без новых unit-тестов
+(по образцу #3–#7).
+
+**Референсы:**
+- `f8569ee` (#1 StreamsApi) — образец supertype у TInvest,
+  `null` у BCS/Finam.
+- `cccbdd5` (#4 OrdersApi), `08c5c4f` (#5 AccountsApi) —
+  образец `broker.<role> ?: Failure` в `InvestRepository`.
+- `dc909e6` (#6 SandboxApi) — образец проверки anchor через
+  `repr()`.
+
+**Ограничения:**
+- **Supertype только у TInvest.** BCS/Finam — `null` без
+  supertype (AGENTS.md «Nullable-val роли»).
+- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
+  вставке»): `BalanceApi` идёт **первым** среди
+  `domain.api.roles.*` (раньше `BrokerCredentials`).
+- **Anchor indent через `repr()`** (AGENTS.md «Anchor на
+  строку с отступом — проверять `repr()`»): в
+  `InvestRepository.getBalanceResult` anchor на одну
+  строку — отступы смотреть через `repr()`, не визуально.
+- Не смешивать с `### Реализация BCS Broker API` /
+  `### Реализация Finam Broker API` — реализация `getBalance`
+  у BCS/Finam, отдельные задачи (не блокируют).
+- `synchronized(startLock)` в менеджерах не трогать.
+
+**Критерий готовности:**
+- `BalanceApi` создан (1 метод + KDoc).
+- `BrokerApi.balance: BalanceApi?`.
+- TInvest `balance = this` + supertype; BCS/Finam
+  `balance = null` без supertype.
+- `InvestRepository`: `grep "broker.getBalance"` — пусто
+  (только `balanceApi.getBalance`).
+- Гейт зелёный.
+
+**Оценка:** ~30 мин (BalanceApi 10 мин, BrokerApi 5,
+TInvest 5, BCS 3, Finam 3, InvestRepository 1 callsite 5,
+гейт 10, резерв 5). Совпадает с umbrella row #8 (`30 мин`).
+
+**Зависимости:** umbrella #1–#7 закрыты.
+
+**Связано:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #8 в порядке.
+- `### Реализация BCS Broker API` / `### Реализация Finam
+  Broker API` — реализация `getBalance` у BCS/Finam,
+  отдельные задачи (не блокируют).
+
+**Открытые вопросы:** нет.
+
+---
+
 ### Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
