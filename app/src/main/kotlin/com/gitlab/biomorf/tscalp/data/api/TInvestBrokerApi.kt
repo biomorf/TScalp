@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
@@ -56,7 +57,8 @@ class TInvestBrokerAPI(
     OrdersApi,
     AccountsApi,
     SandboxApi,
-    UserInstrumentsApi {
+    UserInstrumentsApi,
+    BalanceApi {
     private companion object {
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
         const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
@@ -136,6 +138,7 @@ class TInvestBrokerAPI(
     override val accounts: AccountsApi get() = this
     override val sandbox: SandboxApi get() = this
     override val userInstruments: UserInstrumentsApi get() = this
+    override val balance: BalanceApi get() = this
 
     /**
      * Инициализация API с явным токеном и режимом.
