@@ -999,9 +999,7 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
     - `fetchPositionsSnapshot` — unary с fallback на уровне
       брокера; полный `PortfolioPosition` (UI + база для
       оркестратора, конвертируется в `PositionStreamItem` в
-      `positionsSnapshot`). Известный долг: возвращает
-      presentation-модель — кандидат на унификацию на
-      `PositionStreamItem`.
+      `positionsSnapshot`).
     - `pricesSnapshot` / `ordersSnapshot` / `positionsSnapshot` —
       `BrokerSnapshotApi` (композиция через `BrokerApi.snapshot`).
       `TInvestBrokerAPI`: `snapshot = this`. `BcsBrokerApi` /
