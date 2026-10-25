@@ -2,7 +2,6 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
 import com.gitlab.biomorf.tscalp.transport.ktor.RestPosition
@@ -76,50 +75,6 @@ class RestMappersTest {
         assertEquals("PARTIALLYFILL", item.status)
         assertNull(item.orderDate)
         assertEquals(true, item.isStopOrder)
-    }
-
-    @Test
-    fun `RestPosition maps to PortfolioPosition with calculated percent`() {
-        val restPosition =
-            RestPosition(
-                instrumentUid = "uid-aapl",
-                quantity = RestQuotation(units = "10", nano = 0),
-                currentPrice = RestQuotation(units = "120", nano = 0),
-                averagePositionPrice = RestQuotation(units = "100", nano = 0),
-                expectedYield = RestQuotation(units = "200", nano = 0),
-                instrumentType = "share",
-            )
-
-        val pos: PortfolioPosition = restPosition.toPortfolioPosition()
-
-        assertEquals("uid-aapl", pos.tscalpInstrumentId)
-        assertEquals(10L, pos.quantity)
-        assertEquals(120.0, pos.currentPrice, 0.0001)
-        assertEquals(100.0, pos.averagePrice!!, 0.0001)
-        assertEquals(200.0, pos.profit!!, 0.0001)
-        assertEquals(20.0, pos.profitPercent!!, 0.0001)
-        assertEquals(1200.0, pos.totalValue, 0.0001)
-        assertEquals("share", pos.instrumentType)
-    }
-
-    @Test
-    fun `RestPosition without expectedYield has null profit and percent`() {
-        val restPosition =
-            RestPosition(
-                instrumentUid = "uid-bond",
-                quantity = RestQuotation(units = "5", nano = 0),
-                currentPrice = RestQuotation(units = "1000", nano = 0),
-                averagePositionPrice = null,
-                expectedYield = null,
-                instrumentType = "bond",
-            )
-
-        val pos: PortfolioPosition = restPosition.toPortfolioPosition()
-
-        assertNull(pos.averagePrice)
-        assertNull(pos.profit)
-        assertNull(pos.profitPercent)
-        assertEquals(5000.0, pos.totalValue, 0.0001)
     }
 
     @Test

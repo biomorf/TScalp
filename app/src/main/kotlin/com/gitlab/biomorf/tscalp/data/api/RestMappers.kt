@@ -2,7 +2,6 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
 import com.gitlab.biomorf.tscalp.transport.ktor.RestPosition
@@ -61,34 +60,3 @@ internal fun RestPosition.toStreamItem(): PositionStreamItem =
         instrumentType = instrumentType,
         currency = null,
     )
-
-internal fun RestPosition.toPortfolioPosition(): PortfolioPosition {
-    val qty = quantity.toLong()
-    val curPrice = currentPrice.toDouble() ?: 0.0
-    val avgPrice = averagePositionPrice.toDouble()
-    val profit = expectedYield.toDouble()
-    val profitPercent =
-        if (profit != null && avgPrice != null && avgPrice > 0.0 && qty > 0) {
-            (profit / (avgPrice * qty)) * 100.0
-        } else {
-            null
-        }
-
-    return PortfolioPosition(
-        tscalpInstrumentId = instrumentUid,
-        brokerName = BrokerName.TINVEST,
-        name = "",
-        ticker = "",
-        classCode = "",
-        isin = "",
-        quantity = qty,
-        currentPrice = curPrice,
-        averagePrice = avgPrice,
-        totalValue = curPrice * qty,
-        profit = profit,
-        profitPercent = profitPercent,
-        instrumentType = instrumentType,
-        pointValue = null,
-        currency = null,
-    )
-}
