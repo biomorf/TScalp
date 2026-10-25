@@ -9,6 +9,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -68,6 +69,7 @@ class FinamBrokerApi :
     override val orders: OrdersApi? = null
     override val accounts: AccountsApi? = null
     override val sandbox: SandboxApi? = null
+    override val userInstruments: UserInstrumentsApi? = null
     override val instrument: BrokerInstrumentApi? = null
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null
