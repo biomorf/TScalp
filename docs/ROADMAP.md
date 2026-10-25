@@ -15,7 +15,8 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 **Мобильная работа:** невозможно (сборка + тесты).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/move-domain-structure
 
 **Контекст:** после закрытия umbrella `### Рефакторинг ролей
 BrokerApi (nullable-val, Scenario2)` (#1–#11) в `domain/api/`
