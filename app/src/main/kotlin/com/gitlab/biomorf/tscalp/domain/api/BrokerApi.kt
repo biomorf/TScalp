@@ -18,7 +18,68 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
-// Архитектурный долг: 19 функций в интерфейсе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+/**
+ * Фасад брокера: 19 методов + 9 nullable-val ролей.
+ *
+ * **Fat-интерфейс осознанно.** Interface Segregation Principle
+ * нарушен для одного потребителя — `InvestRepository`
+ * (мультиброкерный фасад, 29 callsites, использует все методы).
+ * Потребители с узкими нуждами инжектят роль напрямую
+ * (`StreamsApi`, `BrokerLifecycleApi`, ...) через
+ * `broker.<role>?`; `InvestRepository` — на fat `BrokerApi`.
+ *
+ * **Отклонение по 2c** (три обязательных элемента):
+ *
+ * 1. **Правило Clean, которое нарушено.** ISP: `InvestRepository`
+ *    зависит от fat `BrokerApi` (19 методов). Нет ISP на callsite
+ *    для `InvestRepository`.
+ * 2. **Clean-альтернатива (B→A).** Супертипы
+ *    (`BrokerApi : Roles`) → `BrokerRoleResolver` → удаление
+ *    `BrokerApi`; все потребители, включая `InvestRepository`,
+ *    мигрируют на resolver. **+** Полный ISP; `BrokerApi`
+ *    удалён; единый DI. **−** +5–7 ч и +2 PR; риск переделки
+ *    29 callsites; у BCS/Finam супертипы дают фиктивный
+ *    контракт (`throw` / `emptyList` — «метод есть, но не
+ *    работает»).
+ * 3. **Выгоды Scenario2 относительно B→A.** Продолжает
+ *    существующий паттерн `snapshot` (nullable-val, уже
+ *    работает). 2 из 9 шагов уже были в ROADMAP
+ *    (`lifecycle`, `instrument`) — закрытие существующих
+ *    задач, не новая работа. Каждый PR независим. `InvestRepository`
+ *    (29 callsites) не тронут. Честная опциональность:
+ *    `null` = «не поддерживаю», компилятор заставляет
+ *    проверить. −5–7 ч и −2 PR по сравнению с B→A. **Цена:**
+ *    `BrokerApi` остаётся fat — эта фиксация.
+ *
+ * **Nullable-val роли (9):** [BrokerSnapshotApi] (`snapshot`),
+ * [StreamsApi] (`streams`), [BrokerLifecycleApi] (`lifecycle`),
+ * [BrokerInstrumentApi] (`instrument`), [OrdersApi] (`orders`),
+ * [AccountsApi] (`accounts`), [SandboxApi] (`sandbox`),
+ * [UserInstrumentsApi] (`userInstruments`), [BalanceApi]
+ * (`balance`). Паттерн: `null` = не поддерживает; брокер —
+ * `override val <role> = this` (реализует все методы) или
+ * `= null` (не поддерживает / не реализует; **без** supertype).
+ *
+ * **Типичные потребители по ролям:**
+ * - `StreamsApi` → `PositionFlowManager`, `OrderFlowManager`,
+ *   `PriceFlowManager`;
+ * - `BrokerSnapshotApi` → те же три менеджера (polling);
+ * - `BrokerLifecycleApi` → `TScalpApplication`,
+ *   `SettingsViewModel`;
+ * - `BrokerInstrumentApi` → `InstrumentRepository`;
+ * - `UserInstrumentsApi` → `InvestRepository`, `SearchCache`;
+ * - `OrdersApi`, `AccountsApi`, `SandboxApi`, `BalanceApi` →
+ *   `InvestRepository` (UI-путь через фасад).
+ *
+ * **Методы fat-части:** аккаунты / sandbox / позиции / стримы /
+ * ордера / цены / статусы — см. ниже. `fetchPortfolioPositions`
+ * возвращает `List<PositionStreamItem>` (domain), UI-конвертация
+ * в `PortfolioPosition` — в `InvestRepository.fetchPositionsResult`
+ * (см. `### Портфельный снимок: ...` в ROADMAP, #9).
+ *
+ * См. `docs/ROADMAP.md` → `### Рефакторинг ролей BrokerApi
+ * (nullable-val, Scenario2)` (umbrella, #1–#9 закрыты).
+ */
 @Suppress("TooManyFunctions")
 interface BrokerApi {
     val name: BrokerName

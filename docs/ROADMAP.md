@@ -345,7 +345,7 @@ fat-интерфейс подходит). Если остановиться по
 | 7 | `UserInstrumentsApi` | ✅ done | `InvestRepository` (2), `SearchCache` (1) | 0 | 1.25 ч |
 | 8 | `BalanceApi` | ✅ done | `InvestRepository` (1) | 0 | 30 мин |
 | 9 | Рефакторинг портфельного снимка | ✅ done | 3 брокера + `InvestRepository` + orchestrator + REST | 0 | 4.5–5.5 ч |
-| 10 | KDoc на `BrokerApi` (fat, отклонение по 2c) | в плане | — | — | 15 мин |
+| 10 | KDoc на `BrokerApi` (fat, отклонение по 2c) | ✅ done | — | — | 15 мин |
 | 11 | `Рефакторинг BrokerApi-реализаций` (D) | ROADMAP | — | — | 3–4 ч |
 
 Суммарно по ролям (#1–#10): **~11.5–13.5 ч**. `#11` — отдельно,
