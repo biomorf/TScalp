@@ -60,7 +60,12 @@ class InvestRepository(
     suspend fun searchInstrumentsResult(query: String): AppResult<List<InstrumentUi>> =
         withContext(Dispatchers.IO) {
             val broker = brokerManager.getDefaultBroker()
-            runCatchingAppResult(BrokerName.TINVEST) { broker.findInstruments(query) }
+            val userInstrumentsApi =
+                broker.userInstruments
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${BrokerName.TINVEST.displayName} не поддерживает поиск инструментов"),
+                    )
+            runCatchingAppResult(BrokerName.TINVEST) { userInstrumentsApi.findInstruments(query) }
         }
 
     /**
@@ -197,7 +202,12 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                     )
-            runCatchingAppResult(brokerName) { broker.getTradingStatuses(ids) }
+            val userInstrumentsApi =
+                broker.userInstruments
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает статусы торговли"),
+                    )
+            runCatchingAppResult(brokerName) { userInstrumentsApi.getTradingStatuses(ids) }
         }
 
     /**

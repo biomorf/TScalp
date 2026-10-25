@@ -38,7 +38,7 @@ class SearchCache(
 
         val results =
             withContext(Dispatchers.IO) {
-                broker.findInstruments(query)
+                broker.userInstruments?.findInstruments(query) ?: emptyList()
             }
 
         val sorted =

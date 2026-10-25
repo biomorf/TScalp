@@ -8,6 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
@@ -92,6 +93,21 @@ interface BrokerApi {
      * См. [SandboxApi].
      */
     val sandbox: SandboxApi?
+
+    /**
+     * Опциональный контракт: инструменты для пользовательского
+     * пути (поиск, статусы торговли).
+     *
+     * **Не путать** с [instrument] — тот возвращает один полный
+     * [InstrumentUi][com.gitlab.biomorf.tscalp.domain.models.InstrumentUi]
+     * по uid (внутренняя инфраструктура). Здесь — bulk-поиск
+     * без margin и статусы торговли.
+     *
+     * `null` — брокер не поддерживает (BCS/Finam: 0/2).
+     *
+     * См. [UserInstrumentsApi].
+     */
+    val userInstruments: UserInstrumentsApi?
 
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 

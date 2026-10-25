@@ -11,164 +11,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
-### UserInstrumentsApi
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/user-instruments-api
-
-**Контекст.**
-
-`BrokerApi` содержит 2 метода инструментов для
-**пользовательского пути** (поиск и статусы торговли):
-- `findInstruments(query: String): List<InstrumentUi>` —
-  bulk-поиск, для фьючерсов возвращает **неполный**
-  `InstrumentUi` (без margin, `pointValue` из
-  minPriceIncrement); полный инструмент — через
-  `BrokerInstrumentApi.fetchFullInstrument` (#3, отдельная
-  роль);
-- `getTradingStatuses(ids): Map<String, TradingAvailability>` —
-  статусы доступности торговли.
-
-**Не путать с `BrokerInstrumentApi` (#3).** Тот — внутренняя
-инфраструктура (один uid → один полный инструмент, кэш
-`InstrumentRepository`). `UserInstrumentsApi` —
-пользовательский путь (bulk-поиск, статусы).
-
-Реализации (grep 2026-10-25):
-- `TInvestBrokerAPI` — **2/2** реальных
-  (`marketData.findInstruments`, `marketData.getTradingStatuses`);
-- `BcsBrokerApi` — 0/2 (`emptyList` / все `UNKNOWN`);
-- `FinamBrokerApi` — 0/2 (`emptyList` / `emptyMap`).
-
-Потребители (grep 2026-10-25):
-- `InvestRepository.searchInstrumentsResult` (стр. 63) —
-  `findInstruments` через `getDefaultBroker()`;
-- `InvestRepository.getTradingStatusesResult` (стр. 200) —
-  `getTradingStatuses` через `getBroker(brokerName)`;
-- `SearchCache.search` (стр. 41) — `findInstruments` через
-  `getBroker(brokerName)`.
-
-**Цель.** `UserInstrumentsApi` — nullable-val роль по
-образцу `OrdersApi` / `AccountsApi` / `SandboxApi`.
-`BrokerApi.userInstruments: UserInstrumentsApi?` (имя с
-префиксом `user`, чтобы в фасаде не путать с `instrument:
-BrokerInstrumentApi?`). Потребители переходят на
-`broker.userInstruments?.<метод>`; при `null` — `AppResult.Failure`
-(в `InvestRepository`) или `emptyList` (в `SearchCache`).
-
-**Решение (nullable-val, Scenario2).**
-- Методы `UserInstrumentsApi`: `findInstruments`,
-  `getTradingStatuses`.
-- TInvest: supertype `UserInstrumentsApi`,
-  `userInstruments = this` (2/2).
-- BCS: `userInstruments = null`, **без** supertype (0/2).
-- Finam: `userInstruments = null`, **без** supertype (0/2).
-- `InvestRepository.searchInstrumentsResult`: `broker.userInstruments
-  ?: return Failure(...)` + `userInstruments.findInstruments(...)`.
-- `InvestRepository.getTradingStatusesResult`: аналогично.
-- `SearchCache.search`: `broker.userInstruments?.findInstruments(query)
-  ?: emptyList()` (текущее поведение при `emptyList` сохраняется).
-
-**Предусловия:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — #1–#6 закрыты; Move закрыт.
-
-**Файлы:**
-- `domain/api/roles/UserInstrumentsApi.kt` (новый).
-- `domain/api/BrokerApi.kt` — `val userInstruments:
-  UserInstrumentsApi?`.
-- `data/api/TInvestBrokerApi.kt` — supertype
-  `UserInstrumentsApi`, `userInstruments = this`, 2 метода →
-  `override`.
-- `data/api/BcsBrokerApi.kt` — `userInstruments = null`, **без**
-  supertype.
-- `data/api/FinamBrokerApi.kt` — `userInstruments = null`,
-  **без** supertype.
-- `data/repository/InvestRepository.kt` — 2 callsites
-  (`searchInstrumentsResult:63`, `getTradingStatusesResult:200`).
-- `data/repository/SearchCache.kt` — 1 callsite (`search:41`).
-
-**Шаги:**
-1. `UserInstrumentsApi` (2 метода + KDoc с разграничением от
-   `BrokerInstrumentApi`).
-2. `BrokerApi.userInstruments: UserInstrumentsApi?`.
-3. TInvest: supertype + `userInstruments = this`, 2 метода →
-   `override`.
-4. BCS: `userInstruments = null` (без supertype).
-5. Finam: `userInstruments = null` (без supertype).
-6. `InvestRepository`: 2 callsites → `broker.userInstruments
-   ?: return Failure` + `userInstruments.<метод>`.
-7. `SearchCache`: `broker.userInstruments?.findInstruments(query)
-   ?: emptyList()`.
-8. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
-   detekt`.
-
-**Тесты.** `InvestRepositoryTest` / `SearchCacheTest` не
-существуют. Замена — тривиальная делегация. **Дефолт:** без
-новых unit-тестов (по образцу #3–#6).
-
-**Референсы:**
-- `f8569ee` (#1 StreamsApi) — образец supertype у TInvest,
-  `null` у BCS/Finam.
-- `cccbdd5` (#4 OrdersApi), `08c5c4f` (#5 AccountsApi) —
-  образец `broker.<role> ?: Failure` в `InvestRepository`.
-- `dc909e6` (#6 SandboxApi) — образец для проверки anchor
-  через `repr()` (в `SearchCache.search` отступы — смотреть
-  до скрипта).
-
-**Ограничения:**
-- **Supertype только у TInvest.** BCS/Finam — `null` без
-  supertype (AGENTS.md «Nullable-val роли»).
-- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
-  вставке»): `UserInstrumentsApi` идёт **последним** среди
-  `domain.api.roles.*` (`...StreamsApi < UserInstrumentsApi`).
-- **Anchor indent через `repr()`** (AGENTS.md «Anchor на
-  строку с отступом — проверять `repr()`»): в
-  `SearchCache.search` и `InvestRepository` anchor на одну
-  строку — отступы смотреть через `repr()`, не визуально.
-- **`getTradingStatusesResult` уже обрабатывает `ids.isEmpty()`**
-  — этот check оставить до `userInstruments`-check
-  (возврат `Success(emptyMap())` для пустого списка без
-  обращения к брокеру).
-- Не смешивать с `### Реализация BCS Broker API` /
-  `### Реализация Finam Broker API`.
-- `synchronized(startLock)` в менеджерах не трогать.
-
-**Критерий готовности:**
-- `UserInstrumentsApi` создан (2 метода + KDoc, разграничение
-  с `BrokerInstrumentApi`).
-- `BrokerApi.userInstruments: UserInstrumentsApi?`.
-- TInvest `userInstruments = this` + supertype; BCS/Finam
-  `userInstruments = null` без supertype.
-- `grep "broker.findInstruments\|broker.getTradingStatuses"`
-  в `InvestRepository` / `SearchCache` — пусто (все через
-  `userInstruments`).
-- Гейт зелёный.
-
-**Оценка:** ~1.25 ч (UserInstrumentsApi 10 мин, BrokerApi 5,
-TInvest 10, BCS 5, Finam 5, InvestRepository 2 callsites 15,
-SearchCache 10, гейт 10, резерв 15).
-
-**Зависимости:** umbrella #1–#6 закрыты, Move закрыт.
-
-**Связано:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — #7 в порядке.
-- `### TInvest-specific: fetchFullInstrument` (#3, закрыта) —
-  разграничение `UserInstrumentsApi.findInstruments` (bulk,
-  неполный) vs `BrokerInstrumentApi.fetchFullInstrument`
-  (один uid, полный).
-- `### Реализация BCS Broker API` / `### Реализация Finam
-  Broker API` — реализация `findInstruments` /
-  `getTradingStatuses` у BCS/Finam, отдельные задачи (не
-  блокируют).
-
-**Открытые вопросы:** нет.
-
----
-
 ### Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
@@ -506,7 +348,7 @@ fat-интерфейс подходит). Если остановиться по
 | 4 | `OrdersApi` | ✅ done | `InvestRepository` (6) | 0 | 2 ч |
 | 5 | `AccountsApi` | ✅ done | `TScalpApplication` (1), `InvestRepository` (1) | 0 | 1 ч |
 | 6 | `SandboxApi` | ✅ done | `InvestRepository` (3), `TScalpApplication` (1) | 0 | 1.5 ч |
-| 7 | `UserInstrumentsApi` | новая | `InvestRepository` (2), `SearchCache` (1) | 0 | 1.25 ч |
+| 7 | `UserInstrumentsApi` | ✅ done | `InvestRepository` (2), `SearchCache` (1) | 0 | 1.25 ч |
 | 8 | `BalanceApi` | новая | `InvestRepository` (1) | 0 | 30 мин |
 | 9 | `PortfolioApi` | ROADMAP | `InvestRepository` (1) | 0 | 2–3 ч |
 | 10 | KDoc на `BrokerApi` (fat, отклонение по 2c) | в плане | — | — | 15 мин |
@@ -5475,6 +5317,209 @@ TScalpApplication 15, гейт 10, резерв 15).
   у Finam, **не блокирует** (у Finam песочницы не будет).
 - `### Реализация BCS Broker API` — не заведена в ROADMAP,
   пробел (не блокирует).
+
+**Открытые вопросы:** нет.
+
+
+---
+
+### ✅ UserInstrumentsApi
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст.**
+
+`BrokerApi` содержит 2 метода инструментов для
+**пользовательского пути** (поиск и статусы торговли):
+- `findInstruments(query: String): List<InstrumentUi>` —
+  bulk-поиск, для фьючерсов возвращает **неполный**
+  `InstrumentUi` (без margin, `pointValue` из
+  minPriceIncrement); полный инструмент — через
+  `BrokerInstrumentApi.fetchFullInstrument` (#3, отдельная
+  роль);
+- `getTradingStatuses(ids): Map<String, TradingAvailability>` —
+  статусы доступности торговли.
+
+**Не путать с `BrokerInstrumentApi` (#3).** Тот — внутренняя
+инфраструктура (один uid → один полный инструмент, кэш
+`InstrumentRepository`). `UserInstrumentsApi` —
+пользовательский путь (bulk-поиск, статусы).
+
+Реализации (grep 2026-10-25):
+- `TInvestBrokerAPI` — **2/2** реальных
+  (`marketData.findInstruments`, `marketData.getTradingStatuses`);
+- `BcsBrokerApi` — 0/2 (`emptyList` / все `UNKNOWN`);
+- `FinamBrokerApi` — 0/2 (`emptyList` / `emptyMap`).
+
+Потребители (grep 2026-10-25):
+- `InvestRepository.searchInstrumentsResult` (стр. 63) —
+  `findInstruments` через `getDefaultBroker()`;
+- `InvestRepository.getTradingStatusesResult` (стр. 200) —
+  `getTradingStatuses` через `getBroker(brokerName)`;
+- `SearchCache.search` (стр. 41) — `findInstruments` через
+  `getBroker(brokerName)`.
+
+**Цель.** `UserInstrumentsApi` — nullable-val роль по
+образцу `OrdersApi` / `AccountsApi` / `SandboxApi`.
+`BrokerApi.userInstruments: UserInstrumentsApi?` (имя с
+префиксом `user`, чтобы в фасаде не путать с `instrument:
+BrokerInstrumentApi?`). Потребители переходят на
+`broker.userInstruments?.<метод>`; при `null` — `AppResult.Failure`
+(в `InvestRepository`) или `emptyList` (в `SearchCache`).
+
+**Решение (nullable-val, Scenario2).**
+- Методы `UserInstrumentsApi`: `findInstruments`,
+  `getTradingStatuses`.
+- TInvest: supertype `UserInstrumentsApi`,
+  `userInstruments = this` (2/2).
+- BCS: `userInstruments = null`, **без** supertype (0/2).
+- Finam: `userInstruments = null`, **без** supertype (0/2).
+- `InvestRepository.searchInstrumentsResult`: `broker.userInstruments
+  ?: return Failure(...)` + `userInstruments.findInstruments(...)`.
+- `InvestRepository.getTradingStatusesResult`: аналогично.
+- `SearchCache.search`: `broker.userInstruments?.findInstruments(query)
+  ?: emptyList()` (текущее поведение при `emptyList` сохраняется).
+
+**Предусловия:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #1–#6 закрыты; Move закрыт.
+
+**Файлы:**
+- `domain/api/roles/UserInstrumentsApi.kt` (новый).
+- `domain/api/BrokerApi.kt` — `val userInstruments:
+  UserInstrumentsApi?`.
+- `data/api/TInvestBrokerApi.kt` — supertype
+  `UserInstrumentsApi`, `userInstruments = this`, 2 метода →
+  `override`.
+- `data/api/BcsBrokerApi.kt` — `userInstruments = null`, **без**
+  supertype.
+- `data/api/FinamBrokerApi.kt` — `userInstruments = null`,
+  **без** supertype.
+- `data/repository/InvestRepository.kt` — 2 callsites
+  (`searchInstrumentsResult:63`, `getTradingStatusesResult:200`).
+- `data/repository/SearchCache.kt` — 1 callsite (`search:41`).
+
+**Шаги:**
+1. `UserInstrumentsApi` (2 метода + KDoc с разграничением от
+   `BrokerInstrumentApi`).
+2. `BrokerApi.userInstruments: UserInstrumentsApi?`.
+3. TInvest: supertype + `userInstruments = this`, 2 метода →
+   `override`.
+4. BCS: `userInstruments = null` (без supertype).
+5. Finam: `userInstruments = null` (без supertype).
+6. `InvestRepository`: 2 callsites → `broker.userInstruments
+   ?: return Failure` + `userInstruments.<метод>`.
+7. `SearchCache`: `broker.userInstruments?.findInstruments(query)
+   ?: emptyList()`.
+8. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+
+**Тесты.** `InvestRepositoryTest` / `SearchCacheTest` не
+существуют. Замена — тривиальная делегация. **Дефолт:** без
+новых unit-тестов (по образцу #3–#6).
+
+**Референсы:**
+- `f8569ee` (#1 StreamsApi) — образец supertype у TInvest,
+  `null` у BCS/Finam.
+- `cccbdd5` (#4 OrdersApi), `08c5c4f` (#5 AccountsApi) —
+  образец `broker.<role> ?: Failure` в `InvestRepository`.
+- `dc909e6` (#6 SandboxApi) — образец для проверки anchor
+  через `repr()` (в `SearchCache.search` отступы — смотреть
+  до скрипта).
+
+**Ограничения:**
+- **Supertype только у TInvest.** BCS/Finam — `null` без
+  supertype (AGENTS.md «Nullable-val роли»).
+- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
+  вставке»): `UserInstrumentsApi` идёт **последним** среди
+  `domain.api.roles.*` (`...StreamsApi < UserInstrumentsApi`).
+- **Anchor indent через `repr()`** (AGENTS.md «Anchor на
+  строку с отступом — проверять `repr()`»): в
+  `SearchCache.search` и `InvestRepository` anchor на одну
+  строку — отступы смотреть через `repr()`, не визуально.
+- **`getTradingStatusesResult` уже обрабатывает `ids.isEmpty()`**
+  — этот check оставить до `userInstruments`-check
+  (возврат `Success(emptyMap())` для пустого списка без
+  обращения к брокеру).
+- Не смешивать с `### Реализация BCS Broker API` /
+  `### Реализация Finam Broker API`.
+- `synchronized(startLock)` в менеджерах не трогать.
+
+**Критерий готовности:**
+- `UserInstrumentsApi` создан (2 метода + KDoc, разграничение
+  с `BrokerInstrumentApi`).
+- `BrokerApi.userInstruments: UserInstrumentsApi?`.
+- TInvest `userInstruments = this` + supertype; BCS/Finam
+  `userInstruments = null` без supertype.
+- `grep "broker.findInstruments\|broker.getTradingStatuses"`
+  в `InvestRepository` / `SearchCache` — пусто (все через
+  `userInstruments`).
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-25, 2 WIP-коммита в
+`feature/user-instruments-api` (`c35762f` → `abcfdbe`),
+PR — см. ниже.
+
+- **#1** `domain/api/roles/UserInstrumentsApi.kt` — новый
+  интерфейс (2 метода `findInstruments`, `getTradingStatuses`
+  + KDoc с разграничением от `BrokerInstrumentApi`:
+  bulk-поиск без margin для фьючерсов vs один полный
+  инструмент по uid). Коммит `c35762f`.
+- **#2** (объединено):
+  - `BrokerApi.userInstruments: UserInstrumentsApi?`
+    (nullable-val, рядом с `sandbox`); префикс `user` —
+    чтобы не путать с `instrument: BrokerInstrumentApi?`
+    из #3;
+  - `TInvestBrokerAPI`: supertype `UserInstrumentsApi`,
+    `userInstruments = this` (2/2);
+  - `BcsBrokerApi`: `userInstruments = null`, **без**
+    supertype (0/2 — `emptyList` / все `UNKNOWN`);
+  - `FinamBrokerApi`: `userInstruments = null`, **без**
+    supertype (0/2 — `emptyList` / `emptyMap`);
+  - `InvestRepository`: 2 callsites
+    (`searchInstrumentsResult`, `getTradingStatusesResult`) →
+    `broker.userInstruments ?: return Failure(...)` +
+    `userInstrumentsApi.<метод>`. `getTradingStatusesResult`
+    сохраняет ранний `ids.isEmpty() → Success(emptyMap())`
+    до check на `userInstruments`;
+  - `SearchCache.search`:
+    `broker.userInstruments?.findInstruments(query) ?:
+    emptyList()` — текущее поведение для неподдерживающих
+    брокеров (пустой результат) сохранено. Коммит `abcfdbe`.
+- **CI-цикл — 1 итерация.** Четвёртый раз подряд без
+  fix-коммитов (#4, #5, #6, #7). Уроки AGENTS.md применены:
+  импорты по алфавиту (`UserInstrumentsApi` — последним
+  среди `domain.api.roles.*`), supertype только у TInvest,
+  `repr()` для anchor с отступом (`InvestRepository` —
+  12, `SearchCache` — 16).
+- **Критерий готовности:**
+  - `UserInstrumentsApi` создан (2 метода + KDoc);
+  - `BrokerApi.userInstruments` добавлен;
+  - TInvest `userInstruments = this` + supertype;
+    BCS/Finam `userInstruments = null` без supertype;
+  - `grep "broker.findInstruments|broker.getTradingStatuses"`
+    в `InvestRepository` / `SearchCache` — пусто (все через
+    `userInstruments` / `userInstrumentsApi`);
+  - `gate` зелёный на `abcfdbe`.
+
+**Оценка:** ~1.25 ч (UserInstrumentsApi 10 мин, BrokerApi 5,
+TInvest 10, BCS 5, Finam 5, InvestRepository 2 callsites 15,
+SearchCache 10, гейт 10, резерв 15).
+
+**Зависимости:** umbrella #1–#6 закрыты, Move закрыт.
+
+**Связано:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #7 в порядке.
+- `### TInvest-specific: fetchFullInstrument` (#3, закрыта) —
+  разграничение `UserInstrumentsApi.findInstruments` (bulk,
+  неполный) vs `BrokerInstrumentApi.fetchFullInstrument`
+  (один uid, полный).
+- `### Реализация BCS Broker API` / `### Реализация Finam
+  Broker API` — реализация `findInstruments` /
+  `getTradingStatuses` у BCS/Finam, отдельные задачи (не
+  блокируют).
 
 **Открытые вопросы:** нет.
 
