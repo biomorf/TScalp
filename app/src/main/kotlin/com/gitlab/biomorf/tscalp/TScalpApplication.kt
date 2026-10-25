@@ -135,7 +135,7 @@ class TScalpApplication : Application() {
     ): String? {
         val accounts =
             try {
-                broker.getAccounts(sandbox)
+                broker.accounts?.getAccounts(sandbox)
             } catch (e: Exception) {
                 AppLogger.w("TScalpApplication", "TInvest: getAccounts failed, fallback to savedAccountId", e)
                 null
