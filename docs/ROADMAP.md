@@ -11,116 +11,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
-### Move domain/api into roles/ and managers/
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/move-domain-structure
-
-**Контекст:** после закрытия umbrella `### Рефакторинг ролей
-BrokerApi (nullable-val, Scenario2)` (#1–#11) в `domain/api/`
-накопится ~18 файлов: 9 ролей (интерфейсы `*Api`), агрегатор
-`BrokerApi`, `BrokerCredentials` (часть контракта
-`BrokerLifecycleApi`), три `*FlowManager`, `OrderCache`,
-`StreamStateTracker`, `PriceConsumer`. Плоский пакет перестаёт
-быть навигируемым; контракты ролей не отделены от агрегатора
-и менеджеров.
-
-**Цель:** структурировать `domain/` по семантическим
-подпакетам.
-
-```
-domain/
-├── api/
-│   ├── BrokerApi.kt                  (фасад, остаётся)
-│   └── roles/
-│       ├── BrokerSnapshotApi.kt
-│       ├── StreamsApi.kt
-│       ├── BrokerLifecycleApi.kt
-│       ├── BrokerCredentials.kt
-│       └── (#4–#9 роли при реализации)
-├── managers/
-│   ├── PositionFlowManager.kt
-│   ├── PriceFlowManager.kt
-│   ├── OrderFlowManager.kt
-│   ├── OrderCache.kt
-│   ├── StreamStateTracker.kt
-│   └── PriceConsumer.kt
-├── models/                           (без изменений)
-└── usecases/                         (без изменений)
-```
-
-**Правила разбиения:**
-- `api/` — только фасад `BrokerApi.kt` (fat-интерфейс).
-- `api/roles/` — все роли nullable-val (`*Api.kt`)
-  и `BrokerCredentials.kt` (часть контракта
-  `BrokerLifecycleApi`).
-- `managers/` — три `*FlowManager`, их internal детали
-  (`OrderCache`, `StreamStateTracker`), публичный enum
-  `PriceConsumer`.
-- `models/`, `usecases/` — без изменений.
-- `presentation/`, `data/` — без изменений.
-
-**Предусловия:** нет (пересмотрено 2026-10-25).
-Первоначальный план требовал «umbrella #1–#11 закрыт, все
-роли (#4–#9) реализованы». Отклонение от первоначального
-плана: перенос выполняется **до** #3–#9, чтобы структура
-устаканилась сразу и новые роли создавались в целевом
-месте, без второй миграции. Блокер снят — перенос
-существующих файлов делается сейчас, будущие (#3–#9) сразу
-пишутся в `api/roles/`.
-
-**Файлы:**
-- `git mv` 13 файлов (10 основных + 3 теста):
-  - `domain/api/{BrokerSnapshotApi,StreamsApi,BrokerLifecycleApi,BrokerCredentials}.kt`
-    → `domain/api/roles/`;
-  - `domain/api/{PositionFlowManager,PriceFlowManager,OrderFlowManager,OrderCache,StreamStateTracker,PriceConsumer}.kt`
-    → `domain/managers/`;
-  - `test/.../domain/api/{PositionFlowManagerTest,PriceFlowManagerTest,OrderFlowManagerTest}.kt`
-    → `test/.../domain/managers/`.
-- Импорты в ~30 файлах по всему проекту (`presentation/`,
-  `data/`, тесты).
-- `AGENTS.md` → «Проект» — упомянуть структуру
-  `domain/api/roles/`, `domain/managers/`.
-- `docs/architecture.md` — **не существует** на момент
-  выполнения Move (это задача `### Архитектурный документ` в
-  «Планируемые»). При её создании учесть структуру
-  `roles/` / `managers/` (раздел 1 «Слои», раздел 7
-  «BrokerApi + roles»).
-
-**Шаги:**
-1. `git mv` файлов ролей → `domain/api/roles/`.
-2. `git mv` менеджеров + internal → `domain/managers/`.
-3. Массовая замена `import com.gitlab.biomorf.tscalp.domain.api.<File>`
-   → `.api.roles.<File>` / `.managers.<File>` в ~30 файлах
-   (sed / python).
-4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-5. `AGENTS.md`, `docs/architecture.md` — обновить структуру.
-
-**Критерий готовности:**
-- Файлы ролей — в `domain/api/roles/`.
-- Менеджеры — в `domain/managers/`.
-- В `app/src` нет импортов старых путей к перенесённым файлам
-  (проверить `grep -rn "import com.gitlab.biomorf.tscalp.domain.api.<File>"`
-  по каждому из 10 имён — пусто).
-- Гейт зелёный.
-
-**Оценка:** ~1.5 ч (git mv 10 мин, import-правка 30 мин,
-гейт 10 мин, docs 15 мин, резерв 25 мин).
-
-**Зависимости:** после закрытия umbrella (всех #1–#11).
-
-**Связано:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — источник всех ролей и менеджеров.
-- `docs/architecture.md` — раздел 1 (слои) и раздел 7
-  (BrokerApi).
-
-**Открытые вопросы:** нет.
-
----
-
 ### Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
@@ -4670,5 +4560,163 @@ mock-инфраструктура).
   при интеграции BCS/Finam.
 - Unit-тесты для lifecycle — **сложно** (mock DataStore +
   BrokerManager + 3 брокера). Дефолт — без, live-тест.
+
+
+---
+
+### ✅ Move domain/api into roles/ and managers/
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст:** после закрытия umbrella `### Рефакторинг ролей
+BrokerApi (nullable-val, Scenario2)` (#1–#11) в `domain/api/`
+накопится ~18 файлов: 9 ролей (интерфейсы `*Api`), агрегатор
+`BrokerApi`, `BrokerCredentials` (часть контракта
+`BrokerLifecycleApi`), три `*FlowManager`, `OrderCache`,
+`StreamStateTracker`, `PriceConsumer`. Плоский пакет перестаёт
+быть навигируемым; контракты ролей не отделены от агрегатора
+и менеджеров.
+
+**Цель:** структурировать `domain/` по семантическим
+подпакетам.
+
+```
+domain/
+├── api/
+│   ├── BrokerApi.kt                  (фасад, остаётся)
+│   └── roles/
+│       ├── BrokerSnapshotApi.kt
+│       ├── StreamsApi.kt
+│       ├── BrokerLifecycleApi.kt
+│       ├── BrokerCredentials.kt
+│       └── (#4–#9 роли при реализации)
+├── managers/
+│   ├── PositionFlowManager.kt
+│   ├── PriceFlowManager.kt
+│   ├── OrderFlowManager.kt
+│   ├── OrderCache.kt
+│   ├── StreamStateTracker.kt
+│   └── PriceConsumer.kt
+├── models/                           (без изменений)
+└── usecases/                         (без изменений)
+```
+
+**Правила разбиения:**
+- `api/` — только фасад `BrokerApi.kt` (fat-интерфейс).
+- `api/roles/` — все роли nullable-val (`*Api.kt`)
+  и `BrokerCredentials.kt` (часть контракта
+  `BrokerLifecycleApi`).
+- `managers/` — три `*FlowManager`, их internal детали
+  (`OrderCache`, `StreamStateTracker`), публичный enum
+  `PriceConsumer`.
+- `models/`, `usecases/` — без изменений.
+- `presentation/`, `data/` — без изменений.
+
+**Предусловия:** нет (пересмотрено 2026-10-25).
+Первоначальный план требовал «umbrella #1–#11 закрыт, все
+роли (#4–#9) реализованы». Отклонение от первоначального
+плана: перенос выполняется **до** #3–#9, чтобы структура
+устаканилась сразу и новые роли создавались в целевом
+месте, без второй миграции. Блокер снят — перенос
+существующих файлов делается сейчас, будущие (#3–#9) сразу
+пишутся в `api/roles/`.
+
+**Файлы:**
+- `git mv` 13 файлов (10 основных + 3 теста):
+  - `domain/api/{BrokerSnapshotApi,StreamsApi,BrokerLifecycleApi,BrokerCredentials}.kt`
+    → `domain/api/roles/`;
+  - `domain/api/{PositionFlowManager,PriceFlowManager,OrderFlowManager,OrderCache,StreamStateTracker,PriceConsumer}.kt`
+    → `domain/managers/`;
+  - `test/.../domain/api/{PositionFlowManagerTest,PriceFlowManagerTest,OrderFlowManagerTest}.kt`
+    → `test/.../domain/managers/`.
+- Импорты в ~30 файлах по всему проекту (`presentation/`,
+  `data/`, тесты).
+- `AGENTS.md` → «Проект» — упомянуть структуру
+  `domain/api/roles/`, `domain/managers/`.
+- `docs/architecture.md` — **не существует** на момент
+  выполнения Move (это задача `### Архитектурный документ` в
+  «Планируемые»). При её создании учесть структуру
+  `roles/` / `managers/` (раздел 1 «Слои», раздел 7
+  «BrokerApi + roles»).
+
+**Шаги:**
+1. `git mv` файлов ролей → `domain/api/roles/`.
+2. `git mv` менеджеров + internal → `domain/managers/`.
+3. Массовая замена `import com.gitlab.biomorf.tscalp.domain.api.<File>`
+   → `.api.roles.<File>` / `.managers.<File>` в ~30 файлах
+   (sed / python).
+4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+5. `AGENTS.md`, `docs/architecture.md` — обновить структуру.
+
+**Критерий готовности:**
+- Файлы ролей — в `domain/api/roles/`.
+- Менеджеры — в `domain/managers/`.
+- В `app/src` нет импортов старых путей к перенесённым файлам
+  (проверить `grep -rn "import com.gitlab.biomorf.tscalp.domain.api.<File>"`
+  по каждому из 10 имён — пусто).
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-25, PR #46 (merge `cc718f7`),
+5 коммитов в `feature/move-domain-structure`
+(`06b2fbf` → `0ff31bd`).
+
+- **git mv 15 файлов** (renamed, 10 production + 5 tests):
+  - 4 роли → `domain/api/roles/`:
+    `BrokerSnapshotApi`, `StreamsApi`, `BrokerLifecycleApi`,
+    `BrokerCredentials`;
+  - 6 менеджеров/утилит → `domain/managers/`:
+    `PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`,
+    `OrderCache`, `StreamStateTracker`, `PriceConsumer`;
+  - 5 тестов → `test/.../domain/api/managers/`:
+    `PositionFlowManagerTest`, `PriceFlowManagerTest`,
+    `OrderFlowManagerTest`, `OrderCacheTest`,
+    `StreamStateTrackerTest`.
+- **Package-декларации** обновлены во всех 15 перенесённых файлах.
+- **Импорты** обновлены в 10 внешних потребителях
+  (`TScalpApplication`, три брокера, три ViewModel,
+  `OrdersListViewModel`); в `BrokerApi.kt` добавлены 4 импорта
+  ролей (были same-package); в трёх менеджерах — по 2 импорта
+  (`BrokerApi`, `BrokerSnapshotApi`, были same-package).
+- **AGENTS.md:** новый блок «**Структура `domain/`:**» под
+  разделом «Проект» (что где лежит, правило «новая роль — в
+  `api/roles/`, новый менеджер — в `managers/`»).
+- **CI-цикл** (3 итерации):
+  1. `d92637b` — `fix(test): add missing StreamsApi import`
+     (CI упал на `compileDebugUnitTestKotlin`: `Unresolved
+     reference StreamsApi` в `PriceFlowManagerTest`, был
+     same-package до mv).
+  2. `5d13e1a` — `fix(domain): ktlint issues` (порядок ролей-
+     импортов в `BrokerApi.kt`, два unused imports в
+     `PriceFlowManager.kt`).
+  3. `gate` зелёный на `0ff31bd` (`fast-check` +
+     `full-build`).
+- **Отклонения, зафиксированные в PR body:**
+  - 5a: WIP-коммиты без локального гейта (proot на телефоне
+    не запускает Gradle). `fast-check` на CI покрыл те же
+    четыре задачи; правило 5a в этом же PR переформулировано
+    под WIP-vs-PR boundary (`0ff31bd`).
+  - 5g категория 2: AGENTS.md-правка ушла в feature вместо
+    прямого push в `dev` (ошибка инструктирования, не
+    cherry-picked обратно — merge PR сам её занёс).
+  - 5g.4/5g.5: `mark done` отложен до этого коммита — разовое
+    исключение (см. ниже), правило не изменено.
+- **Критерий готовности:** все `grep`-проверки пройдены
+  (нет старых `domain.api.<File>` импортов для перенесённых
+  файлов), `gate` на CI зелёный, AGENTS.md содержит блок
+  структуры.
+
+**Оценка:** ~1.5 ч (git mv 10 мин, import-правка 30 мин,
+гейт 10 мин, docs 15 мин, резерв 25 мин).
+
+**Зависимости:** после закрытия umbrella (всех #1–#11).
+
+**Связано:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — источник всех ролей и менеджеров.
+- `docs/architecture.md` — раздел 1 (слои) и раздел 7
+  (BrokerApi).
+
+**Открытые вопросы:** нет.
 
 ---
