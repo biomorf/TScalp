@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -57,6 +58,16 @@ interface BrokerApi {
      * См. [BrokerInstrumentApi].
      */
     val instrument: BrokerInstrumentApi?
+
+    /**
+     * Опциональный контракт заявок брокера.
+     *
+     * `null` — брокер не поддерживает (BCS: 1/6, Finam: 0/6).
+     * `InvestRepository` при `null` возвращает `AppResult.Failure`.
+     *
+     * См. [OrdersApi].
+     */
+    val orders: OrdersApi?
 
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 
