@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
@@ -70,6 +71,7 @@ class FinamBrokerApi :
     override val accounts: AccountsApi? = null
     override val sandbox: SandboxApi? = null
     override val userInstruments: UserInstrumentsApi? = null
+    override val balance: BalanceApi? = null
     override val instrument: BrokerInstrumentApi? = null
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null

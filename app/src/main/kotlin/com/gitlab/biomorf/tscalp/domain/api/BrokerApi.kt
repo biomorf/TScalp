@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
@@ -108,6 +109,15 @@ interface BrokerApi {
      * См. [UserInstrumentsApi].
      */
     val userInstruments: UserInstrumentsApi?
+
+    /**
+     * Опциональный контракт: свободный остаток по счёту.
+     *
+     * `null` — брокер не поддерживает (BCS/Finam: 0/1).
+     *
+     * См. [BalanceApi].
+     */
+    val balance: BalanceApi?
 
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 

@@ -85,7 +85,12 @@ class InvestRepository(
     suspend fun getBalanceResult(accountId: String): AppResult<Double> =
         withContext(Dispatchers.IO) {
             val broker = brokerManager.getDefaultBroker()
-            runCatchingAppResult(BrokerName.TINVEST) { broker.getBalance(accountId) }
+            val balanceApi =
+                broker.balance
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${BrokerName.TINVEST.displayName} не поддерживает баланс"),
+                    )
+            runCatchingAppResult(BrokerName.TINVEST) { balanceApi.getBalance(accountId) }
         }
 
     /**
