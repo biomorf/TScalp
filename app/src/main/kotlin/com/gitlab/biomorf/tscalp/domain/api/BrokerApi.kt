@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
+import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
@@ -46,6 +47,16 @@ interface BrokerApi {
      * См. [BrokerLifecycleApi] и [BrokerCredentials].
      */
     val lifecycle: BrokerLifecycleApi?
+
+    /**
+     * Опциональный контракт: полный доменный инструмент по uid.
+     *
+     * `null` — брокер не поддерживает; `InstrumentRepository`
+     * вернёт `null`.
+     *
+     * См. [BrokerInstrumentApi].
+     */
+    val instrument: BrokerInstrumentApi?
 
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 
