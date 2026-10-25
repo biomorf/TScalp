@@ -1,6 +1,5 @@
 package com.gitlab.biomorf.tscalp.data.api
 
-import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
@@ -23,19 +22,9 @@ import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
-import com.gitlab.biomorf.tscalp.transport.ktor.TInvestOrderStateWebSocket
-import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
-import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPricesWebSocket
-import com.gitlab.biomorf.tscalp.transport.ktor.TInvestRestTransport
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.flow.transform
 import ru.ttech.piapi.core.InvestApi
 
 /**
@@ -59,73 +48,23 @@ class TInvestBrokerAPI(
     SandboxApi,
     UserInstrumentsApi,
     BalanceApi {
-    private companion object {
-        const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
-        const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
-        const val REST_BASE_URL_PROD = "https://invest-public-api.tbank.ru"
-        const val REST_BASE_URL_SANDBOX = "https://sandbox-invest-public-api.tbank.ru"
-        const val WS_POSITIONS_CHANNEL = "tinkoff.public.invest.api.contract.v1.OperationsStreamService/PositionsStream"
-        const val WS_PRICES_CHANNEL = "tinkoff.public.invest.api.contract.v1.MarketDataStreamService/MarketDataStream"
-        const val WS_ORDER_STATE_CHANNEL = "tinkoff.public.invest.api.contract.v1.OrdersStreamService/OrderStateStream"
-
-        fun buildWsUrl(
-            sandbox: Boolean,
-            channel: String,
-        ): String {
-            val base = if (sandbox) WS_BASE_URL_SANDBOX else WS_BASE_URL_PROD
-            return "$base/$channel"
-        }
-
-        fun buildRestUrl(sandbox: Boolean): String = if (sandbox) REST_BASE_URL_SANDBOX else REST_BASE_URL_PROD
-    }
-
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
     private val ordersService = TInvestOrdersService(state)
+    private val wsService = TInvestWsService(httpClient)
+    private val restService = TInvestRestService(state, httpClient)
     private val orchestrator =
         TInvestOrchestrator(
             marketData = marketData,
             orders = ordersService,
-            wsFallback = { accountId -> buildWsFallback(accountId) },
-            pricesWsFallback = { uids -> buildPricesWsFallback(uids) },
-            orderStateWsFallback = { accountId -> buildOrderStateWsFallback(accountId) },
-            pricesRestFallback = { uids ->
-                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
-                rest.getLastPrices(uids)
-            },
-            positionsRestFallback = { accountId, _ ->
-                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
-                rest.fetchPositionsSnapshot(accountId).positions.map { it.toStreamItem() }
-            },
-            ordersRestFallback = { accountId ->
-                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
-                val orders = rest.getOrders(accountId).map { it.toOrderListItem() }
-                val stopOrders = rest.getStopOrders(accountId).map { it.toOrderListItem() }
-                orders + stopOrders
-            },
-            balanceRestFallback = { accountId ->
-                val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
-                rest.getBalance(accountId, state.sandboxMode)
-            },
+            wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
+            pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
+            orderStateWsFallback = { accountId -> wsService.buildOrderStateWsFallback(accountId) },
+            pricesRestFallback = { uids -> restService.pricesRestFallback(uids) },
+            positionsRestFallback = { accountId, _ -> restService.positionsRestFallback(accountId) },
+            ordersRestFallback = { accountId -> restService.ordersRestFallback(accountId) },
+            balanceRestFallback = { accountId -> restService.balanceRestFallback(accountId) },
         )
-
-    /**
-     * WebSocket-клиент PositionsStream. Создаётся в [initialize]
-     * (нужен токен) и обнуляется в [deinitialize].
-     * Nullable, потому что WS зависит от инициализированного
-     * состояния брокера.
-     */
-    var positionsWebSocket: TInvestPositionsWebSocket? = null
-        private set
-
-    var pricesWebSocket: TInvestPricesWebSocket? = null
-        private set
-
-    var orderStateWebSocket: TInvestOrderStateWebSocket? = null
-        private set
-
-    private var wsScope: CoroutineScope? = null
-    private var restTransport: TInvestRestTransport? = null
 
     override val name: BrokerName = BrokerName.TINVEST
     override val isInitialized: Boolean get() = state.api != null
@@ -157,41 +96,8 @@ class TInvestBrokerAPI(
         // Все WS-клиенты — только prod. В sandbox сервер
         // закрывает соединение без кадра (см. docs/ISSUES.md),
         // поэтому клиенты не создаём.
-        if (!sandbox) {
-            positionsWebSocket =
-                TInvestPositionsWebSocket(
-                    client = httpClient,
-                    url = buildWsUrl(sandbox, WS_POSITIONS_CHANNEL),
-                    token = token,
-                    logger = { msg -> AppLogger.d("TInvestWS", msg) },
-                )
-            wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            pricesWebSocket =
-                TInvestPricesWebSocket(
-                    client = httpClient,
-                    url = buildWsUrl(sandbox, WS_PRICES_CHANNEL),
-                    token = token,
-                    scope = wsScope!!,
-                    logger = { msg -> AppLogger.d("TInvestWS/prices", msg) },
-                    logFrames = BuildConfig.DEBUG,
-                )
-            orderStateWebSocket =
-                TInvestOrderStateWebSocket(
-                    client = httpClient,
-                    url = buildWsUrl(sandbox, WS_ORDER_STATE_CHANNEL),
-                    token = token,
-                    scope = wsScope!!,
-                    logger = { msg -> AppLogger.d("TInvestWS/orders", msg) },
-                    logFrames = BuildConfig.DEBUG,
-                )
-        }
-        restTransport =
-            TInvestRestTransport(
-                client = httpClient,
-                baseUrl = buildRestUrl(sandbox),
-                token = token,
-                logger = { msg -> AppLogger.d("TInvestRest", msg) },
-            )
+        wsService.initialize(token, sandbox)
+        restService.initialize(token, sandbox)
     }
 
     /**
@@ -225,40 +131,8 @@ class TInvestBrokerAPI(
         state.channels = null
         state.api = null
         state.token = null
-        positionsWebSocket = null
-        pricesWebSocket?.stop()
-        pricesWebSocket = null
-        orderStateWebSocket?.stop()
-        orderStateWebSocket = null
-        restTransport = null
-        wsScope?.cancel()
-        wsScope = null
-    }
-
-    /**
-     * WS-fallback стрим-уровня для оркестратора.
-     *
-     * Возвращает null, пока [initialize] не создаст [positionsWebSocket].
-     * Один WS-response → несколько PositionStreamItem (initialPositions
-     * или position с несколькими инструментами) — emit через transform.
-     */
-    private fun buildWsFallback(accountId: String): Flow<PositionStreamItem>? =
-        positionsWebSocket
-            ?.subscribePositions(accountId)
-            ?.transform { response ->
-                TInvestPositionsWsMapper.mapAll(response).forEach { emit(it) }
-            }
-
-    private fun buildPricesWsFallback(uids: Set<String>): Flow<Pair<String, Double>>? {
-        val ws = pricesWebSocket ?: return null
-        ws.setInterest(uids)
-        return ws.prices.mapNotNull { TInvestPricesWsMapper.mapLastPrice(it) }
-    }
-
-    private fun buildOrderStateWsFallback(accountId: String): Flow<OrderState>? {
-        val ws = orderStateWebSocket ?: return null
-        ws.setInterest(accountId)
-        return ws.states.mapNotNull { TInvestOrderStateWsMapper.mapOrderState(it) }
+        wsService.stop()
+        restService.stop()
     }
 
     // ---------- BrokerApi: делегирование ----------
