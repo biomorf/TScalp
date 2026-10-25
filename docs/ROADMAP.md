@@ -11,6 +11,152 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### AccountsApi
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.**
+
+`BrokerApi` содержит один метод счетов:
+`getAccounts(sandboxMode: Boolean): List<BrokerAccount>`.
+
+Потребители (grep 2026-10-25):
+- `InvestRepository.getAccountsResult` (стр. 48) — обёртка
+  над `broker.getAccounts`, потребитель `SettingsViewModel`
+  через репозиторий;
+- `TScalpApplication.resolveTInvestAccountId` (стр. 138) —
+  fallback при старте (`getAccounts` в try/catch, при
+  падении — `savedAccountId`).
+
+Реализации:
+- `TInvestBrokerAPI` — реальный (`marketData.getAccounts`,
+  gRPC или sandbox-сервис);
+- `BcsBrokerApi` — реальный (HTTP GET к портфелю, парсинг
+  `accounts` из ответа);
+- `FinamBrokerApi` — заглушка (`= emptyList()`, 0/3).
+
+Конфликта имени `private val accounts` в брокерах **нет**
+(проверено grep — в отличие от `orders` в #4).
+
+**Цель.** `AccountsApi` — nullable-val роль по образцу
+`BrokerSnapshotApi` / `StreamsApi` / `BrokerLifecycleApi` /
+`BrokerInstrumentApi` / `OrdersApi`. `BrokerApi.accounts:
+AccountsApi?`. `InvestRepository` и `TScalpApplication`
+переходят на `broker.accounts?.getAccounts(...)`; при `null`
+— `AppResult.Failure` (в `InvestRepository`) или fallback
+на `savedAccountId` (в `TScalpApplication`).
+
+**Решение (nullable-val, Scenario2).**
+- Метод `AccountsApi`: `getAccounts(sandboxMode)`.
+- TInvest: supertype `AccountsApi`, `accounts = this` (реальный);
+- BCS: supertype `AccountsApi`, `accounts = this` (реальный);
+- Finam: `accounts = null`, **без** supertype (0/3 —
+  заглушка `emptyList`).
+- `InvestRepository.getAccountsResult`: `broker.accounts
+  ?: return Failure(...)` + `accountsApi.getAccounts(...)`.
+- `TScalpApplication.resolveTInvestAccountId`:
+  `broker.accounts?.getAccounts(sandbox)`; при `null` или
+  исключении — fallback на `savedAccountId` (как сейчас при
+  `try/catch`).
+
+**Предусловия:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #1–#4 закрыты; Move закрыт.
+
+**Файлы:**
+- `domain/api/roles/AccountsApi.kt` (новый).
+- `domain/api/BrokerApi.kt` — `val accounts: AccountsApi?`.
+- `data/api/TInvestBrokerApi.kt` — supertype `AccountsApi`,
+  `accounts = this`, `getAccounts` → `override`.
+- `data/api/BcsBrokerApi.kt` — supertype `AccountsApi`,
+  `accounts = this`, `getAccounts` → `override`.
+- `data/api/FinamBrokerApi.kt` — `accounts = null`,
+  **без** supertype.
+- `data/repository/InvestRepository.kt` —
+  `getAccountsResult`: 1 callsite.
+- `TScalpApplication.kt` — `resolveTInvestAccountId`:
+  1 callsite (в try/catch).
+
+**Шаги:**
+1. `AccountsApi` (1 метод + KDoc).
+2. `BrokerApi.accounts: AccountsApi?`.
+3. TInvest: supertype + `accounts = this`, `getAccounts` →
+   `override`.
+4. BCS: supertype + `accounts = this`, `getAccounts` →
+   `override`.
+5. Finam: `accounts = null` (без supertype).
+6. `InvestRepository`: `broker.accounts ?: return Failure` +
+   `accountsApi.getAccounts(...)`.
+7. `TScalpApplication.resolveTInvestAccountId`:
+   `broker.accounts?.getAccounts(sandbox)` + fallback на
+   `savedAccountId` при `null` (try/catch оставить на месте —
+   `getAccounts` может кинуть `UNAVAILABLE`, fallback
+   сохраняется).
+8. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+
+**Тесты.** `InvestRepositoryTest` не существует.
+`TScalpApplication` — live-test (fallback при падении
+`getAccounts`). Замена в `InvestRepository` — тривиальная
+делегация. **Дефолт:** без новых unit-тестов (по образцу
+#3, #4).
+
+**Референсы:**
+- `f8569ee` (#1 StreamsApi) — образец supertype у TInvest,
+  `null` у BCS/Finam.
+- `b142bbd` (#2 BrokerLifecycleApi) — supertype только там,
+  где методы реализованы.
+- `cccbdd5` (#4 OrdersApi) — образец `broker.orders ?:
+  Failure` паттерна в `InvestRepository`, и **1 итерация CI**
+  (уроки #1–#3 в AGENTS.md).
+
+**Ограничения:**
+- **Supertype только у TInvest и BCS** (реальные реализации).
+  Finam — `null` **без** supertype (AGENTS.md «Nullable-val
+  роли»).
+- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
+  вставке»).
+- **`TScalpApplication`: try/catch оставить.** `getAccounts`
+  может кинуть `UNAVAILABLE: UNAUTHENTICATED: 40003` —
+  fallback на `savedAccountId` обязателен (см. `docs/ISSUES.md`
+  → «restoreTInvest не использует сохранённый accountId при
+  падении getAccounts», закрыто).
+- Не смешивать с `### Реализация BCS Broker API` /
+  `### Реализация Finam Broker API` — там реализация,
+  здесь роль.
+- `synchronized(startLock)` в менеджерах не трогать.
+
+**Критерий готовности:**
+- `AccountsApi` создан (1 метод + KDoc).
+- `BrokerApi.accounts: AccountsApi?`.
+- TInvest/BCS `accounts = this` + supertype; Finam
+  `accounts = null` без supertype.
+- `InvestRepository`: `grep "broker.getAccounts"` — пусто
+  (только `accountsApi.getAccounts`).
+- `TScalpApplication`: `broker.getAccounts` → `broker.accounts?.getAccounts`.
+  `grep "broker.getAccounts"` в `TScalpApplication` — пусто.
+- Гейт зелёный.
+
+**Оценка:** ~1 ч (AccountsApi 10 мин, BrokerApi 5, TInvest 10,
+BCS 10, Finam 5, InvestRepository 10, TScalpApplication 15,
+гейт 10, резерв 5).
+
+**Зависимости:** umbrella #1–#4 закрыты, Move закрыт.
+
+**Связано:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #5 в порядке.
+- `### Реализация Finam Broker API` — реализация `getAccounts`
+  у Finam, отдельная задача (не блокирует).
+- `### Реализация BCS Broker API` — не заведена в ROADMAP,
+  упомянута в KDoc `BcsBrokerApi`, пробел (не блокирует).
+
+**Открытые вопросы:** нет.
+
+---
+
 ### Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
@@ -346,7 +492,7 @@ fat-интерфейс подходит). Если остановиться по
 | 2 | `BrokerLifecycleApi` | ✅ done | `SettingsViewModel` (6), `TScalpApplication` (2) | 8 | 3–4 ч |
 | 3 | `BrokerInstrumentApi` | ✅ done | `InstrumentRepository` (1) | 1 | 45 мин |
 | 4 | `OrdersApi` | ✅ done | `InvestRepository` (6) | 0 | 2 ч |
-| 5 | `AccountsApi` | новая | `TScalpApplication` (2), `InvestRepository` (2) | 2 | 1 ч |
+| 5 | `AccountsApi` | новая | `TScalpApplication` (1), `InvestRepository` (1) | 0 | 1 ч |
 | 6 | `SandboxApi` | новая | `InvestRepository` (3) | 0 | 1 ч |
 | 7 | `UserInstrumentsApi` | новая | `SearchCache` (1), `InvestRepository` (1) | 0 | 1 ч |
 | 8 | `BalanceApi` | новая | `InvestRepository` (1) | 0 | 30 мин |
