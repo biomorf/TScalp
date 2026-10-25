@@ -1020,7 +1020,7 @@ MagicNumber в `StreamCombinators`.
 Если CI `gate` на запушенном коммите зелёный — локальный
 повтор перед merge **не требуется**. Required check
 `gate` технически блокирует merge: PR без зелёного `gate`
-не пройдёт, even если кто-то попытается нажать кнопку.
+не пройдёт, даже если кто-то попытается нажать кнопку.
 
 **Когда CI не заменяет локальный гейт.** Три случая:
 1. CI недоступен (нет runner'а, сломана инфраструктура).
@@ -1596,6 +1596,20 @@ hotfix-веток.
   gRPC (T-Invest SDK), REST (BCS, Finam).
 - **Слои:** `presentation → domain → data`. ViewModel не ходит
   к брокеру напрямую — только через `InvestRepository`.
+- **Структура `domain/`:** новая роль — в `api/roles/`,
+  новый менеджер — в `managers/`. Полная структура —
+  `docs/architecture.md` (задача `### Архитектурный документ`
+  в `docs/ROADMAP.md`).
+- **Nullable-val роли.** Паттерн: `val <role>: <RoleApi>?`
+  в `BrokerApi`; брокер — `override val <role>: RoleApi get() = this`
+  (реализует) или `override val <role>: RoleApi? = null`
+  (не поддерживает). **Supertype = «реализую все методы».**
+  Если брокер не реализует все методы роли — supertype
+  **не ставится**, только `val <role> = null`. Пример #3
+  (`b2ef717` → `8ba59f9`): BCS/Finam получили supertype
+  `BrokerInstrumentApi`, но не реализуют
+  `fetchFullInstrument` — компилятор потребовал
+  реализацию. Правильно: `instrument = null` без supertype.
 - **Обработка ошибок:** `AppResult<T>` (Success/Failure), не
   исключения на границах слоёв. Ошибки брокеров расшифровываются
   через `BrokerErrorMessages`.
@@ -1670,6 +1684,18 @@ hotfix-веток.
   действительно не используется.
 - Перед переименованием или сменой сигнатуры проверяет всех
   вызывающих.
+- **Порядок импортов при вставке — по алфавиту, не по
+  позиционному anchor.** При добавлении импорта — сначала
+  определить место по алфавиту (с учётом ktlint-правил:
+  `java`, `javax`, `kotlin` и алиасы в конце), затем
+  вставить. Не «после такого-то импорта» — ktlintFormat
+  ловит и требует переупорядочивания. Практика 2026-10-25:
+  три раза подряд (#1 `StreamsApi`, #2 `BrokerCredentials`
+  + `BrokerLifecycleApi`, #3 `BrokerInstrumentApi`) импорт
+  вставлялся позиционным anchor'ом и падал на
+  `ktlintMainSourceSetCheck`. Решение: сортировать набор
+  импортов alphabetically перед вставкой, либо прогонять
+  `ktlintFormat` после каждой правки импортов.
 
 ### После правок
 
