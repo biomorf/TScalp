@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -80,6 +81,17 @@ interface BrokerApi {
      * См. [AccountsApi].
      */
     val accounts: AccountsApi?
+
+    /**
+     * Опциональный контракт: операции со счётом песочницы
+     * (T-Invest-specific).
+     *
+     * `null` — брокер не поддерживает (BCS/Finam — нет
+     * песочницы по природе брокера).
+     *
+     * См. [SandboxApi].
+     */
+    val sandbox: SandboxApi?
 
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount>
 

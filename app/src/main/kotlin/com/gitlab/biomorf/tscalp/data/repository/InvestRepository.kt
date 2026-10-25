@@ -94,8 +94,13 @@ class InvestRepository(
         withContext(Dispatchers.IO) {
             AppLogger.d(TAG, "sandboxPayIn: accountId=$accountId, amount=${amount.units} ${amount.currency}")
             val broker = brokerManager.getDefaultBroker()
+            val sandboxApi =
+                broker.sandbox
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${BrokerName.TINVEST.displayName} не поддерживает песочницу"),
+                    )
             runCatchingAppResult(BrokerName.TINVEST) {
-                broker.sandboxPayIn(accountId, amount)
+                sandboxApi.sandboxPayIn(accountId, amount)
                 Unit
             }
         }
@@ -302,7 +307,12 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                     )
-            runCatchingAppResult(brokerName) { broker.openSandboxAccount() }
+            val sandboxApi =
+                broker.sandbox
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает песочницу"),
+                    )
+            runCatchingAppResult(brokerName) { sandboxApi.openSandboxAccount() }
         }
 
     /**
@@ -319,8 +329,13 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                     )
+            val sandboxApi =
+                broker.sandbox
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает песочницу"),
+                    )
             runCatchingAppResult(brokerName) {
-                broker.closeSandboxAccount(accountId)
+                sandboxApi.closeSandboxAccount(accountId)
                 Unit
             }
         }

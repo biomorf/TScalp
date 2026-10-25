@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
@@ -74,6 +75,7 @@ class BcsBrokerApi :
     override val streams: StreamsApi? = null
     override val orders: OrdersApi? = null
     override val accounts: AccountsApi get() = this
+    override val sandbox: SandboxApi? = null
     override val instrument: BrokerInstrumentApi? = null
 
     // Флаг инициализации

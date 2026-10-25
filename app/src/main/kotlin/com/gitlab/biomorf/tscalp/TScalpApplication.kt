@@ -159,7 +159,7 @@ class TScalpApplication : Application() {
     ): String? {
         if (!sandbox) return null
         return try {
-            broker.openSandboxAccount()
+            broker.sandbox?.openSandboxAccount()
         } catch (e: Exception) {
             AppLogger.w("TScalpApplication", "TInvest: openSandboxAccount failed", e)
             null

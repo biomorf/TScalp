@@ -11,149 +11,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
-### SandboxApi
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/sandbox-api
-
-**Контекст.**
-
-`BrokerApi` содержит 3 sandbox-метода:
-`openSandboxAccount()`, `closeSandboxAccount(accountId)`,
-`sandboxPayIn(accountId, amount)`.
-
-**SandboxApi — T-Invest-специфичная роль.** У BCS и Finam
-песочницы нет и не будет — это не «пока не реализовали», а
-свойство брокера. Поэтому сигнатура интерфейса **без**
-параметра `sandboxMode`: у TInvest все 3 метода — всегда
-sandbox, у BCS/Finam — не применимо.
-
-Реализации (grep 2026-10-25):
-- `TInvestBrokerAPI` — 3/3 реальные (через `marketData.*`:
-  `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`);
-- `BcsBrokerApi` — 0/3 рабочих: `open`/`close` →
-  `UnsupportedOperationException`, `payIn` → no-op + warning;
-- `FinamBrokerApi` — 0/3: `open`/`close` →
-  `TODO("Not yet implemented")`, `payIn` — заглушка.
-
-**Цель.** `SandboxApi` — nullable-val роль по образцу
-`AccountsApi` / `OrdersApi` / `BrokerInstrumentApi`.
-`BrokerApi.sandbox: SandboxApi?`. Потребители переходят на
-`broker.sandbox?.<метод>`; при `null` —
-`AppResult.Failure` (в `InvestRepository`) или fallback
-(в `TScalpApplication`).
-
-**Решение (nullable-val, Scenario2).**
-- TInvest: supertype `SandboxApi`, `sandbox = this` (3/3).
-- BCS: `sandbox = null`, **без** supertype (0/3 —
-  `UnsupportedOperationException`/no-op).
-- Finam: `sandbox = null`, **без** supertype (0/3 —
-  `TODO`).
-- `InvestRepository`: 3 callsites
-  (`sandboxPayInResult`, `openSandboxAccountResult`,
-  `closeSandboxAccountResult`) → `broker.sandbox ?: return
-  Failure(...)` + `sandboxApi.<метод>` (по образцу #4/#5).
-- `TScalpApplication.tryOpenSandboxAccount`:
-  `broker.sandbox?.openSandboxAccount()` внутри
-  существующего `try/catch`. При `null` — тихо вернёт
-  `null` (сейчас BCS/Finam кидают исключение → `try/catch`
-  ловит → `null`; поведение не меняется).
-
-**Предусловия:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — #1–#5 закрыты.
-
-**Файлы:**
-- `domain/api/roles/SandboxApi.kt` (новый).
-- `domain/api/BrokerApi.kt` — `val sandbox: SandboxApi?`.
-- `data/api/TInvestBrokerApi.kt` — supertype `SandboxApi`,
-  `sandbox = this`, 3 метода → `override`.
-- `data/api/BcsBrokerApi.kt` — `sandbox = null`, **без**
-  supertype.
-- `data/api/FinamBrokerApi.kt` — `sandbox = null`, **без**
-  supertype.
-- `data/repository/InvestRepository.kt` — 3 callsites.
-- `TScalpApplication.kt` — `tryOpenSandboxAccount`
-  (1 callsite).
-
-**Шаги:**
-1. `SandboxApi` (3 метода + KDoc с «T-Invest-specific»).
-2. `BrokerApi.sandbox: SandboxApi?`.
-3. TInvest: supertype + `sandbox = this`, 3 метода →
-   `override`.
-4. BCS: `sandbox = null` (без supertype).
-5. Finam: `sandbox = null` (без supertype).
-6. `InvestRepository`: 3 callsites → `broker.sandbox ?:
-   return Failure` + `sandboxApi.<метод>`.
-7. `TScalpApplication.tryOpenSandboxAccount`:
-   `broker.sandbox?.openSandboxAccount()` внутри `try/catch`.
-8. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
-   detekt`.
-
-**Тесты.** `InvestRepositoryTest` не существует,
-`TScalpApplication` — live-test (`tryOpenSandboxAccount` в
-sandbox-режиме). Замена в `InvestRepository` — тривиальная
-делегация. **Дефолт:** без новых unit-тестов (по образцу
-#3–#5).
-
-**Референсы:**
-- `f8569ee` (#1 StreamsApi) — образец supertype у TInvest,
-  `null` у BCS/Finam.
-- `977c1d0` (#4 OrdersApi) — образец `broker.orders ?:
-  Failure` паттерна в `InvestRepository`.
-- `216ec9b` (#5 AccountsApi) — образец `broker.accounts ?:
-  Failure` + null-через-`?.` в `TScalpApplication` с
-  сохранением `try/catch`.
-
-**Ограничения:**
-- **Supertype только у TInvest.** BCS/Finam — `null` без
-  supertype (AGENTS.md «Nullable-val роли»). Не потому, что
-  «не реализовали», а потому что **песочницы нет по природе
-  брокера** — это фиксируется в KDoc `SandboxApi`.
-- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
-  вставке»).
-- **Anchor indent через `repr()`** (AGENTS.md «Anchor на
-  строку с отступом — проверять `repr()`»): в
-  `TScalpApplication.tryOpenSandboxAccount` anchor на одну
-  строку `broker.openSandboxAccount()` — считать отступ
-  через `repr()` перед скриптом.
-- Не смешивать с `### Реализация Finam Broker API` /
-  `### Реализация BCS Broker API` — у BCS/Finam песочницы
-  не будет, задачи не блокируют.
-- `synchronized(startLock)` в менеджерах не трогать.
-
-**Критерий готовности:**
-- `SandboxApi` создан (3 метода + KDoc, «T-Invest-specific»).
-- `BrokerApi.sandbox: SandboxApi?`.
-- TInvest `sandbox = this` + supertype; BCS/Finam
-  `sandbox = null` без supertype.
-- `InvestRepository`: `grep "broker.openSandboxAccount|
-  broker.closeSandboxAccount|broker.sandboxPayIn"` — пусто
-  (все через `sandboxApi`).
-- `TScalpApplication`: `grep "broker.openSandboxAccount"` —
-  пусто (через `broker.sandbox?.`).
-- Гейт зелёный.
-
-**Оценка:** ~1.5 ч (SandboxApi 10 мин, BrokerApi 5,
-TInvest 10, BCS 5, Finam 5, InvestRepository 3 callsites 25,
-TScalpApplication 15, гейт 10, резерв 15).
-
-**Зависимости:** umbrella #1–#5 закрыты.
-
-**Связано:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — #6 в порядке.
-- `### Реализация Finam Broker API` — реализация `sandboxPayIn`
-  у Finam, **не блокирует** (у Finam песочницы не будет).
-- `### Реализация BCS Broker API` — не заведена в ROADMAP,
-  пробел (не блокирует).
-
-**Открытые вопросы:** нет.
-
----
-
 ### Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
@@ -490,7 +347,7 @@ fat-интерфейс подходит). Если остановиться по
 | 3 | `BrokerInstrumentApi` | ✅ done | `InstrumentRepository` (1) | 1 | 45 мин |
 | 4 | `OrdersApi` | ✅ done | `InvestRepository` (6) | 0 | 2 ч |
 | 5 | `AccountsApi` | ✅ done | `TScalpApplication` (1), `InvestRepository` (1) | 0 | 1 ч |
-| 6 | `SandboxApi` | новая | `InvestRepository` (3), `TScalpApplication` (1) | 0 | 1.5 ч |
+| 6 | `SandboxApi` | ✅ done | `InvestRepository` (3), `TScalpApplication` (1) | 0 | 1.5 ч |
 | 7 | `UserInstrumentsApi` | новая | `SearchCache` (1), `InvestRepository` (1) | 0 | 1 ч |
 | 8 | `BalanceApi` | новая | `InvestRepository` (1) | 0 | 30 мин |
 | 9 | `PortfolioApi` | ROADMAP | `InvestRepository` (1) | 0 | 2–3 ч |
@@ -5274,6 +5131,192 @@ BCS 10, Finam 5, InvestRepository 10, TScalpApplication 15,
   у Finam, отдельная задача (не блокирует).
 - `### Реализация BCS Broker API` — не заведена в ROADMAP,
   упомянута в KDoc `BcsBrokerApi`, пробел (не блокирует).
+
+**Открытые вопросы:** нет.
+
+
+---
+
+### ✅ SandboxApi
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст.**
+
+`BrokerApi` содержит 3 sandbox-метода:
+`openSandboxAccount()`, `closeSandboxAccount(accountId)`,
+`sandboxPayIn(accountId, amount)`.
+
+**SandboxApi — T-Invest-специфичная роль.** У BCS и Finam
+песочницы нет и не будет — это не «пока не реализовали», а
+свойство брокера. Поэтому сигнатура интерфейса **без**
+параметра `sandboxMode`: у TInvest все 3 метода — всегда
+sandbox, у BCS/Finam — не применимо.
+
+Реализации (grep 2026-10-25):
+- `TInvestBrokerAPI` — 3/3 реальные (через `marketData.*`:
+  `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`);
+- `BcsBrokerApi` — 0/3 рабочих: `open`/`close` →
+  `UnsupportedOperationException`, `payIn` → no-op + warning;
+- `FinamBrokerApi` — 0/3: `open`/`close` →
+  `TODO("Not yet implemented")`, `payIn` — заглушка.
+
+**Цель.** `SandboxApi` — nullable-val роль по образцу
+`AccountsApi` / `OrdersApi` / `BrokerInstrumentApi`.
+`BrokerApi.sandbox: SandboxApi?`. Потребители переходят на
+`broker.sandbox?.<метод>`; при `null` —
+`AppResult.Failure` (в `InvestRepository`) или fallback
+(в `TScalpApplication`).
+
+**Решение (nullable-val, Scenario2).**
+- TInvest: supertype `SandboxApi`, `sandbox = this` (3/3).
+- BCS: `sandbox = null`, **без** supertype (0/3 —
+  `UnsupportedOperationException`/no-op).
+- Finam: `sandbox = null`, **без** supertype (0/3 —
+  `TODO`).
+- `InvestRepository`: 3 callsites
+  (`sandboxPayInResult`, `openSandboxAccountResult`,
+  `closeSandboxAccountResult`) → `broker.sandbox ?: return
+  Failure(...)` + `sandboxApi.<метод>` (по образцу #4/#5).
+- `TScalpApplication.tryOpenSandboxAccount`:
+  `broker.sandbox?.openSandboxAccount()` внутри
+  существующего `try/catch`. При `null` — тихо вернёт
+  `null` (сейчас BCS/Finam кидают исключение → `try/catch`
+  ловит → `null`; поведение не меняется).
+
+**Предусловия:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #1–#5 закрыты.
+
+**Файлы:**
+- `domain/api/roles/SandboxApi.kt` (новый).
+- `domain/api/BrokerApi.kt` — `val sandbox: SandboxApi?`.
+- `data/api/TInvestBrokerApi.kt` — supertype `SandboxApi`,
+  `sandbox = this`, 3 метода → `override`.
+- `data/api/BcsBrokerApi.kt` — `sandbox = null`, **без**
+  supertype.
+- `data/api/FinamBrokerApi.kt` — `sandbox = null`, **без**
+  supertype.
+- `data/repository/InvestRepository.kt` — 3 callsites.
+- `TScalpApplication.kt` — `tryOpenSandboxAccount`
+  (1 callsite).
+
+**Шаги:**
+1. `SandboxApi` (3 метода + KDoc с «T-Invest-specific»).
+2. `BrokerApi.sandbox: SandboxApi?`.
+3. TInvest: supertype + `sandbox = this`, 3 метода →
+   `override`.
+4. BCS: `sandbox = null` (без supertype).
+5. Finam: `sandbox = null` (без supertype).
+6. `InvestRepository`: 3 callsites → `broker.sandbox ?:
+   return Failure` + `sandboxApi.<метод>`.
+7. `TScalpApplication.tryOpenSandboxAccount`:
+   `broker.sandbox?.openSandboxAccount()` внутри `try/catch`.
+8. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+
+**Тесты.** `InvestRepositoryTest` не существует,
+`TScalpApplication` — live-test (`tryOpenSandboxAccount` в
+sandbox-режиме). Замена в `InvestRepository` — тривиальная
+делегация. **Дефолт:** без новых unit-тестов (по образцу
+#3–#5).
+
+**Референсы:**
+- `f8569ee` (#1 StreamsApi) — образец supertype у TInvest,
+  `null` у BCS/Finam.
+- `977c1d0` (#4 OrdersApi) — образец `broker.orders ?:
+  Failure` паттерна в `InvestRepository`.
+- `216ec9b` (#5 AccountsApi) — образец `broker.accounts ?:
+  Failure` + null-через-`?.` в `TScalpApplication` с
+  сохранением `try/catch`.
+
+**Ограничения:**
+- **Supertype только у TInvest.** BCS/Finam — `null` без
+  supertype (AGENTS.md «Nullable-val роли»). Не потому, что
+  «не реализовали», а потому что **песочницы нет по природе
+  брокера** — это фиксируется в KDoc `SandboxApi`.
+- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
+  вставке»).
+- **Anchor indent через `repr()`** (AGENTS.md «Anchor на
+  строку с отступом — проверять `repr()`»): в
+  `TScalpApplication.tryOpenSandboxAccount` anchor на одну
+  строку `broker.openSandboxAccount()` — считать отступ
+  через `repr()` перед скриптом.
+- Не смешивать с `### Реализация Finam Broker API` /
+  `### Реализация BCS Broker API` — у BCS/Finam песочницы
+  не будет, задачи не блокируют.
+- `synchronized(startLock)` в менеджерах не трогать.
+
+**Критерий готовности:**
+- `SandboxApi` создан (3 метода + KDoc, «T-Invest-specific»).
+- `BrokerApi.sandbox: SandboxApi?`.
+- TInvest `sandbox = this` + supertype; BCS/Finam
+  `sandbox = null` без supertype.
+- `InvestRepository`: `grep "broker.openSandboxAccount|
+  broker.closeSandboxAccount|broker.sandboxPayIn"` — пусто
+  (все через `sandboxApi`).
+- `TScalpApplication`: `grep "broker.openSandboxAccount"` —
+  пусто (через `broker.sandbox?.`).
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-25, 2 WIP-коммита в
+`feature/sandbox-api` (`c440f6f` → `14ef2cf`), PR — см. ниже.
+
+- **#1** `domain/api/roles/SandboxApi.kt` — новый интерфейс
+  (3 метода `openSandboxAccount`, `closeSandboxAccount`,
+  `sandboxPayIn` + KDoc с фиксацией «T-Invest-specific: у
+  BCS/Finam песочницы нет по природе брокера, `sandbox =
+  null` постоянно»). Коммит `c440f6f`.
+- **#2** (объединено):
+  - `BrokerApi.sandbox: SandboxApi?` (nullable-val, рядом с
+    `accounts`);
+  - `TInvestBrokerAPI`: supertype `SandboxApi`,
+    `sandbox = this` (3/3 реальные);
+  - `BcsBrokerApi`: `sandbox = null`, **без** supertype (0/3:
+    `UnsupportedOperationException` / no-op);
+  - `FinamBrokerApi`: `sandbox = null`, **без** supertype (0/3:
+    `TODO`);
+  - `InvestRepository`: 3 callsites → `broker.sandbox ?:
+    return Failure(...)` + `sandboxApi.<метод>`
+    (`sandboxPayInResult` получает новый null-check на
+    `broker.sandbox`, `open`/`close` уже имели `broker ?:`,
+    sandbox-check добавлен после);
+  - `TScalpApplication.tryOpenSandboxAccount`:
+    `broker.sandbox?.openSandboxAccount()` (anchor indent 12
+    проверен через `repr()` — правило AGENTS.md применено,
+    в отличие от #5, где anchor был записан с 20 пробелами
+    при фактических 16). При `null` — тихо вернёт `null`
+    (было: BCS/Finam бросали, ловились, `null`; поведение
+    не изменилось). Коммит `14ef2cf`.
+- **CI-цикл — 1 итерация.** Третий раз подряд без
+  fix-коммитов (#4, #5, #6). Уроки AGENTS.md применены:
+  импорты по алфавиту (`add_import_sorted`), supertype только
+  у TInvest, `repr()` для anchor с отступом.
+- **Критерий готовности:**
+  - `SandboxApi` создан (3 метода + KDoc с «T-Invest-specific»);
+  - `BrokerApi.sandbox` добавлен;
+  - TInvest `sandbox = this` + supertype; BCS/Finam
+    `sandbox = null` без supertype;
+  - `grep "broker.openSandboxAccount|broker.closeSandboxAccount|
+    broker.sandboxPayIn"` в `InvestRepository.kt` и
+    `TScalpApplication.kt` — пусто (все через `sandboxApi` /
+    `broker.sandbox?.`);
+  - `gate` зелёный на `14ef2cf`.
+
+**Оценка:** ~1.5 ч (SandboxApi 10 мин, BrokerApi 5,
+TInvest 10, BCS 5, Finam 5, InvestRepository 3 callsites 25,
+TScalpApplication 15, гейт 10, резерв 15).
+
+**Зависимости:** umbrella #1–#5 закрыты.
+
+**Связано:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #6 в порядке.
+- `### Реализация Finam Broker API` — реализация `sandboxPayIn`
+  у Finam, **не блокирует** (у Finam песочницы не будет).
+- `### Реализация BCS Broker API` — не заведена в ROADMAP,
+  пробел (не блокирует).
 
 **Открытые вопросы:** нет.
 
