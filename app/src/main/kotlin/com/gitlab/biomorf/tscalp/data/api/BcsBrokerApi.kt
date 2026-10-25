@@ -44,8 +44,7 @@ import java.io.IOException
 @Suppress("TooManyFunctions")
 class BcsBrokerApi :
     BrokerApi,
-    BrokerLifecycleApi,
-    BrokerInstrumentApi {
+    BrokerLifecycleApi {
     companion object {
         private const val TAG = "BcsBrokerApi"
         private const val PROD_BASE_URL = "https://be.broker.ru"

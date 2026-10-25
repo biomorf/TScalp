@@ -46,8 +46,7 @@ import java.util.concurrent.TimeUnit
 @Suppress("TooManyFunctions")
 class FinamBrokerApi :
     BrokerApi,
-    BrokerLifecycleApi,
-    BrokerInstrumentApi {
+    BrokerLifecycleApi {
     companion object {
         private const val TAG = "FinamBrokerApi"
         private const val BASE_URL = "https://api.finam.ru/v1/"
