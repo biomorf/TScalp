@@ -169,7 +169,7 @@ class FinamBrokerApi :
             // Стартовый снапшот
             try {
                 val positions = fetchPortfolioPositions(accountId, false)
-                positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
+                positions.forEach { pos -> trySend(pos) }
             } catch (e: Exception) {
                 AppLogger.w(TAG, "Finam snapshot failed", e)
             }
@@ -179,7 +179,7 @@ class FinamBrokerApi :
                 delay(10_000)
                 try {
                     val positions = fetchPortfolioPositions(accountId, false)
-                    positions.forEach { pos -> trySend(convertToStreamItem(pos)) }
+                    positions.forEach { pos -> trySend(pos) }
                 } catch (e: Exception) {
                     AppLogger.w(TAG, "Finam polling error", e)
                 }
@@ -188,22 +188,11 @@ class FinamBrokerApi :
             awaitClose { /* cleanup if needed */ }
         }
 
-    private fun convertToStreamItem(pos: PortfolioPosition) =
-        PositionStreamItem(
-            tscalpInstrumentId = pos.tscalpInstrumentId,
-            brokerName = BrokerName.FINAM,
-            ticker = pos.ticker,
-            quantity = pos.quantity,
-            currentPrice = pos.currentPrice,
-            averagePositionPrice = pos.averagePrice,
-            expectedYield = pos.profit,
-        )
-
     // реализация на основе HTTP-клиента
     override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
-    ): List<PortfolioPosition> =
+    ): List<PositionStreamItem> =
         withContext(Dispatchers.IO) {
             emptyList()
         }

@@ -95,7 +95,7 @@ class TInvestBrokerAPI(
             },
             positionsRestFallback = { accountId, _ ->
                 val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
-                rest.fetchPositionsSnapshot(accountId).positions.map { it.toPortfolioPosition() }
+                rest.fetchPositionsSnapshot(accountId).positions.map { it.toStreamItem() }
             },
             ordersRestFallback = { accountId ->
                 val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")

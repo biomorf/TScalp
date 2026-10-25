@@ -7,7 +7,6 @@ import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
@@ -149,7 +148,7 @@ class TInvestMarketDataService(
     suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
-    ): List<PortfolioPosition> =
+    ): List<PositionStreamItem> =
         withContext(Dispatchers.IO) {
             val response = getPortfolio(accountId, sandboxMode)
 
@@ -171,39 +170,19 @@ class TInvestMarketDataService(
 
                 val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
                 val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                val totalValue = currentPrice * quantity
-                val expectedYield = pos.expectedYield?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                val expectedYield = pos.expectedYield?.let { it.units + it.nano / 1_000_000_000.0 }
                 val avgPrice = pos.averagePositionPrice?.let { it.units + it.nano / 1_000_000_000.0 }
 
-                val profit: Double? =
-                    if (expectedYield > 0.0) {
-                        expectedYield
-                    } else if (avgPrice != null && avgPrice > 0.0) {
-                        (currentPrice - avgPrice) * quantity
-                    } else {
-                        null
-                    }
-
-                val profitPercent: Double? =
-                    when {
-                        profit != null && avgPrice != null && avgPrice > 0.0 && quantity > 0 ->
-                            (profit / (avgPrice * quantity)) * 100.0
-                        else -> null
-                    }
-
-                PortfolioPosition(
+                PositionStreamItem(
                     tscalpInstrumentId = instrumentUi?.tscalpInstrumentId ?: "",
                     brokerName = BrokerName.TINVEST,
-                    name = instrumentUi?.name ?: "",
                     ticker = instrumentUi?.ticker ?: "",
                     classCode = instrumentUi?.classCode ?: "",
                     isin = instrumentUi?.isin ?: "",
                     quantity = quantity,
                     currentPrice = currentPrice,
-                    averagePrice = avgPrice,
-                    totalValue = totalValue,
-                    profit = profit,
-                    profitPercent = profitPercent,
+                    averagePositionPrice = avgPrice,
+                    expectedYield = expectedYield,
                     instrumentType = instrumentUi?.instrumentType ?: "",
                     pointValue = pointVal,
                     currency = instrumentUi?.currency,
@@ -343,22 +322,6 @@ class TInvestMarketDataService(
         val idx = (attempt - 1).coerceIn(0, GRPC_RETRY_DELAYS_MS.lastIndex)
         return GRPC_RETRY_DELAYS_MS[idx]
     }
-
-    internal fun convertToStreamItem(pos: PortfolioPosition): PositionStreamItem =
-        PositionStreamItem(
-            tscalpInstrumentId = pos.tscalpInstrumentId,
-            brokerName = BrokerName.TINVEST,
-            isin = pos.isin,
-            ticker = pos.ticker,
-            classCode = pos.classCode,
-            quantity = pos.quantity,
-            currentPrice = pos.currentPrice,
-            averagePositionPrice = pos.averagePrice,
-            expectedYield = pos.profit,
-            instrumentType = pos.instrumentType,
-            pointValue = pos.pointValue,
-            currency = pos.currency,
-        )
 
     // ---------- Баланс и пополнение ----------
 

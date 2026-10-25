@@ -4,13 +4,11 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import io.grpc.Status
 import io.grpc.StatusException
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -104,16 +102,16 @@ class TInvestOrchestratorFallbackTest {
     @Test
     fun `positionsSnapshot falls back to REST on UNAVAILABLE`() =
         runBlocking {
-            val restPositions = listOf<PortfolioPosition>(mockk())
-            val restStreamItem =
-                PositionStreamItem(
-                    tscalpInstrumentId = "uid1",
-                    brokerName = BrokerName.TINVEST,
-                    ticker = "TEST",
-                    quantity = 1L,
+            val restPositions =
+                listOf(
+                    PositionStreamItem(
+                        tscalpInstrumentId = "uid1",
+                        brokerName = BrokerName.TINVEST,
+                        ticker = "TEST",
+                        quantity = 1L,
+                    ),
                 )
             coEvery { marketData.fetchPortfolioPositions(any(), any()) } throws StatusException(Status.UNAVAILABLE)
-            every { marketData.convertToStreamItem(any()) } returns restStreamItem
 
             val orchestrator =
                 TInvestOrchestrator(
@@ -123,7 +121,7 @@ class TInvestOrchestratorFallbackTest {
                 )
 
             val result = orchestrator.positionsSnapshot("acc1", false)
-            assertEquals(listOf(restStreamItem), result)
+            assertEquals(restPositions, result)
             coVerify(exactly = 1) { marketData.fetchPortfolioPositions(any(), any()) }
         }
 }
