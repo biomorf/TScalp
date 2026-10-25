@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.api
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
 import com.gitlab.biomorf.tscalp.transport.ktor.RestPosition
 import com.gitlab.biomorf.tscalp.transport.ktor.RestQuotation
@@ -43,6 +44,22 @@ internal fun RestStopOrder.toOrderListItem(): OrderListItem =
         status = executionReportStatus.removePrefix("EXECUTION_REPORT_STATUS_"),
         orderDate = null,
         isStopOrder = true,
+    )
+
+internal fun RestPosition.toStreamItem(): PositionStreamItem =
+    PositionStreamItem(
+        tscalpInstrumentId = instrumentUid,
+        brokerName = BrokerName.TINVEST,
+        ticker = "",
+        quantity = quantity.toLong(),
+        currentPrice = currentPrice.toDouble() ?: 0.0,
+        averagePositionPrice = averagePositionPrice.toDouble(),
+        expectedYield = expectedYield.toDouble(),
+        classCode = "",
+        isin = "",
+        pointValue = null,
+        instrumentType = instrumentType,
+        currency = null,
     )
 
 internal fun RestPosition.toPortfolioPosition(): PortfolioPosition {

@@ -1,7 +1,9 @@
 package com.gitlab.biomorf.tscalp.data.api
 
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
 import com.gitlab.biomorf.tscalp.transport.ktor.RestPosition
 import com.gitlab.biomorf.tscalp.transport.ktor.RestQuotation
@@ -118,5 +120,50 @@ class RestMappersTest {
         assertNull(pos.profit)
         assertNull(pos.profitPercent)
         assertEquals(5000.0, pos.totalValue, 0.0001)
+    }
+
+    @Test
+    fun `RestPosition maps to PositionStreamItem with currentPrice zero fallback`() {
+        val restPosition =
+            RestPosition(
+                instrumentUid = "uid-aapl",
+                quantity = RestQuotation(units = "10", nano = 0),
+                currentPrice = RestQuotation(units = "120", nano = 0),
+                averagePositionPrice = RestQuotation(units = "100", nano = 0),
+                expectedYield = RestQuotation(units = "200", nano = 0),
+                instrumentType = "share",
+            )
+
+        val item: PositionStreamItem = restPosition.toStreamItem()
+
+        assertEquals("uid-aapl", item.tscalpInstrumentId)
+        assertEquals(BrokerName.TINVEST, item.brokerName)
+        assertEquals(10L, item.quantity)
+        assertEquals(120.0, item.currentPrice!!, 0.0001)
+        assertEquals(100.0, item.averagePositionPrice!!, 0.0001)
+        assertEquals(200.0, item.expectedYield!!, 0.0001)
+        assertEquals("share", item.instrumentType)
+        assertEquals("", item.ticker)
+        assertEquals("", item.classCode)
+        assertEquals("", item.isin)
+    }
+
+    @Test
+    fun `RestPosition with null currentPrice yields zero in PositionStreamItem`() {
+        val restPosition =
+            RestPosition(
+                instrumentUid = "uid-bond",
+                quantity = RestQuotation(units = "5", nano = 0),
+                currentPrice = null,
+                averagePositionPrice = null,
+                expectedYield = null,
+                instrumentType = "bond",
+            )
+
+        val item: PositionStreamItem = restPosition.toStreamItem()
+
+        assertEquals(0.0, item.currentPrice!!, 0.0001)
+        assertNull(item.averagePositionPrice)
+        assertNull(item.expectedYield)
     }
 }
