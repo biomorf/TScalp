@@ -613,6 +613,88 @@ detekt блокирует сборку (`ignoreFailures = false`), но
 
 ---
 
+### Рефакторинг BrokerApi-реализаций (D)
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.** Секция писалась до umbrella `### Рефакторинг
+ролей BrokerApi (nullable-val, Scenario2)`. Половина плана
+уже сделана в #1–#9:
+
+- «Разделить `BrokerApi` на ролевые интерфейсы» — закрыто
+  (9 nullable-val ролей, не супертипы как планировалось).
+- `BrokerSnapshotApi` — в `domain/api/roles/` с #1.
+- `fetchPositionsSnapshot` возвращает `PositionStreamItem` (#9).
+- TInvest разбит на `TInvestMarketDataService` +
+  `TInvestOrdersService`.
+
+**Файлы:** `data/api/TInvestBrokerApi.kt` (357 строк, 22 функции),
+`data/api/BcsBrokerApi.kt` (392, 25), `data/api/FinamBrokerApi.kt`
+(257, 24).
+
+**Пути решения (TInvest).**
+
+`TInvestBrokerAPI` — 18 делегатов через `marketData` /
+`ordersService` / `orchestrator` + ~10 не-делегатов (WS, REST,
+lifecycle, 9 nullable-val properties). Вынести:
+
+- `TInvestWsService` — `positionsWebSocket`,
+  `pricesWebSocket`, `orderStateWebSocket`, `wsScope`, 3
+  `buildWsFallback*`. Constructor `(state: TInvestApiState)`.
+- `TInvestRestService` — `restTransport` + 4 REST
+  fallback-замыкания (`pricesRestFallback`,
+  `positionsRestFallback`, `ordersRestFallback`,
+  `balanceRestFallback`). Constructor `(state: TInvestApiState)`.
+- `initialize` / `deinitialize` / `isInitialized` + 9 nullable-val
+  properties — **остаются в фасаде** (lifecycle + nullable-val).
+
+После выноса `@Suppress("TooManyFunctions")` с
+`TInvestBrokerApi` снять (функций < 15).
+
+**TInvestApiState.** Остаётся в `TInvestBrokerAPI` (владелец
+lifecycle), сервисы получают через конструктор. Не выносить
+в Hilt `@Singleton` — mutable state, владелец должен быть
+виден. При обнаружении мутаций из WS/REST-сервисов —
+reconsider.
+
+**Отложено до API-задач (BCS/Finam).**
+
+- `BcsBrokerApi` (392 строки, 25 функций) — 22 из 25 заглушки
+  (`emptyList`, `throw UnsupportedOperationException`, no-op).
+  Разбивка = 3 сервиса × 6 заглушек. При реализации
+  `### Реализация BCS Broker API` (в ROADMAP пока **не
+  заведена** — пробел) код переписывается с нуля. Не
+  окупается сейчас.
+- `FinamBrokerApi` (257 строк, 24 функции) — всё заглушки.
+  Отложить до `### Реализация Finam Broker API`.
+
+**Оценка:** ~1–1.5 ч (чтение 15 мин, `TInvestWsService` 30,
+`TInvestRestService` 20, делегирование 15, снятие
+`@Suppress` + гейт 10). Прежняя `~3–4 ч` — устарела (половина
+уже сделана, BCS/Finam отложены).
+
+**Связано:**
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` —
+  umbrella, #11 в порядке; уборка после всех ролей.
+- `### detekt: включить архитектурные правила` — снимет
+  остальные 8 `@Suppress("TooManyFunctions")` (BCS, Finam,
+  `InvestRepository`, `SettingsRepository`,
+  `TInvestMarketDataService`, `BrokerApi`,
+  `SettingsViewModel`, `PortfolioViewModel`).
+- `### Разбивка InvestRepository по доменным областям` —
+  следующий шаг после #11 по Clean-долгу.
+- `### Реализация BCS Broker API` — **не заведена** в
+  ROADMAP (пробел, отмечен в #9). BCS-разбивка отложена до
+  неё.
+- `### Реализация Finam Broker API` — Finam-разбивка
+  отложена до неё.
+- `docs/architecture.md`, раздел 7 — при создании.
+
+
+
+---
 
 ### Разбивка InvestRepository по доменным областям
 
@@ -2150,78 +2232,10 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 #### BrokerApi-реализации
 
-**Контекст.** Секция писалась до umbrella `### Рефакторинг
-ролей BrokerApi (nullable-val, Scenario2)`. Половина плана
-уже сделана в #1–#9:
-
-- «Разделить `BrokerApi` на ролевые интерфейсы» — закрыто
-  (9 nullable-val ролей, не супертипы как планировалось).
-- `BrokerSnapshotApi` — в `domain/api/roles/` с #1.
-- `fetchPositionsSnapshot` возвращает `PositionStreamItem` (#9).
-- TInvest разбит на `TInvestMarketDataService` +
-  `TInvestOrdersService`.
-
-**Файлы:** `data/api/TInvestBrokerApi.kt` (357 строк, 22 функции),
-`data/api/BcsBrokerApi.kt` (392, 25), `data/api/FinamBrokerApi.kt`
-(257, 24).
-
-**Пути решения (TInvest).**
-
-`TInvestBrokerAPI` — 18 делегатов через `marketData` /
-`ordersService` / `orchestrator` + ~10 не-делегатов (WS, REST,
-lifecycle, 9 nullable-val properties). Вынести:
-
-- `TInvestWsService` — `positionsWebSocket`,
-  `pricesWebSocket`, `orderStateWebSocket`, `wsScope`, 3
-  `buildWsFallback*`. Constructor `(state: TInvestApiState)`.
-- `TInvestRestService` — `restTransport` + 4 REST
-  fallback-замыкания (`pricesRestFallback`,
-  `positionsRestFallback`, `ordersRestFallback`,
-  `balanceRestFallback`). Constructor `(state: TInvestApiState)`.
-- `initialize` / `deinitialize` / `isInitialized` + 9 nullable-val
-  properties — **остаются в фасаде** (lifecycle + nullable-val).
-
-После выноса `@Suppress("TooManyFunctions")` с
-`TInvestBrokerApi` снять (функций < 15).
-
-**TInvestApiState.** Остаётся в `TInvestBrokerAPI` (владелец
-lifecycle), сервисы получают через конструктор. Не выносить
-в Hilt `@Singleton` — mutable state, владелец должен быть
-виден. При обнаружении мутаций из WS/REST-сервисов —
-reconsider.
-
-**Отложено до API-задач (BCS/Finam).**
-
-- `BcsBrokerApi` (392 строки, 25 функций) — 22 из 25 заглушки
-  (`emptyList`, `throw UnsupportedOperationException`, no-op).
-  Разбивка = 3 сервиса × 6 заглушек. При реализации
-  `### Реализация BCS Broker API` (в ROADMAP пока **не
-  заведена** — пробел) код переписывается с нуля. Не
-  окупается сейчас.
-- `FinamBrokerApi` (257 строк, 24 функции) — всё заглушки.
-  Отложить до `### Реализация Finam Broker API`.
-
-**Оценка:** ~1–1.5 ч (чтение 15 мин, `TInvestWsService` 30,
-`TInvestRestService` 20, делегирование 15, снятие
-`@Suppress` + гейт 10). Прежняя `~3–4 ч` — устарела (половина
-уже сделана, BCS/Finam отложены).
-
-**Связано:**
-- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` —
-  umbrella, #11 в порядке; уборка после всех ролей.
-- `### detekt: включить архитектурные правила` — снимет
-  остальные 8 `@Suppress("TooManyFunctions")` (BCS, Finam,
-  `InvestRepository`, `SettingsRepository`,
-  `TInvestMarketDataService`, `BrokerApi`,
-  `SettingsViewModel`, `PortfolioViewModel`).
-- `### Разбивка InvestRepository по доменным областям` —
-  следующий шаг после #11 по Clean-долгу.
-- `### Реализация BCS Broker API` — **не заведена** в
-  ROADMAP (пробел, отмечен в #9). BCS-разбивка отложена до
-  неё.
-- `### Реализация Finam Broker API` — Finam-разбивка
-  отложена до неё.
-- `docs/architecture.md`, раздел 7 — при создании.
+**Архитектурный долг, вынесено в отдельную задачу.**
+`### Рефакторинг BrokerApi-реализаций (D)` — см. «Планируемые
+задачи». Полный план (TInvest WS/REST split, BCS/Finam
+отложены) — там.
 
 
 
