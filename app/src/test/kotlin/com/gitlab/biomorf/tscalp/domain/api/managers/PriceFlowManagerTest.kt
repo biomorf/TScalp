@@ -1,7 +1,8 @@
-package com.gitlab.biomorf.tscalp.domain.api
+package com.gitlab.biomorf.tscalp.domain.managers
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import io.mockk.coEvery

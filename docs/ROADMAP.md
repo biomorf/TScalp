@@ -62,24 +62,32 @@ domain/
 - `models/`, `usecases/` — без изменений.
 - `presentation/`, `data/` — без изменений.
 
-**Предусловия:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` закрыт (#1–#11).
-- Все роли (#4–#9) реализованы — иначе они создадутся плоско
-  и попадут под миграцию сразу после создания.
+**Предусловия:** нет (пересмотрено 2026-10-25).
+Первоначальный план требовал «umbrella #1–#11 закрыт, все
+роли (#4–#9) реализованы». Отклонение от первоначального
+плана: перенос выполняется **до** #3–#9, чтобы структура
+устаканилась сразу и новые роли создавались в целевом
+месте, без второй миграции. Блокер снят — перенос
+существующих файлов делается сейчас, будущие (#3–#9) сразу
+пишутся в `api/roles/`.
 
 **Файлы:**
-- `git mv` 10 файлов:
+- `git mv` 13 файлов (10 основных + 3 теста):
   - `domain/api/{BrokerSnapshotApi,StreamsApi,BrokerLifecycleApi,BrokerCredentials}.kt`
     → `domain/api/roles/`;
   - `domain/api/{PositionFlowManager,PriceFlowManager,OrderFlowManager,OrderCache,StreamStateTracker,PriceConsumer}.kt`
-    → `domain/managers/`.
+    → `domain/managers/`;
+  - `test/.../domain/api/{PositionFlowManagerTest,PriceFlowManagerTest,OrderFlowManagerTest}.kt`
+    → `test/.../domain/managers/`.
 - Импорты в ~30 файлах по всему проекту (`presentation/`,
   `data/`, тесты).
 - `AGENTS.md` → «Проект» — упомянуть структуру
   `domain/api/roles/`, `domain/managers/`.
-- `docs/architecture.md` — раздел 1 (слои) и раздел 7
-  (BrokerApi + roles).
+- `docs/architecture.md` — **не существует** на момент
+  выполнения Move (это задача `### Архитектурный документ` в
+  «Планируемые»). При её создании учесть структуру
+  `roles/` / `managers/` (раздел 1 «Слои», раздел 7
+  «BrokerApi + roles»).
 
 **Шаги:**
 1. `git mv` файлов ролей → `domain/api/roles/`.

@@ -1,10 +1,10 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
-import com.gitlab.biomorf.tscalp.domain.api.BrokerCredentials
-import com.gitlab.biomorf.tscalp.domain.api.BrokerLifecycleApi
-import com.gitlab.biomorf.tscalp.domain.api.BrokerSnapshotApi
-import com.gitlab.biomorf.tscalp.domain.api.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
+import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
