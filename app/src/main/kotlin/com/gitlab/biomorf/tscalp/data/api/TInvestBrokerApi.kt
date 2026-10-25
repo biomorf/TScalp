@@ -5,6 +5,7 @@ import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -46,7 +47,8 @@ class TInvestBrokerAPI(
 ) : BrokerApi,
     BrokerSnapshotApi,
     StreamsApi,
-    BrokerLifecycleApi {
+    BrokerLifecycleApi,
+    BrokerInstrumentApi {
     private companion object {
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
         const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
@@ -121,6 +123,7 @@ class TInvestBrokerAPI(
     override val snapshot: BrokerSnapshotApi get() = this
     override val streams: StreamsApi get() = this
     override val lifecycle: BrokerLifecycleApi get() = this
+    override val instrument: BrokerInstrumentApi get() = this
 
     /**
      * Инициализация API с явным токеном и режимом.
@@ -327,11 +330,10 @@ class TInvestBrokerAPI(
      * Возвращает полный доменный инструмент по uid.
      * Используется `InstrumentRepository.loadAndCache`.
      *
-     * Не входит в `BrokerApi` — TInvest-specific. Планируется
-     * вынос в `BrokerInstrumentApi` (см. ROADMAP →
-     * `### TInvest-specific: fetchFullInstrument`).
+     * Реализация [BrokerInstrumentApi.fetchFullInstrument]
+     * (nullable-val роль, см. `BrokerApi.instrument`).
      */
-    suspend fun fetchFullInstrument(uid: String): InstrumentUi? = marketData.fetchFullInstrument(uid)
+    override suspend fun fetchFullInstrument(uid: String): InstrumentUi? = marketData.fetchFullInstrument(uid)
 
     /**
      * Стрим последних цен. Используется OrdersViewModel.startPriceUpdates().

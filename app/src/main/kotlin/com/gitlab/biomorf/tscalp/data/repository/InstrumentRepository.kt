@@ -1,6 +1,5 @@
 package com.gitlab.biomorf.tscalp.data.repository
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
@@ -32,8 +31,8 @@ class InstrumentRepository(
     }
 
     private suspend fun loadAndCache(tscalpInstrumentId: String): InstrumentUi? {
-        val broker = brokerManager.getBroker(BrokerName.TINVEST) as? TInvestBrokerAPI ?: return null
-        val instrument = broker.fetchFullInstrument(tscalpInstrumentId)
+        val broker = brokerManager.getBroker(BrokerName.TINVEST) ?: return null
+        val instrument = broker.instrument?.fetchFullInstrument(tscalpInstrumentId)
         if (instrument != null) {
             cache[tscalpInstrumentId] = instrument
         }

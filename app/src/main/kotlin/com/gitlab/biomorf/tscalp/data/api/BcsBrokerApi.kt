@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.api
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
@@ -43,7 +44,8 @@ import java.io.IOException
 @Suppress("TooManyFunctions")
 class BcsBrokerApi :
     BrokerApi,
-    BrokerLifecycleApi {
+    BrokerLifecycleApi,
+    BrokerInstrumentApi {
     companion object {
         private const val TAG = "BcsBrokerApi"
         private const val PROD_BASE_URL = "https://be.broker.ru"
@@ -68,6 +70,7 @@ class BcsBrokerApi :
     override val snapshot: BrokerSnapshotApi? = null
     override val lifecycle: BrokerLifecycleApi get() = this
     override val streams: StreamsApi? = null
+    override val instrument: BrokerInstrumentApi? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean

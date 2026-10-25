@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.api
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
@@ -45,7 +46,8 @@ import java.util.concurrent.TimeUnit
 @Suppress("TooManyFunctions")
 class FinamBrokerApi :
     BrokerApi,
-    BrokerLifecycleApi {
+    BrokerLifecycleApi,
+    BrokerInstrumentApi {
     companion object {
         private const val TAG = "FinamBrokerApi"
         private const val BASE_URL = "https://api.finam.ru/v1/"
@@ -61,6 +63,7 @@ class FinamBrokerApi :
     override val snapshot: BrokerSnapshotApi? = null
     override val lifecycle: BrokerLifecycleApi get() = this
     override val streams: StreamsApi? = null
+    override val instrument: BrokerInstrumentApi? = null
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null
 
