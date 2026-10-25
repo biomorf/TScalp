@@ -45,7 +45,12 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                     )
-            runCatchingAppResult(brokerName) { broker.getAccounts(sandboxMode) }
+            val accountsApi =
+                broker.accounts
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает счета"),
+                    )
+            runCatchingAppResult(brokerName) { accountsApi.getAccounts(sandboxMode) }
         }
 
     /**
