@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.domain.api
+package com.gitlab.biomorf.tscalp.domain.api.roles
 
 /**
  * Типизированные credentials для [BrokerLifecycleApi.initialize].

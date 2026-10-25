@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.domain.api
+package com.gitlab.biomorf.tscalp.domain.api.roles
 
 /**
  * Опциональный контракт: lifecycle брокера (login / logout).

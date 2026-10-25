@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.domain.api
+package com.gitlab.biomorf.tscalp.domain.managers
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.di.BrokerManager
