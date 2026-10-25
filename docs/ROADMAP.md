@@ -344,7 +344,7 @@ fat-интерфейс подходит). Если остановиться по
 |---|---|---|---|---|---|
 | 1 | `StreamsApi` | ✅ done | 3 менеджера (по 1) + `InvestRepository.subscribeLastPrices` (legacy, удалён) | 0 | 2.5–3 ч |
 | 2 | `BrokerLifecycleApi` | ✅ done | `SettingsViewModel` (6), `TScalpApplication` (2) | 8 | 3–4 ч |
-| 3 | `BrokerInstrumentApi` | ROADMAP | `InstrumentRepository` (1) | 1 | 45 мин |
+| 3 | `BrokerInstrumentApi` | ✅ done | `InstrumentRepository` (1) | 1 | 45 мин |
 | 4 | `OrdersApi` | новая | `InvestRepository` (6) | 0 | 1.5 ч |
 | 5 | `AccountsApi` | новая | `TScalpApplication` (2), `InvestRepository` (2) | 2 | 1 ч |
 | 6 | `SandboxApi` | новая | `InvestRepository` (3) | 0 | 1 ч |
@@ -717,113 +717,6 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 - Clean архитектура (umbrella-задача) — создаётся после
   `docs/architecture.md`, из раздела «Известные долги».
   Не входит в эту задачу.
-
-
-
-
----
-
-### TInvest-specific: fetchFullInstrument
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/broker-instrument-api
-
-**Контекст:** после `### TInvest-specific` (C-вариант, `2153b03`)
-в коде остался **один** `as? TInvestBrokerAPI` для метода
-`fetchFullInstrument` (полный доменный инструмент по uid) —
-`InstrumentRepository:35`. Тот же layer violation, что был у
-`*Snapshot`, но другая семантика (полный `InstrumentUi`,
-не partial stream item).
-
-*2026-10-25: остальные касты (`TScalpApplication.restoreTInvest`,
-`TScalpApplication.restoreBcs`, `SettingsViewModel.initialize*`,
-`SettingsViewModel.deinitialize*`) устранены в задаче
-`### Broker lifecycle API` (#2 umbrella, закрыта 2026-10-25,
-merge `0318a8c`). Единственный оставшийся каст lifecycle /
-`*Snapshot` пути в `app/src/main` — этот (`fetchFullInstrument`).*
-
-**Предусловия:** нет. `### TInvest-specific` закрыта (`2153b03`),
-`### Broker lifecycle API` закрыта (`0318a8c`).
-
-**Файлы:**
-- `domain/api/roles/BrokerInstrumentApi.kt` (новый) —
-  `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`.
-- `domain/api/BrokerApi.kt` — `val instrument: BrokerInstrumentApi?`.
-- `data/api/TInvestBrokerApi.kt` — `BrokerInstrumentApi` в
-  supertypes (сейчас `BrokerApi, BrokerSnapshotApi, StreamsApi,
-  BrokerLifecycleApi`; станет 5); `override val instrument = this`;
-  `fetchFullInstrument` → `override`.
-- `data/api/BcsBrokerApi.kt` / `FinamBrokerApi.kt` —
-  `override val instrument: BrokerInstrumentApi? = null`.
-- `data/repository/InstrumentRepository.kt` — `loadAndCache`
-  (private, каст сейчас там на строке 35): без каста,
-  `broker.instrument?.fetchFullInstrument(uid)`.
-- Тесты: `InstrumentRepositoryTest` (если есть) — мок
-  `every { broker.instrument } returns mockk(...)`.
-
-**Шаги:**
-
-1. Создать `BrokerInstrumentApi` (1 метод + KDoc).
-2. `BrokerApi.instrument: BrokerInstrumentApi?` (KDoc: опциональный,
-   `null` = не поддерживает — InstrumentRepository вернёт `null`).
-3. `TInvestBrokerAPI`: `BrokerInstrumentApi` в supertypes
-   (`BrokerApi, BrokerSnapshotApi, StreamsApi, BrokerLifecycleApi,
-   BrokerInstrumentApi`); `override val instrument: BrokerInstrumentApi
-   get() = this`; `override suspend fun fetchFullInstrument`.
-4. `BcsBrokerApi` / `FinamBrokerApi`: `override val instrument = null`.
-5. `InstrumentRepository.loadAndCache`: без каста, при
-   `instrument == null` → `null`.
-6. **Тесты:** `InstrumentRepositoryTest` **не существует** —
-   добавлять не нужно (прокси-метод, тривиальная делегация;
-   тест `loadAndCache` потребовал бы mock `BrokerManager` +
-   `BrokerInstrumentApi` ради одной строки — не окупается).
-   Если позже появится — `every { broker.instrument } returns
-   mockk(...)`.
-7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Референсы:**
-- `5c2bfc0` (`BrokerSnapshotApi`, `### TInvest-specific`) — образец
-  C-варианта: новый интерфейс `domain/api/BrokerXxxApi.kt` с
-  одним–тремя методами; `BrokerApi.xxx: BrokerXxxApi?`;
-  `TInvest = this`; BCS/Finam = `null`; при `null` в
-  repository — `return null` + `AppLogger.e` (не путать с
-  STALE в менеджерах). `synchronized` не нужен (stateless).
-- `TInvestBrokerApi:334` — текущая сигнатура
-  `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`
-  (не `override`, т.к. не в `BrokerApi`).
-
-**Ограничения:**
-- Не менять поведение `fetchFullInstrument` (TInvest возвращает
-  `InstrumentUi`, как сейчас).
-- BCS/Finam `instrument = null` → `InstrumentRepository` вернёт
-  `null` (текущее поведение — `BcsBrokerApi`/`FinamBrokerApi` не
-  реализуют метод).
-- Не смешивать с `### Broker lifecycle API` — отдельная задача.
-
-**Критерий готовности:**
-- `BrokerInstrumentApi` создан, 1 метод.
-- `BrokerApi.instrument` добавлен.
-- `TInvestBrokerAPI.instrument = this`.
-- BCS/Finam `instrument = null`.
-- `grep "as? TInvestBrokerAPI" InstrumentRepository.kt` — пусто
-  (был в `loadAndCache`, строки 35–36).
-- Гейт зелёный.
-
-**Оценка:** ~30–40 мин (интерфейс 10, BrokerApi 5, TInvest 10,
-BCS/Finam 5, repository 5, гейт 5).
-
-**Зависимости:** разблокирована (`### TInvest-specific` закрыта).
-
-**Связано:**
-- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #3 в порядке.
-- `### Broker lifecycle API` — закрыта 2026-10-25 (`0318a8c`),
-  устранила 8 кастов lifecycle/auth. Настоящая задача —
-  последний оставшийся каст в `app/src/main`.
-- `### Архитектурный документ` — раздел 7 дополнить
-  `BrokerInstrumentApi`.
-**Открытые вопросы:** нет.
 
 
 
@@ -4718,6 +4611,164 @@ domain/
 - `docs/architecture.md` — раздел 1 (слои) и раздел 7
   (BrokerApi).
 
+**Открытые вопросы:** нет.
+
+
+---
+
+### ✅ TInvest-specific: fetchFullInstrument
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст:** после `### TInvest-specific` (C-вариант, `2153b03`)
+в коде остался **один** `as? TInvestBrokerAPI` для метода
+`fetchFullInstrument` (полный доменный инструмент по uid) —
+`InstrumentRepository:35`. Тот же layer violation, что был у
+`*Snapshot`, но другая семантика (полный `InstrumentUi`,
+не partial stream item).
+
+*2026-10-25: остальные касты (`TScalpApplication.restoreTInvest`,
+`TScalpApplication.restoreBcs`, `SettingsViewModel.initialize*`,
+`SettingsViewModel.deinitialize*`) устранены в задаче
+`### Broker lifecycle API` (#2 umbrella, закрыта 2026-10-25,
+merge `0318a8c`). Единственный оставшийся каст lifecycle /
+`*Snapshot` пути в `app/src/main` — этот (`fetchFullInstrument`).*
+
+**Предусловия:** нет. `### TInvest-specific` закрыта (`2153b03`),
+`### Broker lifecycle API` закрыта (`0318a8c`).
+
+**Файлы:**
+- `domain/api/roles/BrokerInstrumentApi.kt` (новый) —
+  `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`.
+- `domain/api/BrokerApi.kt` — `val instrument: BrokerInstrumentApi?`.
+- `data/api/TInvestBrokerApi.kt` — `BrokerInstrumentApi` в
+  supertypes (сейчас `BrokerApi, BrokerSnapshotApi, StreamsApi,
+  BrokerLifecycleApi`; станет 5); `override val instrument = this`;
+  `fetchFullInstrument` → `override`.
+- `data/api/BcsBrokerApi.kt` / `FinamBrokerApi.kt` —
+  `override val instrument: BrokerInstrumentApi? = null`.
+- `data/repository/InstrumentRepository.kt` — `loadAndCache`
+  (private, каст сейчас там на строке 35): без каста,
+  `broker.instrument?.fetchFullInstrument(uid)`.
+- Тесты: `InstrumentRepositoryTest` (если есть) — мок
+  `every { broker.instrument } returns mockk(...)`.
+
+**Шаги:**
+
+1. Создать `BrokerInstrumentApi` (1 метод + KDoc).
+2. `BrokerApi.instrument: BrokerInstrumentApi?` (KDoc: опциональный,
+   `null` = не поддерживает — InstrumentRepository вернёт `null`).
+3. `TInvestBrokerAPI`: `BrokerInstrumentApi` в supertypes
+   (`BrokerApi, BrokerSnapshotApi, StreamsApi, BrokerLifecycleApi,
+   BrokerInstrumentApi`); `override val instrument: BrokerInstrumentApi
+   get() = this`; `override suspend fun fetchFullInstrument`.
+4. `BcsBrokerApi` / `FinamBrokerApi`: `override val instrument = null`.
+5. `InstrumentRepository.loadAndCache`: без каста, при
+   `instrument == null` → `null`.
+6. **Тесты:** `InstrumentRepositoryTest` **не существует** —
+   добавлять не нужно (прокси-метод, тривиальная делегация;
+   тест `loadAndCache` потребовал бы mock `BrokerManager` +
+   `BrokerInstrumentApi` ради одной строки — не окупается).
+   Если позже появится — `every { broker.instrument } returns
+   mockk(...)`.
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Референсы:**
+- `5c2bfc0` (`BrokerSnapshotApi`, `### TInvest-specific`) — образец
+  C-варианта: новый интерфейс `domain/api/BrokerXxxApi.kt` с
+  одним–тремя методами; `BrokerApi.xxx: BrokerXxxApi?`;
+  `TInvest = this`; BCS/Finam = `null`; при `null` в
+  repository — `return null` + `AppLogger.e` (не путать с
+  STALE в менеджерах). `synchronized` не нужен (stateless).
+- `TInvestBrokerApi:334` — текущая сигнатура
+  `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`
+  (не `override`, т.к. не в `BrokerApi`).
+
+**Ограничения:**
+- Не менять поведение `fetchFullInstrument` (TInvest возвращает
+  `InstrumentUi`, как сейчас).
+- BCS/Finam `instrument = null` → `InstrumentRepository` вернёт
+  `null` (текущее поведение — `BcsBrokerApi`/`FinamBrokerApi` не
+  реализуют метод).
+- Не смешивать с `### Broker lifecycle API` — отдельная задача.
+
+**Критерий готовности:**
+- `BrokerInstrumentApi` создан, 1 метод.
+- `BrokerApi.instrument` добавлен.
+- `TInvestBrokerAPI.instrument = this`.
+- BCS/Finam `instrument = null`.
+- `grep "as? TInvestBrokerAPI" InstrumentRepository.kt` — пусто
+  (был в `loadAndCache`, строки 35–36).
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-25, 4 WIP-коммита в
+`feature/broker-instrument-api` (`71c04d9` → `0d48be3`),
+PR — см. ниже.
+
+- **#1** `domain/api/roles/BrokerInstrumentApi.kt` — новый
+  интерфейс (1 метод `suspend fun fetchFullInstrument(uid):
+  InstrumentUi?` + KDoc, разграничивающий с
+  `UserInstrumentsApi.findInstruments`). Коммит `71c04d9`.
+- **#2–#4** (объединены в один коммит `b2ef717`: без
+  объединения WIP-состояние не компилировалось —
+  `InstrumentRepository:36` вызывал `broker.fetchFullInstrument`,
+  который удалялся из `BrokerApi`):
+  - `BrokerApi.instrument: BrokerInstrumentApi?` (nullable-val,
+    рядом с `lifecycle`);
+  - `TInvestBrokerAPI`: `BrokerInstrumentApi` в supertypes,
+    `instrument = this`, `fetchFullInstrument` → `override
+    suspend fun`;
+  - BCS/Finam: `instrument = null`;
+  - `InstrumentRepository.loadAndCache`: без каста
+    `as? TInvestBrokerAPI`, `broker.instrument?.fetchFullInstrument
+    ?: return null`, импорт `TInvestBrokerAPI` убран.
+- **CI-цикл (3 итерации):**
+  1. `8ba59f9` — `fix: drop BrokerInstrumentApi supertype from
+     BCS/Finam`. Причина: supertype = «реализую все методы»,
+     у BCS/Finam `fetchFullInstrument` нет → `Class ... is
+     not abstract and does not implement abstract member
+     suspend fun fetchFullInstrument(uid: String)`. Nullable-val
+     требует **два** отдельных факта: `instrument = null`
+     и **отсутствие** supertype.
+  2. `0d48be3` — `fix: reorder role imports to lexicographic
+     order`. Причина: `BrokerInstrumentApi` вставился после
+     `BrokerLifecycleApi` (позиционный anchor), но
+     `BrokerInstrumentApi < BrokerLifecycleApi` по алфавиту.
+     Правильный порядок: `BrokerCredentials <
+     BrokerInstrumentApi < BrokerLifecycleApi <
+     BrokerSnapshotApi < StreamsApi`. Исправлено в 4 файлах
+     (`BrokerApi`, 3 брокера).
+  3. `gate` зелёный на `0d48be3` (`fast-check` +
+     `full-build`).
+- **Критерий готовности:**
+  - `BrokerInstrumentApi` создан (1 метод + KDoc).
+  - `BrokerApi.instrument` добавлен.
+  - `TInvestBrokerAPI.instrument = this`; BCS/Finam
+    `instrument = null` (без supertype).
+  - `grep "as? TInvestBrokerAPI" InstrumentRepository.kt` —
+    пусто.
+  - `gate` зелёный.
+- **Workflow-находка (для будущей правки AGENTS.md):**
+  вставка role-импорта — **по алфавитному порядку**, не по
+  позиционному anchor. Третье повторение в цепочке #1→#2→#3
+  (каждый раз ktlint ловил, каждый раз отдельный fix-коммит).
+  Зафиксировать в AGENTS.md как правило перед #4, вместе с
+  уроком «nullable-val supertype = реализовать все методы,
+  не ставить supertype если метод не реализован».
+
+**Оценка:** ~30–40 мин (интерфейс 10, BrokerApi 5, TInvest 10,
+BCS/Finam 5, repository 5, гейт 5).
+
+**Зависимости:** разблокирована (`### TInvest-specific` закрыта).
+
+**Связано:**
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` — umbrella, #3 в порядке.
+- `### Broker lifecycle API` — закрыта 2026-10-25 (`0318a8c`),
+  устранила 8 кастов lifecycle/auth. Настоящая задача —
+  последний оставшийся каст в `app/src/main`.
+- `### Архитектурный документ` — раздел 7 дополнить
+  `BrokerInstrumentApi`.
 **Открытые вопросы:** нет.
 
 ---
