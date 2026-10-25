@@ -100,7 +100,7 @@ class TInvestOrchestrator(
             return rest(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
         }
         return try {
-            marketData.fetchPositionsSnapshot(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
+            marketData.fetchPortfolioPositions(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
         } catch (e: Throwable) {
             if (isTransportError(e) && positionsRestFallback != null) {
                 AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")

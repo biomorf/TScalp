@@ -189,7 +189,7 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                     )
-            runCatchingAppResult(brokerName) { broker.fetchPositionsSnapshot(accountId, sandboxMode) }
+            runCatchingAppResult(brokerName) { broker.fetchPortfolioPositions(accountId, sandboxMode) }
         }
 
     /**

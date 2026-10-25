@@ -144,7 +144,7 @@ interface BrokerApi {
      * тот partial [PositionStreamItem] (без вычисляемых полей),
      * для merge со stream в `PositionFlowManager`.
      */
-    suspend fun fetchPositionsSnapshot(
+    suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PortfolioPosition>

@@ -293,7 +293,7 @@ class BcsBrokerApi :
         )
 
     // реализация на основе HTTP-клиента
-    override suspend fun fetchPositionsSnapshot(
+    override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PortfolioPosition> {

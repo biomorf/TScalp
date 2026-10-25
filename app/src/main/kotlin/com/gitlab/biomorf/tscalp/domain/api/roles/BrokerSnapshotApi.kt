@@ -42,7 +42,7 @@ interface BrokerSnapshotApi {
      * (от stream) обогащаются в
      * `PositionFlowManager.enrichAndCache`.
      *
-     * **Не путать** с `BrokerApi.fetchPositionsSnapshot` — тот
+     * **Не путать** с `BrokerApi.fetchPortfolioPositions` — тот
      * возвращает полный `PortfolioPosition` для UI
      * (`totalValue`, `profitPercent`, `priceChangePercent`).
      */

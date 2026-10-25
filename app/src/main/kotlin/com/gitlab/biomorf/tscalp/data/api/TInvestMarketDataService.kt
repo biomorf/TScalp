@@ -146,7 +146,7 @@ class TInvestMarketDataService(
     // Архитектурный долг: функция требует декомпозиции.
     // См. ROADMAP → «Рефакторинг data-слоя T-Invest».
     @Suppress("CyclomaticComplexMethod")
-    suspend fun fetchPositionsSnapshot(
+    suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PortfolioPosition> =

@@ -112,7 +112,7 @@ class TInvestOrchestratorFallbackTest {
                     ticker = "TEST",
                     quantity = 1L,
                 )
-            coEvery { marketData.fetchPositionsSnapshot(any(), any()) } throws StatusException(Status.UNAVAILABLE)
+            coEvery { marketData.fetchPortfolioPositions(any(), any()) } throws StatusException(Status.UNAVAILABLE)
             every { marketData.convertToStreamItem(any()) } returns restStreamItem
 
             val orchestrator =
@@ -124,6 +124,6 @@ class TInvestOrchestratorFallbackTest {
 
             val result = orchestrator.positionsSnapshot("acc1", false)
             assertEquals(listOf(restStreamItem), result)
-            coVerify(exactly = 1) { marketData.fetchPositionsSnapshot(any(), any()) }
+            coVerify(exactly = 1) { marketData.fetchPortfolioPositions(any(), any()) }
         }
 }
