@@ -9,9 +9,9 @@ import com.gitlab.biomorf.tscalp.data.repository.SearchCache
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
-import com.gitlab.biomorf.tscalp.domain.managers.PositionFlowManager
-import com.gitlab.biomorf.tscalp.domain.managers.PriceConsumer
-import com.gitlab.biomorf.tscalp.domain.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
+import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest

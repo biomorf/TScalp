@@ -99,7 +99,7 @@ data class PositionStreamItem(
  * @property profit P&L в рублях. Источник: `expectedYield`
  *   от брокера (если > 0), иначе клиентский расчёт
  *   `(currentPrice - averagePrice) * quantity` (см.
- *   `TInvestMarketDataService.fetchPositionsSnapshot`).
+ *   `TInvestMarketDataService.fetchPortfolioPositions`).
  *   Формула неоднозначна — задача `### Рефакторинг расчёта
  *   P&L для PortfolioPosition`.
  * @property profitPercent P&L в процентах от вложенных
@@ -130,7 +130,7 @@ data class PortfolioPosition(
     val priceChangePercent: Double? = null,
     val pointValue: Double? = null,
     // Код валюты (ISO-4217) для валютных позиций.
-    // Источник — InstrumentUi.currency в fetchPositionsSnapshot.
+    // Источник — InstrumentUi.currency в fetchPortfolioPositions.
     // Используется для склейки с WS-стримом (money/blocked).
     val currency: String? = null,
 )

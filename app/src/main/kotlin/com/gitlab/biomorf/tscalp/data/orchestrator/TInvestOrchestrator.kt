@@ -6,7 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.api.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.streamWithFallback
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.flow.Flow
@@ -28,7 +27,7 @@ class TInvestOrchestrator(
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
     private val orderStateWsFallback: (String) -> Flow<OrderState>? = { null },
     private val pricesRestFallback: (suspend (List<String>) -> Map<String, Double?>)? = null,
-    private val positionsRestFallback: (suspend (String, Boolean) -> List<PortfolioPosition>)? = null,
+    private val positionsRestFallback: (suspend (String, Boolean) -> List<PositionStreamItem>)? = null,
     private val ordersRestFallback: (suspend (String) -> List<OrderListItem>)? = null,
     private val balanceRestFallback: (suspend (String) -> Double)? = null,
 ) {
@@ -97,14 +96,14 @@ class TInvestOrchestrator(
         if (DebugConfig.forceRest) {
             val rest = positionsRestFallback ?: throw IllegalStateException("REST fallback not configured")
             AppLogger.w(TAG, "forceRest: bypassing gRPC for positions")
-            return rest(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
+            return rest(accountId, sandboxMode)
         }
         return try {
-            marketData.fetchPositionsSnapshot(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
+            marketData.fetchPortfolioPositions(accountId, sandboxMode)
         } catch (e: Throwable) {
             if (isTransportError(e) && positionsRestFallback != null) {
                 AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")
-                positionsRestFallback(accountId, sandboxMode).map { marketData.convertToStreamItem(it) }
+                positionsRestFallback(accountId, sandboxMode)
             } else {
                 throw e
             }

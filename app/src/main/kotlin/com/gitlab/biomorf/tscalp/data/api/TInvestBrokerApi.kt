@@ -95,7 +95,7 @@ class TInvestBrokerAPI(
             },
             positionsRestFallback = { accountId, _ ->
                 val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
-                rest.fetchPositionsSnapshot(accountId).positions.map { it.toPortfolioPosition() }
+                rest.fetchPositionsSnapshot(accountId).positions.map { it.toStreamItem() }
             },
             ordersRestFallback = { accountId ->
                 val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
@@ -271,10 +271,10 @@ class TInvestBrokerAPI(
         marketData.closeSandboxAccount(accountId)
     }
 
-    override suspend fun fetchPositionsSnapshot(
+    override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
-    ) = marketData.fetchPositionsSnapshot(accountId, sandboxMode)
+    ) = marketData.fetchPortfolioPositions(accountId, sandboxMode)
 
     override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
 

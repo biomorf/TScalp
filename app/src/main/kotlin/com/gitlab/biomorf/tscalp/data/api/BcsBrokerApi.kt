@@ -22,7 +22,6 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.OrderResult
 import com.gitlab.biomorf.tscalp.domain.models.OrderStatus
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
@@ -281,22 +280,11 @@ class BcsBrokerApi :
      */
     override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = emptyFlow()
 
-    private fun convertToStreamItem(pos: PortfolioPosition) =
-        PositionStreamItem(
-            tscalpInstrumentId = pos.tscalpInstrumentId,
-            brokerName = BrokerName.BCS,
-            ticker = pos.ticker,
-            quantity = pos.quantity,
-            currentPrice = pos.currentPrice,
-            averagePositionPrice = pos.averagePrice,
-            expectedYield = pos.profit,
-        )
-
     // реализация на основе HTTP-клиента
-    override suspend fun fetchPositionsSnapshot(
+    override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
-    ): List<PortfolioPosition> {
+    ): List<PositionStreamItem> {
         val response = makeRequest("GET", PORTFOLIO_PATH)
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
@@ -321,24 +309,17 @@ class BcsBrokerApi :
                 val ticker = posMap["ticker"] as? String ?: return@mapNotNull null
                 val exchange = posMap["exchange"] as? String ?: ""
                 val figi = if (exchange.isNotEmpty()) "$ticker:$exchange" else ticker
-                val name = posMap["displayName"] as? String ?: ticker
                 val quantity = (posMap["quantity"] as? Number)?.toLong() ?: 0L
                 val currentPrice = (posMap["currentPrice"] as? Number)?.toDouble() ?: 0.0
-                val totalValue = (posMap["currentValue"] as? Number)?.toDouble() ?: (currentPrice * quantity)
 
-                PortfolioPosition(
+                PositionStreamItem(
                     tscalpInstrumentId = figi,
                     brokerName = BrokerName.BCS,
-                    name = name,
                     ticker = ticker,
                     quantity = quantity,
                     currentPrice = currentPrice,
-                    totalValue = totalValue,
-                    profit = null,
-                    profitPercent = null,
-                    averagePrice = null, // если нет
                 )
-            }.distinctBy { it.ticker } // убираем дубликаты по FIGI внутри одного брокера
+            }.distinctBy { it.ticker }
     }
 
     override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()

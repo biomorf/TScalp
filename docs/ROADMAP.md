@@ -85,238 +85,171 @@ success, стримы не идут» — не проверка, а конста
 
 ---
 
-### Портфельный снимок: fetchPortfolioPositions + унификация на PositionStreamItem
+### Обогащение name в PortfolioPosition (вариант C)
 
 **Мобильная работа:** невозможно (сборка + тесты).
 
-**Статус:** в работе.
-**Ветка:** feature/portfolio-snapshot-refactor
+**Статус:** запланировано.
 
-**Контекст.** `BrokerApi.fetchPositionsSnapshot(accountId, sandboxMode)`
-возвращает `List<PortfolioPosition>` — presentation-модель
-(`totalValue`, `profitPercent`, `priceChangePercent` — вычисляемые
-для карточки). Domain-контракт возвращает presentation-модель —
-нарушение Clean (dependency rule: presentation зависит от domain,
-а не наоборот).
+**Контекст.** В задаче `### Портфельный снимок: fetchPortfolioPositions
++ унификация на PositionStreamItem` (#9) выбран вариант A по
+полю `name`: после унификации на `PositionStreamItem`
+`toPortfolioPosition()` заполняет `name = ticker` («SBER»
+вместо «Сбербанк»). Это **временное** решение (по 2d):
+`PositionStreamItem` — domain-модель, у неё нет поля `name`
+(presentation-атрибут). Полное закрытие — эта задача.
 
-**Порочный круг в data-слое (grep 2026-10-25).**
+**Отклонение от 5g (осознанное).** Задача стоит не в начале
+«Планируемых», а сразу после #9 (источник). Правило «свежее
+сверху» отклонено здесь осознанно: связь с #9 важнее порядка,
+рядом видно, что `name = ticker` — временное решение.
+При следующей ревизии ROADMAP (если #9 уйдёт в «Закрытые»)
+пересмотреть позицию.
 
-- `TInvestMarketDataService.fetchPositionsSnapshot` (149)
-  → `List<PortfolioPosition>` (data → presentation);
-- `TInvestOrchestrator:100/103/107` → `convertToStreamItem`
-  → `PositionStreamItem` (presentation → domain);
-- `TInvestBrokerApi:98` (REST fallback) → `toPortfolioPosition`
-  → `PortfolioPosition` (снова presentation);
-- `InvestRepository:192` → `broker.fetchPositionsSnapshot`
-  → `List<PortfolioPosition>` в UI.
+**Clean-отклонение (2c).** `name = ticker` в #9 — принятое
+отклонение от Clean: presentation-атрибут в domain-модели
+отсутствует, но UI без него показывает тикер вместо имени.
 
-Три экземпляра `convertToStreamItem` (все удаляются при B):
-- `TInvestMarketDataService:347` — живой, 3 использования в
-  оркестраторе;
-- `BcsBrokerApi:284` — мёртвый (polling-loop закомментирован
-  в #1, `streams = null`);
-- `FinamBrokerApi:191` — мёртвый (Finam `streams = null`).
+**Цель.** Вернуть в карточке портфеля display name
+(«Сбербанк», «Газпром») вместо тикера, чисто по Clean —
+без добавления presentation-поля в domain-модель.
 
-`toPortfolioPosition` (`Portfolio.kt:168`) используется только в
-`TInvestBrokerApi:98` (REST fallback) — при B переезжает в
-`InvestRepository.fetchPositionsResult`.
+**Варианты.**
+- **A. Принять `name = ticker` навсегда.** Отклонено в #9.
+- **B. Добавить `name: String = ""` в `PositionStreamItem`.**
+  Отклонено в #9 по 2c: presentation-поле в domain.
+- **C. Presentation-обогащение.** Обогащать `name` в
+  presentation-слое (ViewModel) или в `InvestRepository`, где
+  доступен `InstrumentRepository`. Чисто по Clean.
+  - **+** Domain-модель не знает про presentation-атрибуты.
+  - **−** Требует инъекции `InstrumentRepository` в выбранную
+    точку (правка DI).
 
-**Роль nullable-val НЕ вводится.** Это рефакторинг сигнатуры +
-переименование в data-слое, не новая роль. `PortfolioApi` как
-отдельный интерфейс не создаётся — ни `val portfolio: PortfolioApi?`,
-ни `PortfolioApi.kt`. B-вариант меняет возвращаемый тип
-`BrokerApi.fetchPositionsSnapshot` и убирает `convertToStreamItem`.
+**Рекомендация: C.**
 
-**Переименование метода (в рамках #9).**
-`BrokerApi.fetchPositionsSnapshot` → `fetchPortfolioPositions`.
+**Файлы (вариант C, минимум):**
+- `data/repository/InvestRepository.kt` — обогащение в
+  `fetchPositionsResult` (точка доступа к `PortfolioPosition`,
+  одна правка, не задевает ViewModel'и).
+- `di/RepositoryModule.kt` — если DI `InvestRepository`
+  меняется (`InstrumentRepository` в конструктор).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` —
+  проверить, что ViewModel не обогащает `name` сама
+  (иначе двойная работа).
+- `presentation/screens/orders/OrdersViewModel.kt` — аналогично.
 
-- После B оба метода (`fetchPortfolioPositions` и
-  `BrokerSnapshotApi.positionsSnapshot`) возвращают
-  `List<PositionStreamItem>`. Разница семантики должна читаться
-  из имени, а не только из KDoc.
-- Схема: `BrokerSnapshotApi.*Snapshot` — partial для merge в
-  менеджере; `BrokerApi.fetch*` / `get*` — полные данные для UI.
-- `fetchPortfolioPositions` алигнится с `PortfolioPosition`
-  (domain-модель) и endpoint'ом `GetPortfolio` (T-Invest SDK,
-  BCS `/portfolio`).
-- Rename трогает те же файлы, что и B, — маргинальная стоимость
-  нулевая. Отдельная задача «rename» создала бы 2 PR с
-  пересекающимися файлами и риск конфликта.
-
-**UI-санкция (правило 1 AGENTS.md).** B меняет два видимых поля
-карточки:
-1. `profit` для позиций с `expectedYield ≤ 0`: клиентский fallback
-   `(currentPrice - avgPrice) * quantity` исчезает, profit =
-   серверный `expectedYield` (может быть 0 при падении цены).
-2. `profitPercent` для фьючерсов: переходит на
-   `calculateProfitPercent` с `pointValue` (сейчас без `pointValue` —
-   некорректно).
-
-Санкционировано пользователем 2026-10-25 («согласен на оба изменения
-UI»). Профит-формула (серверный vs клиентский приоритет) —
-отдельная задача `### Рефакторинг расчёта P&L для PortfolioPosition`.
-
-**Решение (принято 2026-10-25): B — унификация на `PositionStreamItem`.**
-
-- `BrokerApi.fetchPortfolioPositions` (was `fetchPositionsSnapshot`)
-  → `List<PositionStreamItem>`.
-- `TInvestMarketDataService.fetchPortfolioPositions` →
-  `List<PositionStreamItem>` (partial — без вычисляемых
-  `profitPercent`; P&L считается через `toPortfolioPosition` в
-  domain).
-- `TInvestOrchestrator`: убрать `convertToStreamItem` в 3 местах
-  (100, 103, 107).
-- `TInvestBrokerApi:98` (REST fallback): `toPortfolioPosition`
-  убрать; маппинг `RestPortfolioResponse → PositionStreamItem` —
-  внутри `TInvestRestTransport`.
-- `BcsBrokerApi.fetchPortfolioPositions` →
-  `List<PositionStreamItem>` (переписать `mapNotNull` на
-  построение `PositionStreamItem`).
-- `FinamBrokerApi.fetchPortfolioPositions` →
-  `emptyList<PositionStreamItem>()`.
-- `InvestRepository.fetchPositionsResult`: конвертация
-  `List<PositionStreamItem> → List<PortfolioPosition>` через
-  `toPortfolioPosition()`. Метод репозитория **не переименовываем**:
-  он возвращает уже `PortfolioPosition` (presentation), имя
-  корректно.
-- Удалить `convertToStreamItem` во всех 3 экземплярах.
-
-**Дублирование `fetchPortfolioPositions` vs
-`BrokerSnapshotApi.positionsSnapshot` (решено — оставить оба).**
-После B оба возвращают `List<PositionStreamItem>`, семантика разная:
-- `fetchPortfolioPositions` — full snapshot (P&L от polling), для
-  UI через `InvestRepository.fetchPositionsResult` →
-  `toPortfolioPosition`;
-- `positionsSnapshot` — partial snapshot (события без
-  `currentPrice`), для merge со stream в `PositionFlowManager`.
-- Имена это передают: `Portfolio*` = полный портфель (UI),
-  `*Snapshot` = partial для merge (транспорт).
-
-**Варианты (для истории).**
-- **A. KDoc + отклонение по 2c** — отклонено. Дёшево (~20 мин),
-  но долг остаётся. Выбрано B по 2 «чистота приоритет».
-- **B. Унификация на `PositionStreamItem` + rename** — принято.
-- **C. `PortfolioApi` с `fetchFullPortfolio`** — отклонено по 2c:
-  формализует нарушение, не решает.
-
-**Файлы (10):**
-- `domain/api/BrokerApi.kt` — сигнатура + rename + KDoc.
-- `data/api/TInvestMarketDataService.kt` — rename +
-  возвращаемый тип `PositionStreamItem`; удалить
-  `convertToStreamItem`.
-- `data/orchestrator/TInvestOrchestrator.kt` — тип
-  `positionsRestFallback`; убрать `convertToStreamItem` (3×);
-  вызовы rename.
-- `data/api/TInvestBrokerApi.kt` — rename; REST fallback (98):
-  убрать `toPortfolioPosition`.
-- `transport-ktor/.../TInvestRestTransport.kt` — новый маппер
-  `RestPortfolioResponse → PositionStreamItem`.
-- `data/api/BcsBrokerApi.kt` — rename + переписать на
-  `PositionStreamItem`; удалить `convertToStreamItem`.
-- `data/api/FinamBrokerApi.kt` — rename +
-  `emptyList<PositionStreamItem>()`; удалить `convertToStreamItem`.
-- `data/repository/InvestRepository.kt` — конвертация через
-  `toPortfolioPosition`; вызов rename.
-- `domain/api/roles/BrokerSnapshotApi.kt` — KDoc (разграничение
-  с `fetchPortfolioPositions`).
-- `domain/models/Portfolio.kt` — `toPortfolioPosition` без
-  изменений.
-
-**Шаги:**
-1. Rename `fetchPositionsSnapshot` → `fetchPortfolioPositions`:
-   `BrokerApi`, `TInvestMarketDataService`, `TInvestBrokerApi`,
-   `BcsBrokerApi`, `FinamBrokerApi`, `InvestRepository` (вызов),
-   `TInvestOrchestrator` (вызов). Grep-проверка: старых
-   `fetchPositionsSnapshot` нет.
-2. `BrokerApi.fetchPortfolioPositions` →
-   `List<PositionStreamItem>` + KDoc.
-3. `TInvestMarketDataService.fetchPortfolioPositions` →
-   `List<PositionStreamItem>` (переписать 60+ строк).
-4. `TInvestRestTransport`: маппер
-   `RestPortfolioResponse → PositionStreamItem`.
-5. `TInvestBrokerApi:98`: REST fallback через новый маппер, без
-   `toPortfolioPosition`.
-6. `TInvestOrchestrator`: типы + убрать `convertToStreamItem` (3×).
-7. `BcsBrokerApi.fetchPortfolioPositions` →
-   `List<PositionStreamItem>`.
-8. `FinamBrokerApi.fetchPortfolioPositions` →
-   `emptyList<PositionStreamItem>()`.
-9. Удалить `convertToStreamItem` (3 экземпляра).
-10. `InvestRepository.fetchPositionsResult` → конвертация через
-    `toPortfolioPosition`.
-11. KDoc на `BrokerApi.fetchPortfolioPositions`,
-    `BrokerSnapshotApi.positionsSnapshot`,
-    `InvestRepository.fetchPositionsResult`.
-12. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты.**
-- Новый `InvestRepositoryTest` (или аналог) на конвертацию
-  `PositionStreamItem → PortfolioPosition`: 3 граничных случая
-  (`currentPrice = null`, `expectedYield = null`, `pointValue = null`).
-- `PositionFlowManagerTest` — не меняется (`positionsSnapshot`
-  не тронут).
-
-**Референсы.**
-- `Portfolio.kt:168` — `toPortfolioPosition` (уже есть).
-- `BrokerSnapshotApi.positionsSnapshot` — partial snapshot для
-  merge.
-- `PositionFlowManager:181` — потребитель `positionsSnapshot`.
-- `TInvestMarketDataService:149` — текущая реализация
-  (возвращает `PortfolioPosition`).
-- `TInvestMarketDataService:347` — `convertToStreamItem`.
+**Шаги (вариант C):**
+1. Решить точку обогащения: `InvestRepository.fetchPositionsResult`
+   (рекомендуется) или ViewModel.
+2. Внедрить `InstrumentRepository` в выбранную точку (constructor
+   injection, правка DI).
+3. На каждую позицию: `name = instrumentRepository
+   .getInstrument(tscalpInstrumentId)?.name ?: ticker`.
+4. Тесты: обогащение работает, при отсутствии в кэше — fallback
+   на ticker. Один тест в новом `InvestRepositoryTest` (или
+   `InstrumentRepositoryTest` — если существует).
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
 
 **Ограничения.**
-- **Nullable-val роль НЕ вводится.** `PortfolioApi` не создаётся.
-- **`PortfolioPosition` не менять без санкции** (UI-модель).
-- **UI-санкция получена** (правило 1): profit-fallback и
-  profitPercent фьючерсов.
-- **`positionsSnapshot` не трогать** — отдельный метод для merge.
-- **`InvestRepository.fetchPositionsResult` не переименовывать** —
-  возвращает `PortfolioPosition` (presentation), имя корректно.
-- **Не смешивать с `### Рефакторинг расчёта P&L`** — там приоритет
-  серверный/клиентский `profit`, отдельная задача.
-- **Не смешивать с `### TInvest-specific методы в *FlowManager`** —
-  там `BrokerSnapshotApi`, здесь `fetchPortfolioPositions`.
+- **UI-изменение** (правило 1): карточка снова показывает name
+  вместо ticker — согласовано в #9 (вариант C как целевой).
+- Не смешивать с #9 — отдельная задача.
+- Не менять `PortfolioPosition` (UI-модель) без санкции.
+- Не добавлять `name` в `PositionStreamItem` — это вариант B,
+  отклонён по 2c.
+- Не смешивать с `### Рефакторинг расчёта P&L для
+  PortfolioPosition` — там profit/profitPercent, здесь name.
 
 **Критерий готовности.**
-- `grep "fetchPositionsSnapshot"` в `app/src` — пусто (rename
-  завершён).
-- `BrokerApi.fetchPortfolioPositions` возвращает
-  `List<PositionStreamItem>`.
-- Все 3 брокера возвращают `List<PositionStreamItem>`.
-- `convertToStreamItem` удалён во всех 3 экземплярах
-  (`grep "convertToStreamItem"` — пусто).
-- `InvestRepository.fetchPositionsResult` конвертирует через
-  `toPortfolioPosition`.
-- UI: карточка показывает profit / profitPercent (изменения
-  санкционированы).
+- Карточка портфеля показывает display name («Сбербанк»),
+  fallback на ticker («SBER»), если name недоступен.
+- `PositionStreamItem` **не** содержит поля `name` (нет
+  presentation-полей в domain).
 - Гейт зелёный.
 
-**Оценка:** ~4.5–5.5 ч (rename 30 мин, BrokerApi 15,
-TInvestMarketDataService 60, TInvestRestTransport + маппер 40,
-TInvestBrokerApi 20, TInvestOrchestrator 20, BCS 30, Finam 5,
-удаление `convertToStreamItem` 10, InvestRepository 15, KDoc 20,
-тесты 30, гейт 15, резерв 20).
+**Оценка:** ~1.5 ч (DI + правка 40 мин, тесты 30 мин,
+гейт 20 мин).
 
-**Зависимости:** umbrella #1–#8 закрыты. Move закрыт.
+**Зависимости:** после #9 (закрыт в той же feature-ветке).
 
 **Связано:**
-- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` —
-  umbrella, #9 в порядке. **Не роль**, рефакторинг сигнатуры +
-  rename.
-- `### Рефакторинг расчёта P&L для PortfolioPosition` — приоритет
-  серверный/клиентский `profit`, отдельная задача (поглощает
-  fallback-логику).
-- `### TInvest-specific методы в *FlowManager` — `BrokerSnapshotApi`,
-  не путать.
-- `### Рефакторинг архитектурного долга (detekt-группа 3)` →
-  `#### BrokerApi-реализации`.
-- `docs/architecture.md` (раздел 7) — при создании.
+- `### Портфельный снимок: fetchPortfolioPositions + унификация
+  на PositionStreamItem` (#9) — источник (Q-name-field,
+  вариант C).
+- `### Рефакторинг расчёта P&L для PortfolioPosition` —
+  тоже presentation-обогащение в domain (profit, profitPercent),
+  концептуально смежная задача.
 
 **Открытые вопросы:** нет.
 
 ---
 
+
+### detekt: ignoreFailures=false
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.** `app/build.gradle.kts:392` —
+`ignoreFailures = true` в блоке `tasks.withType<dev.detekt.gradle.Detekt>`.
+В ROADMAP → `### detekt enforcement` записано «`ignoreFailures = false`
+— enforcement включён». Расхождение: сейчас detekt **не блокирует**
+сборку, любые `e:` проходят молча. Обнаружено в #9: 11 файлов
+managers имели `InvalidPackageDeclaration`, detekt ругался, но
+`BUILD SUCCESSFUL`.
+
+**Цель.** Привести `ignoreFailures` в соответствие с ROADMAP
+(`false`) и устранить накопленные detekt-ошибки, чтобы новый `e:`
+блокировал merge.
+
+**Файлы:**
+- `app/build.gradle.kts` — `ignoreFailures = false` (стр. 392).
+- `config/detekt/detekt.yml` — если нужны точечные правила
+  (например, отключить `InvalidPackageDeclaration` в `test/`,
+  где path vs package может расходиться).
+- `app/detekt-baseline.xml` — при необходимости зафиксировать
+  существующие срабатывания (MagicNumber и т.п.).
+
+**Шаги:**
+1. `ignoreFailures = false`.
+2. Прогон `./gradlew :app:detekt` — увидеть полный список
+   `e:` / `warn:`.
+3. Для каждого — решение: точечный фикс, `@Suppress`, или
+   baseline.
+4. Повторный прогон — зелёный.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Ограничения:**
+- Не подавлять ошибки через `ignoreFailures = true` — цель
+  обратная.
+- Не удалять `@Suppress` для архитектурного долга
+  (`LongMethod`, `CyclomaticComplexMethod`, `TooManyFunctions`,
+  `LargeClass`) — они зафиксированы в `### Рефакторинг
+  архитектурного долга (detekt-группа 3)`. Если они всплывут —
+  перенести в baseline.
+- Не смешивать с другой задачей.
+
+**Критерий готовности:**
+- `ignoreFailures = false` в `build.gradle.kts`.
+- `./gradlew :app:detekt` — `BUILD SUCCESSFUL` с 0 `e:`.
+- Гейт зелёный.
+
+**Оценка:** ~1 ч (правка 5 мин, разбор ошибок 30 мин, baseline
+или фикс 20 мин, гейт 5 мин).
+
+**Зависимости:** нет.
+
+**Связано:**
+- `### detekt enforcement` (закрыта) — там записано `false`,
+  здесь — привести код в соответствие.
+- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
+  `@Suppress` для долга, не удалять.
+- Born-in-#9: обнаружено при финальном гейте #9
+  (`359e4f7` исправил только `InvalidPackageDeclaration` в
+  managers, но не `ignoreFailures`).
+
+**Открытые вопросы:** нет.
 
 ---
 
@@ -411,7 +344,7 @@ fat-интерфейс подходит). Если остановиться по
 | 6 | `SandboxApi` | ✅ done | `InvestRepository` (3), `TScalpApplication` (1) | 0 | 1.5 ч |
 | 7 | `UserInstrumentsApi` | ✅ done | `InvestRepository` (2), `SearchCache` (1) | 0 | 1.25 ч |
 | 8 | `BalanceApi` | ✅ done | `InvestRepository` (1) | 0 | 30 мин |
-| 9 | Рефакторинг портфельного снимка | ROADMAP | 3 брокера + `InvestRepository` + orchestrator + REST | 0 | 4.5–5.5 ч |
+| 9 | Рефакторинг портфельного снимка | ✅ done | 3 брокера + `InvestRepository` + orchestrator + REST | 0 | 4.5–5.5 ч |
 | 10 | KDoc на `BrokerApi` (fat, отклонение по 2c) | в плане | — | — | 15 мин |
 | 11 | `Рефакторинг BrokerApi-реализаций` (D) | ROADMAP | — | — | 3–4 ч |
 
@@ -5752,6 +5685,303 @@ TInvest 5, BCS 3, Finam 3, InvestRepository 1 callsite 5,
 - `### Реализация BCS Broker API` / `### Реализация Finam
   Broker API` — реализация `getBalance` у BCS/Finam,
   отдельные задачи (не блокируют).
+
+**Открытые вопросы:** нет.
+
+
+---
+
+### ✅ Портфельный снимок: fetchPortfolioPositions + унификация на PositionStreamItem
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст.** `BrokerApi.fetchPositionsSnapshot(accountId, sandboxMode)`
+возвращает `List<PortfolioPosition>` — presentation-модель
+(`totalValue`, `profitPercent`, `priceChangePercent` — вычисляемые
+для карточки). Domain-контракт возвращает presentation-модель —
+нарушение Clean (dependency rule: presentation зависит от domain,
+а не наоборот).
+
+**Порочный круг в data-слое (grep 2026-10-25).**
+
+- `TInvestMarketDataService.fetchPositionsSnapshot` (149)
+  → `List<PortfolioPosition>` (data → presentation);
+- `TInvestOrchestrator:100/103/107` → `convertToStreamItem`
+  → `PositionStreamItem` (presentation → domain);
+- `TInvestBrokerApi:98` (REST fallback) → `toPortfolioPosition`
+  → `PortfolioPosition` (снова presentation);
+- `InvestRepository:192` → `broker.fetchPositionsSnapshot`
+  → `List<PortfolioPosition>` в UI.
+
+Три экземпляра `convertToStreamItem` (все удаляются при B):
+- `TInvestMarketDataService:347` — живой, 3 использования в
+  оркестраторе;
+- `BcsBrokerApi:284` — мёртвый (polling-loop закомментирован
+  в #1, `streams = null`);
+- `FinamBrokerApi:191` — мёртвый (Finam `streams = null`).
+
+`toPortfolioPosition` (`Portfolio.kt:168`) используется только в
+`TInvestBrokerApi:98` (REST fallback) — при B переезжает в
+`InvestRepository.fetchPositionsResult`.
+
+**Роль nullable-val НЕ вводится.** Это рефакторинг сигнатуры +
+переименование в data-слое, не новая роль. `PortfolioApi` как
+отдельный интерфейс не создаётся — ни `val portfolio: PortfolioApi?`,
+ни `PortfolioApi.kt`. B-вариант меняет возвращаемый тип
+`BrokerApi.fetchPositionsSnapshot` и убирает `convertToStreamItem`.
+
+**Переименование метода (в рамках #9).**
+`BrokerApi.fetchPositionsSnapshot` → `fetchPortfolioPositions`.
+
+- После B оба метода (`fetchPortfolioPositions` и
+  `BrokerSnapshotApi.positionsSnapshot`) возвращают
+  `List<PositionStreamItem>`. Разница семантики должна читаться
+  из имени, а не только из KDoc.
+- Схема: `BrokerSnapshotApi.*Snapshot` — partial для merge в
+  менеджере; `BrokerApi.fetch*` / `get*` — полные данные для UI.
+- `fetchPortfolioPositions` алигнится с `PortfolioPosition`
+  (domain-модель) и endpoint'ом `GetPortfolio` (T-Invest SDK,
+  BCS `/portfolio`).
+- Rename трогает те же файлы, что и B, — маргинальная стоимость
+  нулевая. Отдельная задача «rename» создала бы 2 PR с
+  пересекающимися файлами и риск конфликта.
+
+**UI-санкция (правило 1 AGENTS.md).** B меняет два видимых поля
+карточки:
+1. `profit` для позиций с `expectedYield ≤ 0`: клиентский fallback
+   `(currentPrice - avgPrice) * quantity` исчезает, profit =
+   серверный `expectedYield` (может быть 0 при падении цены).
+2. `profitPercent` для фьючерсов: переходит на
+   `calculateProfitPercent` с `pointValue` (сейчас без `pointValue` —
+   некорректно).
+
+Санкционировано пользователем 2026-10-25 («согласен на оба изменения
+UI»). Профит-формула (серверный vs клиентский приоритет) —
+отдельная задача `### Рефакторинг расчёта P&L для PortfolioPosition`.
+
+**Решение (принято 2026-10-25): B — унификация на `PositionStreamItem`.**
+
+- `BrokerApi.fetchPortfolioPositions` (was `fetchPositionsSnapshot`)
+  → `List<PositionStreamItem>`.
+- `TInvestMarketDataService.fetchPortfolioPositions` →
+  `List<PositionStreamItem>` (partial — без вычисляемых
+  `profitPercent`; P&L считается через `toPortfolioPosition` в
+  domain).
+- `TInvestOrchestrator`: убрать `convertToStreamItem` в 3 местах
+  (100, 103, 107).
+- `TInvestBrokerApi:98` (REST fallback): `toPortfolioPosition`
+  убрать; маппинг `RestPortfolioResponse → PositionStreamItem` —
+  внутри `TInvestRestTransport`.
+- `BcsBrokerApi.fetchPortfolioPositions` →
+  `List<PositionStreamItem>` (переписать `mapNotNull` на
+  построение `PositionStreamItem`).
+- `FinamBrokerApi.fetchPortfolioPositions` →
+  `emptyList<PositionStreamItem>()`.
+- `InvestRepository.fetchPositionsResult`: конвертация
+  `List<PositionStreamItem> → List<PortfolioPosition>` через
+  `toPortfolioPosition()`. Метод репозитория **не переименовываем**:
+  он возвращает уже `PortfolioPosition` (presentation), имя
+  корректно.
+- Удалить `convertToStreamItem` во всех 3 экземплярах.
+
+**Дублирование `fetchPortfolioPositions` vs
+`BrokerSnapshotApi.positionsSnapshot` (решено — оставить оба).**
+После B оба возвращают `List<PositionStreamItem>`, семантика разная:
+- `fetchPortfolioPositions` — full snapshot (P&L от polling), для
+  UI через `InvestRepository.fetchPositionsResult` →
+  `toPortfolioPosition`;
+- `positionsSnapshot` — partial snapshot (события без
+  `currentPrice`), для merge со stream в `PositionFlowManager`.
+- Имена это передают: `Portfolio*` = полный портфель (UI),
+  `*Snapshot` = partial для merge (транспорт).
+
+**Варианты (для истории).**
+- **A. KDoc + отклонение по 2c** — отклонено. Дёшево (~20 мин),
+  но долг остаётся. Выбрано B по 2 «чистота приоритет».
+- **B. Унификация на `PositionStreamItem` + rename** — принято.
+- **C. `PortfolioApi` с `fetchFullPortfolio`** — отклонено по 2c:
+  формализует нарушение, не решает.
+
+**Файлы (10):**
+- `domain/api/BrokerApi.kt` — сигнатура + rename + KDoc.
+- `data/api/TInvestMarketDataService.kt` — rename +
+  возвращаемый тип `PositionStreamItem`; удалить
+  `convertToStreamItem`.
+- `data/orchestrator/TInvestOrchestrator.kt` — тип
+  `positionsRestFallback`; убрать `convertToStreamItem` (3×);
+  вызовы rename.
+- `data/api/TInvestBrokerApi.kt` — rename; REST fallback (98):
+  убрать `toPortfolioPosition`.
+- `transport-ktor/.../TInvestRestTransport.kt` — новый маппер
+  `RestPortfolioResponse → PositionStreamItem`.
+- `data/api/BcsBrokerApi.kt` — rename + переписать на
+  `PositionStreamItem`; удалить `convertToStreamItem`.
+- `data/api/FinamBrokerApi.kt` — rename +
+  `emptyList<PositionStreamItem>()`; удалить `convertToStreamItem`.
+- `data/repository/InvestRepository.kt` — конвертация через
+  `toPortfolioPosition`; вызов rename.
+- `domain/api/roles/BrokerSnapshotApi.kt` — KDoc (разграничение
+  с `fetchPortfolioPositions`).
+- `domain/models/Portfolio.kt` — `toPortfolioPosition` без
+  изменений.
+
+**Шаги:**
+1. Rename `fetchPositionsSnapshot` → `fetchPortfolioPositions`:
+   `BrokerApi`, `TInvestMarketDataService`, `TInvestBrokerApi`,
+   `BcsBrokerApi`, `FinamBrokerApi`, `InvestRepository` (вызов),
+   `TInvestOrchestrator` (вызов). Grep-проверка: старых
+   `fetchPositionsSnapshot` нет.
+2. `BrokerApi.fetchPortfolioPositions` →
+   `List<PositionStreamItem>` + KDoc.
+3. `TInvestMarketDataService.fetchPortfolioPositions` →
+   `List<PositionStreamItem>` (переписать 60+ строк).
+4. `TInvestRestTransport`: маппер
+   `RestPortfolioResponse → PositionStreamItem`.
+5. `TInvestBrokerApi:98`: REST fallback через новый маппер, без
+   `toPortfolioPosition`.
+6. `TInvestOrchestrator`: типы + убрать `convertToStreamItem` (3×).
+7. `BcsBrokerApi.fetchPortfolioPositions` →
+   `List<PositionStreamItem>`.
+8. `FinamBrokerApi.fetchPortfolioPositions` →
+   `emptyList<PositionStreamItem>()`.
+9. Удалить `convertToStreamItem` (3 экземпляра).
+10. `InvestRepository.fetchPositionsResult` → конвертация через
+    `toPortfolioPosition`.
+11. KDoc на `BrokerApi.fetchPortfolioPositions`,
+    `BrokerSnapshotApi.positionsSnapshot`,
+    `InvestRepository.fetchPositionsResult`.
+12. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты.**
+- Новый `InvestRepositoryTest` (или аналог) на конвертацию
+  `PositionStreamItem → PortfolioPosition`: 3 граничных случая
+  (`currentPrice = null`, `expectedYield = null`, `pointValue = null`).
+- `PositionFlowManagerTest` — не меняется (`positionsSnapshot`
+  не тронут).
+
+**Референсы.**
+- `Portfolio.kt:168` — `toPortfolioPosition` (уже есть).
+- `BrokerSnapshotApi.positionsSnapshot` — partial snapshot для
+  merge.
+- `PositionFlowManager:181` — потребитель `positionsSnapshot`.
+- `TInvestMarketDataService:149` — текущая реализация
+  (возвращает `PortfolioPosition`).
+- `TInvestMarketDataService:347` — `convertToStreamItem`.
+
+**Ограничения.**
+- **Nullable-val роль НЕ вводится.** `PortfolioApi` не создаётся.
+- **`PortfolioPosition` не менять без санкции** (UI-модель).
+- **UI-санкция получена** (правило 1): profit-fallback и
+  profitPercent фьючерсов.
+- **`positionsSnapshot` не трогать** — отдельный метод для merge.
+- **`InvestRepository.fetchPositionsResult` не переименовывать** —
+  возвращает `PortfolioPosition` (presentation), имя корректно.
+- **Не смешивать с `### Рефакторинг расчёта P&L`** — там приоритет
+  серверный/клиентский `profit`, отдельная задача.
+- **Не смешивать с `### TInvest-specific методы в *FlowManager`** —
+  там `BrokerSnapshotApi`, здесь `fetchPortfolioPositions`.
+
+**Критерий готовности.**
+- `grep "fetchPositionsSnapshot"` в `app/src` — пусто (rename
+  завершён).
+- `BrokerApi.fetchPortfolioPositions` возвращает
+  `List<PositionStreamItem>`.
+- Все 3 брокера возвращают `List<PositionStreamItem>`.
+- `convertToStreamItem` удалён во всех 3 экземплярах
+  (`grep "convertToStreamItem"` — пусто).
+- `InvestRepository.fetchPositionsResult` конвертирует через
+  `toPortfolioPosition`.
+- UI: карточка показывает profit / profitPercent (изменения
+  санкционированы).
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-25/26, 5 WIP-коммитов в
+`feature/portfolio-snapshot-refactor`
+(`bb9b58b` → `359e4f7`), PR — см. ниже.
+
+- **WIP-1 (bb9b58b)** rename `fetchPositionsSnapshot` →
+  `fetchPortfolioPositions`. Pure rename, 16 вхождений в 10
+  файлах (включая KDoc). `TInvestRestTransport.fetchPositionsSnapshot`
+  не переименовывался — низкоуровневый REST-транспорт, сырой DTO.
+- **WIP-2a (fb57fe5)** новый `RestPosition.toStreamItem()` в
+  `RestMappers.kt` + 2 теста. Готовит маппер для WIP-2b
+  (REST fallback в `TInvestBrokerApi`). `Q-currentPrice-null = A`:
+  `currentPrice ?: 0.0` — сохраняет поведение
+  `enrichAndCache`.
+- **WIP-2b (9cc6cbe)** унификация `fetchPortfolioPositions` на
+  `List<PositionStreamItem>`:
+  - `BrokerApi` сигнатура → `List<PositionStreamItem>` +
+    KDoc разграничивает с `BrokerSnapshotApi.positionsSnapshot`;
+  - `TInvestMarketDataService.fetchPortfolioPositions`
+    переписан → `PositionStreamItem` (без totalValue /
+    profitPercent); удалён `internal convertToStreamItem`;
+  - `TInvestOrchestrator`: `positionsRestFallback` → `List<PositionStreamItem>`;
+    убраны 3× `.map { convertToStreamItem }`;
+  - `TInvestBrokerApi:98` REST fallback → `toStreamItem`;
+  - `BcsBrokerApi.fetchPortfolioPositions` → `PositionStreamItem`;
+    удалён `convertToStreamItem`;
+  - `FinamBrokerApi.fetchPortfolioPositions` →
+    `emptyList<PositionStreamItem>()`; удалён
+    `convertToStreamItem`; `subscribePositions` `trySend(pos)`
+    напрямую;
+  - `InvestRepository.fetchPositionsResult` →
+    `.map { it.toPortfolioPosition() }`;
+  - `TInvestOrchestratorFallbackTest` обновлён;
+  - **Порочный круг data → presentation → domain → presentation
+    устранён.** 3 экземпляра `convertToStreamItem` удалены
+    (TInvest — live; BCS и Finam — мёртвые с #1).
+- **WIP-2c (268b49c)** удалён мёртвый
+  `RestPosition.toPortfolioPosition()` (единственный потребитель
+  был в `TInvestBrokerApi:98`, переехал на `toStreamItem`) +
+  2 теста + импорты.
+- **Попутно (359e4f7)** — **баг Move** (#1.5), не #9:
+  managers лежали в `domain/api/managers/`, package был
+  `domain.managers`, detekt `InvalidPackageDeclaration`
+  (11 файлов). Package → `domain.api.managers`; импорты
+  потребителей и порядок импортов исправлены
+  `ktlintFormat`. Гейт после фикса: `BUILD SUCCESSFUL`.
+- **UI-изменения (санкция получена в #9):**
+  - `profit`: убран fallback
+    `(currentPrice - avgPrice) * quantity`; profit = серверный
+    `expectedYield` (может быть 0 при падении цены);
+  - `profitPercent`: для фьючерсов → `calculateProfitPercent`
+    с `pointValue` (было — без `pointValue`, некорректно);
+  - `name = ticker` (временное; полное закрытие —
+    `### Обогащение name в PortfolioPosition (вариант C)`).
+- **Локальный полный гейт**
+  (`clean testDebugUnitTest lintDebug ktlintCheck detekt`) —
+  зелёный на `359e4f7` (после fix Move). `testDebugUnitTest`
+  — все тесты, `detekt` — без `InvalidPackageDeclaration`.
+- **Критерий готовности:**
+  - `grep "fetchPositionsSnapshot" app/src` — пусто
+    (кроме `TInvestRestTransport`, вне `app/src`);
+  - все 3 брокера возвращают `List<PositionStreamItem>`;
+  - `grep "convertToStreamItem"` — пусто;
+  - `InvestRepository.fetchPositionsResult` конвертирует через
+    `toPortfolioPosition`;
+  - гейт зелёный.
+
+**Оценка:** ~4.5–5.5 ч (rename 30 мин, BrokerApi 15,
+TInvestMarketDataService 60, TInvestRestTransport + маппер 40,
+TInvestBrokerApi 20, TInvestOrchestrator 20, BCS 30, Finam 5,
+удаление `convertToStreamItem` 10, InvestRepository 15, KDoc 20,
+тесты 30, гейт 15, резерв 20).
+
+**Зависимости:** umbrella #1–#8 закрыты. Move закрыт.
+
+**Связано:**
+- `### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)` —
+  umbrella, #9 в порядке. **Не роль**, рефакторинг сигнатуры +
+  rename.
+- `### Рефакторинг расчёта P&L для PortfolioPosition` — приоритет
+  серверный/клиентский `profit`, отдельная задача (поглощает
+  fallback-логику).
+- `### TInvest-specific методы в *FlowManager` — `BrokerSnapshotApi`,
+  не путать.
+- `### Рефакторинг архитектурного долга (detekt-группа 3)` →
+  `#### BrokerApi-реализации`.
+- `docs/architecture.md` (раздел 7) — при создании.
 
 **Открытые вопросы:** нет.
 

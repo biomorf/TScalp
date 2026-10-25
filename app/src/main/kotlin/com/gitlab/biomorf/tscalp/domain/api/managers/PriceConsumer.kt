@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.domain.managers
+package com.gitlab.biomorf.tscalp.domain.api.managers
 
 /**
  * Идентификаторы потребителей рыночных цен в PriceFlowManager.
