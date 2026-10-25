@@ -389,7 +389,7 @@ ktlint {
 
 tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
     buildUponDefaultConfig = true
-    ignoreFailures = true
+    ignoreFailures = false
     jvmTarget.set("25")
     config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
     baseline = file("detekt-baseline.xml")
