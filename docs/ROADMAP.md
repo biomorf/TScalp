@@ -11,137 +11,6 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
-### OrdersApi
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/orders-api
-
-**Контекст.**
-
-`BrokerApi` содержит 6 методов заявок: `postOrder`,
-`postStopOrder`, `getOrders`, `getStopOrders`, `cancelOrder`,
-`cancelStopOrder`. Потребитель один — `InvestRepository`
-(6 callsite: `postOrderResult`, `postStopOrderResult`,
-`getAllOrdersResult` — `getOrders` + `getStopOrders`,
-`cancelOrderResult`, `cancelStopOrderResult`).
-
-Реализации (проверено grep 2026-10-25):
-- `TInvestBrokerAPI` — 6/6, все делегируют в
-  `TInvestOrdersService`.
-- `BcsBrokerApi` — 1/6: `postOrder` реальный (HTTP POST),
-  `postStopOrder` → фейковый ID (`"bcs-stop-${millis}"`),
-  `getOrders` / `getStopOrders` → `emptyList`, `cancelOrder`
-  / `cancelStopOrder` → `UnsupportedOperationException`.
-- `FinamBrokerApi` — 0/6, все заглушки
-  (`TODO("Not yet implemented")`, `emptyList`).
-
-**Цель.** `OrdersApi` — nullable-val роль по образцу
-`BrokerSnapshotApi` / `StreamsApi` / `BrokerLifecycleApi` /
-`BrokerInstrumentApi`. `BrokerApi.orders: OrdersApi?`.
-`InvestRepository` переходит на `broker.orders?.<метод>`;
-при `null` — `AppResult.Failure(AppError.Unknown("Брокер
-не поддерживает заявки"))` (вместо текущего
-`UnsupportedOperationException` / `emptyList`).
-
-**Решение (nullable-val, Scenario2).**
-- Методы `OrdersApi`: 6 (см. контекст).
-- TInvest: supertype `OrdersApi` (суммарно
-  `BrokerApi, BrokerSnapshotApi, StreamsApi,
-  BrokerLifecycleApi, BrokerInstrumentApi, OrdersApi`);
-  `orders = this` (6/6 реализованы).
-- BCS: `orders = null`, **без** supertype (1/6 — только
-  `postOrder`; supertype требовал бы реализации всех 6).
-- Finam: `orders = null`, **без** supertype (0/6).
-- `InvestRepository`: 6 callsite → `broker.orders?.<метод>`.
-- KDoc на `BrokerApi.orders`: `null` = не поддерживает.
-
-**Предусловия:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — #1 StreamsApi, #2 BrokerLifecycleApi,
-  #3 BrokerInstrumentApi закрыты; Move закрыт.
-
-**Файлы:**
-- `domain/api/roles/OrdersApi.kt` (новый).
-- `domain/api/BrokerApi.kt` — `val orders: OrdersApi?`.
-- `data/api/TInvestBrokerApi.kt` — supertype `OrdersApi`,
-  `orders = this`, 6 методов → `override`.
-- `data/api/BcsBrokerApi.kt` — `orders = null`, **без**
-  supertype.
-- `data/api/FinamBrokerApi.kt` — `orders = null`, **без**
-  supertype.
-- `data/repository/InvestRepository.kt` — 6 callsite.
-
-**Шаги:**
-1. `OrdersApi` (6 методов + KDoc).
-2. `BrokerApi.orders: OrdersApi?`.
-3. TInvest: supertype + `orders = this`, 6 методов →
-   `override`.
-4. BCS: `orders = null` (без supertype).
-5. Finam: `orders = null` (без supertype).
-6. `InvestRepository`: 6 callsite → `broker.orders?.<метод>`;
-   при `null` — `AppResult.Failure(...)`.
-7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты.** `InvestRepositoryTest` не существует. Замена
-`broker.postOrder(...)` → `broker.orders?.postOrder(...)` —
-тривиальная делегация (proxy-методы). **Дефолт:** без новых
-тестов (по образцу #3). Если позже появится
-`InvestRepositoryTest` — мок `every { broker.orders } returns
-mockStreams`.
-
-**Референсы:**
-- `f8569ee` (#1 StreamsApi) — образец: supertype у TInvest,
-  `null` у BCS/Finam.
-- `b142bbd` (#2 BrokerLifecycleApi) — образец: supertype
-  ставится только там, где методы реализованы.
-- `8ba59f9` (#3 fix) — контр-пример: supertype без
-  реализации → ошибка компиляции.
-- `InvestRepository.kt:102-215` — текущие 6 callsite.
-
-**Ограничения:**
-- **Supertype только у TInvest.** BCS/Finam — `null` **без**
-  supertype (AGENTS.md «Nullable-val роли»).
-- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
-  вставке»).
-- Не смешивать с `### Split order domain into sealed
-  Regular/Stop` — там доменные модели, здесь роль.
-- `InvestRepository` остаётся на fat `BrokerApi` (отклонение
-  по 2c, зафиксировано в umbrella). Переход 6 callsite на
-  `broker.orders?.` — не отказ от отклонения, а использование
-  роли там, где она есть.
-- `synchronized(startLock)` в менеджерах не трогать.
-
-**Критерий готовности:**
-- `OrdersApi` создан (6 методов + KDoc).
-- `BrokerApi.orders: OrdersApi?`.
-- TInvest `orders = this` + supertype; BCS/Finam
-  `orders = null` без supertype.
-- `InvestRepository`: `grep "broker.postOrder\|broker.postStopOrder\|broker.getOrders\|broker.getStopOrders\|broker.cancelOrder\|broker.cancelStopOrder"` — пусто
-  (только `broker.orders?.`).
-- Гейт зелёный.
-
-**Оценка:** ~2 ч (OrdersApi 15 мин, BrokerApi 5, TInvest 20,
-BCS/Finam 10, InvestRepository 6 callsite 40, гейт 15,
-резерв 15).
-
-**Зависимости:** umbrella #1–#3 закрыты, Move закрыт.
-
-**Связано:**
-- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — #4 в порядке.
-- `### Split order domain into sealed Regular/Stop` — отдельная
-  задача (модели), не блокирует.
-- `### Ktor REST для позиций/заявок/баланса` (закрыта) —
-  `ordersSnapshot`, не путать с ролью.
-- `### OrderFlowManager` / `### Add stop() ...` — менеджеры,
-  не роль.
-
-**Открытые вопросы:** нет.
-
----
-
 ### Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
@@ -476,7 +345,7 @@ fat-интерфейс подходит). Если остановиться по
 | 1 | `StreamsApi` | ✅ done | 3 менеджера (по 1) + `InvestRepository.subscribeLastPrices` (legacy, удалён) | 0 | 2.5–3 ч |
 | 2 | `BrokerLifecycleApi` | ✅ done | `SettingsViewModel` (6), `TScalpApplication` (2) | 8 | 3–4 ч |
 | 3 | `BrokerInstrumentApi` | ✅ done | `InstrumentRepository` (1) | 1 | 45 мин |
-| 4 | `OrdersApi` | новая | `InvestRepository` (6) | 0 | 2 ч |
+| 4 | `OrdersApi` | ✅ done | `InvestRepository` (6) | 0 | 2 ч |
 | 5 | `AccountsApi` | новая | `TScalpApplication` (2), `InvestRepository` (2) | 2 | 1 ч |
 | 6 | `SandboxApi` | новая | `InvestRepository` (3) | 0 | 1 ч |
 | 7 | `UserInstrumentsApi` | новая | `SearchCache` (1), `InvestRepository` (1) | 0 | 1 ч |
@@ -4900,6 +4769,179 @@ BCS/Finam 5, repository 5, гейт 5).
   последний оставшийся каст в `app/src/main`.
 - `### Архитектурный документ` — раздел 7 дополнить
   `BrokerInstrumentApi`.
+**Открытые вопросы:** нет.
+
+
+---
+
+### ✅ OrdersApi
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст.**
+
+`BrokerApi` содержит 6 методов заявок: `postOrder`,
+`postStopOrder`, `getOrders`, `getStopOrders`, `cancelOrder`,
+`cancelStopOrder`. Потребитель один — `InvestRepository`
+(6 callsite: `postOrderResult`, `postStopOrderResult`,
+`getAllOrdersResult` — `getOrders` + `getStopOrders`,
+`cancelOrderResult`, `cancelStopOrderResult`).
+
+Реализации (проверено grep 2026-10-25):
+- `TInvestBrokerAPI` — 6/6, все делегируют в
+  `TInvestOrdersService`.
+- `BcsBrokerApi` — 1/6: `postOrder` реальный (HTTP POST),
+  `postStopOrder` → фейковый ID (`"bcs-stop-${millis}"`),
+  `getOrders` / `getStopOrders` → `emptyList`, `cancelOrder`
+  / `cancelStopOrder` → `UnsupportedOperationException`.
+- `FinamBrokerApi` — 0/6, все заглушки
+  (`TODO("Not yet implemented")`, `emptyList`).
+
+**Цель.** `OrdersApi` — nullable-val роль по образцу
+`BrokerSnapshotApi` / `StreamsApi` / `BrokerLifecycleApi` /
+`BrokerInstrumentApi`. `BrokerApi.orders: OrdersApi?`.
+`InvestRepository` переходит на `broker.orders?.<метод>`;
+при `null` — `AppResult.Failure(AppError.Unknown("Брокер
+не поддерживает заявки"))` (вместо текущего
+`UnsupportedOperationException` / `emptyList`).
+
+**Решение (nullable-val, Scenario2).**
+- Методы `OrdersApi`: 6 (см. контекст).
+- TInvest: supertype `OrdersApi` (суммарно
+  `BrokerApi, BrokerSnapshotApi, StreamsApi,
+  BrokerLifecycleApi, BrokerInstrumentApi, OrdersApi`);
+  `orders = this` (6/6 реализованы).
+- BCS: `orders = null`, **без** supertype (1/6 — только
+  `postOrder`; supertype требовал бы реализации всех 6).
+- Finam: `orders = null`, **без** supertype (0/6).
+- `InvestRepository`: 6 callsite → `broker.orders?.<метод>`.
+- KDoc на `BrokerApi.orders`: `null` = не поддерживает.
+
+**Предусловия:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #1 StreamsApi, #2 BrokerLifecycleApi,
+  #3 BrokerInstrumentApi закрыты; Move закрыт.
+
+**Файлы:**
+- `domain/api/roles/OrdersApi.kt` (новый).
+- `domain/api/BrokerApi.kt` — `val orders: OrdersApi?`.
+- `data/api/TInvestBrokerApi.kt` — supertype `OrdersApi`,
+  `orders = this`, 6 методов → `override`.
+- `data/api/BcsBrokerApi.kt` — `orders = null`, **без**
+  supertype.
+- `data/api/FinamBrokerApi.kt` — `orders = null`, **без**
+  supertype.
+- `data/repository/InvestRepository.kt` — 6 callsite.
+
+**Шаги:**
+1. `OrdersApi` (6 методов + KDoc).
+2. `BrokerApi.orders: OrdersApi?`.
+3. TInvest: supertype + `orders = this`, 6 методов →
+   `override`.
+4. BCS: `orders = null` (без supertype).
+5. Finam: `orders = null` (без supertype).
+6. `InvestRepository`: 6 callsite → `broker.orders?.<метод>`;
+   при `null` — `AppResult.Failure(...)`.
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты.** `InvestRepositoryTest` не существует. Замена
+`broker.postOrder(...)` → `broker.orders?.postOrder(...)` —
+тривиальная делегация (proxy-методы). **Дефолт:** без новых
+тестов (по образцу #3). Если позже появится
+`InvestRepositoryTest` — мок `every { broker.orders } returns
+mockStreams`.
+
+**Референсы:**
+- `f8569ee` (#1 StreamsApi) — образец: supertype у TInvest,
+  `null` у BCS/Finam.
+- `b142bbd` (#2 BrokerLifecycleApi) — образец: supertype
+  ставится только там, где методы реализованы.
+- `8ba59f9` (#3 fix) — контр-пример: supertype без
+  реализации → ошибка компиляции.
+- `InvestRepository.kt:102-215` — текущие 6 callsite.
+
+**Ограничения:**
+- **Supertype только у TInvest.** BCS/Finam — `null` **без**
+  supertype (AGENTS.md «Nullable-val роли»).
+- **Импорты по алфавиту** (AGENTS.md «Порядок импортов при
+  вставке»).
+- Не смешивать с `### Split order domain into sealed
+  Regular/Stop` — там доменные модели, здесь роль.
+- `InvestRepository` остаётся на fat `BrokerApi` (отклонение
+  по 2c, зафиксировано в umbrella). Переход 6 callsite на
+  `broker.orders?.` — не отказ от отклонения, а использование
+  роли там, где она есть.
+- `synchronized(startLock)` в менеджерах не трогать.
+
+**Критерий готовности:**
+- `OrdersApi` создан (6 методов + KDoc).
+- `BrokerApi.orders: OrdersApi?`.
+- TInvest `orders = this` + supertype; BCS/Finam
+  `orders = null` без supertype.
+- `InvestRepository`: `grep "broker.postOrder\|broker.postStopOrder\|broker.getOrders\|broker.getStopOrders\|broker.cancelOrder\|broker.cancelStopOrder"` — пусто
+  (только `broker.orders?.`).
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-25, 2 WIP-коммита в
+`feature/orders-api` (`7612c97` → `977c1d0`), PR — см. ниже.
+
+- **#1** `domain/api/roles/OrdersApi.kt` — новый интерфейс
+  (6 методов: `postOrder`, `postStopOrder`, `getOrders`,
+  `getStopOrders`, `cancelOrder`, `cancelStopOrder` + KDoc
+  с правилом «supertype = реализую все методы»).
+  Коммит `7612c97`.
+- **#2** (объединено, без промежуточной красной сборки):
+  - `BrokerApi.orders: OrdersApi?` (nullable-val, рядом с
+    `instrument`);
+  - `TInvestBrokerAPI`: supertype `OrdersApi`, `orders = this`;
+    **rename** `private val orders = TInvestOrdersService(state)`
+    → `ordersService` (конфликт с `override val orders`):
+    + orchestrator arg + 6 usages;
+  - `BcsBrokerApi` / `FinamBrokerApi`: `orders = null`, **без**
+    supertype (BCS 1/6, Finam 0/6);
+  - `InvestRepository`: 5 методов (`postOrderResult`,
+    `postStopOrderResult`, `cancelStopOrderResult`,
+    `getAllOrdersResult`, `cancelOrderResult`) →
+    `broker.orders ?: return Failure(...)` + `ordersApi.<метод>`
+    (симметрично существующему `broker ?: return Failure`
+    паттерну). Коммит `977c1d0`.
+- **CI-цикл — 1 итерация.** Впервые без fix-коммитов (в #1, #2,
+  #3 было 2–3 цикла). Уроки AGENTS.md сработали:
+  - импорты по алфавиту (`add_import_sorted`, не positional
+    anchor);
+  - supertype только там, где реализованы все методы
+    (BCS/Finam — `null` без supertype);
+  - grep на конфликт `private val` перед `override val`
+    (нашёл `private val orders` = `TInvestOrdersService`
+    до правки, переименовал заранее).
+- **Критерий готовности:**
+  - `OrdersApi` создан (6 методов + KDoc);
+  - `BrokerApi.orders` добавлен;
+  - TInvest `orders = this` + supertype; BCS/Finam
+    `orders = null` без supertype;
+  - `grep "broker.postOrder|broker.postStopOrder|broker.getOrders|
+    broker.getStopOrders|broker.cancelOrder|broker.cancelStopOrder"`
+    в `InvestRepository.kt` — пусто (все через `ordersApi`);
+  - `gate` зелёный на `977c1d0` (`fast-check` +
+    `full-build`).
+
+**Оценка:** ~2 ч (OrdersApi 15 мин, BrokerApi 5, TInvest 20,
+BCS/Finam 10, InvestRepository 6 callsite 40, гейт 15,
+резерв 15).
+
+**Зависимости:** umbrella #1–#3 закрыты, Move закрыт.
+
+**Связано:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — #4 в порядке.
+- `### Split order domain into sealed Regular/Stop` — отдельная
+  задача (модели), не блокирует.
+- `### Ktor REST для позиций/заявок/баланса` (закрыта) —
+  `ordersSnapshot`, не путать с ролью.
+- `### OrderFlowManager` / `### Add stop() ...` — менеджеры,
+  не роль.
+
 **Открытые вопросы:** нет.
 
 ---

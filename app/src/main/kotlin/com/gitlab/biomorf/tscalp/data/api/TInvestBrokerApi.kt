@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
@@ -48,7 +49,8 @@ class TInvestBrokerAPI(
     BrokerSnapshotApi,
     StreamsApi,
     BrokerLifecycleApi,
-    BrokerInstrumentApi {
+    BrokerInstrumentApi,
+    OrdersApi {
     private companion object {
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
         const val WS_BASE_URL_SANDBOX = "wss://sandbox-invest-public-api.tbank.ru/ws"
@@ -71,11 +73,11 @@ class TInvestBrokerAPI(
 
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
-    private val orders = TInvestOrdersService(state)
+    private val ordersService = TInvestOrdersService(state)
     private val orchestrator =
         TInvestOrchestrator(
             marketData = marketData,
-            orders = orders,
+            orders = ordersService,
             wsFallback = { accountId -> buildWsFallback(accountId) },
             pricesWsFallback = { uids -> buildPricesWsFallback(uids) },
             orderStateWsFallback = { accountId -> buildOrderStateWsFallback(accountId) },
@@ -124,6 +126,7 @@ class TInvestBrokerAPI(
     override val streams: StreamsApi get() = this
     override val lifecycle: BrokerLifecycleApi get() = this
     override val instrument: BrokerInstrumentApi get() = this
+    override val orders: OrdersApi get() = this
 
     /**
      * Инициализация API с явным токеном и режимом.
@@ -274,26 +277,26 @@ class TInvestBrokerAPI(
 
     override suspend fun findInstruments(query: String) = marketData.findInstruments(query)
 
-    override suspend fun postOrder(request: BrokerOrderRequest) = orders.postOrder(request)
+    override suspend fun postOrder(request: BrokerOrderRequest) = ordersService.postOrder(request)
 
-    override suspend fun postStopOrder(request: StopOrderRequest) = orders.postStopOrder(request)
+    override suspend fun postStopOrder(request: StopOrderRequest) = ordersService.postStopOrder(request)
 
-    override suspend fun getStopOrders(accountId: String) = orders.getStopOrders(accountId)
+    override suspend fun getStopOrders(accountId: String) = ordersService.getStopOrders(accountId)
 
     override suspend fun cancelStopOrder(
         accountId: String,
         stopOrderId: String,
     ) {
-        orders.cancelStopOrder(accountId, stopOrderId)
+        ordersService.cancelStopOrder(accountId, stopOrderId)
     }
 
-    override suspend fun getOrders(accountId: String) = orders.getOrders(accountId)
+    override suspend fun getOrders(accountId: String) = ordersService.getOrders(accountId)
 
     override suspend fun cancelOrder(
         accountId: String,
         orderId: String,
     ) {
-        orders.cancelOrder(accountId, orderId)
+        ordersService.cancelOrder(accountId, orderId)
     }
 
     override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>) = marketData.getLastPricesByTscalpInstrumentId(ids)

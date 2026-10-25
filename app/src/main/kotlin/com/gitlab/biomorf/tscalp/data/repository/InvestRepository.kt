@@ -106,7 +106,12 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован"),
                     )
-            runCatchingAppResult(request.brokerName) { broker.postOrder(request) }
+            val ordersApi =
+                broker.orders
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${request.brokerName.displayName} не поддерживает заявки"),
+                    )
+            runCatchingAppResult(request.brokerName) { ordersApi.postOrder(request) }
         }
 
     /**
@@ -120,7 +125,12 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован"),
                     )
-            runCatchingAppResult(request.brokerName) { broker.postStopOrder(request) }
+            val ordersApi =
+                broker.orders
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${request.brokerName.displayName} не поддерживает заявки"),
+                    )
+            runCatchingAppResult(request.brokerName) { ordersApi.postStopOrder(request) }
         }
 
     /**
@@ -133,8 +143,13 @@ class InvestRepository(
     ): AppResult<Unit> =
         withContext(Dispatchers.IO) {
             val broker = brokerManager.getDefaultBroker()
+            val ordersApi =
+                broker.orders
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${BrokerName.TINVEST.displayName} не поддерживает заявки"),
+                    )
             runCatchingAppResult(BrokerName.TINVEST) {
-                broker.cancelStopOrder(accountId, orderId)
+                ordersApi.cancelStopOrder(accountId, orderId)
                 Unit
             }
         }
@@ -190,8 +205,13 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                     )
+            val ordersApi =
+                broker.orders
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает заявки"),
+                    )
             runCatchingAppResult(brokerName) {
-                broker.getOrders(accountId) + broker.getStopOrders(accountId)
+                ordersApi.getOrders(accountId) + ordersApi.getStopOrders(accountId)
             }
         }
 
@@ -210,8 +230,13 @@ class InvestRepository(
                     ?: return@withContext AppResult.Failure(
                         AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                     )
+            val ordersApi =
+                broker.orders
+                    ?: return@withContext AppResult.Failure(
+                        AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает заявки"),
+                    )
             runCatchingAppResult(brokerName) {
-                broker.cancelOrder(accountId, orderId)
+                ordersApi.cancelOrder(accountId, orderId)
                 Unit
             }
         }
