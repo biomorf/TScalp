@@ -11,6 +11,107 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ---
 
+### Move domain/api into roles/ and managers/
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст:** после закрытия umbrella `### Рефакторинг ролей
+BrokerApi (nullable-val, Scenario2)` (#1–#11) в `domain/api/`
+накопится ~18 файлов: 9 ролей (интерфейсы `*Api`), агрегатор
+`BrokerApi`, `BrokerCredentials` (часть контракта
+`BrokerLifecycleApi`), три `*FlowManager`, `OrderCache`,
+`StreamStateTracker`, `PriceConsumer`. Плоский пакет перестаёт
+быть навигируемым; контракты ролей не отделены от агрегатора
+и менеджеров.
+
+**Цель:** структурировать `domain/` по семантическим
+подпакетам.
+
+```
+domain/
+├── api/
+│   ├── BrokerApi.kt                  (фасад, остаётся)
+│   └── roles/
+│       ├── BrokerSnapshotApi.kt
+│       ├── StreamsApi.kt
+│       ├── BrokerLifecycleApi.kt
+│       ├── BrokerCredentials.kt
+│       └── (#4–#9 роли при реализации)
+├── managers/
+│   ├── PositionFlowManager.kt
+│   ├── PriceFlowManager.kt
+│   ├── OrderFlowManager.kt
+│   ├── OrderCache.kt
+│   ├── StreamStateTracker.kt
+│   └── PriceConsumer.kt
+├── models/                           (без изменений)
+└── usecases/                         (без изменений)
+```
+
+**Правила разбиения:**
+- `api/` — только фасад `BrokerApi.kt` (fat-интерфейс).
+- `api/roles/` — все роли nullable-val (`*Api.kt`)
+  и `BrokerCredentials.kt` (часть контракта
+  `BrokerLifecycleApi`).
+- `managers/` — три `*FlowManager`, их internal детали
+  (`OrderCache`, `StreamStateTracker`), публичный enum
+  `PriceConsumer`.
+- `models/`, `usecases/` — без изменений.
+- `presentation/`, `data/` — без изменений.
+
+**Предусловия:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` закрыт (#1–#11).
+- Все роли (#4–#9) реализованы — иначе они создадутся плоско
+  и попадут под миграцию сразу после создания.
+
+**Файлы:**
+- `git mv` 10 файлов:
+  - `domain/api/{BrokerSnapshotApi,StreamsApi,BrokerLifecycleApi,BrokerCredentials}.kt`
+    → `domain/api/roles/`;
+  - `domain/api/{PositionFlowManager,PriceFlowManager,OrderFlowManager,OrderCache,StreamStateTracker,PriceConsumer}.kt`
+    → `domain/managers/`.
+- Импорты в ~30 файлах по всему проекту (`presentation/`,
+  `data/`, тесты).
+- `AGENTS.md` → «Проект» — упомянуть структуру
+  `domain/api/roles/`, `domain/managers/`.
+- `docs/architecture.md` — раздел 1 (слои) и раздел 7
+  (BrokerApi + roles).
+
+**Шаги:**
+1. `git mv` файлов ролей → `domain/api/roles/`.
+2. `git mv` менеджеров + internal → `domain/managers/`.
+3. Массовая замена `import com.gitlab.biomorf.tscalp.domain.api.<File>`
+   → `.api.roles.<File>` / `.managers.<File>` в ~30 файлах
+   (sed / python).
+4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+5. `AGENTS.md`, `docs/architecture.md` — обновить структуру.
+
+**Критерий готовности:**
+- Файлы ролей — в `domain/api/roles/`.
+- Менеджеры — в `domain/managers/`.
+- В `app/src` нет импортов старых путей к перенесённым файлам
+  (проверить `grep -rn "import com.gitlab.biomorf.tscalp.domain.api.<File>"`
+  по каждому из 10 имён — пусто).
+- Гейт зелёный.
+
+**Оценка:** ~1.5 ч (git mv 10 мин, import-правка 30 мин,
+гейт 10 мин, docs 15 мин, резерв 25 мин).
+
+**Зависимости:** после закрытия umbrella (всех #1–#11).
+
+**Связано:**
+- Umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — источник всех ролей и менеджеров.
+- `docs/architecture.md` — раздел 1 (слои) и раздел 7
+  (BrokerApi).
+
+**Открытые вопросы:** нет.
+
+---
+
 ### Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
@@ -173,7 +274,7 @@ presentation-модель из domain. Но перед этим — ревизи
 
 **Файлы:**
 - `domain/api/BrokerApi.kt` — сигнатура `fetchPositionsSnapshot`.
-- `domain/api/BrokerSnapshotApi.kt` — возможно, объединение с
+- `domain/api/roles/BrokerSnapshotApi.kt` — возможно, объединение с
   `positionsSnapshot`.
 - `data/api/TInvestBrokerAPI.kt` / `BcsBrokerApi.kt` /
   `FinamBrokerApi.kt` — реализации.
@@ -747,7 +848,7 @@ merge `0318a8c`). Единственный оставшийся каст lifecyc
 `### Broker lifecycle API` закрыта (`0318a8c`).
 
 **Файлы:**
-- `domain/api/BrokerInstrumentApi.kt` (новый) —
+- `domain/api/roles/BrokerInstrumentApi.kt` (новый) —
   `suspend fun fetchFullInstrument(uid: String): InstrumentUi?`.
 - `domain/api/BrokerApi.kt` — `val instrument: BrokerInstrumentApi?`.
 - `data/api/TInvestBrokerApi.kt` — `BrokerInstrumentApi` в
