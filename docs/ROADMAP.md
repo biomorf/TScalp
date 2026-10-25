@@ -185,93 +185,6 @@ success, стримы не идут» — не проверка, а конста
 ---
 
 
-### detekt: ignoreFailures=false
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/detekt-enforcement
-
-**Контекст.**
-
-`app/build.gradle.kts:392` — `ignoreFailures = true` в
-`tasks.withType<dev.detekt.gradle.Detekt>`. `ktlint { ignoreFailures =
-false }` (стр. 384) — уже правильно; detekt — нет. Расхождение с
-ROADMAP → `### detekt enforcement` (там записано `false`).
-Обнаружено в #9: 11 файлов managers имели
-`InvalidPackageDeclaration`, detekt ругался, но
-`BUILD SUCCESSFUL`.
-
-**Диагностика (grep + прогон 2026-10-26).**
-
-- Прогон `./gradlew :app:detekt --rerun-tasks` — **пустой**
-  (`e:` / `warn:` нет).
-- `config/detekt/detekt.yml` — `active: true` только у
-  `MagicNumber` (warn-уровень).
-- `app/detekt-baseline.xml` — 45 записей, **все** `MagicNumber`
-  (baseline покрывает все срабатывания).
-- `LongMethod`, `CyclomaticComplexMethod`, `TooManyFunctions`,
-  `LargeClass` — **`active: false`**. `@Suppress` в коде для них
-  — мёртвый груз (правило не запускается). Включение этих
-  правил — отдельная задача (см. «Связано»).
-
-**Следствие.** `ignoreFailures = false` **не сломает** сборку —
-нарушений включённых правил вне baseline нет. Задача сводится к
-одной строке.
-
-**Цель.** Привести `ignoreFailures` в соответствие с ROADMAP
-(`false`), чтобы `e:` от detekt блокировали merge (enforcement).
-
-**Файлы:**
-- `app/build.gradle.kts` — `ignoreFailures = false` (стр. 392).
-
-**Шаги:**
-1. `ignoreFailures = true` → `false` в `app/build.gradle.kts`.
-2. Локальный гейт:
-   `./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug
-   :app:ktlintCheck :app:detekt --rerun-tasks`.
-   Ожидаемо: `BUILD SUCCESSFUL`, только `statusBarColor`.
-3. PR + CI `gate` на PR — подтверждение.
-
-**Ограничения:**
-- Не подавлять ошибки через `ignoreFailures = true` — цель
-  обратная.
-- Не включать архитектурные правила (`LongMethod` и др.) в
-  этой задаче — отдельная задача.
-- Не удалять и не добавлять `@Suppress` — вне scope.
-- Не смешивать с другой задачей.
-
-**Критерий готовности:**
-- `ignoreFailures = false` в `build.gradle.kts`.
-- `./gradlew :app:detekt` — `BUILD SUCCESSFUL` с 0 `e:`.
-- Гейт зелёный.
-
-**Оценка:** ~15 мин (правка 1 мин, гейт 5 мин, PR-цикл 5 мин,
-резерв 4 мин). Прежняя `~1 ч` (включала разбор ошибок и
-baseline) — устарела, разбирать нечего.
-
-**Зависимости:** нет.
-
-**Связано:**
-- `### detekt enforcement` (закрыта) — там записано `false`,
-  здесь — привести код в соответствие.
-- `### detekt: включить архитектурные правила` — создаётся
-  при mark done этой задачи (`LongMethod`,
-  `CyclomaticComplexMethod`, `TooManyFunctions`, `LargeClass`
-  → `active: true`, разбор `@Suppress`, перенос долга в
-  `### Рефакторинг архитектурного долга (detekt-группа 3)`).
-- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
-  рефакторинг, не включение правил. Разные задачи.
-- Born-in-#9: обнаружено при финальном гейте #9
-  (`359e4f7` исправил только `InvalidPackageDeclaration` в
-  managers, не `ignoreFailures`).
-
-**Открытые вопросы:** нет.
-
----
-
-
-
 
 ### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)
 
@@ -565,6 +478,141 @@ fat-интерфейс подходит). Если остановиться по
 
 
 ---
+
+### detekt: включить архитектурные правила
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.**
+
+После `### detekt: ignoreFailures=false` (закрыта 2026-10-26)
+detekt блокирует сборку (`ignoreFailures = false`), но
+включённые правила узкие: `config/detekt/detekt.yml` —
+`active: true` только у `MagicNumber` (warn, baseline 45
+записей). Архитектурные правила выключены:
+
+- `LongMethod` — `active: false`;
+- `CyclomaticComplexMethod` — `active: false`;
+- `TooManyFunctions` — `active: false`;
+- `LargeClass` — `active: false`.
+
+`@Suppress("LongMethod")`, `@Suppress("TooManyFunctions")`,
+`@Suppress("CyclomaticComplexMethod")`, `@Suppress("LargeClass")`
+в коде — **мёртвый груз**: правило не запускается,
+аннотация ничего не делает. Кто-то добавил `@Suppress`, но
+не включил правило.
+
+**Цель.** Включить архитектурные правила (`active: true`),
+сделать `@Suppress` реальными маркерами долга (а не
+декоративными), разобраться с всплывшими нарушениями.
+
+**Стратегия разбора (после включения правил).**
+
+1. **`@Suppress` уже стоит и корректно подавляет** — оставить,
+   но зафиксировать как **активный** долг с ссылкой на
+   `### Рефакторинг архитектурного долга (detekt-группа 3)`
+   (там уже перечислены конкретные файлы / функции).
+2. **Нарушение вне `@Suppress`** (всплывёт впервые) — оценить:
+   - **тривиально** (например, `LongMethod` в 30 строк, можно
+     разбить за 10 мин) — починить сразу, отдельным PR;
+   - **сложно** (рефакторинг 100+ строк) — `@Suppress` с
+     ссылкой на ROADMAP-задачу, а сама задача — в
+     `### Рефакторинг архитектурного долга`;
+   - **ложное срабатывание** — `@Suppress` с пояснением в
+     KDoc.
+
+**Файлы:**
+- `config/detekt/detekt.yml` — 4 правила `active: false` →
+  `true`.
+- `app/detekt-baseline.xml` — обновить (если `detektBaseline`
+  покроет всплывшие) или точечные `@Suppress`.
+- Код — точечные `@Suppress` с `KDoc`-ссылками на
+  `### Рефакторинг архитектурного долга` (для отложенных
+  нарушений).
+
+**Шаги:**
+1. `config/detekt/detekt.yml`: `active: false` → `true` у 4
+   правил.
+2. Прогон `./gradlew :app:detekt --rerun-tasks` — полный
+   список новых `warn:` / `e:`.
+3. Классификация: тривиально / сложно / ложное.
+4. Для каждого: фикс, `@Suppress` + KDoc-ссылка, или
+   baseline.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+6. Синхронизировать `### Рефакторинг архитектурного долга`:
+   добавить новые отложенные нарушения (если появились сверх
+   существующих).
+
+**Тесты.** Не меняются — правила detekt не влияют на
+поведение. Гейт — доказательство.
+
+**Референсы:**
+- `config/detekt/detekt.yml` — текущий `active: true` только
+  у `MagicNumber`.
+- `app/detekt-baseline.xml` — 45 `MagicNumber`, baseline.
+- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
+  список долга (OrdersScreen 646 строк, OrdersViewModel 49
+  функций, postOrder 172 строки и т.д.) — **сюда** ложатся
+  отложенные нарушения.
+- `### detekt: ignoreFailures=false` (закрыта) — включила
+  enforcement; здесь — расширяем правила.
+
+**Ограничения:**
+- Не отключать `ignoreFailures` обратно.
+- Не удалять существующие `@Suppress` для долга — они станут
+  активными (корректно подавляют, но со ссылкой на ROADMAP).
+- Не пытаться отрефакторить весь `### Рефакторинг
+  архитектурного долга` в этой задаче — только классификация
+  и точечные фиксы тривиального. Рефакторинг — там.
+- Не смешивать с `### Рефакторинг архитектурного долга
+  (detekt-группа 3)` — там рефакторинг, здесь включение
+  правил.
+
+**Критерий готовности:**
+- 4 правила `active: true` в `config/detekt/detekt.yml`.
+- `./gradlew :app:detekt` — `BUILD SUCCESSFUL` (все всплывшие
+  либо починены, либо `@Suppress`-подавлены, либо в baseline).
+- `### Рефакторинг архитектурного долга` дополнен новыми
+  отложенными нарушениями (если появились).
+- Гейт зелёный.
+
+**Оценка:** ~2–3 ч (правка yml 5 мин, прогон + классификация
+30 мин, разбор тривиального 1–1.5 ч, отложенные `@Suppress`
++ KDoc 30 мин, синхронизация `### Рефакторинг` 15 мин,
+гейт 10 мин). Оценка зависит от количества всплывших
+нарушений — начнётся с диагностики, может уложиться в 1 ч
+(если все `@Suppress` уже стоят), может вырасти до 3–4 ч
+(если много нового).
+
+**Зависимости:**
+- **После** `### detekt: ignoreFailures=false` (закрыта
+  2026-10-26).
+- **До** `### Рефакторинг архитектурного долга (detekt-группа
+  3)` — включение правил покажет реальный объём долга, и
+  задача рефакторинга получит актуальный список.
+
+**Связано:**
+- `### detekt: ignoreFailures=false` (закрыта) — enforcement.
+- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
+  рефакторинг. Правила включены — список долга актуален.
+- Born-in-#9: `@Suppress` в коде для выключенных правил
+  обнаружены при ревизии `### detekt: ignoreFailures=false`.
+
+**Открытые вопросы.**
+- `MagicNumber` — warn, baseline 45. После включения
+  архитектурных правил baseline не меняется (только для
+  `MagicNumber`). `detektBaseline` может слить всё в один
+  файл — обновить или точечные `@Suppress`? Рекомендация:
+  точечные `@Suppress` для отложенного, baseline — только
+  `MagicNumber`.
+- Если всплывших новых много (>20) — разбить на подзадачи
+  по файлам/модулям. Решение — по результатам прогона.
+
+---
+
 
 ### Разбивка InvestRepository по доменным областям
 
@@ -6318,6 +6366,109 @@ TInvestBrokerApi 20, TInvestOrchestrator 20, BCS 30, Finam 5,
 - `### Рефакторинг архитектурного долга (detekt-группа 3)` →
   `#### BrokerApi-реализации`.
 - `docs/architecture.md` (раздел 7) — при создании.
+
+**Открытые вопросы:** нет.
+
+
+---
+
+### ✅ detekt: ignoreFailures=false
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+
+**Контекст.**
+
+`app/build.gradle.kts:392` — `ignoreFailures = true` в
+`tasks.withType<dev.detekt.gradle.Detekt>`. `ktlint { ignoreFailures =
+false }` (стр. 384) — уже правильно; detekt — нет. Расхождение с
+ROADMAP → `### detekt enforcement` (там записано `false`).
+Обнаружено в #9: 11 файлов managers имели
+`InvalidPackageDeclaration`, detekt ругался, но
+`BUILD SUCCESSFUL`.
+
+**Диагностика (grep + прогон 2026-10-26).**
+
+- Прогон `./gradlew :app:detekt --rerun-tasks` — **пустой**
+  (`e:` / `warn:` нет).
+- `config/detekt/detekt.yml` — `active: true` только у
+  `MagicNumber` (warn-уровень).
+- `app/detekt-baseline.xml` — 45 записей, **все** `MagicNumber`
+  (baseline покрывает все срабатывания).
+- `LongMethod`, `CyclomaticComplexMethod`, `TooManyFunctions`,
+  `LargeClass` — **`active: false`**. `@Suppress` в коде для них
+  — мёртвый груз (правило не запускается). Включение этих
+  правил — отдельная задача (см. «Связано»).
+
+**Следствие.** `ignoreFailures = false` **не сломает** сборку —
+нарушений включённых правил вне baseline нет. Задача сводится к
+одной строке.
+
+**Цель.** Привести `ignoreFailures` в соответствие с ROADMAP
+(`false`), чтобы `e:` от detekt блокировали merge (enforcement).
+
+**Файлы:**
+- `app/build.gradle.kts` — `ignoreFailures = false` (стр. 392).
+
+**Шаги:**
+1. `ignoreFailures = true` → `false` в `app/build.gradle.kts`.
+2. Локальный гейт:
+   `./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug
+   :app:ktlintCheck :app:detekt --rerun-tasks`.
+   Ожидаемо: `BUILD SUCCESSFUL`, только `statusBarColor`.
+3. PR + CI `gate` на PR — подтверждение.
+
+**Ограничения:**
+- Не подавлять ошибки через `ignoreFailures = true` — цель
+  обратная.
+- Не включать архитектурные правила (`LongMethod` и др.) в
+  этой задаче — отдельная задача.
+- Не удалять и не добавлять `@Suppress` — вне scope.
+- Не смешивать с другой задачей.
+
+**Критерий готовности:**
+- `ignoreFailures = false` в `build.gradle.kts`.
+- `./gradlew :app:detekt` — `BUILD SUCCESSFUL` с 0 `e:`.
+- Гейт зелёный.
+
+**Что сделано:** 2026-10-26, 1 коммит в
+`feature/detekt-enforcement` (`a0e2496`), PR — см. ниже.
+
+- `chore(build): enable detekt enforcement` — `ignoreFailures =
+  true` → `false` в `tasks.withType<dev.detekt.gradle.Detekt>`
+  (`app/build.gradle.kts:392`).
+- Диагностика (2026-10-26): прогон `./gradlew :app:detekt
+  --rerun-tasks` — пустой (`e:` / `warn:` нет);
+  `config/detekt/detekt.yml` — `active: true` только у
+  `MagicNumber` (warn, 45 записей в baseline). Нарушений
+  включённых правил вне baseline нет — одной строки
+  достаточно.
+- Локальный полный гейт: `clean testDebugUnitTest lintDebug
+  ktlintCheck detekt --rerun-tasks` — `BUILD SUCCESSFUL`,
+  только `statusBarColor`.
+- **Критерий готовности:** `ignoreFailures = false` в
+  `build.gradle.kts`; `./gradlew :app:detekt` — `BUILD
+  SUCCESSFUL` с 0 `e:`; гейт зелёный.
+
+**Оценка:** ~15 мин (правка 1 мин, гейт 5 мин, PR-цикл 5 мин,
+резерв 4 мин). Прежняя `~1 ч` (включала разбор ошибок и
+baseline) — устарела, разбирать нечего.
+
+**Зависимости:** нет.
+
+**Связано:**
+- `### detekt enforcement` (закрыта) — там записано `false`,
+  здесь — привести код в соответствие.
+- `### detekt: включить архитектурные правила` — создаётся
+  при mark done этой задачи (`LongMethod`,
+  `CyclomaticComplexMethod`, `TooManyFunctions`, `LargeClass`
+  → `active: true`, разбор `@Suppress`, перенос долга в
+  `### Рефакторинг архитектурного долга (detekt-группа 3)`).
+- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
+  рефакторинг, не включение правил. Разные задачи.
+- Born-in-#9: обнаружено при финальном гейте #9
+  (`359e4f7` исправил только `InvalidPackageDeclaration` в
+  managers, не `ignoreFailures`).
 
 **Открытые вопросы:** нет.
 
