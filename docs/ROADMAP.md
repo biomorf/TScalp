@@ -547,6 +547,189 @@ fat-интерфейс подходит). Если остановиться по
 
 ---
 
+### Разбивка InvestRepository по доменным областям
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.** `InvestRepository` (`data/repository/`,
+357 строк, 16 функций по grep 2026-10-26) — последний
+fat-репозиторий проекта. Уже разбиты: `InstrumentRepository`,
+`SearchCache`, `SettingsRepository`, `TradingStateRepository`.
+`InvestRepository` совмещает 4 доменные области и 2 роли:
+фасад над `BrokerApi` и точка обогащения presentation-моделями
+(`PortfolioPosition` через `toPortfolioPosition`).
+
+**Clean-граница (второй слой долга).** `InvestRepository`
+лежит в `data.repository.*`, а ViewModels
+(`PortfolioViewModel`, `OrdersViewModel`, `SettingsViewModel`,
+`OrdersListViewModel`) импортируют его **напрямую**. В Clean
+ViewModel должен зависеть от **domain-интерфейса**
+(`domain.api.repository.*`), а data — реализовывать. Сейчас
+граница слоя нарушена; разбивка без выноса интерфейсов не
+закрывает ISP.
+
+**Доменные области (предложение).**
+
+- `AccountsRepository` — `getAccountsResult`,
+  `openSandboxAccountResult`, `closeSandboxAccountResult`,
+  `sandboxPayInResult` (4). Sandbox — T-Invest-specific, но
+  в UI через `SettingsViewModel`/`PortfolioViewModel`; не
+  отдельный репозиторий (по 2c: `SandboxApi` — T-Invest,
+  но в `InvestRepository` методы универсальны по контракту).
+- `MarketDataRepository` — `searchInstrumentsResult`,
+  `getLastPricesResult`, `getTradingStatusesResult` (3).
+- `OrdersRepository` — `postOrderResult`, `postStopOrderResult`,
+  `cancelStopOrderResult`, `getAllOrdersResult`,
+  `cancelOrderResult`, `checkTradeAvailabilityResult` (6).
+- `PortfolioRepository` — `fetchPositionsResult`,
+  `subscribePositions`, `getBalanceResult` (3).
+
+Итого 16 (KDoc класса говорит «17 функций» — устарело,
+обновить в фазе 3).
+
+**Потребители (проверить grep на старте).** По grep 2026-10-26:
+4 ViewModel + `PriceFlowManager` (через
+`repository.subscribeLastPrices`). Точные методы по каждому —
+шаг 1 диагностики.
+
+**Три фазы — три PR (по 4b: одна фаза = один логически
+завершённый шаг, зелёный гейт в конце).**
+
+**Фаза 1 — разбивка на data-репозитории.**
+1. Диагностика потребителей: `grep "repository\.\|investRepository\."` в
+   `presentation/` и `domain/api/managers/` — зафиксировать
+   методы по каждому потребителю.
+2. Создать 4 data-класса в `data/repository/`:
+   `AccountsRepository`, `MarketDataRepository`,
+   `OrdersRepository`, `PortfolioRepository`. Каждый —
+   constructor `(brokerManager: BrokerManager)`,
+   `@Singleton`, соответствующие методы.
+3. `RepositoryModule`: 4 `@Provides` вместо одного
+   `provideInvestRepository`.
+4. Мигрировать 4 ViewModel + `PriceFlowManager` на новые
+   репозитории (constructor injection, правка импортов).
+5. Удалить `InvestRepository.kt`.
+6. Гейт.
+
+**Фаза 2 — domain-интерфейсы.**
+1. Создать 4 интерфейса в `domain/api/repository/` с теми же
+   методами (`AccountsRepository`, `MarketDataRepository`,
+   `OrdersRepository`, `PortfolioRepository`). KDoc —
+   назначение, ссылка на задачу.
+2. Data-классы → `...Impl`, реализуют интерфейсы.
+3. DI: биндинг «интерфейс → реализация» (`@Binds` в
+   `RepositoryModule`).
+4. Мигрировать ViewModel на domain-интерфейсы (импорт
+   `data.repository.*` → `domain.api.repository.*`).
+5. Гейт.
+
+**Фаза 3 — cleanup.**
+1. Обновить KDoc `BrokerApi`: упоминания «InvestRepository»
+   заменить на актуальные (`OrdersRepository`,
+   `PortfolioRepository`, ...).
+2. Обновить KDoc класса (если что-то осталось от старого).
+3. Гейт.
+
+**Файлы:**
+- `data/repository/AccountsRepository.kt` (новый).
+- `data/repository/MarketDataRepository.kt` (новый).
+- `data/repository/OrdersRepository.kt` (новый).
+- `data/repository/PortfolioRepository.kt` (новый).
+- `domain/api/repository/AccountsRepository.kt` (новый,
+  фаза 2).
+- `domain/api/repository/MarketDataRepository.kt` (новый,
+  фаза 2).
+- `domain/api/repository/OrdersRepository.kt` (новый, фаза 2).
+- `domain/api/repository/PortfolioRepository.kt` (новый,
+  фаза 2).
+- `data/repository/InvestRepository.kt` — удалить в фазе 1.
+- `di/RepositoryModule.kt` — 4 провайдера / `@Binds`.
+- 4 ViewModel + `PriceFlowManager` — миграция.
+- `domain/api/BrokerApi.kt` — KDoc (фаза 3).
+
+**Шаги — см. фазы выше. Один шаг — одна фаза, отдельный PR.**
+
+**Тесты.**
+- Unit-тестов на репозитории нет (`InvestRepositoryTest` не
+  существует). Миграция — чистый рефакторинг, поведение
+  не меняется.
+- Если в ходе миграции обнаружится новая логика — точечный
+  тест в соответствующем data-репозитории.
+- Гейт (`testDebugUnitTest / lintDebug / ktlintCheck /
+  detekt`) — доказательство неизменности поведения.
+
+**Референсы.**
+- `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга
+  (detekt-группа 3)` → `#### Репозитории` — старая секция,
+  ref на эту задачу.
+- `docs/ROADMAP.md` → `### Рефакторинг ролей BrokerApi
+  (nullable-val, Scenario2)` — параллельная работа в
+  `domain.api`, паттерн nullable-val.
+- `app/src/main/kotlin/.../di/RepositoryModule.kt` — как
+  сейчас биндится `InvestRepository`.
+- `docs/architecture.md` (раздел 1 «Слои») — при создании.
+
+**Ограничения.**
+- Не менять поведение репозиториев — только структуру
+  (разбивка и вынос интерфейсов).
+- Не смешивать с `SettingsRepository` (15 функций) —
+  отдельная задача (по 2d, вне scope).
+- Не смешивать с `### Рефакторинг ролей BrokerApi` —
+  там domain.api (роли), здесь data.repository (фасады).
+- По 5a: полный локальный гейт перед каждым PR. CI `gate`
+  на PR — подтверждение.
+- `InvestRepository` — **осознанное отклонение по 2c**
+  (fat для мультиброкерного фасада, зафиксировано в KDoc
+  `BrokerApi`). Разбивка **не удаляет** это отклонение
+  полностью: 4 репозитория — тоже фасады над `BrokerApi`,
+  просто меньшего размера. Главная выгода — Clean-граница
+  (ViewModel зависит от domain), а не удаление фасада.
+
+**Критерий готовности.**
+- 4 domain-интерфейса в `domain.api.repository.*`.
+- 4 data-реализации в `data.repository.*`.
+- 4 ViewModel + `PriceFlowManager` инжектят domain-интерфейсы.
+- `grep "import com.gitlab.biomorf.tscalp.data.repository.InvestRepository"`
+  в `presentation/` и `domain/` — пусто.
+- `InvestRepository.kt` удалён.
+- KDoc `BrokerApi` обновлён (нет висячих ссылок на
+  `InvestRepository`).
+- Гейт зелёный.
+
+**Оценка:** ~4–4.5 ч (фаза 1 — 2–2.5 ч, фаза 2 — 1.5 ч,
+фаза 3 — 30 мин). Старая оценка `~2 часа` в `#### Репозитории`
+устарела (без Clean-границы и миграции ViewModel).
+
+**Зависимости:**
+- **После** `### Рефакторинг BrokerApi-реализаций` (#11,
+  закрывается в umbrella) — `BrokerApi` в финальном виде.
+- **До** KMP-миграции — обязательное условие (data-слой
+  может быть Android-only, domain-интерфейсы — KMP).
+
+**Связано:**
+- `### Рефакторинг архитектурного долга (detekt-группа 3)`
+  → `#### Репозитории` — ref со ссылкой на эту задачу.
+- `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — параллельная работа в `domain.api`.
+- `docs/architecture.md` — раздел 1 (слои) и раздел 7
+  (BrokerApi) при создании.
+
+**Открытые вопросы.**
+- **Sandbox отдельным репозиторием или в `AccountsRepository`?**
+  Рекомендация — `AccountsRepository` (счета + sandbox:
+  близкие домены, оба про «счёт»).
+- **3 PR (фазы) или 1 PR с 3 коммитами?** Рекомендация —
+  **3 PR** (по 4b, каждая фаза — зелёный гейт, откат
+  тривиален).
+- **`SettingsRepository` (15 функций) — разбивать в этой
+  задаче или отдельной?** Рекомендация — **отдельной**
+  (вне scope).
+
+---
+
+
 ### Архитектурный документ (docs/architecture.md)
 
 **Мобильная работа:** полное закрытие (правки .md — через proot;
@@ -1823,14 +2006,25 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 #### Репозитории
 
-**Файлы:** `data/repository/InvestRepository.kt` (17 функций),
+**Файлы:** `data/repository/InvestRepository.kt` (16 функций),
 `data/repository/SettingsRepository.kt` (15).
 
 **Пути решения:** разбить по доменным областям (аккаунты,
 заявки, портфель, стримы — для `InvestRepository`; токены,
 настройки UI, режим sandbox — для `SettingsRepository`).
 
-**Оценка:** ~2 часа.
+**Архитектурный долг, вынесено в отдельную задачу.**
+`InvestRepository` — `### Разбивка InvestRepository по
+доменным областям` (см. «Планируемые задачи»). Полная
+оценка, scope и Clean-граница (`domain.api.repository.*`
+интерфейсы + миграция ViewModel) — там.
+
+`SettingsRepository` — **остаётся здесь** (не в scope той
+задачи, отдельная работа).
+
+**Оценка:** ~2 часа (устаревшая оценка для `InvestRepository`;
+актуально — см. новую задачу, ~4–4.5 ч с Clean-границей.
+Для `SettingsRepository` — ~2 ч, оценка актуальна).
 
 
 
