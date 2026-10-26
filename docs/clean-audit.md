@@ -410,6 +410,10 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н26. BrokerLifecycleApi — не 2c-фиксация | средне | L4 | `roles/BrokerLifecycleApi.kt` |
 | Н27. StreamsApi.subscribeOrderState — suspend | средне | L4 | `roles/StreamsApi.kt` |
 | Н28. AccountsApi.getAccounts(sandboxMode) | средне | L4 | `roles/AccountsApi.kt` |
+| Н30. BrokerSnapshotApi KDoc — устарел после #9 | средне | L4 | `roles/BrokerSnapshotApi.kt` |
+| Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика | средне | L4 | `roles/StreamsApi.kt` |
+| Н32. StreamCombinators — транспорт в domain/api | средне | L4 | `domain/api/StreamCombinators.kt` |
+| Н32a. streamWithFallback — семантически неверное имя | низко | L4 | `domain/api/StreamCombinators.kt` |
 
 ### Н25. BrokerApi fat дублирует nullable-val роли
 
@@ -417,13 +421,15 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** критично.
 
-**Описание:** 19 методов fat-части `BrokerApi` почти все дублируют nullable-val роли: `getAccounts` -> `accounts?.getAccounts`, `openSandboxAccount`/`closeSandboxAccount`/`sandboxPayIn` -> `sandbox?.<метод>`, `getBalance` -> `balance?.getBalance`, `subscribePositions`/`subscribeLastPrices`/`subscribeOrderState` -> `streams?.<метод>`, `postOrder`/`postStopOrder`/`getStopOrders`/`cancelStopOrder`/`getOrders`/`cancelOrder` -> `orders?.<метод>`, `findInstruments`/`getTradingStatuses` -> `userInstruments?.<метод>`. Не дублируют 3 метода: `fetchPortfolioPositions`, `getLastPricesByTscalpInstrumentId`, `checkTradeAvailability`. Два пути к одному контракту (`broker.postOrder` и `broker.orders?.postOrder`) — разное поведение при `null`.
+**Описание:** 19 методов fat-части `BrokerApi` почти все дублируют nullable-val роли: `getAccounts` -> `accounts?.getAccounts`, `openSandboxAccount`/`closeSandboxAccount`/`sandboxPayIn` -> `sandbox?.<метод>`, `getBalance` -> `balance?.getBalance`, `subscribePositions`/`subscribeLastPrices`/`subscribeOrderState` -> `streams?.<метод>`, `postOrder`/`postStopOrder`/`getStopOrders`/`cancelStopOrder`/`getOrders`/`cancelOrder` -> `orders?.<метод>`, `findInstruments`/`getTradingStatuses` -> `userInstruments?.<метод>`. Не дублируют 2 метода: `fetchPortfolioPositions`, `checkTradeAvailability`. `getLastPricesByTscalpInstrumentId` — частичный дубль `pricesSnapshot` (та же семантика, разница только в fallback gRPC->REST). Два пути к одному контракту (`broker.postOrder` и `broker.orders?.postOrder`) — разное поведение при `null`.
 
 **Нарушенное правило Clean:** Interface Segregation Principle — `BrokerApi` остаётся fat с дублированием ролей; nullable-val решение не доведено до конца.
 
 **Clean-альтернатива:** выделить оставшиеся 3 метода в роль (`PortfolioApi` + `TradingStatusApi`), мигрировать `InvestRepository` на `broker.<role>?`, удалить fat-часть. `BrokerApi` — тонкий фасад с 9 nullable-val ролями и `name`/`isInitialized`. Плюсы: полный ISP, `@Suppress("TooManyFunctions")` снимается, один путь к каждому контракту. Минусы: `InvestRepository` — 29 callsites, ~2–3 ч.
 
 **Выгоды (для «отклонение по 2c»):** KDoc в `BrokerApi` фиксирует fat как осознанно (мультиброкерный фасад, `InvestRepository` — 29 callsites). По факту fat-часть — legacy переходного состояния. Пересмотр — после стабилизации остальных задач clean-audit, новой задачи пока нет.
+
+**Анализ L4-part2:** подтверждается — анализ L4-part2 (6 ролей) уточнил: 16 из 19 fat-методов полностью дублируют nullable-val роли, 1 (`getLastPricesByTscalpInstrumentId`) — частичный дубль `pricesSnapshot`, 2 (`fetchPortfolioPositions`, `checkTradeAvailability`) не дублируют.
 
 **Ссылка на задачу:** — (не заведена). Пересмотр — в рамках `### Рефакторинг ролей BrokerApi` (закрыта), новая задача не заведена.
 
@@ -475,6 +481,69 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена).
 
+### Н30. BrokerSnapshotApi KDoc — устарел после #9
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `BrokerSnapshotApi.positionsSnapshot` KDoc: «**Не путать** с `BrokerApi.fetchPortfolioPositions` — тот возвращает полный `PortfolioPosition` для UI (`totalValue`, `profitPercent`, `priceChangePercent`)». После #9 `fetchPortfolioPositions` возвращает `PositionStreamItem` (domain, без presentation-полей), KDoc устарел.
+
+**Нарушенное правило Clean:** актуальность документации (не строго Clean).
+
+**Clean-альтернатива:** переформулировать: «Не путать с `fetchPortfolioPositions`: тот возвращает full snapshot (с `currentPrice`) — источник P&L в `InvestRepository.fetchPositionsResult`; здесь — partial для merge со stream в `PositionFlowManager`». Плюсы: актуально. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `BrokerSnapshotApi.kt`.
+
+### Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `StreamsApi.subscribeLastPrices(uids: List<String>)` — параметр `uids`. `BrokerSnapshotApi.pricesSnapshot(ids: List<String>)` — та же семантика, но `ids`. По AGENTS: «Domain-слой оперирует `tscalpInstrumentId`… ключ инструмента называется `tscalpInstrumentId`, а не `uid` и не `figi`». T-Invest-специфика (uid) протекает в domain-интерфейс.
+
+**Нарушенное правило Clean:** соглашение AGENTS «domain оперирует `tscalpInstrumentId`».
+
+**Clean-альтернатива:** переименовать в `tscalpInstrumentIds: List<String>` (или `ids`). Плюсы: консистентность, T-Invest-специфика не протекает. Минусы: правка `TInvestBrokerAPI` (2 метода — `subscribeLastPrices` в fat + role) + `PriceFlowManager` (1 callsite).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена).
+
+### Н32. StreamCombinators — транспорт в domain/api
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `StreamCombinators.streamWithFallback` (merge источников — gRPC + WS параллельно) + `retryWithBackoff` (переподключение с backoff и rate-limit при обрыве) — транспортные утилиты. Используются в `data/orchestrator/TInvestOrchestrator.kt` для merge gRPC + WS на транспортном уровне и переподключения при обрыве с учётом rate-limits. Живут в `domain/api/` — неверное место. Менеджеры (`domain/api/managers/*`) **не используют** `streamWithFallback` — осознанное архитектурное решение, **не долг**: `StreamStateTracker` должен различать источник (stream vs polling) для корректного `LIVE`/`POLLING`/`STALE`; `streamWithFallback` этого знания не даёт.
+
+**Нарушенное правило Clean:** dependency rule — transport-специфика (retry, backoff, rate-limit) в `domain/api/`.
+
+**Clean-альтернатива:** `data/orchestrator/StreamCombinators.kt` (рядом с `TInvestOrchestrator`) или `data/transport/StreamCombinators.kt`. Плюсы: `domain/api/` содержит только роли и `BrokerApi`; domain не знает про transport-специфику. Минусы: переезд 1 файла + правка импортов в `TInvestOrchestrator` (единственный потребитель — grep 2026-10-27).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано: `### StreamState в data-слое` (закрыта — `StreamStateTracker`), `### Оркестратор стримов и Ktor WS transport` (закрыта — `TInvestOrchestrator`).
+
+### Н32a. streamWithFallback — семантически неверное имя
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `streamWithFallback` делает `merge` (параллельная эмиссия из всех источников), а не fallback (переключение при отказе). В T-Invest-контексте WS — резервный транспорт для gRPC, но merge **параллельный**, осознанно (оба идут одновременно, WS не включается по отказу). Имя вводит в заблуждение.
+
+**Нарушенное правило Clean:** не строго Clean — семантическая честность.
+
+**Clean-альтернатива:** переименовать в `mergeStreamSources` / `combineStreams` (с KDoc «WS — резервный транспорт, merge параллельный»). Плюсы: честное имя. Минусы: правка ~3 callsites (`TInvestOrchestrator`, единственный потребитель).
+
+**Выгоды:** «fallback» отражает бизнес-логику «WS — резерв». Компромисс.
+
+**Ссылка на задачу:** — (не заведена). Может быть объединено с Н32 (переезд + переименование одним коммитом).
 ### Исправленные (L4)
 
 [пусто]
