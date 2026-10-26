@@ -430,6 +430,9 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика | средне | L4 | `roles/StreamsApi.kt` |
 | Н32. StreamCombinators — транспорт в domain/api | средне | L4 | `domain/api/StreamCombinators.kt` |
 | Н32a. streamWithFallback — семантически неверное имя | низко | L4 | `domain/api/StreamCombinators.kt` |
+| Н60. retryWithBackoff — non-retryable не классифицирует | высоко | L4 | `domain/api/StreamCombinators.kt` |
+| Н61. retryWithBackoff — busy loop на normal completion | высоко | L4 | `domain/api/StreamCombinators.kt` |
+| Н70. BrokerApi — @Suppress("TooManyFunctions") | средне | L4 | `domain/api/BrokerApi.kt` |
 
 ### Н25. BrokerApi fat дублирует nullable-val роли
 
@@ -562,6 +565,56 @@ L4–L8 — не проверены, заполняются по мере инс
 **Выгоды:** «fallback» отражает бизнес-логику «WS — резерв». Компромисс.
 
 **Ссылка на задачу:** — (не заведена). Может быть объединено с Н32 (переезд + переименование одним коммитом).
+### Н60. retryWithBackoff — non-retryable не классифицирует
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `StreamCombinators.retryWithBackoff` переподключает любой источник при любой ошибке с backoff. `UNAUTHENTICATED`, `NOT_FOUND`, `PERMISSION_DENIED`, `INVALID_ARGUMENT` — вечный retry-loop (до остановки вручную). `CancellationException` пробрасывается, но не-recoverable gRPC-коды не различаются.
+
+**Нарушенное правило Clean:** не строго Clean — resilience-логика не различает recoverable/non-recoverable.
+
+**Clean-альтернатива:** классификация по `Status.fromThrowable(e).code`: retry — `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`; non-retry — `NOT_FOUND`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `FAILED_PRECONDITION`. Плюсы: батарея, трафик, rate-limit не тратятся на безнадёжный retry. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «gRPC retry: бесконечный retry на не-recoverable ошибках» (расширено в L5-Н60: «касается также `StreamCombinators.retryWithBackoff`»).
+
+### Н61. retryWithBackoff — busy loop на normal completion
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `StreamCombinators.retryWithBackoff`: при normal completion (`source().collect { emit(it) }` вернулся без exception) — `attempt = 0` и новый цикл **без delay**. Если source завершается мгновенно-пустым (сервер закрыл стрим, gRPC завершился нормально) — busy loop, CPU 100%, батарея в ноль.
+
+**Нарушенное правило Clean:** не строго Clean — resilience-логика не защищена от мгновенного нормального завершения.
+
+**Clean-альтернатива:** при normal completion — `delay(1_000)` перед новой попыткой (как в `PriceFlowManager.collectStream`). Плюсы: защита от busy loop. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «PriceFlowManager.collectStream: потенциальный busy loop» (расширено в L5-Н61: «касается также `StreamCombinators.retryWithBackoff`»).
+
+### Н70. BrokerApi — @Suppress("TooManyFunctions")
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `BrokerApi` (fat-интерфейс, 19 методов + 9 nullable-val ролей) несёт `@Suppress("TooManyFunctions")` — маркер осознанного долга, зафиксированного в KDoc. 16 из 19 fat-методов дублируют nullable-val роли (Н25).
+
+**Нарушенное правило Clean:** Interface Segregation — `@Suppress` как декларация «не будем чинить».
+
+**Clean-альтернатива:** см. Н25 — полный ISP (выделить оставшиеся 3 метода в роль, мигрировать `InvestRepository`, снять `@Suppress`). Плюсы: чистый фасад. Минусы: 29 callsites в `InvestRepository`.
+
+**Выгоды:** сохранение `InvestRepository` без миграции; работающий код.
+
+**Анализ L4-Н25:** этот `@Suppress` — маркер, подтверждающий долг из Н25 (fat-интерфейс осознанно не доведён до полного ISP).
+
+**Ссылка на задачу:** `docs/clean-audit.md` → L4-Н25; `### Рефакторинг ролей BrokerApi` (закрыта); `### Рефакторинг BrokerApi-реализаций (D)` (закрыта).
+
 ### Исправленные (L4)
 
 [пусто]
@@ -576,6 +629,8 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н39. PriceFlowManager → util.toAppError | высоко | L5, L2 | `PriceFlowManager.kt` |
 | Н40. Менеджеры → di.BrokerManager | критично | L5, L7 | 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) |
 | Н41. Хардкод BrokerName.TINVEST в менеджерах | средне | L5 | 3 менеджера |
+| Н58. PositionFlowManager.runPolling — string matching NOT_FOUND | средне | L5 | `PositionFlowManager.kt` |
+| Н59. PriceFlowManager.runPolling — swallows CancellationException | средне | L5 | `PriceFlowManager.kt` |
 
 ### Н38. PriceFlowManager → data.orchestrator.DebugConfig
 
@@ -641,6 +696,38 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). Связано с `### Реализация BCS Broker API` / `### Реализация Finam Broker API`.
 
+### Н58. PositionFlowManager.runPolling — string matching NOT_FOUND
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `PositionFlowManager.runPolling`: `if (e.message?.contains("NOT_FOUND") == true) return`. `e.message` у `StatusException` — человекочитаемый текст, не код. При изменении формата/локализации — проверка молча перестанет срабатывать, polling продолжит крутиться на удалённом счёте.
+
+**Нарушенное правило Clean:** не строго Clean — string matching вместо structured API.
+
+**Clean-альтернатива:** `Status.fromThrowable(e).code == Status.Code.NOT_FOUND`. Плюсы: не зависит от формата `message`. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «gRPC retry: string matching NOT_FOUND вместо Status.Code» (расширено в L5-Н58: «касается также `PositionFlowManager.runPolling`»).
+
+### Н59. PriceFlowManager.runPolling — swallows CancellationException
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `PriceFlowManager.runPolling`: единственный `catch (e: Exception)` без предшествующего `catch (e: CancellationException) { throw e }`. `CancellationException` перехватывается и логируется как «REST poll failed», сигнал отмены родителю не пробрасывается — менеджер останавливается «тихо».
+
+**Нарушенное правило Clean:** не строго Clean — нарушен контракт structured concurrency.
+
+**Clean-альтернатива:** `catch (e: CancellationException) { throw e }` перед общим `catch (e: Exception)` — как в `PositionFlowManager.runPolling` / `OrderFlowManager.runPolling`. Плюсы: консистентность, отмена работает. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «PriceFlowManager.runPolling swallows CancellationException» (отдельная запись).
+
 ### Исправленные (L5)
 
 [пусто]
@@ -655,6 +742,14 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н45. InvestRepository использует 4 fat-метода BrokerApi | высоко | L6, L4 | `InvestRepository.kt` |
 | Н46. SearchCache.search бросает IllegalArgumentException | средне | L6, L1 | `SearchCache.kt` |
 | Н47. SearchCache.search — избыточный withContext(Dispatchers.IO) | низко | L6 | `SearchCache.kt` |
+| Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket | критично | L6 | `TInvestBrokerApi.kt` |
+| Н63. TInvestMarketDataService — god-класс 622 строки | критично | L6 | `TInvestMarketDataService.kt` |
+| Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod") | средне | L6 | `TInvestMarketDataService.kt` |
+| Н65. mapProtoToDomain — @Suppress("LongMethod") | средне | L6 | `TInvestInstrumentMapper.kt` |
+| Н66. getTradingStatuses — N параллельных unary | высоко | L6 | `TInvestMarketDataService.kt` |
+| Н67. postStopOrder — закомментированный expireDate | средне | L6 | `TInvestOrdersService.kt` |
+| Н68. SettingsRepository — @Suppress("TooManyFunctions") | средне | L6 | `SettingsRepository.kt` |
+| Н69. InvestRepository — @Suppress("TooManyFunctions") | средне | L6 | `InvestRepository.kt` |
 
 **Соответствуют Clean (data-only, никаких утечек):**
 `TradingStateRepository`, `SettingsRepository`.
@@ -728,6 +823,134 @@ L4–L8 — не проверены, заполняются по мере инс
 **Выгоды:** —.
 
 **Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `SearchCache`.
+
+### Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket
+
+**Статус:** открыто.
+
+**Серьёзность:** критично.
+
+**Описание:** `TInvestBrokerAPI.initialize` перезаписывает `positionsWebSocket` без `close()` предыдущего. Ре-логин, смена токена, повторное «Сохранить» в настройках — старая WS-сессия держит сокет, получает ping/frames в никуда. Утечка соединения + нагрузка на сервер (WS-сессии накапливаются). `deinitialize` тоже обнуляет без `close()` — та же утечка при logout.
+
+**Нарушенное правило Clean:** не строго Clean — ресурсный leak в lifecycle.
+
+**Clean-альтернатива:** `positionsWebSocket?.close()` перед перезаписью; добавить `close()` в `TInvestPositionsWebSocket`. Плюсы: нет утечки. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket» (ветка `bugfix/ws-lifecycle`).
+
+### Н63. TInvestMarketDataService — god-класс 622 строки
+
+**Статус:** открыто.
+
+**Серьёзность:** критично.
+
+**Описание:** `TInvestMarketDataService` — 622 строки, 19 функций, `@Suppress("TooManyFunctions")`. Отвечает за: счета (`getAccounts`, `openSandboxAccount`, `closeSandboxAccount`), портфель (`getPortfolio`, `fetchPortfolioPositions`), gRPC-стримы позиций (`subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect`, `convertSecurity`, `convertFuture`), баланс (`getBalance`, `sandboxPayIn`), инструменты (`fetchFullInstrument`, `findInstruments`, `findInstrumentShorts`, `fetchProtoInstrument`, `getFuturesMargin`), цены/статусы (`getLastPricesByTscalpInstrumentId`, `getTradingStatuses`), gRPC-стримы цен/ордеров (`subscribeLastPrices`, `subscribeOrderState`), проверка (`checkTradeAvailability`).
+
+**Нарушенное правило Clean:** SRP — класс отвечает за 8+ доменных областей.
+
+**Clean-альтернатива:** разбить по областям: `TInvestAccountsService`, `TInvestPortfolioService`, `TInvestPositionsService`, `TInvestInstrumentsService`, `TInvestPricesService`, `TInvestTradingService`. Плюсы: один сервис — одна область. Минусы: 6 файлов вместо 1, `TInvestApiState` шарится.
+
+**Выгоды:** все методы работают на общем `TInvestApiState`, единая точка для gRPC-каналов. Разбивка — при рефакторинге.
+
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (`fetchPositionsSnapshot` декомпозиция + `mapProtoToDomain`).
+
+### Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `TInvestMarketDataService.fetchPortfolioPositions` — `@Suppress("CyclomaticComplexMethod")`. ~40 строк, внутри: mapNotNull по позициям, fetchProtoInstrument для каждой, getFuturesMargin для фьючерсов, маппинг proto → domain, вычисление quantity/currentPrice/expectedYield/averagePrice, сборка `PositionStreamItem`.
+
+**Нарушенное правило Clean:** SRP — функция делает 3 вещи (fetch instrument, fetch margin, map position).
+
+**Clean-альтернатива:** `fetchPortfolioPositions` = `getPortfolio` + `.map { mapPositionToStreamItem(it, fetchInstrumentFn) }`. Плюсы: декомпозиция. Минусы: —.
+
+**Выгоды:** один метод, работает.
+
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (упомянут `fetchPositionsSnapshot` декомпозиция).
+
+### Н65. TInvestInstrumentMapper.mapProtoToDomain — @Suppress("LongMethod")
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `TInvestInstrumentMapper.mapProtoToDomain` — 118 строк, `@Suppress("LongMethod")`. Единый `when` по `type` с тремя ветками (futures / share / else), в каждой — полный конструктор модели (~40 аргументов).
+
+**Нарушенное правило Clean:** SRP — функция маппит 3 типа инструмента.
+
+**Clean-альтернатива:** `mapFutures`, `mapShares`, `mapDefault` + диспетчеризация в `mapProtoToDomain`. Плюсы: каждая ветка ~30 строк. Минусы: —.
+
+**Выгоды:** один `when`, вся логика в одном месте.
+
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest`.
+
+### Н66. getTradingStatuses — N параллельных unary
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `TInvestMarketDataService.getTradingStatuses`: `coroutineScope { ids.map { async { getTradingStatus(uid) } }.awaitAll() }` — N параллельных unary-запросов. При 100 инструментах — 100 параллельных запросов. При превышении лимита T-Invest (`RESOURCE_EXHAUSTED`) — часть падает в `UNKNOWN`.
+
+**Нарушенное правило Clean:** не строго Clean — не учитывает rate-limit внешнего API.
+
+**Clean-альтернатива:** через rate-limiter (ROADMAP `### Rate-limiter для unary-запросов T-Invest`) или батчинг (если API даст batch-метод). Плюсы: нет `RESOURCE_EXHAUSTED`. Минусы: —.
+
+**Выгоды:** быстрее, чем последовательный вызов.
+
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### Rate-limiter для unary-запросов T-Invest`.
+
+### Н67. postStopOrder — закомментированный expireDate
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `TInvestOrdersService.postStopOrder`: `// if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))`. `parseDate` закомментирован. Цепочка `expireDate` рвётся в 4+ местах (UI, ViewModel, UseCase, Service, parseDate). UI физически не может выбрать `GOOD_TILL_DATE` — всегда уходит `GOOD_TILL_CANCEL`.
+
+**Нарушенное правило Clean:** не строго Clean — нереализованная фича, размазанная по слоям.
+
+**Clean-альтернатива:** восстановить цепочку: UI (DatePicker) → ViewModel (`expireDate`) → UseCase (`StopOrderRequest.expireDate`) → Service (`parseDate` + `builder.setExpireDate`). Плюсы: работает `GOOD_TILL_DATE`. Минусы: ~2–3 ч.
+
+**Выгоды:** работает `GOOD_TILL_CANCEL` (default), пользователь не может выбрать дату.
+
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)`.
+
+### Н68. SettingsRepository — @Suppress("TooManyFunctions")
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `SettingsRepository` — 125 строк, 15 функций, `@Suppress("TooManyFunctions")`. Объединяет: учётные данные брокеров (5 методов), счёт по умолчанию (2), режим песочницы (2), подтверждение заявок (3), ключи (3). KDoc ссылается на `### Рефакторинг репозиториев`.
+
+**Нарушенное правило Clean:** SRP — репозиторий отвечает за 4 области настроек.
+
+**Clean-альтернатива:** разбить на `BrokerCredentialsRepository`, `AccountPreferencesRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`. Плюсы: SRP. Минусы: 4 репозитория вместо 1; `@Binds` для каждого.
+
+**Выгоды:** один репозиторий, простая навигация.
+
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Репозитории` (SettingsRepository — 15 функций).
+
+### Н69. InvestRepository — @Suppress("TooManyFunctions")
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `InvestRepository` — 357 строк, 17 функций, `@Suppress("TooManyFunctions")`. Объединяет 4 доменные области (аккаунты, заявки, портфель, стримы) + фасад над `BrokerApi`.
+
+**Нарушенное правило Clean:** SRP + Clean-граница (presentation → domain, а не presentation → data → domain).
+
+**Clean-альтернатива:** `### Разбивка InvestRepository по доменным областям` — 4 domain-интерфейса + 4 data-реализации.
+
+**Выгоды:** один фасад, простой доступ для UI.
+
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### Разбивка InvestRepository по доменным областям` (в работе).
 
 ### Исправленные (L6)
 
