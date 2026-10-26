@@ -103,6 +103,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L5-Н40:** подтверждается — L5 (3 менеджера) показал, что `di.BrokerManager` протекает шире: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8) = 10 потребителей.
 
+**Анализ L8-Н51:** подтверждается — `refreshInitializationState` вызывается из `TScalpApplication` 2 раза (`restoreTInvest`, `restoreBcs`), всего 6 callsites (2 app + 4 SettingsViewModel). Усиливает открытый вопрос H22.
+
 **Ссылка на задачу:** — (не заведена).
 
 ### Н1. Presentation конструирует PortfolioPosition
@@ -218,6 +220,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** zero-ceremony, глобальный доступ, не требует инжекта. Правило «все слои через `AppLogger`» уже в AGENTS — компромисс, но **не зафиксирован** по 2c (нет правила/альтернативы/выгод в KDoc/ROADMAP).
 
+**Анализ L8-Н49:** подтверждается — `AppLogger` используется в `TScalpApplication` (`installGrpcExceptionGuard`). App видит util.
+
 **Ссылка на задачу:** — (не заведена). Требует либо 2c-фиксации в AGENTS, либо переезда.
 
 ### Н20. AppResultExtensions — io.grpc в util
@@ -237,6 +241,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Анализ L5-Н39:** подтверждается — `toAppError` используется в `PriceFlowManager` (L5), не только в data. Domain видит io.grpc через `util` транзитивно.
 
 **Анализ L6-Н20:** подтверждается — `runCatchingAppResult` используется в data (`InvestRepository`, 14 callsites). Переезд `AppResultExtensions` в `data/error/` обоснован: 14 из ~20 callsites уже в data.
+
+**Анализ L8-Н49:** подтверждается — `util.TInvestErrorMessages` (родственен `AppResultExtensions`, оба в util) используется в `TScalpApplication.installGrpcExceptionGuard` для расшифровки gRPC-кодов. App видит util.
 
 **Ссылка на задачу:** `#### Классификатор ошибок` в `### Рефакторинг архитектурного долга (detekt-группа 3)` (про декомпозицию; про переезд — задача не заведена).
 
@@ -816,9 +822,101 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ## L8 — app
 
-**Статус:** не проверено.
+**Краткая таблица:**
 
-Заполняется по мере инспекции `TScalpApplication.kt`, `MainActivity.kt`.
+| ID | Серьёзность | Затрагиваемые уровни | Локализация |
+|---|---|---|---|
+| Н48. TScalpApplication → data.repository.SettingsRepository | низко | L8, L6 | `TScalpApplication.kt` |
+| Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger | средне | L8, L2 | `TScalpApplication.kt` (`installGrpcExceptionGuard`) |
+| Н50. restoreTInvest содержит domain-логику выбора счёта | средне | L8 | `TScalpApplication.kt` |
+| Н51. refreshInitializationState — 2 callsites в app | средне | L8, L7 | `TScalpApplication.kt` |
+| Н52. Finam → Unit в restoreBrokerConnection | низко | L8 | `TScalpApplication.kt` |
+
+**MainActivity.kt** — чисто (20 строк, `enableEdgeToEdge` + `TScalpTheme { MainScreen() }`, никаких нарушений).
+
+### Н48. TScalpApplication → data.repository.SettingsRepository
+
+**Статус:** принято 2c.
+
+**Серьёзность:** низко.
+
+**Описание:** `TScalpApplication` инжектит `data.repository.SettingsRepository` напрямую. Composition root видит data — норм. Но инжектит конкретный класс, не интерфейс — после H21b (`domain.api.repository.SettingsRepository`) мигрирует.
+
+**Нарушенное правило Clean:** dependency rule — но для composition root это допустимо (2c).
+
+**Clean-альтернатива:** `domain.api.repository.SettingsRepository` (H21b). Плюсы: app → domain. Минусы: ждёт H21b.
+
+**Выгоды (по 2c):** composition root по определению видит все слои; `TScalpApplication` — единственное место, где это необходимо; миграция — после H21b.
+
+**Ссылка на задачу:** `H21b` (ROADMAP).
+
+### Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `installGrpcExceptionGuard` использует `util.TInvestErrorMessages.messages[description]` (T-Invest-специфичный маппинг кодов) + `util.AppLogger` (платформа). App видит util.
+
+**Нарушенное правило Clean:** dependency rule — `TInvestErrorMessages` — data-knowledge (T-Invest-специфика), не должен быть в `util` и не должен быть доступен в app напрямую.
+
+**Clean-альтернатива:** `TInvestErrorMessages` → `data/error/TInvestErrorMapper` (часть H20). `AppLogger` → `Logger`-интерфейс (H19). Плюсы: app не видит T-Invest-специфику. Минусы: зависит от H19/H20.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с H19, H20**.
+
+### Н50. restoreTInvest содержит domain-логику выбора счёта
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `restoreTInvest` + `resolveTInvestAccountId` + `tryOpenSandboxAccount` — логика выбора счёта при старте (savedAccountId → accounts → sandbox-fallback). Это domain-логика (правила выбора счёта), в `TScalpApplication`.
+
+**Нарушенное правило Clean:** business logic (выбор счёта) в composition root.
+
+**Clean-альтернатива:** `BrokerLifecycleManager` (domain-сервис) с методами `restoreTInvest(broker)`, `resolveAccount(...)`. `TScalpApplication` делегирует. Плюсы: domain-логика в domain. Минусы: новый сервис (~2 ч).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с ISSUES «Асимметрия lifecycle»**.
+
+### Н51. refreshInitializationState — 2 callsites в app
+
+**Статус:** открыто.
+
+**Серьёзность:** средне (в рамках H22).
+
+**Описание:** `restoreTInvest` и `restoreBcs` вызывают `brokerManager.refreshInitializationState()`. Side-effect после `lifecycle.initialize`. Всего 6 callsites (`TScalpApplication` 2 + `SettingsViewModel` 4).
+
+**Нарушенное правило Clean:** не строго Clean — side-effect в app после lifecycle-вызова.
+
+**Clean-альтернатива:** обсуждается в H22 (internal / interface / auto через `BrokerLifecycleApi.initialize`).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Обогащает открытый вопрос H22**.
+
+### Н52. Finam → Unit в restoreBrokerConnection
+
+**Статус:** принято 2c.
+
+**Серьёзность:** низко.
+
+**Описание:** `restoreBrokerConnection` — `BrokerName.FINAM → Unit` (Finam не восстанавливается из app, только через UI). Осознанное решение — Finam сейчас заглушка.
+
+**Нарушенное правило Clean:** не строго Clean — константа «Finam не восстанавливается» в app.
+
+**Clean-альтернатива:** `BrokerLifecycleApi.supportsRestore: Boolean` в роли. Или отдельный `restoreBrokerConnection` per-broker без `when`. Плюсы: расширяемо. Минусы: доп. метод в роли.
+
+**Выгоды (по 2c):** KISS — Finam — заглушка, при её реализации пересмотреть.
+
+**Ссылка на задачу:** — (не заведена). **Связано с `### Реализация Finam Broker API`**.
+
+### Исправленные (L8)
+
+[пусто]
 
 ---
 
