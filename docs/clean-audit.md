@@ -15,6 +15,8 @@
 
 **Описание:** 1–3 предложения — что именно нарушено.
 
+**Анализ L<N>-<ID>:** подтверждается / опровергается — <что именно>. (опциональное поле, только если запись уточняется анализом другого уровня)
+
 **Нарушенное правило:** одна строка — какое правило Clean.
 
 **Clean-альтернатива:** как правильно — с плюсами и минусами.
@@ -86,13 +88,16 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** критично.
 
-**Описание:** `OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel` инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую. Вызывают `getAllBrokers()`, `getBroker(name)?.lifecycle?.initialize(...)`, `getAvailableBrokerNames()`, `refreshInitializationState()`, `getDefaultBroker()`. `BrokerManager` — точка сборки брокеров, живёт в `di/`.
+**Описание:** все потребители (`OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel`, `TScalpApplication`, `domain/api/managers/*`, `data/repository/*`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую. Вызывают `getAllBrokers()`, `getBroker(name)?.lifecycle?.initialize(...)`, `getAvailableBrokerNames()`, `refreshInitializationState()`, `getDefaultBroker()`. `BrokerManager` — точка сборки брокеров, живёт в `di/`.
 
 **Нарушенное правило:** Dependency rule — presentation зависит от `di` (сборочный слой).
 
 **Clean-альтернатива:** `domain.api.BrokerRegistry` — интерфейс с теми же методами (`getAllBrokers`, `getBroker`, `getAvailableBrokerNames`, `getDefaultBroker`, `refreshInitializationState`). Реализация — `data/registry/BrokerRegistryImpl` или `di/BrokerRegistryImpl`, `@Binds` в Hilt. VM инжектит `BrokerRegistry`. Плюсы: presentation → domain.api; `BrokerRegistry` в KMP-модуле. Минусы: переезд + переименование `BrokerManager` (~1–2 ч) + правка 3 VM + тестов.
 
 **Выгоды:** —
+
+
+**Анализ L7-Н29:** подтверждается — анализ L7 показал, что `BrokerManager` — domain-сервис в `di/`, нарушение шире, чем только VM: потребители включают `domain/api/managers/*` и `data/repository/*`. См. L7-Н29.
 
 **Ссылка на задачу:** — (не заведена).
 
@@ -397,9 +402,82 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ## L4 — domain/api
 
-**Статус:** не проверено.
+**Краткая таблица:**
 
-Заполняется по мере инспекции `domain/api/BrokerApi.kt` + `domain/api/roles/*.kt`.
+| ID | Серьёзность | Затрагиваемые уровни | Локализация |
+|---|---|---|---|
+| Н25. BrokerApi fat дублирует nullable-val роли | критично | L4, L6 | `domain/api/BrokerApi.kt` (19 fat-методов) |
+| Н26. BrokerLifecycleApi — не 2c-фиксация | средне | L4 | `roles/BrokerLifecycleApi.kt` |
+| Н27. StreamsApi.subscribeOrderState — suspend | средне | L4 | `roles/StreamsApi.kt` |
+| Н28. AccountsApi.getAccounts(sandboxMode) | средне | L4 | `roles/AccountsApi.kt` |
+
+### Н25. BrokerApi fat дублирует nullable-val роли
+
+**Статус:** принято (по 2c). **Пересматривается:** фактически технический долг переходного состояния, а не осознанный выбор.
+
+**Серьёзность:** критично.
+
+**Описание:** 19 методов fat-части `BrokerApi` почти все дублируют nullable-val роли: `getAccounts` -> `accounts?.getAccounts`, `openSandboxAccount`/`closeSandboxAccount`/`sandboxPayIn` -> `sandbox?.<метод>`, `getBalance` -> `balance?.getBalance`, `subscribePositions`/`subscribeLastPrices`/`subscribeOrderState` -> `streams?.<метод>`, `postOrder`/`postStopOrder`/`getStopOrders`/`cancelStopOrder`/`getOrders`/`cancelOrder` -> `orders?.<метод>`, `findInstruments`/`getTradingStatuses` -> `userInstruments?.<метод>`. Не дублируют 3 метода: `fetchPortfolioPositions`, `getLastPricesByTscalpInstrumentId`, `checkTradeAvailability`. Два пути к одному контракту (`broker.postOrder` и `broker.orders?.postOrder`) — разное поведение при `null`.
+
+**Нарушенное правило Clean:** Interface Segregation Principle — `BrokerApi` остаётся fat с дублированием ролей; nullable-val решение не доведено до конца.
+
+**Clean-альтернатива:** выделить оставшиеся 3 метода в роль (`PortfolioApi` + `TradingStatusApi`), мигрировать `InvestRepository` на `broker.<role>?`, удалить fat-часть. `BrokerApi` — тонкий фасад с 9 nullable-val ролями и `name`/`isInitialized`. Плюсы: полный ISP, `@Suppress("TooManyFunctions")` снимается, один путь к каждому контракту. Минусы: `InvestRepository` — 29 callsites, ~2–3 ч.
+
+**Выгоды (для «отклонение по 2c»):** KDoc в `BrokerApi` фиксирует fat как осознанно (мультиброкерный фасад, `InvestRepository` — 29 callsites). По факту fat-часть — legacy переходного состояния. Пересмотр — после стабилизации остальных задач clean-audit, новой задачи пока нет.
+
+**Ссылка на задачу:** — (не заведена). Пересмотр — в рамках `### Рефакторинг ролей BrokerApi` (закрыта), новая задача не заведена.
+
+### Н26. BrokerLifecycleApi — не 2c-фиксация
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `BrokerLifecycleApi.initialize(credentials: BrokerCredentials): Boolean` — runtime `IllegalArgumentException` при неверном типе credentials. KDoc: «Сообщение об ошибке — через `AppLogger` и `AppResult.Failure`» — domain-интерфейс ссылается на `util.AppLogger` (domain -> util).
+
+**Нарушенное правило Clean:** runtime-проверка типов вместо compile-time; KDoc связывает domain с `util`.
+
+**Clean-альтернатива:** `BrokerLifecycleApi<C : BrokerCredentials>` (generic по типу credentials). Плюсы: compile-time гарантия. Минусы: параметризация роли, `BrokerApi.lifecycle: BrokerLifecycleApi<*>?` теряет типизацию.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена).
+
+### Н27. StreamsApi.subscribeOrderState — suspend
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `StreamsApi.subscribePositions` / `subscribeLastPrices` — non-suspend; `subscribeOrderState` — suspend. KDoc: «как в `BrokerApi.subscribeOrderState` (контракт совпадает с fat-интерфейсом)».
+
+**Нарушенное правило Clean:** не Clean-инвариант, а консистентность роли — 2 метода non-suspend, 1 suspend, без технической необходимости.
+
+**Clean-альтернатива:** убрать `suspend` у `subscribeOrderState` (обернуть в `flow { }` внутри реализации). Плюсы: консистентность. Минусы: мелочь.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Может быть частью Н25.
+
+### Н28. AccountsApi.getAccounts(sandboxMode)
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** общий `AccountsApi` принимает `sandboxMode: Boolean`. KDoc: «У брокеров без sandbox (BCS/Finam) параметр игнорируется». Domain-контракт роли несёт специфику T-Invest.
+
+**Нарушенное правило Clean:** domain-контракт роли несёт специфику T-Invest (sandbox); BCS/Finam игнорируют — параметр маскирует «не применимо» под «применимо, но неважно».
+
+**Clean-альтернатива:** вынести `sandboxMode` в `TInvestAccountsApi : AccountsApi` (T-Invest-специфика). Или `AccountsApi` без параметра, sandbox-специфика — в реализации. Плюсы: чистый общий контракт. Минусы: переделка TInvest + `InvestRepository`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена).
+
+### Исправленные (L4)
+
+[пусто]
 
 ## L5 — domain/managers
 
@@ -415,9 +493,31 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ## L7 — di
 
-**Статус:** не проверено.
+**Краткая таблица:**
 
-Заполняется по мере инспекции `di/*.kt`.
+| ID | Серьёзность | Затрагиваемые уровни | Локализация |
+|---|---|---|---|
+| Н29. BrokerManager — domain-сервис в di/ | критично | L7, L1, L5, L6 | `di/BrokerManager.kt` |
+
+### Н29. BrokerManager — domain-сервис в di/
+
+**Статус:** открыто.
+
+**Серьёзность:** критично.
+
+**Описание:** `di/BrokerManager.kt` содержит domain-логику: `computeAnyInitialized()` (вычисление), `refreshInitializationState()` (публичный side-effect), `getDefaultBroker(): BrokerApi` throws `IllegalStateException("Брокер TInvest не зарегистрирован")` (знает «TInvest = default»), `anyInitialized: StateFlow<Boolean>` (реактивный контракт). Все потребители: `data/repository/*` (3), `domain/api/managers/*` (3), `TScalpApplication` (1), `SettingsViewModel` (4 callsites) инжектят `di.BrokerManager`.
+
+**Нарушенное правило Clean:** dependency rule — domain (managers), presentation, data зависят от `di` (сборочный слой). `di/` не должен содержать доменную логику.
+
+**Clean-альтернатива:** `domain.registry.BrokerRegistry` — domain-сервис; implementation в `data/registry/`; `@Binds` в `di/`. Плюсы: domain-сервис в domain, `di/` содержит только DI. Минусы: переезд ~10 файлов-потребителей. `refreshInitializationState` — внутренний, не в интерфейсе (см. `**Анализ L1-Н22:**`).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано с L1-Н22 (`BrokerRegistry`), частично уточняет.
+
+### Исправленные (L7)
+
+[пусто]
 
 ## L8 — app
 
