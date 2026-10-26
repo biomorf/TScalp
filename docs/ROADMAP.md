@@ -7,7 +7,1041 @@
 CI/CD-планирование → `docs/ci-roadmap.md`.
 
 
+## Шаблон задачи
+
+Все поля обязательные. Задачи без заполненных полей не
+принимаются. Структура — по AGENTS 5e.
+
+~~~markdown
+### <Название>
+
+**Мобильная работа:** полное закрытие | частичное | невозможно.
+
+**Статус:** запланировано.
+
+**Контекст:** зачем задача, какую проблему решает. Для задач
+из `clean-audit` — с ID: «(clean-audit Н21) …».
+
+**Соответствие Clean:** соответствует | отклонение по 2c
+(принято) | отклонение (открыто).
+
+**Нарушенное правило Clean:** одна строка. Для
+«соответствует» — «—».
+
+**Clean-альтернатива:** как правильно, с плюсами и минусами.
+Для «соответствует» — «—».
+
+**Выгоды (для «отклонение по 2c»):** что даёт текущий
+вариант — конкретно. Для остальных статусов — «—».
+
+**Предусловия:** что должно быть сделано до начала.
+
+**Файлы:** конкретные пути и классы. Если файл ещё не
+создан — где создать.
+
+**Шаги:** пронумерованная последовательность. Один шаг —
+одно логически завершённое изменение.
+
+**Тесты:** какие меняются / добавляются; что не покрывается
+и почему.
+
+**Референсы:** ссылки на SDK, документацию, образцы в
+репозитории.
+
+**Ограничения:** что нельзя делать, известные грабли.
+
+**Критерий готовности:** наблюдаемое поведение, тесты,
+гейт.
+
+**Оценка:** часы/минуты.
+
+**Зависимости:** задачи-блокеры.
+
+**Связано:** related-задачи в ROADMAP / ISSUES /
+clean-audit.
+
+**Открытые вопросы:** факты, которых не хватает; где искать
+ответ.
+~~~
+
+---
+
 ## Планируемые задачи
+
+### H3. Move OrdersListViewModel to presentation/screens/orders/
+
+**Мобильная работа:** полное закрытие (git mv + правка импорта
+через proot).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н3):** `OrdersListViewModel` живёт в
+`ui.components` (рядом с `OrdersListDialog.kt`), остальные
+ViewModel — в `presentation/screens/*/`. Нарушение конвенции
+пакетов проекта.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** не Clean в строгом смысле —
+архитектурная конвенция пакетов.
+
+**Clean-альтернатива:** `OrdersListViewModel` в
+`presentation/screens/orders/` (рядом со своим экраном).
+Плюсы: консистентность. Минусы: —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `ui/components/OrdersListViewModel.kt` →
+  `presentation/screens/orders/OrdersListViewModel.kt` (git mv).
+- `ui/components/OrdersListDialog.kt` — правка импорта.
+- `docs/clean-audit.md` — Н3 → `исправлено`, копия в
+  «Исправленные (L1)».
+
+**Шаги:**
+1. `git mv` файла.
+2. Правка `package` в перенесённом файле.
+3. Правка импорта в `OrdersListDialog.kt`.
+4. Проверка: `grep -rn "ui.components.OrdersListViewModel" app/src`
+   — пусто.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. `docs/clean-audit.md` → Н3 `исправлено`, копия в
+   «Исправленные (L1)».
+
+**Тесты:** не меняются (переезд). Гейт — доказательство.
+
+**Референсы:** `docs/clean-audit.md` → Н3.
+
+**Ограничения:** только mv + импорт, никакой логики. Не
+смешивать с `### Рефакторинг ViewModel-слоя`.
+
+**Критерий готовности:** `OrdersListViewModel` в
+`presentation/screens/orders/`; `grep` старых импортов — пусто;
+гейт зелёный.
+
+**Оценка:** ~10 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `docs/clean-audit.md` → Н3;
+`### Рефакторинг ViewModel-слоя` (отдельно, не блокирует).
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
+### Разбивка InvestRepository по доменным областям
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст.**
+
+`InvestRepository` (`data/repository/`, 357 строк, 16 функций
+по grep 2026-10-26; KDoc «17 функций» устарел) — последний
+fat-репозиторий. Уже разбиты: `InstrumentRepository`,
+`SearchCache`, `SettingsRepository`, `TradingStateRepository`.
+`InvestRepository` совмещает 4 доменные области + 2 роли:
+фасад над `BrokerApi` и точка конвертации в `PortfolioPosition`
+(domain-модель для UI) через `toPortfolioPosition`.
+
+**Clean-граница (второй слой долга).**
+
+`InvestRepository` в `data.repository.*`; 4 ViewModel импортируют
+его **напрямую**. В Clean ViewModel → domain-интерфейс, data —
+реализует. Сейчас граница слоя нарушена. Разбивка без выноса
+интерфейсов ISP не закрывает.
+
+**Потребители (grep 2026-10-26).**
+
+| Потребитель | Методы `InvestRepository` | Интерфейсы |
+|---|---|---|
+| `PortfolioViewModel` | `fetchPositionsResult`, `getTradingStatusesResult`, `getAccountsResult`, `sandboxPayInResult` | Portfolio, MarketData, Accounts |
+| `OrdersViewModel` | `getAccountsResult` (×3), `getLastPricesResult` (×2), `checkTradeAvailabilityResult`, `postStopOrderResult`, `postOrderResult`, `getBalanceResult`, `getTradingStatusesResult`, `fetchPositionsResult` | Accounts, MarketData, Orders, Portfolio (все 4) |
+| `SettingsViewModel` | `getAccountsResult`, `openSandboxAccountResult`, `closeSandboxAccountResult` | Accounts |
+| `OrdersListViewModel` | `getAccountsResult` (×2), `cancelStopOrderResult`, `cancelOrderResult` | Accounts, Orders |
+| `PriceFlowManager` | ? (импорт `InvestRepository` в конструкторе есть, `repository.` вызовов grep не нашёл — проверить на старте) | TBD |
+
+**Возможные мёртвые методы (проверить на старте Фазы 1).**
+
+- `searchInstrumentsResult` — не вызывается ни одним ViewModel
+  (`SearchCache` покрывает поиск); вероятно мёртв.
+- `subscribePositions` — не вызывается из ViewModel (менеджеры
+  ходят через `broker.subscribePositions`).
+- `subscribeLastPrices` — не вызывается из ViewModel; в
+  `PriceFlowManager` был удалён в #1 step 8 (StreamsApi);
+  вероятно мёртв.
+- `getAllOrdersResult` — не вызывается (`OrderFlowManager`
+  ходит через `broker.orders?.getOrders + getStopOrders`).
+
+Если подтверждено — удалить в Фазе 1 **до** создания
+интерфейсов (сокращает поверхность).
+
+**Цель.** 4 domain-интерфейса в `domain.api.repository.*`,
+4 data-реализации. ViewModel → domain. `InvestRepository`
+удалён. Каждый PR — зелёный, откат тривиален.
+
+**Три фазы — три PR** (по 4b: одна фаза — один логически
+завершённый шаг, зелёный гейт в конце).
+
+### Фаза 1 — domain-интерфейсы + data-реализации (без миграции)
+
+**Цель.** Новая структура работает рядом со старой.
+`InvestRepository` не тронут, потребители работают как есть.
+
+**Шаги.**
+
+1. Диагностика мёртвых методов (4 grep на весь `app/src`).
+   Удалить мёртвые из `InvestRepository` (если подтверждено).
+2. Создать 4 интерфейса в `domain/api/repository/`
+   (сигнатуры — ниже).
+3. Создать 4 `*Impl` в `data/repository/`, каждый —
+   constructor `(brokerManager: BrokerManager)`, `@Singleton`,
+   реализует интерфейс, тела методов **дословно** из
+   `InvestRepository`.
+4. `di/RepositoryModule`: 4 `@Binds` `interface -> Impl`.
+   `provideInvestRepository` **оставить** (потребители ещё
+   на нём).
+5. Гейт. PR #1.
+
+**Сигнатуры интерфейсов (только реально используемые методы;
+если мёртвые подтвердятся — не включать).**
+
+`domain/api/repository/AccountsRepository.kt`:
+
+    interface AccountsRepository {
+        suspend fun getAccountsResult(
+            brokerName: BrokerName,
+            sandboxMode: Boolean,
+        ): AppResult<List<BrokerAccount>>
+
+        suspend fun openSandboxAccountResult(
+            brokerName: BrokerName,
+        ): AppResult<String>
+
+        suspend fun closeSandboxAccountResult(
+            brokerName: BrokerName,
+            accountId: String,
+        ): AppResult<Unit>
+
+        suspend fun sandboxPayInResult(
+            accountId: String,
+            amount: SandboxMoney,
+        ): AppResult<Unit>
+    }
+
+`domain/api/repository/MarketDataRepository.kt`:
+
+    interface MarketDataRepository {
+        suspend fun getLastPricesResult(
+            ids: List<String>,
+        ): AppResult<Map<String, Double?>>
+
+        suspend fun getTradingStatusesResult(
+            brokerName: BrokerName,
+            ids: List<String>,
+        ): AppResult<Map<String, TradingAvailability>>
+
+        // searchInstrumentsResult — добавить, если окажется
+        // используемым; иначе не включать.
+    }
+
+`domain/api/repository/OrdersRepository.kt`:
+
+    interface OrdersRepository {
+        suspend fun postOrderResult(
+            request: BrokerOrderRequest,
+        ): AppResult<OrderResult>
+
+        suspend fun postStopOrderResult(
+            request: StopOrderRequest,
+        ): AppResult<String>
+
+        suspend fun cancelStopOrderResult(
+            accountId: String,
+            orderId: String,
+        ): AppResult<Unit>
+
+        suspend fun cancelOrderResult(
+            brokerName: BrokerName,
+            accountId: String,
+            orderId: String,
+        ): AppResult<Unit>
+
+        suspend fun checkTradeAvailabilityResult(
+            brokerName: BrokerName,
+            accountId: String,
+            tscalpInstrumentId: String,
+            direction: OrderDirection,
+            quantity: Long,
+        ): AppResult<TradeCheckResult>
+    }
+
+`domain/api/repository/PortfolioRepository.kt`:
+
+    interface PortfolioRepository {
+        suspend fun fetchPositionsResult(
+            brokerName: BrokerName,
+            accountId: String,
+            sandboxMode: Boolean,
+        ): AppResult<List<PortfolioPosition>>
+
+        suspend fun getBalanceResult(
+            accountId: String,
+        ): AppResult<Double>
+    }
+
+**Замечание по `PortfolioPosition`.** `PortfolioPosition` —
+domain-модель (`domain/models/Portfolio.kt`), не presentation.
+Возврат из domain-интерфейса корректен. UI-конвертация
+(`PositionStreamItem → PortfolioPosition`) — уже в
+`fetchPositionsResult` через `toPortfolioPosition()` (#9).
+
+**Оценка Фазы 1:** ~2–2.5 ч.
+
+### Фаза 2 — миграция потребителей, удаление InvestRepository
+
+**Цель.** Все потребители на domain-интерфейсах,
+`InvestRepository.kt` удалён.
+
+**Шаги.**
+
+1. Мигрировать по одному (порядок — по простоте):
+   - `SettingsViewModel` (1 интерфейс — `AccountsRepository`);
+   - `OrdersListViewModel` (2 — `Accounts`, `Orders`);
+   - `PortfolioViewModel` (3 — `Portfolio`, `MarketData`,
+     `Accounts`);
+   - `OrdersViewModel` (4 — все).
+   Каждый — свой коммит, гейт после каждого.
+2. `PriceFlowManager`: если `repository` не используется —
+   удалить параметр из конструктора; если используется —
+   мигрировать на `MarketDataRepository`.
+3. Удалить `InvestRepository.kt`.
+4. `RepositoryModule`: удалить `provideInvestRepository`.
+5. Гейт. PR #2.
+
+**Оценка Фазы 2:** ~2 ч.
+
+### Фаза 3 — cleanup
+
+**Шаги.**
+
+1. KDoc `BrokerApi` — заменить упоминания `InvestRepository`
+   на актуальные (`OrdersRepository`, `PortfolioRepository`,
+   `AccountsRepository`, `MarketDataRepository`).
+2. `docs/architecture.md` (при создании) — учесть 4
+   domain-интерфейса.
+3. Гейт. PR #3.
+
+**Оценка Фазы 3:** ~30 мин.
+
+**Файлы (по фазам).**
+
+Фаза 1:
+- `domain/api/repository/{Accounts,MarketData,Orders,Portfolio}Repository.kt`
+  (новые).
+- `data/repository/{Accounts,MarketData,Orders,Portfolio}RepositoryImpl.kt`
+  (новые).
+- `data/repository/InvestRepository.kt` — удалить мёртвые методы
+  (если подтверждено).
+- `di/RepositoryModule.kt` — 4 `@Binds`.
+
+Фаза 2:
+- 4 ViewModel + `PriceFlowManager` — конструктор + импорты.
+- `data/repository/InvestRepository.kt` — удалить.
+- `di/RepositoryModule.kt` — удалить `provideInvestRepository`.
+
+Фаза 3:
+- `domain/api/BrokerApi.kt` — KDoc.
+
+**Тесты.**
+
+Unit-тестов на репозитории нет (`InvestRepositoryTest` не
+существует). Миграция — чистый рефакторинг, поведение не
+меняется. Гейт (`testDebugUnitTest / lintDebug / ktlintCheck /
+detekt`) — доказательство неизменности. Если в ходе миграции
+обнаружится новая логика — точечный тест в соответствующем
+data-репозитории.
+
+**Референсы.**
+- `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга
+  (detekt-группа 3)` → `#### Репозитории` — ref.
+- `docs/ROADMAP.md` → `### Рефакторинг ролей BrokerApi
+  (nullable-val, Scenario2)` — паттерн nullable-val в
+  `domain.api`.
+- `app/src/main/kotlin/.../di/RepositoryModule.kt` — текущий
+  биндинг.
+
+**Ограничения.**
+- Не менять поведение репозиториев — только структуру.
+- Не смешивать с `SettingsRepository` (15 функций) — отдельная
+  задача (по 2d).
+- Не смешивать с #11 (уборка реализаций `BrokerApi`) — там
+  `data/api` (брокеры), здесь `data/repository` (фасады).
+- **`InvestRepository` — осознанное отклонение по 2c** (fat для
+  мультиброкерного фасада, зафиксировано в KDoc `BrokerApi`).
+  Разбивка **не устраняет** отклонение полностью: 4 репозитория
+  тоже фасады над `BrokerApi`. Главная выгода — Clean-граница
+  (ViewModel → domain), не удаление фасада. Clean-альтернатива —
+  супертипы + resolver (отклонена в `BrokerApi` KDoc).
+- Другие репозитории (`SettingsRepository`,
+  `InstrumentRepository`, `SearchCache`,
+  `TradingStateRepository`) остаются на прямых data-зависимостях
+  от ViewModel — это **отдельный** Clean-долг, не в scope.
+- Полный локальный гейт перед каждым PR (5a).
+
+**Критерий готовности.**
+- 4 domain-интерфейса в `domain.api.repository.*`.
+- 4 data-реализации в `data.repository.*`.
+- 4 ViewModel + `PriceFlowManager` инжектят domain-интерфейсы.
+- `grep "import com.gitlab.biomorf.tscalp.data.repository.InvestRepository"`
+  в `presentation/` и `domain/` — пусто.
+- `InvestRepository.kt` удалён.
+- KDoc `BrokerApi` обновлён (нет висячих ссылок).
+- Гейт зелёный.
+
+**Оценка:** ~5–6 ч (Фаза 1 — 2–2.5 ч, Фаза 2 — 2 ч,
+Фаза 3 — 30 мин, резерв — 30 мин). Старая `~2 часа` в
+`#### Репозитории` устарела (без Clean-границы и миграции
+ViewModel).
+
+**Зависимости:**
+- **После** `### Рефакторинг BrokerApi-реализаций` (#11) —
+  `BrokerApi` в финальном виде.
+- **До** KMP-миграции — обязательное условие (data может быть
+  Android-only, domain-интерфейсы — KMP).
+
+**Связано:**
+- `### Рефакторинг архитектурного долга (detekt-группа 3)`
+  → `#### Репозитории` — ref.
+- `### Рефакторинг ролей BrokerApi (nullable-val,
+  Scenario2)` — параллельная работа в `domain.api`.
+- `docs/architecture.md` — раздел 1 при создании.
+
+**Открытые вопросы.**
+- `PriceFlowManager`: параметр `repository: InvestRepository`
+  в конструкторе, но вызовов `repository.` нет (grep
+  2026-10-26). Если unused — удалить в Фазе 2 (не мигрировать).
+- `searchInstrumentsResult`, `subscribePositions`,
+  `subscribeLastPrices`, `getAllOrdersResult` — вероятно мёртвы.
+  Проверить на старте Фазы 1 (перед созданием интерфейсов).
+- Sandbox — в `AccountsRepository` (счета + sandbox) или
+  отдельный репозиторий? Рекомендация: в `AccountsRepository`
+  (близкие домены: оба про «счёт»).
+- `SettingsRepository` (15 функций) — отдельная задача, не в
+  scope.
+
+
+
+### H21b. Domain-интерфейсы для 4 репозиториев
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н21):** `OrdersViewModel`,
+`PortfolioViewModel`, `SettingsViewModel` инжектят
+`InstrumentRepository`, `SearchCache`, `SettingsRepository`,
+`TradingStateRepository` из `data.repository.*` напрямую. По
+Clean presentation должна зависеть от domain-интерфейса, а
+data — реализовывать его. `InvestRepository` покрыт отдельной
+задачей `### Разбивка InvestRepository по доменным областям`.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation
+не должна знать про data (зависимость наружу).
+
+**Clean-альтернатива:** `domain.api.repository.*` — по одному
+интерфейсу на репозиторий; data реализует через `@Binds`;
+VM инжектит интерфейс. Плюсы: Clean-дисциплина,
+KMP-совместимость, фейки в тестах. Минусы: переезд 4
+репозиториев (~3–4 ч) + правка DI.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### Разбивка InvestRepository по доменным
+областям` (закрыта — интерфейсы `AccountsRepository`,
+`MarketDataRepository`, `OrdersRepository`,
+`PortfolioRepository` уже созданы, паттерн установлен).
+
+**Файлы:**
+- `domain/api/repository/InstrumentRepository.kt` (новый) —
+  интерфейс: `getInstrument(tscalpInstrumentId): InstrumentUi?`,
+  `loadAndCache(uid): InstrumentUi?`, `invalidate(...)`.
+- `domain/api/repository/SearchCacheRepository.kt` (новый) —
+  `search(broker, query): List<InstrumentUi>`,
+  `invalidate(broker, query)`.
+- `domain/api/repository/SettingsRepository.kt` (новый) —
+  интерфейс для `SettingsRepository` (полный список методов
+  см. `data/repository/SettingsRepository.kt`).
+- `domain/api/repository/TradingStateRepository.kt` (новый) —
+  `save(snapshot)`, `load(): TradingStateSnapshot`, `clear()`.
+- `data/repository/InstrumentRepository.kt`,
+  `SearchCache.kt`, `SettingsRepository.kt`,
+  `TradingStateRepository.kt` — `: <Iface>`.
+- `di/RepositoryModule.kt` — 4 `@Binds`.
+- `OrdersViewModel.kt`, `PortfolioViewModel.kt`,
+  `SettingsViewModel.kt` — импорты и конструкторы.
+
+**Шаги:**
+1. Создать 4 интерфейса (сигнатуры — из существующих классов).
+2. Классы в `data.repository` → `: <Iface>`.
+3. `RepositoryModule`: 4 `@Binds` `interface -> Impl`.
+4. Мигрировать `OrdersViewModel` (4 инъекции).
+5. Мигрировать `PortfolioViewModel` (2).
+6. Мигрировать `SettingsViewModel` (3).
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** новые тесты не обязательны (переезд, поведение
+не меняется). Гейт — доказательство.
+
+**Референсы:** `### Разбивка InvestRepository` — паттерн
+интерфейсов + `@Binds`. `docs/clean-audit.md` → Н21.
+
+**Ограничения:** не менять поведение репозиториев — только
+структуру. Не смешивать с `### Разбивка InvestRepository`
+(отдельная задача). Не смешивать с Н22 (`BrokerRegistry`) —
+отдельная задача.
+
+**Критерий готовности:** в `presentation/` нет импортов
+`com.gitlab.biomorf.tscalp.data.repository.{InstrumentRepository,
+SearchCache, SettingsRepository, TradingStateRepository}`;
+все 3 VM инжектят domain-интерфейсы; гейт зелёный.
+
+**Оценка:** ~3–4 ч (интерфейсы 1 ч, `: Iface` + DI 1 ч,
+VM 3 файла 1.5 ч, гейт 15 мин, резерв 15 мин).
+
+**Зависимости:** `### Разбивка InvestRepository по доменным
+областям`.
+
+**Связано:** `docs/clean-audit.md` → Н21; `### Разбивка
+InvestRepository по доменным областям`.
+
+**Открытые вопросы:** `SettingsRepository` содержит 15
+функций — уточнить, все ли нужны в интерфейсе, или часть
+используется только в data (например, `debugFlagsFlow`).
+
+
+
+---
+
+### H23. DebugFlagsRepository
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н23):** `SettingsViewModel`
+импортирует `data.orchestrator.DebugConfig`, читает/пишет
+`disableGrpc`, `disableWs`, `forceRest` через
+`toggleGrpc/toggleWs/toggleRest`. Debug-флаги транспорта в
+presentation.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation
+не должна знать про `data.orchestrator`.
+
+**Clean-альтернатива:** `domain.api.DebugFlagsRepository` —
+интерфейс с геттерами/сеттерами; реализация —
+`data.orchestrator.DebugConfig` за интерфейсом; `@Binds`.
+Плюсы: presentation → domain.api. Минусы: ~30 мин правок.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/api/DebugFlagsRepository.kt` (новый) — интерфейс:
+  `var disableGrpc: Boolean`, `var disableWs: Boolean`,
+  `var forceRest: Boolean`.
+- `data/orchestrator/DebugConfig.kt` — реализует интерфейс
+  (или `data/orchestrator/DebugFlagsRepositoryImpl.kt` —
+  решить при реализации; `DebugConfig` сейчас `object`,
+  может быть проще сделать Impl).
+- `di/RepositoryModule.kt` — `@Binds`.
+- `SettingsViewModel.kt` — конструктор + импорт.
+
+**Шаги:**
+1. Создать `DebugFlagsRepository` (3 `var`).
+2. Реализация — либо `DebugConfig : DebugFlagsRepository`
+   напрямую (если `object`), либо `DebugFlagsRepositoryImpl`
+   (если нужна инъекция).
+3. `@Binds` в `RepositoryModule`.
+4. `SettingsViewModel`: `DebugConfig.disableGrpc` →
+   `debugFlagsRepository.disableGrpc` (и т.д., 6 мест).
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** не меняются. Гейт — доказательство.
+
+**Референсы:** `docs/clean-audit.md` → Н23. Закрытые
+`### Debug-тумблеры`, `### DebugConfig: только для
+debug-сборок` — функционал работает; переезд API — эта
+задача.
+
+**Ограничения:** не менять поведение флагов — только
+структуру. Сохранить `BuildConfig.DEBUG`-гейт в сеттерах
+(в `DebugConfig`).
+
+**Критерий готовности:** `SettingsViewModel` не импортирует
+`data.orchestrator.DebugConfig`; гейт зелёный.
+
+**Оценка:** ~30 мин.
+
+**Зависимости:** H21b (паттерн `domain.api` → `data` через
+`@Binds` уже установлен).
+
+**Связано:** `docs/clean-audit.md` → Н23; закрытые
+`### Debug-тумблеры`, `### DebugConfig: только для
+debug-сборок`.
+
+**Открытые вопросы:** `object DebugConfig` → сделать
+`DebugFlagsRepositoryImpl` class или оставить `object` и
+`@Binds` через отдельный класс. Решение — при реализации.
+
+
+
+### H17–H20. Перенос presentation-утилит из util
+
+**Мобильная работа:** невозможно (сборка + правка ~30
+callsites AppLogger).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н17–Н20):** `util/` содержит
+presentation-код (`TradePhrases` — Compose, `CurrencyUtils` —
+presentation-формат), платформенные зависимости (`AppLogger` —
+`android.util.Log`) и transport-зависимости
+(`AppResultExtensions` — `io.grpc`). `util` — grab-bag без
+слоя; domain видит платформу и gRPC транзитивно.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation-
+код и платформенные/transport-зависимости в shared-слое
+`util/`.
+
+**Clean-альтернатива:**
+- `TradePhrases` → `presentation/util/TradePhrases.kt` (Compose +
+  UI-тексты), `presentation/theme/TradeColors.kt` (цвета).
+- `CurrencyUtils` → `presentation/util/Format.kt`.
+- `AppLogger` → `domain.log.Logger` (интерфейс) +
+  `data.log.AndroidAppLogger` (реализация через
+  `android.util.Log` + `BuildConfig.DEBUG`); `@Binds`. Domain
+  инжектит `Logger`.
+- `AppResultExtensions` → `data/error/AppErrorMapper.kt`
+  (per-broker по образцу `#### Классификатор ошибок`).
+
+Плюсы: `util` становится Compose-free, KMP-совместимым; domain
+не видит платформу. Минусы: ~30+ callsites `AppLogger.*` →
+`logger.*`, инъекция в каждый класс.
+
+**Выгоды (для «отклонение по 2c»):** —. Но отметить: правило
+AGENTS «Логирование: `AppLogger`, не `android.util.Log`»
+фактически закрепляет отклонение без 2c-фиксации. Решение
+(переезд на `Logger` **или** 2c-фиксация) — открытый вопрос
+внизу.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `util/TradePhrases.kt` → `presentation/util/TradePhrases.kt`,
+  `presentation/theme/TradeColors.kt`.
+- `util/CurrencyUtils.kt` → `presentation/util/Format.kt`.
+- `util/AppLogger.kt` → `domain/log/Logger.kt` (интерфейс) +
+  `data/log/AndroidAppLogger.kt` (реализация).
+- `util/AppResultExtensions.kt` → `data/error/AppErrorMapper.kt`.
+- `di/LogModule.kt` (новый) — `@Binds Logger →
+  AndroidAppLogger`.
+- ~30+ callsites `AppLogger.*` в data/domain/presentation —
+  заменить на инжектированный `Logger`.
+- ~10 callsites `TradePhrases.*`, `formatCurrency`,
+  `formatPrice` — правка импортов.
+- ~5 callsites `toAppError`, `runCatchingAppResult` — правка
+  импортов (data-only; domain не должен видеть).
+
+**Шаги:**
+1. **Решение по AppLogger** (открытый вопрос): переезд на
+   `Logger`-интерфейс или 2c-фиксация текущего паттерна в
+   AGENTS с тремя элементами. **Стоп до решения.**
+2. Если переезд: `Logger` в `domain.log`, `AndroidAppLogger`
+   в `data.log`, `@Binds`, замена `AppLogger.*` на
+   `logger.*` (~30 callsites).
+3. `TradePhrases` → `presentation/util/` + `TradeColors`.
+4. `CurrencyUtils` → `presentation/util/Format.kt`.
+5. `AppResultExtensions` → `data/error/AppErrorMapper.kt`.
+6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+
+**Тесты:** `AppLogger` не тестировался; `TradePhrases` не
+тестировался. Если переезд `AppLogger` — не тестируется
+напрямую (тонкая обёртка). `AppErrorMapper` — если переезд,
+то +тест на 1–2 сценария.
+
+**Референсы:** `docs/clean-audit.md` → Н17–Н20.
+`### Классификатор ошибок` в `### Рефакторинг
+архитектурного долга` — образец для `AppErrorMapper`.
+
+**Ограничения:** не смешивать 4 переезда в один PR — каждый
+отдельным коммитом (5a «один коммит — одна задача»; эта
+umbrella-задача — исключение, но подшаги внутри разные).
+Сохранить поведение `formatCurrency`/`formatPrice`
+(локаль, «₽», «пт»).
+
+**Критерий готовности:** `util/` содержит только
+platform-free shared (или пуст); `presentation/` не содержит
+Compose в `util/`-пути; `domain/` не видит `android.util.Log`
+и `io.grpc` транзитивно; гейт зелёный.
+
+**Оценка:** ~4–5 ч (AppLogger-переезд 2.5–3 ч, TradePhrases
+30 мин, CurrencyUtils 15 мин, AppResultExtensions 1 ч,
+гейт 15 мин). Если AppLogger — 2c-фиксация вместо переезда,
+~1.5–2 ч.
+
+**Зависимости:** H23 (`DebugFlagsRepository` — паттерн
+`domain.api` → `data` через `@Binds` установлен).
+
+**Связано:** `docs/clean-audit.md` → Н17, Н18, Н19, Н20;
+`### Классификатор ошибок` (в ROADMAP → `### Рефакторинг
+архитектурного долга`).
+
+**Открытые вопросы:**
+- **AppLogger:** переезд на `Logger`-интерфейс (Clean) или
+  2c-фиксация «AppLogger как глобальный фасад, согласовано
+  в AGENTS» (три обязательных элемента: правило нарушено —
+  domain видит платформу транзитивно; Clean-альтернатива —
+  Logger+DI; выгоды — zero-ceremony, ~30 callsites не
+  трогаются). Решение — на старте.
+- **Приоритет подшагов внутри:** если AppLogger — переезд,
+  начинать с него (влияет на 30+ файлов).'
+
+
+
+
+---
+
+### H22. BrokerRegistry
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н22):** `OrdersViewModel`,
+`PortfolioViewModel`, `SettingsViewModel` инжектят
+`di.BrokerManager` напрямую. Вызывают `getAllBrokers()`,
+`getBroker(name)?.lifecycle?.initialize(...)`,
+`getAvailableBrokerNames()`, `refreshInitializationState()`,
+`getDefaultBroker()`. `BrokerManager` — точка сборки брокеров,
+живёт в `di/`.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation
+зависит от `di` (сборочный слой).
+
+**Clean-альтернатива:** `domain.api.BrokerRegistry` —
+интерфейс (`getAllBrokers`, `getBroker`,
+`getAvailableBrokerNames`, `getDefaultBroker`). Реализация —
+`data/registry/BrokerRegistryImpl` или
+`di/BrokerRegistryImpl`, `@Binds`. VM инжектит
+`BrokerRegistry`. Плюсы: presentation → domain.api;
+`BrokerRegistry` в KMP-модуле. Минусы: переезд + переименование
+`BrokerManager` (~1–2 ч) + правка 3 VM + тестов.
+
+**Выгоды (для «отклонение по 2c»):** —. Замечание:
+`refreshInitializationState` — проблемный метод, скорее всего
+не должен быть в интерфейсе (side-effect после `initialize`).
+Его судьба — открытый вопрос.
+
+**Предусловия:** аудит L4/L7/L8 закрыт, дизайн `BrokerApi`
+после `### Рефакторинг ролей` принят, судьба
+`refreshInitializationState` решена.
+
+**Файлы:**
+- `domain/api/BrokerRegistry.kt` (новый) — интерфейс.
+- `data/registry/BrokerRegistryImpl.kt` (новый) —
+  реализация поверх `BrokerManager` (или переименование
+  `BrokerManager` → `BrokerRegistryImpl`).
+- `di/BrokerModule.kt` — `@Binds` (или переезд провайдеров).
+- `OrdersViewModel.kt`, `PortfolioViewModel.kt`,
+  `SettingsViewModel.kt` — конструктор + импорт.
+- `TScalpApplication.kt` — если `BrokerManager` переезжает
+  целиком, тут тоже правка (решение — при реализации).
+
+**Шаги:**
+1. Решить судьбу `refreshInitializationState` (в интерфейсе
+   / нет). **Стоп до решения.**
+2. Решить, переименовывается ли `BrokerManager` →
+   `BrokerRegistryImpl` (тогда `TScalpApplication` тоже
+   мигрирует) или остаётся `BrokerManager` как
+   data-реализация (тогда `@Binds` не нужен, а
+   `BrokerRegistry` — фасад).
+3. Создать `BrokerRegistry` (без
+   `refreshInitializationState`, если решено убрать).
+4. Реализация + `@Binds` (или переезд).
+5. Мигрировать 3 VM (3 файла).
+6. `TScalpApplication` — по решению шага 2.
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+
+**Тесты:** `SettingsViewModel` init (`anyInitialized`) —
+не затронут. Если `BrokerRegistry` — фасад над
+`BrokerManager`, тесты не меняются; если переименование —
+правка моков.
+
+**Референсы:** `docs/clean-audit.md` → Н22.
+`### Broker lifecycle API` (закрыта) — `lifecycle`
+nullable-val, аналогичный паттерн для `BrokerRegistry`.
+
+**Ограничения:** не смешивать с переименованием `BrokerManager`
+(если решено), с судьбой `refreshInitializationState` и с
+`TScalpApplication`. Каждый подшаг — отдельный коммит.
+Не трогать `BrokerLifecycleApi.initialize` — его контракт
+уже зафиксирован.
+
+**Критерий готовности:** в `presentation/` нет импортов
+`com.gitlab.biomorf.tscalp.di.BrokerManager`; 3 VM инжектят
+`BrokerRegistry`; `refreshInitializationState` либо удалён,
+либо явно задокументирован как временный; гейт зелёный.
+
+**Оценка:** ~1–2 ч (интерфейс 20 мин, реализация 30 мин,
+3 VM 30 мин, `TScalpApplication` по решению 0–30 мин,
+гейт 15 мин).
+
+**Зависимости:** H21b, H23 (паттерн `domain.api` → `data`
+через `@Binds` установлен). Аудит L4/L7/L8 — для дизайна.
+
+**Связано:** `docs/clean-audit.md` → Н22;
+`### Broker lifecycle API` (закрыта).
+
+**Открытые вопросы:**
+- **`refreshInitializationState`:** оставить в
+  `BrokerRegistry` (зафиксирует текущий контракт) или убрать
+  (правильный дизайн, `initialize` сам обновляет состояние)?
+  Рекомендация — убрать, но это может потребовать правки
+  `BrokerLifecycleApi` или `BrokerApi`.
+- **Переименование `BrokerManager` → `BrokerRegistryImpl`:**
+  делать или нет. Плюс переименования — единый API
+  (`BrokerRegistry`); минус — правка `TScalpApplication` +
+  тестов. Решение — при реализации.
+
+
+
+
+### H1. PortfolioPosition factory для UI
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н1):** `OrdersScreen.kt` (два места: основной инструмент ~353, парный ~580) вручную вызывает `PortfolioPosition(...)` с `profit = null`, `profitPercent = null` для инструмента, которого нет в портфеле. Presentation конструирует domain-модель в обход domain-логики.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation не конструирует domain-модели в обход domain-логики.
+
+**Clean-альтернатива:** domain-функция `emptyPortfolioPosition(instrument, currentPrice)` (или фабрика во ViewModel). UI получает готовую модель. Плюсы: правила конструирования в domain/presentation-фабрике. Минусы: ~30 мин + правка `OrdersUiState`.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/models/Portfolio.kt` — новая функция `emptyPortfolioPosition(instrument: InstrumentUi, currentPrice: Double?): PortfolioPosition`.
+- `presentation/screens/orders/OrdersScreen.kt` — два места, заменить конструктор на вызов.
+- `presentation/screens/orders/OrdersUiState.kt` — если фабрика во ViewModel (вариант), поле-хелпер.
+
+**Шаги:**
+1. Решить: фабрика в domain (`emptyPortfolioPosition`) или во ViewModel.
+2. Реализовать.
+3. Заменить два места в `OrdersScreen`.
+4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** unit-тест на фабрику (пустой инструмент, instrument не в портфеле, `currentPrice = null` -> `0.0`).
+
+**Референсы:** `docs/clean-audit.md` -> Н1.
+
+**Ограничения:** не менять сигнатуру `PortfolioPosition` — это текущий контракт (см. Н5). Не смешивать с Н5.
+
+**Критерий готовности:** в `OrdersScreen` нет прямого `PortfolioPosition(...)`; гейт зелёный.
+
+**Оценка:** ~30 мин.
+
+**Зависимости:** H22.
+
+**Связано:** `docs/clean-audit.md` -> Н1, Н5 (концептуальное разделение модели — отдельно, последним).
+
+**Открытые вопросы:** фабрика в domain или во ViewModel? Рекомендация — domain (`emptyPortfolioPosition`), чтобы UI не собирал модель вручную даже через фабрику.
+
+---
+
+### H4. OrderType из data, не из UI
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н4):** `OrdersListDialog.kt` в `OrderCard` передаёт `orderType = TradePhrases.stringToOrderType(order.type)`. Конверсия «сырое значение из data -> domain-модель» выполняется в presentation.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** presentation не должна маппить сырые данные в domain-модели — это забота data-слоя (маппер).
+
+**Clean-альтернатива:** `OrderListItem.type: String` -> `OrderTypeSelection` в `TInvestOrdersMapper` (data). UI получает готовый `OrderTypeSelection`. Плюсы: presentation без маппинга. Минусы: зависит от `### Split order domain into sealed Regular/Stop` (там переделка модели `OrderListItem`).
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### Split order domain into sealed Regular/Stop` (закрыта — модель `Order` с `sealed interface` и `Regular`/`Stop`).
+
+**Файлы:**
+- `data/api/TInvestOrdersMapper.kt` — маппинг `type` -> `OrderTypeSelection`.
+- `domain/models/OrderModels.kt` — `OrderListItem.type` меняется на `OrderTypeSelection` (в рамках Split order).
+- `ui/components/OrdersListDialog.kt` — убрать `TradePhrases.stringToOrderType`.
+- `util/TradePhrases.kt` — удалить `stringToOrderType` (переезд в data-маппер).
+
+**Шаги:**
+1. После Split order: `OrderListItem` (или `Order`) получает `orderType: OrderTypeSelection`.
+2. `TInvestOrdersMapper` маппит строку в enum.
+3. `OrdersListDialog.kt`: `orderType = order.type` (без конверсии).
+4. `TradePhrases.stringToOrderType` — удалить (или переехать в `data/error/` если нужен где-то ещё).
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** маппер (4–5 типов: MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT, STOP_LIMIT).
+
+**Референсы:** `docs/clean-audit.md` -> Н4. `### Split order domain into sealed Regular/Stop`.
+
+**Ограничения:** не смешивать с `### Split order domain into sealed Regular/Stop` — задача выполняется **внутри** Split (отдельный PR после Split).
+
+**Критерий готовности:** в `OrdersListDialog.kt` нет `stringToOrderType`; маппинг в data; гейт зелёный.
+
+**Оценка:** ~30 мин.
+
+**Зависимости:** `### Split order domain into sealed Regular/Stop`.
+
+**Связано:** `docs/clean-audit.md` -> Н4, Н17 (TradePhrases переезд).
+
+**Открытые вопросы:** `OrderTypeSelection` уже в domain — маппинг `String` -> enum логично в data. Внутри Split order — нормально.
+
+---
+
+### H24. Обогащение PositionStreamItem — в один метод
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н24):** `OrdersViewModel.updatePositionPnl` и `PortfolioViewModel.updatePortfolioItem` реализуют одну логику (обогащение `PositionStreamItem` -> `PortfolioPosition` через `toPortfolioPosition` / `calculateProfitPercent`), но с разной реализацией (в одной — `index == -1` -> добавить, в другой — аналогично, но с доп. полями `isin`/`classCode`). Дублирование, рассинхронизация.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** не строго Clean — DRY / Single Source of Truth для конверсии.
+
+**Clean-альтернатива:** вынести обогащение в `PositionFlowManager` (domain.api.managers) — эмитит готовые `PortfolioPosition`, VM не парсит `PositionStreamItem`. Плюсы: одна точка правды, VM — тонкие. Минусы: ~2 ч, переписать 2 VM + менеджер.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** H21b (VM не видят data).
+
+**Файлы:**
+- `domain/api/managers/PositionFlowManager.kt` — эмитит `PortfolioPosition` (или параллельный `portfolioFlow`).
+- `presentation/screens/orders/OrdersViewModel.kt` — удалить `updatePositionPnl`, подписаться на новый поток.
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — удалить `updatePortfolioItem`, аналогично.
+- `domain/models/Portfolio.kt` — `toPortfolioPosition` остаётся, используется менеджером.
+
+**Шаги:**
+1. Решить: `PositionFlowManager.portfolioFlow: SharedFlow<PortfolioPosition>` (параллельно с `flow: SharedFlow<PositionStreamItem>`) или заменить `flow` на `PortfolioPosition`.
+2. Реализовать эмиссию в менеджере.
+3. `OrdersViewModel` / `PortfolioViewModel` — подписка на новый поток, удалить дублирующую логику.
+4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** `PositionFlowManagerTest` — эмиссия `PortfolioPosition` с обогащением (по образцу существующих тестов на `flow`).
+
+**Референсы:** `docs/clean-audit.md` -> Н24.
+
+**Ограничения:** не менять публичный контракт `PriceFlowManager.prices` (не трогается). `PositionFlowManager.flow` — оставить или заменить по решению шага 1. `synchronized(startLock)` в менеджере — сохранить.
+
+**Критерий готовности:** `updatePositionPnl` и `updatePortfolioItem` удалены; обогащение в `PositionFlowManager`; гейт зелёный.
+
+**Оценка:** ~2 ч.
+
+**Зависимости:** H21b.
+
+**Связано:** `docs/clean-audit.md` -> Н24; `### Рефакторинг ViewModel-слоя`.
+
+**Открытые вопросы:** оставить `flow: PositionStreamItem` параллельно с `portfolioFlow` (для существующих потребителей) или заменить? Рекомендация — параллельный `portfolioFlow`, `flow` оставить для будущих нужд (например, `PositionStreamItem` нужен для `### UI: отображение blocked`).
+
+
+
+### H5. PortfolioPosition: разделение domain/presentation
+
+**Мобильная работа:** невозможно (сборка + переписать 4 экрана + 2 VM + маппер).
+
+**Статус:** запланировано.
+
+**Контекст (clean-audit Н5, пересматривается):** `PortfolioPosition` содержит presentation-поля `totalValue` (= `currentPrice * quantity`), `profitPercent` (вычисляется через `calculateProfitPercent`), `priceChangePercent`. По Clean domain-модель не должна содержать presentation-атрибуты. Отклонение осознанно принято в задаче #9 (портфельный снимок), зафиксировано в KDoc `PortfolioPosition` + `### Обогащение name в PortfolioPosition (вариант C)`. **Концептуальный пересмотр:** разделить на domain-модель `Position` и presentation-модель `PortfolioPositionUi`.
+
+**Соответствие Clean:** отклонение по 2c (принято). **Пересматривается** — концептуальное разделение модели.
+
+**Нарушенное правило Clean:** domain не должен содержать presentation-атрибуты (dependency rule в обратную сторону).
+
+**Clean-альтернатива:** разделить на два типа: `Position` (domain: `tscalpInstrumentId`, `brokerName`, `name`, `ticker`, `quantity`, `currentPrice`, `averagePrice`, `profit`, `pointValue`, `instrumentType`, `classCode`, `isin`, `currency`) и `PortfolioPositionUi` (presentation: `totalValue`, `profitPercent`, `priceChangePercent` + domain-часть). Плюсы: полная Clean-дисциплина. Минусы: переписать `AssetPositionCard`, `PortfolioScreen`, `OrdersScreen`, `PortfolioViewModel`, `OrdersViewModel` + маппер `Position -> PortfolioPositionUi`.
+
+**Выгоды (для «отклонение по 2c»):** `toPortfolioPosition()` — одна точка конвертации в `InvestRepository`; UI работает с одной моделью, без дублирования `profitPercent`/`totalValue` в presentation. Экономия на маппинге ~1 ч. **Пересмотр:** при накоплении presentation-полей (сейчас 3) выгода уменьшается; при появлении 4-го (например, `money`/`blocked` из Н-UI-blocked) — пересмотр в пользу разделения.
+
+**Предусловия:** H22, H1, H24, `### Рефакторинг расчёта P&L для PortfolioPosition` (P&L-формула зафиксирована), `### UI: отображение blocked на валютной карточке` (или отменена — решить).
+
+**Файлы:**
+- `domain/models/Portfolio.kt` — новая `Position` (без presentation-полей); `PortfolioPosition` → `PortfolioPositionUi` (переезд в `presentation/models/`).
+- `presentation/models/PortfolioPositionUi.kt` (новый) — presentation-модель.
+- `presentation/mappers/PositionToUi.kt` (новый) — маппер `Position -> PortfolioPositionUi`.
+- `data/repository/InvestRepository.kt` / `PortfolioRepository` — `fetchPositionsResult` возвращает `List<Position>` (domain).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — маппинг `Position -> Ui` в VM или в presentation-слое.
+- `presentation/screens/portfolio/PortfolioScreen.kt`, `presentation/screens/orders/OrdersScreen.kt`, `ui/components/AssetPositionCard.kt` — принимают `PortfolioPositionUi`.
+- `presentation/screens/orders/OrdersUiState.kt` — `portfolioPositions: List<PortfolioPositionUi>`.
+- `presentation/screens/portfolio/PortfolioUiState.kt` — `positions: List<PortfolioPositionUi>`.
+- `util/PositionFormatter.kt` — принимает `PortfolioPositionUi` (или поля, не модель).
+- KDoc `PortfolioPosition` / `Position` — обновить 2c-фиксацию (перенести в `Position`, если отклонение остаётся; или снять, если разделение устраняет нарушение).
+
+**Шаги:**
+1. Создать `Position` (domain, без presentation-полей).
+2. Создать `PortfolioPositionUi` (presentation) — `totalValue`, `profitPercent`, `priceChangePercent` + composition с `Position` (или дублирующие поля).
+3. Маппер `Position -> PortfolioPositionUi`.
+4. `PortfolioRepository.fetchPositionsResult` → `List<Position>`.
+5. VM: маппинг в presentation-слое (или в `PortfolioPositionUi`-фабрике во VM).
+6. Обновить 4 экрана и `AssetPositionCard`.
+7. Обновить `PositionFormatter`.
+8. Удалить `PortfolioPosition` (или переименовать в `PortfolioPositionUi` с переездом в `presentation/models/`).
+9. Обновить KDoc: `Position` без 2c-фиксации (нарушение устранено), `PortfolioPositionUi` — presentation.
+10. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** `calculateProfitPercent` остаётся (domain-функция, используется маппером или `Position`); unit-тесты не меняются. Маппер `Position -> PortfolioPositionUi` — +2–3 теста (P&L-формула, `totalValue`, `priceChangePercent`). `AssetPositionCard` Preview — обновить (2 модели).
+
+**Референсы:** `docs/clean-audit.md` → Н5. `### Рефакторинг расчёта P&L для PortfolioPosition` — P&L-формула должна быть зафиксирована до разделения. `### Обогащение name в PortfolioPosition (вариант C)` — name = ticker, временно; после разделения — в `Position` (domain).
+
+**Ограничения:** не менять `positionFlowManager.flow: SharedFlow<PositionStreamItem>` — `PositionStreamItem` — domain, остаётся. Не трогать `PortfolioRepository` (фасад) — только возвращаемый тип. Не смешивать с `### Рефакторинг расчёта P&L` (формула) и `### Обогащение name` (name-логика) — они до H5.
+
+**Критерий готовности:** `Position` — domain без presentation-полей; `PortfolioPositionUi` — presentation; `PortfolioPosition` удалён (или переименован + переехал); UI принимает `PortfolioPositionUi`; KDoc `Position` без 2c-фиксации (нарушение устранено); гейт зелёный.
+
+**Оценка:** ~4–6 ч (Position 30 мин, UI-модель + маппер 1 ч, VM 1 ч, 4 экрана + карточка 1.5 ч, PositionFormatter 30 мин, тесты 1 ч, гейт 15 мин, резерв 15 мин).
+
+**Зависимости:** H22, H1, H24, `### Рефакторинг расчёта P&L для PortfolioPosition`, `### UI: отображение blocked на валютной карточке` (или отменена).
+
+**Связано:** `docs/clean-audit.md` → Н5; `### Обогащение name в PortfolioPosition (вариант C)`; `### Рефакторинг расчёта P&L для PortfolioPosition`; `### UI: отображение blocked на валютной карточке`.
+
+**Открытые вопросы:**
+- **`PortfolioPositionUi` — composition или дублирование полей.** Composition (`Position` + presentation-поля) — меньше дублей, но UI-код через `ui.position.ticker`. Дублирование — проще для UI, но 13 полей дублируются. Рекомендация — composition, если UI готов через `.position.`.
+- **`money`/`blocked` (Н-UI-blocked):** в `Position` (domain, если станут domain-полями) или в `PortfolioPositionUi` (presentation). Зависит от решения по `### UI: отображение blocked`.
+- **Переезд `PortfolioPosition` → `PortfolioPositionUi`:** переименовать существующий класс или создать новый + удалить старый? Рекомендация — переименовать + переехать, чтобы `git log --follow` сохранил историю.
+
+
+
+---
 
 ### Полировка debug-переключателей
 
@@ -463,312 +1497,6 @@ detekt блокирует сборку (`ignoreFailures = false`), но
   по файлам/модулям. Решение — по результатам прогона.
 
 ---
-
-
-### Разбивка InvestRepository по доменным областям
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** запланировано.
-
-**Контекст.**
-
-`InvestRepository` (`data/repository/`, 357 строк, 16 функций
-по grep 2026-10-26; KDoc «17 функций» устарел) — последний
-fat-репозиторий. Уже разбиты: `InstrumentRepository`,
-`SearchCache`, `SettingsRepository`, `TradingStateRepository`.
-`InvestRepository` совмещает 4 доменные области + 2 роли:
-фасад над `BrokerApi` и точка конвертации в `PortfolioPosition`
-(domain-модель для UI) через `toPortfolioPosition`.
-
-**Clean-граница (второй слой долга).**
-
-`InvestRepository` в `data.repository.*`; 4 ViewModel импортируют
-его **напрямую**. В Clean ViewModel → domain-интерфейс, data —
-реализует. Сейчас граница слоя нарушена. Разбивка без выноса
-интерфейсов ISP не закрывает.
-
-**Потребители (grep 2026-10-26).**
-
-| Потребитель | Методы `InvestRepository` | Интерфейсы |
-|---|---|---|
-| `PortfolioViewModel` | `fetchPositionsResult`, `getTradingStatusesResult`, `getAccountsResult`, `sandboxPayInResult` | Portfolio, MarketData, Accounts |
-| `OrdersViewModel` | `getAccountsResult` (×3), `getLastPricesResult` (×2), `checkTradeAvailabilityResult`, `postStopOrderResult`, `postOrderResult`, `getBalanceResult`, `getTradingStatusesResult`, `fetchPositionsResult` | Accounts, MarketData, Orders, Portfolio (все 4) |
-| `SettingsViewModel` | `getAccountsResult`, `openSandboxAccountResult`, `closeSandboxAccountResult` | Accounts |
-| `OrdersListViewModel` | `getAccountsResult` (×2), `cancelStopOrderResult`, `cancelOrderResult` | Accounts, Orders |
-| `PriceFlowManager` | ? (импорт `InvestRepository` в конструкторе есть, `repository.` вызовов grep не нашёл — проверить на старте) | TBD |
-
-**Возможные мёртвые методы (проверить на старте Фазы 1).**
-
-- `searchInstrumentsResult` — не вызывается ни одним ViewModel
-  (`SearchCache` покрывает поиск); вероятно мёртв.
-- `subscribePositions` — не вызывается из ViewModel (менеджеры
-  ходят через `broker.subscribePositions`).
-- `subscribeLastPrices` — не вызывается из ViewModel; в
-  `PriceFlowManager` был удалён в #1 step 8 (StreamsApi);
-  вероятно мёртв.
-- `getAllOrdersResult` — не вызывается (`OrderFlowManager`
-  ходит через `broker.orders?.getOrders + getStopOrders`).
-
-Если подтверждено — удалить в Фазе 1 **до** создания
-интерфейсов (сокращает поверхность).
-
-**Цель.** 4 domain-интерфейса в `domain.api.repository.*`,
-4 data-реализации. ViewModel → domain. `InvestRepository`
-удалён. Каждый PR — зелёный, откат тривиален.
-
-**Три фазы — три PR** (по 4b: одна фаза — один логически
-завершённый шаг, зелёный гейт в конце).
-
-### Фаза 1 — domain-интерфейсы + data-реализации (без миграции)
-
-**Цель.** Новая структура работает рядом со старой.
-`InvestRepository` не тронут, потребители работают как есть.
-
-**Шаги.**
-
-1. Диагностика мёртвых методов (4 grep на весь `app/src`).
-   Удалить мёртвые из `InvestRepository` (если подтверждено).
-2. Создать 4 интерфейса в `domain/api/repository/`
-   (сигнатуры — ниже).
-3. Создать 4 `*Impl` в `data/repository/`, каждый —
-   constructor `(brokerManager: BrokerManager)`, `@Singleton`,
-   реализует интерфейс, тела методов **дословно** из
-   `InvestRepository`.
-4. `di/RepositoryModule`: 4 `@Binds` `interface -> Impl`.
-   `provideInvestRepository` **оставить** (потребители ещё
-   на нём).
-5. Гейт. PR #1.
-
-**Сигнатуры интерфейсов (только реально используемые методы;
-если мёртвые подтвердятся — не включать).**
-
-`domain/api/repository/AccountsRepository.kt`:
-
-    interface AccountsRepository {
-        suspend fun getAccountsResult(
-            brokerName: BrokerName,
-            sandboxMode: Boolean,
-        ): AppResult<List<BrokerAccount>>
-
-        suspend fun openSandboxAccountResult(
-            brokerName: BrokerName,
-        ): AppResult<String>
-
-        suspend fun closeSandboxAccountResult(
-            brokerName: BrokerName,
-            accountId: String,
-        ): AppResult<Unit>
-
-        suspend fun sandboxPayInResult(
-            accountId: String,
-            amount: SandboxMoney,
-        ): AppResult<Unit>
-    }
-
-`domain/api/repository/MarketDataRepository.kt`:
-
-    interface MarketDataRepository {
-        suspend fun getLastPricesResult(
-            ids: List<String>,
-        ): AppResult<Map<String, Double?>>
-
-        suspend fun getTradingStatusesResult(
-            brokerName: BrokerName,
-            ids: List<String>,
-        ): AppResult<Map<String, TradingAvailability>>
-
-        // searchInstrumentsResult — добавить, если окажется
-        // используемым; иначе не включать.
-    }
-
-`domain/api/repository/OrdersRepository.kt`:
-
-    interface OrdersRepository {
-        suspend fun postOrderResult(
-            request: BrokerOrderRequest,
-        ): AppResult<OrderResult>
-
-        suspend fun postStopOrderResult(
-            request: StopOrderRequest,
-        ): AppResult<String>
-
-        suspend fun cancelStopOrderResult(
-            accountId: String,
-            orderId: String,
-        ): AppResult<Unit>
-
-        suspend fun cancelOrderResult(
-            brokerName: BrokerName,
-            accountId: String,
-            orderId: String,
-        ): AppResult<Unit>
-
-        suspend fun checkTradeAvailabilityResult(
-            brokerName: BrokerName,
-            accountId: String,
-            tscalpInstrumentId: String,
-            direction: OrderDirection,
-            quantity: Long,
-        ): AppResult<TradeCheckResult>
-    }
-
-`domain/api/repository/PortfolioRepository.kt`:
-
-    interface PortfolioRepository {
-        suspend fun fetchPositionsResult(
-            brokerName: BrokerName,
-            accountId: String,
-            sandboxMode: Boolean,
-        ): AppResult<List<PortfolioPosition>>
-
-        suspend fun getBalanceResult(
-            accountId: String,
-        ): AppResult<Double>
-    }
-
-**Замечание по `PortfolioPosition`.** `PortfolioPosition` —
-domain-модель (`domain/models/Portfolio.kt`), не presentation.
-Возврат из domain-интерфейса корректен. UI-конвертация
-(`PositionStreamItem → PortfolioPosition`) — уже в
-`fetchPositionsResult` через `toPortfolioPosition()` (#9).
-
-**Оценка Фазы 1:** ~2–2.5 ч.
-
-### Фаза 2 — миграция потребителей, удаление InvestRepository
-
-**Цель.** Все потребители на domain-интерфейсах,
-`InvestRepository.kt` удалён.
-
-**Шаги.**
-
-1. Мигрировать по одному (порядок — по простоте):
-   - `SettingsViewModel` (1 интерфейс — `AccountsRepository`);
-   - `OrdersListViewModel` (2 — `Accounts`, `Orders`);
-   - `PortfolioViewModel` (3 — `Portfolio`, `MarketData`,
-     `Accounts`);
-   - `OrdersViewModel` (4 — все).
-   Каждый — свой коммит, гейт после каждого.
-2. `PriceFlowManager`: если `repository` не используется —
-   удалить параметр из конструктора; если используется —
-   мигрировать на `MarketDataRepository`.
-3. Удалить `InvestRepository.kt`.
-4. `RepositoryModule`: удалить `provideInvestRepository`.
-5. Гейт. PR #2.
-
-**Оценка Фазы 2:** ~2 ч.
-
-### Фаза 3 — cleanup
-
-**Шаги.**
-
-1. KDoc `BrokerApi` — заменить упоминания `InvestRepository`
-   на актуальные (`OrdersRepository`, `PortfolioRepository`,
-   `AccountsRepository`, `MarketDataRepository`).
-2. `docs/architecture.md` (при создании) — учесть 4
-   domain-интерфейса.
-3. Гейт. PR #3.
-
-**Оценка Фазы 3:** ~30 мин.
-
-**Файлы (по фазам).**
-
-Фаза 1:
-- `domain/api/repository/{Accounts,MarketData,Orders,Portfolio}Repository.kt`
-  (новые).
-- `data/repository/{Accounts,MarketData,Orders,Portfolio}RepositoryImpl.kt`
-  (новые).
-- `data/repository/InvestRepository.kt` — удалить мёртвые методы
-  (если подтверждено).
-- `di/RepositoryModule.kt` — 4 `@Binds`.
-
-Фаза 2:
-- 4 ViewModel + `PriceFlowManager` — конструктор + импорты.
-- `data/repository/InvestRepository.kt` — удалить.
-- `di/RepositoryModule.kt` — удалить `provideInvestRepository`.
-
-Фаза 3:
-- `domain/api/BrokerApi.kt` — KDoc.
-
-**Тесты.**
-
-Unit-тестов на репозитории нет (`InvestRepositoryTest` не
-существует). Миграция — чистый рефакторинг, поведение не
-меняется. Гейт (`testDebugUnitTest / lintDebug / ktlintCheck /
-detekt`) — доказательство неизменности. Если в ходе миграции
-обнаружится новая логика — точечный тест в соответствующем
-data-репозитории.
-
-**Референсы.**
-- `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга
-  (detekt-группа 3)` → `#### Репозитории` — ref.
-- `docs/ROADMAP.md` → `### Рефакторинг ролей BrokerApi
-  (nullable-val, Scenario2)` — паттерн nullable-val в
-  `domain.api`.
-- `app/src/main/kotlin/.../di/RepositoryModule.kt` — текущий
-  биндинг.
-
-**Ограничения.**
-- Не менять поведение репозиториев — только структуру.
-- Не смешивать с `SettingsRepository` (15 функций) — отдельная
-  задача (по 2d).
-- Не смешивать с #11 (уборка реализаций `BrokerApi`) — там
-  `data/api` (брокеры), здесь `data/repository` (фасады).
-- **`InvestRepository` — осознанное отклонение по 2c** (fat для
-  мультиброкерного фасада, зафиксировано в KDoc `BrokerApi`).
-  Разбивка **не устраняет** отклонение полностью: 4 репозитория
-  тоже фасады над `BrokerApi`. Главная выгода — Clean-граница
-  (ViewModel → domain), не удаление фасада. Clean-альтернатива —
-  супертипы + resolver (отклонена в `BrokerApi` KDoc).
-- Другие репозитории (`SettingsRepository`,
-  `InstrumentRepository`, `SearchCache`,
-  `TradingStateRepository`) остаются на прямых data-зависимостях
-  от ViewModel — это **отдельный** Clean-долг, не в scope.
-- Полный локальный гейт перед каждым PR (5a).
-
-**Критерий готовности.**
-- 4 domain-интерфейса в `domain.api.repository.*`.
-- 4 data-реализации в `data.repository.*`.
-- 4 ViewModel + `PriceFlowManager` инжектят domain-интерфейсы.
-- `grep "import com.gitlab.biomorf.tscalp.data.repository.InvestRepository"`
-  в `presentation/` и `domain/` — пусто.
-- `InvestRepository.kt` удалён.
-- KDoc `BrokerApi` обновлён (нет висячих ссылок).
-- Гейт зелёный.
-
-**Оценка:** ~5–6 ч (Фаза 1 — 2–2.5 ч, Фаза 2 — 2 ч,
-Фаза 3 — 30 мин, резерв — 30 мин). Старая `~2 часа` в
-`#### Репозитории` устарела (без Clean-границы и миграции
-ViewModel).
-
-**Зависимости:**
-- **После** `### Рефакторинг BrokerApi-реализаций` (#11) —
-  `BrokerApi` в финальном виде.
-- **До** KMP-миграции — обязательное условие (data может быть
-  Android-only, domain-интерфейсы — KMP).
-
-**Связано:**
-- `### Рефакторинг архитектурного долга (detekt-группа 3)`
-  → `#### Репозитории` — ref.
-- `### Рефакторинг ролей BrokerApi (nullable-val,
-  Scenario2)` — параллельная работа в `domain.api`.
-- `docs/architecture.md` — раздел 1 при создании.
-
-**Открытые вопросы.**
-- `PriceFlowManager`: параметр `repository: InvestRepository`
-  в конструкторе, но вызовов `repository.` нет (grep
-  2026-10-26). Если unused — удалить в Фазе 2 (не мигрировать).
-- `searchInstrumentsResult`, `subscribePositions`,
-  `subscribeLastPrices`, `getAllOrdersResult` — вероятно мёртвы.
-  Проверить на старте Фазы 1 (перед созданием интерфейсов).
-- Sandbox — в `AccountsRepository` (счета + sandbox) или
-  отдельный репозиторий? Рекомендация: в `AccountsRepository`
-  (близкие домены: оба про «счёт»).
-- `SettingsRepository` (15 функций) — отдельная задача, не в
-  scope.
-
----
-
 
 
 ### Архитектурный документ (docs/architecture.md)
