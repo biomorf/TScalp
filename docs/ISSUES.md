@@ -500,6 +500,15 @@ INVALID_ARGUMENT (битый запрос) — retry вечно каждые 60s
 
 **Файлы:** `data/api/TInvestMarketDataService.kt`.
 
+**Касается также:** `domain/api/StreamCombinators.kt` —
+`retryWithBackoff` (в `TInvestOrchestrator`, единственный
+потребитель — grep 2026-10-27). Там **нет** проверки
+non-retryable вообще: при `UNAUTHENTICATED` / `NOT_FOUND` /
+`PERMISSION_DENIED` / `INVALID_ARGUMENT` — вечный retry-loop
+с backoff до 60s. Фикс — тот же (классификация по
+`Status.fromThrowable(e).code`). См. `docs/clean-audit.md` ->
+L4-Н32.
+
 **Когда вернуться:** вместе с предыдущей записью.
 
 ---
@@ -583,6 +592,15 @@ T-Invest `subscribeLastPrices` не пустой. Латентный: стане
 ошибку (ретрай с delay).
 
 **Файлы:** `domain/api/PriceFlowManager.kt`.
+
+**Касается также:** `domain/api/StreamCombinators.kt` —
+`retryWithBackoff`. При normal completion
+(`source().collect { emit(it) }` вернулся без исключения)
+`attempt = 0`, новый цикл **без delay** -> busy loop, если
+source возвращается мгновенно-пустым (сервер закрыл стрим,
+gRPC завершился нормально). Фикс — тот же (delay при
+отсутствии эмиссии / первый шаг с задержкой). См.
+`docs/clean-audit.md` -> L4-Н32.
 
 **Когда вернуться:** при добавлении BCS / Finam в
 `PriceFlowManager`, или при жалобах на батарею в фоновом режиме.
