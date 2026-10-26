@@ -101,6 +101,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L7-part1:** подтверждается — полный L7 показал 3 находки (Н35–Н37); `BrokerManager` — единственная утечка `di/` наружу (10 файлов). Дизайн `BrokerRegistry` уточняется: `BrokerRegistryImpl(brokers: Set<BrokerApi>)`, порядок из `BrokerName.entries`, `refreshInitializationState` — открытый вопрос (см. L7-Н29).
 
+**Анализ L5-Н40:** подтверждается — L5 (3 менеджера) показал, что `di.BrokerManager` протекает шире: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8) = 10 потребителей.
+
 **Ссылка на задачу:** — (не заведена).
 
 ### Н1. Presentation конструирует PortfolioPosition
@@ -132,6 +134,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Clean-альтернатива:** `domain.api.DebugFlagsRepository` с геттерами/сеттерами; реализация — `data.orchestrator.DebugConfig` за интерфейсом. Плюсы: presentation → domain.api. Минусы: ~30 мин правок.
 
 **Выгоды:** —
+
+**Анализ L5-Н38:** подтверждается — `DebugConfig` протекает в `PriceFlowManager` (L5), не только в `SettingsViewModel` (L1). Нарушение шире, чем presentation.
 
 **Ссылка на задачу:** — (не заведена). Связано с закрытыми `### Debug-тумблеры` и `### DebugConfig: только для debug-сборок` (функционал работает; переезд API — отдельная задача).
 
@@ -229,6 +233,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Clean-альтернатива:** `data/error/AppErrorMapper.kt` (или per-broker: `data/api/TInvestErrorMapper.kt`, `BcsErrorMapper.kt`, `FinamErrorMapper.kt` — по образцу `### Классификатор ошибок` в ROADMAP). Плюсы: transport-зависимости в data. Минусы: переезд + правка импортов в data + domain (если domain использует `toAppError`).
 
 **Выгоды:** одна функция для всех слоёв, единая точка логирования ошибок. Долг частично зафиксирован в KDoc (`@Suppress("LongMethod", "CyclomaticComplexMethod")` + ссылка на `### Рефакторинг классификатора ошибок`). Но **архитектурное** нарушение (gRPC в `util`) в 2c **не зафиксировано**.
+
+**Анализ L5-Н39:** подтверждается — `toAppError` используется в `PriceFlowManager` (L5), не только в data. Domain видит io.grpc через `util` транзитивно.
 
 **Ссылка на задачу:** `#### Классификатор ошибок` в `### Рефакторинг архитектурного долга (detekt-группа 3)` (про декомпозицию; про переезд — задача не заведена).
 
@@ -552,9 +558,82 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ## L5 — domain/managers
 
-**Статус:** не проверено.
+**Краткая таблица:**
 
-Заполняется по мере инспекции `domain/managers/*.kt`.
+| ID | Серьёзность | Затрагиваемые уровни | Локализация |
+|---|---|---|---|
+| Н38. PriceFlowManager → data.orchestrator.DebugConfig | критично | L5, L6 | `PriceFlowManager.kt` |
+| Н39. PriceFlowManager → util.toAppError | высоко | L5, L2 | `PriceFlowManager.kt` |
+| Н40. Менеджеры → di.BrokerManager | критично | L5, L7 | 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) |
+| Н41. Хардкод BrokerName.TINVEST в менеджерах | средне | L5 | 3 менеджера |
+
+### Н38. PriceFlowManager → data.orchestrator.DebugConfig
+
+**Статус:** открыто.
+
+**Серьёзность:** критично.
+
+**Описание:** `PriceFlowManager.kt` импортирует `data.orchestrator.DebugConfig`, использует в `collectStream` (`if (DebugConfig.disableGrpc && DebugConfig.disableWs) return`). Менеджер (domain) зависит от data.
+
+**Нарушенное правило Clean:** dependency rule — domain зависит от data.
+
+**Clean-альтернатива:** `DebugFlagsRepository` (domain-интерфейс, из Н23). Менеджер инжектит интерфейс, реализация — `DebugConfig` за `@Binds`. Плюсы: domain не видит data. Минусы: правка `PriceFlowManager` (1 callsite) + H23.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с H23** (`DebugFlagsRepository`).
+
+### Н39. PriceFlowManager → util.toAppError
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `PriceFlowManager.kt` импортирует `util.toAppError`, использует в `runPolling` (`AppLogger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)`). `toAppError` живёт в `util/AppResultExtensions.kt` и импортирует `io.grpc.StatusException`. Domain видит io.grpc транзитивно.
+
+**Нарушенное правило Clean:** dependency rule — domain видит io.grpc через `util`.
+
+**Clean-альтернатива:** `AppErrorMapper` в data (Н20). `PriceFlowManager` инжектит `AppErrorMapper` (или `Logger` с `AppError`-конвертацией). Плюсы: domain без gRPC. Минусы: инъекция в менеджер.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с H20** (`AppErrorMapper` в data).
+
+### Н40. Менеджеры → di.BrokerManager
+
+**Статус:** открыто.
+
+**Серьёзность:** критично.
+
+**Описание:** все три менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую через конструктор. Domain-слой зависит от `di/`.
+
+**Нарушенное правило Clean:** dependency rule — domain зависит от `di`.
+
+**Clean-альтернатива:** `BrokerRegistry` (domain-интерфейс, дизайн в L7-Н22/Н29). Менеджеры инжектят `BrokerRegistry`. Плюсы: domain чист. Минусы: правка 3 менеджеров.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с H22, H29**.
+
+### Н41. Хардкод BrokerName.TINVEST в менеджерах
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `PositionFlowManager.doStart`, `OrderFlowManager.doStart` — `brokerManager.getBroker(BrokerName.TINVEST)`; `PriceFlowManager.collectStream` + `runPolling` — `BrokerName.TINVEST` (локальные val). «Работаем только с T-Invest» захардкожено в domain/managers. При появлении BCS/Finam позиций/цен/заявок — рефакторинг всех трёх.
+
+**Нарушенное правило Clean:** domain-знание «единственный брокер = T-Invest» в менеджерах, не в конфигурации.
+
+**Clean-альтернатива:** менеджер получает `BrokerName` из состояния (текущий счёт определяет брокера), либо мультиброкерная агрегация (несколько источников). Плюсы: готово к мультиброкерности. Минусы: правка всех трёх менеджеров (~3–4 ч).
+
+**Выгоды:** KISS — до появления BCS/Finam работа только с T-Invest достаточна.
+
+**Ссылка на задачу:** — (не заведена). Связано с `### Реализация BCS Broker API` / `### Реализация Finam Broker API`.
+
+### Исправленные (L5)
+
+[пусто]
 
 ## L6 — data
 
@@ -590,6 +669,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Анализ L7-part1:** подтверждается — `BrokerManager` — единственная утечка `di/` наружу (10 файлов, grep 2026-10-27). Плюс: `provideBrokerManager` содержит domain-конфигурацию (список брокеров, порядок вкладок) — расширяет Н29 до «`BrokerManager` + его конфигурация в `di/`». См. Н35.
 
 **Открытый вопрос (H22):** `refreshInitializationState` — `internal` в `BrokerRegistryImpl` (concrete type протекает наружу) или `fun refreshInitializationState()` в интерфейсе `BrokerRegistry` (side-effect в domain-интерфейсе) или автоматически в `BrokerLifecycleApi.initialize` (циклическая зависимость). Решение — при выполнении H22.
+
+**Анализ L5-Н40:** подтверждается — 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) — часть списка потребителей `di.BrokerManager` (10 файлов). См. L5-Н40.
 
 **Ссылка на задачу:** — (не заведена). Связано с L1-Н22 (`BrokerRegistry`), частично уточняет.
 
