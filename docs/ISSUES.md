@@ -472,6 +472,15 @@ handshake проходит за миллисекунды.
 
 **Файлы:** `data/api/TInvestMarketDataService.kt`.
 
+**Касается также:** `domain/api/managers/PositionFlowManager.kt` —
+`runPolling` использует тот же pattern
+`e.message?.contains("NOT_FOUND") == true` (остановка polling
+при удалённом счёте). При изменении формата `e.message`
+проверка молча перестанет срабатывать — polling продолжит
+крутиться на удалённом счёте. Фикс — тот же:
+`Status.fromThrowable(e).code == Status.Code.NOT_FOUND`.
+Найдено при аудите L5 (`docs/clean-audit.md`).
+
 **Когда вернуться:** при следующей сессии на десктопе, ветка
 `bugfix/grpc-error-classification`.
 
@@ -604,6 +613,37 @@ gRPC завершился нормально). Фикс — тот же (delay �
 
 **Когда вернуться:** при добавлении BCS / Finam в
 `PriceFlowManager`, или при жалобах на батарею в фоновом режиме.
+
+---
+
+## PriceFlowManager.runPolling swallows CancellationException
+
+**Статус:** открыт.
+
+**Симптом:** в `PriceFlowManager.runPolling` единственный
+`catch (e: Exception)` без предшествующего
+`catch (e: CancellationException) { throw e }`.
+`CancellationException` перехватывается и логируется как
+«REST poll failed», затем цикл выходит по
+`while (currentCoroutineContext().isActive)`, но сигнал
+отмены родителю не пробрасывается — менеджер останавливается
+«тихо», без propagation.
+
+**Причина:** нет `catch (e: CancellationException) { throw e }`
+перед общим `catch (e: Exception)`, как в
+`PositionFlowManager.runPolling` и `OrderFlowManager.runPolling`.
+
+**Решение:** добавить `catch (e: CancellationException) { throw e }`
+перед общим `catch (e: Exception)` в `runPolling`.
+
+**Файлы:** `domain/api/managers/PriceFlowManager.kt`, метод
+`runPolling`.
+
+**Связанные:** `docs/clean-audit.md` -> L5-Н39 (та же функция
+`runPolling` переписывается при выносе `toAppError` из domain).
+
+**Когда вернуться:** при следующей правке `PriceFlowManager`,
+или вместе с L5-Н39.
 
 ---
 
