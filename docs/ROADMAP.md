@@ -9,6 +9,149 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 ## Планируемые задачи
 
+### Полировка debug-переключателей
+
+**Мобильная работа:** невозможно (требует сборки и визуальной
+проверки на устройстве).
+
+**Статус:** запланировано.
+
+**Контекст:** в рамках задачи «Ktor REST transport для polling»
+добавлены три независимых тумблера (gRPC, WS, REST) для
+динамической проверки транспортов. Проверены базовые сценарии
+(bypass REST, отключение gRPC/WS). Однако не проверены все 8
+возможных комбинаций, особенно при резких переключениях
+(race conditions, корректность жизненного цикла корутин,
+залипание состояний).
+
+**Триггер:** обнаружение аномалий (зависания, лишние
+переподключения, дубли логов) в следующих задачах (например,
+`GrpcExceptionGuard`). **Триггер сработал (2026-10-22):** дубли
+подключений (gRPC и WS) в logcat при старте приложения — см.
+`docs/ISSUES.md` → «Race в start/stop *FlowManager —
+дублирование стримов».
+
+**Файлы:**
+- `presentation/screens/settings/SettingsViewModel.kt`
+- `presentation/screens/settings/SettingsScreen.kt`
+- `domain/api/PriceFlowManager.kt`
+- `domain/api/PositionFlowManager.kt`
+
+**Шаги:**
+1. Прогнать все 8 комбинаций тумблеров.
+2. Исправить найденные race conditions.
+3. Добавить сохранение состояния тумблеров в DataStore
+   (опционально).
+
+**Находка из live-теста 2026-10-22 (PR #35,
+`settingsvm-duplicate-init`):** проверка `forceRest` требует
+**непустого union** цен — быть на экране «Заявки» или
+«Портфель», не в «Настройках». Иначе
+`PriceFlowManager.restart(emptySet())` ничего не запускает,
+ветка `forceRest` не проверяется (в логе — `Union empty,
+gRPC stream stopped`). Покрыто отдельно в live-тесте PR #34
+(`pricesSnapshot: forceRest=true` → `TInvestRest: POST
+.../GetLastPrices` → `[manager/polling]`). При прогоне
+8 комбинаций — учитывать: сначала открыть экран с
+активными ценами, потом переключать.
+
+**Оценка:** ~1–2 часа.
+
+**Зависимости:** нет. Разблокирована — фикс race в
+`reapplyDebugFlags` в `dev` (PR #34). См.
+`docs/ROADMAP.md` → закрытая «Race в start/stop `*FlowManager`».
+
+
+
+---
+
+### Установка GrpcExceptionGuard
+
+**Мобильная работа:** невозможно (требует сборки и проверки
+краша на устройстве/эмуляторе).
+
+**Статус:** в работе.
+**Подтверждение:** ожидает (PR #33 merged, ветка удалена;
+AppMetrica, 2–3 дня после релиза; критерий: нет новых fatal
+`io.grpc.StatusException`, появились non-fatal
+`"Unhandled gRPC"`; детали — «Критерий закрытия» ниже).
+**Триггер сработал (2026-10-21):** AppMetrica зафиксировала
+краш `io.grpc.StatusException`.
+
+**Контекст:** `io.grpc.kotlin.ClientCalls` при ошибке канала
+доставляет `StatusException` через поздний callback в уже
+завершённую suspend-корутину. Доставить некому → исключение
+уходит в `Thread.getDefaultUncaughtExceptionHandler()` →
+kill process. `CoroutineExceptionHandler` и `.catch { }` не
+помогают.
+
+**Файлы:**
+- `app/src/main/kotlin/.../TScalpApplication.kt` — установка
+  глобального `UncaughtExceptionHandler`.
+
+**Шаги:**
+1. В `TScalpApplication.onCreate` обернуть оригинальный
+   `Thread.getDefaultUncaughtExceptionHandler()`.
+2. Если `throwable is StatusException || throwable is StatusRuntimeException`:
+   - логировать через `AppLogger.e` (с расшифровкой из
+     `TInvestErrorMessages`);
+   - отправить в AppMetrica как **нефатальную** ошибку
+     (`AppMetrica.reportError("Unhandled gRPC", throwable)`);
+   - **не пробрасывать** дальше в оригинальный handler
+     (приложение выживает).
+3. Иначе — пробросить в оригинальный handler (пусть падает
+   как обычно).
+4. Проверка: включить авиарежим на эмуляторе, дождаться
+   gRPC-ошибки, убедиться, что приложение не падает, а в
+   логах есть запись об ошибке.
+
+**Ограничения:**
+- Не глотать ошибку молча — обязательно логировать и
+  отправлять в AppMetrica. Иначе скроем реальные сетевые
+  проблемы (см. `docs/ISSUES.md`).
+- Не перехватывать `CancellationException` — это штатная
+  отмена, она не должна попадать в handler.
+
+**Критерий готовности:**
+- Приложение не падает при gRPC-ошибках в фоне.
+- Ошибки видны в AppMetrica (как non-fatal) и в логах.
+- Остальные краши (не gRPC) по-прежнему валят приложение и
+  видны в AppMetrica.
+
+**Live-смоук (2026-10-22, эмулятор Pixel 8a, Android 14):**
+- Guard установлен, старт приложения не сломан
+  (`initAppMetrica` → `installGrpcExceptionGuard`, порядок
+  сохраняет fatal-reпортинг AppMetrica).
+- Авиарежим → `UNAVAILABLE` во всех стримах; guard молчит
+  (штатные ошибки ловятся в своих корутинах — `try/catch`,
+  `.catch` — до глобального handler не доходят). Ожидаемое
+  поведение.
+- Возврат сети → gRPC-reconnect и WS-reconnect, данные
+  пошли, приложение живо.
+- `AndroidRuntime: FATAL EXCEPTION` — нет.
+- Исходный race (`ClientCalls` доставляет `StatusException`
+  в уже завершённую корутину) по команде не воспроизводится —
+  этим смоуком не проверялся. Регрессий не внёс, но и
+  доказательством работы guard не является.
+
+**Критерий закрытия:** наблюдение AppMetrica 2–3 дня после
+релиза. Задача подтверждена, если одновременно:
+- не появляются новые **fatal** `io.grpc.StatusException`;
+- появляются **non-fatal** `"Unhandled gRPC"` (из
+  `AppMetrica.reportError` в guard).
+
+Если оба условия выполнены — `docs(roadmap): mark
+grpc-exception-guard done`. Если появились новые fatal —
+guard не срабатывает, разбираться отдельно.
+
+**Оценка:** ~1 час.
+
+
+
+---
+
+
+
 ---
 
 ### Live-test Broker lifecycle API: BCS/Finam
@@ -2063,7 +2206,7 @@ Finam в UI.
 
 ### Расшифровка кодов ошибок брокеров
 
-**Статус:** частично закрыто.
+**Статус:** в работе.
 
 **Сделано:**
 - `util/BrokerErrorMessages.kt` — центральный реестр
@@ -2690,14 +2833,7 @@ REST-метод, доведённый до production в этой задаче. 
 **Что НЕ вошло (вынесено в отдельные задачи):**
 - REST для позиций / заявок / баланса — см.
   `### Ktor REST для позиций/заявок/баланса`.
-- Миграция BCS на Ktor — см. `### Миграция BCS на Ktor`
-  (отложено, приоритет — T-Invest).
-
-**Гейт:** `testDebugUnitTest / lintDebug / ktlintCheck /
-detekt` — зелёные.
-
-
-
+- Миграция BCS на Ktor — см. `
 ---
 
 
@@ -2809,59 +2945,6 @@ start/stop `*FlowManager`» в `dev` (PR #34), тест проверяет
   старте.
 - Нужны ли фейки для `BrokerManager` или хватит `emptyMap()`
   + мокнутого брокера. Уточнить при написании первого теста.
-
-
-### Полировка debug-переключателей
-
-**Мобильная работа:** невозможно (требует сборки и визуальной
-проверки на устройстве).
-
-**Статус:** запланировано.
-
-**Контекст:** в рамках задачи «Ktor REST transport для polling»
-добавлены три независимых тумблера (gRPC, WS, REST) для
-динамической проверки транспортов. Проверены базовые сценарии
-(bypass REST, отключение gRPC/WS). Однако не проверены все 8
-возможных комбинаций, особенно при резких переключениях
-(race conditions, корректность жизненного цикла корутин,
-залипание состояний).
-
-**Триггер:** обнаружение аномалий (зависания, лишние
-переподключения, дубли логов) в следующих задачах (например,
-`GrpcExceptionGuard`). **Триггер сработал (2026-10-22):** дубли
-подключений (gRPC и WS) в logcat при старте приложения — см.
-`docs/ISSUES.md` → «Race в start/stop *FlowManager —
-дублирование стримов».
-
-**Файлы:**
-- `presentation/screens/settings/SettingsViewModel.kt`
-- `presentation/screens/settings/SettingsScreen.kt`
-- `domain/api/PriceFlowManager.kt`
-- `domain/api/PositionFlowManager.kt`
-
-**Шаги:**
-1. Прогнать все 8 комбинаций тумблеров.
-2. Исправить найденные race conditions.
-3. Добавить сохранение состояния тумблеров в DataStore
-   (опционально).
-
-**Находка из live-теста 2026-10-22 (PR #35,
-`settingsvm-duplicate-init`):** проверка `forceRest` требует
-**непустого union** цен — быть на экране «Заявки» или
-«Портфель», не в «Настройках». Иначе
-`PriceFlowManager.restart(emptySet())` ничего не запускает,
-ветка `forceRest` не проверяется (в логе — `Union empty,
-gRPC stream stopped`). Покрыто отдельно в live-тесте PR #34
-(`pricesSnapshot: forceRest=true` → `TInvestRest: POST
-.../GetLastPrices` → `[manager/polling]`). При прогоне
-8 комбинаций — учитывать: сначала открыть экран с
-активными ценами, потом переключать.
-
-**Оценка:** ~1–2 часа.
-
-**Зависимости:** нет. Разблокирована — фикс race в
-`reapplyDebugFlags` в `dev` (PR #34). См.
-`docs/ROADMAP.md` → закрытая «Race в start/stop `*FlowManager`».
 
 
 
@@ -3891,117 +3974,6 @@ TInvest 20, BCS/Finam 10, managers 30, KDoc 15, тесты 30,
   lintDebug / ktlintCheck / detekt`.
 
 ---
-
-### Миграция BCS на Ktor
-
-**Мобильная работа:** невозможно (сборка и проверка на
-реальных данных).
-
-**Статус:** отложено.
-
-**Контекст:** `BcsBrokerApi` работает на отдельном
-`OkHttpClient()` (без shared `CustomTrustManager`). В задаче
-«Ktor REST transport для polling» планировалась фаза 3 —
-перевод BCS на Ktor, единый HTTP-клиент для всех REST-брокеров.
-
-**Причина отложенности:** BCS не блокирует текущую работу —
-работает на OkHttp, TLS на стандартных CA. Приоритет —
-T-Invest (там REST-fallback для всех методов ещё не готов).
-Отдельная миграция BCS добавляет риск без прямого benefit.
-
-**Когда возобновить:**
-- при интеграции BCS WS (WS на Ktor уже используется —
-  логично унифицировать клиент);
-- при первой жалобе на TLS BCS (см. `docs/ISSUES.md` →
-  «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager»);
-- при появлении третьего брокера (Finam), где Ktor уже
-  обязателен — тогда унифицировать сразу все.
-
-**Оценка:** ~2 часа.
-
-**Зависимости:** нет.
-
-
-### Установка GrpcExceptionGuard
-
-**Мобильная работа:** невозможно (требует сборки и проверки
-краша на устройстве/эмуляторе).
-
-**Статус:** в работе.
-**Подтверждение:** ожидает (PR #33 merged, ветка удалена;
-AppMetrica, 2–3 дня после релиза; критерий: нет новых fatal
-`io.grpc.StatusException`, появились non-fatal
-`"Unhandled gRPC"`; детали — «Критерий закрытия» ниже).
-**Триггер сработал (2026-10-21):** AppMetrica зафиксировала
-краш `io.grpc.StatusException`.
-
-**Контекст:** `io.grpc.kotlin.ClientCalls` при ошибке канала
-доставляет `StatusException` через поздний callback в уже
-завершённую suspend-корутину. Доставить некому → исключение
-уходит в `Thread.getDefaultUncaughtExceptionHandler()` →
-kill process. `CoroutineExceptionHandler` и `.catch { }` не
-помогают.
-
-**Файлы:**
-- `app/src/main/kotlin/.../TScalpApplication.kt` — установка
-  глобального `UncaughtExceptionHandler`.
-
-**Шаги:**
-1. В `TScalpApplication.onCreate` обернуть оригинальный
-   `Thread.getDefaultUncaughtExceptionHandler()`.
-2. Если `throwable is StatusException || throwable is StatusRuntimeException`:
-   - логировать через `AppLogger.e` (с расшифровкой из
-     `TInvestErrorMessages`);
-   - отправить в AppMetrica как **нефатальную** ошибку
-     (`AppMetrica.reportError("Unhandled gRPC", throwable)`);
-   - **не пробрасывать** дальше в оригинальный handler
-     (приложение выживает).
-3. Иначе — пробросить в оригинальный handler (пусть падает
-   как обычно).
-4. Проверка: включить авиарежим на эмуляторе, дождаться
-   gRPC-ошибки, убедиться, что приложение не падает, а в
-   логах есть запись об ошибке.
-
-**Ограничения:**
-- Не глотать ошибку молча — обязательно логировать и
-  отправлять в AppMetrica. Иначе скроем реальные сетевые
-  проблемы (см. `docs/ISSUES.md`).
-- Не перехватывать `CancellationException` — это штатная
-  отмена, она не должна попадать в handler.
-
-**Критерий готовности:**
-- Приложение не падает при gRPC-ошибках в фоне.
-- Ошибки видны в AppMetrica (как non-fatal) и в логах.
-- Остальные краши (не gRPC) по-прежнему валят приложение и
-  видны в AppMetrica.
-
-**Live-смоук (2026-10-22, эмулятор Pixel 8a, Android 14):**
-- Guard установлен, старт приложения не сломан
-  (`initAppMetrica` → `installGrpcExceptionGuard`, порядок
-  сохраняет fatal-reпортинг AppMetrica).
-- Авиарежим → `UNAVAILABLE` во всех стримах; guard молчит
-  (штатные ошибки ловятся в своих корутинах — `try/catch`,
-  `.catch` — до глобального handler не доходят). Ожидаемое
-  поведение.
-- Возврат сети → gRPC-reconnect и WS-reconnect, данные
-  пошли, приложение живо.
-- `AndroidRuntime: FATAL EXCEPTION` — нет.
-- Исходный race (`ClientCalls` доставляет `StatusException`
-  в уже завершённую корутину) по команде не воспроизводится —
-  этим смоуком не проверялся. Регрессий не внёс, но и
-  доказательством работы guard не является.
-
-**Критерий закрытия:** наблюдение AppMetrica 2–3 дня после
-релиза. Задача подтверждена, если одновременно:
-- не появляются новые **fatal** `io.grpc.StatusException`;
-- появляются **non-fatal** `"Unhandled gRPC"` (из
-  `AppMetrica.reportError` в guard).
-
-Если оба условия выполнены — `docs(roadmap): mark
-grpc-exception-guard done`. Если появились новые fatal —
-guard не срабатывает, разбираться отдельно.
-
-**Оценка:** ~1 час.
 
 
 ---
