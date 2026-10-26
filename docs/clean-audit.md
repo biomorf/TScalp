@@ -236,6 +236,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L5-Н39:** подтверждается — `toAppError` используется в `PriceFlowManager` (L5), не только в data. Domain видит io.grpc через `util` транзитивно.
 
+**Анализ L6-Н20:** подтверждается — `runCatchingAppResult` используется в data (`InvestRepository`, 14 callsites). Переезд `AppResultExtensions` в `data/error/` обоснован: 14 из ~20 callsites уже в data.
+
 **Ссылка на задачу:** `#### Классификатор ошибок` в `### Рефакторинг архитектурного долга (detekt-группа 3)` (про декомпозицию; про переезд — задача не заведена).
 
 ### Н17. TradePhrases — Compose в util
@@ -439,6 +441,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L4-part2:** подтверждается — анализ L4-part2 (6 ролей) уточнил: 16 из 19 fat-методов полностью дублируют nullable-val роли, 1 (`getLastPricesByTscalpInstrumentId`) — частичный дубль `pricesSnapshot`, 2 (`fetchPortfolioPositions`, `checkTradeAvailability`) не дублируют.
 
+**Анализ L6-Н45:** подтверждается — `InvestRepository` использует 4 fat-метода (не 19): `getLastPricesByTscalpInstrumentId`, `fetchPortfolioPositions`, `checkTradeAvailability`, `subscribePositions` (дубль `streams?.subscribePositions`). Остальные 12 — через nullable-val роли.
+
 **Ссылка на задачу:** — (не заведена). Пересмотр — в рамках `### Рефакторинг ролей BrokerApi` (закрыта), новая задача не заведена.
 
 ### Н26. BrokerLifecycleApi — не 2c-фиксация
@@ -635,11 +639,93 @@ L4–L8 — не проверены, заполняются по мере инс
 
 [пусто]
 
-## L6 — data
+## L6 — data/repository
 
-**Статус:** не проверено.
+**Краткая таблица:**
 
-Заполняется по мере инспекции `data/repository/`, `data/api/`, `data/orchestrator/`.
+| ID | Серьёзность | Затрагиваемые уровни | Локализация |
+|---|---|---|---|
+| Н44. data/repository/* → di.BrokerManager | критично | L6, L7 | 3 файла: `SearchCache.kt`, `InstrumentRepository.kt`, `InvestRepository.kt` |
+| Н45. InvestRepository использует 4 fat-метода BrokerApi | высоко | L6, L4 | `InvestRepository.kt` |
+| Н46. SearchCache.search бросает IllegalArgumentException | средне | L6, L1 | `SearchCache.kt` |
+| Н47. SearchCache.search — избыточный withContext(Dispatchers.IO) | низко | L6 | `SearchCache.kt` |
+
+**Соответствуют Clean (data-only, никаких утечек):**
+`TradingStateRepository`, `SettingsRepository`.
+
+### Н44. data/repository/* → di.BrokerManager
+
+**Статус:** открыто.
+
+**Серьёзность:** критично.
+
+**Описание:** `SearchCache`, `InstrumentRepository`, `InvestRepository` инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` через конструктор. Data-слой зависит от `di/`.
+
+**Нарушенное правило Clean:** dependency rule — data зависит от `di`.
+
+**Clean-альтернатива:** `BrokerRegistry` (domain-интерфейс, дизайн в L7-Н22/Н29). 3 репозитория инжектят `BrokerRegistry`. Плюсы: data → domain. Минусы: правка 3 файлов.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с H22, H29**.
+
+### Н45. InvestRepository использует 4 fat-метода BrokerApi
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `InvestRepository` вызывает 4 fat-метода `BrokerApi`:
+- `broker.getLastPricesByTscalpInstrumentId(ids)` — `getLastPricesResult`;
+- `broker.fetchPortfolioPositions(accountId, sandboxMode)` — `fetchPositionsResult`;
+- `broker.checkTradeAvailability(...)` — `checkTradeAvailabilityResult`;
+- `broker.subscribePositions(accountId)` — `subscribePositions` (дубль: есть `streams?.subscribePositions`).
+
+Остальные 12 методов — через nullable-val роли. KDoc `BrokerApi` говорит «`InvestRepository` — фасад на fat `BrokerApi`, 29 callsites, использует все» — фактически использует 4 fat-метода, остальное через роли.
+
+**Нарушенное правило Clean:** Interface Segregation — `InvestRepository` зависит от fat `BrokerApi` ради 4 методов.
+
+**Clean-альтернатива (по H25):** выделить `PortfolioApi` (`fetchPortfolioPositions`), `MarketDataApi` (`getLastPricesByTscalpInstrumentId`), `TradeApi` (`checkTradeAvailability`); `subscribePositions` — на `streams?.subscribePositions`. `InvestRepository` инжектит роли. Плюсы: полный ISP. Минусы: 4 callsite правок в `InvestRepository` + новые роли.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с H25**.
+
+### Н46. SearchCache.search бросает IllegalArgumentException
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `SearchCache.search` при ненайденном брокере: `throw IllegalArgumentException("Брокер … не найден")`. Остальные методы `InvestRepository` / data — возвращают `AppResult<T>`, не бросают. Исключение из data в presentation (`OrdersViewModel.onSearchQueryChanged` ловит `Exception`, показывает «Ошибка поиска: …»).
+
+**Нарушенное правило Clean:** контракт data — `AppResult<T>` (по AGENTS: «`AppResult<T>` (Success/Failure), не исключения на границах слоёв»).
+
+**Clean-альтернатива:** `SearchCache.search` возвращает `AppResult<List<InstrumentUi>>` (или `List<InstrumentUi>` без throw — пустой при ненайденном брокере, как `InvestRepository`). Плюсы: консистентность с data-контрактом. Минусы: правка `OrdersViewModel` (2 callsites).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена).
+
+### Н47. SearchCache.search — избыточный withContext(Dispatchers.IO)
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `SearchCache.search`: `withContext(Dispatchers.IO) { broker.userInstruments?.findInstruments(query) ?: emptyList() }`. `findInstruments` — suspend, внутри data-слоя брокер сам выбирает диспатчер (gRPC/REST). `withContext(Dispatchers.IO)` в data — избыточная диспатчеризация.
+
+**Нарушенное правило Clean:** не строго Clean — data не доверяет слою ниже, дублирует диспатчеризацию.
+
+**Clean-альтернатива:** убрать `withContext(Dispatchers.IO)` — вызывать `findInstruments` напрямую. Плюсы: чисто. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `SearchCache`.
+
+### Исправленные (L6)
+
+[пусто]
 
 ## L7 — di
 
@@ -671,6 +757,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Открытый вопрос (H22):** `refreshInitializationState` — `internal` в `BrokerRegistryImpl` (concrete type протекает наружу) или `fun refreshInitializationState()` в интерфейсе `BrokerRegistry` (side-effect в domain-интерфейсе) или автоматически в `BrokerLifecycleApi.initialize` (циклическая зависимость). Решение — при выполнении H22.
 
 **Анализ L5-Н40:** подтверждается — 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) — часть списка потребителей `di.BrokerManager` (10 файлов). См. L5-Н40.
+
+**Анализ L6-Н44:** подтверждается — потребители `di.BrokerManager` включают 3 data/repository (`SearchCache`, `InstrumentRepository`, `InvestRepository`). Итого 10: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8).
 
 **Ссылка на задачу:** — (не заведена). Связано с L1-Н22 (`BrokerRegistry`), частично уточняет.
 
