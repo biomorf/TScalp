@@ -99,6 +99,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L7-Н29:** подтверждается — анализ L7 показал, что `BrokerManager` — domain-сервис в `di/`, нарушение шире, чем только VM: потребители включают `domain/api/managers/*` и `data/repository/*`. См. L7-Н29.
 
+**Анализ L7-part1:** подтверждается — полный L7 показал 3 находки (Н35–Н37); `BrokerManager` — единственная утечка `di/` наружу (10 файлов). Дизайн `BrokerRegistry` уточняется: `BrokerRegistryImpl(brokers: Set<BrokerApi>)`, порядок из `BrokerName.entries`, `refreshInitializationState` — открытый вопрос (см. L7-Н29).
+
 **Ссылка на задачу:** — (не заведена).
 
 ### Н1. Presentation конструирует PortfolioPosition
@@ -567,6 +569,9 @@ L4–L8 — не проверены, заполняются по мере инс
 | ID | Серьёзность | Затрагиваемые уровни | Локализация |
 |---|---|---|---|
 | Н29. BrokerManager — domain-сервис в di/ | критично | L7, L1, L5, L6 | `di/BrokerManager.kt` |
+| Н35. provideBrokerManager — domain-конфигурация в di | средне | L7, L1 | `di/DataModule.kt` |
+| Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` |
+| Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` |
 
 ### Н29. BrokerManager — domain-сервис в di/
 
@@ -582,7 +587,59 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —.
 
+**Анализ L7-part1:** подтверждается — `BrokerManager` — единственная утечка `di/` наружу (10 файлов, grep 2026-10-27). Плюс: `provideBrokerManager` содержит domain-конфигурацию (список брокеров, порядок вкладок) — расширяет Н29 до «`BrokerManager` + его конфигурация в `di/`». См. Н35.
+
+**Открытый вопрос (H22):** `refreshInitializationState` — `internal` в `BrokerRegistryImpl` (concrete type протекает наружу) или `fun refreshInitializationState()` в интерфейсе `BrokerRegistry` (side-effect в domain-интерфейсе) или автоматически в `BrokerLifecycleApi.initialize` (циклическая зависимость). Решение — при выполнении H22.
+
 **Ссылка на задачу:** — (не заведена). Связано с L1-Н22 (`BrokerRegistry`), частично уточняет.
+
+### Н35. provideBrokerManager — domain-конфигурация в di
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `DataModule.provideBrokerManager` содержит domain-конфигурацию: список брокеров (TInvest, BCS, Finam) и **порядок** в `mapOf`, который определяет порядок вкладок в UI (`getAvailableBrokerNames()`) и порядок в `SearchCache`/`InvestRepository`. При добавлении 4-го брокера — правка в `di/`.
+
+**Нарушенное правило Clean:** domain-knowledge (список зарегистрированных брокеров + порядок) в di-слое.
+
+**Clean-альтернатива (чисто):** `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — строит `Map<BrokerName, BrokerApi>` через `BrokerName.entries` (порядок из enum). `defaultBroker: BrokerName = BrokerName.TINVEST` — константа в domain. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — тонкий DI. Плюсы: domain-knowledge в domain, порядок вкладок из `BrokerName.entries`. Минусы: переезд, входит в дизайн H22.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Входит в дизайн H22 (`BrokerRegistry`, ROADMAP). См. `**Анализ L7-part1:**` в L1-Н22.
+
+### Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `DataModule.provideTInvestWsHttpClient` содержит конфигурацию `HttpClient` (CIO engine, WebSockets, ContentNegotiation, trustManager). Транспортная конфигурация в сборочном слое. При появлении второго клиента (например, для REST) — дублирование конфига.
+
+**Нарушенное правило Clean:** транспортная конфигурация в di-слое.
+
+**Clean-альтернатива (чисто):** `data/transport/TInvestHttpClientFactory` (data) — `fun create(context: Context): HttpClient`. `DataModule.provideHttpClient(factory: TInvestHttpClientFactory): HttpClient = factory.create(context)` — тонкий DI. Плюсы: конфиг в data, DI чистый. Минусы: переезд.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Решение — чисто** (архитектурный стиль, не приоритет; когда к месту). Связано с отменённой `### Миграция BCS на Ktor` (удалена из ROADMAP).
+
+### Н37. Конвенции DI-файлов
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `RepositoryModule.kt` содержит **два** `@Module` (`RepositoryModule` + `UseCaseModule`). По конвенции — отдельные файлы. `@Provides` для stateless-классов без зависимостей (`CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`, `FinamBrokerApi`, `BcsBrokerApi`) — при наличии `@Inject constructor()` на самом классе `@Provides` не нужен (Hilt сам создаст).
+
+**Нарушенное правило Clean:** конвенция DI-файлов (не Clean-инвариант).
+
+**Clean-альтернатива (чисто):** `UseCaseModule.kt` отдельным файлом; `@Inject constructor()` на stateless-классах вместо `@Provides`. Плюсы: конвенция, меньше boilerplate. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Мелочь конвенции, фиксится при следующем касании `RepositoryModule`/`DataModule`.
 
 ### Исправленные (L7)
 
