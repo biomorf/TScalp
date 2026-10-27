@@ -174,7 +174,8 @@ KDoc обоснования 2c ссылается на `InvestRepository` как
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/h23-debug-flags-repository
 
 **Контекст (clean-audit Н23 + Н38).** Два потребителя
 `data.orchestrator.DebugConfig` в не-data слоях:
