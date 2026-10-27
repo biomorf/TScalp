@@ -250,20 +250,6 @@ class BcsBrokerApi :
         )
     }
 
-
-
-
-
-    /**
-     * Заглушка: стрим позиций BCS не реализован.
-     *
-     * Polling-loop был сломан (транспорт BCS не отлажен до
-     * успешного соединения), удалён. Восстановление — задача
-     * `### Реализация BCS Broker API` в ROADMAP.
-     */
-
-    // реализация на основе HTTP-клиента
-    override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PositionStreamItem> {
@@ -303,15 +289,5 @@ class BcsBrokerApi :
                 )
             }.distinctBy { it.ticker }
     }
-
-
-
-
-
-
-
-
-
-
 
 }
