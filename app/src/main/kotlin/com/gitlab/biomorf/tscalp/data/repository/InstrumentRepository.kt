@@ -38,14 +38,4 @@ class InstrumentRepository(
         }
         return instrument
     }
-
-    /**
-     * Принудительно обновляет кэш для указанного tscalpInstrumentId.
-     */
-    suspend fun refreshInstrument(tscalpInstrumentId: String) {
-        mutex.withLock {
-            cache.remove(tscalpInstrumentId)
-            loadAndCache(tscalpInstrumentId)
-        }
-    }
 }
