@@ -73,102 +73,130 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/brokerapi-fat-revision
 
-**Контекст.** `InvestRepository` split (Phase 1–2) закрыт: 4
-доменных репозитория, `InvestRepository` удалён. `BrokerApi`
-остался fat-интерфейсом (19 методов + 9 nullable-val ролей),
-KDoc обоснования 2c ссылается на `InvestRepository` как на
-потребителя fat-части (29 callsite). После split потребителя
-нет — обоснование 2c устарело, fat-методы могут быть мёртвым
-кодом.
+**Контекст (clean-audit Н25, Н70).** `BrokerApi` — fat-интерфейс:
+19 fat-методов + 9 nullable-val ролей. После InvestRepository split
+(PR #56), H21b (PR #57), H23 (PR #59), H22 (PR #60) fat-часть
+потеряла потребителя. Grep 2026-10-28:
+- **16 из 19 fat-методов мёртвы** — 0 прямых вызовов, дублируют
+  роли: `getAccounts`, `openSandboxAccount`, `closeSandboxAccount`,
+  `subscribePositions`, `subscribeLastPrices`, `getBalance`,
+  `sandboxPayIn`, `findInstruments`, `postOrder`, `postStopOrder`,
+  `getStopOrders`, `cancelStopOrder`, `getOrders`, `cancelOrder`,
+  `getTradingStatuses`, `subscribeOrderState`.
+- **3 живых без роли:** `fetchPortfolioPositions` (PortfolioRepositoryImpl),
+  `getLastPricesByTscalpInstrumentId` (MarketDataRepositoryImpl),
+  `checkTradeAvailability` (OrdersRepositoryImpl).
 
-**Соответствие Clean:** отклонение (открыто).
+KDoc 2c врёт: «29 callsite в `InvestRepository`» — `InvestRepository`
+удалён, 16 fat-методов мёртвы, 3 живых вызываются из `*RepositoryImpl`
+(не «29 callsite в одном потребителе»).
 
-**Нарушенное правило Clean:** ISP — `BrokerApi` fat без живого
-потребителя.
+**Соответствие Clean:** отклонение (закрывается).
 
-**Clean-альтернатива:** удалить мёртвые fat-методы, оставить
-`BrokerApi` тонким фасадом с 9 nullable-val ролями и
-`name`/`isInitialized`. Плюсы: нет мёртвого кода,
-`@Suppress("TooManyFunctions")` снимается. Минусы: возможная
-правка реализаций, если fat-методы используются через
-неочевидные пути.
+**Нарушенное правило Clean:** ISP — fat `BrokerApi` с мёртвыми
+методами и ложным обоснованием 2c.
+
+**Clean-альтернатива (форма B — вынос 3 живых в роли).**
+3 новые роли в `domain/api/roles/`:
+- `PortfolioApi` — `fetchPortfolioPositions(accountId, sandboxMode):
+  List<PositionStreamItem>`;
+- `MarketDataApi` — `getLastPricesByTscalpInstrumentId(ids):
+  Map<String, Double?>`;
+- `TradeCheckApi` — `checkTradeAvailability(accountId,
+  tscalpInstrumentId, brokerUid, direction, quantity): TradeCheckResult`.
+
+`BrokerApi`: +3 nullable-val (`portfolio`, `marketData`, `tradeCheck`)
+→ 12 ролей; −16 fat-методов; `@Suppress("TooManyFunctions")` снять
+(0 `fun` в интерфейсе, только `val`); KDoc 2c переписать: «fat-часть
+удалена (16 дублей ролей); 3 живых вынесены в роли. Nullable-val —
+единый паттерн для 12 ролей».
+
+Supertype-план (по факту реализаций 2026-10-28):
+- `PortfolioApi`: TInvest + BCS (`= this`), Finam `null`;
+- `MarketDataApi`: TInvest (`= this`), BCS/Finam `null`;
+- `TradeCheckApi`: TInvest (`= this`), BCS/Finam `null`.
+
+Плюсы: мёртвый код удалён; KDoc честный; `@Suppress` снят;
+12 ролей — единый паттерн; `*RepositoryImpl` (3 потребителя)
+инжектят роль через `broker.<role>?` (паттерн H21b/H22).
+
+Минусы: 3 новых интерфейса + 3 nullable-val + правка 3
+репозиториев; удаление 16 override + 16 fat-методов.
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия.** `### Разбивка InvestRepository по доменным
-областям` закрыта (Phase 1–2 зелёные).
+**Предусловия:** InvestRepository split (PR #56), H21b (PR #57),
+H23 (PR #59), H22 (PR #60) — закрыты.
 
 **Файлы:**
-- `domain/api/BrokerApi.kt` — fat-часть + KDoc 2c.
-- `domain/api/roles/*.kt` — если мёртвый метод дублирует роль,
-  оставить только роль.
-- `data/api/{TInvest,Bcs,Finam}BrokerApi.kt` — реализации
-  мёртвых методов.
-- `docs/clean-audit.md` — Н25, Н70 (пересмотреть статус).
+- `domain/api/roles/PortfolioApi.kt`, `MarketDataApi.kt`,
+  `TradeCheckApi.kt` (новые).
+- `domain/api/BrokerApi.kt` — +3 nullable-val, −16 fat, −`@Suppress`,
+  KDoc переписан.
+- `data/api/TInvestBrokerApi.kt` — +3 supertypes + 3 `= this`,
+  −16 override.
+- `data/api/BcsBrokerApi.kt` — `PortfolioApi` supertype + `= this`,
+  −16 override; `marketData = null`, `tradeCheck = null`.
+- `data/api/FinamBrokerApi.kt` — `portfolio = null`,
+  `marketData = null`, `tradeCheck = null`, −16 override.
+- `data/repository/PortfolioRepositoryImpl.kt` —
+  `broker.portfolio?.fetchPortfolioPositions(...)`.
+- `data/repository/MarketDataRepositoryImpl.kt` —
+  `broker.marketData?.getLastPricesByTscalpInstrumentId(...)`.
+- `data/repository/OrdersRepositoryImpl.kt` —
+  `broker.tradeCheck?.checkTradeAvailability(...)`.
 
 **Шаги:**
-1. `grep -rn "broker\.<fatMethod>" app/src/main` по каждому
-   из 19 fat-методов — какие вызываются.
-2. Классификация: живой / мёртвый / через роль.
-3. Мёртвые — удалить из `BrokerApi` + реализаций.
-4. KDoc 2c переписать: если fat-часть пуста — снять обоснование
-   и `@Suppress("TooManyFunctions")`; если часть жива —
-   обосновать конкретными потребителями.
-5. `@Suppress("TooManyFunctions")` — снять или оставить (по
-   факту).
-6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+1. 3 новых роли (интерфейсы + KDoc).
+2. `BrokerApi`: +3 nullable-val, −16 fat, −`@Suppress`, KDoc.
+3. `TInvestBrokerApi`: +3 supertypes + `= this`, −16 override.
+4. `BcsBrokerApi`: `PortfolioApi` supertype + `= this`;
+   −16 override.
+5. `FinamBrokerApi`: 3 `= null`, −16 override.
+6. 3 репозитория: `broker.<role>?.` + `Failure` при `null`.
+7. Гейт.
 
-**Тесты.** Не меняются — правка интерфейса + реализаций,
-поведение сохраняется. Гейт — доказательство.
+**Тесты.** Не меняются — правка интерфейса + реализаций +
+3 callsites. `TInvestOrchestratorFallbackTest`,
+`OrderFlowManagerTest`, `PositionFlowManagerTest`,
+`PriceFlowManagerTest` — не затронуты (3 живых вызываются из
+`*RepositoryImpl`, не из тестов; `subscribePositions` и др.
+мёртвые fat уже не используются). Гейт — доказательство.
 
-**Референсы.**
-- `docs/clean-audit.md` → Н25 (fat-часть), Н70 (`@Suppress`).
-- `docs/ROADMAP.md` → `### Рефакторинг ролей BrokerApi
-  (nullable-val, Scenario2)` — контекст ролей.
+**Референсы.** `docs/clean-audit.md` → Н25, Н70.
+`### AccountsApi` (#5), `### OrdersApi` (#4) — паттерн ролей.
 
 **Ограничения.**
-- Не менять nullable-val роли (9) — только fat-часть.
-- Не трогать KDoc «перенесены из `InvestRepository`» в
-  `*RepositoryImpl.kt` и `domain/api/repository/*.kt` —
-  историческая справка.
-- Не менять `BrokerSnapshotApi`, `StreamsApi`,
-  `BrokerLifecycleApi`, `BrokerInstrumentApi`, `OrdersApi`,
-  `AccountsApi`, `SandboxApi`, `UserInstrumentsApi`,
-  `BalanceApi` — только fat `BrokerApi`.
-- Не смешивать с `### Рефакторинг BrokerApi-реализаций (D)`
-  (закрыта) — там реализация, здесь KDoc и fat-часть.
+- Не менять 9 существующих ролей (только 3 новых).
+- Не менять поведение 3 живых — только структуру (nullable-val).
+- `TInvestOrchestrator`, `TInvestMarketDataService`,
+  `TInvestOrdersService` — не трогать (реализуют 3 живых внутри
+  брокера).
+- BCS/Finam: supertype только там, где реальная реализация
+  (`PortfolioApi` BCS). Заглушки → `null` без supertype (AGENTS
+  «Nullable-val роли»).
 
 **Критерий готовности.**
-- По каждому из 19 fat-методов — решение (живой / мёртвый /
-  удалён).
-- Мёртвые удалены из `BrokerApi` и реализаций.
-- KDoc 2c переписан: либо обоснование с конкретными
-  потребителями, либо снято.
-- `@Suppress("TooManyFunctions")` — снят или обоснован.
+- 3 новые роли в `domain/api/roles/`.
+- `BrokerApi` fat-методов 0, nullable-val 12.
+- `@Suppress("TooManyFunctions")` снят.
+- KDoc 2c переписан (нет «29 callsite», нет «fat осознанно»).
+- 3 репозитория — через `broker.<role>?.`.
 - Гейт зелёный.
 
-**Оценка:** ~1–1.5 ч (grep 15 мин, классификация 15, удаление
-30, KDoc 15, гейт 10).
+**Оценка:** ~1.5–2 ч. **Факт:** ~15–20 мин (scriptable, урок 12).
 
-**Зависимости:** `### Разбивка InvestRepository по доменным
-областям` (закрыта).
+**Зависимости:** InvestRepository split (#56), H21b (#57),
+H23 (#59), H22 (#60).
 
-**Связано:** `docs/clean-audit.md` → Н25, Н70; закрытая
-`### Рефакторинг ролей BrokerApi (nullable-val, Scenario2)`.
+**Связано:** `docs/clean-audit.md` → Н25, Н70;
+`### AccountsApi`, `### OrdersApi`, `### StreamsApi`,
+`### Broker lifecycle API` — паттерн nullable-val.
 
-**Открытые вопросы.**
-- Мёртвые fat-методы — удалять в `BrokerApi` или оставить как
-  «deprecated» на один релиз? Рекомендация — удалить,
-  потребителей нет.
-- KDoc 2c: сохранить как исторический документ в
-  `docs/clean-audit.md` и убрать из `BrokerApi.kt`, или
-  оставить в KDoc с явной пометкой «устарело, см. задачу»?
-  Рекомендация — убрать из KDoc, оставить в clean-audit.
-
-
----
+**Открытые вопросы:** нет (форма B принята 2026-10-28).
 
 ### H17–H20. Перенос presentation-утилит из util
 
