@@ -235,141 +235,6 @@ KDoc обоснования 2c ссылается на `InvestRepository` как
 
 ---
 
-### H21b. Domain-интерфейсы для 4 репозиториев
-
-**Мобильная работа:** невозможно (сборка + тесты).
-
-**Статус:** в работе.
-**Ветка:** feature/h21b-domain-interfaces
-
-**Контекст (clean-audit Н21):** `OrdersViewModel`,
-`PortfolioViewModel`, `SettingsViewModel` инжектят
-`InstrumentRepository`, `SearchCache`, `SettingsRepository`,
-`TradingStateRepository` из `data.repository.*` напрямую. По
-Clean presentation должна зависеть от domain-интерфейса, а
-data — реализовывать его. `InvestRepository` покрыт отдельной
-задачей `### Разбивка InvestRepository по доменным областям`.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** dependency rule — presentation
-не должна знать про data (зависимость наружу).
-
-**Clean-альтернатива:** `domain.api.repository.*` — по одному
-интерфейсу на репозиторий; data реализует через `@Binds`;
-VM инжектит интерфейс. Плюсы: Clean-дисциплина,
-KMP-совместимость, фейки в тестах. Минусы: переезд 4
-репозиториев (~3–4 ч) + правка DI.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** `### Разбивка InvestRepository по доменным
-областям` (закрыта — интерфейсы `AccountsRepository`,
-`MarketDataRepository`, `OrdersRepository`,
-`PortfolioRepository` уже созданы, паттерн установлен).
-
-**Файлы:**
-- `domain/api/repository/InstrumentRepository.kt` (новый) —
-  интерфейс: `getInstrument(tscalpInstrumentId): InstrumentUi?`,
-  `loadAndCache(uid): InstrumentUi?`, `invalidate(...)`.
-- `domain/api/repository/SearchCacheRepository.kt` (новый) —
-  `search(broker, query): List<InstrumentUi>`,
-  `invalidate(broker, query)`.
-- `domain/api/repository/SettingsRepository.kt` (новый) —
-  интерфейс для `SettingsRepository` (полный список методов
-  см. `data/repository/SettingsRepository.kt`).
-- `domain/api/repository/TradingStateRepository.kt` (новый) —
-  `save(snapshot)`, `load(): TradingStateSnapshot`, `clear()`.
-- `data/repository/InstrumentRepository.kt`,
-  `SearchCache.kt`, `SettingsRepository.kt`,
-  `TradingStateRepository.kt` — `: <Iface>`.
-- `di/RepositoryModule.kt` — 4 `@Binds`.
-- `OrdersViewModel.kt`, `PortfolioViewModel.kt`,
-  `SettingsViewModel.kt` — импорты и конструкторы.
-
-**Шаги:**
-1. Создать 4 интерфейса (сигнатуры — из существующих классов).
-2. Классы в `data.repository` → `: <Iface>`.
-3. `RepositoryModule`: 4 `@Binds` `interface -> Impl`.
-4. Мигрировать `OrdersViewModel` (4 инъекции).
-5. Мигрировать `PortfolioViewModel` (2).
-6. Мигрировать `SettingsViewModel` (3).
-7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты:** новые тесты не обязательны (переезд, поведение
-не меняется). Гейт — доказательство.
-
-**Референсы:** `### Разбивка InvestRepository` — паттерн
-интерфейсов + `@Binds`. `docs/clean-audit.md` → Н21.
-
-**Ограничения:** не менять поведение репозиториев — только
-структуру. Не смешивать с `### Разбивка InvestRepository`
-(отдельная задача). Не смешивать с Н22 (`BrokerRegistry`) —
-отдельная задача.
-
-**Критерий готовности:** в `presentation/` нет импортов
-`com.gitlab.biomorf.tscalp.data.repository.{InstrumentRepository,
-SearchCache, SettingsRepository, TradingStateRepository}`;
-все 3 VM инжектят domain-интерфейсы; гейт зелёный.
-
-**Оценка:** ~3–4 ч (интерфейсы 1 ч, `: Iface` + DI 1 ч,
-VM 3 файла 1.5 ч, гейт 15 мин, резерв 15 мин).
-
-**Зависимости:** `### Разбивка InvestRepository по доменным
-областям`.
-
-**Связано:** `docs/clean-audit.md` → Н21; `### Разбивка
-InvestRepository по доменным областям`.
-
-**Диагностика (2026-10-27).**
-
-- **Потребители (7 импортов в 3 ViewModel):** `SettingsViewModel`
-  (Settings + TradingState), `PortfolioViewModel` (Settings),
-  `OrdersViewModel` (Instrument + SearchCache + Settings +
-  TradingState).
-- **Методы (живые, вызываемые из presentation):**
-  - `SettingsRepository` — 12: `isSandboxMode` (×10),
-    `loadDefaultAccountId` (×5), `hasSavedToken` (×4),
-    `saveBrokerCredentials` (×3), `saveToken` (×2),
-    `isConfirmOrdersEnabled` (×2), `confirmOrdersEnabledFlow`,
-    `getToken`, `setSandboxMode`, `setConfirmOrdersEnabled`,
-    `saveDefaultAccountId`, `loadBrokerCredentials`,
-    `clearBrokerCredentials`.
-  - `InstrumentRepository` — 2: `getInstrument` (×1),
-    `refreshInstrument` (**0 вызовов — проверить на шаге 1
-    grep по всему `app/src/main`; если 0 — удалить**).
-  - `SearchCache` — 2: `search` (×2), `invalidate` (×2).
-  - `TradingStateRepository` — 3: `save`, `load`, `clear`.
-- **Готовность к `@Binds`:** `SettingsRepository` ✅
-  (`@Singleton @Inject constructor`), `TradingStateRepository`
-  ✅ (`@Singleton @Inject constructor`), `InstrumentRepository`
-  ❌ (нет `@Inject`, провайдится `@Provides` в
-  `RepositoryModule`), `SearchCache` ❌ (то же).
-- **Паттерн:** переименование data-классов в `*Impl`
-  (`git mv` + `: <Interface>`), 4 `@Binds` в
-  `RepositoryBindingModule`, удаление `@Provides` для
-  `InstrumentRepository` / `SearchCache` из `RepositoryModule`
-  (согласовано с InvestRepository split).
-
-**Открытые вопросы.**
-
-- `InstrumentRepository.refreshInstrument` — вероятно мёртв.
-  Проверить на шаге 1: `grep -rn "refreshInstrument" app/src/main`.
-  Если 0 — удалить до создания интерфейса.
-- `SettingsRepository` — 12 функций (не 15: KDoc устарел),
-  все вызываются. В интерфейс — все 12.
-- `confirmOrdersEnabledFlow` — **функция**
-  `fun confirmOrdersEnabledFlow(): Flow<Boolean>` (решение
-  2026-10-27), не `val`. Консистентно с 4 существующими
-  интерфейсами (только `fun`).
-- `RepositoryModule → UseCaseModule.kt` (clean-audit Н37:
-  два `@Module` в одном файле) — **отдельная задача**, не в
-  scope H21b. После H21b `RepositoryModule` будет содержать
-  только `UseCaseModule`. Не раздуваем H21b.
-
-
----
-
 ### H23. DebugFlagsRepository
 
 **Мобильная работа:** невозможно (сборка + тесты).
@@ -7443,5 +7308,180 @@ ViewModel).
   (близкие домены: оба про «счёт»).
 - `SettingsRepository` (15 функций) — отдельная задача, не в
   scope.
+
+
+
+---
+
+### ✅ H21b. Domain-интерфейсы для 4 репозиториев
+
+**Мобильная работа:** невозможно (сборка + тесты).
+
+**Что сделано:**
+
+- `refreshInstrument` удалён из `InstrumentRepository` (0 callsites
+  в `app/src`, шаг 1 H21b).
+- 4 domain-интерфейса в `domain/api/repository/`:
+  `InstrumentRepository` (1 метод), `SearchCacheRepository`
+  (2), `SettingsRepository` (12 suspend + 1 fun Flow),
+  `TradingStateRepository` (3). Итого 19 членов.
+- 4 data-класса переименованы (`git mv`) в `*Impl`:
+  `InstrumentRepositoryImpl`, `SearchCacheImpl`,
+  `SettingsRepositoryImpl`, `TradingStateRepositoryImpl`.
+  Все — `: <Interface>` + `override` на каждом члене.
+  `InstrumentRepositoryImpl` и `SearchCacheImpl` получили
+  `@Singleton @Inject constructor` (были только `@Provides`).
+- `SettingsRepositoryImpl.confirmOrdersEnabledFlow` — `val` →
+  `fun` (вариант 2, 2026-10-27).
+- `RepositoryBindingModule`: +4 `@Binds` (итого 8).
+- `RepositoryModule`: −2 `@Provides` (Instrument, SearchCache).
+  Файл теперь содержит только `UseCaseModule` (Н37 — вне
+  scope, отдельной задачей).
+- 5 потребителей мигрированы (не 3, как в исходном плане):
+  `SettingsViewModel`, `PortfolioViewModel`, `OrdersViewModel`,
+  `OrdersListViewModel`, `TScalpApplication`.
+- `OrdersViewModel`: `searchCache: SearchCache` →
+  `SearchCacheRepository`; `confirmOrdersEnabledFlow.collect`
+  → `confirmOrdersEnabledFlow().collect`.
+- Гейт зелёный. Первый прогон KSP упал (`SettingsRepository`
+  и `TradingStateRepository` supertype ERROR) — два недостающих
+  импорта интерфейсов в `*Impl`; исправлено, повторный гейт
+  зелёный.
+
+**Контекст (clean-audit Н21):** `OrdersViewModel`,
+`PortfolioViewModel`, `SettingsViewModel` инжектят
+`InstrumentRepository`, `SearchCache`, `SettingsRepository`,
+`TradingStateRepository` из `data.repository.*` напрямую. По
+Clean presentation должна зависеть от domain-интерфейса, а
+data — реализовывать его. `InvestRepository` покрыт отдельной
+задачей `### Разбивка InvestRepository по доменным областям`.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation
+не должна знать про data (зависимость наружу).
+
+**Clean-альтернатива:** `domain.api.repository.*` — по одному
+интерфейсу на репозиторий; data реализует через `@Binds`;
+VM инжектит интерфейс. Плюсы: Clean-дисциплина,
+KMP-совместимость, фейки в тестах. Минусы: переезд 4
+репозиториев (~3–4 ч) + правка DI.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### Разбивка InvestRepository по доменным
+областям` (закрыта — интерфейсы `AccountsRepository`,
+`MarketDataRepository`, `OrdersRepository`,
+`PortfolioRepository` уже созданы, паттерн установлен).
+
+**Файлы:**
+- `domain/api/repository/InstrumentRepository.kt` (новый) —
+  интерфейс: `getInstrument(tscalpInstrumentId): InstrumentUi?`,
+  `loadAndCache(uid): InstrumentUi?`, `invalidate(...)`.
+- `domain/api/repository/SearchCacheRepository.kt` (новый) —
+  `search(broker, query): List<InstrumentUi>`,
+  `invalidate(broker, query)`.
+- `domain/api/repository/SettingsRepository.kt` (новый) —
+  интерфейс для `SettingsRepository` (полный список методов
+  см. `data/repository/SettingsRepository.kt`).
+- `domain/api/repository/TradingStateRepository.kt` (новый) —
+  `save(snapshot)`, `load(): TradingStateSnapshot`, `clear()`.
+- `data/repository/InstrumentRepository.kt`,
+  `SearchCache.kt`, `SettingsRepository.kt`,
+  `TradingStateRepository.kt` — `: <Iface>`.
+- `di/RepositoryModule.kt` — 4 `@Binds`.
+- `OrdersViewModel.kt`, `PortfolioViewModel.kt`,
+  `SettingsViewModel.kt` — импорты и конструкторы.
+
+**Шаги:**
+1. Создать 4 интерфейса (сигнатуры — из существующих классов).
+2. Классы в `data.repository` → `: <Iface>`.
+3. `RepositoryModule`: 4 `@Binds` `interface -> Impl`.
+4. Мигрировать `OrdersViewModel` (4 инъекции).
+5. Мигрировать `PortfolioViewModel` (2).
+6. Мигрировать `SettingsViewModel` (3).
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** новые тесты не обязательны (переезд, поведение
+не меняется). Гейт — доказательство.
+
+**Референсы:** `### Разбивка InvestRepository` — паттерн
+интерфейсов + `@Binds`. `docs/clean-audit.md` → Н21.
+
+**Ограничения:** не менять поведение репозиториев — только
+структуру. Не смешивать с `### Разбивка InvestRepository`
+(отдельная задача). Не смешивать с Н22 (`BrokerRegistry`) —
+отдельная задача.
+
+**Критерий готовности:** в `presentation/` нет импортов
+`com.gitlab.biomorf.tscalp.data.repository.{InstrumentRepository,
+SearchCache, SettingsRepository, TradingStateRepository}`;
+все 3 VM инжектят domain-интерфейсы; гейт зелёный.
+
+**Оценка:** ~3–4 ч (интерфейсы 1 ч, `: Iface` + DI 1 ч,
+VM 3 файла 1.5 ч, гейт 15 мин, резерв 15 мин).
+
+**Зависимости:** `### Разбивка InvestRepository по доменным
+областям`.
+
+**Связано:** `docs/clean-audit.md` → Н21; `### Разбивка
+InvestRepository по доменным областям`.
+
+**Диагностика (2026-10-27).**
+
+- **Потребители (7 импортов в 3 ViewModel):** `SettingsViewModel`
+  (Settings + TradingState), `PortfolioViewModel` (Settings),
+  `OrdersViewModel` (Instrument + SearchCache + Settings +
+  TradingState).
+- **Методы (живые, вызываемые из presentation):**
+  - `SettingsRepository` — 12: `isSandboxMode` (×10),
+    `loadDefaultAccountId` (×5), `hasSavedToken` (×4),
+    `saveBrokerCredentials` (×3), `saveToken` (×2),
+    `isConfirmOrdersEnabled` (×2), `confirmOrdersEnabledFlow`,
+    `getToken`, `setSandboxMode`, `setConfirmOrdersEnabled`,
+    `saveDefaultAccountId`, `loadBrokerCredentials`,
+    `clearBrokerCredentials`.
+  - `InstrumentRepository` — 2: `getInstrument` (×1),
+    `refreshInstrument` (**0 вызовов — проверить на шаге 1
+    grep по всему `app/src/main`; если 0 — удалить**).
+  - `SearchCache` — 2: `search` (×2), `invalidate` (×2).
+  - `TradingStateRepository` — 3: `save`, `load`, `clear`.
+- **Готовность к `@Binds`:** `SettingsRepository` ✅
+  (`@Singleton @Inject constructor`), `TradingStateRepository`
+  ✅ (`@Singleton @Inject constructor`), `InstrumentRepository`
+  ❌ (нет `@Inject`, провайдится `@Provides` в
+  `RepositoryModule`), `SearchCache` ❌ (то же).
+- **Паттерн:** переименование data-классов в `*Impl`
+  (`git mv` + `: <Interface>`), 4 `@Binds` в
+  `RepositoryBindingModule`, удаление `@Provides` для
+  `InstrumentRepository` / `SearchCache` из `RepositoryModule`
+  (согласовано с InvestRepository split).
+
+**Открытые вопросы.**
+
+- `InstrumentRepository.refreshInstrument` — вероятно мёртв.
+  Проверить на шаге 1: `grep -rn "refreshInstrument" app/src/main`.
+  Если 0 — удалить до создания интерфейса.
+- `SettingsRepository` — 12 функций (не 15: KDoc устарел),
+  все вызываются. В интерфейс — все 12.
+- `confirmOrdersEnabledFlow` — **функция**
+  `fun confirmOrdersEnabledFlow(): Flow<Boolean>` (решение
+  2026-10-27), не `val`. Консистентно с 4 существующими
+  интерфейсами (только `fun`).
+- `RepositoryModule → UseCaseModule.kt` (clean-audit Н37:
+  два `@Module` в одном файле) — **отдельная задача**, не в
+  scope H21b. После H21b `RepositoryModule` будет содержать
+  только `UseCaseModule`. Не раздуваем H21b.
+
+**Резолюция открытых вопросов (2026-10-27).**
+
+- `InstrumentRepository.refreshInstrument` — 0 callsites,
+  удалён на шаге 1.
+- `SettingsRepository` — 12 функций (KDoc 15 устарел), все в
+  интерфейсе.
+- `confirmOrdersEnabledFlow` — `fun` (вариант 2), реализовано.
+- `RepositoryModule → UseCaseModule.kt` — отдельная задача
+  (clean-audit Н37), не в scope H21b. Файл
+  `RepositoryModule.kt` содержит только `UseCaseModule`.
 
 ---
