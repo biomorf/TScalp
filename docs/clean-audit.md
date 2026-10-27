@@ -13,6 +13,8 @@
 
 **Серьёзность:** критично / высоко / средне / низко.
 
+**Live тест:** ✓ (требуется) / - (не требуется).
+
 **Описание:** 1–3 предложения — что именно нарушено.
 
 **Анализ L<N>-<ID>:** подтверждается / опровергается — <что именно>. (опциональное поле, только если запись уточняется анализом другого уровня)
@@ -59,21 +61,23 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н21. ViewModel → data.repository.* | критично | L1, L6 | `OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel` |
-| Н22. ViewModel → di.BrokerManager | критично | L1, L7 | те же 3 VM |
-| Н1. Presentation конструирует PortfolioPosition | высоко | L1, L3 | `OrdersScreen.kt` (~353, ~580) |
-| Н23. ViewModel → data.orchestrator.DebugConfig | средне | L1, L6 | `SettingsViewModel` |
-| Н4. UI конвертирует String → domain-модель | средне | L1, L3 | `OrdersListDialog.kt` |
-| Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` |
-| Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н21. ViewModel → data.repository.* | критично | L1, L6 | `OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel` | - |
+| Н22. ViewModel → di.BrokerManager | критично | L1, L7 | те же 3 VM | - |
+| Н1. Presentation конструирует PortfolioPosition | высоко | L1, L3 | `OrdersScreen.kt` (~353, ~580) | - |
+| Н23. ViewModel → data.orchestrator.DebugConfig | средне | L1, L6 | `SettingsViewModel` | ✓ |
+| Н4. UI конвертирует String → domain-модель | средне | L1, L3 | `OrdersListDialog.kt` | - |
+| Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
+| Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
 
 ### Н21. ViewModel → data.repository.*
 
 **Статус:** открыто.
 
 **Серьёзность:** критично.
+
+**Live тест:** -
 
 **Описание:** три ViewModel (`OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel`) инжектят `InvestRepository`, `InstrumentRepository`, `SearchCache`, `SettingsRepository`, `TradingStateRepository` из `data.repository.*` напрямую. По Clean presentation должна зависеть от domain-интерфейса, а data — реализовывать его.
 
@@ -90,6 +94,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** критично.
+
+**Live тест:** -
 
 **Описание:** все потребители (`OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel`, `TScalpApplication`, `domain/api/managers/*`, `data/repository/*`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую. Вызывают `getAllBrokers()`, `getBroker(name)?.lifecycle?.initialize(...)`, `getAvailableBrokerNames()`, `refreshInitializationState()`, `getDefaultBroker()`. `BrokerManager` — точка сборки брокеров, живёт в `di/`.
 
@@ -116,6 +122,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** высоко.
 
+**Live тест:** -
+
 **Описание:** `OrdersScreen.kt` (два места: основной инструмент ~353, парный ~580) вручную вызывает `PortfolioPosition(...)` с полями `profit = null`, `profitPercent = null` для инструмента, которого нет в портфеле. По Clean presentation имеет право читать domain-модели, но не создавать их — правила конструирования принадлежат domain. После #9 `PortfolioPosition` — именно domain-модель.
 
 **Нарушенное правило:** Dependency rule — presentation не конструирует domain-модели в обход domain-логики.
@@ -131,6 +139,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** ✓
 
 **Описание:** `SettingsViewModel` импортирует `data.orchestrator.DebugConfig`, читает/пишет `disableGrpc`, `disableWs`, `forceRest` через `toggleGrpc/toggleWs/toggleRest`. Debug-флаги транспорта в presentation.
 
@@ -150,6 +160,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `OrdersListDialog.kt` в `OrderCard` передаёт `orderType = TradePhrases.stringToOrderType(order.type)`. Конверсия «сырое значение из data → domain-модель» выполняется в presentation.
 
 **Нарушенное правило:** Presentation не должна маппить сырые данные в domain-модели — это забота data-слоя (маппер).
@@ -166,6 +178,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `OrdersViewModel.updatePositionPnl` и `PortfolioViewModel.updatePortfolioItem` реализуют одну логику (обогащение `PositionStreamItem` → `PortfolioPosition` через `toPortfolioPosition` / `calculateProfitPercent`), но с разной реализацией (в одной — `index == -1` → добавить, в другой — аналогично, но с доп. полями `isin`/`classCode`). Дублирование, рассинхронизация.
 
 **Нарушенное правило:** Не строго Clean — DRY / Single Source of Truth для конверсии.
@@ -181,6 +195,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `OrdersListViewModel` живёт в `ui.components` (рядом с `OrdersListDialog.kt`, импортируется оттуда). Остальные ViewModel — в `presentation/screens/*/`. Нарушение конвенции проекта.
 
@@ -202,18 +218,20 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н19. AppLogger — android.util.Log в util | высоко | L2, все | `util/AppLogger.kt` |
-| Н20. AppResultExtensions — io.grpc в util | высоко | L2, L6 | `util/AppResultExtensions.kt` |
-| Н17. TradePhrases — Compose в util | средне | L2, L1 | `util/TradePhrases.kt` |
-| Н18. CurrencyUtils — presentation-формат в util | низко | L2, L1 | `util/CurrencyUtils.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н19. AppLogger — android.util.Log в util | высоко | L2, все | `util/AppLogger.kt` | - |
+| Н20. AppResultExtensions — io.grpc в util | высоко | L2, L6 | `util/AppResultExtensions.kt` | - |
+| Н17. TradePhrases — Compose в util | средне | L2, L1 | `util/TradePhrases.kt` | - |
+| Н18. CurrencyUtils — presentation-формат в util | низко | L2, L1 | `util/CurrencyUtils.kt` | - |
 
 ### Н19. AppLogger — android.util.Log в util
 
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `util/AppLogger.kt` импортирует `android.util.Log` + `BuildConfig`. Используется всеми слоями (AGENTS: «`AppLogger`, не `android.util.Log`»). Формально domain видит платформу через `util`, даже транзитивно.
 
@@ -232,6 +250,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `util/AppResultExtensions.kt` импортирует `io.grpc.StatusException` / `StatusRuntimeException` / `Status.Code`. `toAppError` (66 строк) — классификатор ошибок с gRPC-спецификой. Если domain импортирует `toAppError`, domain видит `io.grpc` (data-слой).
 
@@ -255,6 +275,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `util/TradePhrases.kt` импортирует `androidx.compose.ui.graphics.Color`, содержит UI-тексты (`directionText`, `orderTypeDescription`, `statusLabel`, `confirmOrderText`), цвета (`orderTypeColor`), маппинг строк в `OrderTypeSelection` (`stringToOrderType`).
 
 **Нарушенное правило:** Dependency rule — presentation-код в shared-слое.
@@ -270,6 +292,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `util/CurrencyUtils.kt` содержит `formatCurrency` (`NumberFormat.getCurrencyInstance(ru-RU)` + `Currency.getInstance("RUB")`) и `formatPrice` («%.2f пт» для futures). Presentation-форматирование (локаль, «₽», «пт»).
 
@@ -291,21 +315,23 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н5. PortfolioPosition — presentation-поля (пересматривается) | высоко | L3, L1 | `domain/models/Portfolio.kt` |
-| Н15. TradingStateSnapshot — presentation в domain | средне | L3, L1 | `domain/models/TradingState.kt` |
-| Н6. InstrumentUi — god-класс | средне | L3 | `domain/models/Instruments.kt` |
-| Н7. ttech_figi — временное, без задачи | низко | L3, L6 | `domain/models/Instruments.kt` |
-| Н8. OrderTypeSelection — sealed class для sum-type | низко | L3 | `domain/models/OrderModels.kt` |
-| Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` |
-| Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н5. PortfolioPosition — presentation-поля (пересматривается) | высоко | L3, L1 | `domain/models/Portfolio.kt` | - |
+| Н15. TradingStateSnapshot — presentation в domain | средне | L3, L1 | `domain/models/TradingState.kt` | - |
+| Н6. InstrumentUi — god-класс | средне | L3 | `domain/models/Instruments.kt` | - |
+| Н7. ttech_figi — временное, без задачи | низко | L3, L6 | `domain/models/Instruments.kt` | - |
+| Н8. OrderTypeSelection — sealed class для sum-type | низко | L3 | `domain/models/OrderModels.kt` | - |
+| Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` | - |
+| Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` | - |
 
 ### Н5. PortfolioPosition — presentation-поля (пересматривается)
 
 **Статус:** принято (по 2c). **Пересматривается** — концептуальное разделение модели.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `PortfolioPosition` содержит presentation-поля `totalValue` (= `currentPrice * quantity`), `profitPercent` (вычисляется через `calculateProfitPercent`), `priceChangePercent`. По Clean domain-модель не должна содержать presentation-атрибуты. Отклонение осознанно принято в #9, зафиксировано в KDoc + `### Обогащение name в PortfolioPosition (вариант C)`.
 
@@ -323,6 +349,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `domain/models/TradingState.kt` содержит `TradingStateSnapshot` с полями `quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`. `quantity`/`pairedMultiplier` — сырые значения TextField, невалидированные. `orderType` — presentation-выбор. `pairTradingEnabled` — UI-тумблер. Это снимок UI-состояния.
 
 **Нарушенное правило:** Domain не знает про presentation-выбор пользователя и сырые строки TextField.
@@ -338,6 +366,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `domain/models/Instruments.kt` — `InstrumentUi` открытый класс с ~50 полями; `FutureUi` и `ShareUi` дублируют **все** общие поля через `override` + добавляют свои. Неприменимые поля явно `null` (например `ShareUi.initialMarginOnBuy = null`).
 
@@ -355,6 +385,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** низко.
 
+**Live тест:** -
+
 **Описание:** `InstrumentUi.ttech_figi` — KDoc говорит «**Временно** — нужен для подписки на `LastPrice` через gRPC-стрим (там figi, не uid). Уйдёт, когда стрим перейдёт на `instrumentUid`». Задачи в `docs/ROADMAP.md` / `docs/ISSUES.md` на удаление `ttech_figi` нет.
 
 **Нарушенное правило:** 2d — временное решение без задачи на полное.
@@ -370,6 +402,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `domain/models/OrderModels.kt` — `OrderTypeSelection` объявлен как `sealed class` для чистого sum-type (5 `object`-веток без shared state). По 2a (актуальность): Kotlin 1.5+ рекомендует `sealed interface` для sum-types без shared state. В том же файле для `Order` уже выбрано `sealed interface` (`### Split order domain into sealed Regular/Stop`).
 
@@ -387,6 +421,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** низко.
 
+**Live тест:** -
+
 **Описание:** `domain/models/TradingStatus.kt` — `TradeCheckResult` объявлен как `sealed class` (`data object Success` + `data class Error(message: String)`). Тот же класс проблемы, что Н8.
 
 **Нарушенное правило:** Не Clean — стилистическая последовательность (2a).
@@ -402,6 +438,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `domain/models/StreamState.kt` — KDoc ссылается на `[com.gitlab.biomorf.tscalp.domain.api.StreamStateTracker]`. После Move `StreamStateTracker` живёт в `com.gitlab.biomorf.tscalp.domain.api.managers.StreamStateTracker` (package `domain.api.managers`). Ссылка битая (в KDoc, не в коде).
 
@@ -423,25 +461,27 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н25. BrokerApi fat дублирует nullable-val роли | критично | L4, L6 | `domain/api/BrokerApi.kt` (19 fat-методов) |
-| Н26. BrokerLifecycleApi — не 2c-фиксация | средне | L4 | `roles/BrokerLifecycleApi.kt` |
-| Н27. StreamsApi.subscribeOrderState — suspend | средне | L4 | `roles/StreamsApi.kt` |
-| Н28. AccountsApi.getAccounts(sandboxMode) | средне | L4 | `roles/AccountsApi.kt` |
-| Н30. BrokerSnapshotApi KDoc — устарел после #9 | средне | L4 | `roles/BrokerSnapshotApi.kt` |
-| Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика | средне | L4 | `roles/StreamsApi.kt` |
-| Н32. StreamCombinators — транспорт в domain/api | средне | L4 | `domain/api/StreamCombinators.kt` |
-| Н32a. streamWithFallback — семантически неверное имя | низко | L4 | `domain/api/StreamCombinators.kt` |
-| Н60. retryWithBackoff — non-retryable не классифицирует | высоко | L4 | `domain/api/StreamCombinators.kt` |
-| Н61. retryWithBackoff — busy loop на normal completion | высоко | L4 | `domain/api/StreamCombinators.kt` |
-| Н70. BrokerApi — @Suppress("TooManyFunctions") | средне | L4 | `domain/api/BrokerApi.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н25. BrokerApi fat дублирует nullable-val роли | критично | L4, L6 | `domain/api/BrokerApi.kt` (19 fat-методов) | - |
+| Н26. BrokerLifecycleApi — не 2c-фиксация | средне | L4 | `roles/BrokerLifecycleApi.kt` | - |
+| Н27. StreamsApi.subscribeOrderState — suspend | средне | L4 | `roles/StreamsApi.kt` | - |
+| Н28. AccountsApi.getAccounts(sandboxMode) | средне | L4 | `roles/AccountsApi.kt` | - |
+| Н30. BrokerSnapshotApi KDoc — устарел после #9 | средне | L4 | `roles/BrokerSnapshotApi.kt` | - |
+| Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика | средне | L4 | `roles/StreamsApi.kt` | - |
+| Н32. StreamCombinators — транспорт в domain/api | средне | L4 | `domain/api/StreamCombinators.kt` | - |
+| Н32a. streamWithFallback — семантически неверное имя | низко | L4 | `domain/api/StreamCombinators.kt` | - |
+| Н60. retryWithBackoff — non-retryable не классифицирует | высоко | L4 | `domain/api/StreamCombinators.kt` | - |
+| Н61. retryWithBackoff — busy loop на normal completion | высоко | L4 | `domain/api/StreamCombinators.kt` | - |
+| Н70. BrokerApi — @Suppress("TooManyFunctions") | средне | L4 | `domain/api/BrokerApi.kt` | - |
 
 ### Н25. BrokerApi fat дублирует nullable-val роли
 
 **Статус:** принято (по 2c). **Пересматривается:** фактически технический долг переходного состояния, а не осознанный выбор.
 
 **Серьёзность:** критично.
+
+**Live тест:** -
 
 **Описание:** 19 методов fat-части `BrokerApi` почти все дублируют nullable-val роли: `getAccounts` -> `accounts?.getAccounts`, `openSandboxAccount`/`closeSandboxAccount`/`sandboxPayIn` -> `sandbox?.<метод>`, `getBalance` -> `balance?.getBalance`, `subscribePositions`/`subscribeLastPrices`/`subscribeOrderState` -> `streams?.<метод>`, `postOrder`/`postStopOrder`/`getStopOrders`/`cancelStopOrder`/`getOrders`/`cancelOrder` -> `orders?.<метод>`, `findInstruments`/`getTradingStatuses` -> `userInstruments?.<метод>`. Не дублируют 2 метода: `fetchPortfolioPositions`, `checkTradeAvailability`. `getLastPricesByTscalpInstrumentId` — частичный дубль `pricesSnapshot` (та же семантика, разница только в fallback gRPC->REST). Два пути к одному контракту (`broker.postOrder` и `broker.orders?.postOrder`) — разное поведение при `null`.
 
@@ -465,6 +505,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `BrokerLifecycleApi.initialize(credentials: BrokerCredentials): Boolean` — runtime `IllegalArgumentException` при неверном типе credentials. KDoc: «Сообщение об ошибке — через `AppLogger` и `AppResult.Failure`» — domain-интерфейс ссылается на `util.AppLogger` (domain -> util).
 
 **Нарушенное правило Clean:** runtime-проверка типов вместо compile-time; KDoc связывает domain с `util`.
@@ -480,6 +522,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `StreamsApi.subscribePositions` / `subscribeLastPrices` — non-suspend; `subscribeOrderState` — suspend. KDoc: «как в `BrokerApi.subscribeOrderState` (контракт совпадает с fat-интерфейсом)».
 
@@ -497,6 +541,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** общий `AccountsApi` принимает `sandboxMode: Boolean`. KDoc: «У брокеров без sandbox (BCS/Finam) параметр игнорируется». Domain-контракт роли несёт специфику T-Invest.
 
 **Нарушенное правило Clean:** domain-контракт роли несёт специфику T-Invest (sandbox); BCS/Finam игнорируют — параметр маскирует «не применимо» под «применимо, но неважно».
@@ -512,6 +558,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `BrokerSnapshotApi.positionsSnapshot` KDoc: «**Не путать** с `BrokerApi.fetchPortfolioPositions` — тот возвращает полный `PortfolioPosition` для UI (`totalValue`, `profitPercent`, `priceChangePercent`)». После #9 `fetchPortfolioPositions` возвращает `PositionStreamItem` (domain, без presentation-полей), KDoc устарел.
 
@@ -529,6 +577,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `StreamsApi.subscribeLastPrices(uids: List<String>)` — параметр `uids`. `BrokerSnapshotApi.pricesSnapshot(ids: List<String>)` — та же семантика, но `ids`. По AGENTS: «Domain-слой оперирует `tscalpInstrumentId`… ключ инструмента называется `tscalpInstrumentId`, а не `uid` и не `figi`». T-Invest-специфика (uid) протекает в domain-интерфейс.
 
 **Нарушенное правило Clean:** соглашение AGENTS «domain оперирует `tscalpInstrumentId`».
@@ -544,6 +594,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `StreamCombinators.streamWithFallback` (merge источников — gRPC + WS параллельно) + `retryWithBackoff` (переподключение с backoff и rate-limit при обрыве) — транспортные утилиты. Используются в `data/orchestrator/TInvestOrchestrator.kt` для merge gRPC + WS на транспортном уровне и переподключения при обрыве с учётом rate-limits. Живут в `domain/api/` — неверное место. Менеджеры (`domain/api/managers/*`) **не используют** `streamWithFallback` — осознанное архитектурное решение, **не долг**: `StreamStateTracker` должен различать источник (stream vs polling) для корректного `LIVE`/`POLLING`/`STALE`; `streamWithFallback` этого знания не даёт.
 
@@ -561,6 +613,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** низко.
 
+**Live тест:** -
+
 **Описание:** `streamWithFallback` делает `merge` (параллельная эмиссия из всех источников), а не fallback (переключение при отказе). В T-Invest-контексте WS — резервный транспорт для gRPC, но merge **параллельный**, осознанно (оба идут одновременно, WS не включается по отказу). Имя вводит в заблуждение.
 
 **Нарушенное правило Clean:** не строго Clean — семантическая честность.
@@ -575,6 +629,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `StreamCombinators.retryWithBackoff` переподключает любой источник при любой ошибке с backoff. `UNAUTHENTICATED`, `NOT_FOUND`, `PERMISSION_DENIED`, `INVALID_ARGUMENT` — вечный retry-loop (до остановки вручную). `CancellationException` пробрасывается, но не-recoverable gRPC-коды не различаются.
 
@@ -592,6 +648,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** высоко.
 
+**Live тест:** -
+
 **Описание:** `StreamCombinators.retryWithBackoff`: при normal completion (`source().collect { emit(it) }` вернулся без exception) — `attempt = 0` и новый цикл **без delay**. Если source завершается мгновенно-пустым (сервер закрыл стрим, gRPC завершился нормально) — busy loop, CPU 100%, батарея в ноль.
 
 **Нарушенное правило Clean:** не строго Clean — resilience-логика не защищена от мгновенного нормального завершения.
@@ -607,6 +665,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `BrokerApi` (fat-интерфейс, 19 методов + 9 nullable-val ролей) несёт `@Suppress("TooManyFunctions")` — маркер осознанного долга, зафиксированного в KDoc. 16 из 19 fat-методов дублируют nullable-val роли (Н25).
 
@@ -628,20 +688,22 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н38. PriceFlowManager → data.orchestrator.DebugConfig | критично | L5, L6 | `PriceFlowManager.kt` |
-| Н39. PriceFlowManager → util.toAppError | высоко | L5, L2 | `PriceFlowManager.kt` |
-| Н40. Менеджеры → di.BrokerManager | критично | L5, L7 | 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) |
-| Н41. Хардкод BrokerName.TINVEST в менеджерах | средне | L5 | 3 менеджера |
-| Н58. PositionFlowManager.runPolling — string matching NOT_FOUND | средне | L5 | `PositionFlowManager.kt` |
-| Н59. PriceFlowManager.runPolling — swallows CancellationException | средне | L5 | `PriceFlowManager.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н38. PriceFlowManager → data.orchestrator.DebugConfig | критично | L5, L6 | `PriceFlowManager.kt` | ✓ |
+| Н39. PriceFlowManager → util.toAppError | высоко | L5, L2 | `PriceFlowManager.kt` | - |
+| Н40. Менеджеры → di.BrokerManager | критично | L5, L7 | 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) | - |
+| Н41. Хардкод BrokerName.TINVEST в менеджерах | средне | L5 | 3 менеджера | - |
+| Н58. PositionFlowManager.runPolling — string matching NOT_FOUND | средне | L5 | `PositionFlowManager.kt` | - |
+| Н59. PriceFlowManager.runPolling — swallows CancellationException | средне | L5 | `PriceFlowManager.kt` | - |
 
 ### Н38. PriceFlowManager → data.orchestrator.DebugConfig
 
 **Статус:** открыто.
 
 **Серьёзность:** критично.
+
+**Live тест:** ✓
 
 **Описание:** `PriceFlowManager.kt` импортирует `data.orchestrator.DebugConfig`, использует в `collectStream` (`if (DebugConfig.disableGrpc && DebugConfig.disableWs) return`). Менеджер (domain) зависит от data.
 
@@ -659,6 +721,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** высоко.
 
+**Live тест:** -
+
 **Описание:** `PriceFlowManager.kt` импортирует `util.toAppError`, использует в `runPolling` (`AppLogger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)`). `toAppError` живёт в `util/AppResultExtensions.kt` и импортирует `io.grpc.StatusException`. Domain видит io.grpc транзитивно.
 
 **Нарушенное правило Clean:** dependency rule — domain видит io.grpc через `util`.
@@ -674,6 +738,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** критично.
+
+**Live тест:** -
 
 **Описание:** все три менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую через конструктор. Domain-слой зависит от `di/`.
 
@@ -691,6 +757,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `PositionFlowManager.doStart`, `OrderFlowManager.doStart` — `brokerManager.getBroker(BrokerName.TINVEST)`; `PriceFlowManager.collectStream` + `runPolling` — `BrokerName.TINVEST` (локальные val). «Работаем только с T-Invest» захардкожено в domain/managers. При появлении BCS/Finam позиций/цен/заявок — рефакторинг всех трёх.
 
 **Нарушенное правило Clean:** domain-знание «единственный брокер = T-Invest» в менеджерах, не в конфигурации.
@@ -707,6 +775,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `PositionFlowManager.runPolling`: `if (e.message?.contains("NOT_FOUND") == true) return`. `e.message` у `StatusException` — человекочитаемый текст, не код. При изменении формата/локализации — проверка молча перестанет срабатывать, polling продолжит крутиться на удалённом счёте.
 
 **Нарушенное правило Clean:** не строго Clean — string matching вместо structured API.
@@ -722,6 +792,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `PriceFlowManager.runPolling`: единственный `catch (e: Exception)` без предшествующего `catch (e: CancellationException) { throw e }`. `CancellationException` перехватывается и логируется как «REST poll failed», сигнал отмены родителю не пробрасывается — менеджер останавливается «тихо».
 
@@ -741,31 +813,31 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н44. data/repository/* → di.BrokerManager | критично | L6, L7 | 3 файла: `SearchCache.kt`, `InstrumentRepository.kt`, `InvestRepository.kt` |
-| Н45. InvestRepository использует 4 fat-метода BrokerApi | высоко | L6, L4 | `InvestRepository.kt` |
-| Н46. SearchCache.search бросает IllegalArgumentException | средне | L6, L1 | `SearchCache.kt` |
-| Н47. SearchCache.search — избыточный withContext(Dispatchers.IO) | низко | L6 | `SearchCache.kt` |
-| Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket | критично | L6 | `TInvestBrokerApi.kt` |
-| Н63. TInvestMarketDataService — god-класс 622 строки | критично | L6 | `TInvestMarketDataService.kt` |
-| Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod") | средне | L6 | `TInvestMarketDataService.kt` |
-| Н65. mapProtoToDomain — @Suppress("LongMethod") | средне | L6 | `TInvestInstrumentMapper.kt` |
-| Н66. getTradingStatuses — N параллельных unary | высоко | L6 | `TInvestMarketDataService.kt` |
-| Н67. postStopOrder — закомментированный expireDate | средне | L6 | `TInvestOrdersService.kt` |
-| Н68. SettingsRepository — @Suppress("TooManyFunctions") | средне | L6 | `SettingsRepository.kt` |
-| Н69. InvestRepository — @Suppress("TooManyFunctions") | средне | L6 | `InvestRepository.kt` |
-| Н71. BcsBrokerApi.initialize логирует refreshToken | критично | L6 | `BcsBrokerApi.kt` |
-| Н72. BcsBrokerApi.orders = null при работающем postOrder | высоко | L6, L4 | `BcsBrokerApi.kt` |
-| Н73. FinamBrokerApi.checkTradeAvailability — всегда Success | высоко | L6 | `FinamBrokerApi.kt` |
-| Н74. FinamBrokerApi.subscribePositions — dead callbackFlow | средне | L6 | `FinamBrokerApi.kt` |
-| Н75. FinamBrokerApi — 6 TODO("Not yet implemented") | средне | L6 | `FinamBrokerApi.kt` |
-| Н76. KDoc ссылается на несуществующую ### Реализация BCS Broker API | высоко | L6 | `BcsBrokerApi.kt` |
-| Н77. BcsBrokerApi.subscribePositions → emptyFlow(), polling-loop удалён | высоко | L6 | `BcsBrokerApi.kt` |
-| Н78. BcsBrokerApi OkHttpClient без CustomTrustManager | высоко | L6 | `BcsBrokerApi.kt` |
-| Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception | средне | L6 | `CustomTrustManager.kt` |
-| Н80. CustomTrustManager — нет проверки загрузки всех 5 CA | низко | L6 | `CustomTrustManager.kt` |
-| Н81. CustomTrustManager — CustomX509TrustManager lint-warning (принято 2c) | низко | L6 | `CustomTrustManager.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н44. data/repository/* → di.BrokerManager | критично | L6, L7 | 3 файла: `SearchCache.kt`, `InstrumentRepository.kt`, `InvestRepository.kt` | - |
+| Н45. InvestRepository использует 4 fat-метода BrokerApi | высоко | L6, L4 | `InvestRepository.kt` | - |
+| Н46. SearchCache.search бросает IllegalArgumentException | средне | L6, L1 | `SearchCache.kt` | - |
+| Н47. SearchCache.search — избыточный withContext(Dispatchers.IO) | низко | L6 | `SearchCache.kt` | - |
+| Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket | критично | L6 | `TInvestBrokerApi.kt` | ✓ |
+| Н63. TInvestMarketDataService — god-класс 622 строки | критично | L6 | `TInvestMarketDataService.kt` | - |
+| Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod") | средне | L6 | `TInvestMarketDataService.kt` | - |
+| Н65. mapProtoToDomain — @Suppress("LongMethod") | средне | L6 | `TInvestInstrumentMapper.kt` | - |
+| Н66. getTradingStatuses — N параллельных unary | высоко | L6 | `TInvestMarketDataService.kt` | ✓ |
+| Н67. postStopOrder — закомментированный expireDate | средне | L6 | `TInvestOrdersService.kt` | ✓ |
+| Н68. SettingsRepository — @Suppress("TooManyFunctions") | средне | L6 | `SettingsRepository.kt` | - |
+| Н69. InvestRepository — @Suppress("TooManyFunctions") | средне | L6 | `InvestRepository.kt` | - |
+| Н71. BcsBrokerApi.initialize логирует refreshToken | критично | L6 | `BcsBrokerApi.kt` | ✓ |
+| Н72. BcsBrokerApi.orders = null при работающем postOrder | высоко | L6, L4 | `BcsBrokerApi.kt` | ✓ |
+| Н73. FinamBrokerApi.checkTradeAvailability — всегда Success | высоко | L6 | `FinamBrokerApi.kt` | ✓ |
+| Н74. FinamBrokerApi.subscribePositions — dead callbackFlow | средне | L6 | `FinamBrokerApi.kt` | - |
+| Н75. FinamBrokerApi — 6 TODO("Not yet implemented") | средне | L6 | `FinamBrokerApi.kt` | - |
+| Н76. KDoc ссылается на несуществующую ### Реализация BCS Broker API | высоко | L6 | `BcsBrokerApi.kt` | - |
+| Н77. BcsBrokerApi.subscribePositions → emptyFlow(), polling-loop удалён | высоко | L6 | `BcsBrokerApi.kt` | - |
+| Н78. BcsBrokerApi OkHttpClient без CustomTrustManager | высоко | L6 | `BcsBrokerApi.kt` | - |
+| Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception | средне | L6 | `CustomTrustManager.kt` | - |
+| Н80. CustomTrustManager — нет проверки загрузки всех 5 CA | низко | L6 | `CustomTrustManager.kt` | - |
+| Н81. CustomTrustManager — CustomX509TrustManager lint-warning (принято 2c) | низко | L6 | `CustomTrustManager.kt` | - |
 
 **Соответствуют Clean (data-only, никаких утечек):**
 `TradingStateRepository`, `SettingsRepository`.
@@ -775,6 +847,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** критично.
+
+**Live тест:** -
 
 **Описание:** `SearchCache`, `InstrumentRepository`, `InvestRepository` инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` через конструктор. Data-слой зависит от `di/`.
 
@@ -791,6 +865,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `InvestRepository` вызывает 4 fat-метода `BrokerApi`:
 - `broker.getLastPricesByTscalpInstrumentId(ids)` — `getLastPricesResult`;
@@ -814,6 +890,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `SearchCache.search` при ненайденном брокере: `throw IllegalArgumentException("Брокер … не найден")`. Остальные методы `InvestRepository` / data — возвращают `AppResult<T>`, не бросают. Исключение из data в presentation (`OrdersViewModel.onSearchQueryChanged` ловит `Exception`, показывает «Ошибка поиска: …»).
 
 **Нарушенное правило Clean:** контракт data — `AppResult<T>` (по AGENTS: «`AppResult<T>` (Success/Failure), не исключения на границах слоёв»).
@@ -829,6 +907,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `SearchCache.search`: `withContext(Dispatchers.IO) { broker.userInstruments?.findInstruments(query) ?: emptyList() }`. `findInstruments` — suspend, внутри data-слоя брокер сам выбирает диспатчер (gRPC/REST). `withContext(Dispatchers.IO)` в data — избыточная диспатчеризация.
 
@@ -846,6 +926,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** критично.
 
+**Live тест:** ✓
+
 **Описание:** `TInvestBrokerAPI.initialize` перезаписывает `positionsWebSocket` без `close()` предыдущего. Ре-логин, смена токена, повторное «Сохранить» в настройках — старая WS-сессия держит сокет, получает ping/frames в никуда. Утечка соединения + нагрузка на сервер (WS-сессии накапливаются). `deinitialize` тоже обнуляет без `close()` — та же утечка при logout.
 
 **Нарушенное правило Clean:** не строго Clean — ресурсный leak в lifecycle.
@@ -861,6 +943,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** критично.
+
+**Live тест:** -
 
 **Описание:** `TInvestMarketDataService` — 622 строки, 19 функций, `@Suppress("TooManyFunctions")`. Отвечает за: счета (`getAccounts`, `openSandboxAccount`, `closeSandboxAccount`), портфель (`getPortfolio`, `fetchPortfolioPositions`), gRPC-стримы позиций (`subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect`, `convertSecurity`, `convertFuture`), баланс (`getBalance`, `sandboxPayIn`), инструменты (`fetchFullInstrument`, `findInstruments`, `findInstrumentShorts`, `fetchProtoInstrument`, `getFuturesMargin`), цены/статусы (`getLastPricesByTscalpInstrumentId`, `getTradingStatuses`), gRPC-стримы цен/ордеров (`subscribeLastPrices`, `subscribeOrderState`), проверка (`checkTradeAvailability`).
 
@@ -878,6 +962,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `TInvestMarketDataService.fetchPortfolioPositions` — `@Suppress("CyclomaticComplexMethod")`. ~40 строк, внутри: mapNotNull по позициям, fetchProtoInstrument для каждой, getFuturesMargin для фьючерсов, маппинг proto → domain, вычисление quantity/currentPrice/expectedYield/averagePrice, сборка `PositionStreamItem`.
 
 **Нарушенное правило Clean:** SRP — функция делает 3 вещи (fetch instrument, fetch margin, map position).
@@ -893,6 +979,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `TInvestInstrumentMapper.mapProtoToDomain` — 118 строк, `@Suppress("LongMethod")`. Единый `when` по `type` с тремя ветками (futures / share / else), в каждой — полный конструктор модели (~40 аргументов).
 
@@ -910,6 +998,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** высоко.
 
+**Live тест:** ✓
+
 **Описание:** `TInvestMarketDataService.getTradingStatuses`: `coroutineScope { ids.map { async { getTradingStatus(uid) } }.awaitAll() }` — N параллельных unary-запросов. При 100 инструментах — 100 параллельных запросов. При превышении лимита T-Invest (`RESOURCE_EXHAUSTED`) — часть падает в `UNKNOWN`.
 
 **Нарушенное правило Clean:** не строго Clean — не учитывает rate-limit внешнего API.
@@ -925,6 +1015,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** ✓
 
 **Описание:** `TInvestOrdersService.postStopOrder`: `// if (request.expireDate != null) builder.setExpireDate(parseDate(request.expireDate))`. `parseDate` закомментирован. Цепочка `expireDate` рвётся в 4+ местах (UI, ViewModel, UseCase, Service, parseDate). UI физически не может выбрать `GOOD_TILL_DATE` — всегда уходит `GOOD_TILL_CANCEL`.
 
@@ -942,6 +1034,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `SettingsRepository` — 125 строк, 15 функций, `@Suppress("TooManyFunctions")`. Объединяет: учётные данные брокеров (5 методов), счёт по умолчанию (2), режим песочницы (2), подтверждение заявок (3), ключи (3). KDoc ссылается на `### Рефакторинг репозиториев`.
 
 **Нарушенное правило Clean:** SRP — репозиторий отвечает за 4 области настроек.
@@ -957,6 +1051,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `InvestRepository` — 357 строк, 17 функций, `@Suppress("TooManyFunctions")`. Объединяет 4 доменные области (аккаунты, заявки, портфель, стримы) + фасад над `BrokerApi`.
 
@@ -974,6 +1070,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** критично.
 
+**Live тест:** ✓
+
 **Описание:** `BcsBrokerApi.initialize(refreshToken, clientId)` пишет в лог: `AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")`. Refresh-токен — секрет (90 дней, полный доступ к портфелю/торговле). В debug-сборке попадает в logcat в открытом виде; в release `AppLogger.d` отсекается, но `logcat -b all` / устройство может сохранить.
 
 **Нарушенное правило Clean:** AGENTS 4e — секреты не должны попадать в логи.
@@ -989,6 +1087,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** ✓
 
 **Описание:** `BcsBrokerApi.orders = null`, но `postOrder` реализован (HTTP POST). `InvestRepository.postOrderResult` использует `broker.orders?.postOrder` → для BCS всегда `Failure`, хотя `postOrder` работает. `postOrder` доступен только через fat-метод `BrokerApi.postOrder`.
 
@@ -1006,6 +1106,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** высоко.
 
+**Live тест:** ✓
+
 **Описание:** `FinamBrokerApi.checkTradeAvailability(...) = TradeCheckResult.Success` — фиктивный контракт. Finam — заглушка, все данные пустые. UI (через `InvestRepository.checkTradeAvailabilityResult`) думает, что сделка возможна → отправляет заявку → `postOrder` возвращает фиктивный `OrderResult("", 0L, 0L, OrderStatus.NEW)`.
 
 **Нарушенное правило Clean:** не строго Clean — фиктивный контракт вместо честного «не поддерживается».
@@ -1021,6 +1123,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `FinamBrokerApi.subscribePositions` — `callbackFlow` с polling-loop раз в 10 секунд, но `fetchPortfolioPositions` возвращает `emptyList()` (заглушка). Loop крутится вхолостую. При этом `streams = null` — менеджеры используют `broker.streams?.subscribePositions ?: skip`, значит fat-метод — dead code.
 
@@ -1038,6 +1142,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `FinamBrokerApi`: `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`, `cancelOrder`, `postStopOrder`, `cancelStopOrder` — `TODO("Not yet implemented")`. По AGENTS «Запрещено оставлять `TODO` без согласования». Безопасно благодаря nullable-val (`sandbox = null`, `orders = null`), но при появлении роли — упадёт.
 
 **Нарушенное правило Clean:** не строго Clean — `NotImplementedError` вместо честной заглушки.
@@ -1053,6 +1159,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `BcsBrokerApi.kt` KDoc: «Восстановление — задача `### Реализация BCS Broker API` в ROADMAP». Такой задачи в `docs/ROADMAP.md` **нет** (есть только `### Реализация Finam Broker API`). Комментарии в `BcsBrokerApi` и `docs/ISSUES.md` тоже упоминают её как существующую.
 
@@ -1070,6 +1178,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** высоко.
 
+**Live тест:** -
+
 **Описание:** `BcsBrokerApi.subscribePositions = emptyFlow()`. KDoc: «Polling-loop был сломан (транспорт BCS не отлажен), удалён. Восстановление — задача `### Реализация BCS Broker API`». `emptyFlow()` = «поток сразу завершился», не «нет данных». Плюс — покрытие polling через REST потеряно.
 
 **Нарушенное правило Clean:** не строго Clean — заглушка маскирует «не поддерживаю» под «стрим есть, но пустой».
@@ -1085,6 +1195,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `BcsBrokerApi.kt`: `private val client = OkHttpClient()` — отдельный клиент без российских CA. Сейчас работает (BCS на стандартных CA), но мина: если BCS введёт российские CA — TLS сломается тихо. Инстанс не переиспользуется с DI.
 
@@ -1102,6 +1214,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `CustomTrustManager.loadCertificateToKeyStore` — `catch (Exception) { AppLogger.w(TAG, "Не удалось загрузить сертификат из ресурса $resId", e) }`. Если CA-сертификат не загрузился — тихо пропускаем. При подключении к T-Invest: systemTrustManager не знает Russian CA, customTrustManager без сертификата → неинформативная TLS-ошибка. Причина (не загрузился конкретный ресурс) теряется.
 
 **Нарушенное правило Clean:** не строго Clean — resilience-логика молча деградирует.
@@ -1118,6 +1232,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** низко.
 
+**Live тест:** -
+
 **Описание:** `CustomTrustManager.init` загружает 5 CA (`russian_trusted_root_ca`, `_ca_gost_2025`, `_sub_ca`, `_sub_ca_2024`, `_sub_ca_gost_2025`). Если один упал — `customTrustManager` работает с 4/5. `getAcceptedIssuers` вернёт усечённый набор. Индикации нет.
 
 **Нарушенное правило Clean:** не строго Clean — молчаливая деградация.
@@ -1133,6 +1249,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** принято 2c.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `lint-baseline.xml` содержит `CustomX509TrustManager` warning для `data/api/CustomTrustManager.kt:12`. Android lint предупреждает, что custom X509TrustManager может быть insecure. Здесь — осознанно: нужны Russian Trusted Root CA для T-Invest (system trust их не знает).
 
@@ -1152,18 +1270,20 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н29. BrokerManager — domain-сервис в di/ | критично | L7, L1, L5, L6 | `di/BrokerManager.kt` |
-| Н35. provideBrokerManager — domain-конфигурация в di | средне | L7, L1 | `di/DataModule.kt` |
-| Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` |
-| Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н29. BrokerManager — domain-сервис в di/ | критично | L7, L1, L5, L6 | `di/BrokerManager.kt` | - |
+| Н35. provideBrokerManager — domain-конфигурация в di | средне | L7, L1 | `di/DataModule.kt` | - |
+| Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` | - |
+| Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` | - |
 
 ### Н29. BrokerManager — domain-сервис в di/
 
 **Статус:** открыто.
 
 **Серьёзность:** критично.
+
+**Live тест:** -
 
 **Описание:** `di/BrokerManager.kt` содержит domain-логику: `computeAnyInitialized()` (вычисление), `refreshInitializationState()` (публичный side-effect), `getDefaultBroker(): BrokerApi` throws `IllegalStateException("Брокер TInvest не зарегистрирован")` (знает «TInvest = default»), `anyInitialized: StateFlow<Boolean>` (реактивный контракт). Все потребители: `data/repository/*` (3), `domain/api/managers/*` (3), `TScalpApplication` (1), `SettingsViewModel` (4 callsites) инжектят `di.BrokerManager`.
 
@@ -1189,6 +1309,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `DataModule.provideBrokerManager` содержит domain-конфигурацию: список брокеров (TInvest, BCS, Finam) и **порядок** в `mapOf`, который определяет порядок вкладок в UI (`getAvailableBrokerNames()`) и порядок в `SearchCache`/`InvestRepository`. При добавлении 4-го брокера — правка в `di/`.
 
 **Нарушенное правило Clean:** domain-knowledge (список зарегистрированных брокеров + порядок) в di-слое.
@@ -1205,6 +1327,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `DataModule.provideTInvestWsHttpClient` содержит конфигурацию `HttpClient` (CIO engine, WebSockets, ContentNegotiation, trustManager). Транспортная конфигурация в сборочном слое. При появлении второго клиента (например, для REST) — дублирование конфига.
 
 **Нарушенное правило Clean:** транспортная конфигурация в di-слое.
@@ -1220,6 +1344,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `RepositoryModule.kt` содержит **два** `@Module` (`RepositoryModule` + `UseCaseModule`). По конвенции — отдельные файлы. `@Provides` для stateless-классов без зависимостей (`CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`, `FinamBrokerApi`, `BcsBrokerApi`) — при наличии `@Inject constructor()` на самом классе `@Provides` не нужен (Hilt сам создаст).
 
@@ -1239,13 +1365,13 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н48. TScalpApplication → data.repository.SettingsRepository | низко | L8, L6 | `TScalpApplication.kt` |
-| Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger | средне | L8, L2 | `TScalpApplication.kt` (`installGrpcExceptionGuard`) |
-| Н50. restoreTInvest содержит domain-логику выбора счёта | средне | L8 | `TScalpApplication.kt` |
-| Н51. refreshInitializationState — 2 callsites в app | средне | L8, L7 | `TScalpApplication.kt` |
-| Н52. Finam → Unit в restoreBrokerConnection | низко | L8 | `TScalpApplication.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н48. TScalpApplication → data.repository.SettingsRepository | низко | L8, L6 | `TScalpApplication.kt` | - |
+| Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger | средне | L8, L2 | `TScalpApplication.kt` (`installGrpcExceptionGuard`) | - |
+| Н50. restoreTInvest содержит domain-логику выбора счёта | средне | L8 | `TScalpApplication.kt` | - |
+| Н51. refreshInitializationState — 2 callsites в app | средне | L8, L7 | `TScalpApplication.kt` | ✓ |
+| Н52. Finam → Unit в restoreBrokerConnection | низко | L8 | `TScalpApplication.kt` | - |
 
 **MainActivity.kt** — чисто (20 строк, `enableEdgeToEdge` + `TScalpTheme { MainScreen() }`, никаких нарушений).
 
@@ -1254,6 +1380,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** принято 2c.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `TScalpApplication` инжектит `data.repository.SettingsRepository` напрямую. Composition root видит data — норм. Но инжектит конкретный класс, не интерфейс — после H21b (`domain.api.repository.SettingsRepository`) мигрирует.
 
@@ -1271,6 +1399,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** -
+
 **Описание:** `installGrpcExceptionGuard` использует `util.TInvestErrorMessages.messages[description]` (T-Invest-специфичный маппинг кодов) + `util.AppLogger` (платформа). App видит util.
 
 **Нарушенное правило Clean:** dependency rule — `TInvestErrorMessages` — data-knowledge (T-Invest-специфика), не должен быть в `util` и не должен быть доступен в app напрямую.
@@ -1286,6 +1416,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** средне.
+
+**Live тест:** -
 
 **Описание:** `restoreTInvest` + `resolveTInvestAccountId` + `tryOpenSandboxAccount` — логика выбора счёта при старте (savedAccountId → accounts → sandbox-fallback). Это domain-логика (правила выбора счёта), в `TScalpApplication`.
 
@@ -1303,6 +1435,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне (в рамках H22).
 
+**Live тест:** ✓
+
 **Описание:** `restoreTInvest` и `restoreBcs` вызывают `brokerManager.refreshInitializationState()`. Side-effect после `lifecycle.initialize`. Всего 6 callsites (`TScalpApplication` 2 + `SettingsViewModel` 4).
 
 **Нарушенное правило Clean:** не строго Clean — side-effect в app после lifecycle-вызова.
@@ -1318,6 +1452,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** принято 2c.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `restoreBrokerConnection` — `BrokerName.FINAM → Unit` (Finam не восстанавливается из app, только через UI). Осознанное решение — Finam сейчас заглушка.
 
@@ -1339,21 +1475,23 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Краткая таблица:**
 
-| ID | Серьёзность | Затрагиваемые уровни | Локализация |
-|---|---|---|---|
-| Н88. RestGetPortfolioRequest — без @Serializable | высоко | L9 | `TInvestRestTransport.kt` |
-| Н87. TInvestPositionsWebSocket — cold flow, риск дублирования соединений | средне | L9 | `TInvestPositionsWebSocket.kt` |
-| Н89. TInvestRestTransport — DTO в одном файле | низко | L9 | `TInvestRestTransport.kt` |
-| Н90. RestDto — избыточные @SerialName | низко | L9 | `TInvestRestTransport.kt` |
-| Н91. createTransportHttpClient — dead code | низко | L9 | `HttpClientFactory.kt`, `HttpClientFactory.android.kt` |
-| Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt | низко | L9 | `dto/PositionsStreamDto.kt` |
-| Н93. PositionsStreamDto — устаревшие комментарии-гипотезы | низко | L9 | `dto/PositionsStreamDto.kt` |
+| ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
+|---|---|---|---|---|
+| Н88. RestGetPortfolioRequest — без @Serializable | высоко | L9 | `TInvestRestTransport.kt` | - |
+| Н87. TInvestPositionsWebSocket — cold flow, риск дублирования соединений | средне | L9 | `TInvestPositionsWebSocket.kt` | ✓ |
+| Н89. TInvestRestTransport — DTO в одном файле | низко | L9 | `TInvestRestTransport.kt` | - |
+| Н90. RestDto — избыточные @SerialName | низко | L9 | `TInvestRestTransport.kt` | - |
+| Н91. createTransportHttpClient — dead code | низко | L9 | `HttpClientFactory.kt`, `HttpClientFactory.android.kt` | - |
+| Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt | низко | L9 | `dto/PositionsStreamDto.kt` | - |
+| Н93. PositionsStreamDto — устаревшие комментарии-гипотезы | низко | L9 | `dto/PositionsStreamDto.kt` | - |
 
 ### Н88. RestGetPortfolioRequest — без @Serializable
 
 **Статус:** открыто.
 
 **Серьёзность:** высоко.
+
+**Live тест:** -
 
 **Описание:** `TInvestRestTransport.kt`: `data class RestGetPortfolioRequest(@SerialName("accountId") val accountId: String)` — единственный DTO из 14 **без** `@Serializable`. Используется в `getBalance(accountId, isSandbox = true)` через `setBody(request)`. При попытке сериализации kotlinx.serialization выбросит `SerializationException` в runtime (сейчас не проявляется, если sandbox-ветка не вызывается).
 
@@ -1371,6 +1509,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** средне.
 
+**Live тест:** ✓
+
 **Описание:** `TInvestPositionsWebSocket.subscribePositions(accountId)` возвращает `flow { ... }` (cold). Каждый подписчик → **новое** WS-соединение. В отличие от `TInvestPricesWebSocket.prices` (hot SharedFlow, один upstream на любое число коллекторов) и `TInvestOrderStateWebSocket.states` (hot SharedFlow). Сейчас один подписчик (через оркестратор), но архитектурный риск: второй подписчик = второе WS к T-Invest (rate-limit, утечка).
 
 **Нарушенное правило Clean:** не строго Clean — консистентность архитектурных решений между тремя WS-клиентами.
@@ -1386,6 +1526,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `TInvestRestTransport.kt` — 220 строк, содержит сам транспорт + 14 DTO. Отдельный файл `dto/TInvestRestDto.kt` был бы чище и совпадал с другими DTO (`dto/PositionsStreamDto.kt`, `dto/MarketDataStreamDto.kt`, `dto/OrderStateStreamDto.kt`).
 
@@ -1405,6 +1547,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Серьёзность:** низко.
 
+**Live тест:** -
+
 **Описание:** `TInvestRestTransport.kt`: большинство `@SerialName("...")` совпадает с именем поля (`@SerialName("orderId") val orderId`, `@SerialName("lotsRequested") val lotsRequested`). Это шум. Исключение — поля, где реально нужно маппинг (нужно свериться с API).
 
 **Нарушенное правило Clean:** не строго Clean — шум.
@@ -1420,6 +1564,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `expect fun createTransportHttpClient()` в `commonMain` + `actual` в `androidMain` (OkHttp engine). Grep 2026-10-27: **0 вызовов** в `app/src/` и `transport-ktor/src/`. `app/src/main/kotlin/.../di/DataModule.kt` создаёт `HttpClient` вручную (`provideTInvestWsHttpClient`, CIO engine). `createTransportHttpClient` никогда не вызывается.
 
@@ -1438,6 +1584,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** Общие DTO живут в `PositionsStreamDto.kt`, но используются в нескольких WS-каналах:
 - `QuotationDto` — `PositionsStreamDto.kt` и `MarketDataStreamDto.kt`;
@@ -1460,6 +1608,8 @@ L4–L8 — не проверены, заполняются по мере инс
 **Статус:** открыто.
 
 **Серьёзность:** низко.
+
+**Live тест:** -
 
 **Описание:** `PositionsStreamDto.kt` содержит два комментария, устаревших после live-теста 2026-10-19:
 1. «ВНИМАНИЕ: точная структура конверта подписки (есть ли внешний ключ "positionsStream" или поля идут плоско) в спецификации не приведена. Гипотеза — обёртка с именем канала или метода. Проверить при первой реализации отправки.»
