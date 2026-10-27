@@ -7,9 +7,12 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -73,6 +76,9 @@ class FinamBrokerApi :
     override val userInstruments: UserInstrumentsApi? = null
     override val balance: BalanceApi? = null
     override val instrument: BrokerInstrumentApi? = null
+    override val portfolio: PortfolioApi? = null
+    override val marketData: MarketDataApi? = null
+    override val tradeCheck: TradeCheckApi? = null
     override val isInitialized: Boolean
         get() = jwtToken != null && client != null
 
@@ -189,12 +195,6 @@ class FinamBrokerApi :
         }
 
     // реализация на основе HTTP-клиента
-    override suspend fun fetchPortfolioPositions(
-        accountId: String,
-        sandboxMode: Boolean,
-    ): List<PositionStreamItem> =
-        withContext(Dispatchers.IO) {
-            emptyList()
         }
 
     override suspend fun getBalance(accountId: String): Double =
@@ -238,7 +238,6 @@ class FinamBrokerApi :
         TODO("Not yet implemented")
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
 
     override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = emptyMap()
 
@@ -247,11 +246,3 @@ class FinamBrokerApi :
         return flowOf()
     }
 
-    override suspend fun checkTradeAvailability(
-        accountId: String,
-        tscalpInstrumentId: String,
-        brokerUid: String?,
-        direction: OrderDirection,
-        quantity: Long,
-    ): TradeCheckResult = TradeCheckResult.Success
-}

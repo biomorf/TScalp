@@ -36,8 +36,13 @@ class PortfolioRepositoryImpl
                         ?: return@withContext AppResult.Failure(
                             AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                         )
+                val portfolioApi =
+                    broker.portfolio
+                        ?: return@withContext AppResult.Failure(
+                            AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает портфель"),
+                        )
                 runCatchingAppResult(brokerName) {
-                    broker.fetchPortfolioPositions(accountId, sandboxMode).map { it.toPortfolioPosition() }
+                    portfolioApi.fetchPortfolioPositions(accountId, sandboxMode).map { it.toPortfolioPosition() }
                 }
             }
 

@@ -114,8 +114,13 @@ class OrdersRepositoryImpl
                         ?: return@withContext AppResult.Failure(
                             AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                         )
+                val tradeCheckApi =
+                    broker.tradeCheck
+                        ?: return@withContext AppResult.Failure(
+                            AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает проверку сделки"),
+                        )
                 runCatchingAppResult(brokerName) {
-                    broker.checkTradeAvailability(
+                    tradeCheckApi.checkTradeAvailability(
                         accountId = accountId,
                         tscalpInstrumentId = tscalpInstrumentId,
                         brokerUid = tscalpInstrumentId,

@@ -7,9 +7,12 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
@@ -49,7 +52,8 @@ import java.io.IOException
 class BcsBrokerApi :
     BrokerApi,
     BrokerLifecycleApi,
-    AccountsApi {
+    AccountsApi,
+    PortfolioApi {
     companion object {
         private const val TAG = "BcsBrokerApi"
         private const val PROD_BASE_URL = "https://be.broker.ru"
@@ -80,6 +84,9 @@ class BcsBrokerApi :
     override val userInstruments: UserInstrumentsApi? = null
     override val balance: BalanceApi? = null
     override val instrument: BrokerInstrumentApi? = null
+    override val portfolio: PortfolioApi get() = this
+    override val marketData: MarketDataApi? = null
+    override val tradeCheck: TradeCheckApi? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean
@@ -354,7 +361,6 @@ class BcsBrokerApi :
         )
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
 
     override suspend fun postStopOrder(request: StopOrderRequest): String = "bcs-stop-${System.currentTimeMillis()}"
 
@@ -382,11 +388,4 @@ class BcsBrokerApi :
 
     override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = flowOf()
 
-    override suspend fun checkTradeAvailability(
-        accountId: String,
-        tscalpInstrumentId: String,
-        brokerUid: String?,
-        direction: OrderDirection,
-        quantity: Long,
-    ): TradeCheckResult = TradeCheckResult.Success
 }
