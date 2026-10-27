@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.repository
 
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -15,7 +15,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Реализация [AccountsRepository] поверх [BrokerManager].
+ * Реализация [AccountsRepository] поверх [BrokerRegistry].
  *
  * Тела методов перенесены из `InvestRepository` без изменений
  * (Phase 1 step 3 InvestRepository split).
@@ -24,7 +24,7 @@ import javax.inject.Singleton
 class AccountsRepositoryImpl
     @Inject
     constructor(
-        private val brokerManager: BrokerManager,
+        private val brokerManager: BrokerRegistry,
     ) : AccountsRepository {
         companion object {
             private const val TAG = "AccountsRepository"

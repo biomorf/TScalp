@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.repository
 
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
@@ -19,7 +19,7 @@ import javax.inject.Singleton
 class InstrumentRepositoryImpl
     @Inject
     constructor(
-        private val brokerManager: BrokerManager,
+        private val brokerManager: BrokerRegistry,
     ) : InstrumentRepository {
         // Ключ — tscalpInstrumentId
         private val cache = ConcurrentHashMap<String, InstrumentUi>()

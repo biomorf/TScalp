@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
-import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -58,7 +58,7 @@ import javax.inject.Singleton
 class PositionFlowManager
     @Inject
     constructor(
-        private val brokerManager: BrokerManager,
+        private val brokerManager: BrokerRegistry,
     ) {
         companion object {
             private const val TAG = "PositionFlowManager"

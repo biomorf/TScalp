@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.repository
 
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
@@ -20,7 +20,7 @@ import javax.inject.Singleton
 class SearchCacheImpl
     @Inject
     constructor(
-        private val brokerManager: BrokerManager,
+        private val brokerManager: BrokerRegistry,
     ) : SearchCacheRepository {
         // Ключ: "brokerName:нормализованныйЗапрос"
         private val cache = ConcurrentHashMap<String, List<InstrumentUi>>()
