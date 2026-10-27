@@ -20,7 +20,7 @@ import javax.inject.Singleton
  * инжектят `DebugFlagsRepository`, не этот класс напрямую.
  */
 @Singleton
-class DebugConfig
+internal class DebugConfig
     @Inject
     constructor() : DebugFlagsRepository {
         // --- Флаги для рантайм-переключения (в UI Настройки -> Информация) ---
