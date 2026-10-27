@@ -1344,6 +1344,8 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н89. TInvestRestTransport — DTO в одном файле | низко | L9 | `TInvestRestTransport.kt` |
 | Н90. RestDto — избыточные @SerialName | низко | L9 | `TInvestRestTransport.kt` |
 | Н91. createTransportHttpClient — dead code | низко | L9 | `HttpClientFactory.kt`, `HttpClientFactory.android.kt` |
+| Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt | низко | L9 | `dto/PositionsStreamDto.kt` |
+| Н93. PositionsStreamDto — устаревшие комментарии-гипотезы | низко | L9 | `dto/PositionsStreamDto.kt` |
 
 ### Н88. RestGetPortfolioRequest — без @Serializable
 
@@ -1391,6 +1393,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —.
 
+**Анализ L9-part2-Н89:** подтверждается — контраст наглядный: в `transport-ktor/dto/` DTO вынесены правильно (`PositionsStreamDto.kt`, `MarketDataStreamDto.kt`, `OrderStateStreamDto.kt`), а в `app/data/api/TInvestRestTransport.kt` — 14 DTO в одном файле с транспортом.
+
 **Ссылка на задачу:** — (не заведена). Связано с Н53 (`data/api/` структура).
 
 ### Н90. RestDto — избыточные @SerialName
@@ -1424,6 +1428,50 @@ L4–L8 — не проверены, заполняются по мере инс
 **Выгоды:** —.
 
 **Ссылка на задачу:** — (не заведена). Связано с Н36 (транспортная конфигурация в di).
+
+---
+
+### Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** Общие DTO живут в `PositionsStreamDto.kt`, но используются в нескольких WS-каналах:
+- `QuotationDto` — `PositionsStreamDto.kt` и `MarketDataStreamDto.kt`;
+- `PingDelaySettingsDto` — `PositionsStreamDto.kt` и `MarketDataStreamDto.kt`;
+- `PingDto` — `PositionsStreamDto.kt`, `MarketDataStreamDto.kt`, `OrderStateStreamDto.kt`;
+- `MoneyValueDto` — `PositionsStreamDto.kt` и `OrderStateStreamDto.kt`.
+
+Кросс-зависимость между файлами каналов.
+
+**Нарушенное правило Clean:** не строго Clean — организация DTO.
+
+**Clean-альтернатива:** вынести общие DTO в `dto/CommonDto.kt`. Плюсы: изоляция каналов, отсутствие кросс-импортов. Минусы: правка импортов в 3 файлах каналов + мапперах.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано с Н53 (`data/api/` структура).
+
+### Н93. PositionsStreamDto — устаревшие комментарии-гипотезы
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `PositionsStreamDto.kt` содержит два комментария, устаревших после live-теста 2026-10-19:
+1. «ВНИМАНИЕ: точная структура конверта подписки (есть ли внешний ключ "positionsStream" или поля идут плоско) в спецификации не приведена. Гипотеза — обёртка с именем канала или метода. Проверить при первой реализации отправки.»
+2. «Гипотеза: protobuf JSON mapping передаёт int64 как string. Если окажется long — поправить на Long?.»
+
+Оба вопроса решены: отправка работает end-to-end (ISSUES: «T-Invest WebSocket: решён — канал должен быть в URL path»), `balance` — строка (`String?`). Комментарии вводят в заблуждение.
+
+**Нарушенное правило Clean:** не строго Clean — актуальность документации.
+
+**Clean-альтернатива:** удалить оба комментария. Плюсы: KDoc соответствует реальности. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано с `docs/ISSUES.md` → «T-Invest WebSocket: решён...».
 
 ---
 
