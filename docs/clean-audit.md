@@ -70,33 +70,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
 
-### Н22. ViewModel → di.BrokerManager
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** -
-
-**Описание:** все потребители (`OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel`, `TScalpApplication`, `domain/api/managers/*`, `data/repository/*`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую. Вызывают `getAllBrokers()`, `getBroker(name)?.lifecycle?.initialize(...)`, `getAvailableBrokerNames()`, `refreshInitializationState()`, `getDefaultBroker()`. `BrokerManager` — точка сборки брокеров, живёт в `di/`.
-
-**Нарушенное правило:** Dependency rule — presentation зависит от `di` (сборочный слой).
-
-**Clean-альтернатива:** `domain.api.BrokerRegistry` — интерфейс с теми же методами (`getAllBrokers`, `getBroker`, `getAvailableBrokerNames`, `getDefaultBroker`, `refreshInitializationState`). Реализация — `data/registry/BrokerRegistryImpl` или `di/BrokerRegistryImpl`, `@Binds` в Hilt. VM инжектит `BrokerRegistry`. Плюсы: presentation → domain.api; `BrokerRegistry` в KMP-модуле. Минусы: переезд + переименование `BrokerManager` (~1–2 ч) + правка 3 VM + тестов.
-
-**Выгоды:** —
-
-
-**Анализ L7-Н29:** подтверждается — анализ L7 показал, что `BrokerManager` — domain-сервис в `di/`, нарушение шире, чем только VM: потребители включают `domain/api/managers/*` и `data/repository/*`. См. L7-Н29.
-
-**Анализ L7-part1:** подтверждается — полный L7 показал 3 находки (Н35–Н37); `BrokerManager` — единственная утечка `di/` наружу (10 файлов). Дизайн `BrokerRegistry` уточняется: `BrokerRegistryImpl(brokers: Set<BrokerApi>)`, порядок из `BrokerName.entries`, `refreshInitializationState` — открытый вопрос (см. L7-Н29).
-
-**Анализ L5-Н40:** подтверждается — L5 (3 менеджера) показал, что `di.BrokerManager` протекает шире: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8) = 10 потребителей.
-
-**Анализ L8-Н51:** подтверждается — `refreshInitializationState` вызывается из `TScalpApplication` 2 раза (`restoreTInvest`, `restoreBcs`), всего 6 callsites (2 app + 4 SettingsViewModel). Усиливает открытый вопрос H22.
-
-**Ссылка на задачу:** — (не заведена).
-
 ### Н1. Presentation конструирует PortfolioPosition
 
 **Статус:** открыто.
@@ -202,6 +175,35 @@ L4–L8 — не проверены, заполняются по мере инс
 **Анализ L5-Н38:** подтверждается — `DebugConfig` протекает в `PriceFlowManager` (L5), не только в `SettingsViewModel` (L1). Нарушение шире, чем presentation.
 
 **Ссылка на задачу:** — (не заведена). Связано с закрытыми `### Debug-тумблеры` и `### DebugConfig: только для debug-сборок` (функционал работает; переезд API — отдельная задача).
+
+---
+
+### ✅ Н22. ViewModel → di.BrokerManager
+
+**Статус:** исправлено (PR #60, `dev`, 2026-10-28).
+
+**Серьёзность:** критично.
+
+**Live тест:** -
+
+**Описание:** все потребители (`OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel`, `TScalpApplication`, `domain/api/managers/*`, `data/repository/*`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую. Вызывают `getAllBrokers()`, `getBroker(name)?.lifecycle?.initialize(...)`, `getAvailableBrokerNames()`, `refreshInitializationState()`, `getDefaultBroker()`. `BrokerManager` — точка сборки брокеров, живёт в `di/`.
+
+**Нарушенное правило:** Dependency rule — presentation зависит от `di` (сборочный слой).
+
+**Clean-альтернатива:** `domain.api.BrokerRegistry` — интерфейс с теми же методами (`getAllBrokers`, `getBroker`, `getAvailableBrokerNames`, `getDefaultBroker`, `refreshInitializationState`). Реализация — `data/registry/BrokerRegistryImpl` или `di/BrokerRegistryImpl`, `@Binds` в Hilt. VM инжектит `BrokerRegistry`. Плюсы: presentation → domain.api; `BrokerRegistry` в KMP-модуле. Минусы: переезд + переименование `BrokerManager` (~1–2 ч) + правка 3 VM + тестов.
+
+**Выгоды:** —
+
+
+**Анализ L7-Н29:** подтверждается — анализ L7 показал, что `BrokerManager` — domain-сервис в `di/`, нарушение шире, чем только VM: потребители включают `domain/api/managers/*` и `data/repository/*`. См. L7-Н29.
+
+**Анализ L7-part1:** подтверждается — полный L7 показал 3 находки (Н35–Н37); `BrokerManager` — единственная утечка `di/` наружу (10 файлов). Дизайн `BrokerRegistry` уточняется: `BrokerRegistryImpl(brokers: Set<BrokerApi>)`, порядок из `BrokerName.entries`, `refreshInitializationState` — открытый вопрос (см. L7-Н29).
+
+**Анализ L5-Н40:** подтверждается — L5 (3 менеджера) показал, что `di.BrokerManager` протекает шире: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8) = 10 потребителей.
+
+**Анализ L8-Н51:** подтверждается — `refreshInitializationState` вызывается из `TScalpApplication` 2 раза (`restoreTInvest`, `restoreBcs`), всего 6 callsites (2 app + 4 SettingsViewModel). Усиливает открытый вопрос H22.
+
+**Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
 
 ### ✅ Н3. OrdersListViewModel в ui.components
 
@@ -724,24 +726,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). **Связано с H20** (`AppErrorMapper` в data).
 
-### Н40. Менеджеры → di.BrokerManager
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** -
-
-**Описание:** все три менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую через конструктор. Domain-слой зависит от `di/`.
-
-**Нарушенное правило Clean:** dependency rule — domain зависит от `di`.
-
-**Clean-альтернатива:** `BrokerRegistry` (domain-интерфейс, дизайн в L7-Н22/Н29). Менеджеры инжектят `BrokerRegistry`. Плюсы: domain чист. Минусы: правка 3 менеджеров.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). **Связано с H22, H29**.
-
 ### Н41. Хардкод BrokerName.TINVEST в менеджерах
 
 **Статус:** открыто.
@@ -819,6 +803,26 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). **Связано с H23** (`DebugFlagsRepository`).
 
+---
+
+### ✅ Н40. Менеджеры → di.BrokerManager
+
+**Статус:** исправлено (PR #60, `dev`, 2026-10-28).
+
+**Серьёзность:** критично.
+
+**Live тест:** -
+
+**Описание:** все три менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` напрямую через конструктор. Domain-слой зависит от `di/`.
+
+**Нарушенное правило Clean:** dependency rule — domain зависит от `di`.
+
+**Clean-альтернатива:** `BrokerRegistry` (domain-интерфейс, дизайн в L7-Н22/Н29). Менеджеры инжектят `BrokerRegistry`. Плюсы: domain чист. Минусы: правка 3 менеджеров.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
+
 ## L6 — data/repository
 
 **Краткая таблица:**
@@ -851,33 +855,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Соответствуют Clean (data-only, никаких утечек):**
 `TradingStateRepository`, `SettingsRepository`.
-
-### Н44. data/repository/* → di.BrokerManager
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** -
-
-**Описание:** `SearchCache`, `InstrumentRepository`, `InvestRepository` инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` через конструктор. Data-слой зависит от `di/`.
-
-**Нарушенное правило Clean:** dependency rule — data зависит от `di`.
-
-**Clean-альтернатива:** `BrokerRegistry` (domain-интерфейс, дизайн в L7-Н22/Н29). 3 репозитория инжектят `BrokerRegistry`. Плюсы: data → domain. Минусы: правка 3 файлов.
-
-**Выгоды:** —.
-
-
-**Расширение (2026-10-27, InvestRepository split + H21b):** было 3 файла
-(`SearchCache`, `InstrumentRepository`, `InvestRepository`). Стало 8
-`*RepositoryImpl`: `AccountsRepositoryImpl`, `InstrumentRepositoryImpl`,
-`MarketDataRepositoryImpl`, `OrdersRepositoryImpl`,
-`PortfolioRepositoryImpl`, `SearchCacheImpl`, `SettingsRepositoryImpl`,
-`TradingStateRepositoryImpl`. Все инжектят `BrokerManager`. Закрывается
-в H22 (`BrokerRegistry`), не в H21b.
-
-**Ссылка на задачу:** — (не заведена). **Связано с H22, H29**.
 
 ### Н45. InvestRepository использует 4 fat-метода BrokerApi
 
@@ -1298,6 +1275,35 @@ InvestRepository split` (ROADMAP).
 
 [пусто]
 
+---
+
+### ✅ Н44. data/repository/* → di.BrokerManager
+
+**Статус:** исправлено (PR #60, `dev`, 2026-10-28).
+
+**Серьёзность:** критично.
+
+**Live тест:** -
+
+**Описание:** `SearchCache`, `InstrumentRepository`, `InvestRepository` инжектят `com.gitlab.biomorf.tscalp.di.BrokerManager` через конструктор. Data-слой зависит от `di/`.
+
+**Нарушенное правило Clean:** dependency rule — data зависит от `di`.
+
+**Clean-альтернатива:** `BrokerRegistry` (domain-интерфейс, дизайн в L7-Н22/Н29). 3 репозитория инжектят `BrokerRegistry`. Плюсы: data → domain. Минусы: правка 3 файлов.
+
+**Выгоды:** —.
+
+
+**Расширение (2026-10-27, InvestRepository split + H21b):** было 3 файла
+(`SearchCache`, `InstrumentRepository`, `InvestRepository`). Стало 8
+`*RepositoryImpl`: `AccountsRepositoryImpl`, `InstrumentRepositoryImpl`,
+`MarketDataRepositoryImpl`, `OrdersRepositoryImpl`,
+`PortfolioRepositoryImpl`, `SearchCacheImpl`, `SettingsRepositoryImpl`,
+`TradingStateRepositoryImpl`. Все инжектят `BrokerManager`. Закрывается
+в H22 (`BrokerRegistry`), не в H21b.
+
+**Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
+
 ## L7 — di
 
 **Краткая таблица:**
@@ -1308,32 +1314,6 @@ InvestRepository split` (ROADMAP).
 | Н35. provideBrokerManager — domain-конфигурация в di | средне | L7, L1 | `di/DataModule.kt` | - |
 | Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` | - |
 | Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` | - |
-
-### Н29. BrokerManager — domain-сервис в di/
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** -
-
-**Описание:** `di/BrokerManager.kt` содержит domain-логику: `computeAnyInitialized()` (вычисление), `refreshInitializationState()` (публичный side-effect), `getDefaultBroker(): BrokerApi` throws `IllegalStateException("Брокер TInvest не зарегистрирован")` (знает «TInvest = default»), `anyInitialized: StateFlow<Boolean>` (реактивный контракт). Все потребители: `data/repository/*` (3), `domain/api/managers/*` (3), `TScalpApplication` (1), `SettingsViewModel` (4 callsites) инжектят `di.BrokerManager`.
-
-**Нарушенное правило Clean:** dependency rule — domain (managers), presentation, data зависят от `di` (сборочный слой). `di/` не должен содержать доменную логику.
-
-**Clean-альтернатива:** `domain.registry.BrokerRegistry` — domain-сервис; implementation в `data/registry/`; `@Binds` в `di/`. Плюсы: domain-сервис в domain, `di/` содержит только DI. Минусы: переезд ~10 файлов-потребителей. `refreshInitializationState` — внутренний, не в интерфейсе (см. `**Анализ L1-Н22:**`).
-
-**Выгоды:** —.
-
-**Анализ L7-part1:** подтверждается — `BrokerManager` — единственная утечка `di/` наружу (10 файлов, grep 2026-10-27). Плюс: `provideBrokerManager` содержит domain-конфигурацию (список брокеров, порядок вкладок) — расширяет Н29 до «`BrokerManager` + его конфигурация в `di/`». См. Н35.
-
-**Открытый вопрос (H22):** `refreshInitializationState` — `internal` в `BrokerRegistryImpl` (concrete type протекает наружу) или `fun refreshInitializationState()` в интерфейсе `BrokerRegistry` (side-effect в domain-интерфейсе) или автоматически в `BrokerLifecycleApi.initialize` (циклическая зависимость). Решение — при выполнении H22.
-
-**Анализ L5-Н40:** подтверждается — 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) — часть списка потребителей `di.BrokerManager` (10 файлов). См. L5-Н40.
-
-**Анализ L6-Н44:** подтверждается — потребители `di.BrokerManager` включают 3 data/repository (`SearchCache`, `InstrumentRepository`, `InvestRepository`). Итого 10: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8).
-
-**Ссылка на задачу:** — (не заведена). Связано с L1-Н22 (`BrokerRegistry`), частично уточняет.
 
 ### Н35. provideBrokerManager — domain-конфигурация в di
 
@@ -1398,6 +1378,34 @@ object удалён после переноса его `@Provides` в `Repositor
 ### Исправленные (L7)
 
 [пусто]
+
+---
+
+### ✅ Н29. BrokerManager — domain-сервис в di/
+
+**Статус:** исправлено (PR #60, `dev`, 2026-10-28).
+
+**Серьёзность:** критично.
+
+**Live тест:** -
+
+**Описание:** `di/BrokerManager.kt` содержит domain-логику: `computeAnyInitialized()` (вычисление), `refreshInitializationState()` (публичный side-effect), `getDefaultBroker(): BrokerApi` throws `IllegalStateException("Брокер TInvest не зарегистрирован")` (знает «TInvest = default»), `anyInitialized: StateFlow<Boolean>` (реактивный контракт). Все потребители: `data/repository/*` (3), `domain/api/managers/*` (3), `TScalpApplication` (1), `SettingsViewModel` (4 callsites) инжектят `di.BrokerManager`.
+
+**Нарушенное правило Clean:** dependency rule — domain (managers), presentation, data зависят от `di` (сборочный слой). `di/` не должен содержать доменную логику.
+
+**Clean-альтернатива:** `domain.registry.BrokerRegistry` — domain-сервис; implementation в `data/registry/`; `@Binds` в `di/`. Плюсы: domain-сервис в domain, `di/` содержит только DI. Минусы: переезд ~10 файлов-потребителей. `refreshInitializationState` — внутренний, не в интерфейсе (см. `**Анализ L1-Н22:**`).
+
+**Выгоды:** —.
+
+**Анализ L7-part1:** подтверждается — `BrokerManager` — единственная утечка `di/` наружу (10 файлов, grep 2026-10-27). Плюс: `provideBrokerManager` содержит domain-конфигурацию (список брокеров, порядок вкладок) — расширяет Н29 до «`BrokerManager` + его конфигурация в `di/`». См. Н35.
+
+**Открытый вопрос (H22):** `refreshInitializationState` — `internal` в `BrokerRegistryImpl` (concrete type протекает наружу) или `fun refreshInitializationState()` в интерфейсе `BrokerRegistry` (side-effect в domain-интерфейсе) или автоматически в `BrokerLifecycleApi.initialize` (циклическая зависимость). Решение — при выполнении H22.
+
+**Анализ L5-Н40:** подтверждается — 3 менеджера (`PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`) — часть списка потребителей `di.BrokerManager` (10 файлов). См. L5-Н40.
+
+**Анализ L6-Н44:** подтверждается — потребители `di.BrokerManager` включают 3 data/repository (`SearchCache`, `InstrumentRepository`, `InvestRepository`). Итого 10: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8).
+
+**Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
 
 ## L8 — app
 
