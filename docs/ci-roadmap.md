@@ -445,7 +445,7 @@ web Settings GitHub + правка `docs/git-flow.md`.
 
 ### Self-hosted GitLab Runner через Ansible + Podman
 
-**Мобильная работа:** частичное (написание Ansible-ролей, inventory, playbook — с телефона; тестирование разворачивания — на удалённом сервере или десктопе).
+**Мобильная работа:** частичное (live-тест разворачивания на удалённом сервере).
 
 **Статус:** в работе.
 **Ветка:** ci/self-hosted-runner
@@ -535,10 +535,7 @@ web Settings GitHub + правка `docs/git-flow.md`.
 
 ### Hot-swap CI на GitLab
 
-**Мобильная работа:** частичное. Планирование и правки
-`.gitlab-ci.yml` / `docs/ci-cd.md` — через proot. Проверка
-пайплайна — только после появления self-hosted runner'а
-(блокируется отдельной задачей).
+**Мобильная работа:** частичное (live-тест пайплайна после self-hosted runner).
 
 **Статус:** запланировано. **Скелет.** Детализация — после
 внедрения GitFlow.
@@ -639,10 +636,7 @@ Actions, которая сама будет перестроена на этап
 
 ### Play Store Internal Testing
 
-**Мобильная работа:** частичное. Планирование и правка
-`.github/workflows/ci.yml` — через proot. Настройка Play
-Console и Service Account — через web. Реальная проверка
-публикации — только на десктопе или после первой сборки.
+**Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
 **Статус:** запланировано. **Заблокировано** созданием
 Google Play Console listing.
@@ -716,9 +710,7 @@ Service Account).
 
 ### Play Store Production
 
-**Мобильная работа:** частичное. Правка `.github/workflows/release.yml`
-— через proot. Проверка публикации — только на десктопе
-(сборка с подписью и upload в Play).
+**Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
 **Статус:** запланировано. **Заблокировано** «Play Store
 Internal Testing» (общий Service Account).
