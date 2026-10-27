@@ -320,10 +320,51 @@ VM 3 файла 1.5 ч, гейт 15 мин, резерв 15 мин).
 **Связано:** `docs/clean-audit.md` → Н21; `### Разбивка
 InvestRepository по доменным областям`.
 
-**Открытые вопросы:** `SettingsRepository` содержит 15
-функций — уточнить, все ли нужны в интерфейсе, или часть
-используется только в data (например, `debugFlagsFlow`).
+**Диагностика (2026-10-27).**
 
+- **Потребители (7 импортов в 3 ViewModel):** `SettingsViewModel`
+  (Settings + TradingState), `PortfolioViewModel` (Settings),
+  `OrdersViewModel` (Instrument + SearchCache + Settings +
+  TradingState).
+- **Методы (живые, вызываемые из presentation):**
+  - `SettingsRepository` — 12: `isSandboxMode` (×10),
+    `loadDefaultAccountId` (×5), `hasSavedToken` (×4),
+    `saveBrokerCredentials` (×3), `saveToken` (×2),
+    `isConfirmOrdersEnabled` (×2), `confirmOrdersEnabledFlow`,
+    `getToken`, `setSandboxMode`, `setConfirmOrdersEnabled`,
+    `saveDefaultAccountId`, `loadBrokerCredentials`,
+    `clearBrokerCredentials`.
+  - `InstrumentRepository` — 2: `getInstrument` (×1),
+    `refreshInstrument` (**0 вызовов — проверить на шаге 1
+    grep по всему `app/src/main`; если 0 — удалить**).
+  - `SearchCache` — 2: `search` (×2), `invalidate` (×2).
+  - `TradingStateRepository` — 3: `save`, `load`, `clear`.
+- **Готовность к `@Binds`:** `SettingsRepository` ✅
+  (`@Singleton @Inject constructor`), `TradingStateRepository`
+  ✅ (`@Singleton @Inject constructor`), `InstrumentRepository`
+  ❌ (нет `@Inject`, провайдится `@Provides` в
+  `RepositoryModule`), `SearchCache` ❌ (то же).
+- **Паттерн:** переименование data-классов в `*Impl`
+  (`git mv` + `: <Interface>`), 4 `@Binds` в
+  `RepositoryBindingModule`, удаление `@Provides` для
+  `InstrumentRepository` / `SearchCache` из `RepositoryModule`
+  (согласовано с InvestRepository split).
+
+**Открытые вопросы.**
+
+- `InstrumentRepository.refreshInstrument` — вероятно мёртв.
+  Проверить на шаге 1: `grep -rn "refreshInstrument" app/src/main`.
+  Если 0 — удалить до создания интерфейса.
+- `SettingsRepository` — 12 функций (не 15: KDoc устарел),
+  все вызываются. В интерфейс — все 12.
+- `confirmOrdersEnabledFlow` — **функция**
+  `fun confirmOrdersEnabledFlow(): Flow<Boolean>` (решение
+  2026-10-27), не `val`. Консистентно с 4 существующими
+  интерфейсами (только `fun`).
+- `RepositoryModule → UseCaseModule.kt` (clean-audit Н37:
+  два `@Module` в одном файле) — **отдельная задача**, не в
+  scope H21b. После H21b `RepositoryModule` будет содержать
+  только `UseCaseModule`. Не раздуваем H21b.
 
 
 ---
