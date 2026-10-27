@@ -486,30 +486,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н61. retryWithBackoff — busy loop на normal completion | высоко | L4 | `domain/api/StreamCombinators.kt` | - |
 | Н70. BrokerApi — @Suppress("TooManyFunctions") | средне | L4 | `domain/api/BrokerApi.kt` | - |
 
-### Н25. BrokerApi fat дублирует nullable-val роли
-
-**Статус:** принято (по 2c). **Пересматривается:** фактически технический долг переходного состояния, а не осознанный выбор.
-
-**Серьёзность:** критично.
-
-**Live тест:** -
-
-**Описание:** 19 методов fat-части `BrokerApi` почти все дублируют nullable-val роли: `getAccounts` -> `accounts?.getAccounts`, `openSandboxAccount`/`closeSandboxAccount`/`sandboxPayIn` -> `sandbox?.<метод>`, `getBalance` -> `balance?.getBalance`, `subscribePositions`/`subscribeLastPrices`/`subscribeOrderState` -> `streams?.<метод>`, `postOrder`/`postStopOrder`/`getStopOrders`/`cancelStopOrder`/`getOrders`/`cancelOrder` -> `orders?.<метод>`, `findInstruments`/`getTradingStatuses` -> `userInstruments?.<метод>`. Не дублируют 2 метода: `fetchPortfolioPositions`, `checkTradeAvailability`. `getLastPricesByTscalpInstrumentId` — частичный дубль `pricesSnapshot` (та же семантика, разница только в fallback gRPC->REST). Два пути к одному контракту (`broker.postOrder` и `broker.orders?.postOrder`) — разное поведение при `null`.
-
-**Нарушенное правило Clean:** Interface Segregation Principle — `BrokerApi` остаётся fat с дублированием ролей; nullable-val решение не доведено до конца.
-
-**Clean-альтернатива:** выделить оставшиеся 3 метода в роль (`PortfolioApi` + `TradingStatusApi`), мигрировать `InvestRepository` на `broker.<role>?`, удалить fat-часть. `BrokerApi` — тонкий фасад с 9 nullable-val ролями и `name`/`isInitialized`. Плюсы: полный ISP, `@Suppress("TooManyFunctions")` снимается, один путь к каждому контракту. Минусы: `InvestRepository` — 29 callsites, ~2–3 ч.
-
-**Выгоды (для «отклонение по 2c»):** KDoc в `BrokerApi` фиксирует fat как осознанно (мультиброкерный фасад, `InvestRepository` — 29 callsites). По факту fat-часть — legacy переходного состояния. Пересмотр — после стабилизации остальных задач clean-audit, новой задачи пока нет.
-
-**Анализ L4-part2:** подтверждается — анализ L4-part2 (6 ролей) уточнил: 16 из 19 fat-методов полностью дублируют nullable-val роли, 1 (`getLastPricesByTscalpInstrumentId`) — частичный дубль `pricesSnapshot`, 2 (`fetchPortfolioPositions`, `checkTradeAvailability`) не дублируют.
-
-**Анализ L6-Н45:** подтверждается — `InvestRepository` использует 4 fat-метода (не 19): `getLastPricesByTscalpInstrumentId`, `fetchPortfolioPositions`, `checkTradeAvailability`, `subscribePositions` (дубль `streams?.subscribePositions`). Остальные 12 — через nullable-val роли.
-
-**Анализ L6-part2-Н25:** подтверждается — BCS подтверждает проблему: fat-метод `postOrder` работает, но `orders = null` делает его недоступным через роль; `subscribePositions` → `emptyFlow()` (мёртвая заглушка). Нужен расщеп `OrdersApi` на `OrdersQueryApi` / `OrdersCommandApi`.
-
-**Ссылка на задачу:** — (не заведена). Пересмотр — в рамках `### Рефакторинг ролей BrokerApi` (закрыта), новая задача не заведена.
-
 ### Н26. BrokerLifecycleApi — не 2c-фиксация
 
 **Статус:** открыто.
@@ -671,9 +647,39 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** `docs/ISSUES.md` → «PriceFlowManager.collectStream: потенциальный busy loop» (расширено в L5-Н61: «касается также `StreamCombinators.retryWithBackoff`»).
 
-### Н70. BrokerApi — @Suppress("TooManyFunctions")
+### Исправленные (L4)
 
-**Статус:** открыто.
+### ✅ Н25. BrokerApi fat дублирует nullable-val роли
+
+**Статус:** исправлено (PR #61, `dev`, 2026-10-28).
+
+**Серьёзность:** критично.
+
+**Live тест:** -
+
+**Описание:** 19 методов fat-части `BrokerApi` почти все дублируют nullable-val роли: `getAccounts` -> `accounts?.getAccounts`, `openSandboxAccount`/`closeSandboxAccount`/`sandboxPayIn` -> `sandbox?.<метод>`, `getBalance` -> `balance?.getBalance`, `subscribePositions`/`subscribeLastPrices`/`subscribeOrderState` -> `streams?.<метод>`, `postOrder`/`postStopOrder`/`getStopOrders`/`cancelStopOrder`/`getOrders`/`cancelOrder` -> `orders?.<метод>`, `findInstruments`/`getTradingStatuses` -> `userInstruments?.<метод>`. Не дублируют 2 метода: `fetchPortfolioPositions`, `checkTradeAvailability`. `getLastPricesByTscalpInstrumentId` — частичный дубль `pricesSnapshot` (та же семантика, разница только в fallback gRPC->REST). Два пути к одному контракту (`broker.postOrder` и `broker.orders?.postOrder`) — разное поведение при `null`.
+
+**Нарушенное правило Clean:** Interface Segregation Principle — `BrokerApi` остаётся fat с дублированием ролей; nullable-val решение не доведено до конца.
+
+**Clean-альтернатива:** выделить оставшиеся 3 метода в роль (`PortfolioApi` + `TradingStatusApi`), мигрировать `InvestRepository` на `broker.<role>?`, удалить fat-часть. `BrokerApi` — тонкий фасад с 9 nullable-val ролями и `name`/`isInitialized`. Плюсы: полный ISP, `@Suppress("TooManyFunctions")` снимается, один путь к каждому контракту. Минусы: `InvestRepository` — 29 callsites, ~2–3 ч.
+
+**Выгоды (для «отклонение по 2c»):** KDoc в `BrokerApi` фиксирует fat как осознанно (мультиброкерный фасад, `InvestRepository` — 29 callsites). По факту fat-часть — legacy переходного состояния. Пересмотр — после стабилизации остальных задач clean-audit, новой задачи пока нет.
+
+**Анализ L4-part2:** подтверждается — анализ L4-part2 (6 ролей) уточнил: 16 из 19 fat-методов полностью дублируют nullable-val роли, 1 (`getLastPricesByTscalpInstrumentId`) — частичный дубль `pricesSnapshot`, 2 (`fetchPortfolioPositions`, `checkTradeAvailability`) не дублируют.
+
+**Анализ L6-Н45:** подтверждается — `InvestRepository` использует 4 fat-метода (не 19): `getLastPricesByTscalpInstrumentId`, `fetchPortfolioPositions`, `checkTradeAvailability`, `subscribePositions` (дубль `streams?.subscribePositions`). Остальные 12 — через nullable-val роли.
+
+**Анализ L6-part2-Н25:** подтверждается — BCS подтверждает проблему: fat-метод `postOrder` работает, но `orders = null` делает его недоступным через роль; `subscribePositions` → `emptyFlow()` (мёртвая заглушка). Нужен расщеп `OrdersApi` на `OrdersQueryApi` / `OrdersCommandApi`.
+
+**Что сделано:** 3 живых вынесены в роли `PortfolioApi`, `MarketDataApi`, `TradeCheckApi`. 16 мёртвых fat-методов удалены. `BrokerApi` — 12 nullable-val ролей, 0 `fun`. `@Suppress` снят. `InvestRepository` уже удалён (PR #56), `*RepositoryImpl` инжектят роли.
+
+**Ссылка на задачу:** — (не заведена). Пересмотр — в рамках `### Рефакторинг ролей BrokerApi` (закрыта), новая задача не заведена.
+
+---
+
+### ✅ Н70. BrokerApi — @Suppress("TooManyFunctions")
+
+**Статус:** исправлено (PR #61, `dev`, 2026-10-28).
 
 **Серьёзность:** средне.
 
@@ -689,11 +695,9 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L4-Н25:** этот `@Suppress` — маркер, подтверждающий долг из Н25 (fat-интерфейс осознанно не доведён до полного ISP).
 
+**Что сделано:** `@Suppress("TooManyFunctions")` снят: в `BrokerApi` 0 `fun`, только `val` (12 ролей). detekt не ругается.
+
 **Ссылка на задачу:** `docs/clean-audit.md` → L4-Н25; `### Рефакторинг ролей BrokerApi` (закрыта); `### Рефакторинг BrokerApi-реализаций (D)` (закрыта).
-
-### Исправленные (L4)
-
-[пусто]
 
 ## L5 — domain/managers
 
