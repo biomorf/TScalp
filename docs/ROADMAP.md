@@ -239,7 +239,8 @@ KDoc обоснования 2c ссылается на `InvestRepository` как
 
 **Мобильная работа:** невозможно (сборка + тесты).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/h21b-domain-interfaces
 
 **Контекст (clean-audit Н21):** `OrdersViewModel`,
 `PortfolioViewModel`, `SettingsViewModel` инжектят
