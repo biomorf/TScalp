@@ -3,18 +3,18 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.repository.InstrumentRepository
-import com.gitlab.biomorf.tscalp.data.repository.SearchCache
-import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
-import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
@@ -59,7 +59,7 @@ class OrdersViewModel
         private val portfolioRepository: PortfolioRepository,
         private val accountsRepository: AccountsRepository,
         private val instrumentRepo: InstrumentRepository,
-        private val searchCache: SearchCache,
+        private val searchCache: SearchCacheRepository,
         private val settingsRepository: SettingsRepository,
         private val tradingStateRepository: TradingStateRepository,
         private val brokerManager: BrokerManager,
@@ -102,7 +102,7 @@ class OrdersViewModel
             // state обновляется, onClick видит свежее значение.
             viewModelScope.launch {
                 AppLogger.d(TAG, "subscribed to confirmOrdersEnabledFlow")
-                settingsRepository.confirmOrdersEnabledFlow.collect { enabled ->
+                settingsRepository.confirmOrdersEnabledFlow().collect { enabled ->
                     _uiState.update { it.copy(confirmOrdersEnabled = enabled) }
                 }
             }

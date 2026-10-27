@@ -2,7 +2,6 @@ package com.gitlab.biomorf.tscalp.presentation.screens.portfolio
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
@@ -10,6 +9,7 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition

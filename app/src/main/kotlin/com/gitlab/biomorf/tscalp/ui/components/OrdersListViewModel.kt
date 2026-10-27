@@ -2,10 +2,10 @@ package com.gitlab.biomorf.tscalp.ui.components
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
