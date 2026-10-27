@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.orderTypeFromStorageKey
@@ -23,12 +24,12 @@ import javax.inject.Singleton
  * это снимок сессии.
  */
 @Singleton
-class TradingStateRepository
+class TradingStateRepositoryImpl
     @Inject
     constructor(
         private val dataStore: DataStore<Preferences>,
-    ) {
-        suspend fun save(snapshot: TradingStateSnapshot) {
+    ) : TradingStateRepository {
+        override suspend fun save(snapshot: TradingStateSnapshot) {
             dataStore.edit { prefs ->
                 snapshot.selectedTscalpInstrumentId?.let {
                     prefs[SELECTED_INSTRUMENT_UID] = it
@@ -45,7 +46,7 @@ class TradingStateRepository
             }
         }
 
-        suspend fun load(): TradingStateSnapshot {
+        override suspend fun load(): TradingStateSnapshot {
             val prefs = dataStore.data.first()
             return TradingStateSnapshot(
                 selectedTscalpInstrumentId = prefs[SELECTED_INSTRUMENT_UID],
@@ -59,7 +60,7 @@ class TradingStateRepository
             )
         }
 
-        suspend fun clear() {
+        override suspend fun clear() {
             dataStore.edit { prefs ->
                 prefs.remove(SELECTED_INSTRUMENT_UID)
                 prefs.remove(PAIRED_INSTRUMENT_UID)
