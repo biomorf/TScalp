@@ -240,6 +240,63 @@ actual). Не доверять фильтру.
 
 ---
 
+### 40. `git add -A` — источник инцидента
+
+**Правило:** только `git add <files>` с явным списком (правило 4g, без исключений). Перед `git commit` — `git diff --cached --name-only`, сверить с ожидаемым. Лишний файл → `git restore --staged <file>`.
+
+**Инцидент:** 2026-10-28, fat-part. 4 коммита с `git add -A` (`a1c119b`, `a1fc32c`, `c4865a5`, `f76ba50`). В `72c28f3` захватил untracked `.tmp` (mv упал молча), `.kt` не изменились → CI упал на тех же ktlint. Revert + fix.
+
+**Проверка:** `git diff --cached --name-only` перед коммитом.
+
+### 41. `mv` без `-f` на телефоне — зависание на `overwrite?`
+
+**Правило:** `mv -f` (или `mv -n`). `mv` без флага интерактивен, если файл существует.
+
+**Инцидент:** 2026-10-28, `.tmp` → `.kt`. `mv` спросил `overwrite?` на два файла, Ctrl+C — оба `mv` не выполнились. Команда зависла в ожидании ввода.
+
+**Проверка:** `mv -f` всегда. Защита от перезаписи — `mv -n` + `echo "skipped"`.
+
+### 42. `.tmp + mv` — коммит может захватить `.tmp`
+
+**Правило:** не использовать `.tmp`-файлы для правок. `write_text` сразу в целевой файл, `assert` до записи и после.
+
+**Инцидент:** 2026-10-28, fat-part. `cp → sed .tmp → mv` — `mv` упал (overwrite?), `git add -A` захватил `.tmp`, `.kt` не изменились. `72c28f3` = 445 строк `.tmp`, CI красный.
+
+**Проверка:** `git diff --cached --name-only` не содержит `*.tmp`. Правка через `write_text` + `assert` — атомарная.
+
+### 43. Heredoc на телефоне — риск потери `MSGEOF`
+
+**Правило:** commit message через `printf '%s\n' ... > "$HOME/.msg.txt" && git commit -F "$HOME/.msg.txt"`. Heredoc (`git commit -F - <<'MSGEOF'`) — только на десктопе.
+
+**Инцидент:** 2026-10-28. При вставке heredoc на телефоне потерялась закрывающая `MSGEOF` → `git commit` ждал ввода бесконечно.
+
+**Проверка:** в блоке коммита — `printf`, не `<<`. Если heredoc неизбежен — `set -e` + `echo "heredoc OK"` после закрывающей метки.
+
+### 44. `set -e` в блоках с несколькими командами
+
+**Правило:** каждый блок, где несколько команд пишут в файл / меняют состояние, начинается с `set -euo pipefail` (или `&&`-цепочка).
+
+**Инцидент:** 2026-10-28, fat-part. Блок `mv .tmp .kt` + `git add -A` + `commit` — `mv` упал, `set -e` не было, скрипт продолжился. Коммит создан, `.tmp` в индексе.
+
+**Проверка:** `set -e` в шапке. `echo "exit: $?"` после критичной команды.
+
+### 45. Парсер multi-line overrides — brace-balance, не regex
+
+**Правило:** удаление методов в Kotlin — через brace-balance по строкам (inline ` = value` → 1 строка; block `{...}` → баланс), не через regex `[^\n]*\n`. Перед удалением — `grep -n "override.*fun <name>"` + `sed -n 'N,Mp'` для границ.
+
+**Инцидент:** 2026-10-28, fat-part. Regex `override fun (\w+)\([^\n]*\n` матчил только первую строку multi-line сигнатуры → orphan bodies (BCS/Finam, ~200 syntax errors). Обратный случай: ` = emptyFlow()` inline, но с `{` в generic — parser искал следующий `{` = тело следующего метода → удалил живую роль.
+
+**Проверка:** `grep -n` + `sed -n 'N,Mp'` для границ. Brace-balance + inline-детект.
+
+### 49. Не писать в `.tmp` до полной проверки всех `.tmp`
+
+**Правило:** при обработке нескольких файлов — сначала все `write_text` в `.tmp` (без mv), проверка (brace, counts), только потом `mv -f` каждого. Никаких промежуточных `mv` до полной проверки.
+
+**Инцидент:** 2026-10-28. Один блок: `sed BCS.tmp`, `mv BCS.tmp BCS`, `sed FIN.tmp` (упал) — BCS уже перезаписан, откатывать сложнее.
+
+**Проверка:** структура `copy → mutate .tmp → check → mv -f → check`.
+
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
@@ -297,6 +354,31 @@ actual). Не доверять фильтру.
 **Проверка:** `grep -n "MutableSharedFlow.*replay" app/src/main/java/com/example/tscalp/data/api/SharedPositionStreamManager.kt` — `replay = 1`.
 
 ---
+
+### 46. Удаление fat-метода — проверять supertype реализаций
+
+**Правило:** перед удалением метода из интерфейса — `grep -rn "override.*fun <method>" app/src/main/kotlin/**/data` — какие реализации есть. Если брокер не имеет supertype для этого метода (роль `= null`) — override станет orphan (`NOTHING_TO_OVERRIDE`).
+
+**Инцидент:** 2026-10-28, fat-part. Удалил fat из `BrokerApi`, оставил `override fun openSandboxAccount` в BCS/Finam (supertype `SandboxApi` нет, `sandbox = null`). CI: 14+15 `overrides nothing`.
+
+**Проверка:** `grep -E "^class \w+.*: .*Api" <broker>.kt` — supertype list. Override допустим только для supertype-ролей.
+
+### 47. `grep -c` на структурных маркерах — ложные тревоги
+
+**Правило:** `grep -c` — для точного сравнения с ожидаемым; для «есть/нет» — `grep -q`. Для классов/интерфейсов — `grep -nE '^class \w+'` + `head`. `@Suppress` в KDoc ≠ `@Suppress` на классе — считать с `^@Suppress`.
+
+**Инцидент:** 2026-10-28. `grep -c "@Suppress"` вернул 1 — был в KDoc `@Suppress снят`. `grep -cE "^    (suspend )?fun "` вернул 3 — были role overrides. `ls | grep -cE '^PortfolioApi'` вернул 0 — глюк в Termux-контексте.
+
+**Проверка:** `^`-anchor, `grep -n`, смотреть на контекст.
+
+### 48. Import-order чекер — `java`/`javax`/`kotlin` в конце
+
+**Правило:** для проверки порядка — ktlint-правило (`java`, `javax`, `kotlin` в конце), не чистый алфавит. `grep -E "^import " file | awk 'NR>1 && $0<prev'` — неверно, `javax` лексикографически раньше `kotlinx`, но по правилу — позже.
+
+**Инцидент:** 2026-10-28. Self-check показал `FAIL: kotlinx.coroutines.withContext > javax.inject.Inject` — ложная тревога, ktlint-стандарт `javax` в конце.
+
+**Проверка:** для быстрой сверки — `ktlintFormat` локально или полагаться на CI.
+
 
 ## Clean-audit
 
@@ -455,6 +537,15 @@ wall time (без учёта round-trips в чате).
 **Инцидент:** 2026-10-28, сессия рефакторинга. Пользователь: «Пока обсуждаем и планируем» — я выдал код. «Давай план» — снова код. Пользователь: «Мы же начинаем новый тикет, значит пока только обсуждаем и планируем. Такой порядок работы всегда».
 
 **Проверка:** в ответе на «обсуждаем»/«планируем» — `grep -c '^\`\`\`' ответ` = 0 (нет code fence).
+
+### 50. `git revert --no-commit` — не забыть `--continue`/`--abort`
+
+**Правило:** после `git revert --no-commit` — либо `git revert --continue` (если конфликты разрешены), либо `git revert --abort` (отменить). Не оставлять репозиторий в состоянии reverting. `git revert --quit` — «выйти без отката» (если нужен промежуточный результат без commit).
+
+**Инцидент:** 2026-10-28. `git revert --no-commit c4865a5` + `commit` вручную — `status` показал «You are currently reverting», git ждал `--continue`. `--quit` привёл в порядок.
+
+**Проверка:** `git status` после revert. Если `reverting` — `--continue` / `--abort` / `--quit`.
+
 
 ## Применение уроков
 
