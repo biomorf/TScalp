@@ -9,7 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.gitlab.biomorf.tscalp.ui.components.OrdersListViewModel
+import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrdersListViewModel
 import com.gitlab.biomorf.tscalp.util.TradePhrases
 
 @Composable
