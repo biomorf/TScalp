@@ -24,6 +24,8 @@
 **Выгоды (обязательно для «принято»):** что даёт текущий вариант.
 
 **Ссылка на задачу:** название задачи в `docs/ROADMAP.md` / `docs/ci-roadmap.md` или `—`.
+
+**Сводный отчёт, <дата>:** — (не включена) / да (включена в отчёт от <дата>)
 ~~~
 
 ## Уровни (по приоритету)
@@ -1485,3 +1487,82 @@ L4–L8 — не проверены, заполняются по мере инс
 
 - 2026-10-26 — создан. Заполнены L1 (7), L2 (4), L3 (7). L4–L8 — заглушки.
 - 2026-10-27 — L1-L8 полная инвентаризация; L9 (transport-ktor): Н87-Н91 (part 1), Н92+ — по мере части 2.
+
+## Сводный отчёт, 2026-10-27
+
+**Зафиксировано в `docs/clean-audit.md`:** 74 находки, ~1500 строк. Проверены все 9 уровней (L1–L9), 3 документа-источника (ROADMAP, ci-roadmap, ISSUES) прошли ревизию.
+
+### Метрики
+
+| Метрика | Значение |
+|---|---|
+| Всего находок | **74** |
+| Открыто | ~70 |
+| Принято по 2c | ~4–5 (Н25, Н48, Н52, Н81) |
+| Исправлено | 0 |
+| Новых в этой сессии | 56 (L4–L9) |
+| Файлов кода покрыто | ~55 (app + transport-ktor) |
+
+### Распределение по уровням
+
+| Уровень | Находок | Ключевые |
+|---|---|---|
+| L1 presentation | 7 | Н21 (VM → data.*), Н22 (VM → `di.BrokerManager`) — критично |
+| L2 util | 4 | Н19 (AppLogger/android.util.Log), Н20 (io.grpc в util) — высоко |
+| L3 domain/models | 7 | Н5 (`PortfolioPosition`, принято 2c) |
+| L4 domain/api | 11 | Н25 (fat `BrokerApi`), Н70 (`@Suppress`) |
+| L5 domain/managers | 6 | Н38 (`DebugConfig` в `PriceFlowManager`), Н40 (`di.BrokerManager` × 3) |
+| L6 data (repository) | 4 | Н44 (`di.BrokerManager` × 3), Н45 (4 fat-метода) |
+| L6 data (api) | 24 | Н53 (структура), Н63 (god-класс 622), Н71 (refreshToken в логах — security) |
+| L7 di | 4 | Н29 (`BrokerManager` — domain-сервис в `di/`) |
+| L8 app | 5 | Н50 (domain-логика в app), Н51 (`refreshInitializationState` × 2) |
+| L9 transport-ktor | 7 | Н88 (missing `@Serializable`), Н87 (cold flow) |
+
+### Severity
+
+- **Критично** ~10: Н21, Н22, Н25, Н29, Н38, Н40, Н44, Н53, Н63, Н71 (security).
+- **Высоко** ~15: Н1, Н19, Н20, Н39, Н45, Н62, Н66, Н67, Н72, Н73, Н76, Н77, Н78, Н88, +1.
+- **Средне** ~25.
+- **Низко** ~24.
+
+### Baseline: до / после
+
+- **До сессии** (initial clean-audit 2026-10-26): 18 находок (L1–L3).
+- **После** (2026-10-27): 74 находки (L1–L9).
+
+**Что это даёт:**
+
+- **Полная инвентаризация** — ни одна находка не потеряется, даже если задачи в ROADMAP отменятся (правило 2c, коммит `c9468c3`).
+- **Дыры в инвентаризации закрыты** — backfill Н58–Н70 восстановил 13 пропусков.
+- **Cross-level связи** — `**Анализ Lx-Нy:**` показывает, что `DebugConfig` протекает в 2 слоя (L1 + L5), `di.BrokerManager` — в 3 (L1 + L5 + L6), `toAppError` — в 3 (L2 + L5 + data).
+
+### Что важно из находок (не очевидное)
+
+1. **`di.BrokerManager` — центральная проблема.** 10 потребителей: 3 VM + 3 менеджера + 3 репозитория + 1 app. Тянет за собой Н22, Н29, Н40, Н44. Решение — `BrokerRegistry` (Н22) + `refreshInitializationState` как открытый вопрос (internal / interface / auto).
+2. **Н71 (security) — `refreshToken` BcsBrokerApi логируется.** Уже в ISSUES приоритетно. Ждёт `bugfix/security-token-logging`.
+3. **`BrokerApi` fat (Н25)** — не «осознанно», как KDoc утверждает, а **переходное состояние**. BCS подтверждает: `postOrder` работает, но `orders = null` делает его недоступным; `subscribePositions` → `emptyFlow()`. Расщеп `OrdersApi` на `Query/Command` — конкретное решение.
+4. **`data/api` структурно критичен** (Н53). 17 файлов в одном пакете. Нужна раскладка `common/`, `tinvest/{services,mappers}`, `bcs/`, `finam/`.
+5. **`util` — grab-bag** (Н17–Н20): presentation (`TradePhrases`), платформа (`AppLogger`), transport (`AppResultExtensions`), формат (`CurrencyUtils`). Используется в 3 слоях. Разъезд по слоям — большая задача.
+
+### Рекомендация по приоритету исправления
+
+План в ROADMAP: **H3 → Разбивка InvestRepository → H21b → H23 → util → H22 → H1/Н4/H24 → H5**.
+
+Clean-audit подтверждает этот порядок и уточняет:
+
+- **H3** (тривиально, 10 мин).
+- **Разбивка InvestRepository** — разблокирует `domain.api.repository.*` для H21b (Н21, Н45).
+- **H21b** — закрывает Н21 (часть) и Н44 (для `SearchCache`, `InstrumentRepository`).
+- **H23** (`DebugFlagsRepository`) — закрывает Н23 (L1) **и** Н38 (L5, `PriceFlowManager` → `DebugConfig`). **Одна задача, два уровня.**
+- **util-блок (Н17–Н20)** — закрывает `AppLogger` (Н19 + Н49), `AppResultExtensions` (Н20 + Н39), `TradePhrases` (Н17), `CurrencyUtils` (Н18 + Н55). **Одна umbrella, 4+ уточнения.**
+- **H22** (`BrokerRegistry`) — закрывает Н22 (VM), Н29 (L7), Н40 (L5), Н44 (L6). **Одна задача — 4 уровня.**
+- **H1/Н4/H24** — presentation-мелочи.
+- **H5** (`PortfolioPosition`) — концептуальное разделение, последнее.
+
+**Из L6-part2 (вне ROADMAP-плана), но приоритетно:**
+
+- **Н71** (security) — отдельный bugfix. `bugfix/security-token-logging`.
+- **Н76** (KDoc ссылается на несуществующую `### Реализация BCS Broker API`) — пробел в планировании.
+- **Н62** (`TInvestBrokerAPI.initialize` не закрывает WS) — в ISSUES.
+- **Н88** (missing `@Serializable`) — 5 минут.
+- **Н53** (структура `data/api/`) — большая, но критичная.
