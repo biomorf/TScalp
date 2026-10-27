@@ -2,9 +2,10 @@ package com.gitlab.biomorf.tscalp.ui.components
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
@@ -22,7 +23,8 @@ import javax.inject.Inject
 class OrdersListViewModel
     @Inject
     constructor(
-        private val repository: InvestRepository,
+        private val accountsRepository: AccountsRepository,
+        private val ordersRepository: OrdersRepository,
         private val settingsRepository: SettingsRepository,
         private val orderFlowManager: OrderFlowManager,
     ) : ViewModel() {
@@ -73,7 +75,7 @@ class OrdersListViewModel
 
                 // Шаг 1: получить счета через AppResult
                 val accounts =
-                    when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                    when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                         is AppResult.Success -> result.data
                         is AppResult.Failure -> {
                             AppLogger.e(
@@ -116,7 +118,7 @@ class OrdersListViewModel
 
                 // Шаг 1: счета
                 val accounts =
-                    when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                    when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                         is AppResult.Success -> result.data
                         is AppResult.Failure -> {
                             AppLogger.e(
@@ -136,9 +138,9 @@ class OrdersListViewModel
                 // Шаг 2: отмена. Стоп-заявки и обычные — обе через репозиторий.
                 val cancelResult: AppResult<Unit> =
                     if (order.isStopOrder) {
-                        repository.cancelStopOrderResult(accountId, order.orderId)
+                        ordersRepository.cancelStopOrderResult(accountId, order.orderId)
                     } else {
-                        repository.cancelOrderResult(BrokerName.TINVEST, accountId, order.orderId)
+                        ordersRepository.cancelOrderResult(BrokerName.TINVEST, accountId, order.orderId)
                     }
 
                 when (cancelResult) {
