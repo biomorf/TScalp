@@ -29,7 +29,7 @@ class MarketDataRepositoryImpl
         ): AppResult<Map<String, Double?>> =
             withContext(Dispatchers.IO) {
                 val broker = brokerManager.getDefaultBroker()
-                runCatchingAppResult(BrokerName.TINVEST) { broker.marketData?.getLastPricesByTscalpInstrumentId(ids) }
+                runCatchingAppResult(BrokerName.TINVEST) { broker.getLastPricesByTscalpInstrumentId(ids) }
             }
 
         override suspend fun getTradingStatusesResult(

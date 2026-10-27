@@ -37,7 +37,7 @@ class PortfolioRepositoryImpl
                             AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                         )
                 runCatchingAppResult(brokerName) {
-                    broker.portfolio?.fetchPortfolioPositions(accountId, sandboxMode).map { it.toPortfolioPosition() }
+                    broker.fetchPortfolioPositions(accountId, sandboxMode).map { it.toPortfolioPosition() }
                 }
             }
 
