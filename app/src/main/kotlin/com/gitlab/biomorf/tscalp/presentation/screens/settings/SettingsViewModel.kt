@@ -2,7 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
+import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
@@ -56,6 +56,7 @@ class SettingsViewModel
         private val priceFlowManager: PriceFlowManager,
         private val orderFlowManager: OrderFlowManager,
         private val accountsRepository: AccountsRepository,
+        private val debugFlagsRepository: DebugFlagsRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
         val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -81,9 +82,9 @@ class SettingsViewModel
                         bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
                         finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
                         defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: "",
-                        disableGrpc = DebugConfig.disableGrpc,
-                        disableWs = DebugConfig.disableWs,
-                        forceRest = DebugConfig.forceRest,
+                        disableGrpc = debugFlagsRepository.disableGrpc,
+                        disableWs = debugFlagsRepository.disableWs,
+                        forceRest = debugFlagsRepository.forceRest,
                     )
                 }
             }
@@ -345,8 +346,8 @@ class SettingsViewModel
 
         fun toggleGrpc(enabled: Boolean) {
             AppLogger.d(TAG, "toggleGrpc: enabled=$enabled")
-            DebugConfig.disableGrpc = enabled
-            _uiState.update { it.copy(disableGrpc = DebugConfig.disableGrpc) }
+            debugFlagsRepository.disableGrpc = enabled
+            _uiState.update { it.copy(disableGrpc = debugFlagsRepository.disableGrpc) }
             priceFlowManager.reapplyDebugFlags()
             positionFlowManager.reapplyDebugFlags()
             orderFlowManager.reapplyDebugFlags()
@@ -354,8 +355,8 @@ class SettingsViewModel
 
         fun toggleWs(enabled: Boolean) {
             AppLogger.d(TAG, "toggleWs: enabled=$enabled")
-            DebugConfig.disableWs = enabled
-            _uiState.update { it.copy(disableWs = DebugConfig.disableWs) }
+            debugFlagsRepository.disableWs = enabled
+            _uiState.update { it.copy(disableWs = debugFlagsRepository.disableWs) }
             priceFlowManager.reapplyDebugFlags()
             positionFlowManager.reapplyDebugFlags()
             orderFlowManager.reapplyDebugFlags()
@@ -363,8 +364,8 @@ class SettingsViewModel
 
         fun toggleRest(enabled: Boolean) {
             AppLogger.d(TAG, "toggleRest: enabled=$enabled")
-            DebugConfig.forceRest = enabled
-            _uiState.update { it.copy(forceRest = DebugConfig.forceRest) }
+            debugFlagsRepository.forceRest = enabled
+            _uiState.update { it.copy(forceRest = debugFlagsRepository.forceRest) }
             priceFlowManager.reapplyDebugFlags()
             positionFlowManager.reapplyDebugFlags()
             orderFlowManager.reapplyDebugFlags()

@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
-import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
+import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
@@ -49,6 +49,7 @@ class PriceFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerManager,
+        private val debugFlagsRepository: DebugFlagsRepository,
     ) {
         companion object {
             private const val TAG = "PriceFlowManager"
@@ -158,7 +159,7 @@ class PriceFlowManager
 
         /**
          * Принудительно перезапускает стрим и polling с текущими
-         * флагами DebugConfig. Вызывается из UI при переключении
+         * флагами debugFlagsRepository. Вызывается из UI при переключении
          * тумблеров (gRPC, WS, REST), чтобы применить их на лету.
          */
         fun reapplyDebugFlags() =
@@ -204,7 +205,7 @@ class PriceFlowManager
          * параллельно и прикрывает паузы между попытками.
          */
         private suspend fun collectStream(union: Set<String>) {
-            if (DebugConfig.disableGrpc && DebugConfig.disableWs) {
+            if (debugFlagsRepository.disableGrpc && debugFlagsRepository.disableWs) {
                 AppLogger.d(TAG, "gRPC and WS disabled: collectStream bypassed")
                 return
             }

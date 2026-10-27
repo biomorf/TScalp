@@ -5,6 +5,7 @@ import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
+import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -45,6 +46,7 @@ class PriceFlowManagerTest {
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    debugFlagsRepository = mockk(relaxed = true),
                 )
 
             // 50 параллельных setInterest с разными union.
@@ -84,6 +86,7 @@ class PriceFlowManagerTest {
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    debugFlagsRepository = mockk(relaxed = true),
                 )
 
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
@@ -121,6 +124,7 @@ class PriceFlowManagerTest {
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    debugFlagsRepository = mockk(relaxed = true),
                 )
 
             // Дать первому стриму стартовать — иначе union пуст
@@ -162,6 +166,7 @@ class PriceFlowManagerTest {
             val manager =
                 PriceFlowManager(
                     BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    debugFlagsRepository = mockk(relaxed = true),
                 )
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
             delay(200)

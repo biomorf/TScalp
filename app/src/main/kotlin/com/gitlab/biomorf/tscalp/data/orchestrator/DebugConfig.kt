@@ -1,9 +1,12 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.BuildConfig
+import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
- * Diagnostic-only флаги для изоляции источников стримов.
+ * Реализация [DebugFlagsRepository] для diagnostic-флагов транспорта.
  *
  * **Не для прода.** В release-сборке все флаги принудительно
  * `false` — `BuildConfig.DEBUG == false`. Даже если UI случайно
@@ -11,27 +14,31 @@ import com.gitlab.biomorf.tscalp.BuildConfig
  *
  * Позволяют на лету (в рантайме) отключать транспорты для проверки
  * fallback-механики и изоляции источников в логах.
+ *
+ * Реализация на Hilt-синглтоне: флаги глобальные, один экземпляр
+ * на всё приложение. Все потребители (presentation, domain, data)
+ * инжектят `DebugFlagsRepository`, не этот класс напрямую.
  */
-internal object DebugConfig {
-    // --- Флаги для рантайм-переключения (в UI Настройки -> Информация) ---
-    @Volatile
-    var disableGrpc: Boolean = false
-        set(value) {
-            field = BuildConfig.DEBUG && value
-        }
+@Singleton
+class DebugConfig
+    @Inject
+    constructor() : DebugFlagsRepository {
+        // --- Флаги для рантайм-переключения (в UI Настройки -> Информация) ---
+        @Volatile
+        override var disableGrpc: Boolean = false
+            set(value) {
+                field = BuildConfig.DEBUG && value
+            }
 
-    @Volatile
-    var disableWs: Boolean = false
-        set(value) {
-            field = BuildConfig.DEBUG && value
-        }
+        @Volatile
+        override var disableWs: Boolean = false
+            set(value) {
+                field = BuildConfig.DEBUG && value
+            }
 
-    @Volatile
-    var forceRest: Boolean = false
-        set(value) {
-            field = BuildConfig.DEBUG && value
-        }
-
-    // --- Флаги, оставшиеся с прошлых шагов (для консистентности) ---
-    const val DISABLE_POLLING: Boolean = false
-}
+        @Volatile
+        override var forceRest: Boolean = false
+            set(value) {
+                field = BuildConfig.DEBUG && value
+            }
+    }

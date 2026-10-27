@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
+import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.api.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.streamWithFallback
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
  */
 class TInvestOrchestrator(
     private val marketData: TInvestMarketDataService,
+    private val debugFlagsRepository: DebugFlagsRepository,
     private val orders: TInvestOrdersService,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -38,13 +40,13 @@ class TInvestOrchestrator(
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
         streamWithFallback(
             primary =
-                if (DebugConfig.disableGrpc) {
+                if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
                     marketData.subscribePositionsGrpcWithReconnect(accountId)
                 },
             fallback =
-                if (DebugConfig.disableWs) {
+                if (debugFlagsRepository.disableWs) {
                     null
                 } else {
                     wsFallback(accountId)
@@ -55,13 +57,13 @@ class TInvestOrchestrator(
     fun pricesStream(uids: Set<String>): Flow<Pair<String, Double>> =
         streamWithFallback(
             primary =
-                if (DebugConfig.disableGrpc) {
+                if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
                     retryWithBackoff { marketData.subscribeLastPrices(uids.toList()) }
                 },
             fallback =
-                if (DebugConfig.disableWs) {
+                if (debugFlagsRepository.disableWs) {
                     null
                 } else {
                     pricesWsFallback(uids)
@@ -72,13 +74,13 @@ class TInvestOrchestrator(
     fun orderStateStream(accountId: String): Flow<OrderState> =
         streamWithFallback(
             primary =
-                if (DebugConfig.disableGrpc) {
+                if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
                     retryWithBackoff { marketData.subscribeOrderState(accountId) }
                 },
             fallback =
-                if (DebugConfig.disableWs) {
+                if (debugFlagsRepository.disableWs) {
                     null
                 } else {
                     orderStateWsFallback(accountId)
@@ -93,7 +95,7 @@ class TInvestOrchestrator(
         accountId: String,
         sandboxMode: Boolean,
     ): List<PositionStreamItem> {
-        if (DebugConfig.forceRest) {
+        if (debugFlagsRepository.forceRest) {
             val rest = positionsRestFallback ?: throw IllegalStateException("REST fallback not configured")
             AppLogger.w(TAG, "forceRest: bypassing gRPC for positions")
             return rest(accountId, sandboxMode)
@@ -111,8 +113,8 @@ class TInvestOrchestrator(
     }
 
     suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> {
-        AppLogger.d(TAG, "pricesSnapshot: forceRest=${DebugConfig.forceRest}")
-        if (DebugConfig.forceRest) {
+        AppLogger.d(TAG, "pricesSnapshot: forceRest=${debugFlagsRepository.forceRest}")
+        if (debugFlagsRepository.forceRest) {
             val rest = pricesRestFallback ?: throw IllegalStateException("REST fallback not configured")
             AppLogger.w(TAG, "forceRest: bypassing gRPC for prices")
             return rest(uids)
@@ -145,7 +147,7 @@ class TInvestOrchestrator(
     }
 
     suspend fun ordersSnapshot(accountId: String): List<OrderListItem> {
-        if (DebugConfig.forceRest) {
+        if (debugFlagsRepository.forceRest) {
             val rest = ordersRestFallback ?: throw IllegalStateException("REST fallback not configured")
             AppLogger.w(TAG, "forceRest: bypassing gRPC for orders")
             return rest(accountId)
@@ -163,7 +165,7 @@ class TInvestOrchestrator(
     }
 
     suspend fun balanceSnapshot(accountId: String): Double {
-        if (DebugConfig.forceRest) {
+        if (debugFlagsRepository.forceRest) {
             val rest = balanceRestFallback ?: throw IllegalStateException("REST fallback not configured")
             AppLogger.w(TAG, "forceRest: bypassing gRPC for balance")
             return rest(accountId)

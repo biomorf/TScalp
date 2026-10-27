@@ -10,6 +10,7 @@ import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.TInvestChannelFactory
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import dagger.Module
 import dagger.Provides
@@ -44,7 +45,8 @@ object DataModule {
     fun provideTInvestBrokerAPI(
         channelFactory: TInvestChannelFactory,
         httpClient: HttpClient,
-    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient)
+        debugFlagsRepository: DebugFlagsRepository,
+    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient, debugFlagsRepository)
 
     @Provides
     @Singleton
