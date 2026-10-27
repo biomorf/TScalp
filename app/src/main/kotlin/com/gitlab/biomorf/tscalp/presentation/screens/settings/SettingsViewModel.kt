@@ -3,13 +3,13 @@ package com.gitlab.biomorf.tscalp.presentation.screens.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
-import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
@@ -55,7 +55,7 @@ class SettingsViewModel
         private val positionFlowManager: PositionFlowManager,
         private val priceFlowManager: PriceFlowManager,
         private val orderFlowManager: OrderFlowManager,
-        private val repository: InvestRepository,
+        private val accountsRepository: AccountsRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
         val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -212,7 +212,7 @@ class SettingsViewModel
         suspend fun getAccountsResult(
             brokerName: BrokerName,
             sandboxMode: Boolean,
-        ): AppResult<List<BrokerAccount>> = repository.getAccountsResult(brokerName, sandboxMode)
+        ): AppResult<List<BrokerAccount>> = accountsRepository.getAccountsResult(brokerName, sandboxMode)
 
         // ---------- Инициализация брокеров ----------
 
@@ -329,13 +329,13 @@ class SettingsViewModel
          * Открывает новый счёт в песочнице TInvest.
          * Возвращает AppResult: Success(accountId) или Failure с причиной.
          */
-        suspend fun openSandboxAccountResult(): AppResult<String> = repository.openSandboxAccountResult(BrokerName.TINVEST)
+        suspend fun openSandboxAccountResult(): AppResult<String> = accountsRepository.openSandboxAccountResult(BrokerName.TINVEST)
 
         /**
          * Закрывает счёт в песочнице TInvest.
          * Возвращает AppResult: Success(Unit) или Failure с причиной.
          */
-        suspend fun closeSandboxAccountResult(accountId: String): AppResult<Unit> = repository.closeSandboxAccountResult(BrokerName.TINVEST, accountId)
+        suspend fun closeSandboxAccountResult(accountId: String): AppResult<Unit> = accountsRepository.closeSandboxAccountResult(BrokerName.TINVEST, accountId)
 
         // ---------- Вспомогательные ----------
 
