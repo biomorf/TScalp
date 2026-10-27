@@ -73,7 +73,7 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ### Н21. ViewModel → data.repository.*
 
-**Статус:** открыто.
+**Статус:** исправлено (merge pending H21b — feature/h21b-domain-interfaces).
 
 **Серьёзность:** критично.
 
@@ -858,11 +858,25 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —.
 
+
+**Расширение (2026-10-27, InvestRepository split + H21b):** было 3 файла
+(`SearchCache`, `InstrumentRepository`, `InvestRepository`). Стало 8
+`*RepositoryImpl`: `AccountsRepositoryImpl`, `InstrumentRepositoryImpl`,
+`MarketDataRepositoryImpl`, `OrdersRepositoryImpl`,
+`PortfolioRepositoryImpl`, `SearchCacheImpl`, `SettingsRepositoryImpl`,
+`TradingStateRepositoryImpl`. Все инжектят `BrokerManager`. Закрывается
+в H22 (`BrokerRegistry`), не в H21b.
+
 **Ссылка на задачу:** — (не заведена). **Связано с H22, H29**.
 
 ### Н45. InvestRepository использует 4 fat-метода BrokerApi
 
-**Статус:** открыто.
+**Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
+4 fat-метода `BrokerApi` (`getLastPricesByTscalpInstrumentId`,
+`fetchPortfolioPositions`, `checkTradeAvailability`,
+`subscribePositions`) остались без потребителя — ревизия fat-части
+вынесена задачей `### BrokerApi: ревизия fat-части после
+InvestRepository split` (ROADMAP).
 
 **Серьёзность:** высоко.
 
@@ -1044,11 +1058,19 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** один репозиторий, простая навигация.
 
+
+**Уточнение (2026-10-27, H21b):** после `git mv` класс →
+`SettingsRepositoryImpl`; 12 функций (было 15: KDoc устарел).
+`@Suppress("TooManyFunctions")` остался на `SettingsRepositoryImpl` и
+добавлен на интерфейс `domain.api.repository.SettingsRepository`
+(13 членов). Декомпозиция (4 области) — не выполнена, не в scope H21b.
+
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Репозитории` (SettingsRepository — 15 функций).
 
 ### Н69. InvestRepository — @Suppress("TooManyFunctions")
 
-**Статус:** открыто.
+**Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
+`@Suppress` ушёл вместе с ним.
 
 **Серьёзность:** средне.
 
@@ -1341,7 +1363,13 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ### Н37. Конвенции DI-файлов
 
-**Статус:** открыто.
+**Статус:** частично исправлено (merge pending H21b). Два `@Module` в
+`RepositoryModule.kt` → один (`UseCaseModule`): `RepositoryModule`
+object удалён после переноса его `@Provides` в `RepositoryBindingModule`
+(H21b). Осталось: `@Provides` для stateless-классов
+(`CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`) без
+`@Inject constructor()` — отдельной задачей (ROADMAP → «RepositoryModule
+→ UseCaseModule.kt», не заведена).
 
 **Серьёзность:** низко.
 
