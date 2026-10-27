@@ -452,6 +452,8 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L6-Н45:** подтверждается — `InvestRepository` использует 4 fat-метода (не 19): `getLastPricesByTscalpInstrumentId`, `fetchPortfolioPositions`, `checkTradeAvailability`, `subscribePositions` (дубль `streams?.subscribePositions`). Остальные 12 — через nullable-val роли.
 
+**Анализ L6-part2-Н25:** подтверждается — BCS подтверждает проблему: fat-метод `postOrder` работает, но `orders = null` делает его недоступным через роль; `subscribePositions` → `emptyFlow()` (мёртвая заглушка). Нужен расщеп `OrdersApi` на `OrdersQueryApi` / `OrdersCommandApi`.
+
 **Ссылка на задачу:** — (не заведена). Пересмотр — в рамках `### Рефакторинг ролей BrokerApi` (закрыта), новая задача не заведена.
 
 ### Н26. BrokerLifecycleApi — не 2c-фиксация
@@ -750,6 +752,17 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н67. postStopOrder — закомментированный expireDate | средне | L6 | `TInvestOrdersService.kt` |
 | Н68. SettingsRepository — @Suppress("TooManyFunctions") | средне | L6 | `SettingsRepository.kt` |
 | Н69. InvestRepository — @Suppress("TooManyFunctions") | средне | L6 | `InvestRepository.kt` |
+| Н71. BcsBrokerApi.initialize логирует refreshToken | критично | L6 | `BcsBrokerApi.kt` |
+| Н72. BcsBrokerApi.orders = null при работающем postOrder | высоко | L6, L4 | `BcsBrokerApi.kt` |
+| Н73. FinamBrokerApi.checkTradeAvailability — всегда Success | высоко | L6 | `FinamBrokerApi.kt` |
+| Н74. FinamBrokerApi.subscribePositions — dead callbackFlow | средне | L6 | `FinamBrokerApi.kt` |
+| Н75. FinamBrokerApi — 6 TODO("Not yet implemented") | средне | L6 | `FinamBrokerApi.kt` |
+| Н76. KDoc ссылается на несуществующую ### Реализация BCS Broker API | высоко | L6 | `BcsBrokerApi.kt` |
+| Н77. BcsBrokerApi.subscribePositions → emptyFlow(), polling-loop удалён | высоко | L6 | `BcsBrokerApi.kt` |
+| Н78. BcsBrokerApi OkHttpClient без CustomTrustManager | высоко | L6 | `BcsBrokerApi.kt` |
+| Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception | средне | L6 | `CustomTrustManager.kt` |
+| Н80. CustomTrustManager — нет проверки загрузки всех 5 CA | низко | L6 | `CustomTrustManager.kt` |
+| Н81. CustomTrustManager — CustomX509TrustManager lint-warning (принято 2c) | низко | L6 | `CustomTrustManager.kt` |
 
 **Соответствуют Clean (data-only, никаких утечек):**
 `TradingStateRepository`, `SettingsRepository`.
@@ -951,6 +964,182 @@ L4–L8 — не проверены, заполняются по мере инс
 **Выгоды:** один фасад, простой доступ для UI.
 
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### Разбивка InvestRepository по доменным областям` (в работе).
+
+### Н71. BcsBrokerApi.initialize логирует refreshToken
+
+**Статус:** открыто.
+
+**Серьёзность:** критично.
+
+**Описание:** `BcsBrokerApi.initialize(refreshToken, clientId)` пишет в лог: `AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")`. Refresh-токен — секрет (90 дней, полный доступ к портфелю/торговле). В debug-сборке попадает в logcat в открытом виде; в release `AppLogger.d` отсекается, но `logcat -b all` / устройство может сохранить.
+
+**Нарушенное правило Clean:** AGENTS 4e — секреты не должны попадать в логи.
+
+**Clean-альтернатива:** логировать `refreshToken=***` (redact) или `refreshToken.len=${refreshToken.length}`. Плюсы: секрет не в логах. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi логирует refreshToken» (security-запись).
+
+### Н72. BcsBrokerApi.orders = null при работающем postOrder
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `BcsBrokerApi.orders = null`, но `postOrder` реализован (HTTP POST). `InvestRepository.postOrderResult` использует `broker.orders?.postOrder` → для BCS всегда `Failure`, хотя `postOrder` работает. `postOrder` доступен только через fat-метод `BrokerApi.postOrder`.
+
+**Нарушенное правило Clean:** не строго Clean — nullable-val supertype «все методы»; BCS честно не ставит supertype, но fat-метод работает в обход роли.
+
+**Clean-альтернатива (по комментарию в закрытой #4):** разделить `OrdersApi` на `OrdersQueryApi` + `OrdersCommandApi`; BCS реализует `OrdersCommandApi` (postOrder), `OrdersQueryApi = null`. Плюсы: BCS-торговля доступна через роль. Минусы: +1 роль.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Реализация BCS Broker API` (ROADMAP — не заведена).
+
+### Н73. FinamBrokerApi.checkTradeAvailability — всегда Success
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `FinamBrokerApi.checkTradeAvailability(...) = TradeCheckResult.Success` — фиктивный контракт. Finam — заглушка, все данные пустые. UI (через `InvestRepository.checkTradeAvailabilityResult`) думает, что сделка возможна → отправляет заявку → `postOrder` возвращает фиктивный `OrderResult("", 0L, 0L, OrderStatus.NEW)`.
+
+**Нарушенное правило Clean:** не строго Clean — фиктивный контракт вместо честного «не поддерживается».
+
+**Clean-альтернатива:** `TradeCheckResult.Error("Finam API не поддерживается")` или `throw NotImplementedError`. Плюсы: UI видит реальное состояние. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Реализация Finam Broker API` (ROADMAP).
+
+### Н74. FinamBrokerApi.subscribePositions — dead callbackFlow
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `FinamBrokerApi.subscribePositions` — `callbackFlow` с polling-loop раз в 10 секунд, но `fetchPortfolioPositions` возвращает `emptyList()` (заглушка). Loop крутится вхолостую. При этом `streams = null` — менеджеры используют `broker.streams?.subscribePositions ?: skip`, значит fat-метод — dead code.
+
+**Нарушенное правило Clean:** не строго Clean — dead code, вхолостую крутящий ресурсы.
+
+**Clean-альтернатива:** `return emptyFlow()` (как у BCS) или `flowOf()`. Плюсы: без вхолостую крутящегося loop. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Реализация Finam Broker API` (ROADMAP).
+
+### Н75. FinamBrokerApi — 6 TODO("Not yet implemented")
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `FinamBrokerApi`: `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`, `cancelOrder`, `postStopOrder`, `cancelStopOrder` — `TODO("Not yet implemented")`. По AGENTS «Запрещено оставлять `TODO` без согласования». Безопасно благодаря nullable-val (`sandbox = null`, `orders = null`), но при появлении роли — упадёт.
+
+**Нарушенное правило Clean:** не строго Clean — `NotImplementedError` вместо честной заглушки.
+
+**Clean-альтернатива:** `emptyList()` / `throw UnsupportedOperationException("...")` (как BCS) или `error("Not implemented: <метод>")` с KDoc. Плюсы: явная семантика. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Реализация Finam Broker API` (ROADMAP).
+
+### Н76. KDoc ссылается на несуществующую ### Реализация BCS Broker API
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `BcsBrokerApi.kt` KDoc: «Восстановление — задача `### Реализация BCS Broker API` в ROADMAP». Такой задачи в `docs/ROADMAP.md` **нет** (есть только `### Реализация Finam Broker API`). Комментарии в `BcsBrokerApi` и `docs/ISSUES.md` тоже упоминают её как существующую.
+
+**Нарушенное правило Clean:** AGENTS 5e (self-sufficiency) — ссылка на несуществующую задачу. Плюс — дырка в планировании.
+
+**Clean-альтернатива:** завести `### Реализация BCS Broker API` в `docs/ROADMAP.md` (план по 5e) **или** переформулировать KDoc «задача не заведена». Плюсы: ссылка работает. Минусы: новая задача в ROADMAP. **Решение:** оставлено как находка (пользователь: «оставить как находку»).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена, KDoc висит).
+
+### Н77. BcsBrokerApi.subscribePositions → emptyFlow(), polling-loop удалён
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `BcsBrokerApi.subscribePositions = emptyFlow()`. KDoc: «Polling-loop был сломан (транспорт BCS не отлажен), удалён. Восстановление — задача `### Реализация BCS Broker API`». `emptyFlow()` = «поток сразу завершился», не «нет данных». Плюс — покрытие polling через REST потеряно.
+
+**Нарушенное правило Clean:** не строго Clean — заглушка маскирует «не поддерживаю» под «стрим есть, но пустой».
+
+**Clean-альтернатива:** убрать fat-метод из BCS-реализации (Kotlin требует заглушку из `BrokerApi`) либо `throw UnsupportedOperationException`. Плюсы: честно. Минусы: ломает fat-контракт `BrokerApi` (до Н25).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Реализация BCS Broker API` (ROADMAP — не заведена).
+
+### Н78. BcsBrokerApi использует OkHttpClient() без CustomTrustManager
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `BcsBrokerApi.kt`: `private val client = OkHttpClient()` — отдельный клиент без российских CA. Сейчас работает (BCS на стандартных CA), но мина: если BCS введёт российские CA — TLS сломается тихо. Инстанс не переиспользуется с DI.
+
+**Нарушенное правило Clean:** не строго Clean — data-слой конструирует ресурс без общей конфигурации.
+
+**Clean-альтернатива:** инжектить `HttpClient`/`OkHttpClient` из DI, единая конфигурация (`CustomTrustManager`). Плюсы: единая точка TLS. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager».
+
+### Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `CustomTrustManager.loadCertificateToKeyStore` — `catch (Exception) { AppLogger.w(TAG, "Не удалось загрузить сертификат из ресурса $resId", e) }`. Если CA-сертификат не загрузился — тихо пропускаем. При подключении к T-Invest: systemTrustManager не знает Russian CA, customTrustManager без сертификата → неинформативная TLS-ошибка. Причина (не загрузился конкретный ресурс) теряется.
+
+**Нарушенное правило Clean:** не строго Clean — resilience-логика молча деградирует.
+
+**Clean-альтернатива:** различать «ресурс отсутствует» (binding-ошибка, не должна случаться) от «сертификат битый» (runtime). При битом — `throw IllegalStateException("CA load failed: res=$resId", e)` (fail-fast), не продолжать с усечённым набором. Плюсы: TLS-проблемы видны сразу. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена).
+
+### Н80. CustomTrustManager — нет проверки загрузки всех 5 CA
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `CustomTrustManager.init` загружает 5 CA (`russian_trusted_root_ca`, `_ca_gost_2025`, `_sub_ca`, `_sub_ca_2024`, `_sub_ca_gost_2025`). Если один упал — `customTrustManager` работает с 4/5. `getAcceptedIssuers` вернёт усечённый набор. Индикации нет.
+
+**Нарушенное правило Clean:** не строго Clean — молчаливая деградация.
+
+**Clean-альтернатива:** после загрузки проверить `customTrustManager.acceptedIssuers.size == 5`; если меньше — `throw IllegalStateException` или `AppLogger.e` (громкий). Плюсы: известно, что все CA активны. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано с Н79.
+
+### Н81. CustomTrustManager — CustomX509TrustManager lint-warning (принято 2c)
+
+**Статус:** принято 2c.
+
+**Серьёзность:** низко.
+
+**Описание:** `lint-baseline.xml` содержит `CustomX509TrustManager` warning для `data/api/CustomTrustManager.kt:12`. Android lint предупреждает, что custom X509TrustManager может быть insecure. Здесь — осознанно: нужны Russian Trusted Root CA для T-Invest (system trust их не знает).
+
+**Нарушенное правило Clean:** не Clean в строгом смысле — нарушение общего lint-правила.
+
+**Clean-альтернатива:** перейти на системный `Network Security Config` с `trust-anchors` (XML-конфигурация дополнительных CA). Плюсы: без кастомного `X509TrustManager`, lint-warning уходит, конфигурация декларативна. Минусы: требует проверки, что Android принимает все 5 российских CA через `network_security_config.xml` (GOST 2025 может не поддерживаться). Решение — при следующем касании TLS.
+
+**Выгоды (по 2c):** работает сейчас, `CustomX509TrustManager` полностью контролирует fallback (system → custom); NNC может не принять GOST-сертификаты. Baseline зафиксировал предупреждение.
+
+**Ссылка на задачу:** — (не заведена). Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
 
 ### Исправленные (L6)
 
