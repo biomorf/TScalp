@@ -69,135 +69,6 @@ clean-audit.
 ## Планируемые задачи
 
 
-### BrokerApi: ревизия fat-части после InvestRepository split
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-**Ветка:** feature/brokerapi-fat-revision
-
-**Контекст (clean-audit Н25, Н70).** `BrokerApi` — fat-интерфейс:
-19 fat-методов + 9 nullable-val ролей. После InvestRepository split
-(PR #56), H21b (PR #57), H23 (PR #59), H22 (PR #60) fat-часть
-потеряла потребителя. Grep 2026-10-28:
-- **16 из 19 fat-методов мёртвы** — 0 прямых вызовов, дублируют
-  роли: `getAccounts`, `openSandboxAccount`, `closeSandboxAccount`,
-  `subscribePositions`, `subscribeLastPrices`, `getBalance`,
-  `sandboxPayIn`, `findInstruments`, `postOrder`, `postStopOrder`,
-  `getStopOrders`, `cancelStopOrder`, `getOrders`, `cancelOrder`,
-  `getTradingStatuses`, `subscribeOrderState`.
-- **3 живых без роли:** `fetchPortfolioPositions` (PortfolioRepositoryImpl),
-  `getLastPricesByTscalpInstrumentId` (MarketDataRepositoryImpl),
-  `checkTradeAvailability` (OrdersRepositoryImpl).
-
-KDoc 2c врёт: «29 callsite в `InvestRepository`» — `InvestRepository`
-удалён, 16 fat-методов мёртвы, 3 живых вызываются из `*RepositoryImpl`
-(не «29 callsite в одном потребителе»).
-
-**Соответствие Clean:** отклонение (закрывается).
-
-**Нарушенное правило Clean:** ISP — fat `BrokerApi` с мёртвыми
-методами и ложным обоснованием 2c.
-
-**Clean-альтернатива (форма B — вынос 3 живых в роли).**
-3 новые роли в `domain/api/roles/`:
-- `PortfolioApi` — `fetchPortfolioPositions(accountId, sandboxMode):
-  List<PositionStreamItem>`;
-- `MarketDataApi` — `getLastPricesByTscalpInstrumentId(ids):
-  Map<String, Double?>`;
-- `TradeCheckApi` — `checkTradeAvailability(accountId,
-  tscalpInstrumentId, brokerUid, direction, quantity): TradeCheckResult`.
-
-`BrokerApi`: +3 nullable-val (`portfolio`, `marketData`, `tradeCheck`)
-→ 12 ролей; −16 fat-методов; `@Suppress("TooManyFunctions")` снять
-(0 `fun` в интерфейсе, только `val`); KDoc 2c переписать: «fat-часть
-удалена (16 дублей ролей); 3 живых вынесены в роли. Nullable-val —
-единый паттерн для 12 ролей».
-
-Supertype-план (по факту реализаций 2026-10-28):
-- `PortfolioApi`: TInvest + BCS (`= this`), Finam `null`;
-- `MarketDataApi`: TInvest (`= this`), BCS/Finam `null`;
-- `TradeCheckApi`: TInvest (`= this`), BCS/Finam `null`.
-
-Плюсы: мёртвый код удалён; KDoc честный; `@Suppress` снят;
-12 ролей — единый паттерн; `*RepositoryImpl` (3 потребителя)
-инжектят роль через `broker.<role>?` (паттерн H21b/H22).
-
-Минусы: 3 новых интерфейса + 3 nullable-val + правка 3
-репозиториев; удаление 16 override + 16 fat-методов.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** InvestRepository split (PR #56), H21b (PR #57),
-H23 (PR #59), H22 (PR #60) — закрыты.
-
-**Файлы:**
-- `domain/api/roles/PortfolioApi.kt`, `MarketDataApi.kt`,
-  `TradeCheckApi.kt` (новые).
-- `domain/api/BrokerApi.kt` — +3 nullable-val, −16 fat, −`@Suppress`,
-  KDoc переписан.
-- `data/api/TInvestBrokerApi.kt` — +3 supertypes + 3 `= this`,
-  −16 override.
-- `data/api/BcsBrokerApi.kt` — `PortfolioApi` supertype + `= this`,
-  −16 override; `marketData = null`, `tradeCheck = null`.
-- `data/api/FinamBrokerApi.kt` — `portfolio = null`,
-  `marketData = null`, `tradeCheck = null`, −16 override.
-- `data/repository/PortfolioRepositoryImpl.kt` —
-  `broker.portfolio?.fetchPortfolioPositions(...)`.
-- `data/repository/MarketDataRepositoryImpl.kt` —
-  `broker.marketData?.getLastPricesByTscalpInstrumentId(...)`.
-- `data/repository/OrdersRepositoryImpl.kt` —
-  `broker.tradeCheck?.checkTradeAvailability(...)`.
-
-**Шаги:**
-1. 3 новых роли (интерфейсы + KDoc).
-2. `BrokerApi`: +3 nullable-val, −16 fat, −`@Suppress`, KDoc.
-3. `TInvestBrokerApi`: +3 supertypes + `= this`, −16 override.
-4. `BcsBrokerApi`: `PortfolioApi` supertype + `= this`;
-   −16 override.
-5. `FinamBrokerApi`: 3 `= null`, −16 override.
-6. 3 репозитория: `broker.<role>?.` + `Failure` при `null`.
-7. Гейт.
-
-**Тесты.** Не меняются — правка интерфейса + реализаций +
-3 callsites. `TInvestOrchestratorFallbackTest`,
-`OrderFlowManagerTest`, `PositionFlowManagerTest`,
-`PriceFlowManagerTest` — не затронуты (3 живых вызываются из
-`*RepositoryImpl`, не из тестов; `subscribePositions` и др.
-мёртвые fat уже не используются). Гейт — доказательство.
-
-**Референсы.** `docs/clean-audit.md` → Н25, Н70.
-`### AccountsApi` (#5), `### OrdersApi` (#4) — паттерн ролей.
-
-**Ограничения.**
-- Не менять 9 существующих ролей (только 3 новых).
-- Не менять поведение 3 живых — только структуру (nullable-val).
-- `TInvestOrchestrator`, `TInvestMarketDataService`,
-  `TInvestOrdersService` — не трогать (реализуют 3 живых внутри
-  брокера).
-- BCS/Finam: supertype только там, где реальная реализация
-  (`PortfolioApi` BCS). Заглушки → `null` без supertype (AGENTS
-  «Nullable-val роли»).
-
-**Критерий готовности.**
-- 3 новые роли в `domain/api/roles/`.
-- `BrokerApi` fat-методов 0, nullable-val 12.
-- `@Suppress("TooManyFunctions")` снят.
-- KDoc 2c переписан (нет «29 callsite», нет «fat осознанно»).
-- 3 репозитория — через `broker.<role>?.`.
-- Гейт зелёный.
-
-**Оценка:** ~1.5–2 ч. **Факт:** ~15–20 мин (scriptable, урок 12).
-
-**Зависимости:** InvestRepository split (#56), H21b (#57),
-H23 (#59), H22 (#60).
-
-**Связано:** `docs/clean-audit.md` → Н25, Н70;
-`### AccountsApi`, `### OrdersApi`, `### StreamsApi`,
-`### Broker lifecycle API` — паттерн nullable-val.
-
-**Открытые вопросы:** нет (форма B принята 2026-10-28).
-
 ### H17–H20. Перенос presentation-утилит из util
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -7587,5 +7458,137 @@ DI 10, 11 файлов main 30, 3 теста 15, гейт 15). Факт — по
 Н35, Н50, Н51 (вне scope, задачи в ROADMAP не заведены).
 
 **Открытые вопросы:** нет (решения 2026-10-28: A + A + `@Provides`).
+
+
+
+---
+
+### ✅ BrokerApi: ревизия fat-части после InvestRepository split
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Что сделано:** (PR #61, `dev`, 2026-10-28). 3 новых роли: `PortfolioApi`, `MarketDataApi`, `TradeCheckApi`. `BrokerApi`: −19 fat (0 `fun`), +3 nullable-val (12 ролей), `@Suppress("TooManyFunctions")` снят, KDoc 2c переписан. `TInvestBrokerApi`: +3 supertypes + `= this`, `private val marketData` → `marketDataService`, 10 usages renamed. `BcsBrokerApi`: +PortfolioApi supertype + `= this`, `marketData`/`tradeCheck = null`, −2 orphan override. `FinamBrokerApi`: 3 `= null`, −15 orphan override. 3 репозитория: `broker.<role> ?: Failure` + `val api = ...`. Закрывает Н25, Н70. Оценка план ~1.5–2 ч, факт — значительно больше из-за серии ошибок парсинга и `.tmp`-инцидента (AGENTS-LESSONS 40–50).
+
+**Контекст (clean-audit Н25, Н70).** `BrokerApi` — fat-интерфейс:
+19 fat-методов + 9 nullable-val ролей. После InvestRepository split
+(PR #56), H21b (PR #57), H23 (PR #59), H22 (PR #60) fat-часть
+потеряла потребителя. Grep 2026-10-28:
+- **16 из 19 fat-методов мёртвы** — 0 прямых вызовов, дублируют
+  роли: `getAccounts`, `openSandboxAccount`, `closeSandboxAccount`,
+  `subscribePositions`, `subscribeLastPrices`, `getBalance`,
+  `sandboxPayIn`, `findInstruments`, `postOrder`, `postStopOrder`,
+  `getStopOrders`, `cancelStopOrder`, `getOrders`, `cancelOrder`,
+  `getTradingStatuses`, `subscribeOrderState`.
+- **3 живых без роли:** `fetchPortfolioPositions` (PortfolioRepositoryImpl),
+  `getLastPricesByTscalpInstrumentId` (MarketDataRepositoryImpl),
+  `checkTradeAvailability` (OrdersRepositoryImpl).
+
+KDoc 2c врёт: «29 callsite в `InvestRepository`» — `InvestRepository`
+удалён, 16 fat-методов мёртвы, 3 живых вызываются из `*RepositoryImpl`
+(не «29 callsite в одном потребителе»).
+
+**Соответствие Clean:** отклонение (закрывается).
+
+**Нарушенное правило Clean:** ISP — fat `BrokerApi` с мёртвыми
+методами и ложным обоснованием 2c.
+
+**Clean-альтернатива (форма B — вынос 3 живых в роли).**
+3 новые роли в `domain/api/roles/`:
+- `PortfolioApi` — `fetchPortfolioPositions(accountId, sandboxMode):
+  List<PositionStreamItem>`;
+- `MarketDataApi` — `getLastPricesByTscalpInstrumentId(ids):
+  Map<String, Double?>`;
+- `TradeCheckApi` — `checkTradeAvailability(accountId,
+  tscalpInstrumentId, brokerUid, direction, quantity): TradeCheckResult`.
+
+`BrokerApi`: +3 nullable-val (`portfolio`, `marketData`, `tradeCheck`)
+→ 12 ролей; −16 fat-методов; `@Suppress("TooManyFunctions")` снять
+(0 `fun` в интерфейсе, только `val`); KDoc 2c переписать: «fat-часть
+удалена (16 дублей ролей); 3 живых вынесены в роли. Nullable-val —
+единый паттерн для 12 ролей».
+
+Supertype-план (по факту реализаций 2026-10-28):
+- `PortfolioApi`: TInvest + BCS (`= this`), Finam `null`;
+- `MarketDataApi`: TInvest (`= this`), BCS/Finam `null`;
+- `TradeCheckApi`: TInvest (`= this`), BCS/Finam `null`.
+
+Плюсы: мёртвый код удалён; KDoc честный; `@Suppress` снят;
+12 ролей — единый паттерн; `*RepositoryImpl` (3 потребителя)
+инжектят роль через `broker.<role>?` (паттерн H21b/H22).
+
+Минусы: 3 новых интерфейса + 3 nullable-val + правка 3
+репозиториев; удаление 16 override + 16 fat-методов.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** InvestRepository split (PR #56), H21b (PR #57),
+H23 (PR #59), H22 (PR #60) — закрыты.
+
+**Файлы:**
+- `domain/api/roles/PortfolioApi.kt`, `MarketDataApi.kt`,
+  `TradeCheckApi.kt` (новые).
+- `domain/api/BrokerApi.kt` — +3 nullable-val, −16 fat, −`@Suppress`,
+  KDoc переписан.
+- `data/api/TInvestBrokerApi.kt` — +3 supertypes + 3 `= this`,
+  −16 override.
+- `data/api/BcsBrokerApi.kt` — `PortfolioApi` supertype + `= this`,
+  −16 override; `marketData = null`, `tradeCheck = null`.
+- `data/api/FinamBrokerApi.kt` — `portfolio = null`,
+  `marketData = null`, `tradeCheck = null`, −16 override.
+- `data/repository/PortfolioRepositoryImpl.kt` —
+  `broker.portfolio?.fetchPortfolioPositions(...)`.
+- `data/repository/MarketDataRepositoryImpl.kt` —
+  `broker.marketData?.getLastPricesByTscalpInstrumentId(...)`.
+- `data/repository/OrdersRepositoryImpl.kt` —
+  `broker.tradeCheck?.checkTradeAvailability(...)`.
+
+**Шаги:**
+1. 3 новых роли (интерфейсы + KDoc).
+2. `BrokerApi`: +3 nullable-val, −16 fat, −`@Suppress`, KDoc.
+3. `TInvestBrokerApi`: +3 supertypes + `= this`, −16 override.
+4. `BcsBrokerApi`: `PortfolioApi` supertype + `= this`;
+   −16 override.
+5. `FinamBrokerApi`: 3 `= null`, −16 override.
+6. 3 репозитория: `broker.<role>?.` + `Failure` при `null`.
+7. Гейт.
+
+**Тесты.** Не меняются — правка интерфейса + реализаций +
+3 callsites. `TInvestOrchestratorFallbackTest`,
+`OrderFlowManagerTest`, `PositionFlowManagerTest`,
+`PriceFlowManagerTest` — не затронуты (3 живых вызываются из
+`*RepositoryImpl`, не из тестов; `subscribePositions` и др.
+мёртвые fat уже не используются). Гейт — доказательство.
+
+**Референсы.** `docs/clean-audit.md` → Н25, Н70.
+`### AccountsApi` (#5), `### OrdersApi` (#4) — паттерн ролей.
+
+**Ограничения.**
+- Не менять 9 существующих ролей (только 3 новых).
+- Не менять поведение 3 живых — только структуру (nullable-val).
+- `TInvestOrchestrator`, `TInvestMarketDataService`,
+  `TInvestOrdersService` — не трогать (реализуют 3 живых внутри
+  брокера).
+- BCS/Finam: supertype только там, где реальная реализация
+  (`PortfolioApi` BCS). Заглушки → `null` без supertype (AGENTS
+  «Nullable-val роли»).
+
+**Критерий готовности.**
+- 3 новые роли в `domain/api/roles/`.
+- `BrokerApi` fat-методов 0, nullable-val 12.
+- `@Suppress("TooManyFunctions")` снят.
+- KDoc 2c переписан (нет «29 callsite», нет «fat осознанно»).
+- 3 репозитория — через `broker.<role>?.`.
+- Гейт зелёный.
+
+**Оценка:** ~1.5–2 ч. **Факт:** ~15–20 мин (scriptable, урок 12).
+
+**Зависимости:** InvestRepository split (#56), H21b (#57),
+H23 (#59), H22 (#60).
+
+**Связано:** `docs/clean-audit.md` → Н25, Н70;
+`### AccountsApi`, `### OrdersApi`, `### StreamsApi`,
+`### Broker lifecycle API` — паттерн nullable-val.
+
+**Открытые вопросы:** нет (форма B принята 2026-10-28).
 
 ---
