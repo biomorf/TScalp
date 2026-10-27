@@ -2,7 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
@@ -51,7 +51,7 @@ class SettingsViewModel
     constructor(
         private val settingsRepository: SettingsRepository,
         private val tradingStateRepository: TradingStateRepository,
-        private val brokerManager: BrokerManager,
+        private val brokerManager: BrokerRegistry,
         private val positionFlowManager: PositionFlowManager,
         private val priceFlowManager: PriceFlowManager,
         private val orderFlowManager: OrderFlowManager,

@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
@@ -37,7 +37,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)))
 
             // 50 параллельных вызовов start() — race между check-then-set
             // в synchronized(startLock). Без synchronized создавались бы
@@ -88,7 +88,7 @@ class OrderFlowManagerTest {
                     awaitCancellation()
                 }
 
-            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)))
             manager.start("acc-1")
             delay(200)
             assertEquals(StreamState.LIVE, manager.connectionState.value)
@@ -108,7 +108,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)))
             manager.start("acc-1")
             delay(300)
 
@@ -137,7 +137,7 @@ class OrderFlowManagerTest {
                     }
                 }
 
-            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)))
 
             manager.start("acc-1")
             delay(100)
@@ -166,7 +166,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)))
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)))
 
             manager.reapplyDebugFlags()
             delay(200)

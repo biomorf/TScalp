@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
@@ -44,7 +44,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                 )
 
@@ -84,7 +84,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                 )
 
@@ -122,7 +122,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                 )
 
@@ -164,7 +164,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerManager(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                 )
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))

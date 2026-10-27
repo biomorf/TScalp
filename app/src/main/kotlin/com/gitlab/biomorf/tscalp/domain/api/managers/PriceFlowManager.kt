@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
@@ -48,7 +48,7 @@ import javax.inject.Singleton
 class PriceFlowManager
     @Inject
     constructor(
-        private val brokerManager: BrokerManager,
+        private val brokerManager: BrokerRegistry,
         private val debugFlagsRepository: DebugFlagsRepository,
     ) {
         companion object {

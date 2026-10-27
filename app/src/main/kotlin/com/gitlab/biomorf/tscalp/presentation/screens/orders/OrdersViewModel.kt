@@ -3,7 +3,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.di.BrokerManager
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
@@ -62,7 +62,7 @@ class OrdersViewModel
         private val searchCache: SearchCacheRepository,
         private val settingsRepository: SettingsRepository,
         private val tradingStateRepository: TradingStateRepository,
-        private val brokerManager: BrokerManager,
+        private val brokerManager: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val prepareOrderRequest: PrepareOrderRequestUseCase,

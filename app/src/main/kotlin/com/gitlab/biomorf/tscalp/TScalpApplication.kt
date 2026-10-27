@@ -1,8 +1,8 @@
 package com.gitlab.biomorf.tscalp
 
 import android.app.Application
-import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
@@ -37,7 +37,7 @@ class TScalpApplication : Application() {
     lateinit var positionFlowManager: PositionFlowManager
 
     @Inject
-    lateinit var brokerManager: BrokerManager
+    lateinit var brokerManager: BrokerRegistry
 
     @Inject
     lateinit var settingsRepository: SettingsRepository

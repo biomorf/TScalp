@@ -1,50 +1,51 @@
-package com.gitlab.biomorf.tscalp.di
+package com.gitlab.biomorf.tscalp.data.registry
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class BrokerManager(
+class BrokerRegistryImpl(
     private val brokers: Map<BrokerName, BrokerApi>,
-) {
+) : BrokerRegistry {
     /**
      * Есть ли хотя бы один инициализированный брокер.
      * Реактивный источник для ViewModel вместо синхронного опроса.
      * Обновляется через [refreshInitializationState].
      */
     private val _anyInitialized = MutableStateFlow(computeAnyInitialized())
-    val anyInitialized: StateFlow<Boolean> = _anyInitialized.asStateFlow()
+    override val anyInitialized: StateFlow<Boolean> = _anyInitialized.asStateFlow()
 
     /**
      * Возвращает брокера по имени. Типобезопасный вариант.
      */
-    fun getBroker(name: BrokerName): BrokerApi? = brokers[name]
+    override fun getBroker(name: BrokerName): BrokerApi? = brokers[name]
 
     /**
      * Брокер по умолчанию (Т‑Инвестиции).
      */
-    fun getDefaultBroker(): BrokerApi =
+    override fun getDefaultBroker(): BrokerApi =
         brokers[BrokerName.TINVEST]
             ?: throw IllegalStateException("Брокер TInvest не зарегистрирован")
 
     /**
      * Возвращает список ключей брокеров в типизированном виде — для UI и pager'а.
      */
-    fun getAvailableBrokerNames(): List<BrokerName> = brokers.keys.toList()
+    override fun getAvailableBrokerNames(): List<BrokerName> = brokers.keys.toList()
 
     /**
      * Возвращает список всех брокеров (для массовых операций).
      */
-    fun getAllBrokers(): List<BrokerApi> = brokers.values.toList()
+    override fun getAllBrokers(): List<BrokerApi> = brokers.values.toList()
 
     /**
      * Пересчитывает состояние инициализации.
      * Вызывается после успешной инициализации любого брокера,
      * чтобы ViewModel получили актуальное значение через StateFlow.
      */
-    fun refreshInitializationState() {
+    override fun refreshInitializationState() {
         _anyInitialized.value = computeAnyInitialized()
     }
 
