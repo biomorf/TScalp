@@ -20,12 +20,13 @@ T-Invest, BCS, Finam. Матрица транспортов, авторизац�
 Транспорты описаны в задаче «Оркестратор стримов и Ktor WS
 transport» (`docs/ROADMAP.md`).
 
-**Стадия реализации WebSocket:** только `PositionsStream` для
-T-Invest — реализован в `:transport-ktor`
-(`TInvestPositionsWebSocket`), работает на проде. Sandbox WS
-не отдаёт данные (серверное ограничение, см. `docs/streams.md`).
-`MarketDataStream` (цены) и `OrdersStream` (статусы заявок) —
-фаза 3, ещё не реализованы.
+**Стадия реализации WebSocket:** все три канала T-Invest
+(`PositionsStream`, `MarketDataStream`, `OrdersStream`)
+реализованы в `:transport-ktor` (`TInvestPositionsWebSocket`,
+`TInvestPricesWebSocket`, `TInvestOrderStateWebSocket`),
+работают на проде (live-tested 2026-10-21). Sandbox WS не
+отдаёт данные (серверное ограничение, см. `docs/streams.md`).
+Клиенты создаются только при `!sandbox`.
 
 У BCS и Finam WS указан как поддерживаемый протокол по
 документации, но в проекте **не реализован** — этап

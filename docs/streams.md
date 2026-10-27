@@ -109,8 +109,12 @@
 
 Стриминг через WebSocket — альтернатива gRPC-стримам для тех же
 каналов (`PositionsStream`, `MarketDataStream`, `OrdersStream`).
-Реализован в `:transport-ktor` (`TInvestPositionsWebSocket`),
-движок Ktor CIO.
+Реализован в `:transport-ktor` для трёх каналов
+(`TInvestPositionsWebSocket`, `TInvestPricesWebSocket`,
+`TInvestOrderStateWebSocket`), движок Ktor CIO. Все три
+создаются только при `!sandbox` (sandbox WS не работает —
+серверное ограничение). Управление — `TInvestWsService`
+(`initialize` / `stop`).
 
 ### Адрес
 

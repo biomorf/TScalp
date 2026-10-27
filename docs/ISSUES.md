@@ -759,10 +759,10 @@ sandbox-WS не лечится на нашей стороне.
 (`TInvestPricesWebSocket`) и ордеров
 (`TInvestOrderStateWebSocket`) эти клиенты создаются **только
 при `!sandbox`** — иначе они крутили бы бесконечный
-reconnect-loop без пользы. `TInvestPositionsWebSocket` пока
-создаётся всегда, включая sandbox — это остаток от первой
-реализации. Исправить до PR (тот же принцип: не создавать WS
-в sandbox).
+reconnect-loop без пользы. С 2026-10-27 `TInvestPositionsWebSocket`
+тоже создаётся только при `!sandbox`: `TInvestWsService.initialize`
+начинается с `if (sandbox) return`. Все три WS-клиента управляются
+единым `initialize` / `stop`.
 
 **Когда вернуться:**
 - При обновлении SDK/документации T-Invest — возможно,
@@ -967,8 +967,9 @@ BCS / Finam без утечек.
 
 ## Дублирующий init {} в SettingsViewModel
 
-**Статус:** в работе.
-**Ветка:** bugfix/settingsvm-duplicate-init.
+**Статус:** решён (2026-10-27). Ветка `bugfix/settingsvm-duplicate-init`
+отсутствует локально и на remote; в `SettingsViewModel` сейчас один
+`init {}` (проверено 2026-10-27).
 
 **Симптом:** в `SettingsViewModel` два блока `init {}` подряд
 (строки ~63–95). Оба запускают `viewModelScope.launch` с
