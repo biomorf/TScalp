@@ -549,6 +549,35 @@ OkHttp/CIO сессию, отменить Flow). `deinitialize()` уже обн�
 
 ---
 
+## BcsBrokerApi логирует refreshToken
+
+**Статус:** открыт. Security — токен в логах.
+
+**Симптом:** `BcsBrokerApi.initialize(refreshToken, clientId)` пишет
+в лог полный refresh-токен:
+`AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")`.
+В debug-сборке — в logcat открытым текстом. В release `AppLogger.d`
+отсекается, но `logcat -b all` / крэш-репорты / screenshot при
+отладке могут сохранить.
+
+**Причина:** отладочный лог, добавленный при разработке, не
+вычищен. Refresh-токен BCS живёт 90 дней и даёт полный доступ
+к портфелю и торговле — утечка в логи эквивалентна компрометации.
+
+**Решение:** заменить `$refreshToken` на `***` (redact) или
+`refreshToken.len=${refreshToken.length}`. Проверить остальные
+логи на предмет утечки токенов (grep по `$token`, `$refreshToken`,
+`$accessToken` в `data/api/`).
+
+**Файлы:** `data/api/BcsBrokerApi.kt` (`initialize(refreshToken, clientId)`).
+
+**Связано:** `docs/clean-audit.md` -> L6-Н71.
+
+**Когда вернуться:** при следующей сессии на десктопе, ветка
+`bugfix/security-token-logging`. Приоритет высокий — security.
+
+---
+
 ## BcsBrokerApi создаёт OkHttpClient без CustomTrustManager
 
 **Статус:** открыт. Латентный. Не для WS.
