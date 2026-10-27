@@ -115,7 +115,7 @@ class OrdersRepositoryImpl
                             AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
                         )
                 runCatchingAppResult(brokerName) {
-                    broker.checkTradeAvailability(
+                    broker.tradeCheck?.checkTradeAvailability(
                         accountId = accountId,
                         tscalpInstrumentId = tscalpInstrumentId,
                         brokerUid = tscalpInstrumentId,

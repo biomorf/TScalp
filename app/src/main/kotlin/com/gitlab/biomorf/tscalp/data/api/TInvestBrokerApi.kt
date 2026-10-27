@@ -5,6 +5,9 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
@@ -49,7 +52,10 @@ class TInvestBrokerAPI(
     AccountsApi,
     SandboxApi,
     UserInstrumentsApi,
-    BalanceApi {
+    BalanceApi,
+    PortfolioApi,
+    MarketDataApi,
+    TradeCheckApi {
     private val state = TInvestApiState()
     private val marketData = TInvestMarketDataService(state)
     private val ordersService = TInvestOrdersService(state)
@@ -81,6 +87,9 @@ class TInvestBrokerAPI(
     override val sandbox: SandboxApi get() = this
     override val userInstruments: UserInstrumentsApi get() = this
     override val balance: BalanceApi get() = this
+    override val portfolio: PortfolioApi get() = this
+    override val marketData: MarketDataApi get() = this
+    override val tradeCheck: TradeCheckApi get() = this
 
     /**
      * Инициализация API с явным токеном и режимом.
@@ -139,12 +148,6 @@ class TInvestBrokerAPI(
     }
 
     // ---------- BrokerApi: делегирование ----------
-
-    override suspend fun getAccounts(sandboxMode: Boolean) = marketData.getAccounts(sandboxMode)
-
-    override suspend fun openSandboxAccount() = marketData.openSandboxAccount()
-
-    override suspend fun closeSandboxAccount(accountId: String) {
         marketData.closeSandboxAccount(accountId)
     }
 
@@ -152,36 +155,16 @@ class TInvestBrokerAPI(
         accountId: String,
         sandboxMode: Boolean,
     ) = marketData.fetchPortfolioPositions(accountId, sandboxMode)
-
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
-
-    override suspend fun getBalance(accountId: String) = orchestrator.balanceSnapshot(accountId)
-
-    override suspend fun sandboxPayIn(
         accountId: String,
         amount: SandboxMoney,
     ) {
         marketData.sandboxPayIn(accountId, amount)
     }
-
-    override suspend fun findInstruments(query: String) = marketData.findInstruments(query)
-
-    override suspend fun postOrder(request: BrokerOrderRequest) = ordersService.postOrder(request)
-
-    override suspend fun postStopOrder(request: StopOrderRequest) = ordersService.postStopOrder(request)
-
-    override suspend fun getStopOrders(accountId: String) = ordersService.getStopOrders(accountId)
-
-    override suspend fun cancelStopOrder(
         accountId: String,
         stopOrderId: String,
     ) {
         ordersService.cancelStopOrder(accountId, stopOrderId)
     }
-
-    override suspend fun getOrders(accountId: String) = ordersService.getOrders(accountId)
-
-    override suspend fun cancelOrder(
         accountId: String,
         orderId: String,
     ) {
@@ -189,10 +172,6 @@ class TInvestBrokerAPI(
     }
 
     override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>) = marketData.getLastPricesByTscalpInstrumentId(ids)
-
-    override suspend fun getTradingStatuses(ids: List<String>) = marketData.getTradingStatuses(ids)
-
-    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = orchestrator.orderStateStream(accountId)
 
     override suspend fun checkTradeAvailability(
         accountId: String,
@@ -229,6 +208,4 @@ class TInvestBrokerAPI(
 
     /**
      * Стрим последних цен. Используется OrdersViewModel.startPriceUpdates().
-     */
-    override fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> = orchestrator.pricesStream(uids.toSet())
-}
+     */}

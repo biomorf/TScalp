@@ -7,9 +7,12 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
@@ -49,7 +52,8 @@ import java.io.IOException
 class BcsBrokerApi :
     BrokerApi,
     BrokerLifecycleApi,
-    AccountsApi {
+    AccountsApi,
+    PortfolioApi {
     companion object {
         private const val TAG = "BcsBrokerApi"
         private const val PROD_BASE_URL = "https://be.broker.ru"
@@ -80,6 +84,9 @@ class BcsBrokerApi :
     override val userInstruments: UserInstrumentsApi? = null
     override val balance: BalanceApi? = null
     override val instrument: BrokerInstrumentApi? = null
+    override val portfolio: PortfolioApi get() = this
+    override val marketData: MarketDataApi? = null
+    override val tradeCheck: TradeCheckApi? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean
@@ -222,9 +229,7 @@ class BcsBrokerApi :
      * Использует поле "accounts" из ответа, если оно есть,
      * иначе — создаёт один счёт из первого элемента портфеля.
      */
-    @Suppress("UNCHECKED_CAST")
-    override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> {
-        val response = makeRequest("GET", PORTFOLIO_PATH)
+    @Suppress("UNCHECKED_CAST")        val response = makeRequest("GET", PORTFOLIO_PATH)
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
         val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
@@ -254,19 +259,11 @@ class BcsBrokerApi :
             ),
         )
     }
-
-    override suspend fun openSandboxAccount(): String = throw UnsupportedOperationException("Открытие счёта песочницы не поддерживается для БКС")
-
-    override suspend fun closeSandboxAccount(accountId: String): Unit = throw UnsupportedOperationException("Закрытие счёта песочницы не поддерживается для БКС")
-
-    override suspend fun sandboxPayIn(
         accountId: String,
         amount: SandboxMoney,
     ) {
         AppLogger.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
     }
-
-    override suspend fun getBalance(accountId: String): Double {
         // Пока возвращаем 0, так как API БКС не предоставляет прямого метода баланса
         return 0.0
     }
@@ -278,8 +275,6 @@ class BcsBrokerApi :
      * успешного соединения), удалён. Восстановление — задача
      * `### Реализация BCS Broker API` в ROADMAP.
      */
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = emptyFlow()
-
     // реализация на основе HTTP-клиента
     override suspend fun fetchPortfolioPositions(
         accountId: String,
@@ -321,10 +316,6 @@ class BcsBrokerApi :
                 )
             }.distinctBy { it.ticker }
     }
-
-    override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
-
-    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
         val side = if (request.direction == OrderDirection.BUY) "buy" else "sell"
         val type = if (request.type == BrokerOrderType.MARKET) "market" else "limit"
         val priceField = if (request.price != null) """, "limitPrice": ${request.price}""" else ""
@@ -353,36 +344,18 @@ class BcsBrokerApi :
             status = OrderStatus.NEW,
         )
     }
-
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
-
-    override suspend fun postStopOrder(request: StopOrderRequest): String = "bcs-stop-${System.currentTimeMillis()}"
-
-    override suspend fun getStopOrders(accountId: String): List<OrderListItem> = emptyList()
-
-    override suspend fun cancelStopOrder(
         accountId: String,
         stopOrderId: String,
     ) {
         // Заглушка: отмена стоп-заявок не поддерживается для BCS
         throw UnsupportedOperationException("cancelStopOrder не реализован для BcsBrokerApi")
     }
-
-    override suspend fun getOrders(accountId: String): List<OrderListItem> = emptyList()
-
-    override suspend fun cancelOrder(
         accountId: String,
         orderId: String,
     ) {
         // Заглушка: отмена обычных заявок не поддерживается для BCS
         throw UnsupportedOperationException("cancelOrder не реализован для BcsBrokerApi")
     }
-
-    override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = ids.associateWith { TradingAvailability.UNKNOWN }
-
-    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = flowOf()
-
-    override suspend fun checkTradeAvailability(
         accountId: String,
         tscalpInstrumentId: String,
         brokerUid: String?,
