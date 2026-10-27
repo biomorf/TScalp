@@ -291,5 +291,4 @@ class BcsBrokerApi :
                 )
             }.distinctBy { it.ticker }
     }
-
 }
