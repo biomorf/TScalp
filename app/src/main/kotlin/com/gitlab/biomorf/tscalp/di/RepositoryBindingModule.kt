@@ -67,5 +67,5 @@ abstract class RepositoryBindingModule {
 
     @Binds
     @Singleton
-    abstract fun bindDebugFlagsRepository(impl: DebugConfig): DebugFlagsRepository
+    internal abstract fun bindDebugFlagsRepository(impl: DebugConfig): DebugFlagsRepository
 }
