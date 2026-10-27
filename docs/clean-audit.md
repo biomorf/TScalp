@@ -171,23 +171,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). Связано с `### Рефакторинг ViewModel-слоя`.
 
-### Н3. OrdersListViewModel в ui.components
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `OrdersListViewModel` живёт в `ui.components` (рядом с `OrdersListDialog.kt`, импортируется оттуда). Остальные ViewModel — в `presentation/screens/*/`. Нарушение конвенции проекта.
-
-**Нарушенное правило:** Не Clean в строгом смысле — архитектурная конвенция пакетов.
-
-**Clean-альтернатива:** `presentation/screens/orders/OrdersListViewModel.kt` (рядом со своим экраном). Плюсы: консистентность. Минусы: `git mv` + правка импорта в 1 файле (~10 мин).
-
-**Выгоды:** —
-
-**Ссылка на задачу:** — (не заведена).
 
 ### Исправленные (L1)
 
@@ -216,6 +199,27 @@ L4–L8 — не проверены, заполняются по мере инс
 областям` (PR #56, `dev`) + `### H21b. Domain-интерфейсы для 4
 репозиториев` (PR #57, `dev`).
 
+
+---
+
+### ✅ Н3. OrdersListViewModel в ui.components
+
+**Статус:** исправлено (PR #58, `dev`, 2026-10-27). `OrdersListViewModel`
+в `presentation/screens/orders/`, package обновлён.
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `OrdersListViewModel` живёт в `ui.components` (рядом с `OrdersListDialog.kt`, импортируется оттуда). Остальные ViewModel — в `presentation/screens/*/`. Нарушение конвенции проекта.
+
+**Нарушенное правило:** Не Clean в строгом смысле — архитектурная конвенция пакетов.
+
+**Clean-альтернатива:** `presentation/screens/orders/OrdersListViewModel.kt` (рядом со своим экраном). Плюсы: консистентность. Минусы: `git mv` + правка импорта в 1 файле (~10 мин).
+
+**Выгоды:** —
+
+**Ссылка на задачу:** `### H3. Move OrdersListViewModel to presentation/screens/orders/` (PR #58, `dev`).
 ---
 
 ## L2 — util
