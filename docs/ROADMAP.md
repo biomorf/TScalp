@@ -288,134 +288,6 @@ Compose в `util/`-пути; `domain/` не видит `android.util.Log`
 
 ---
 
-### H22. BrokerRegistry
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-**Ветка:** feature/h22-broker-registry
-
-**Контекст (clean-audit Н22, Н29, Н40, Н44).** `di.BrokerManager`
-инжектят 11 файлов в трёх слоях:
-- **Н22 (критично):** `OrdersViewModel`, `PortfolioViewModel`,
-  `SettingsViewModel` (presentation → `di`).
-- **Н40 (критично):** `PositionFlowManager`, `PriceFlowManager`,
-  `OrderFlowManager` (domain → `di`).
-- **Н44 (критично):** 6 `*RepositoryImpl` в `data/repository`
-  (data → `di`, тот же слой, но сборочная утечка).
-- **Н29 (критично):** сам `di/BrokerManager.kt` — domain-сервис
-  в сборочном слое (computeAnyInitialized, getDefaultBroker с
-  «TInvest = default», refreshInitializationState, anyInitialized
-  StateFlow).
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** dependency rule — presentation,
-domain и data зависят от `di` (сборочный слой); domain-сервис
-живёт в `di/`.
-
-**Clean-альтернатива.** `domain.api.BrokerRegistry` — интерфейс
-(`anyInitialized: StateFlow<Boolean>`, `getBroker`,
-`getDefaultBroker`, `getAvailableBrokerNames`, `getAllBrokers`,
-`refreshInitializationState`). Реализация — `git mv`
-`di/BrokerManager.kt` → `data/registry/BrokerRegistryImpl.kt`,
-класс `: BrokerRegistry`. DI — `@Provides @Singleton
-provideBrokerRegistry(...)` в `DataModule` (не `@Binds`:
-конструктор принимает `Map<BrokerName, BrokerApi>`, не
-`@Inject`).
-
-Плюсы: presentation/domain/data → `domain.api`; `di/` содержит
-только DI; `BrokerRegistry` в KMP-модуле; закрывает 4 записи
-clean-audit одним PR.
-
-Минусы: 11 файлов main + 3 теста (17 конструирований) — механическая
-миграция.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Решения (2026-10-28):**
-- **`refreshInitializationState` остаётся в `BrokerRegistry`.**
-  Side-effect, KDoc-пометка «временный, рефакторинг lifecycle —
-  отдельная задача». Удаление требует рефакторинга
-  `BrokerLifecycleApi.initialize` + правки 6 callsites + Н50/Н51 —
-  вне scope H22.
-- **Переименование обязательно:** `git mv` `di/BrokerManager.kt`
-  → `data/registry/BrokerRegistryImpl.kt`. Без него Н29 остаётся
-  открытой.
-- **DI:** `@Provides` (не `@Binds`) — `BrokerRegistryImpl`
-  конструируется с `Map<BrokerName, BrokerApi>`, который собирается
-  в `provideBrokerRegistry` из трёх брокеров.
-
-**Связанные проблемы (вне scope, отдельные задачи).**
-
-- **Н35** (`provideBrokerManager` — domain-конфигурация в `di`).
-  Список брокеров и порядок вкладок живут в `DataModule`. После
-  H22 переезжает в `provideBrokerRegistry`, но конфигурация
-  остаётся в DI. **Задача в ROADMAP не заведена.**
-- **Н50** (`restoreTInvest` — domain-логика выбора счёта в
-  `TScalpApplication`). **Задача в ROADMAP не заведена.**
-- **Н51** (`refreshInitializationState` — 2 callsites в app,
-  всего 6). Закрывается при рефакторинге lifecycle
-  (`BrokerLifecycleApi.initialize` сам обновляет состояние).
-  **Задача в ROADMAP не заведена.**
-
-**Предусловия:** H21b, H23 (паттерн `domain.api` → `data`
-установлен). Аудит L4/L7/L8 — для дизайна.
-
-**Файлы:**
-- `domain/api/BrokerRegistry.kt` (новый) — интерфейс.
-- `di/BrokerManager.kt` → `data/registry/BrokerRegistryImpl.kt`
-  (`git mv` + `: BrokerRegistry`).
-- `di/DataModule.kt` — `provideBrokerManager` →
-  `provideBrokerRegistry`, возвращает `BrokerRegistry`.
-- 3 VM (Orders, Portfolio, Settings), 3 менеджера, 6
-  `*RepositoryImpl`, `TScalpApplication` — импорт `di.BrokerManager`
-  → `domain.api.BrokerRegistry`, конструктор.
-- 3 теста: `BrokerManager(...)` → `BrokerRegistryImpl(...)`.
-
-**Шаги:**
-1. `domain/api/BrokerRegistry.kt` — интерфейс.
-2. `git mv` `di/BrokerManager.kt` → `data/registry/BrokerRegistryImpl.kt`,
-   класс `: BrokerRegistry`, `override` на 6 членах.
-3. `DataModule.provideBrokerManager` → `provideBrokerRegistry`,
-   возвращает `BrokerRegistry`, тело — `BrokerRegistryImpl(brokers)`.
-4. Миграция 11 файлов main (импорт + тип).
-5. 3 теста: `BrokerManager` → `BrokerRegistryImpl` (17 мест).
-6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты.** `SettingsViewModel` init не затронут. Тесты
-конструируют `BrokerManager` напрямую → `BrokerRegistryImpl`
-(17 замен). Новые тесты не нужны — переезд, поведение 1:1.
-
-**Референсы.** `docs/clean-audit.md` → Н22, Н29, Н40, Н44.
-`### Broker lifecycle API` (закрыта) — `lifecycle` nullable-val,
-аналогичный паттерн.
-
-**Ограничения.**
-- Не удалять `refreshInitializationState` (решение A).
-- Не трогать `BrokerLifecycleApi.initialize`.
-- Не закрывать Н35, Н50, Н51 (связанные, вне scope).
-- Не смешивать с переименованием (уже в scope, один PR).
-
-**Критерий готовности.**
-- `grep "di.BrokerManager" app/src/main` — пусто.
-- 3 VM + 3 менеджера + 6 репозиториев + app инжектят
-  `domain.api.BrokerRegistry`.
-- `di/BrokerManager.kt` удалён, `data/registry/BrokerRegistryImpl.kt`
-  существует.
-- Гейт зелёный.
-
-**Оценка:** ~1–2 ч (интерфейс 20 мин, `git mv` + реализация 20,
-DI 10, 11 файлов main 30, 3 теста 15, гейт 15). Факт — по уроку
-12 (scriptable, ожидается ~15 мин wall time).
-
-**Зависимости:** H21b, H23.
-
-**Связано:** `docs/clean-audit.md` → Н22, Н29, Н40, Н44;
-Н35, Н50, Н51 (вне scope, задачи в ROADMAP не заведены).
-
-**Открытые вопросы:** нет (решения 2026-10-28: A + A + `@Provides`).
-
 ### H1. PortfolioPosition factory для UI
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -7556,5 +7428,136 @@ debug-сборок`; H22 (`BrokerRegistry`) — следующий шаг
 
 **Открытые вопросы:** нет (A2a принят 2026-10-27, scope B
 принят 2026-10-27).
+
+
+
+---
+
+### ✅ H22. BrokerRegistry
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Что сделано:** (PR #60, `dev`, 2026-10-28). `domain/api/BrokerRegistry.kt` (6 членов). `git mv` `di/BrokerManager.kt` → `data/registry/BrokerRegistryImpl.kt`, `: BrokerRegistry`. `DataModule.provideBrokerManager` → `provideBrokerRegistry` (`@Provides`, ctor с `Map<BrokerName, BrokerApi>`). 11 main: 3 VM + 3 менеджера + 6 `*RepositoryImpl` + `TScalpApplication` → `domain.api.BrokerRegistry`. 4 KDoc `[BrokerManager]` → `[BrokerRegistry]`. 3 теста: 17 конструирований `BrokerRegistryImpl(...)`. Закрывает Н22, Н29, Н40, Н44. Связанные вне scope: Н35, Н50, Н51 (задачи в ROADMAP не заведены). Оценка план ~1–2 ч, факт ~10 мин wall time.
+
+**Контекст (clean-audit Н22, Н29, Н40, Н44).** `di.BrokerManager`
+инжектят 11 файлов в трёх слоях:
+- **Н22 (критично):** `OrdersViewModel`, `PortfolioViewModel`,
+  `SettingsViewModel` (presentation → `di`).
+- **Н40 (критично):** `PositionFlowManager`, `PriceFlowManager`,
+  `OrderFlowManager` (domain → `di`).
+- **Н44 (критично):** 6 `*RepositoryImpl` в `data/repository`
+  (data → `di`, тот же слой, но сборочная утечка).
+- **Н29 (критично):** сам `di/BrokerManager.kt` — domain-сервис
+  в сборочном слое (computeAnyInitialized, getDefaultBroker с
+  «TInvest = default», refreshInitializationState, anyInitialized
+  StateFlow).
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation,
+domain и data зависят от `di` (сборочный слой); domain-сервис
+живёт в `di/`.
+
+**Clean-альтернатива.** `domain.api.BrokerRegistry` — интерфейс
+(`anyInitialized: StateFlow<Boolean>`, `getBroker`,
+`getDefaultBroker`, `getAvailableBrokerNames`, `getAllBrokers`,
+`refreshInitializationState`). Реализация — `git mv`
+`di/BrokerManager.kt` → `data/registry/BrokerRegistryImpl.kt`,
+класс `: BrokerRegistry`. DI — `@Provides @Singleton
+provideBrokerRegistry(...)` в `DataModule` (не `@Binds`:
+конструктор принимает `Map<BrokerName, BrokerApi>`, не
+`@Inject`).
+
+Плюсы: presentation/domain/data → `domain.api`; `di/` содержит
+только DI; `BrokerRegistry` в KMP-модуле; закрывает 4 записи
+clean-audit одним PR.
+
+Минусы: 11 файлов main + 3 теста (17 конструирований) — механическая
+миграция.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Решения (2026-10-28):**
+- **`refreshInitializationState` остаётся в `BrokerRegistry`.**
+  Side-effect, KDoc-пометка «временный, рефакторинг lifecycle —
+  отдельная задача». Удаление требует рефакторинга
+  `BrokerLifecycleApi.initialize` + правки 6 callsites + Н50/Н51 —
+  вне scope H22.
+- **Переименование обязательно:** `git mv` `di/BrokerManager.kt`
+  → `data/registry/BrokerRegistryImpl.kt`. Без него Н29 остаётся
+  открытой.
+- **DI:** `@Provides` (не `@Binds`) — `BrokerRegistryImpl`
+  конструируется с `Map<BrokerName, BrokerApi>`, который собирается
+  в `provideBrokerRegistry` из трёх брокеров.
+
+**Связанные проблемы (вне scope, отдельные задачи).**
+
+- **Н35** (`provideBrokerManager` — domain-конфигурация в `di`).
+  Список брокеров и порядок вкладок живут в `DataModule`. После
+  H22 переезжает в `provideBrokerRegistry`, но конфигурация
+  остаётся в DI. **Задача в ROADMAP не заведена.**
+- **Н50** (`restoreTInvest` — domain-логика выбора счёта в
+  `TScalpApplication`). **Задача в ROADMAP не заведена.**
+- **Н51** (`refreshInitializationState` — 2 callsites в app,
+  всего 6). Закрывается при рефакторинге lifecycle
+  (`BrokerLifecycleApi.initialize` сам обновляет состояние).
+  **Задача в ROADMAP не заведена.**
+
+**Предусловия:** H21b, H23 (паттерн `domain.api` → `data`
+установлен). Аудит L4/L7/L8 — для дизайна.
+
+**Файлы:**
+- `domain/api/BrokerRegistry.kt` (новый) — интерфейс.
+- `di/BrokerManager.kt` → `data/registry/BrokerRegistryImpl.kt`
+  (`git mv` + `: BrokerRegistry`).
+- `di/DataModule.kt` — `provideBrokerManager` →
+  `provideBrokerRegistry`, возвращает `BrokerRegistry`.
+- 3 VM (Orders, Portfolio, Settings), 3 менеджера, 6
+  `*RepositoryImpl`, `TScalpApplication` — импорт `di.BrokerManager`
+  → `domain.api.BrokerRegistry`, конструктор.
+- 3 теста: `BrokerManager(...)` → `BrokerRegistryImpl(...)`.
+
+**Шаги:**
+1. `domain/api/BrokerRegistry.kt` — интерфейс.
+2. `git mv` `di/BrokerManager.kt` → `data/registry/BrokerRegistryImpl.kt`,
+   класс `: BrokerRegistry`, `override` на 6 членах.
+3. `DataModule.provideBrokerManager` → `provideBrokerRegistry`,
+   возвращает `BrokerRegistry`, тело — `BrokerRegistryImpl(brokers)`.
+4. Миграция 11 файлов main (импорт + тип).
+5. 3 теста: `BrokerManager` → `BrokerRegistryImpl` (17 мест).
+6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты.** `SettingsViewModel` init не затронут. Тесты
+конструируют `BrokerManager` напрямую → `BrokerRegistryImpl`
+(17 замен). Новые тесты не нужны — переезд, поведение 1:1.
+
+**Референсы.** `docs/clean-audit.md` → Н22, Н29, Н40, Н44.
+`### Broker lifecycle API` (закрыта) — `lifecycle` nullable-val,
+аналогичный паттерн.
+
+**Ограничения.**
+- Не удалять `refreshInitializationState` (решение A).
+- Не трогать `BrokerLifecycleApi.initialize`.
+- Не закрывать Н35, Н50, Н51 (связанные, вне scope).
+- Не смешивать с переименованием (уже в scope, один PR).
+
+**Критерий готовности.**
+- `grep "di.BrokerManager" app/src/main` — пусто.
+- 3 VM + 3 менеджера + 6 репозиториев + app инжектят
+  `domain.api.BrokerRegistry`.
+- `di/BrokerManager.kt` удалён, `data/registry/BrokerRegistryImpl.kt`
+  существует.
+- Гейт зелёный.
+
+**Оценка:** ~1–2 ч (интерфейс 20 мин, `git mv` + реализация 20,
+DI 10, 11 файлов main 30, 3 теста 15, гейт 15). Факт — по уроку
+12 (scriptable, ожидается ~15 мин wall time).
+
+**Зависимости:** H21b, H23.
+
+**Связано:** `docs/clean-audit.md` → Н22, Н29, Н40, Н44;
+Н35, Н50, Н51 (вне scope, задачи в ROADMAP не заведены).
+
+**Открытые вопросы:** нет (решения 2026-10-28: A + A + `@Provides`).
 
 ---
