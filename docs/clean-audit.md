@@ -63,31 +63,12 @@ L4–L8 — не проверены, заполняются по мере инс
 
 | ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
 |---|---|---|---|---|
-| Н21. ViewModel → data.repository.* | критично | L1, L6 | `OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel` | - |
 | Н22. ViewModel → di.BrokerManager | критично | L1, L7 | те же 3 VM | - |
 | Н1. Presentation конструирует PortfolioPosition | высоко | L1, L3 | `OrdersScreen.kt` (~353, ~580) | - |
 | Н23. ViewModel → data.orchestrator.DebugConfig | средне | L1, L6 | `SettingsViewModel` | ✓ |
 | Н4. UI конвертирует String → domain-модель | средне | L1, L3 | `OrdersListDialog.kt` | - |
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
-
-### Н21. ViewModel → data.repository.*
-
-**Статус:** исправлено (merge pending H21b — feature/h21b-domain-interfaces).
-
-**Серьёзность:** критично.
-
-**Live тест:** -
-
-**Описание:** три ViewModel (`OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel`) инжектят `InvestRepository`, `InstrumentRepository`, `SearchCache`, `SettingsRepository`, `TradingStateRepository` из `data.repository.*` напрямую. По Clean presentation должна зависеть от domain-интерфейса, а data — реализовывать его.
-
-**Нарушенное правило:** Dependency rule — presentation не должна знать про data (зависимость наружу).
-
-**Clean-альтернатива:** `domain.api.repository.*` — по одному интерфейсу на репозиторий (для `InvestRepository` частично сделано в `### Разбивка InvestRepository по доменным областям`, но не для остальных 4). VM инжектит интерфейс, data реализует через `@Binds`. Плюсы: Clean-дисциплина, KMP-совместимость, фейки в тестах. Минусы: переезд 4 репозиториев (~2–3 ч) + правка DI.
-
-**Выгоды:** —
-
-**Ссылка на задачу:** `### Разбивка InvestRepository по доменным областям` (частично; 4 остальных репозитория — вне scope, задача не заведена).
 
 ### Н22. ViewModel → di.BrokerManager
 
@@ -210,7 +191,30 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ### Исправленные (L1)
 
-[пусто]
+### ✅ Н21. ViewModel → data.repository.*
+
+**Статус:** исправлено (PR #57, `dev`, 2026-10-27).
+
+**Серьёзность:** критично.
+
+**Live тест:** -
+
+**Описание:** три ViewModel (`OrdersViewModel`, `PortfolioViewModel`, `SettingsViewModel`) инжектят `InvestRepository`, `InstrumentRepository`, `SearchCache`, `SettingsRepository`, `TradingStateRepository` из `data.repository.*` напрямую. По Clean presentation должна зависеть от domain-интерфейса, а data — реализовывать его.
+
+**Уточнение (2026-10-27):** по факту потребителей 5, не 3 —
+добавились `OrdersListViewModel` (`SettingsRepository`) и
+`TScalpApplication` (`SettingsRepository` через `@Inject lateinit var`).
+Также удалён мёртвый `InstrumentRepository.refreshInstrument` (0 callsites).
+
+**Нарушенное правило:** Dependency rule — presentation не должна знать про data (зависимость наружу).
+
+**Clean-альтернатива:** `domain.api.repository.*` — по одному интерфейсу на репозиторий (для `InvestRepository` частично сделано в `### Разбивка InvestRepository по доменным областям`, но не для остальных 4). VM инжектит интерфейс, data реализует через `@Binds`. Плюсы: Clean-дисциплина, KMP-совместимость, фейки в тестах. Минусы: переезд 4 репозиториев (~2–3 ч) + правка DI.
+
+**Выгоды:** —
+
+**Ссылка на задачу:** `### Разбивка InvestRepository по доменным
+областям` (PR #56, `dev`) + `### H21b. Domain-интерфейсы для 4
+репозиториев` (PR #57, `dev`).
 
 ---
 
@@ -1363,7 +1367,7 @@ InvestRepository split` (ROADMAP).
 
 ### Н37. Конвенции DI-файлов
 
-**Статус:** частично исправлено (merge pending H21b). Два `@Module` в
+**Статус:** частично исправлено (H21b, PR #57, `dev`, 2026-10-27). Два `@Module` в
 `RepositoryModule.kt` → один (`UseCaseModule`): `RepositoryModule`
 object удалён после переноса его `@Provides` в `RepositoryBindingModule`
 (H21b). Осталось: `@Provides` для stateless-классов
