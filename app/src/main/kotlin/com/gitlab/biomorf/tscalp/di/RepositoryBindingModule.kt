@@ -17,9 +17,8 @@ import javax.inject.Singleton
 /**
  * Биндинги domain-интерфейсов репозиториев на их data-реализации.
  *
- * Phase 1 step 4 InvestRepository split: интерфейсы и реализации
- * созданы, потребители мигрируют в Phase 2. `provideInvestRepository`
- * в `RepositoryModule` остаётся до завершения Phase 2.
+ * InvestRepository split (Phase 1–2): все потребители мигрированы на
+ * domain-интерфейсы, `InvestRepository` удалён.
  */
 @Module
 @InstallIn(SingletonComponent::class)

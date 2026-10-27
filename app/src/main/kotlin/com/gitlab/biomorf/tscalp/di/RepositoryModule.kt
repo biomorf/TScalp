@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.di
 
 import com.gitlab.biomorf.tscalp.data.repository.InstrumentRepository
-import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SearchCache
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
@@ -14,10 +13,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
-    @Provides
-    @Singleton
-    fun provideInvestRepository(brokerManager: BrokerManager): InvestRepository = InvestRepository(brokerManager)
-
     @Provides
     @Singleton
     fun provideInstrumentRepository(brokerManager: BrokerManager): InstrumentRepository = InstrumentRepository(brokerManager)
