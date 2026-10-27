@@ -68,72 +68,6 @@ clean-audit.
 
 ## Планируемые задачи
 
-### H3. Move OrdersListViewModel to presentation/screens/orders/
-
-**Мобильная работа:** полное закрытие (git mv + правка импорта
-через proot).
-
-**Статус:** в работе.
-**Ветка:** feature/h3-move-orderslistvm
-
-**Контекст (clean-audit Н3):** `OrdersListViewModel` живёт в
-`ui.components` (рядом с `OrdersListDialog.kt`), остальные
-ViewModel — в `presentation/screens/*/`. Нарушение конвенции
-пакетов проекта.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** не Clean в строгом смысле —
-архитектурная конвенция пакетов.
-
-**Clean-альтернатива:** `OrdersListViewModel` в
-`presentation/screens/orders/` (рядом со своим экраном).
-Плюсы: консистентность. Минусы: —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `ui/components/OrdersListViewModel.kt` →
-  `presentation/screens/orders/OrdersListViewModel.kt` (git mv).
-- `ui/components/OrdersListDialog.kt` — правка импорта.
-- `docs/clean-audit.md` — Н3 → `исправлено`, копия в
-  «Исправленные (L1)».
-
-**Шаги:**
-1. `git mv` файла.
-2. Правка `package` в перенесённом файле.
-3. Правка импорта в `OrdersListDialog.kt`.
-4. Проверка: `grep -rn "ui.components.OrdersListViewModel" app/src`
-   — пусто.
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-6. `docs/clean-audit.md` → Н3 `исправлено`, копия в
-   «Исправленные (L1)».
-
-**Тесты:** не меняются (переезд). Гейт — доказательство.
-
-**Референсы:** `docs/clean-audit.md` → Н3.
-
-**Ограничения:** только mv + импорт, никакой логики. Не
-смешивать с `### Рефакторинг ViewModel-слоя`.
-
-**Критерий готовности:** `OrdersListViewModel` в
-`presentation/screens/orders/`; `grep` старых импортов — пусто;
-гейт зелёный.
-
-**Оценка:** ~10 мин.
-
-**Зависимости:** нет.
-
-**Связано:** `docs/clean-audit.md` → Н3;
-`### Рефакторинг ViewModel-слоя` (отдельно, не блокирует).
-
-**Открытые вопросы:** нет.
-
-
-
----
 
 ### BrokerApi: ревизия fat-части после InvestRepository split
 
@@ -7475,5 +7409,78 @@ InvestRepository по доменным областям`.
 - `RepositoryModule → UseCaseModule.kt` — отдельная задача
   (clean-audit Н37), не в scope H21b. Файл
   `RepositoryModule.kt` содержит только `UseCaseModule`.
+
+
+
+---
+
+### ✅ H3. Move OrdersListViewModel to presentation/screens/orders/
+
+**Мобильная работа:** полное закрытие (git mv + правка импорта
+через proot).
+
+**Что сделано:** (PR #58, `dev`, 2026-10-27). `git mv`
+`ui/components/OrdersListViewModel.kt` →
+`presentation/screens/orders/OrdersListViewModel.kt`. `package` обновлён:
+`com.gitlab.biomorf.tscalp.ui.components` →
+`com.gitlab.biomorf.tscalp.presentation.screens.orders`. Импорт в
+`OrdersListDialog.kt` обновлён. Других потребителей не было (grep:
+только `OrdersListDialog.kt`). Локальный Gradle-гейт не запускался
+(mobile/proot); CI `gate` на PR — зелёный.
+
+**Контекст (clean-audit Н3):** `OrdersListViewModel` живёт в
+`ui.components` (рядом с `OrdersListDialog.kt`), остальные
+ViewModel — в `presentation/screens/*/`. Нарушение конвенции
+пакетов проекта.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** не Clean в строгом смысле —
+архитектурная конвенция пакетов.
+
+**Clean-альтернатива:** `OrdersListViewModel` в
+`presentation/screens/orders/` (рядом со своим экраном).
+Плюсы: консистентность. Минусы: —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `ui/components/OrdersListViewModel.kt` →
+  `presentation/screens/orders/OrdersListViewModel.kt` (git mv).
+- `ui/components/OrdersListDialog.kt` — правка импорта.
+- `docs/clean-audit.md` — Н3 → `исправлено`, копия в
+  «Исправленные (L1)».
+
+**Шаги:**
+1. `git mv` файла.
+2. Правка `package` в перенесённом файле.
+3. Правка импорта в `OrdersListDialog.kt`.
+4. Проверка: `grep -rn "ui.components.OrdersListViewModel" app/src`
+   — пусто.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. `docs/clean-audit.md` → Н3 `исправлено`, копия в
+   «Исправленные (L1)».
+
+**Тесты:** не меняются (переезд). Гейт — доказательство.
+
+**Референсы:** `docs/clean-audit.md` → Н3.
+
+**Ограничения:** только mv + импорт, никакой логики. Не
+смешивать с `### Рефакторинг ViewModel-слоя`.
+
+**Критерий готовности:** `OrdersListViewModel` в
+`presentation/screens/orders/`; `grep` старых импортов — пусто;
+гейт зелёный.
+
+**Оценка:** ~10 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `docs/clean-audit.md` → Н3;
+`### Рефакторинг ViewModel-слоя` (отдельно, не блокирует).
+
+**Открытые вопросы:** нет.
 
 ---
