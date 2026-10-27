@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
+import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
@@ -38,6 +39,7 @@ import ru.ttech.piapi.core.InvestApi
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
     private val httpClient: HttpClient,
+    private val debugFlagsRepository: DebugFlagsRepository,
 ) : BrokerApi,
     BrokerSnapshotApi,
     StreamsApi,
@@ -56,6 +58,7 @@ class TInvestBrokerAPI(
     private val orchestrator =
         TInvestOrchestrator(
             marketData = marketData,
+            debugFlagsRepository = debugFlagsRepository,
             orders = ordersService,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },

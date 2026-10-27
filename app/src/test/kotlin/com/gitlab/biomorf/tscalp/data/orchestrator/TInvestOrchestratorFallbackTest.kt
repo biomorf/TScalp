@@ -30,6 +30,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    debugFlagsRepository = mockk(relaxed = true),
                     pricesRestFallback = { restData },
                 )
 
@@ -48,6 +49,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    debugFlagsRepository = mockk(relaxed = true),
                     pricesRestFallback = {
                         fallbackCalled = true
                         emptyMap()
@@ -73,6 +75,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    debugFlagsRepository = mockk(relaxed = true),
                     ordersRestFallback = { restOrders },
                 )
 
@@ -91,6 +94,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    debugFlagsRepository = mockk(relaxed = true),
                     balanceRestFallback = { restBalance },
                 )
 
@@ -117,6 +121,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    debugFlagsRepository = mockk(relaxed = true),
                     positionsRestFallback = { _, _ -> restPositions },
                 )
 
