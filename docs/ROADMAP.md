@@ -170,82 +170,131 @@ KDoc обоснования 2c ссылается на `InvestRepository` как
 
 ---
 
-### H23. DebugFlagsRepository
+### H23. DebugFlagsRepository (scope B: Н23 + Н38)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
 **Статус:** запланировано.
 
-**Контекст (clean-audit Н23):** `SettingsViewModel`
-импортирует `data.orchestrator.DebugConfig`, читает/пишет
-`disableGrpc`, `disableWs`, `forceRest` через
-`toggleGrpc/toggleWs/toggleRest`. Debug-флаги транспорта в
-presentation.
+**Контекст (clean-audit Н23 + Н38).** Два потребителя
+`data.orchestrator.DebugConfig` в не-data слоях:
+- **Н23:** `SettingsViewModel` (presentation) импортирует
+  `DebugConfig`, читает/пишет `disableGrpc`, `disableWs`,
+  `forceRest` через `toggleGrpc/toggleWs/toggleRest`.
+- **Н38:** `PriceFlowManager` (domain) импортирует
+  `DebugConfig`, использует в `collectStream`
+  (`if (DebugConfig.disableGrpc && DebugConfig.disableWs) return`).
+
+Одна реализация (`DebugConfig`), один интерфейс, один PR.
+`TInvestOrchestrator` (data) тоже читает `DebugConfig`
+(11 callsites), но data→data легально — до тех пор, пока
+`DebugConfig` остаётся `object`. При A2a (`object` →
+`class @Inject`) оркестратор **обязан** инжектить
+`DebugFlagsRepository` — иначе не компилируется.
 
 **Соответствие Clean:** отклонение (открыто).
 
-**Нарушенное правило Clean:** dependency rule — presentation
-не должна знать про `data.orchestrator`.
+**Нарушенное правило Clean:** dependency rule —
+presentation (Н23) и domain (Н38) не должны знать про
+`data.orchestrator`.
 
-**Clean-альтернатива:** `domain.api.DebugFlagsRepository` —
-интерфейс с геттерами/сеттерами; реализация —
-`data.orchestrator.DebugConfig` за интерфейсом; `@Binds`.
-Плюсы: presentation → domain.api. Минусы: ~30 мин правок.
+**Clean-альтернатива (форма A2a).**
+`domain.api.DebugFlagsRepository` — интерфейс с
+геттерами/сеттерами; `data.orchestrator.DebugConfig`
+становится `internal class @Inject constructor() :
+DebugFlagsRepository` (с сохранением `BuildConfig.DEBUG`-гейта
+в сеттерах); `@Binds` в `RepositoryBindingModule`. Все три
+потребителя (presentation, domain, data) инжектят интерфейс.
+
+Плюсы: одна реализация без обёртки-класса, единая точка
+через интерфейс, `BuildConfig.DEBUG`-гейт в одном месте.
+
+Минусы: `TInvestOrchestrator` (11 callsites) обязан
+правиться; `DebugConfig` из `object` в `class` — `@Inject`
+во всех потребителях (Hilt резолвит `internal` в том же
+модуле); `PriceFlowManagerTest` — +1 параметр в 4+ местах.
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия:** нет.
+**Предусловия:** H21b закрыта (паттерн `domain.api` → `data`
+через `@Binds` установлен, PR #57).
 
 **Файлы:**
 - `domain/api/DebugFlagsRepository.kt` (новый) — интерфейс:
   `var disableGrpc: Boolean`, `var disableWs: Boolean`,
   `var forceRest: Boolean`.
-- `data/orchestrator/DebugConfig.kt` — реализует интерфейс
-  (или `data/orchestrator/DebugFlagsRepositoryImpl.kt` —
-  решить при реализации; `DebugConfig` сейчас `object`,
-  может быть проще сделать Impl).
-- `di/RepositoryModule.kt` — `@Binds`.
-- `SettingsViewModel.kt` — конструктор + импорт.
+- `data/orchestrator/DebugConfig.kt` — `object` →
+  `internal class @Inject constructor() : DebugFlagsRepository`,
+  все три `var` — `override`. `DISABLE_POLLING` (`const val`,
+  0 callsites) — удалить (2d: мёртвый код).
+- `di/RepositoryBindingModule.kt` — `@Binds`.
+- `presentation/screens/settings/SettingsViewModel.kt` —
+  +1 параметр конструктора, 6 callsites (3 чтения 84–86,
+  3 записи 348/357/366).
+- `domain/api/managers/PriceFlowManager.kt` — +1 параметр
+  конструктора, 1 callsite (стр. 207).
+- `data/orchestrator/TInvestOrchestrator.kt` — +1 параметр
+  конструктора, 11 callsites.
+- `test/.../PriceFlowManagerTest.kt` — +1 параметр
+  `debugFlagsRepository = mockk(relaxed = true)` в 4+ местах.
 
 **Шаги:**
 1. Создать `DebugFlagsRepository` (3 `var`).
-2. Реализация — либо `DebugConfig : DebugFlagsRepository`
-   напрямую (если `object`), либо `DebugFlagsRepositoryImpl`
-   (если нужна инъекция).
-3. `@Binds` в `RepositoryModule`.
-4. `SettingsViewModel`: `DebugConfig.disableGrpc` →
-   `debugFlagsRepository.disableGrpc` (и т.д., 6 мест).
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+2. `DebugConfig`: `object` → `internal class @Inject
+   constructor() : DebugFlagsRepository`, `override` на 3
+   `var`. `DISABLE_POLLING` удалить (0 callsites, 2d).
+3. `RepositoryBindingModule`:
+   `@Binds DebugConfig : DebugFlagsRepository`.
+4. `TInvestOrchestrator`: +1 параметр конструктора,
+   11 callsites `DebugConfig.` → `debugFlagsRepository.`.
+5. `SettingsViewModel`: +1 параметр, 6 callsites.
+6. `PriceFlowManager`: +1 параметр, 1 callsite.
+7. `PriceFlowManagerTest`: +1 параметр в 4+ местах.
+8. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
 
-**Тесты:** не меняются. Гейт — доказательство.
+**Тесты.** `PriceFlowManagerTest` — +1 параметр (мок).
+Новые тесты не обязательны (переезд, поведение не
+меняется). Гейт — доказательство.
 
-**Референсы:** `docs/clean-audit.md` → Н23. Закрытые
+**Референсы.** `docs/clean-audit.md` → Н23, Н38. Закрытые
 `### Debug-тумблеры`, `### DebugConfig: только для
 debug-сборок` — функционал работает; переезд API — эта
-задача.
+задача. Паттерн — `### Разбивка InvestRepository по
+доменным областям` (PR #56), `### H21b. Domain-интерфейсы
+для 4 репозиториев` (PR #57).
 
-**Ограничения:** не менять поведение флагов — только
-структуру. Сохранить `BuildConfig.DEBUG`-гейт в сеттерах
-(в `DebugConfig`).
+**Ограничения.**
+- Не менять поведение флагов — только структуру.
+- Сохранить `BuildConfig.DEBUG`-гейт в сеттерах `DebugConfig`
+  (release = false).
+- `PriceFlowManager` не должен видеть `data.orchestrator`
+  (только через `domain.api.DebugFlagsRepository`).
+- `TInvestOrchestrator` — data→data, но при A2a через
+  интерфейс для единообразия (не через concrete class).
 
-**Критерий готовности:** `SettingsViewModel` не импортирует
-`data.orchestrator.DebugConfig`; гейт зелёный.
+**Критерий готовности.**
+- `grep "data.orchestrator.DebugConfig" app/src/main/kotlin/
+  com/gitlab/biomorf/tscalp/presentation app/src/main/kotlin/
+  com/gitlab/biomorf/tscalp/domain` — пусто.
+- `SettingsViewModel`, `PriceFlowManager`,
+  `TInvestOrchestrator` инжектят `DebugFlagsRepository`.
+- `DISABLE_POLLING` удалён.
+- Гейт зелёный.
 
-**Оценка:** ~30 мин.
+**Оценка:** ~70–75 мин (интерфейс 5, `DebugConfig` class 15,
+`@Binds` 2, `TInvestOrchestrator` 25, `SettingsViewModel` 8,
+`PriceFlowManager` 5, тест 5, гейт + PR-цикл 10).
 
-**Зависимости:** H21b (паттерн `domain.api` → `data` через
-`@Binds` уже установлен).
+**Зависимости:** H21b (закрыта, PR #57).
 
-**Связано:** `docs/clean-audit.md` → Н23; закрытые
+**Связано:** `docs/clean-audit.md` → Н23, Н38; закрытые
 `### Debug-тумблеры`, `### DebugConfig: только для
-debug-сборок`.
+debug-сборок`; H22 (`BrokerRegistry`) — следующий шаг
+по clean-долгу, не блокирует.
 
-**Открытые вопросы:** `object DebugConfig` → сделать
-`DebugFlagsRepositoryImpl` class или оставить `object` и
-`@Binds` через отдельный класс. Решение — при реализации.
-
-
-
+**Открытые вопросы:** нет (A2a принят 2026-10-27, scope B
+принят 2026-10-27).
 ### H17–H20. Перенос presentation-утилит из util
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
