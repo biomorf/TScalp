@@ -4,7 +4,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.data.repository.InstrumentRepository
-import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SearchCache
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepository
@@ -12,6 +11,10 @@ import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
@@ -51,7 +54,10 @@ import javax.inject.Inject
 class OrdersViewModel
     @Inject
     constructor(
-        private val repository: InvestRepository,
+        private val ordersRepository: OrdersRepository,
+        private val marketDataRepository: MarketDataRepository,
+        private val portfolioRepository: PortfolioRepository,
+        private val accountsRepository: AccountsRepository,
         private val instrumentRepo: InstrumentRepository,
         private val searchCache: SearchCache,
         private val settingsRepository: SettingsRepository,
@@ -225,7 +231,7 @@ class OrdersViewModel
 
                 val sandboxMode = settingsRepository.isSandboxMode()
 
-                when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                     is AppResult.Success -> {
                         val accounts = result.data
                         val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
@@ -327,7 +333,7 @@ class OrdersViewModel
 
                 // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
                 val price =
-                    when (val pricesResult = repository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
+                    when (val pricesResult = marketDataRepository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
                         is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
                         is AppResult.Failure -> {
                             AppLogger.w(
@@ -443,7 +449,7 @@ class OrdersViewModel
             val checkResult =
                 when (
                     val result =
-                        repository.checkTradeAvailabilityResult(
+                        ordersRepository.checkTradeAvailabilityResult(
                             brokerName = brokerName,
                             accountId = accountId,
                             tscalpInstrumentId = tscalpId,
@@ -504,11 +510,11 @@ class OrdersViewModel
             val primaryOutcome: AppResult<String> =
                 try {
                     if (prepared.isPrimaryStop) {
-                        repository
+                        ordersRepository
                             .postStopOrderResult(prepared.primaryRequest as StopOrderRequest)
                             .map { id -> "✅ Стоп‑заявка выставлена, ID: ${id.take(8)}…" }
                     } else {
-                        repository
+                        ordersRepository
                             .postOrderResult(prepared.primaryRequest as BrokerOrderRequest)
                             .map { r ->
                                 "✅ Заявка выполнена!\nID: ${r.orderId}\n" +
@@ -548,7 +554,7 @@ class OrdersViewModel
                     try {
                         if (prepared.isPairedStop == true) {
                             val pairedStop = prepared.pairedRequest as StopOrderRequest
-                            when (val r = repository.postStopOrderResult(pairedStop)) {
+                            when (val r = ordersRepository.postStopOrderResult(pairedStop)) {
                                 is AppResult.Success ->
                                     "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
                                         "${pairedStop.quantity} лотов, ID: ${r.data.take(8)}…"
@@ -563,7 +569,7 @@ class OrdersViewModel
                             }
                         } else {
                             val pairedRegular = prepared.pairedRequest as BrokerOrderRequest
-                            when (val r = repository.postOrderResult(pairedRegular)) {
+                            when (val r = ordersRepository.postOrderResult(pairedRegular)) {
                                 is AppResult.Success ->
                                     "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
                                         "${pairedRegular.quantity} лотов, ID: ${r.data.orderId}"
@@ -589,7 +595,7 @@ class OrdersViewModel
             // --- Пост-обработка: обновляем карточки и баланс ---
             refreshLastSelectedInstruments()
             val currentBalance =
-                when (val balanceResult = repository.getBalanceResult(accountId)) {
+                when (val balanceResult = portfolioRepository.getBalanceResult(accountId)) {
                     is AppResult.Success -> balanceResult.data
                     is AppResult.Failure -> {
                         AppLogger.w(
@@ -662,7 +668,7 @@ class OrdersViewModel
                 val accounts =
                     when (
                         val result =
-                            repository.getAccountsResult(
+                            accountsRepository.getAccountsResult(
                                 broker,
                                 settingsRepository.isSandboxMode(),
                             )
@@ -734,7 +740,7 @@ class OrdersViewModel
         private suspend fun loadDialogAccounts(brokerName: BrokerName) {
             when (
                 val result =
-                    repository.getAccountsResult(
+                    accountsRepository.getAccountsResult(
                         brokerName,
                         settingsRepository.isSandboxMode(),
                     )
@@ -850,7 +856,7 @@ class OrdersViewModel
             syncPriceInterest() // обновляем интерес к ценам обоих инструментов
             viewModelScope.launch {
                 val price =
-                    when (val pricesResult = repository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
+                    when (val pricesResult = marketDataRepository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
                         is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
                         is AppResult.Failure -> {
                             AppLogger.w(
@@ -907,7 +913,7 @@ class OrdersViewModel
 
         private suspend fun updateTradingStatuses(ids: List<String>) {
             if (ids.isEmpty()) return
-            when (val result = repository.getTradingStatusesResult(BrokerName.TINVEST, ids)) {
+            when (val result = marketDataRepository.getTradingStatusesResult(BrokerName.TINVEST, ids)) {
                 is AppResult.Success -> {
                     _uiState.update { state ->
                         state.copy(tradingStatuses = state.tradingStatuses + result.data)
@@ -942,7 +948,7 @@ class OrdersViewModel
             if (_uiState.value.portfolioPositions.isEmpty()) {
                 viewModelScope.launch {
                     val sandbox = settingsRepository.isSandboxMode()
-                    when (val result = repository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
+                    when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
                         is AppResult.Success ->
                             _uiState.update { it.copy(portfolioPositions = result.data) }
                         is AppResult.Failure ->

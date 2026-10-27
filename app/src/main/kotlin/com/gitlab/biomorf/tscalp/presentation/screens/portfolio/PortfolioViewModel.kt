@@ -2,12 +2,14 @@ package com.gitlab.biomorf.tscalp.presentation.screens.portfolio
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gitlab.biomorf.tscalp.data.repository.InvestRepository
 import com.gitlab.biomorf.tscalp.data.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.di.BrokerManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
@@ -35,7 +37,9 @@ import javax.inject.Inject
 class PortfolioViewModel
     @Inject
     constructor(
-        private val repository: InvestRepository,
+        private val portfolioRepository: PortfolioRepository,
+        private val marketDataRepository: MarketDataRepository,
+        private val accountsRepository: AccountsRepository,
         private val brokerManager: BrokerManager,
         private val settingsRepository: SettingsRepository,
         private val priceFlowManager: PriceFlowManager,
@@ -118,7 +122,7 @@ class PortfolioViewModel
                 AppLogger.d(TAG, "loadPortfolio: account=$accountId, sandbox=$sandbox")
 
                 // Первичный запрос для немедленного отображения
-                when (val result = repository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
+                when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
                     is AppResult.Success -> {
                         AppLogger.i(TAG, "loadPortfolio: success, positions=${result.data.size}")
                         _uiState.update { it.copy(positions = result.data, isLoading = false) }
@@ -265,7 +269,7 @@ class PortfolioViewModel
             for ((brokerName, posList) in byBroker) {
                 val ids = posList.map { it.tscalpInstrumentId }.filter { it.isNotBlank() }
                 if (ids.isEmpty()) continue
-                when (val result = repository.getTradingStatusesResult(brokerName, ids)) {
+                when (val result = marketDataRepository.getTradingStatusesResult(brokerName, ids)) {
                     is AppResult.Success -> allStatuses.putAll(result.data)
                     is AppResult.Failure -> {
                         AppLogger.e(
@@ -295,7 +299,7 @@ class PortfolioViewModel
 
                 // Шаг 1: получить счета
                 val accounts =
-                    when (val result = repository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                    when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                         is AppResult.Success -> result.data
                         is AppResult.Failure -> {
                             AppLogger.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
@@ -333,7 +337,7 @@ class PortfolioViewModel
                 // Шаг 2: пополнить
                 when (
                     val result =
-                        repository.sandboxPayInResult(
+                        accountsRepository.sandboxPayInResult(
                             accountId = accountId,
                             amount = SandboxMoney(currency = "RUB", units = 100_000),
                         )
