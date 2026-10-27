@@ -38,6 +38,7 @@
 | L6 | data | 5 |
 | L7 | di | 6 |
 | L8 | app | 7 |
+| L9 | transport-ktor (отдельный модуль) | 8 |
 
 L4–L8 — не проверены, заполняются по мере инспекции.
 
@@ -1332,6 +1333,100 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ---
 
+## L9 — transport-ktor (отдельный модуль)
+
+**Краткая таблица:**
+
+| ID | Серьёзность | Затрагиваемые уровни | Локализация |
+|---|---|---|---|
+| Н88. RestGetPortfolioRequest — без @Serializable | высоко | L9 | `TInvestRestTransport.kt` |
+| Н87. TInvestPositionsWebSocket — cold flow, риск дублирования соединений | средне | L9 | `TInvestPositionsWebSocket.kt` |
+| Н89. TInvestRestTransport — DTO в одном файле | низко | L9 | `TInvestRestTransport.kt` |
+| Н90. RestDto — избыточные @SerialName | низко | L9 | `TInvestRestTransport.kt` |
+| Н91. createTransportHttpClient — dead code | низко | L9 | `HttpClientFactory.kt`, `HttpClientFactory.android.kt` |
+
+### Н88. RestGetPortfolioRequest — без @Serializable
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Описание:** `TInvestRestTransport.kt`: `data class RestGetPortfolioRequest(@SerialName("accountId") val accountId: String)` — единственный DTO из 14 **без** `@Serializable`. Используется в `getBalance(accountId, isSandbox = true)` через `setBody(request)`. При попытке сериализации kotlinx.serialization выбросит `SerializationException` в runtime (сейчас не проявляется, если sandbox-ветка не вызывается).
+
+**Нарушенное правило Clean:** не строго Clean — консистентность DTO + runtime failure.
+
+**Clean-альтернатива:** добавить `@Serializable` к `RestGetPortfolioRequest`. Плюсы: единообразие, работает. Минусы: —.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано с закрытой `### Ktor REST для позиций/заявок/баланса` — баг в реализации.
+
+### Н87. TInvestPositionsWebSocket — cold flow, риск дублирования соединений
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Описание:** `TInvestPositionsWebSocket.subscribePositions(accountId)` возвращает `flow { ... }` (cold). Каждый подписчик → **новое** WS-соединение. В отличие от `TInvestPricesWebSocket.prices` (hot SharedFlow, один upstream на любое число коллекторов) и `TInvestOrderStateWebSocket.states` (hot SharedFlow). Сейчас один подписчик (через оркестратор), но архитектурный риск: второй подписчик = второе WS к T-Invest (rate-limit, утечка).
+
+**Нарушенное правило Clean:** не строго Clean — консистентность архитектурных решений между тремя WS-клиентами.
+
+**Clean-альтернатива:** hot SharedFlow как в `TInvestPricesWebSocket` (единый upstream) или KDoc с явным предупреждением «один подписчик». Плюсы: консистентность, защита от дублирования. Минусы: переделка модели.
+
+**Выгоды:** cold flow проще; `withInitialPositions = true` не требует дополнительной подписки.
+
+**Ссылка на задачу:** — (не заведена). Связано с закрытой `### Add stop() to TInvestOrderStateWebSocket` (прецедент hot vs cold).
+
+### Н89. TInvestRestTransport — DTO в одном файле
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `TInvestRestTransport.kt` — 220 строк, содержит сам транспорт + 14 DTO. Отдельный файл `dto/TInvestRestDto.kt` был бы чище и совпадал с другими DTO (`dto/PositionsStreamDto.kt`, `dto/MarketDataStreamDto.kt`, `dto/OrderStateStreamDto.kt`).
+
+**Нарушенное правило Clean:** не строго Clean — организация файлов.
+
+**Clean-альтернатива:** `dto/TInvestRestDto.kt`. Плюсы: консистентность. Минусы: `git mv` + правка импортов в `TInvestRestService.kt` и `RestMappers.kt`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано с Н53 (`data/api/` структура).
+
+### Н90. RestDto — избыточные @SerialName
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `TInvestRestTransport.kt`: большинство `@SerialName("...")` совпадает с именем поля (`@SerialName("orderId") val orderId`, `@SerialName("lotsRequested") val lotsRequested`). Это шум. Исключение — поля, где реально нужно маппинг (нужно свериться с API).
+
+**Нарушенное правило Clean:** не строго Clean — шум.
+
+**Clean-альтернатива:** удалить избыточные `@SerialName`. Плюсы: чисто. Минусы: нужно свериться с API, чтобы не сломать реальный маппинг.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена).
+
+### Н91. createTransportHttpClient — dead code
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Описание:** `expect fun createTransportHttpClient()` в `commonMain` + `actual` в `androidMain` (OkHttp engine). Grep 2026-10-27: **0 вызовов** в `app/src/` и `transport-ktor/src/`. `app/src/main/kotlin/.../di/DataModule.kt` создаёт `HttpClient` вручную (`provideTInvestWsHttpClient`, CIO engine). `createTransportHttpClient` никогда не вызывается.
+
+**Нарушенное правило Clean:** не строго Clean — dead code.
+
+**Clean-альтернатива:** удалить `HttpClientFactory.kt` + `HttpClientFactory.android.kt`; **или** перевести `provideTInvestWsHttpClient` на `createTransportHttpClient()` (тогда KMP-фабрика используется по назначению, а DI-конфиг сокращается). Плюсы: без dead code, единая фабрика. Минусы: правка `DataModule`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). Связано с Н36 (транспортная конфигурация в di).
+
+---
+
 ## Связанные документы
 
 - `AGENTS.md` → 2c, 2d
@@ -1341,3 +1436,4 @@ L4–L8 — не проверены, заполняются по мере инс
 ## История
 
 - 2026-10-26 — создан. Заполнены L1 (7), L2 (4), L3 (7). L4–L8 — заглушки.
+- 2026-10-27 — L1-L8 полная инвентаризация; L9 (transport-ktor): Н87-Н91 (part 1), Н92+ — по мере части 2.
