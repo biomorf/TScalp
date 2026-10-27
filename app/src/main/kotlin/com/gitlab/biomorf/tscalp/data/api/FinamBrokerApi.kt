@@ -157,92 +157,22 @@ class FinamBrokerApi :
 
     // ---------- Реализация интерфейса BrokerApi ----------
 
-    override suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> =
-        withContext(Dispatchers.IO) {
-            emptyList()
-        }
 
-    override suspend fun openSandboxAccount(): String {
-        TODO("Not yet implemented")
-    }
 
-    override suspend fun closeSandboxAccount(accountId: String) {
-        TODO("Not yet implemented")
-    }
 
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> =
-        callbackFlow {
-            // Стартовый снапшот
-            try {
-                val positions = fetchPortfolioPositions(accountId, false)
-                positions.forEach { pos -> trySend(pos) }
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "Finam snapshot failed", e)
-            }
-
-            // Периодический опрос
-            while (isActive) {
-                delay(10_000)
-                try {
-                    val positions = fetchPortfolioPositions(accountId, false)
-                    positions.forEach { pos -> trySend(pos) }
-                } catch (e: Exception) {
-                    AppLogger.w(TAG, "Finam polling error", e)
-                }
-            }
-
-            awaitClose { /* cleanup if needed */ }
-        }
 
     // реализация на основе HTTP-клиента
         }
 
-    override suspend fun getBalance(accountId: String): Double =
-        withContext(Dispatchers.IO) {
-            0.0
-        }
-
-    override suspend fun sandboxPayIn(
-        accountId: String,
-        amount: SandboxMoney,
-    ) {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
-
-    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult =
-        withContext(Dispatchers.IO) {
-            OrderResult("", 0L, 0L, OrderStatus.NEW)
-        }
-
-    override suspend fun getOrders(accountId: String): List<OrderListItem> = emptyList()
-
-    override suspend fun cancelOrder(
-        accountId: String,
-        orderId: String,
-    ) {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun postStopOrder(request: StopOrderRequest): String {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun getStopOrders(accountId: String): List<OrderListItem> = emptyList()
-
-    override suspend fun cancelStopOrder(
-        accountId: String,
-        stopOrderId: String,
-    ) {
-        TODO("Not yet implemented")
-    }
 
 
-    override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = emptyMap()
 
-    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> {
-        // Будет реализовано через WebSocket
-        return flowOf()
-    }
+
+
+
+
+
+
+
+
 

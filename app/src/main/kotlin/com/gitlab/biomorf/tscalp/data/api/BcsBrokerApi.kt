@@ -262,21 +262,9 @@ class BcsBrokerApi :
         )
     }
 
-    override suspend fun openSandboxAccount(): String = throw UnsupportedOperationException("Открытие счёта песочницы не поддерживается для БКС")
 
-    override suspend fun closeSandboxAccount(accountId: String): Unit = throw UnsupportedOperationException("Закрытие счёта песочницы не поддерживается для БКС")
 
-    override suspend fun sandboxPayIn(
-        accountId: String,
-        amount: SandboxMoney,
-    ) {
-        AppLogger.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
-    }
 
-    override suspend fun getBalance(accountId: String): Double {
-        // Пока возвращаем 0, так как API БКС не предоставляет прямого метода баланса
-        return 0.0
-    }
 
     /**
      * Заглушка: стрим позиций BCS не реализован.
@@ -285,7 +273,6 @@ class BcsBrokerApi :
      * успешного соединения), удалён. Восстановление — задача
      * `### Реализация BCS Broker API` в ROADMAP.
      */
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = emptyFlow()
 
     // реализация на основе HTTP-клиента
     override suspend fun fetchPortfolioPositions(
@@ -329,63 +316,14 @@ class BcsBrokerApi :
             }.distinctBy { it.ticker }
     }
 
-    override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
-
-    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
-        val side = if (request.direction == OrderDirection.BUY) "buy" else "sell"
-        val type = if (request.type == BrokerOrderType.MARKET) "market" else "limit"
-        val priceField = if (request.price != null) """, "limitPrice": ${request.price}""" else ""
-        val body =
-            """
-            {
-                "symbol": "${request.ticker}",
-                "side": "$side",
-                "quantity": ${request.quantity},
-                "accountId": "${request.accountId}",
-                "type": "$type"
-                $priceField
-            }
-            """.trimIndent().toRequestBody("application/json".toMediaType())
-
-        val response = makeRequest("POST", ORDERS_PATH, body)
-        if (!response.isSuccessful) throw IOException("Ошибка выставления заявки: ${response.code}")
-
-        val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
-        val orderMap: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
-
-        return OrderResult(
-            orderId = orderMap["orderId"] as? String ?: "",
-            executedLots = (orderMap["executedQuantity"] as? Double)?.toLong() ?: 0L,
-            totalLots = request.quantity,
-            status = OrderStatus.NEW,
-        )
-    }
 
 
-    override suspend fun postStopOrder(request: StopOrderRequest): String = "bcs-stop-${System.currentTimeMillis()}"
 
-    override suspend fun getStopOrders(accountId: String): List<OrderListItem> = emptyList()
 
-    override suspend fun cancelStopOrder(
-        accountId: String,
-        stopOrderId: String,
-    ) {
-        // Заглушка: отмена стоп-заявок не поддерживается для BCS
-        throw UnsupportedOperationException("cancelStopOrder не реализован для BcsBrokerApi")
-    }
 
-    override suspend fun getOrders(accountId: String): List<OrderListItem> = emptyList()
 
-    override suspend fun cancelOrder(
-        accountId: String,
-        orderId: String,
-    ) {
-        // Заглушка: отмена обычных заявок не поддерживается для BCS
-        throw UnsupportedOperationException("cancelOrder не реализован для BcsBrokerApi")
-    }
 
-    override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = ids.associateWith { TradingAvailability.UNKNOWN }
 
-    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = flowOf()
+
 
 }
