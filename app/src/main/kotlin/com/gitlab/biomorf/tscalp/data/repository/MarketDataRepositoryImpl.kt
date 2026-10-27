@@ -29,7 +29,12 @@ class MarketDataRepositoryImpl
         ): AppResult<Map<String, Double?>> =
             withContext(Dispatchers.IO) {
                 val broker = brokerManager.getDefaultBroker()
-                runCatchingAppResult(BrokerName.TINVEST) { broker.getLastPricesByTscalpInstrumentId(ids) }
+                val marketDataApi =
+                    broker.marketData
+                        ?: return@withContext AppResult.Failure(
+                            AppError.Unknown("Брокер ${BrokerName.TINVEST.displayName} не поддерживает последние цены"),
+                        )
+                runCatchingAppResult(BrokerName.TINVEST) { marketDataApi.getLastPricesByTscalpInstrumentId(ids) }
             }
 
         override suspend fun getTradingStatusesResult(

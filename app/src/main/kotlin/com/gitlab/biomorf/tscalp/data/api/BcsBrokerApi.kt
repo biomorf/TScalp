@@ -7,31 +7,22 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
-import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderType
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
-import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
-import com.gitlab.biomorf.tscalp.domain.models.OrderResult
-import com.gitlab.biomorf.tscalp.domain.models.OrderStatus
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
-import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
-import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -49,7 +40,8 @@ import java.io.IOException
 class BcsBrokerApi :
     BrokerApi,
     BrokerLifecycleApi,
-    AccountsApi {
+    AccountsApi,
+    PortfolioApi {
     companion object {
         private const val TAG = "BcsBrokerApi"
         private const val PROD_BASE_URL = "https://be.broker.ru"
@@ -80,6 +72,9 @@ class BcsBrokerApi :
     override val userInstruments: UserInstrumentsApi? = null
     override val balance: BalanceApi? = null
     override val instrument: BrokerInstrumentApi? = null
+    override val portfolio: PortfolioApi get() = this
+    override val marketData: MarketDataApi? = null
+    override val tradeCheck: TradeCheckApi? = null
 
     // Флаг инициализации
     override val isInitialized: Boolean
@@ -255,31 +250,6 @@ class BcsBrokerApi :
         )
     }
 
-    override suspend fun openSandboxAccount(): String = throw UnsupportedOperationException("Открытие счёта песочницы не поддерживается для БКС")
-
-    override suspend fun closeSandboxAccount(accountId: String): Unit = throw UnsupportedOperationException("Закрытие счёта песочницы не поддерживается для БКС")
-
-    override suspend fun sandboxPayIn(
-        accountId: String,
-        amount: SandboxMoney,
-    ) {
-        AppLogger.w("BcsBrokerApi", "Пополнение песочницы для БКС не реализовано")
-    }
-
-    override suspend fun getBalance(accountId: String): Double {
-        // Пока возвращаем 0, так как API БКС не предоставляет прямого метода баланса
-        return 0.0
-    }
-
-    /**
-     * Заглушка: стрим позиций BCS не реализован.
-     *
-     * Polling-loop был сломан (транспорт BCS не отлажен до
-     * успешного соединения), удалён. Восстановление — задача
-     * `### Реализация BCS Broker API` в ROADMAP.
-     */
-    override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = emptyFlow()
-
     // реализация на основе HTTP-клиента
     override suspend fun fetchPortfolioPositions(
         accountId: String,
@@ -321,72 +291,4 @@ class BcsBrokerApi :
                 )
             }.distinctBy { it.ticker }
     }
-
-    override suspend fun findInstruments(query: String): List<InstrumentUi> = emptyList()
-
-    override suspend fun postOrder(request: BrokerOrderRequest): OrderResult {
-        val side = if (request.direction == OrderDirection.BUY) "buy" else "sell"
-        val type = if (request.type == BrokerOrderType.MARKET) "market" else "limit"
-        val priceField = if (request.price != null) """, "limitPrice": ${request.price}""" else ""
-        val body =
-            """
-            {
-                "symbol": "${request.ticker}",
-                "side": "$side",
-                "quantity": ${request.quantity},
-                "accountId": "${request.accountId}",
-                "type": "$type"
-                $priceField
-            }
-            """.trimIndent().toRequestBody("application/json".toMediaType())
-
-        val response = makeRequest("POST", ORDERS_PATH, body)
-        if (!response.isSuccessful) throw IOException("Ошибка выставления заявки: ${response.code}")
-
-        val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
-        val orderMap: Map<String, Any> = gson.fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
-
-        return OrderResult(
-            orderId = orderMap["orderId"] as? String ?: "",
-            executedLots = (orderMap["executedQuantity"] as? Double)?.toLong() ?: 0L,
-            totalLots = request.quantity,
-            status = OrderStatus.NEW,
-        )
-    }
-
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> = emptyMap()
-
-    override suspend fun postStopOrder(request: StopOrderRequest): String = "bcs-stop-${System.currentTimeMillis()}"
-
-    override suspend fun getStopOrders(accountId: String): List<OrderListItem> = emptyList()
-
-    override suspend fun cancelStopOrder(
-        accountId: String,
-        stopOrderId: String,
-    ) {
-        // Заглушка: отмена стоп-заявок не поддерживается для BCS
-        throw UnsupportedOperationException("cancelStopOrder не реализован для BcsBrokerApi")
-    }
-
-    override suspend fun getOrders(accountId: String): List<OrderListItem> = emptyList()
-
-    override suspend fun cancelOrder(
-        accountId: String,
-        orderId: String,
-    ) {
-        // Заглушка: отмена обычных заявок не поддерживается для BCS
-        throw UnsupportedOperationException("cancelOrder не реализован для BcsBrokerApi")
-    }
-
-    override suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> = ids.associateWith { TradingAvailability.UNKNOWN }
-
-    override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = flowOf()
-
-    override suspend fun checkTradeAvailability(
-        accountId: String,
-        tscalpInstrumentId: String,
-        brokerUid: String?,
-        direction: OrderDirection,
-        quantity: Long,
-    ): TradeCheckResult = TradeCheckResult.Success
 }
