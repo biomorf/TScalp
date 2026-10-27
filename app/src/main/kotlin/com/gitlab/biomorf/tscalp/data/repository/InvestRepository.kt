@@ -12,15 +12,12 @@ import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.util.runCatchingAppResult
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 
 /**
  * ///Репозиторий – преобразует контракты API в доменные модели приложения.
  *
- * Архитектурный долг: 17 функций в классе.
+ * Архитектурный долг: 13 функций в классе.
  * См. ROADMAP → «Рефакторинг репозиториев».
  */
 @Suppress("TooManyFunctions")
@@ -51,21 +48,6 @@ class InvestRepository(
                         AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает счета"),
                     )
             runCatchingAppResult(brokerName) { accountsApi.getAccounts(sandboxMode) }
-        }
-
-    /**
-     * ///Поиск инструментов – возвращает список InstrumentUi, готовых для UI.
-     * ///Если не удалось получить полный Instrument, поля currency и lot останутся по умолчанию.
-     */
-    suspend fun searchInstrumentsResult(query: String): AppResult<List<InstrumentUi>> =
-        withContext(Dispatchers.IO) {
-            val broker = brokerManager.getDefaultBroker()
-            val userInstrumentsApi =
-                broker.userInstruments
-                    ?: return@withContext AppResult.Failure(
-                        AppError.Unknown("Брокер ${BrokerName.TINVEST.displayName} не поддерживает поиск инструментов"),
-                    )
-            runCatchingAppResult(BrokerName.TINVEST) { userInstrumentsApi.findInstruments(query) }
         }
 
     /**
@@ -216,31 +198,6 @@ class InvestRepository(
         }
 
     /**
-     * Все активные заявки (обычные + стоп) по счёту.
-     * Типизированный результат: AppResult.Success(List<OrderListItem>) или AppResult.Failure.
-     * Сортировка — задача вызывающего слоя (presentation).
-     */
-    suspend fun getAllOrdersResult(
-        brokerName: BrokerName,
-        accountId: String,
-    ): AppResult<List<OrderListItem>> =
-        withContext(Dispatchers.IO) {
-            val broker =
-                brokerManager.getBroker(brokerName)
-                    ?: return@withContext AppResult.Failure(
-                        AppError.Unknown("Брокер ${brokerName.displayName} не зарегистрирован"),
-                    )
-            val ordersApi =
-                broker.orders
-                    ?: return@withContext AppResult.Failure(
-                        AppError.Unknown("Брокер ${brokerName.displayName} не поддерживает заявки"),
-                    )
-            runCatchingAppResult(brokerName) {
-                ordersApi.getOrders(accountId) + ordersApi.getStopOrders(accountId)
-            }
-        }
-
-    /**
      * Отмена обычной (не стоп) заявки.
      * Типизированный результат: AppResult.Success(Unit) или AppResult.Failure.
      */
@@ -264,20 +221,6 @@ class InvestRepository(
                 ordersApi.cancelOrder(accountId, orderId)
                 Unit
             }
-        }
-
-    /**
-     * Стрим позиций. Ошибки идут через поток — вызывающий ловит их оператором .catch {}.
-     */
-    fun subscribePositions(
-        brokerName: BrokerName,
-        accountId: String,
-    ): Flow<PositionStreamItem> =
-        flow {
-            val broker =
-                brokerManager.getBroker(brokerName)
-                    ?: throw IllegalStateException("Брокер ${brokerName.displayName} не зарегистрирован")
-            emitAll(broker.subscribePositions(accountId))
         }
 
     /**
