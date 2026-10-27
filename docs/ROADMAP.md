@@ -73,7 +73,8 @@ clean-audit.
 **Мобильная работа:** полное закрытие (git mv + правка импорта
 через proot).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/h3-move-orderslistvm
 
 **Контекст (clean-audit Н3):** `OrdersListViewModel` живёт в
 `ui.components` (рядом с `OrdersListDialog.kt`), остальные
