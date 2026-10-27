@@ -115,26 +115,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена).
 
-### Н23. ViewModel → data.orchestrator.DebugConfig
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** ✓
-
-**Описание:** `SettingsViewModel` импортирует `data.orchestrator.DebugConfig`, читает/пишет `disableGrpc`, `disableWs`, `forceRest` через `toggleGrpc/toggleWs/toggleRest`. Debug-флаги транспорта в presentation.
-
-**Нарушенное правило:** Dependency rule — presentation не должна знать про `data.orchestrator`.
-
-**Clean-альтернатива:** `domain.api.DebugFlagsRepository` с геттерами/сеттерами; реализация — `data.orchestrator.DebugConfig` за интерфейсом. Плюсы: presentation → domain.api. Минусы: ~30 мин правок.
-
-**Выгоды:** —
-
-**Анализ L5-Н38:** подтверждается — `DebugConfig` протекает в `PriceFlowManager` (L5), не только в `SettingsViewModel` (L1). Нарушение шире, чем presentation.
-
-**Ссылка на задачу:** — (не заведена). Связано с закрытыми `### Debug-тумблеры` и `### DebugConfig: только для debug-сборок` (функционал работает; переезд API — отдельная задача).
-
 ### Н4. UI конвертирует String → domain-модель
 
 **Статус:** открыто.
@@ -201,6 +181,27 @@ L4–L8 — не проверены, заполняются по мере инс
 
 
 ---
+
+---
+
+### ✅ Н23. ViewModel → data.orchestrator.DebugConfig
+
+**Статус:** исправлено (PR #59, `dev`, 2026-10-28).
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsViewModel` импортирует `data.orchestrator.DebugConfig`, читает/пишет `disableGrpc`, `disableWs`, `forceRest` через `toggleGrpc/toggleWs/toggleRest`. Debug-флаги транспорта в presentation.
+
+**Нарушенное правило:** Dependency rule — presentation не должна знать про `data.orchestrator`.
+
+**Clean-альтернатива:** `domain.api.DebugFlagsRepository` с геттерами/сеттерами; реализация — `data.orchestrator.DebugConfig` за интерфейсом. Плюсы: presentation → domain.api. Минусы: ~30 мин правок.
+
+**Выгоды:** —
+
+**Анализ L5-Н38:** подтверждается — `DebugConfig` протекает в `PriceFlowManager` (L5), не только в `SettingsViewModel` (L1). Нарушение шире, чем presentation.
+
+**Ссылка на задачу:** — (не заведена). Связано с закрытыми `### Debug-тумблеры` и `### DebugConfig: только для debug-сборок` (функционал работает; переезд API — отдельная задача).
 
 ### ✅ Н3. OrdersListViewModel в ui.components
 
@@ -705,24 +706,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н58. PositionFlowManager.runPolling — string matching NOT_FOUND | средне | L5 | `PositionFlowManager.kt` | - |
 | Н59. PriceFlowManager.runPolling — swallows CancellationException | средне | L5 | `PriceFlowManager.kt` | - |
 
-### Н38. PriceFlowManager → data.orchestrator.DebugConfig
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** ✓
-
-**Описание:** `PriceFlowManager.kt` импортирует `data.orchestrator.DebugConfig`, использует в `collectStream` (`if (DebugConfig.disableGrpc && DebugConfig.disableWs) return`). Менеджер (domain) зависит от data.
-
-**Нарушенное правило Clean:** dependency rule — domain зависит от data.
-
-**Clean-альтернатива:** `DebugFlagsRepository` (domain-интерфейс, из Н23). Менеджер инжектит интерфейс, реализация — `DebugConfig` за `@Binds`. Плюсы: domain не видит data. Минусы: правка `PriceFlowManager` (1 callsite) + H23.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). **Связано с H23** (`DebugFlagsRepository`).
-
 ### Н39. PriceFlowManager → util.toAppError
 
 **Статус:** открыто.
@@ -816,6 +799,25 @@ L4–L8 — не проверены, заполняются по мере инс
 ### Исправленные (L5)
 
 [пусто]
+
+---
+
+### ✅ Н38. PriceFlowManager → data.orchestrator.DebugConfig
+
+**Статус:** исправлено (PR #59, `dev`, 2026-10-28).
+**Серьёзность:** критично.
+
+**Live тест:** ✓
+
+**Описание:** `PriceFlowManager.kt` импортирует `data.orchestrator.DebugConfig`, использует в `collectStream` (`if (DebugConfig.disableGrpc && DebugConfig.disableWs) return`). Менеджер (domain) зависит от data.
+
+**Нарушенное правило Clean:** dependency rule — domain зависит от data.
+
+**Clean-альтернатива:** `DebugFlagsRepository` (domain-интерфейс, из Н23). Менеджер инжектит интерфейс, реализация — `DebugConfig` за `@Binds`. Плюсы: domain не видит data. Минусы: правка `PriceFlowManager` (1 callsite) + H23.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** — (не заведена). **Связано с H23** (`DebugFlagsRepository`).
 
 ## L6 — data/repository
 
