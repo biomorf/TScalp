@@ -68,6 +68,60 @@ clean-audit.
 
 ## Планируемые задачи
 
+### UI: показать executedPrice / executedQuantity на карточке
+
+**Мобильная работа:** частичное (live-тест UI).
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** после Split order (коммит `ec9c7d5`) в `Order.Regular` появились поля `executedPrice: Double?` (фактическая цена исполнения) и `executedQuantity: Long` (фактически исполненное количество, может быть меньше `quantity` при частичном исполнении). Данные приходят из мапперов (gRPC: `lotsExecuted` / `executedOrderPrice`, REST: `lotsExecuted` / `executedOrderPrice`), но `OrderCard` их не отображает. Пользователь пока не определил визуальное размещение.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### Split order domain into sealed Regular/Stop` (закрыта, `ec9c7d5`).
+
+**Файлы:**
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/ui/components/OrderCard.kt` — новые параметры, отображение, `@Preview`.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/ui/components/OrdersListDialog.kt` — передача полей из `Order.Regular`.
+
+**Шаги:**
+1. **Санкция на UI** (правило 1): согласовать вариант размещения (A/B/C ниже), тексты, форматирование.
+2. `OrderCard`: добавить `executedPrice: Double? = null`, `executedQuantity: Long = 0L`.
+3. `OrdersListDialog`: для `Order.Regular` передавать `order.executedPrice` / `order.executedQuantity`; для `Order.Stop` — `null` / `0`.
+4. Реализовать отображение по выбранному варианту.
+5. Обновить `@Preview` в `OrderCard`: добавить кейс частичного исполнения.
+6. Гейт: полный.
+
+**Варианты размещения (требуют санкции):**
+- **A. Дополнить правую колонку.** Вместо `"$quantity лотов"` — `"$executedQuantity / $quantity лотов"` (если `executedQuantity > 0`). Под ценой — `formatPrice(executedPrice)` мелким шрифтом. Минимальное изменение, карточка не растёт.
+- **B. Строка в левой колонке.** Под `status` добавить строку `"Исполнено: N лотов по X"` (только при `executedQuantity > 0`). Явно, но удлиняет карточку.
+- **C. Замена при полном исполнении.** При `status == "FILL"` показывать только `executedPrice` / `executedQuantity`, скрывая исходные `price` / `quantity`. Чище визуально, но скрывает информацию о заявке.
+
+Рекомендация: **A**.
+
+**Тесты:** обновить `@Preview` (добавить `Regular` с `executedPrice = 151.0, executedQuantity = 5`). Unit-тестов нет (UI).
+
+**Референсы:** `docs/ROADMAP.md` → `### Split order domain into sealed Regular/Stop` (закрыта). `docs/clean-audit.md` → Н4.
+
+**Ограничения:** не менять модель `Order`. Не менять `OrderCard` без санкции (правило 1). Не смешивать с другими UI-задачами.
+
+**Критерий готовности:** на карточке отображается исполненная цена и количество (для частично/полностью исполненных). Визуальное изменение согласовано. Гейт зелёный.
+
+**Оценка:** ~1–1.5 ч (включая согласование UI).
+
+**Зависимости:** нет.
+
+**Связано:** `### Split order domain into sealed Regular/Stop`; `docs/clean-audit.md` → Н4; `docs/ROADMAP.md` → `### Split order domain into sealed Regular/Stop`.
+
+**Открытые вопросы:** какой вариант размещения (A/B/C)? Показывать ли при `executedQuantity == 0`? Нужно ли отображать для `Order.Stop` (сейчас полей нет — только `null`/`0`)?
+
+
 
 ### H17–H20. Перенос presentation-утилит из util
 
