@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.gitlab.biomorf.tscalp.presentation.MainScreen
-import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint

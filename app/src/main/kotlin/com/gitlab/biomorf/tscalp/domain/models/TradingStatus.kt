@@ -6,6 +6,11 @@ sealed class TradeCheckResult {
     data class Error(
         val message: String,
     ) : TradeCheckResult()
+
+    data class InsufficientFunds(
+        val required: Double,
+        val balance: Double,
+    ) : TradeCheckResult()
 }
 
 data class TradingStatusDetails(

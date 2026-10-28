@@ -38,11 +38,11 @@ import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
-import com.gitlab.biomorf.tscalp.ui.components.AssetPositionCard
-import com.gitlab.biomorf.tscalp.ui.components.BrokerAccountDialog
-import com.gitlab.biomorf.tscalp.ui.components.ConfirmOrderDialog
-import com.gitlab.biomorf.tscalp.ui.components.OrdersListDialog
-import com.gitlab.biomorf.tscalp.util.formatCurrency
+import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
+import com.gitlab.biomorf.tscalp.presentation.components.ConfirmOrderDialog
+import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
+import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 import kotlinx.coroutines.launch
 
 // Архитектурный долг: функция требует декомпозиции.
@@ -617,7 +617,7 @@ fun OrdersScreen() {
                 val balance = uiState.freeBalance
                 if (balance != null) {
                     Text(
-                        text = "Свободно: ${formatCurrency(balance)}",
+                        text = "Свободно: ${formatDomesticCurrency(balance)}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -766,9 +766,9 @@ fun OrdersScreen() {
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
 @Composable
-fun ApiNotInitializedCard() {
+fun ApiNotInitializedCard(modifier: Modifier = Modifier) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
     ) {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -790,9 +790,9 @@ fun InstrumentSearchField(
     searchResults: List<InstrumentUi>,
     onInstrumentSelected: (InstrumentUi) -> Unit,
     onClear: () -> Unit,
+    modifier: Modifier = Modifier,
     recentInstruments: List<InstrumentUi> = emptyList(),
     tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
-    modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf(query) }
     var expanded by remember { mutableStateOf(false) }

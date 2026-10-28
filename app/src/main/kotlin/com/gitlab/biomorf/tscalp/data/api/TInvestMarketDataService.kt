@@ -12,7 +12,6 @@ import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.util.AppLogger
-import com.gitlab.biomorf.tscalp.util.formatCurrency
 import io.grpc.stub.StreamObserver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -614,9 +613,7 @@ class TInvestMarketDataService(
         return if (balance >= required) {
             TradeCheckResult.Success
         } else {
-            TradeCheckResult.Error(
-                "Недостаточно средств. Свободно: ${formatCurrency(balance)}, требуется: ~${formatCurrency(required)}",
-            )
+            TradeCheckResult.InsufficientFunds(required = required, balance = balance)
         }
     }
 }

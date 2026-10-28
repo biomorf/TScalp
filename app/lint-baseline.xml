@@ -1,58 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<issues format="6" by="lint 9.0.0" type="baseline" client="gradle" dependencies="false" name="AGP (9.0.0)" variant="all" version="9.0.0">
-
-    <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/kotlin/com/gitlab/biomorf/tscalp/ui/components/AssetPositionCard.kt"
-            line="52"
-            column="5"/>
-    </issue>
-
-    <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/kotlin/com/gitlab/biomorf/tscalp/ui/components/AssetPositionCard.kt"
-            line="183"
-            column="5"/>
-    </issue>
-
-    <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/kotlin/com/gitlab/biomorf/tscalp/ui/components/OrderCard.kt"
-            line="45"
-            column="5"/>
-    </issue>
-
-    <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/orders/OrdersScreen.kt"
-            line="773"
-            column="5"/>
-    </issue>
+<issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.4.1)" variant="all" version="9.4.1">
 
     <issue
         id="CustomX509TrustManager"
         message="Implementing a custom `X509TrustManager` is error-prone and likely to be insecure. It is likely to disable certificate validation altogether, and is non-trivial to implement correctly without calling Android&apos;s default implementation."
-        errorLine1="class CustomTrustManager(context: Context) : X509TrustManager {"
+        errorLine1="class CustomTrustManager("
         errorLine2="      ~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/CustomTrustManager.kt"
-            line="12"
+            line="13"
             column="7"/>
     </issue>
 

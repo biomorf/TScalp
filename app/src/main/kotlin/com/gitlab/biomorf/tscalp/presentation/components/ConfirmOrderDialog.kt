@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.ui.components
+package com.gitlab.biomorf.tscalp.presentation.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -8,7 +8,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
+import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 
 @Composable
 fun ConfirmOrderDialog(
@@ -47,6 +48,7 @@ fun ConfirmOrderDialog(
                     quantity = quantity,
                     price = executionPrice,
                     instrumentType = instrumentType,
+                    currency = DOMESTIC_CURRENCY,
                     totalCost = executionPrice * quantity,
                 )
 
@@ -66,6 +68,7 @@ fun ConfirmOrderDialog(
                         quantity = pairedQty,
                         price = pairExecPrice,
                         instrumentType = pairedInstrumentType ?: "",
+                        currency = DOMESTIC_CURRENCY,
                         totalCost = pairExecPrice * pairedQty,
                     )
                 }

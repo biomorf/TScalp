@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.ui.theme // presentation.ui.theme
+package com.gitlab.biomorf.tscalp.presentation.theme // presentation.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

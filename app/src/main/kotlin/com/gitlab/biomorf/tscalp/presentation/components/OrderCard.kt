@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.ui.components
+package com.gitlab.biomorf.tscalp.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,9 +13,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
-import com.gitlab.biomorf.tscalp.util.TradePhrases
-import com.gitlab.biomorf.tscalp.util.formatPrice
+import com.gitlab.biomorf.tscalp.presentation.components.TradePhrases
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
+import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
 
 /**
  * Унифицированная карточка заявки для использования в очереди заявок
@@ -34,13 +34,14 @@ import com.gitlab.biomorf.tscalp.util.formatPrice
  */
 @Composable
 fun OrderCard(
-    modifier: Modifier = Modifier,
     ticker: String,
     direction: String,
     orderType: OrderTypeSelection,
     status: String?,
     quantity: Long,
     price: Double,
+    currency: String,
+    modifier: Modifier = Modifier,
     instrumentType: String = "",
     totalCost: Double? = null,
     onCancel: (() -> Unit)? = null,
@@ -91,9 +92,9 @@ fun OrderCard(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text("$quantity лотов")
-            Text(formatPrice(price, instrumentType))
+            Text(formatPrice(price, instrumentType, currency))
             if (totalCost != null) {
-                Text(formatPrice(totalCost, instrumentType))
+                Text(formatPrice(totalCost, instrumentType, currency))
             }
         }
 
@@ -123,6 +124,7 @@ private fun OrderCardMarketPreview() {
             quantity = 10,
             price = 250.5,
             instrumentType = "share",
+            currency = "RUB",
             totalCost = 2505.0,
             onCancel = {},
             modifier = Modifier.fillMaxWidth(),
@@ -142,6 +144,7 @@ private fun OrderCardLimitPreview() {
             quantity = 20,
             price = 150.0,
             instrumentType = "share",
+            currency = "RUB",
             totalCost = 3000.0,
             onCancel = {},
             modifier = Modifier.fillMaxWidth(),
@@ -161,6 +164,7 @@ private fun OrderCardExecutedPreview() {
             quantity = 1,
             price = 85000.0,
             instrumentType = "futures",
+            currency = "RUB",
             totalCost = 85000.0,
             onCancel = null,
             modifier = Modifier.fillMaxWidth(),

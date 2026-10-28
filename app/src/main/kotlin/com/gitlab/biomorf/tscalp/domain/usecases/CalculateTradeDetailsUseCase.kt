@@ -3,19 +3,21 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import com.gitlab.biomorf.tscalp.util.formatCurrency
-import com.gitlab.biomorf.tscalp.util.formatPrice
 
 data class TradeDetails(
     val executionPrice: Double,
-    val costOverlay: String?,
-    val multiplierOverlay: String?,
+    val costPoints: Double? = null,
+    val costCurrency: Double? = null,
+    val costDomesticCurrency: Double? = null,
+    val multiplierPoints: Double? = null,
+    val multiplierCurrency: Double? = null,
+    val multiplierDomesticCurrency: Double? = null,
 )
 
 class CalculateTradeDetailsUseCase {
     // Архитектурный долг: функция требует декомпозиции.
     // См. ROADMAP → «Рефакторинг UseCase-слоя».
-    @Suppress("CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     fun calculate(
         currentPrice: Double?,
         limitPrice: String?,
@@ -38,47 +40,61 @@ class CalculateTradeDetailsUseCase {
             }
 
         // Подсказка для поля "Количество"
-        val costOverlay =
-            if (quantity > 0 && executionPrice > 0) {
-                if (instrumentType == "futures") {
-                    val pointValue = (instrument as? FutureUi)?.pointValue ?: 1.0
-                    val totalPoints = executionPrice * quantity
-                    val totalRub = totalPoints * pointValue
-                    "${formatPrice(totalPoints, instrumentType)}  ·  ${formatCurrency(totalRub)}"
-                } else {
-                    formatCurrency(executionPrice * quantity)
-                }
+        val costPoints: Double?
+        val costCurrency: Double?
+        val costDomesticCurrency: Double?
+        if (quantity > 0 && executionPrice > 0) {
+            if (instrumentType == "futures") {
+                val pointValue = (instrument as? FutureUi)?.pointValue ?: 1.0
+                costPoints = executionPrice * quantity
+                costCurrency = null
+                costDomesticCurrency = costPoints * pointValue
             } else {
-                null
+                costPoints = null
+                costCurrency = executionPrice * quantity
+                costDomesticCurrency = null
             }
+        } else {
+            costPoints = null
+            costCurrency = null
+            costDomesticCurrency = null
+        }
 
         // Подсказка для поля "Множитель"
-        val multiplierOverlay =
-            if (pairedInstrument != null && pairedMultiplier != null) {
-                val totalQty = quantity * (pairedMultiplier.toDoubleOrNull() ?: 1.0)
-                val pairExecPrice =
-                    when (orderType) {
-                        OrderTypeSelection.Market -> pairCurrentPrice ?: 0.0
-                        OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> limitPrice?.toDoubleOrNull() ?: 0.0
-                        OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> stopPrice?.toDoubleOrNull() ?: 0.0
-                    }
-                if (totalQty > 0 && pairExecPrice > 0) {
-                    val pairedInstrumentType = pairedInstrument.instrumentType
-                    if (pairedInstrumentType == "futures") {
-                        val pairedPointValue = (pairedInstrument as? FutureUi)?.pointValue ?: 1.0
-                        val pairTotalPoints = pairExecPrice * totalQty
-                        val pairTotalRub = pairTotalPoints * pairedPointValue
-                        "${formatPrice(pairTotalPoints, pairedInstrumentType)}  ·  ${formatCurrency(pairTotalRub)}"
-                    } else {
-                        formatCurrency(pairExecPrice * totalQty)
-                    }
+        val multiplierPoints: Double?
+        val multiplierCurrency: Double?
+        val multiplierDomesticCurrency: Double?
+        if (pairedInstrument != null && pairedMultiplier != null) {
+            val totalQty = quantity * (pairedMultiplier.toDoubleOrNull() ?: 1.0)
+            val pairExecPrice =
+                when (orderType) {
+                    OrderTypeSelection.Market -> pairCurrentPrice ?: 0.0
+                    OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> limitPrice?.toDoubleOrNull() ?: 0.0
+                    OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> stopPrice?.toDoubleOrNull() ?: 0.0
+                }
+            if (totalQty > 0 && pairExecPrice > 0) {
+                val pairedInstrumentType = pairedInstrument.instrumentType
+                if (pairedInstrumentType == "futures") {
+                    val pairedPointValue = (pairedInstrument as? FutureUi)?.pointValue ?: 1.0
+                    multiplierPoints = pairExecPrice * totalQty
+                    multiplierCurrency = null
+                    multiplierDomesticCurrency = multiplierPoints * pairedPointValue
                 } else {
-                    null
+                    multiplierPoints = null
+                    multiplierCurrency = pairExecPrice * totalQty
+                    multiplierDomesticCurrency = null
                 }
             } else {
-                null
+                multiplierPoints = null
+                multiplierCurrency = null
+                multiplierDomesticCurrency = null
             }
+        } else {
+            multiplierPoints = null
+            multiplierCurrency = null
+            multiplierDomesticCurrency = null
+        }
 
-        return TradeDetails(executionPrice, costOverlay, multiplierOverlay)
+        return TradeDetails(executionPrice, costPoints, costCurrency, costDomesticCurrency, multiplierPoints, multiplierCurrency, multiplierDomesticCurrency)
     }
 }

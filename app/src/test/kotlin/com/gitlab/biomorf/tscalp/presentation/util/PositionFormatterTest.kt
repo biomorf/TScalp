@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.util
+package com.gitlab.biomorf.tscalp.presentation.util
 
 import androidx.compose.ui.graphics.Color
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
