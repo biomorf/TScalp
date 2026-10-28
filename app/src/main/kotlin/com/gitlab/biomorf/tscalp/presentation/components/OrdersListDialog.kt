@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.ui.components
+package com.gitlab.biomorf.tscalp.presentation.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrdersListViewModel
+import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 
 @Composable
 fun OrdersListDialog(
@@ -49,6 +50,7 @@ fun OrdersListDialog(
                             quantity = order.quantity,
                             price = order.price,
                             instrumentType = order.instrumentType,
+                            currency = DOMESTIC_CURRENCY,
                             totalCost = (order as? Order.Stop)?.let { it.stopPrice * it.quantity },
                             onCancel = {
                                 viewModel.cancelOrder(order)

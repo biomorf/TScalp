@@ -7,7 +7,6 @@ import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import java.util.Locale
@@ -187,10 +186,10 @@ class CalculateTradeDetailsUseCaseTest {
         assertEquals(0.0, result.executionPrice, 0.0001)
     }
 
-    // ---------- costOverlay ----------
+    // ---------- costPoints / costCurrency / costDomesticCurrency ----------
 
     @Test
-    fun `costOverlay is null when quantity is zero`() {
+    fun `cost is null when quantity is zero`() {
         val result =
             useCase.calculate(
                 currentPrice = 250.0,
@@ -203,11 +202,13 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = null,
                 pairCurrentPrice = null,
             )
-        assertNull(result.costOverlay)
+        assertNull(result.costPoints)
+        assertNull(result.costCurrency)
+        assertNull(result.costDomesticCurrency)
     }
 
     @Test
-    fun `costOverlay is null when executionPrice is zero`() {
+    fun `cost is null when executionPrice is zero`() {
         val result =
             useCase.calculate(
                 currentPrice = null,
@@ -220,11 +221,13 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = null,
                 pairCurrentPrice = null,
             )
-        assertNull(result.costOverlay)
+        assertNull(result.costPoints)
+        assertNull(result.costCurrency)
+        assertNull(result.costDomesticCurrency)
     }
 
     @Test
-    fun `costOverlay for share contains currency only`() {
+    fun `cost for share populates costCurrency only`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -237,13 +240,14 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = null,
                 pairCurrentPrice = null,
             )
-        assertNotNull(result.costOverlay)
-        assertTrue("Ожидалось '₽' в: ${result.costOverlay}", result.costOverlay!!.contains("₽"))
-        assertTrue("Не ожидалось 'пт' для акции: ${result.costOverlay}", !result.costOverlay.contains("пт"))
+        assertNull(result.costPoints)
+        assertNotNull(result.costCurrency)
+        assertEquals(500.0, result.costCurrency!!, 0.0001)
+        assertNull(result.costDomesticCurrency)
     }
 
     @Test
-    fun `costOverlay for futures contains points and currency`() {
+    fun `cost for futures populates costPoints and costDomesticCurrency`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -256,15 +260,15 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = null,
                 pairCurrentPrice = null,
             )
-        val overlay = result.costOverlay!!
-        assertTrue("Ожидалось 'пт' в: $overlay", overlay.contains("пт"))
-        assertTrue("Ожидалось '₽' в: $overlay", overlay.contains("₽"))
-        assertTrue("Ожидался разделитель '·' в: $overlay", overlay.contains("·"))
+        assertNull(result.costCurrency)
+        assertNotNull(result.costPoints)
+        assertEquals(200.0, result.costPoints!!, 0.0001)
+        assertNotNull(result.costDomesticCurrency)
+        assertEquals(4000.0, result.costDomesticCurrency!!, 0.0001)
     }
 
     @Test
-    fun `costOverlay for futures without pointValue uses multiplier 1_0`() {
-        // FutureUi с minPriceIncrementAmount = null → pointValue = 1.0 по умолчанию
+    fun `cost for futures without pointValue uses multiplier 1_0`() {
         val futureWithoutPoint =
             FutureUi(
                 tscalpInstrumentId = "uid_f",
@@ -290,15 +294,17 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = null,
                 pairCurrentPrice = null,
             )
-        val overlay = result.costOverlay!!
-        assertTrue("Ожидалось 'пт' в: $overlay", overlay.contains("пт"))
-        assertTrue("Ожидалось '₽' в: $overlay", overlay.contains("₽"))
+        assertNull(result.costCurrency)
+        assertNotNull(result.costPoints)
+        assertEquals(100.0, result.costPoints!!, 0.0001)
+        assertNotNull(result.costDomesticCurrency)
+        assertEquals(100.0, result.costDomesticCurrency!!, 0.0001)
     }
 
-    // ---------- multiplierOverlay ----------
+    // ---------- multiplierPoints / multiplierCurrency / multiplierDomesticCurrency ----------
 
     @Test
-    fun `multiplierOverlay is null when pairedInstrument is null`() {
+    fun `multiplier is null when pairedInstrument is null`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -311,11 +317,13 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = "2.0",
                 pairCurrentPrice = 50.0,
             )
-        assertNull(result.multiplierOverlay)
+        assertNull(result.multiplierPoints)
+        assertNull(result.multiplierCurrency)
+        assertNull(result.multiplierDomesticCurrency)
     }
 
     @Test
-    fun `multiplierOverlay is null when pairedMultiplier is null`() {
+    fun `multiplier is null when pairedMultiplier is null`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -328,11 +336,13 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = null,
                 pairCurrentPrice = 50.0,
             )
-        assertNull(result.multiplierOverlay)
+        assertNull(result.multiplierPoints)
+        assertNull(result.multiplierCurrency)
+        assertNull(result.multiplierDomesticCurrency)
     }
 
     @Test
-    fun `multiplierOverlay for market pair uses pairCurrentPrice`() {
+    fun `multiplier for market pair uses pairCurrentPrice`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -345,15 +355,14 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = "2.0",
                 pairCurrentPrice = 50.0,
             )
-        // 5 * 2.0 * 50 = 500 ₽
-        val overlay = result.multiplierOverlay!!
-        assertTrue("Ожидалось '₽' в: $overlay", overlay.contains("₽"))
-        // Проверим, что использована цена 50, а не 100: результат должен быть про 500
-        assertTrue("Ожидалось '500' в: $overlay", overlay.contains("500"))
+        assertNull(result.multiplierPoints)
+        assertNotNull(result.multiplierCurrency)
+        assertEquals(500.0, result.multiplierCurrency!!, 0.0001)
+        assertNull(result.multiplierDomesticCurrency)
     }
 
     @Test
-    fun `multiplierOverlay for limit pair uses limitPrice not pairCurrentPrice`() {
+    fun `multiplier for limit pair uses limitPrice not pairCurrentPrice`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -366,13 +375,14 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = "2.0",
                 pairCurrentPrice = 50.0,
             )
-        // 5 * 2.0 * 60 = 600 ₽ (а не 500)
-        val overlay = result.multiplierOverlay!!
-        assertTrue("Ожидалось '600' в: $overlay", overlay.contains("600"))
+        assertNull(result.multiplierPoints)
+        assertNotNull(result.multiplierCurrency)
+        assertEquals(600.0, result.multiplierCurrency!!, 0.0001)
+        assertNull(result.multiplierDomesticCurrency)
     }
 
     @Test
-    fun `multiplierOverlay for futures pair contains points and currency`() {
+    fun `multiplier for futures pair populates points and domestic currency`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -385,13 +395,15 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = "3.0",
                 pairCurrentPrice = 100.0,
             )
-        val overlay = result.multiplierOverlay!!
-        assertTrue("Ожидалось 'пт' в: $overlay", overlay.contains("пт"))
-        assertTrue("Ожидалось '₽' в: $overlay", overlay.contains("₽"))
+        assertNull(result.multiplierCurrency)
+        assertNotNull(result.multiplierPoints)
+        assertEquals(600.0, result.multiplierPoints!!, 0.0001)
+        assertNotNull(result.multiplierDomesticCurrency)
+        assertEquals(12000.0, result.multiplierDomesticCurrency!!, 0.0001)
     }
 
     @Test
-    fun `multiplierOverlay with invalid multiplier falls back to 1_0`() {
+    fun `multiplier with invalid multiplier falls back to 1_0`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -404,13 +416,14 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = "abc",
                 pairCurrentPrice = 50.0,
             )
-        // 5 * 1.0 * 50 = 250 ₽
-        val overlay = result.multiplierOverlay!!
-        assertTrue("Ожидалось '250' в: $overlay", overlay.contains("250"))
+        assertNull(result.multiplierPoints)
+        assertNotNull(result.multiplierCurrency)
+        assertEquals(250.0, result.multiplierCurrency!!, 0.0001)
+        assertNull(result.multiplierDomesticCurrency)
     }
 
     @Test
-    fun `multiplierOverlay is null when pair executionPrice is zero`() {
+    fun `multiplier is null when pair executionPrice is zero`() {
         val result =
             useCase.calculate(
                 currentPrice = 100.0,
@@ -423,6 +436,8 @@ class CalculateTradeDetailsUseCaseTest {
                 pairedMultiplier = "2.0",
                 pairCurrentPrice = null, // для Market → 0.0
             )
-        assertNull(result.multiplierOverlay)
+        assertNull(result.multiplierPoints)
+        assertNull(result.multiplierCurrency)
+        assertNull(result.multiplierDomesticCurrency)
     }
 }

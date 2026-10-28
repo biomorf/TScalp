@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.util
+package com.gitlab.biomorf.tscalp.presentation.util
 
 import androidx.compose.ui.graphics.Color
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
@@ -17,8 +17,8 @@ object PositionFormatter {
             return null to null
         }
         val avgTotal = position.quantity.toDouble() * avgPrice
-        val totalStr = formatPrice(avgTotal, instrumentType)
-        val detailStr = "${position.quantity} лот  ·  ${formatPrice(avgPrice, instrumentType)}"
+        val totalStr = formatPrice(avgTotal, instrumentType, position.currency ?: DOMESTIC_CURRENCY)
+        val detailStr = "${position.quantity} лот  ·  ${formatPrice(avgPrice, instrumentType, position.currency ?: DOMESTIC_CURRENCY)}"
         return totalStr to detailStr
     }
 
@@ -47,13 +47,13 @@ object PositionFormatter {
                 if (pointValue != null && pointValue > 0) {
                     val profitRub = profit * pointValue
                     val rubSign = if (profitRub >= 0) "+" else ""
-                    "${sign}$pointsStr пт  ·  ${rubSign}${formatCurrency(profitRub)}"
+                    "${sign}$pointsStr пт  ·  ${rubSign}${formatDomesticCurrency(profitRub)}"
                 } else {
                     "${sign}$pointsStr пт"
                 }
             } else {
                 val sign = if (profit >= 0) "+" else ""
-                sign + formatCurrency(profit)
+                sign + formatDomesticCurrency(profit)
             }
 
         val percentStr =
@@ -84,10 +84,10 @@ object PositionFormatter {
         pointValue: Double?,
     ): Pair<String?, String?> {
         if (position.currentPrice <= 0) return null to null
-        val priceStr = formatPrice(position.currentPrice, instrumentType)
+        val priceStr = formatPrice(position.currentPrice, instrumentType, position.currency ?: DOMESTIC_CURRENCY)
         val rubStr =
             if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
-                formatCurrency(position.currentPrice * pointValue)
+                formatDomesticCurrency(position.currentPrice * pointValue)
             } else {
                 null
             }

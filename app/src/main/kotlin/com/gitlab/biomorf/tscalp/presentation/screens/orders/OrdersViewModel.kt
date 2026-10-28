@@ -32,8 +32,12 @@ import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
+import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
+import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
+import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
+import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
 import com.gitlab.biomorf.tscalp.util.AppLogger
-import com.gitlab.biomorf.tscalp.util.formatCurrency
 import com.gitlab.biomorf.tscalp.util.toAppError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -469,6 +473,12 @@ class OrdersViewModel
 
             when (checkResult) {
                 is TradeCheckResult.Success -> { /* продолжаем */ }
+                is TradeCheckResult.InsufficientFunds -> {
+                    _uiState.update {
+                        it.copy(statusMessage = "❌ Недостаточно средств. Свободно: ${formatDomesticCurrency(checkResult.balance)}, требуется: ~${formatDomesticCurrency(checkResult.required)}", isError = true)
+                    }
+                    return
+                }
                 is TradeCheckResult.Error -> {
                     _uiState.update {
                         it.copy(statusMessage = "❌ ${checkResult.message}", isError = true)
@@ -608,7 +618,7 @@ class OrdersViewModel
                 }
 
             if (currentBalance != null && currentBalance < 1000.0) {
-                finalMessage += "\n⚠️ Низкий свободный остаток: ${formatCurrency(currentBalance)}"
+                finalMessage += "\n⚠️ Низкий свободный остаток: ${formatDomesticCurrency(currentBalance)}"
             }
 
             _uiState.update {
@@ -1118,6 +1128,36 @@ class OrdersViewModel
                     pairedMultiplier = state.pairedMultiplier,
                     pairCurrentPrice = state.pairCurrentPrice,
                 )
-            _uiState.update { it.copy(executionPrice = details.executionPrice, costOverlay = details.costOverlay, multiplierOverlay = details.multiplierOverlay) }
+            val costOverlay = formatCostOverlay(details, state)
+            val multiplierOverlay = formatMultiplierOverlay(details, state)
+            _uiState.update { it.copy(executionPrice = details.executionPrice, costOverlay = costOverlay, multiplierOverlay = multiplierOverlay) }
+        }
+
+        private fun formatCostOverlay(
+            details: TradeDetails,
+            state: OrdersUiState,
+        ): String? {
+            val instrumentType = state.selectedInstrument?.instrumentType ?: ""
+            val currency = state.selectedInstrument?.currency ?: DOMESTIC_CURRENCY
+            return when {
+                details.costPoints != null && details.costDomesticCurrency != null ->
+                    "${formatPrice(details.costPoints, instrumentType, currency)}  ·  ${formatDomesticCurrency(details.costDomesticCurrency)}"
+                details.costCurrency != null -> formatCurrency(details.costCurrency, currency)
+                else -> null
+            }
+        }
+
+        private fun formatMultiplierOverlay(
+            details: TradeDetails,
+            state: OrdersUiState,
+        ): String? {
+            val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: ""
+            val currency = state.pairedInstrument?.currency ?: DOMESTIC_CURRENCY
+            return when {
+                details.multiplierPoints != null && details.multiplierDomesticCurrency != null ->
+                    "${formatPrice(details.multiplierPoints, pairedInstrumentType, currency)}  ·  ${formatDomesticCurrency(details.multiplierDomesticCurrency)}"
+                details.multiplierCurrency != null -> formatCurrency(details.multiplierCurrency, currency)
+                else -> null
+            }
         }
     }

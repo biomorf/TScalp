@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.ui.components
+package com.gitlab.biomorf.tscalp.presentation.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
-import com.gitlab.biomorf.tscalp.util.PositionFormatter
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
+import com.gitlab.biomorf.tscalp.presentation.util.PositionFormatter
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -50,8 +50,8 @@ import kotlin.math.roundToInt
 @Suppress("LongMethod")
 @Composable
 fun AssetPositionCard(
-    modifier: Modifier = Modifier,
     position: PortfolioPosition,
+    modifier: Modifier = Modifier,
     instrumentType: String = "",
     priceChangePercent: Double? = null,
     onDelete: (() -> Unit)? = null,
@@ -200,10 +200,10 @@ private fun AssetCardContent(
     priceChangePercent: Double?,
     onClick: (() -> Unit)?,
     isSelected: Boolean,
+    modifier: Modifier = Modifier,
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
     pointValue: Double? = null,
-    modifier: Modifier = Modifier,
 ) {
     // --- Анимация цвета цены ---
     val targetPriceColor = PositionFormatter.priceChangeColor(priceChangePercent)

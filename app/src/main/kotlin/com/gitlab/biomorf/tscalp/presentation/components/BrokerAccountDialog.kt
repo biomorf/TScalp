@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.ui.components
+package com.gitlab.biomorf.tscalp.presentation.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.ui.theme.TScalpTheme
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-компонентов».

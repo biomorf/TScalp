@@ -26,8 +26,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.ui.components.AssetPositionCard
-import com.gitlab.biomorf.tscalp.util.formatCurrency
+import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-экранов».
@@ -116,7 +116,7 @@ fun PortfolioScreen(
                         Column {
                             Text("Баланс", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                formatCurrency(uiState.balance),
+                                formatDomesticCurrency(uiState.balance),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                             )
