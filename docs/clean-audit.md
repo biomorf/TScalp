@@ -1078,24 +1078,6 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### Разбивка InvestRepository по доменным областям` (в работе).
 
-### Н71. BcsBrokerApi.initialize логирует refreshToken
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** ✓
-
-**Описание:** `BcsBrokerApi.initialize(refreshToken, clientId)` пишет в лог: `AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")`. Refresh-токен — секрет (90 дней, полный доступ к портфелю/торговле). В debug-сборке попадает в logcat в открытом виде; в release `AppLogger.d` отсекается, но `logcat -b all` / устройство может сохранить.
-
-**Нарушенное правило Clean:** AGENTS 4e — секреты не должны попадать в логи.
-
-**Clean-альтернатива:** логировать `refreshToken=***` (redact) или `refreshToken.len=${refreshToken.length}`. Плюсы: секрет не в логах. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi логирует refreshToken» (security-запись).
-
 ### Н72. BcsBrokerApi.orders = null при работающем postOrder
 
 **Статус:** открыто.
@@ -1277,6 +1259,27 @@ InvestRepository split` (ROADMAP).
 **Ссылка на задачу:** — (не заведена). Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
 
 ### Исправленные (L6)
+
+### Н71. BcsBrokerApi.initialize логирует refreshToken
+
+**Статус:** исправлено (2026-10-28, ветка `bugfix/security-token-logging`).
+
+**Серьёзность:** критично.
+
+**Live тест:** ✓
+
+**Описание:** `BcsBrokerApi.initialize(refreshToken, clientId)` пишет в лог: `AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")`. Refresh-токен — секрет (90 дней, полный доступ к портфелю/торговле). В debug-сборке попадает в logcat в открытом виде; в release `AppLogger.d` отсекается, но `logcat -b all` / устройство может сохранить.
+
+**Нарушенное правило Clean:** AGENTS 4e — секреты не должны попадать в логи.
+
+**Clean-альтернатива:** логировать `refreshToken=***` (redact) или `refreshToken.len=${refreshToken.length}`. Плюсы: секрет не в логах. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** `$refreshToken` → `${refreshToken.length}`; других утечек нет (grep по `data/api/`).
+
+**Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi логирует refreshToken» (security-запись).
+
 
 [пусто]
 
