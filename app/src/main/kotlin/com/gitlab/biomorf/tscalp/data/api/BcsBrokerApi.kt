@@ -89,7 +89,7 @@ class BcsBrokerApi :
     ) {
         this.refreshToken = refreshToken
         this.clientId = clientId
-        AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken=$refreshToken, clientId=$clientId")
+        AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken.len=${refreshToken.length}, clientId=$clientId")
         obtainAccessToken()
     }
 

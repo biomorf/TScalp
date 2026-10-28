@@ -588,9 +588,9 @@ OkHttp/CIO сессию, отменить Flow). `deinitialize()` уже обн�
 
 ---
 
-## BcsBrokerApi логирует refreshToken
+## BcsBrokerApi логирует refreshToken (решён)
 
-**Статус:** открыт. Security — токен в логах.
+**Статус:** решён (2026-10-28, ветка `bugfix/security-token-logging`).
 
 **Симптом:** `BcsBrokerApi.initialize(refreshToken, clientId)` пишет
 в лог полный refresh-токен:
@@ -612,8 +612,12 @@ OkHttp/CIO сессию, отменить Flow). `deinitialize()` уже обн�
 
 **Связано:** `docs/clean-audit.md` -> L6-Н71.
 
-**Когда вернуться:** при следующей сессии на десктопе, ветка
-`bugfix/security-token-logging`. Приоритет высокий — security.
+**Что сделано:** `$refreshToken` заменён на `${refreshToken.length}`.
+Остальные логи проверены (`grep` по `$token`, `$refreshToken`,
+`$accessToken` в `data/api/`) — других утечек нет.
+
+**Когда вернуться:** не требуется. Открыть заново, если появится
+новая логируемая переменная с секретом.
 
 ---
 
