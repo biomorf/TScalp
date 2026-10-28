@@ -3,10 +3,10 @@ package com.gitlab.biomorf.tscalp.domain.api.managers
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +59,7 @@ class PositionFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerRegistry,
+        private val logger: Logger,
     ) {
         companion object {
             private const val TAG = "PositionFlowManager"
@@ -69,7 +70,7 @@ class PositionFlowManager
         private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)
         val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
 
-        private val stateTracker = StreamStateTracker(tag = "PositionFlowManager")
+        private val stateTracker = StreamStateTracker(logger = logger, tag = "PositionFlowManager")
 
         /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
         val connectionState: StateFlow<StreamState> = stateTracker.state
@@ -100,7 +101,7 @@ class PositionFlowManager
             CoroutineScope(
                 Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
                     CoroutineExceptionHandler { _, e ->
-                        AppLogger.e(TAG, "Uncaught error in position stream", e)
+                        logger.e(TAG, "Uncaught error in position stream", e)
                     },
             )
 
@@ -123,11 +124,11 @@ class PositionFlowManager
             forceRestart: Boolean,
         ) {
             if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
-                AppLogger.d(TAG, "Поток позиций уже запущен для $accountId")
+                logger.d(TAG, "Поток позиций уже запущен для $accountId")
                 return
             }
             if (currentAccountId != accountId) {
-                AppLogger.d(TAG, "Перезапуск потока позиций: $currentAccountId → $accountId")
+                logger.d(TAG, "Перезапуск потока позиций: $currentAccountId → $accountId")
                 snapshotCache.clear()
                 _flow.resetReplayCache()
             }
@@ -138,13 +139,13 @@ class PositionFlowManager
                 scope.launch {
                     val broker = brokerManager.getBroker(BrokerName.TINVEST)
                     if (broker == null || !broker.isInitialized) {
-                        AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
+                        logger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
                         stateTracker.onStop()
                         return@launch
                     }
                     val snapshotApi = broker.snapshot
                     if (snapshotApi == null) {
-                        AppLogger.e(TAG, "${broker.name.key}: *Snapshot не поддерживается, polling не запускаем")
+                        logger.e(TAG, "${broker.name.key}: *Snapshot не поддерживается, polling не запускаем")
                     }
                     coroutineScope {
                         launch { collectStream(broker, accountId) }
@@ -168,7 +169,7 @@ class PositionFlowManager
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                AppLogger.e(TAG, "stream error: ${e.message}", e)
+                logger.e(TAG, "stream error: ${e.message}", e)
             }
         }
 
@@ -180,7 +181,7 @@ class PositionFlowManager
                 try {
                     val positions = snapshotApi.positionsSnapshot(accountId)
                     stateTracker.onPollingSuccess()
-                    AppLogger.d(TAG, "polling: ${positions.size} positions")
+                    logger.d(TAG, "polling: ${positions.size} positions")
                     for (item in positions) {
                         emitEnriched(item, source = "polling")
                     }
@@ -188,10 +189,10 @@ class PositionFlowManager
                     throw e
                 } catch (e: Exception) {
                     if (e.message?.contains("NOT_FOUND") == true) {
-                        AppLogger.w(TAG, "polling: account not found — stopping")
+                        logger.w(TAG, "polling: account not found — stopping")
                         return
                     }
-                    AppLogger.w(TAG, "polling error: ${e.message}")
+                    logger.w(TAG, "polling error: ${e.message}")
                 }
                 delay(POLLING_INTERVAL_MS)
             }
@@ -202,7 +203,7 @@ class PositionFlowManager
             source: String,
         ) {
             val enriched = enrichAndCache(item) ?: return
-            AppLogger.d(
+            logger.d(
                 TAG,
                 "[$source] ${enriched.tscalpInstrumentId}, " +
                     "qty=${enriched.quantity}, " +
@@ -260,7 +261,7 @@ class PositionFlowManager
         fun reapplyDebugFlags() =
             synchronized(startLock) {
                 val accountId = currentAccountId ?: return@synchronized
-                AppLogger.d(TAG, "reapplyDebugFlags: restarting stream")
+                logger.d(TAG, "reapplyDebugFlags: restarting stream")
                 doStart(accountId, forceRestart = true)
             }
 

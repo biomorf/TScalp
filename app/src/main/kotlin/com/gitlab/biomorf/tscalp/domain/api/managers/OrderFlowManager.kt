@@ -3,11 +3,11 @@ package com.gitlab.biomorf.tscalp.domain.api.managers
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import com.gitlab.biomorf.tscalp.domain.models.toOrder
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -56,6 +56,7 @@ class OrderFlowManager
     @Inject
     constructor(
         private val brokerManager: BrokerRegistry,
+        private val logger: Logger,
     ) {
         companion object {
             private const val TAG = "OrderFlowManager"
@@ -72,7 +73,7 @@ class OrderFlowManager
         val hasLoaded: StateFlow<Boolean> = _hasLoaded.asStateFlow()
 
         /** Трекер [StreamState]: LIVE / POLLING / STALE / STOPPED. */
-        private val stateTracker = StreamStateTracker(tag = "OrderFlowManager")
+        private val stateTracker = StreamStateTracker(logger = logger, tag = "OrderFlowManager")
 
         /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
         val connectionState: StateFlow<StreamState> = stateTracker.state
@@ -92,7 +93,7 @@ class OrderFlowManager
             CoroutineScope(
                 Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
                     CoroutineExceptionHandler { _, e ->
-                        AppLogger.e(TAG, "Uncaught error in order stream", e)
+                        logger.e(TAG, "Uncaught error in order stream", e)
                     },
             )
 
@@ -112,12 +113,12 @@ class OrderFlowManager
             forceRestart: Boolean,
         ) {
             if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
-                AppLogger.d(TAG, "Поток заявок уже запущен для $accountId")
+                logger.d(TAG, "Поток заявок уже запущен для $accountId")
                 return
             }
             val switching = currentAccountId != accountId
             if (switching) {
-                AppLogger.d(TAG, "Перезапуск потока заявок: $currentAccountId → $accountId")
+                logger.d(TAG, "Перезапуск потока заявок: $currentAccountId → $accountId")
             }
             job?.cancel()
             currentAccountId = accountId
@@ -131,13 +132,13 @@ class OrderFlowManager
                     }
                     val broker = brokerManager.getBroker(BrokerName.TINVEST)
                     if (broker == null || !broker.isInitialized) {
-                        AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
+                        logger.e(TAG, "TInvestBrokerAPI не инициализирован, поток не запускаем")
                         stateTracker.onStop()
                         return@launch
                     }
                     val snapshotApi = broker.snapshot
                     if (snapshotApi == null) {
-                        AppLogger.e(TAG, "${broker.name.key}: *Snapshot не поддерживается, polling не запускаем")
+                        logger.e(TAG, "${broker.name.key}: *Snapshot не поддерживается, polling не запускаем")
                     }
                     coroutineScope {
                         launch { collectStream(broker, accountId) }
@@ -160,7 +161,7 @@ class OrderFlowManager
         fun reapplyDebugFlags() =
             synchronized(startLock) {
                 val accountId = currentAccountId ?: return@synchronized
-                AppLogger.d(TAG, "reapplyDebugFlags: restarting stream")
+                logger.d(TAG, "reapplyDebugFlags: restarting stream")
                 doStart(accountId, forceRestart = true)
             }
 
@@ -202,7 +203,7 @@ class OrderFlowManager
             while (currentCoroutineContext().isActive) {
                 try {
                     val orders = snapshotApi.ordersSnapshot(accountId)
-                    AppLogger.d(TAG, "polling: ${orders.size} orders")
+                    logger.d(TAG, "polling: ${orders.size} orders")
                     val now = System.currentTimeMillis()
                     for (item in orders) {
                         cache.putFromPolling(item, now)
@@ -216,7 +217,7 @@ class OrderFlowManager
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    AppLogger.w(TAG, "polling error: ${e.message}")
+                    logger.w(TAG, "polling error: ${e.message}")
                 } finally {
                     _hasLoaded.value = true
                 }
@@ -239,7 +240,7 @@ class OrderFlowManager
                 broker.streams?.subscribeOrderState(accountId)?.collect { state ->
                     stateTracker.onStreamEmit()
                     val item = state.toOrder()
-                    AppLogger.d(TAG, "stream: ${item.orderId} status=${item.status}")
+                    logger.d(TAG, "stream: ${item.orderId} status=${item.status}")
                     if (item.status in TERMINAL_STATUSES) {
                         cache.remove(item.orderId)
                     } else {
@@ -250,7 +251,7 @@ class OrderFlowManager
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                AppLogger.e(TAG, "stream error: ${e.message}", e)
+                logger.e(TAG, "stream error: ${e.message}", e)
             }
         }
 

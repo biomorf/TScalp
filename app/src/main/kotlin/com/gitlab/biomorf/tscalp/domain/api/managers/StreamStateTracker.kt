@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * @param staleMs порог молчания polling (default 30 сек).
  */
 internal class StreamStateTracker(
+    private val logger: Logger,
     private val tag: String = "StreamStateTracker",
     private val streamSilenceMs: Long = 15_000L,
     private val staleMs: Long = 30_000L,
@@ -103,6 +104,6 @@ internal class StreamStateTracker(
         val prev = _state.value
         if (prev == next) return
         _state.value = next
-        AppLogger.d(tag, "state: $prev → $next")
+        logger.d(tag, "state: $prev → $next")
     }
 }

@@ -2,10 +2,10 @@ package com.gitlab.biomorf.tscalp.domain.api.managers
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.util.toAppError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -50,6 +50,7 @@ class PriceFlowManager
     constructor(
         private val brokerManager: BrokerRegistry,
         private val debugFlagsRepository: DebugFlagsRepository,
+        private val logger: Logger,
     ) {
         companion object {
             private const val TAG = "PriceFlowManager"
@@ -87,7 +88,7 @@ class PriceFlowManager
         /** Единый job: stream + polling + watchdog под одним родителем. */
         private var job: Job? = null
 
-        private val stateTracker = StreamStateTracker(tag = "PriceFlowManager")
+        private val stateTracker = StreamStateTracker(logger = logger, tag = "PriceFlowManager")
 
         /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
         val connectionState: StateFlow<StreamState> = stateTracker.state
@@ -112,7 +113,7 @@ class PriceFlowManager
             CoroutineScope(
                 Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
                     CoroutineExceptionHandler { _, e ->
-                        AppLogger.e(TAG, "Uncaught error in price stream", e)
+                        logger.e(TAG, "Uncaught error in price stream", e)
                     },
             )
 
@@ -130,7 +131,7 @@ class PriceFlowManager
             interests.update { it + (consumer to tscalpIds) }
             val newUnion = currentUnion()
             if (newUnion != oldUnion) {
-                AppLogger.d(TAG, "setInterest($consumer, size=${tscalpIds.size}), union changed: ${oldUnion.size} → ${newUnion.size}")
+                logger.d(TAG, "setInterest($consumer, size=${tscalpIds.size}), union changed: ${oldUnion.size} → ${newUnion.size}")
                 restart(newUnion)
             }
         }
@@ -146,7 +147,7 @@ class PriceFlowManager
                 interests.update { it - consumer }
                 val newUnion = currentUnion()
                 if (newUnion != oldUnion) {
-                    AppLogger.d(TAG, "clearInterest($consumer), union changed: ${oldUnion.size} → ${newUnion.size}")
+                    logger.d(TAG, "clearInterest($consumer), union changed: ${oldUnion.size} → ${newUnion.size}")
                     restart(newUnion)
                 }
             }
@@ -180,12 +181,12 @@ class PriceFlowManager
             job?.cancel()
             job = null
             if (union.isEmpty()) {
-                AppLogger.d(TAG, "Union empty, gRPC stream stopped")
+                logger.d(TAG, "Union empty, gRPC stream stopped")
                 stateTracker.onStop()
                 return
             }
             stateTracker.onStart()
-            AppLogger.d(TAG, "Starting stream + polling for ${union.size} tscalpInstrumentId(s)")
+            logger.d(TAG, "Starting stream + polling for ${union.size} tscalpInstrumentId(s)")
             job =
                 scope.launch {
                     coroutineScope {
@@ -206,14 +207,14 @@ class PriceFlowManager
          */
         private suspend fun collectStream(union: Set<String>) {
             if (debugFlagsRepository.disableGrpc && debugFlagsRepository.disableWs) {
-                AppLogger.d(TAG, "gRPC and WS disabled: collectStream bypassed")
+                logger.d(TAG, "gRPC and WS disabled: collectStream bypassed")
                 return
             }
             val broker = BrokerName.TINVEST
             val streams =
                 brokerManager.getBroker(broker)?.streams
                     ?: run {
-                        AppLogger.d(TAG, "[prices] broker.streams unavailable, stream skipped")
+                        logger.d(TAG, "[prices] broker.streams unavailable, stream skipped")
                         return
                     }
             var attempt = 0
@@ -223,20 +224,20 @@ class PriceFlowManager
                         .subscribeLastPrices(union.toList())
                         .collect { (tscalpId, price) ->
                             stateTracker.onStreamEmit()
-                            AppLogger.d(TAG, "[manager/stream] $tscalpId = $price")
+                            logger.d(TAG, "[manager/stream] $tscalpId = $price")
                             _prices.emit(PriceUpdate(broker, tscalpId, price))
                         }
                     // Сервер закрыл стрим штатно. Сбрасываем attempt
                     // и пробуем подключиться заново без задержки.
                     attempt = 0
-                    AppLogger.d(TAG, "[prices] gRPC stream completed by server, reconnecting in 1s")
+                    logger.d(TAG, "[prices] gRPC stream completed by server, reconnecting in 1s")
                     delay(1000) // Защита от busy-loop, если сервер закрывает стрим сразу
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     attempt++
                     val delayMs = retryDelayMs(attempt)
-                    AppLogger.w(
+                    logger.w(
                         TAG,
                         "[prices] gRPC error (attempt=$attempt), retry in ${delayMs}ms: ${e.message}",
                         e,
@@ -271,12 +272,12 @@ class PriceFlowManager
             val brokerName = BrokerName.TINVEST
             val broker = brokerManager.getBroker(brokerName)
             if (broker == null || !broker.isInitialized) {
-                AppLogger.e(TAG, "TInvestBrokerAPI не инициализирован, polling не запускаем")
+                logger.e(TAG, "TInvestBrokerAPI не инициализирован, polling не запускаем")
                 return
             }
             val snapshotApi = broker.snapshot
             if (snapshotApi == null) {
-                AppLogger.e(TAG, "${brokerName.key}: *Snapshot не поддерживается, polling не запускаем")
+                logger.e(TAG, "${brokerName.key}: *Snapshot не поддерживается, polling не запускаем")
                 return
             }
             while (currentCoroutineContext().isActive) {
@@ -286,12 +287,12 @@ class PriceFlowManager
                     stateTracker.onPollingSuccess()
                     prices.forEach { (tscalpId, price) ->
                         if (price != null) {
-                            AppLogger.d(TAG, "[manager/polling/${brokerName.key}] $tscalpId = $price")
+                            logger.d(TAG, "[manager/polling/${brokerName.key}] $tscalpId = $price")
                             _prices.emit(PriceUpdate(brokerName, tscalpId, price))
                         }
                     }
                 } catch (e: Exception) {
-                    AppLogger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)
+                    logger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
+import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -9,6 +10,7 @@ class StreamStateTrackerTest {
 
     private fun newTracker(): StreamStateTracker =
         StreamStateTracker(
+            logger = TestLogger,
             tag = "test",
             streamSilenceMs = 100L,
             staleMs = 200L,
