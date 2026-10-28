@@ -5,7 +5,7 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.streamWithFallback
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.util.AppLogger
@@ -30,7 +30,7 @@ class TInvestOrchestrator(
     private val orderStateWsFallback: (String) -> Flow<OrderState>? = { null },
     private val pricesRestFallback: (suspend (List<String>) -> Map<String, Double?>)? = null,
     private val positionsRestFallback: (suspend (String, Boolean) -> List<PositionStreamItem>)? = null,
-    private val ordersRestFallback: (suspend (String) -> List<OrderListItem>)? = null,
+    private val ordersRestFallback: (suspend (String) -> List<Order>)? = null,
     private val balanceRestFallback: (suspend (String) -> Double)? = null,
 ) {
     private companion object {
@@ -146,7 +146,7 @@ class TInvestOrchestrator(
             )
     }
 
-    suspend fun ordersSnapshot(accountId: String): List<OrderListItem> {
+    suspend fun ordersSnapshot(accountId: String): List<Order> {
         if (debugFlagsRepository.forceRest) {
             val rest = ordersRestFallback ?: throw IllegalStateException("REST fallback not configured")
             AppLogger.w(TAG, "forceRest: bypassing gRPC for orders")

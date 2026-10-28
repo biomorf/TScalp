@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.roles
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderResult
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 
@@ -42,12 +42,12 @@ interface OrdersApi {
     /**
      * Снимок активных обычных заявок счёта.
      */
-    suspend fun getOrders(accountId: String): List<OrderListItem>
+    suspend fun getOrders(accountId: String): List<Order.Regular>
 
     /**
      * Снимок активных стоп-заявок счёта.
      */
-    suspend fun getStopOrders(accountId: String): List<OrderListItem>
+    suspend fun getStopOrders(accountId: String): List<Order.Stop>
 
     /**
      * Отменяет обычную заявку по `orderId`.

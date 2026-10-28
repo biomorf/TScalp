@@ -3,7 +3,7 @@ package com.gitlab.biomorf.tscalp.data.orchestrator
 import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import io.grpc.Status
 import io.grpc.StatusException
@@ -68,7 +68,7 @@ class TInvestOrchestratorFallbackTest {
     @Test
     fun `ordersSnapshot falls back to REST on UNAVAILABLE`() =
         runBlocking {
-            val restOrders = listOf<OrderListItem>(mockk())
+            val restOrders = listOf<Order>(mockk())
             coEvery { orders.getOrders(any()) } throws StatusException(Status.UNAVAILABLE)
 
             val orchestrator =

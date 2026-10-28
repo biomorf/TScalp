@@ -4,9 +4,9 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
-import com.gitlab.biomorf.tscalp.domain.models.toOrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.toOrder
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -40,11 +40,11 @@ import javax.inject.Singleton
  *   заявки в снимке не удаляет её из кэша — она могла быть
  *   только что создана через stream, до того как сервер успел
  *   её вернуть в unary.
- * - stream: если [OrderListItem.status] терминальный
+ * - stream: если [Order.status] терминальный
  *   ([TERMINAL_STATUSES]) — удалить из кэша. Иначе — добавить/обновить.
  *
- * Результат — `StateFlow<List<OrderListItem>>`, отсортированный
- * по [OrderListItem.orderDate] по возрастанию (новые снизу, как
+ * Результат — `StateFlow<List<Order>>`, отсортированный
+ * по [Order.orderDate] по возрастанию (новые снизу, как
  * в текущем `OrdersListViewModel`).
  *
  * Scope — single-threaded (`Dispatchers.IO.limitedParallelism(1)`),
@@ -64,8 +64,8 @@ class OrderFlowManager
             private val TERMINAL_STATUSES = setOf("FILL", "CANCELLED", "REJECTED")
         }
 
-        private val _orders = MutableStateFlow<List<OrderListItem>>(emptyList())
-        val orders: StateFlow<List<OrderListItem>> = _orders.asStateFlow()
+        private val _orders = MutableStateFlow<List<Order>>(emptyList())
+        val orders: StateFlow<List<Order>> = _orders.asStateFlow()
 
         /** true после первой итерации polling (успешной или с ошибкой). */
         private val _hasLoaded = MutableStateFlow(false)
@@ -238,7 +238,7 @@ class OrderFlowManager
             try {
                 broker.streams?.subscribeOrderState(accountId)?.collect { state ->
                     stateTracker.onStreamEmit()
-                    val item = state.toOrderListItem()
+                    val item = state.toOrder()
                     AppLogger.d(TAG, "stream: ${item.orderId} status=${item.status}")
                     if (item.status in TERMINAL_STATUSES) {
                         cache.remove(item.orderId)

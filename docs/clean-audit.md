@@ -88,24 +88,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена).
 
-### Н4. UI конвертирует String → domain-модель
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `OrdersListDialog.kt` в `OrderCard` передаёт `orderType = TradePhrases.stringToOrderType(order.type)`. Конверсия «сырое значение из data → domain-модель» выполняется в presentation.
-
-**Нарушенное правило:** Presentation не должна маппить сырые данные в domain-модели — это забота data-слоя (маппер).
-
-**Clean-альтернатива:** `OrderListItem.type` → `OrderTypeSelection` в маппере `TInvestOrdersMapper` (data). UI получает готовый `OrderTypeSelection`. Плюсы: presentation без маппинга. Минусы: зависит от `### Split order domain into sealed Regular/Stop` (там переделка модели).
-
-**Выгоды:** —
-
-**Ссылка на задачу:** `### Split order domain into sealed Regular/Stop` (в его рамках решается).
-
 ### Н24. Дублирование обогащения в двух VM
 
 **Статус:** открыто.
@@ -126,6 +108,25 @@ L4–L8 — не проверены, заполняются по мере инс
 
 
 ### Исправленные (L1)
+
+### ✅ Н4. UI конвертирует String → domain-модель
+
+**Статус:** исправлено (2026-10-28, растворён в Split order, коммит `ec9c7d5`).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrdersListDialog.kt` в `OrderCard` передаёт `orderType = TradePhrases.stringToOrderType(order.type)`. Конверсия «сырое значение из data → domain-модель» выполняется в presentation.
+
+**Нарушенное правило:** Presentation не должна маппить сырые данные в domain-модели — это забота data-слоя (маппер).
+
+**Clean-альтернатива:** `OrderListItem.type` → `OrderTypeSelection` в маппере `TInvestOrdersMapper` (data). UI получает готовый `OrderTypeSelection`. Плюсы: presentation без маппинга. Минусы: зависит от `### Split order domain into sealed Regular/Stop` (там переделка модели).
+
+**Выгоды:** —
+
+**Ссылка на задачу:** `### Split order domain into sealed Regular/Stop` (в его рамках решается).
+
 
 ### ✅ Н21. ViewModel → data.repository.*
 

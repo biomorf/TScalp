@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.roles
 
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 
 /**
@@ -34,7 +34,7 @@ interface BrokerSnapshotApi {
      * Используется `OrderFlowManager` в polling раз в 15 сек;
      * мержится со stream-событиями по `orderId`.
      */
-    suspend fun ordersSnapshot(accountId: String): List<OrderListItem>
+    suspend fun ordersSnapshot(accountId: String): List<Order>
 
     /**
      * Снимок позиций счёта — `PositionStreamItem`, в котором

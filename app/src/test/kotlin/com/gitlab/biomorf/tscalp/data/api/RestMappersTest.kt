@@ -1,7 +1,8 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
+import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
 import com.gitlab.biomorf.tscalp.transport.ktor.RestPosition
@@ -13,7 +14,7 @@ import org.junit.Test
 
 class RestMappersTest {
     @Test
-    fun `RestOrder maps to OrderListItem correctly`() {
+    fun `RestOrder maps to Order correctly`() {
         val restOrder =
             RestOrder(
                 orderId = "order-123",
@@ -30,23 +31,23 @@ class RestMappersTest {
                 orderDate = "2023-01-01T00:00:00Z",
             )
 
-        val item: OrderListItem = restOrder.toOrderListItem()
+        val order: Order = restOrder.toOrder()
 
-        assertEquals("order-123", item.orderId)
-        assertEquals("SBER", item.ticker)
-        assertEquals("uid-sber", item.tscalpInstrumentId)
-        assertEquals("BUY", item.direction)
-        assertEquals(150.5, item.price, 0.0001)
-        assertNull(item.stopPrice)
-        assertEquals(10L, item.quantity)
-        assertEquals("LIMIT", item.type)
-        assertEquals("NEW", item.status)
-        assertNull(item.orderDate)
-        assertEquals(false, item.isStopOrder)
+        assertEquals("order-123", order.orderId)
+        assertEquals("SBER", order.ticker)
+        assertEquals("uid-sber", order.tscalpInstrumentId)
+        assertEquals("BUY", order.direction)
+        assertEquals(150.5, order.price, 0.0001)
+        assertEquals(10L, order.quantity)
+        assertEquals(OrderTypeSelection.Limit, order.orderType)
+        assertEquals("NEW", order.status)
+        assertNull(order.orderDate)
+        assertEquals(151.0, (order as Order.Regular).executedPrice!!, 0.0001)
+        assertEquals(5L, order.executedQuantity)
     }
 
     @Test
-    fun `RestStopOrder maps to OrderListItem correctly`() {
+    fun `RestStopOrder maps to Order correctly`() {
         val restStopOrder =
             RestStopOrder(
                 stopOrderId = "stop-123",
@@ -62,19 +63,18 @@ class RestMappersTest {
                 createDate = "2023-01-01T00:00:00Z",
             )
 
-        val item: OrderListItem = restStopOrder.toOrderListItem()
+        val stop: Order.Stop = restStopOrder.toOrder()
 
-        assertEquals("stop-123", item.orderId)
-        assertEquals("GAZP", item.ticker)
-        assertEquals("uid-gazp", item.tscalpInstrumentId)
-        assertEquals("SELL", item.direction)
-        assertEquals(200.0, item.price, 0.0001)
-        assertEquals(200.0, item.stopPrice!!, 0.0001)
-        assertEquals(2L, item.quantity)
-        assertEquals("STOP_LIMIT", item.type)
-        assertEquals("PARTIALLYFILL", item.status)
-        assertNull(item.orderDate)
-        assertEquals(true, item.isStopOrder)
+        assertEquals("stop-123", stop.orderId)
+        assertEquals("GAZP", stop.ticker)
+        assertEquals("uid-gazp", stop.tscalpInstrumentId)
+        assertEquals("SELL", stop.direction)
+        assertEquals(199.0, stop.price, 0.0001)
+        assertEquals(200.0, stop.stopPrice, 0.0001)
+        assertEquals(2L, stop.quantity)
+        assertEquals(OrderTypeSelection.StopLimit, stop.orderType)
+        assertEquals("PARTIALLYFILL", stop.status)
+        assertNull(stop.orderDate)
     }
 
     @Test

@@ -2,8 +2,8 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderType
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
 import com.gitlab.biomorf.tscalp.domain.models.OrderResult
 import com.gitlab.biomorf.tscalp.domain.models.OrderStatus
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
@@ -92,7 +92,7 @@ class TInvestOrdersService(
             )
         }
 
-    suspend fun getOrders(accountId: String): List<OrderListItem> =
+    suspend fun getOrders(accountId: String): List<Order.Regular> =
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = GetOrdersRequest.newBuilder().setAccountId(accountId).build()
@@ -163,7 +163,7 @@ class TInvestOrdersService(
             response.stopOrderId
         }
 
-    suspend fun getStopOrders(accountId: String): List<OrderListItem> =
+    suspend fun getStopOrders(accountId: String): List<Order.Stop> =
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = GetStopOrdersRequest.newBuilder().setAccountId(accountId).build()

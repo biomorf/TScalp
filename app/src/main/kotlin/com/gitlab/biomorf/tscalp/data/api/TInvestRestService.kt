@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api
 
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestRestTransport
 import com.gitlab.biomorf.tscalp.util.AppLogger
@@ -54,10 +54,10 @@ class TInvestRestService(
         return rest.fetchPositionsSnapshot(accountId).positions.map { it.toStreamItem() }
     }
 
-    suspend fun ordersRestFallback(accountId: String): List<OrderListItem> {
+    suspend fun ordersRestFallback(accountId: String): List<Order> {
         val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
-        val orders = rest.getOrders(accountId).map { it.toOrderListItem() }
-        val stopOrders = rest.getStopOrders(accountId).map { it.toOrderListItem() }
+        val orders = rest.getOrders(accountId).map { it.toOrder() }
+        val stopOrders = rest.getStopOrders(accountId).map { it.toOrder() }
         return orders + stopOrders
     }
 
