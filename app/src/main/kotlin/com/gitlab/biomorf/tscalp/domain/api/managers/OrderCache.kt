@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 
 /**
  * Кэш активных заявок с TTL-эвикцией.
@@ -40,7 +40,7 @@ internal class OrderCache(
     private val ttlMs: Long,
 ) {
     private data class Entry(
-        val item: OrderListItem,
+        val item: Order,
         val lastSeenAt: Long,
         val lastStreamAt: Long,
     )
@@ -49,7 +49,7 @@ internal class OrderCache(
 
     /** Добавить/обновить из polling-snapshot. */
     fun putFromPolling(
-        item: OrderListItem,
+        item: Order,
         now: Long,
     ) {
         val existing = entries[item.orderId]
@@ -63,7 +63,7 @@ internal class OrderCache(
 
     /** Добавить/обновить из stream-события. */
     fun putFromStream(
-        item: OrderListItem,
+        item: Order,
         now: Long,
     ) {
         val existing = entries[item.orderId]
@@ -94,11 +94,11 @@ internal class OrderCache(
     }
 
     /** Снимок для UI: отсортирован по `orderDate`, затем по `price`. */
-    fun snapshot(): List<OrderListItem> =
+    fun snapshot(): List<Order> =
         entries.values
             .map { it.item }
             .sortedWith(
-                compareBy<OrderListItem> { it.orderDate ?: Long.MAX_VALUE }
+                compareBy<Order> { it.orderDate ?: Long.MAX_VALUE }
                     .thenBy { it.price },
             )
 

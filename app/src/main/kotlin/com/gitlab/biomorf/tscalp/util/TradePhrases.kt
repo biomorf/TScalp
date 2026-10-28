@@ -69,17 +69,6 @@ object TradePhrases {
             else -> type
         }
 
-    // маппинг
-    fun stringToOrderType(type: String): OrderTypeSelection =
-        when (type) {
-            "MARKET" -> OrderTypeSelection.Market
-            "LIMIT" -> OrderTypeSelection.Limit
-            "STOP_LOSS" -> OrderTypeSelection.StopLoss
-            "TAKE_PROFIT" -> OrderTypeSelection.TakeProfit
-            "STOP_LIMIT" -> OrderTypeSelection.StopLimit
-            else -> OrderTypeSelection.Market
-        }
-
     // ---------- Статусы ----------
     fun statusLabel(status: String): String =
         when (status) {

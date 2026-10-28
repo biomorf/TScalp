@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
+import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,19 +11,17 @@ class OrderCacheTest {
         orderId: String,
         orderDate: Long? = 0L,
         price: Double = 100.0,
-    ) = OrderListItem(
+    ) = Order.Regular(
         orderId = orderId,
         ticker = "SBER",
         tscalpInstrumentId = "uid-sber",
         instrumentType = "share",
         direction = "BUY",
         price = price,
-        stopPrice = null,
         quantity = 1L,
-        type = "LIMIT",
+        orderType = OrderTypeSelection.Limit,
         status = "NEW",
         orderDate = orderDate,
-        isStopOrder = false,
     )
 
     // ---------- putFromPolling / putFromStream / remove ----------

@@ -8,7 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +29,7 @@ class OrdersListViewModel
         private val orderFlowManager: OrderFlowManager,
     ) : ViewModel() {
         data class OrdersListState(
-            val orders: List<OrderListItem> = emptyList(),
+            val orders: List<Order> = emptyList(),
             val isLoading: Boolean = false,
             val statusMessage: String? = null,
             val isError: Boolean = false,
@@ -111,9 +111,9 @@ class OrdersListViewModel
             }
         }
 
-        fun cancelOrder(order: OrderListItem) {
+        fun cancelOrder(order: Order) {
             viewModelScope.launch {
-                AppLogger.d(TAG, "cancelOrder: orderId=${order.orderId}, isStop=${order.isStopOrder}")
+                AppLogger.d(TAG, "cancelOrder: orderId=${order.orderId}, isStop=${order is Order.Stop}")
                 val sandboxMode = settingsRepository.isSandboxMode()
 
                 // Шаг 1: счета
@@ -137,7 +137,7 @@ class OrdersListViewModel
 
                 // Шаг 2: отмена. Стоп-заявки и обычные — обе через репозиторий.
                 val cancelResult: AppResult<Unit> =
-                    if (order.isStopOrder) {
+                    if (order is Order.Stop) {
                         ordersRepository.cancelStopOrderResult(accountId, order.orderId)
                     } else {
                         ordersRepository.cancelOrderResult(BrokerName.TINVEST, accountId, order.orderId)

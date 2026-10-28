@@ -9,8 +9,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrdersListViewModel
-import com.gitlab.biomorf.tscalp.util.TradePhrases
 
 @Composable
 fun OrdersListDialog(
@@ -44,12 +44,12 @@ fun OrdersListDialog(
                         OrderCard(
                             ticker = order.ticker,
                             direction = order.direction,
-                            orderType = TradePhrases.stringToOrderType(order.type),
+                            orderType = order.orderType,
                             status = order.status,
                             quantity = order.quantity,
                             price = order.price,
                             instrumentType = order.instrumentType,
-                            totalCost = if (order.stopPrice != null) order.stopPrice * order.quantity else null,
+                            totalCost = (order as? Order.Stop)?.let { it.stopPrice * it.quantity },
                             onCancel = {
                                 viewModel.cancelOrder(order)
                             },

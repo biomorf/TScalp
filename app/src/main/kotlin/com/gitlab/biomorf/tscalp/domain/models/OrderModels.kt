@@ -88,6 +88,7 @@ sealed interface Order {
     val instrumentType: String
     val direction: String
     val quantity: Long
+    val price: Double
     val orderType: OrderTypeSelection
     val status: String
     val orderDate: Long?
@@ -112,7 +113,7 @@ sealed interface Order {
         override val orderType: OrderTypeSelection,
         override val status: String,
         override val orderDate: Long?,
-        val price: Double,
+        override val price: Double,
         val executedPrice: Double? = null,
         val executedQuantity: Long = 0L,
     ) : Order
@@ -140,7 +141,7 @@ sealed interface Order {
         override val orderType: OrderTypeSelection,
         override val status: String,
         override val orderDate: Long?,
-        val price: Double,
+        override val price: Double,
         val stopPrice: Double,
     ) : Order
 }

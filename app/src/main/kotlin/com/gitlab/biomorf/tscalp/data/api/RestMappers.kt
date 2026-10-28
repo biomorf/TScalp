@@ -1,8 +1,9 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.OrderListItem
+import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.toOrderTypeSelection
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
 import com.gitlab.biomorf.tscalp.transport.ktor.RestPosition
 import com.gitlab.biomorf.tscalp.transport.ktor.RestQuotation
@@ -15,34 +16,35 @@ internal fun RestQuotation?.toDouble(): Double? = this?.let { (units.toLongOrNul
 
 internal fun RestQuotation?.toLong(): Long = this?.units?.toLongOrNull() ?: 0L
 
-internal fun RestOrder.toOrderListItem(): OrderListItem =
-    OrderListItem(
+internal fun RestOrder.toOrder(): Order.Regular =
+    Order.Regular(
         orderId = orderId,
         ticker = ticker,
         tscalpInstrumentId = instrumentUid,
+        instrumentType = "",
         direction = direction.removePrefix("ORDER_DIRECTION_"),
-        price = initialOrderPrice.toDouble() ?: 0.0,
-        stopPrice = null,
         quantity = lotsRequested,
-        type = orderType.removePrefix("ORDER_TYPE_"),
+        orderType = orderType.removePrefix("ORDER_TYPE_").toOrderTypeSelection(),
         status = executionReportStatus.removePrefix("EXECUTION_REPORT_STATUS_"),
         orderDate = null,
-        isStopOrder = false,
+        price = initialOrderPrice.toDouble() ?: 0.0,
+        executedPrice = executedOrderPrice.toDouble(),
+        executedQuantity = lotsExecuted,
     )
 
-internal fun RestStopOrder.toOrderListItem(): OrderListItem =
-    OrderListItem(
+internal fun RestStopOrder.toOrder(): Order.Stop =
+    Order.Stop(
         orderId = stopOrderId,
         ticker = ticker,
         tscalpInstrumentId = instrumentUid,
+        instrumentType = "",
         direction = direction.removePrefix("ORDER_DIRECTION_"),
-        price = stopPrice.toDouble() ?: 0.0,
-        stopPrice = stopPrice.toDouble(),
         quantity = lotsRequested,
-        type = orderType.removePrefix("ORDER_TYPE_"),
+        orderType = orderType.removePrefix("ORDER_TYPE_").toOrderTypeSelection(),
         status = executionReportStatus.removePrefix("EXECUTION_REPORT_STATUS_"),
         orderDate = null,
-        isStopOrder = true,
+        price = limitPrice.toDouble() ?: 0.0,
+        stopPrice = stopPrice.toDouble() ?: 0.0,
     )
 
 internal fun RestPosition.toStreamItem(): PositionStreamItem =
