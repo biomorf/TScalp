@@ -5,11 +5,11 @@ package com.gitlab.biomorf.tscalp.domain.models
  *
  * **Неполная transport-модель:** приходит только из stream, содержит
  * текущее состояние заявки, но **не содержит stop-полей**
- * (`stopPrice`, `isStopOrder`). Для stop-заявок используется
- * [OrderListItem] через unary (`getOrders` + `getStopOrders`).
+ * (`stopPrice`). Для stop-заявок используется
+ * [Order] через unary (`getOrders` + `getStopOrders`).
  *
  * В `OrderFlowManager` события [OrderState] конвертируются в
- * [OrderListItem] (`toOrderListItem`) и мержатся с polling-снимком.
+ * [Order] (`toOrder`) и мержатся с polling-снимком.
  *
  * @property orderId идентификатор заявки у брокера.
  * @property orderRequestId клиентский идентификатор запроса (если
@@ -64,13 +64,11 @@ data class OrderResult(
 
 /**
  * Универсальная модель заявки для UI — unary-путь
- * (`getOrders` + `getStopOrders`).
+ * (`getOrders` + `getStopOrders`) и stream-путь (`subscribeOrderState`).
  *
- * **Sum-type через флаг:** обычная и stop-заявка в одной модели,
- * различаются полями [isStopOrder] и [stopPrice]. Это осознанный
- * временный компромисс — антипаттерн «флаг + опциональное поле».
- * Планируется рефакторинг в `sealed interface Order { Regular, Stop }`
- * (см. `### Split order domain into sealed Regular/Stop` в ROADMAP).
+ * **Sum-type:** обычная и stop-заявка — разные типы.
+ * `when (order) { is Order.Regular -> ...; is Order.Stop -> ... }`
+ * проверяется компилятором.
  *
  * @property orderId идентификатор заявки у брокера.
  * @property ticker биржевой тикер.
@@ -78,37 +76,85 @@ data class OrderResult(
  * @property instrumentType строковый тип: `"share"`, `"futures"`,
  *   `"currency"`, `"etf"`.
  * @property direction `"BUY"` / `"SELL"`.
- * @property price лимитная цена (для обычной) **или** цена
- *   срабатывания (для stop-заявки, дублирует `stopPrice`).
- * @property stopPrice стоп-цена. `null` для обычной заявки.
  * @property quantity заявленное количество (лоты).
- * @property type `"LIMIT"`, `"MARKET"`, `"STOP_LOSS"`,
- *   `"TAKE_PROFIT"`, `"STOP_LIMIT"` (строковый enum).
+ * @property orderType тип заявки.
  * @property status `"NEW"`, `"FILL"`, `"PARTIALLYFILL"` и т.д.
  * @property orderDate время создания (epoch seconds).
- * @property isStopOrder `true` → отмена через `cancelStopOrder`,
- *   `false` → `cancelOrder`. См. sum-type-компромисс выше.
  */
-data class OrderListItem(
-    val orderId: String,
-    val ticker: String,
-    val tscalpInstrumentId: String,
-    val instrumentType: String = "",
-    // "BUY" / "SELL"
-    val direction: String,
-    // лимитная цена (для обычных) или стоп-цена
-    val price: Double,
-    // null для обычных
-    val stopPrice: Double?,
-    val quantity: Long,
-    // "LIMIT", "MARKET", "STOP_LOSS", "TAKE_PROFIT", "STOP_LIMIT"
-    val type: String,
-    val status: String,
-    // время создания (epoch seconds)
-    val orderDate: Long?,
-    // true → отмена через cancelStopOrder, false → cancelOrder
-    val isStopOrder: Boolean,
-)
+sealed interface Order {
+    val orderId: String
+    val ticker: String
+    val tscalpInstrumentId: String
+    val instrumentType: String
+    val direction: String
+    val quantity: Long
+    val orderType: OrderTypeSelection
+    val status: String
+    val orderDate: Long?
+
+    /**
+     * Обычная заявка (лимитная / рыночная).
+     *
+     * @property price цена сделки (лимитная или исполнения).
+     * @property executedPrice фактическая цена исполнения.
+     *   `null` — не исполнена.
+     * @property executedQuantity исполненное количество (лоты).
+     *   `0` — не исполнена. Может быть меньше [quantity], если
+     *   заявка исполнена частично.
+     */
+    data class Regular(
+        override val orderId: String,
+        override val ticker: String,
+        override val tscalpInstrumentId: String,
+        override val instrumentType: String,
+        override val direction: String,
+        override val quantity: Long,
+        override val orderType: OrderTypeSelection,
+        override val status: String,
+        override val orderDate: Long?,
+        val price: Double,
+        val executedPrice: Double? = null,
+        val executedQuantity: Long = 0L,
+    ) : Order
+
+    /**
+     * Стоп-заявка (STOP_LOSS / TAKE_PROFIT / STOP_LIMIT).
+     *
+     * Исполнение (`executedPrice`/`executedQuantity`) не входит в
+     * модель: после активации брокер превращает stop-заявку в
+     * обычную, исполнение видно через [Regular] по новому `orderId`.
+     *
+     * @property price цена сделки (для STOP_LIMIT — лимитная,
+     *   иначе совпадает со [stopPrice] или `0.0`, если источник
+     *   не дал).
+     * @property stopPrice триггер-цена: при её достижении брокер
+     *   выставляет заявку на бирже.
+     */
+    data class Stop(
+        override val orderId: String,
+        override val ticker: String,
+        override val tscalpInstrumentId: String,
+        override val instrumentType: String,
+        override val direction: String,
+        override val quantity: Long,
+        override val orderType: OrderTypeSelection,
+        override val status: String,
+        override val orderDate: Long?,
+        val price: Double,
+        val stopPrice: Double,
+    ) : Order
+}
+
+/** Строковый `String` из data-слоя → [OrderTypeSelection]. */
+internal fun String.toOrderTypeSelection(): OrderTypeSelection =
+    when (this) {
+        "LIMIT" -> OrderTypeSelection.Limit
+        "MARKET" -> OrderTypeSelection.Market
+        "STOP_LOSS" -> OrderTypeSelection.StopLoss
+        "TAKE_PROFIT" -> OrderTypeSelection.TakeProfit
+        "STOP_LIMIT" -> OrderTypeSelection.StopLimit
+        else -> OrderTypeSelection.Market
+    }
 
 enum class OrderStatus {
     NEW,
@@ -226,26 +272,25 @@ data class SandboxMoney(
 )
 
 /**
- * Конвертация stream-модели в модель UI-списка заявок.
+ * Конвертация stream-модели в [Order.Regular].
  *
  * Stream (gRPC/WS) отдаёт только обычные заявки (без stop).
- * `stopPrice = null`, `isStopOrder = false` всегда.
  *
- * [instrumentType] пуст: `OrderState` не знает типа инструмента;
- * UI-карточке достаточно [OrderListItem.type] (LIMIT/MARKET).
+ * [Order.instrumentType] пуст: `OrderState` не знает типа инструмента;
+ * UI-карточке достаточно [Order.orderType] (LIMIT/MARKET).
  */
-internal fun OrderState.toOrderListItem(): OrderListItem =
-    OrderListItem(
+internal fun OrderState.toOrder(): Order.Regular =
+    Order.Regular(
         orderId = orderId,
         ticker = ticker,
         tscalpInstrumentId = tscalpInstrumentId ?: "",
         instrumentType = "",
         direction = direction,
-        price = limitPrice ?: executedPrice ?: 0.0,
-        stopPrice = null,
         quantity = quantity,
-        type = orderType?.takeIf { it != "UNSPECIFIED" } ?: "LIMIT",
+        orderType = (orderType?.takeIf { it != "UNSPECIFIED" } ?: "LIMIT").toOrderTypeSelection(),
         status = status,
         orderDate = updateTime,
-        isStopOrder = false,
+        price = limitPrice ?: executedPrice ?: 0.0,
+        executedPrice = executedPrice,
+        executedQuantity = executedQuantity,
     )
