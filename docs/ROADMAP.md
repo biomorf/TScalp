@@ -234,55 +234,6 @@ Compose в `util/`-пути; `domain/` не видит `android.util.Log`
 
 ---
 
-### H4. OrderType из data, не из UI
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст (clean-audit Н4):** `OrdersListDialog.kt` в `OrderCard` передаёт `orderType = TradePhrases.stringToOrderType(order.type)`. Конверсия «сырое значение из data -> domain-модель» выполняется в presentation.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** presentation не должна маппить сырые данные в domain-модели — это забота data-слоя (маппер).
-
-**Clean-альтернатива:** `OrderListItem.type: String` -> `OrderTypeSelection` в `TInvestOrdersMapper` (data). UI получает готовый `OrderTypeSelection`. Плюсы: presentation без маппинга. Минусы: зависит от `### Split order domain into sealed Regular/Stop` (там переделка модели `OrderListItem`).
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** `### Split order domain into sealed Regular/Stop` (закрыта — модель `Order` с `sealed interface` и `Regular`/`Stop`).
-
-**Файлы:**
-- `data/api/TInvestOrdersMapper.kt` — маппинг `type` -> `OrderTypeSelection`.
-- `domain/models/OrderModels.kt` — `OrderListItem.type` меняется на `OrderTypeSelection` (в рамках Split order).
-- `ui/components/OrdersListDialog.kt` — убрать `TradePhrases.stringToOrderType`.
-- `util/TradePhrases.kt` — удалить `stringToOrderType` (переезд в data-маппер).
-
-**Шаги:**
-1. После Split order: `OrderListItem` (или `Order`) получает `orderType: OrderTypeSelection`.
-2. `TInvestOrdersMapper` маппит строку в enum.
-3. `OrdersListDialog.kt`: `orderType = order.type` (без конверсии).
-4. `TradePhrases.stringToOrderType` — удалить (или переехать в `data/error/` если нужен где-то ещё).
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты:** маппер (4–5 типов: MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT, STOP_LIMIT).
-
-**Референсы:** `docs/clean-audit.md` -> Н4. `### Split order domain into sealed Regular/Stop`.
-
-**Ограничения:** не смешивать с `### Split order domain into sealed Regular/Stop` — задача выполняется **внутри** Split (отдельный PR после Split).
-
-**Критерий готовности:** в `OrdersListDialog.kt` нет `stringToOrderType`; маппинг в data; гейт зелёный.
-
-**Оценка:** ~30 мин.
-
-**Зависимости:** `### Split order domain into sealed Regular/Stop`.
-
-**Связано:** `docs/clean-audit.md` -> Н4, Н17 (TradePhrases переезд).
-
-**Открытые вопросы:** `OrderTypeSelection` уже в domain — маппинг `String` -> enum логично в data. Внутри Split order — нормально.
-
----
-
 ### H24. Обогащение PositionStreamItem — в один метод
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -1211,190 +1162,6 @@ live-теста. UI-индикатор блокируется **закрытие
 **Оценка:** ~2 часа.
 
 **Зависимости:** блокируется StreamState.
-
-
-
-
----
-
-### Split order domain into sealed Regular/Stop
-
-**Мобильная работа:** частичное (live-тест UI).
-
-**Статус:** запланировано. **Ревизия после завершения
-`OrderFlowManager` (задача A):** уточнить форму по
-фактическим потребностям UI, обновить оценку.
-
-**Триггер к реализации:** UI начнёт использовать поля из
-stream-событий (`executedQuantity`, `executedPrice`), которые
-сейчас в `OrderListItem` отсутствуют; или появится третья
-модель заявки (например, для Finam); или `isStopOrder: Boolean`
-начнёт обрастать доп. nullable-полями «только для stop».
-
-**Контекст:** `domain/models/OrderModels.kt` содержит две
-модели заявок:
-
-- `OrderListItem` — используется unary-путём (`getOrders`,
-  `getStopOrders`) через `InvestRepository` → `OrdersListViewModel`
-  → UI. Содержит `isStopOrder: Boolean` + `stopPrice: Double?`
-  как sum-type через флаг.
-- `OrderState` — используется stream-путём
-  (`subscribeOrderState` → `OrderFlowManager` — A).
-  Transport-модель WS/gRPC, без stop-полей (asyncapi:
-  `OrderStateStream` не стримит stop-orders).
-
-Проблема: `OrderListItem` — God-модель в зачатке. Расширение
-stream-полями (`executedQuantity`, `executedPrice`) через
-nullable-поля сделает её хуже. `isStopOrder: Boolean` —
-антипаттерн «флаг + опциональное поле» вместо sum-type.
-Отмена заявки выбирает `cancelOrder` vs `cancelStopOrder`
-через флаг — компилятор не проверяет.
-
-**Форма (выбрана `sealed interface`, не `sealed class`):**
-
-    sealed interface Order {
-        val orderId: String
-        val ticker: String
-        val tscalpInstrumentId: String
-        val instrumentType: String
-        val direction: String
-        val quantity: Long
-        val status: String
-        val orderDate: Long?
-
-        data class Regular(
-            override val orderId: String,
-            // ... common
-            val price: Double,
-            val orderType: String,
-            val executedQuantity: Long? = null,
-            val executedPrice: Double? = null,
-        ) : Order
-
-        data class Stop(
-            override val orderId: String,
-            // ... common
-            val stopPrice: Double,
-            val limitPrice: Double? = null,
-            val orderType: String,
-        ) : Order
-    }
-
-**Обоснование `sealed interface` (осознанное отклонение от
-существующего `sealed class AppResult` в проекте):**
-
-1. `Order` — чистый value type, без shared state и поведения.
-   Только `val`-контракт. Всё это — признак interface.
-2. Композиция понадобится: `Order.Regular : Order, Cancellable`
-   и `Order.Stop : Order, Cancellable` с разными реализациями
-   `cancel()` через разные use cases. Sealed class закрывает
-   эту возможность (только одно наследование).
-3. Официальная рекомендация Kotlin 1.5+: `sealed interface`
-   для sum types без shared state.
-4. `AppResult` — не тот же кейс: у него `sealed class` с
-   генерик-параметром и фабричными методами. Оставляем как
-   есть; см. «Связанный вопрос» ниже.
-
-**Предусловия:**
-- `OrderFlowManager` (задача A) реализован и вмержен.
-- Ревизия формы по фактическим полям, которые UI потребляет
-  из stream: возможно, `executedQuantity` / `executedPrice`
-  не нужны в UI вообще — тогда `Regular` не расширяем.
-
-**Что меняется:**
-- `domain/models/OrderModels.kt`: `OrderListItem` → удалить,
-  добавить `sealed interface Order` с `Regular` / `Stop`.
-- `data/api/TInvestOrdersMapper.kt`: `mapOrder` → `Order.Regular`,
-  `mapStopOrder` → `Order.Stop` (без `isStopOrder: true`).
-- `data/api/TInvestOrderStateWsMapper.kt`: `mapOrderState` →
-  `Order.Regular` (stream не отдаёт stop).
-- `domain/api/OrderFlowManager.kt` (из A): `Map<orderId, Order>`.
-- `data/repository/InvestRepository.kt`: `getAllOrdersResult` →
-  `List<Order>`.
-- `domain/api/BrokerApi.kt`: `getOrders`, `getStopOrders`,
-  `subscribeOrderState` — типы меняются.
-- `data/api/{BcsBrokerApi,FinamBrokerApi}.kt` — сигнатуры
-  (сейчас возвращают `emptyList()`, правка косметическая).
-- `ui/components/OrdersListViewModel.kt`: `OrderListItem` → `Order`,
-  `when` по типу для карточки и отмены.
-- `ui/components/OrdersListDialog.kt`, `OrdersScreen.kt`:
-  карточка заявки — `when (order) { is Regular -> ..., is Stop -> ... }`.
-- `ui/components/OrderCard.kt` (если есть): отображение stop-цены
-  только для `Stop`.
-
-**Шаги:**
-1. Заменить `OrderListItem` на `sealed interface Order` +
-   `Regular` / `Stop` в `OrderModels.kt`.
-2. Обновить `TInvestOrdersMapper`: `mapOrder` → `Regular`,
-   `mapStopOrder` → `Stop`. Убрать `isStopOrder` из обоих.
-3. Обновить `TInvestOrderStateWsMapper`: `mapOrderState` →
-   `Regular`.
-4. Обновить `InvestRepository`: сигнатура `getAllOrdersResult`.
-5. Обновить `BrokerApi`: три сигнатуры.
-6. Обновить `BcsBrokerApi`, `FinamBrokerApi` — сигнатуры.
-7. Обновить `OrderFlowManager` (A): `Map<String, Order>`.
-8. Обновить `OrdersListViewModel`: коллекция `List<Order>`,
-   `when` для отмены (`Regular` → `cancelOrder`,
-   `Stop` → `cancelStopOrder`).
-9. Обновить UI-карточку: `when` по типу для отображения
-   (stop-цена, тип, кнопка отмены).
-10. Обновить тесты: мапперы, ViewModel, если есть.
-11. Гейт: полный набор (testDebugUnitTest + lintDebug +
-    ktlintCheck + detekt).
-12. Ручная проверка: создать лимитную и stop-заявку, отменить
-    обе через UI.
-
-**Файлы (ключевые):**
-- `domain/models/OrderModels.kt`
-- `data/api/TInvestOrdersMapper.kt`
-- `data/api/TInvestOrderStateWsMapper.kt`
-- `data/repository/InvestRepository.kt`
-- `domain/api/BrokerApi.kt`
-- `data/api/BcsBrokerApi.kt`, `data/api/FinamBrokerApi.kt`
-- `domain/api/OrderFlowManager.kt` (A)
-- `ui/components/OrdersListViewModel.kt`
-- `ui/components/OrderCard.kt`, `OrdersListDialog.kt`,
-  `OrdersScreen.kt`
-
-**Ограничения:**
-- Не смешивать с A: A закрывает stream-snapshot, B —
-  рефакторинг моделей. Отдельные PR.
-- UI-изменения требуют санкции (правило 1 AGENTS.md).
-  Тексты/иконки карточки stop-заявки согласовать до правки.
-- Не удалять `OrderState` (transport-модель) — она остаётся
-  для WS/gRPC DTO → domain-конверсии.
-- Не менять `StopOrderRequest` (домен для отправки stop-заявки) —
-  это отдельная сущность, не путать.
-
-**Критерий готовности:**
-- `OrderListItem` удалён, `sealed interface Order` используется
-  везде.
-- `when` по `Order` exhaustive (компилятор проверяет).
-- UI: лимитная и stop-заявки отображаются и отменяются
-  корректно.
-- Тесты зелёные, гейт зелёный.
-
-**Оценка:** ~5–6 часов (модели + мапперы 1.5 ч, репозиторий +
-BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
-ручная проверка 1–1.5 ч).
-
-**Зависимости:** блокируется задачей A (`OrderFlowManager`).
-**Разблокирует** унификацию доменных моделей заявок между
-брокерами (BCS, Finam).
-
-**Открытые вопросы:**
-- Нужны ли `executedQuantity` / `executedPrice` в UI-карточке?
-  Сейчас в `OrderListItem` их нет; stream их отдаёт. Решить
-  после ревизии A: если UI не показывает — `Regular` без них.
-- Как в `OrdersScreen` отображать `Stop` vs `Regular`?
-  Отдельные карточки или одна с `when`-ветвлением? Решить
-  перед реализацией (нужна санкция на UI).
-- **Связанный вопрос: `AppResult` / `AppError`.** Сейчас
-  `sealed class`. Пересмотреть на `sealed interface` по той
-  же логике (нет shared state, только `val`-контракт), но
-  **только после оценки необходимости**: если рефакторинг B
-  пройдёт гладко и выявит реальную пользу `sealed interface`,
-  вернуться к `AppResult`. Отдельная задача пока не заводится.
 
 
 
@@ -7592,3 +7359,238 @@ H23 (#59), H22 (#60).
 **Открытые вопросы:** нет (форма B принята 2026-10-28).
 
 ---
+
+### ✅ H4. OrderType из data, не из UI
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Что сделано:** 2026-10-28, растворён в Split order (коммит `ec9c7d5`). `TradePhrases.stringToOrderType` удалён; `Order.orderType: OrderTypeSelection` заполняется в мапперах `TInvestOrdersMapper` / `RestMappers`; `OrdersListDialog` использует `order.orderType` напрямую.
+
+**Контекст (clean-audit Н4):** `OrdersListDialog.kt` в `OrderCard` передаёт `orderType = TradePhrases.stringToOrderType(order.type)`. Конверсия «сырое значение из data -> domain-модель» выполняется в presentation.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** presentation не должна маппить сырые данные в domain-модели — это забота data-слоя (маппер).
+
+**Clean-альтернатива:** `OrderListItem.type: String` -> `OrderTypeSelection` в `TInvestOrdersMapper` (data). UI получает готовый `OrderTypeSelection`. Плюсы: presentation без маппинга. Минусы: зависит от `### Split order domain into sealed Regular/Stop` (там переделка модели `OrderListItem`).
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### Split order domain into sealed Regular/Stop` (закрыта — модель `Order` с `sealed interface` и `Regular`/`Stop`).
+
+**Файлы:**
+- `data/api/TInvestOrdersMapper.kt` — маппинг `type` -> `OrderTypeSelection`.
+- `domain/models/OrderModels.kt` — `OrderListItem.type` меняется на `OrderTypeSelection` (в рамках Split order).
+- `ui/components/OrdersListDialog.kt` — убрать `TradePhrases.stringToOrderType`.
+- `util/TradePhrases.kt` — удалить `stringToOrderType` (переезд в data-маппер).
+
+**Шаги:**
+1. После Split order: `OrderListItem` (или `Order`) получает `orderType: OrderTypeSelection`.
+2. `TInvestOrdersMapper` маппит строку в enum.
+3. `OrdersListDialog.kt`: `orderType = order.type` (без конверсии).
+4. `TradePhrases.stringToOrderType` — удалить (или переехать в `data/error/` если нужен где-то ещё).
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** маппер (4–5 типов: MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT, STOP_LIMIT).
+
+**Референсы:** `docs/clean-audit.md` -> Н4. `### Split order domain into sealed Regular/Stop`.
+
+**Ограничения:** не смешивать с `### Split order domain into sealed Regular/Stop` — задача выполняется **внутри** Split (отдельный PR после Split).
+
+**Критерий готовности:** в `OrdersListDialog.kt` нет `stringToOrderType`; маппинг в data; гейт зелёный.
+
+**Оценка:** ~30 мин.
+
+**Зависимости:** `### Split order domain into sealed Regular/Stop`.
+
+**Связано:** `docs/clean-audit.md` -> Н4, Н17 (TradePhrases переезд).
+
+**Открытые вопросы:** `OrderTypeSelection` уже в domain — маппинг `String` -> enum логично в data. Внутри Split order — нормально.
+
+---
+
+
+---
+
+### ✅ Split order domain into sealed Regular/Stop
+
+**Мобильная работа:** частичное (live-тест UI).
+
+**Что сделано:** 2026-10-28 (коммит `ec9c7d5`). `OrderListItem` → `sealed interface Order` с `Regular` / `Stop`; мапперы `TInvestOrdersMapper` / `RestMappers` / `OrderState.toOrder()`; `OrdersApi.getOrders → List<Regular>`, `getStopOrders → List<Stop>`; `OrderCache` / `OrderFlowManager` на `Order`; `executedPrice` / `executedQuantity` перенесены в `Regular` (ранее терялись); `Stop.price` = реальная цена сделки (`getPrice`), не дубль `stopPrice`.
+
+**Триггер к реализации:** UI начнёт использовать поля из
+stream-событий (`executedQuantity`, `executedPrice`), которые
+сейчас в `OrderListItem` отсутствуют; или появится третья
+модель заявки (например, для Finam); или `isStopOrder: Boolean`
+начнёт обрастать доп. nullable-полями «только для stop».
+
+**Контекст:** `domain/models/OrderModels.kt` содержит две
+модели заявок:
+
+- `OrderListItem` — используется unary-путём (`getOrders`,
+  `getStopOrders`) через `InvestRepository` → `OrdersListViewModel`
+  → UI. Содержит `isStopOrder: Boolean` + `stopPrice: Double?`
+  как sum-type через флаг.
+- `OrderState` — используется stream-путём
+  (`subscribeOrderState` → `OrderFlowManager` — A).
+  Transport-модель WS/gRPC, без stop-полей (asyncapi:
+  `OrderStateStream` не стримит stop-orders).
+
+Проблема: `OrderListItem` — God-модель в зачатке. Расширение
+stream-полями (`executedQuantity`, `executedPrice`) через
+nullable-поля сделает её хуже. `isStopOrder: Boolean` —
+антипаттерн «флаг + опциональное поле» вместо sum-type.
+Отмена заявки выбирает `cancelOrder` vs `cancelStopOrder`
+через флаг — компилятор не проверяет.
+
+**Форма (выбрана `sealed interface`, не `sealed class`):**
+
+    sealed interface Order {
+        val orderId: String
+        val ticker: String
+        val tscalpInstrumentId: String
+        val instrumentType: String
+        val direction: String
+        val quantity: Long
+        val status: String
+        val orderDate: Long?
+
+        data class Regular(
+            override val orderId: String,
+            // ... common
+            val price: Double,
+            val orderType: String,
+            val executedQuantity: Long? = null,
+            val executedPrice: Double? = null,
+        ) : Order
+
+        data class Stop(
+            override val orderId: String,
+            // ... common
+            val stopPrice: Double,
+            val limitPrice: Double? = null,
+            val orderType: String,
+        ) : Order
+    }
+
+**Обоснование `sealed interface` (осознанное отклонение от
+существующего `sealed class AppResult` в проекте):**
+
+1. `Order` — чистый value type, без shared state и поведения.
+   Только `val`-контракт. Всё это — признак interface.
+2. Композиция понадобится: `Order.Regular : Order, Cancellable`
+   и `Order.Stop : Order, Cancellable` с разными реализациями
+   `cancel()` через разные use cases. Sealed class закрывает
+   эту возможность (только одно наследование).
+3. Официальная рекомендация Kotlin 1.5+: `sealed interface`
+   для sum types без shared state.
+4. `AppResult` — не тот же кейс: у него `sealed class` с
+   генерик-параметром и фабричными методами. Оставляем как
+   есть; см. «Связанный вопрос» ниже.
+
+**Предусловия:**
+- `OrderFlowManager` (задача A) реализован и вмержен.
+- Ревизия формы по фактическим полям, которые UI потребляет
+  из stream: возможно, `executedQuantity` / `executedPrice`
+  не нужны в UI вообще — тогда `Regular` не расширяем.
+
+**Что меняется:**
+- `domain/models/OrderModels.kt`: `OrderListItem` → удалить,
+  добавить `sealed interface Order` с `Regular` / `Stop`.
+- `data/api/TInvestOrdersMapper.kt`: `mapOrder` → `Order.Regular`,
+  `mapStopOrder` → `Order.Stop` (без `isStopOrder: true`).
+- `data/api/TInvestOrderStateWsMapper.kt`: `mapOrderState` →
+  `Order.Regular` (stream не отдаёт stop).
+- `domain/api/OrderFlowManager.kt` (из A): `Map<orderId, Order>`.
+- `data/repository/InvestRepository.kt`: `getAllOrdersResult` →
+  `List<Order>`.
+- `domain/api/BrokerApi.kt`: `getOrders`, `getStopOrders`,
+  `subscribeOrderState` — типы меняются.
+- `data/api/{BcsBrokerApi,FinamBrokerApi}.kt` — сигнатуры
+  (сейчас возвращают `emptyList()`, правка косметическая).
+- `ui/components/OrdersListViewModel.kt`: `OrderListItem` → `Order`,
+  `when` по типу для карточки и отмены.
+- `ui/components/OrdersListDialog.kt`, `OrdersScreen.kt`:
+  карточка заявки — `when (order) { is Regular -> ..., is Stop -> ... }`.
+- `ui/components/OrderCard.kt` (если есть): отображение stop-цены
+  только для `Stop`.
+
+**Шаги:**
+1. Заменить `OrderListItem` на `sealed interface Order` +
+   `Regular` / `Stop` в `OrderModels.kt`.
+2. Обновить `TInvestOrdersMapper`: `mapOrder` → `Regular`,
+   `mapStopOrder` → `Stop`. Убрать `isStopOrder` из обоих.
+3. Обновить `TInvestOrderStateWsMapper`: `mapOrderState` →
+   `Regular`.
+4. Обновить `InvestRepository`: сигнатура `getAllOrdersResult`.
+5. Обновить `BrokerApi`: три сигнатуры.
+6. Обновить `BcsBrokerApi`, `FinamBrokerApi` — сигнатуры.
+7. Обновить `OrderFlowManager` (A): `Map<String, Order>`.
+8. Обновить `OrdersListViewModel`: коллекция `List<Order>`,
+   `when` для отмены (`Regular` → `cancelOrder`,
+   `Stop` → `cancelStopOrder`).
+9. Обновить UI-карточку: `when` по типу для отображения
+   (stop-цена, тип, кнопка отмены).
+10. Обновить тесты: мапперы, ViewModel, если есть.
+11. Гейт: полный набор (testDebugUnitTest + lintDebug +
+    ktlintCheck + detekt).
+12. Ручная проверка: создать лимитную и stop-заявку, отменить
+    обе через UI.
+
+**Файлы (ключевые):**
+- `domain/models/OrderModels.kt`
+- `data/api/TInvestOrdersMapper.kt`
+- `data/api/TInvestOrderStateWsMapper.kt`
+- `data/repository/InvestRepository.kt`
+- `domain/api/BrokerApi.kt`
+- `data/api/BcsBrokerApi.kt`, `data/api/FinamBrokerApi.kt`
+- `domain/api/OrderFlowManager.kt` (A)
+- `ui/components/OrdersListViewModel.kt`
+- `ui/components/OrderCard.kt`, `OrdersListDialog.kt`,
+  `OrdersScreen.kt`
+
+**Ограничения:**
+- Не смешивать с A: A закрывает stream-snapshot, B —
+  рефакторинг моделей. Отдельные PR.
+- UI-изменения требуют санкции (правило 1 AGENTS.md).
+  Тексты/иконки карточки stop-заявки согласовать до правки.
+- Не удалять `OrderState` (transport-модель) — она остаётся
+  для WS/gRPC DTO → domain-конверсии.
+- Не менять `StopOrderRequest` (домен для отправки stop-заявки) —
+  это отдельная сущность, не путать.
+
+**Критерий готовности:**
+- `OrderListItem` удалён, `sealed interface Order` используется
+  везде.
+- `when` по `Order` exhaustive (компилятор проверяет).
+- UI: лимитная и stop-заявки отображаются и отменяются
+  корректно.
+- Тесты зелёные, гейт зелёный.
+
+**Оценка:** ~5–6 часов (модели + мапперы 1.5 ч, репозиторий +
+BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
+ручная проверка 1–1.5 ч).
+
+**Зависимости:** блокируется задачей A (`OrderFlowManager`).
+**Разблокирует** унификацию доменных моделей заявок между
+брокерами (BCS, Finam).
+
+**Открытые вопросы:**
+- Нужны ли `executedQuantity` / `executedPrice` в UI-карточке?
+  Сейчас в `OrderListItem` их нет; stream их отдаёт. Решить
+  после ревизии A: если UI не показывает — `Regular` без них.
+- Как в `OrdersScreen` отображать `Stop` vs `Regular`?
+  Отдельные карточки или одна с `when`-ветвлением? Решить
+  перед реализацией (нужна санкция на UI).
+- **Связанный вопрос: `AppResult` / `AppError`.** Сейчас
+  `sealed class`. Пересмотреть на `sealed interface` по той
+  же логике (нет shared state, только `val`-контракт), но
+  **только после оценки необходимости**: если рефакторинг B
+  пройдёт гладко и выявит реальную пользу `sealed interface`,
+  вернуться к `AppResult`. Отдельная задача пока не заводится.
+
+
+
+
+---
+
