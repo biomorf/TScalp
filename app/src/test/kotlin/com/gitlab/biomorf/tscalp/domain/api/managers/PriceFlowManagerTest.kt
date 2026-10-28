@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.domain.api.managers
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import io.mockk.coEvery
@@ -46,6 +47,7 @@ class PriceFlowManagerTest {
                 PriceFlowManager(
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                 )
 
             // 50 параллельных setInterest с разными union.
@@ -86,6 +88,7 @@ class PriceFlowManagerTest {
                 PriceFlowManager(
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                 )
 
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
@@ -124,6 +127,7 @@ class PriceFlowManagerTest {
                 PriceFlowManager(
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                 )
 
             // Дать первому стриму стартовать — иначе union пуст
@@ -166,6 +170,7 @@ class PriceFlowManagerTest {
                 PriceFlowManager(
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                 )
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
             delay(200)
