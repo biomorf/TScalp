@@ -1248,6 +1248,76 @@ git-дефолты (адресат, файлы, ветка).
 не закоммичены). 4h — проверка соответствия правилам перед
 коммитом.
 
+### 4i. Шаблон bash-скриптов
+
+Все bash-скрипты в ответах ассистента — по единому каркасу.
+Детали — в 4c (правки скриптом), 4d (идемпотентность),
+4e (безопасность), 4f (гейт+коммит+push), 4g (git без
+дефолтов), 4h (проверка перед коммитом). Здесь — сводка,
+чтобы не собирать по документу.
+
+**Каркас (обязательно).**
+
+    set -euo pipefail
+    <тело>
+
+Без `set -euo pipefail` — ни один блок не выдаётся. Причина:
+инциденты 41 (`mv` без `-f`), 42 (`.tmp` в коммите), 43
+(потеря `MSGEOF`), 44 (продолжение после падения).
+
+**Шаблон 1 — правка файла** (4c + 4d):
+
+    set -euo pipefail
+    python3 <<'PYEOF'
+    from pathlib import Path
+    p = Path("<path>")
+    text = p.read_text(encoding="utf-8")
+    old = """<old>"""
+    new = """<new>"""
+    assert old in text, "pre: old not found"
+    assert new not in text, "pre: already applied"
+    text = text.replace(old, new, 1)
+    p.write_text(text, encoding="utf-8")
+    check = p.read_text(encoding="utf-8")
+    assert "<unique marker>" in check, "post: not applied"
+    print("applied OK")
+    PYEOF
+    echo "--- verify ---"
+    grep -c "<marker>" "<path>"
+    git diff --stat "<path>"
+
+**Шаблон 2 — git-операция** (4f + 4g):
+
+    set -euo pipefail
+    git branch --show-current
+    git status --short
+    git add <files>
+    git commit -F "$HOME/.msg.txt"
+    git log --oneline -1
+
+На телефоне (proot) — `printf` для commit message (урок 43),
+не `<<'MSGEOF'`.
+
+**Шаблон 3 — диагностика** (read-only):
+
+    {
+      echo "=== 1. <что> ==="
+      <read-only команда>
+    } 2>&1 | tee "${HOME}/deepseek-chat.txt"
+    echo "---"
+    wc -l "${HOME}/deepseek-chat.txt"
+
+**Чек-лист перед отправкой скрипта:**
+
+- `set -euo pipefail` — есть;
+- пути и файлы — явные (4g);
+- pre-assert + post-assert — оба с сообщением (4d, урок 27);
+- маркер post-assert уникален (4d);
+- verify-команды в том же блоке (4c);
+- на телефоне — `printf`, не heredoc (урок 43);
+- backup — в `$HOME`, не `/tmp` (урок 22);
+- деструктивные операции — dry-run + пауза до (4e).
+
 ### 5. Коммит после каждой задачи
 
 Как только задача завершена и проверена (сборка зелёная,
