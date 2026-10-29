@@ -35,7 +35,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.models.emptyPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper

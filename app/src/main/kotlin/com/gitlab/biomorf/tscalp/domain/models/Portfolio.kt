@@ -162,10 +162,6 @@ fun calculateProfitPercent(
 }
 
 /**
- * Преобразует элемент потока позиций в доменную модель портфельной позиции.
- * profitPercent считается универсально — см. calculateProfitPercent.
- */
-/**
  * Пустая [PortfolioPosition] для инструмента, которого нет в портфеле
  * (например, в карточке заявки, когда позиция ещё не открыта).
  *
@@ -200,6 +196,10 @@ fun emptyPortfolioPosition(
         pointValue = pointValue,
     )
 
+/**
+ * Преобразует элемент потока позиций в доменную модель портфельной позиции.
+ * profitPercent считается универсально — см. calculateProfitPercent.
+ */
 fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
     val price = currentPrice ?: 0.0
     return PortfolioPosition(
