@@ -197,10 +197,6 @@ fun emptyPortfolioPosition(
     )
 
 /**
- * Преобразует элемент потока позиций в доменную модель портфельной позиции.
- * profitPercent считается универсально — см. calculateProfitPercent.
- */
-/**
  * SSoT-merge: применяет новое событие [PositionStreamItem] к существующей
  * [PortfolioPosition]. Канон (по образцу `PortfolioViewModel.updatePortfolioItem`):
  *
@@ -243,6 +239,10 @@ fun PortfolioPosition.mergeWith(item: PositionStreamItem): PortfolioPosition {
     )
 }
 
+/**
+ * Преобразует элемент потока позиций в доменную модель портфельной позиции.
+ * profitPercent считается универсально — см. calculateProfitPercent.
+ */
 fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
     val price = currentPrice ?: 0.0
     return PortfolioPosition(
