@@ -70,24 +70,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
 
-### Н1. Presentation конструирует PortfolioPosition
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `OrdersScreen.kt` (два места: основной инструмент ~353, парный ~580) вручную вызывает `PortfolioPosition(...)` с полями `profit = null`, `profitPercent = null` для инструмента, которого нет в портфеле. По Clean presentation имеет право читать domain-модели, но не создавать их — правила конструирования принадлежат domain. После #9 `PortfolioPosition` — именно domain-модель.
-
-**Нарушенное правило:** Dependency rule — presentation не конструирует domain-модели в обход domain-логики.
-
-**Clean-альтернатива:** фабрика во ViewModel (или domain-функция `emptyPortfolioPosition(instrument, currentPrice)`) — UI получает готовую модель. Плюсы: правила конструирования в domain/presentation-фабрике. Минусы: ~30 мин правок + правка `OrdersUiState`.
-
-**Выгоды:** —
-
-**Ссылка на задачу:** — (не заведена).
-
 ### Н24. Дублирование обогащения в двух VM
 
 **Статус:** открыто.
@@ -108,6 +90,26 @@ L4–L8 — не проверены, заполняются по мере инс
 
 
 ### Исправленные (L1)
+
+### ✅ Н1. Presentation конструирует PortfolioPosition
+
+**Статус:** исправлено (2026-10-29, PR #68).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `OrdersScreen.kt` (два места: основной инструмент ~353, парный ~580) вручную вызывает `PortfolioPosition(...)` с полями `profit = null`, `profitPercent = null` для инструмента, которого нет в портфеле. По Clean presentation имеет право читать domain-модели, но не создавать их — правила конструирования принадлежат domain. После #9 `PortfolioPosition` — именно domain-модель.
+
+**Нарушенное правило:** Dependency rule — presentation не конструирует domain-модели в обход domain-логики.
+
+**Clean-альтернатива:** фабрика во ViewModel (или domain-функция `emptyPortfolioPosition(instrument, currentPrice)`) — UI получает готовую модель. Плюсы: правила конструирования в domain/presentation-фабрике. Минусы: ~30 мин правок + правка `OrdersUiState`.
+
+**Выгоды:** —
+
+**Что сделано:** фабрика `emptyPortfolioPosition(instrument, currentPrice, pointValue, instrumentType)` в `domain/models/Portfolio.kt`; `OrdersScreen` — 2 raw `PortfolioPosition(...)` → вызов фабрики. `toPortfolioPosition` (data-конвертер) не тронут.
+
+**Ссылка на задачу:** — (не заведена).
 
 ### ✅ Н4. UI конвертирует String → domain-модель
 
