@@ -18,7 +18,7 @@ import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.domain.models.calculateProfitPercent
+import com.gitlab.biomorf.tscalp.domain.models.mergeWith
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -237,29 +237,7 @@ class PortfolioViewModel
             if (index == -1) {
                 current.add(item.toPortfolioPosition())
             } else {
-                val old = current[index]
-                val newPrice = item.currentPrice ?: old.currentPrice
-                val newAvgPrice = item.averagePositionPrice ?: old.averagePrice
-                val newPointValue = item.pointValue ?: old.pointValue
-                current[index] =
-                    old.copy(
-                        quantity = item.quantity,
-                        currentPrice = newPrice,
-                        averagePrice = newAvgPrice,
-                        totalValue = newPrice * item.quantity,
-                        profit = item.expectedYield,
-                        profitPercent =
-                            calculateProfitPercent(
-                                yield = item.expectedYield,
-                                avgPrice = newAvgPrice,
-                                quantity = item.quantity,
-                                pointValue = newPointValue,
-                            ),
-                        pointValue = newPointValue,
-                        instrumentType = item.instrumentType,
-                        isin = item.isin.ifBlank { old.isin },
-                        classCode = item.classCode.ifBlank { old.classCode },
-                    )
+                current[index] = current[index].mergeWith(item)
             }
             _uiState.update { it.copy(positions = current) }
         }
