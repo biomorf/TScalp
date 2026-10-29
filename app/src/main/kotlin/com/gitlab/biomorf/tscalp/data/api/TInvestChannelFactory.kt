@@ -1,8 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api
 
-import com.gitlab.biomorf.tscalp.domain.log.Logger
-
 import android.content.Context
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import io.grpc.ManagedChannel
 import io.grpc.Metadata
 import io.grpc.okhttp.OkHttpChannelBuilder

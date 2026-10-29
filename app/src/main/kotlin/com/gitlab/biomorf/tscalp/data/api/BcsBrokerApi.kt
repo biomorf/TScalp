@@ -39,8 +39,7 @@ import java.io.IOException
 @Suppress("TooManyFunctions")
 class BcsBrokerApi(
     private val logger: Logger,
-) :
-    BrokerApi,
+) : BrokerApi,
     BrokerLifecycleApi,
     AccountsApi,
     PortfolioApi {

@@ -8,13 +8,13 @@ import com.gitlab.biomorf.tscalp.transport.ktor.TInvestOrderStateWebSocket
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPricesWebSocket
 import io.ktor.client.HttpClient
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.transform
-import kotlinx.coroutines.SupervisorJob
 
 /**
  * WebSocket-транспорт T-Invest: 3 WS-клиента (positions, prices,

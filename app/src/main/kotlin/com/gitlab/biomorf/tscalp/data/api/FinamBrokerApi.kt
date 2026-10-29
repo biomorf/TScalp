@@ -47,8 +47,7 @@ import java.util.concurrent.TimeUnit
 @Suppress("TooManyFunctions")
 class FinamBrokerApi(
     private val logger: Logger,
-) :
-    BrokerApi,
+) : BrokerApi,
     BrokerLifecycleApi {
     companion object {
         private const val TAG = "FinamBrokerApi"
