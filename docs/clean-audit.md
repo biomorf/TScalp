@@ -237,26 +237,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н17. TradePhrases — Compose в util | средне | L2, L1 | `util/TradePhrases.kt` | - |
 | Н18. CurrencyUtils — presentation-формат в util | низко | L2, L1 | `util/CurrencyUtils.kt` | - |
 
-### Н19. AppLogger — android.util.Log в util
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `util/AppLogger.kt` импортирует `android.util.Log` + `BuildConfig`. Используется всеми слоями (AGENTS: «`AppLogger`, не `android.util.Log`»). Формально domain видит платформу через `util`, даже транзитивно.
-
-**Нарушенное правило:** Dependency rule — domain не должен видеть платформу (даже через shared-слой).
-
-**Clean-альтернатива:** `domain.log.Logger` — интерфейс (`fun d/w/e(tag, msg, throwable?)`); `data.log.AndroidAppLogger` — реализация через `android.util.Log`; Hilt `@Binds`. Domain инжектит `Logger`. Плюсы: KMP-совместимо, тестируемо, чисто. Минусы: инъекция в каждый класс (~30+ callsites), замена статического `AppLogger.d(...)` на `logger.d(...)`.
-
-**Выгоды:** zero-ceremony, глобальный доступ, не требует инжекта. Правило «все слои через `AppLogger`» уже в AGENTS — компромисс, но **не зафиксирован** по 2c (нет правила/альтернативы/выгод в KDoc/ROADMAP).
-
-**Анализ L8-Н49:** подтверждается — `AppLogger` используется в `TScalpApplication` (`installGrpcExceptionGuard`). App видит util.
-
-**Ссылка на задачу:** — (не заведена). Требует либо 2c-фиксации в AGENTS, либо переезда.
-
 ### Н20. AppResultExtensions — io.grpc в util
 
 **Статус:** открыто.
@@ -281,9 +261,11 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** `#### Классификатор ошибок` в `### Рефакторинг архитектурного долга (detekt-группа 3)` (про декомпозицию; про переезд — задача не заведена).
 
-### Н17. TradePhrases — Compose в util
+### Исправленные (L2)
 
-**Статус:** открыто.
+### ✅ Н17. TradePhrases — Compose в util
+
+**Статус:** исправлено (2026-10-29, PR #64 — unify presentation).
 
 **Серьёзность:** средне.
 
@@ -297,11 +279,13 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** SSOT для текстов и цветов в одном файле. Но это presentation-выгода.
 
+**Что сделано:** `util/TradePhrases.kt` → `presentation/components/TradePhrases.kt` (решение пользователя: только потребитель — `OrderCard`, лежит рядом). `stringToOrderType` удалён в Split order (`ec9c7d5`).
+
 **Ссылка на задачу:** — (не заведена).
 
-### Н18. CurrencyUtils — presentation-формат в util
+### ✅ Н18. CurrencyUtils — presentation-формат в util
 
-**Статус:** открыто.
+**Статус:** исправлено (2026-10-29, PR #64 — unify presentation).
 
 **Серьёзность:** низко.
 
@@ -315,11 +299,32 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** `formatCurrency` — общая утилита, без Compose, без платформы (только `java.text`/`java.util`). Технически допустима в `util`, но presentation-выбор локали и «пт» — presentation-специфика.
 
+**Что сделано:** `util/CurrencyUtils.kt` → `presentation/util/CurrencyFormat.kt` с параметром `currency` (без привязки к RUB). Domain/data получают числа через `TradeDetails`/`TradeCheckResult`, форматирование — в presentation.
+
 **Ссылка на задачу:** — (не заведена).
 
-### Исправленные (L2)
+### ✅ Н19. AppLogger — android.util.Log в util
 
-[пусто]
+**Статус:** исправлено (2026-10-29, H19 part 1–3, PR #65–#67).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `util/AppLogger.kt` импортирует `android.util.Log` + `BuildConfig`. Используется всеми слоями (AGENTS: «`AppLogger`, не `android.util.Log`»). Формально domain видит платформу через `util`, даже транзитивно.
+
+**Нарушенное правило:** Dependency rule — domain не должен видеть платформу (даже через shared-слой).
+
+**Clean-альтернатива:** `domain.log.Logger` — интерфейс (`fun d/w/e(tag, msg, throwable?)`); `data.log.AndroidAppLogger` — реализация через `android.util.Log`; Hilt `@Binds`. Domain инжектит `Logger`. Плюсы: KMP-совместимо, тестируемо, чисто. Минусы: инъекция в каждый класс (~30+ callsites), замена статического `AppLogger.d(...)` на `logger.d(...)`.
+
+**Выгоды:** zero-ceremony, глобальный доступ, не требует инжекта. Правило «все слои через `AppLogger`» уже в AGENTS — компромисс, но **не зафиксирован** по 2c (нет правила/альтернативы/выгод в KDoc/ROADMAP).
+
+**Анализ L8-Н49:** подтверждается — `AppLogger` используется в `TScalpApplication` (`installGrpcExceptionGuard`). App видит util.
+
+**Что сделано:** `domain.log.Logger` (интерфейс) + `data.log.AndroidAppLogger` (реализация) + `di.LogModule` (`@Binds`). 148 callsites мигрированы (domain 36, data 37, presentation 63, app 12). `util/AppLogger.kt` удалён.
+
+**Ссылка на задачу:** — (не заведена). Требует либо 2c-фиксации в AGENTS, либо переезда.
+
 
 ---
 
