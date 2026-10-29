@@ -41,7 +41,8 @@ object DataModule {
     @Singleton
     fun provideTInvestChannelFactory(
         @ApplicationContext context: Context,
-    ): TInvestChannelFactory = TInvestChannelFactory(context)
+        logger: Logger,
+    ): TInvestChannelFactory = TInvestChannelFactory(context, logger)
 
     @Provides
     @Singleton
