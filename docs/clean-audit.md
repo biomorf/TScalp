@@ -242,9 +242,11 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н17. TradePhrases — Compose в util | средне | L2, L1 | `util/TradePhrases.kt` | - |
 | Н18. CurrencyUtils — presentation-формат в util | низко | L2, L1 | `util/CurrencyUtils.kt` | - |
 
-### Н20. AppResultExtensions — io.grpc в util
+### Исправленные (L2)
 
-**Статус:** открыто.
+### ✅ Н20. AppResultExtensions — io.grpc в util
+
+**Статус:** исправлено (2026-10-29, PR #70).
 
 **Серьёзность:** высоко.
 
@@ -264,9 +266,11 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Анализ L8-Н49:** подтверждается — `util.TInvestErrorMessages` (родственен `AppResultExtensions`, оба в util) используется в `TScalpApplication.installGrpcExceptionGuard` для расшифровки gRPC-кодов. App видит util.
 
-**Ссылка на задачу:** `#### Классификатор ошибок` в `### Рефакторинг архитектурного долга (detekt-группа 3)` (про декомпозицию; про переезд — задача не заведена).
+**Что сделано:** `util/AppResultExtensions.kt` → `data/error/AppErrorMapper.kt` (package `data.error`); `runCatchingAppResult`, `toAppError`, `extractHttpCode`. Broker-таблицы `BrokerErrorMessages.kt`, `TInvestErrorMessages.kt` → `data/api/error/`. Domain (`PriceFlowManager`) больше не вызывает `toAppError` — логирует `e.message`. Presentation (`OrdersViewModel`) — `AppError.Unknown(e.message)` вместо `toAppError`. `util/` пуст (AppLogger удалён в H19).
 
-### Исправленные (L2)
+**Отклонение от плана:** два пакета вместо одного (`data/error/` — общий ACL, `data/api/error/` — broker-adapter). Причина: семантическое разделение — общий mapper для data vs broker-специфичные таблицы кодов.
+
+**Ссылка на задачу:** `#### Классификатор ошибок` в `### Рефакторинг архитектурного долга (detekt-группа 3)` (про декомпозицию; про переезд — задача не заведена).
 
 ### ✅ Н17. TradePhrases — Compose в util
 
