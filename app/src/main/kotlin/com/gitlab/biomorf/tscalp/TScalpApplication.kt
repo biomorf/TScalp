@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp
 
 import android.app.Application
+import com.gitlab.biomorf.tscalp.data.api.error.TInvestErrorMessages
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
@@ -8,7 +9,6 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.util.TInvestErrorMessages
 import dagger.hilt.android.HiltAndroidApp
 import io.appmetrica.analytics.AppMetrica
 import io.appmetrica.analytics.AppMetricaConfig

@@ -16,6 +16,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
@@ -38,7 +39,6 @@ import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
-import com.gitlab.biomorf.tscalp.util.toAppError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -535,7 +535,7 @@ class OrdersViewModel
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    AppResult.Failure(e.toAppError())
+                    AppResult.Failure(AppError.Unknown(e.message ?: "Ошибка подготовки заявки", e))
                 }
 
             val primaryMessage =
@@ -597,9 +597,8 @@ class OrdersViewModel
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        val appError = e.toAppError()
-                        logger.e(TAG, "paired order unexpected error: ${appError.message}", e)
-                        "\n❌ Ошибка контрсделки: ${appError.message}"
+                        logger.e(TAG, "paired order unexpected error: ${e.message}", e)
+                        "\n❌ Ошибка контрсделки: ${e.message ?: "неизвестная ошибка"}"
                     }
             }
 

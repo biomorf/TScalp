@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.repository
 
+import com.gitlab.biomorf.tscalp.data.error.runCatchingAppResult
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppError
@@ -10,7 +11,6 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderResult
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
-import com.gitlab.biomorf.tscalp.util.runCatchingAppResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
