@@ -97,11 +97,9 @@ data class PositionStreamItem(
  * @property averagePrice средняя цена позиции. `null` — нет
  *   данных (например, позиция только что открыта).
  * @property profit P&L в рублях. Источник: `expectedYield`
- *   от брокера (если > 0), иначе клиентский расчёт
- *   `(currentPrice - averagePrice) * quantity` (см.
- *   `TInvestMarketDataService.fetchPortfolioPositions`).
- *   Формула неоднозначна — задача `### Рефакторинг расчёта
- *   P&L для PortfolioPosition`.
+ *   от брокера (passthrough). `null` — сервер не прислал.
+ *   Client-side fallback — отдельная задача
+ *   `### P&L: client-side fallback для PortfolioPosition`.
  * @property profitPercent P&L в процентах от вложенных
  *   средств. Считается через [calculateProfitPercent] —
  *   учитывает `pointValue` для фьючерсов.
