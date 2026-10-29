@@ -162,6 +162,41 @@ fun calculateProfitPercent(
 }
 
 /**
+ * Пустая [PortfolioPosition] для инструмента, которого нет в портфеле
+ * (например, в карточке заявки, когда позиция ещё не открыта).
+ *
+ * Все производные presentation-поля (`profit`, `profitPercent`,
+ * `totalValue`) вычисляются по тем же правилам, что и в
+ * [toPortfolioPosition]: `totalValue = currentPrice * quantity`
+ * (при `quantity = 0` → `0.0`), `profit`/`profitPercent` — `null`
+ * (нет позиции — нет P&L).
+ *
+ * Фабрика в domain, а не в presentation: правила конструирования
+ * domain-модели принадлежат domain (clean-audit Н1).
+ */
+fun emptyPortfolioPosition(
+    instrument: InstrumentUi,
+    currentPrice: Double,
+    pointValue: Double?,
+    instrumentType: String,
+): PortfolioPosition =
+    PortfolioPosition(
+        brokerName = BrokerName.TINVEST,
+        tscalpInstrumentId = instrument.tscalpInstrumentId,
+        name = instrument.name,
+        isin = instrument.isin,
+        ticker = instrument.ticker,
+        classCode = instrument.classCode,
+        quantity = 0L,
+        currentPrice = currentPrice,
+        totalValue = currentPrice * 0L,
+        profit = null,
+        profitPercent = null,
+        instrumentType = instrumentType,
+        pointValue = pointValue,
+    )
+
+/**
  * Преобразует элемент потока позиций в доменную модель портфельной позиции.
  * profitPercent считается универсально — см. calculateProfitPercent.
  */
