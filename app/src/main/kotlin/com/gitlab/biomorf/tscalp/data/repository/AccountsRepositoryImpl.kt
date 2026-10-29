@@ -2,12 +2,12 @@ package com.gitlab.biomorf.tscalp.data.repository
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.util.runCatchingAppResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,6 +25,7 @@ class AccountsRepositoryImpl
     @Inject
     constructor(
         private val brokerManager: BrokerRegistry,
+        private val logger: Logger,
     ) : AccountsRepository {
         companion object {
             private const val TAG = "AccountsRepository"
@@ -91,7 +92,7 @@ class AccountsRepositoryImpl
             amount: SandboxMoney,
         ): AppResult<Unit> =
             withContext(Dispatchers.IO) {
-                AppLogger.d(TAG, "sandboxPayIn: accountId=$accountId, amount=${amount.units} ${amount.currency}")
+                logger.d(TAG, "sandboxPayIn: accountId=$accountId, amount=${amount.units} ${amount.currency}")
                 val broker = brokerManager.getDefaultBroker()
                 val sandboxApi =
                     broker.sandbox

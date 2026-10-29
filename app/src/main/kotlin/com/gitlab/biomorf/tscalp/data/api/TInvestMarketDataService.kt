@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api
 
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -11,17 +12,16 @@ import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.grpc.stub.StreamObserver
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -41,9 +41,9 @@ import ru.tinkoff.piapi.contract.v1.MarketDataResponse
 import ru.tinkoff.piapi.contract.v1.MarketDataServerSideStreamRequest
 import ru.tinkoff.piapi.contract.v1.MarketDataStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.MoneyValue
+import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
-import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.PortfolioRequest
 import ru.tinkoff.piapi.contract.v1.PortfolioResponse
 import ru.tinkoff.piapi.contract.v1.PositionsFutures
@@ -62,6 +62,7 @@ import ru.tinkoff.piapi.contract.v1.SubscriptionAction
 @Suppress("TooManyFunctions")
 class TInvestMarketDataService(
     private val state: TInvestApiState,
+    private val logger: Logger,
 ) {
     companion object {
         private const val TAG = "TInvestMarketData"
@@ -122,7 +123,7 @@ class TInvestMarketDataService(
                     .setAccountId(accountId)
                     .build()
             currentApi.sandboxServiceSync.closeSandboxAccount(request)
-            AppLogger.d(TAG, "Счёт песочницы $accountId закрыт")
+            logger.d(TAG, "Счёт песочницы $accountId закрыт")
         }
 
     // ---------- Портфель ----------
@@ -222,7 +223,7 @@ class TInvestMarketDataService(
                         api.operationsStreamServiceAsync.positionsStream(
                             request,
                             { response: PositionsStreamResponse ->
-                                AppLogger.d(
+                                logger.d(
                                     TAG,
                                     "[stream/gRPC/TInvest]: response — " +
                                         "subs=${response.hasSubscriptions()}, " +
@@ -290,25 +291,25 @@ class TInvestMarketDataService(
             while (currentCoroutineContext().isActive) {
                 val grpcFlow = subscribePositionsGrpc(accountId)
                 if (grpcFlow == null) {
-                    AppLogger.d(TAG, "[stream/gRPC/TInvest]: waiting for API init")
+                    logger.d(TAG, "[stream/gRPC/TInvest]: waiting for API init")
                     delay(1_000)
                     continue
                 }
                 try {
-                    AppLogger.d(TAG, "[stream/gRPC/TInvest]: connecting (attempt=${attempt + 1})")
+                    logger.d(TAG, "[stream/gRPC/TInvest]: connecting (attempt=${attempt + 1})")
                     grpcFlow.collect { emit(it) }
                     attempt = 0
-                    AppLogger.d(TAG, "[stream/gRPC/TInvest]: completed by server, reconnecting")
+                    logger.d(TAG, "[stream/gRPC/TInvest]: completed by server, reconnecting")
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     if (e.message?.contains("NOT_FOUND") == true) {
-                        AppLogger.w(TAG, "[stream/gRPC/TInvest]: fatal (${e.message}) — stopping")
+                        logger.w(TAG, "[stream/gRPC/TInvest]: fatal (${e.message}) — stopping")
                         return@flow
                     }
                     attempt++
                     val delayMs = retryDelayMs(attempt)
-                    AppLogger.w(
+                    logger.w(
                         TAG,
                         "[stream/gRPC/TInvest]: error (attempt=$attempt, ${e.message}), retry in ${delayMs}ms",
                     )
@@ -386,7 +387,7 @@ class TInvestMarketDataService(
         withContext(Dispatchers.IO) {
             val currentApi =
                 state.api ?: run {
-                    AppLogger.w(TAG, "fetchProtoInstrument: API не инициализирован, uid=$uid")
+                    logger.w(TAG, "fetchProtoInstrument: API не инициализирован, uid=$uid")
                     return@withContext null
                 }
             val request =
@@ -406,7 +407,7 @@ class TInvestMarketDataService(
             val response = currentApi.instrumentsServiceSync.getFuturesMargin(request)
             response.minPriceIncrementAmount?.let { it.units + it.nano / 1_000_000_000.0 }
         } catch (e: Exception) {
-            AppLogger.w(TAG, "Не удалось получить стоимость шага цены для $figi: ${e.message}")
+            logger.w(TAG, "Не удалось получить стоимость шага цены для $figi: ${e.message}")
             null
         }
 
@@ -424,7 +425,7 @@ class TInvestMarketDataService(
                     val instrument = fetchProtoInstrument(short.uid) ?: return@mapNotNull null
                     TInvestInstrumentMapper.mapProtoToDomain(instrument)
                 } catch (e: Exception) {
-                    AppLogger.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
+                    logger.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
                     null
                 }
             }
@@ -437,7 +438,7 @@ class TInvestMarketDataService(
             if (ids.isEmpty()) return@withContext emptyMap()
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(ids).build()
-            AppLogger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${ids.size} instruments")
+            logger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${ids.size} instruments")
             val response = currentApi.marketDataServiceSync.getLastPrices(request)
             response.lastPricesList.associate { lp ->
                 lp.instrumentUid to (lp.price?.let { it.units + it.nano / 1_000_000_000.0 })
@@ -461,7 +462,7 @@ class TInvestMarketDataService(
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
-                                    AppLogger.w(TAG, "Статус для $uid недоступен: ${e.message}")
+                                    logger.w(TAG, "Статус для $uid недоступен: ${e.message}")
                                     uid to TradingAvailability.UNKNOWN
                                 }
                             }
@@ -501,7 +502,7 @@ class TInvestMarketDataService(
                             val lp = value.lastPrice
                             val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
                             if (price != null) {
-                                AppLogger.d(TAG, "[stream/gRPC/TInvest] LastPrice ${lp.instrumentUid} = $price")
+                                logger.d(TAG, "[stream/gRPC/TInvest] LastPrice ${lp.instrumentUid} = $price")
                                 trySend(lp.instrumentUid to price)
                             }
                         }

@@ -16,6 +16,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
@@ -26,7 +27,6 @@ import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import ru.ttech.piapi.core.InvestApi
@@ -43,6 +43,7 @@ class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
     private val httpClient: HttpClient,
     private val debugFlagsRepository: DebugFlagsRepository,
+    private val logger: Logger,
 ) : BrokerApi,
     BrokerSnapshotApi,
     StreamsApi,
@@ -57,15 +58,16 @@ class TInvestBrokerAPI(
     MarketDataApi,
     TradeCheckApi {
     private val state = TInvestApiState()
-    private val marketDataService = TInvestMarketDataService(state)
+    private val marketDataService = TInvestMarketDataService(state, logger)
     private val ordersService = TInvestOrdersService(state)
-    private val wsService = TInvestWsService(httpClient)
-    private val restService = TInvestRestService(state, httpClient)
+    private val wsService = TInvestWsService(httpClient, logger)
+    private val restService = TInvestRestService(state, httpClient, logger)
     private val orchestrator =
         TInvestOrchestrator(
             marketData = marketDataService,
             debugFlagsRepository = debugFlagsRepository,
             orders = ordersService,
+            logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
             orderStateWsFallback = { accountId -> wsService.buildOrderStateWsFallback(accountId) },
@@ -124,7 +126,7 @@ class TInvestBrokerAPI(
                     initialize(credentials.token, credentials.sandbox)
                     true
                 } catch (e: Exception) {
-                    AppLogger.e("TInvestBrokerAPI", "lifecycle.initialize failed", e)
+                    logger.e("TInvestBrokerAPI", "lifecycle.initialize failed", e)
                     false
                 }
             }

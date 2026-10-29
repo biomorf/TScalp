@@ -14,12 +14,12 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +37,9 @@ import java.io.IOException
  * См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
  */
 @Suppress("TooManyFunctions")
-class BcsBrokerApi :
+class BcsBrokerApi(
+    private val logger: Logger,
+) :
     BrokerApi,
     BrokerLifecycleApi,
     AccountsApi,
@@ -89,7 +91,7 @@ class BcsBrokerApi :
     ) {
         this.refreshToken = refreshToken
         this.clientId = clientId
-        AppLogger.d("BcsBrokerApi", "Инициализация с refreshToken.len=${refreshToken.length}, clientId=$clientId")
+        logger.d("BcsBrokerApi", "Инициализация с refreshToken.len=${refreshToken.length}, clientId=$clientId")
         obtainAccessToken()
     }
 
@@ -106,7 +108,7 @@ class BcsBrokerApi :
                     initialize(credentials.refreshToken, clientId)
                     true
                 } catch (e: Exception) {
-                    AppLogger.e("BcsBrokerApi", "lifecycle.initialize failed", e)
+                    logger.e("BcsBrokerApi", "lifecycle.initialize failed", e)
                     false
                 }
             }
@@ -143,12 +145,12 @@ class BcsBrokerApi :
             val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
             if (!response.isSuccessful) {
                 val errorBody = response.body.string()
-                AppLogger.e("BcsBrokerApi", "Ошибка получения access-токена: ${response.code}, тело: $errorBody")
+                logger.e("BcsBrokerApi", "Ошибка получения access-токена: ${response.code}, тело: $errorBody")
                 throw IOException("Ошибка получения access-токена: ${response.code}")
             }
             parseAccessTokenResponse(response.body.string())
         } catch (e: Exception) {
-            AppLogger.e("BcsBrokerApi", "Ошибка обмена токена", e)
+            logger.e("BcsBrokerApi", "Ошибка обмена токена", e)
             throw e
         }
     }
@@ -165,7 +167,7 @@ class BcsBrokerApi :
         accessToken = map["access_token"] as? String ?: throw IOException("Не найден access_token в ответе")
         val expiresIn = (map["expires_in"] as? Double)?.toLong() ?: 3600
         tokenExpiry = System.currentTimeMillis() + expiresIn * 1000
-        AppLogger.d("BcsBrokerApi", "Access-токен получен успешно, истекает через $expiresIn сек")
+        logger.d("BcsBrokerApi", "Access-токен получен успешно, истекает через $expiresIn сек")
     }
 
     private suspend fun ensureAccessToken() {
@@ -192,7 +194,7 @@ class BcsBrokerApi :
             ensureAccessToken()
             val fullUrl = "$PROD_BASE_URL$path"
 
-            AppLogger.d("BcsBrokerApi", "Запрос: $method $fullUrl")
+            logger.d("BcsBrokerApi", "Запрос: $method $fullUrl")
 
             val requestBuilder =
                 Request
@@ -259,7 +261,7 @@ class BcsBrokerApi :
         if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
 
         val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
-        AppLogger.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
+        logger.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
 
         val allPositions: List<Map<String, Any>> =
             gson.fromJson(

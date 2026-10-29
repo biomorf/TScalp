@@ -13,14 +13,15 @@ import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import io.ktor.client.HttpClient
+import dagger.hilt.InstallIn
+import dagger.Module
+import dagger.Provides
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
@@ -48,7 +49,8 @@ object DataModule {
         channelFactory: TInvestChannelFactory,
         httpClient: HttpClient,
         debugFlagsRepository: DebugFlagsRepository,
-    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient, debugFlagsRepository)
+        logger: Logger,
+    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient, debugFlagsRepository, logger)
 
     @Provides
     @Singleton
@@ -68,16 +70,17 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideFinamBrokerApi(): FinamBrokerApi = FinamBrokerApi()
+    fun provideFinamBrokerApi(logger: Logger): FinamBrokerApi = FinamBrokerApi(logger)
 
     @Provides
     @Singleton
-    fun provideBcsBrokerApi(): BcsBrokerApi = BcsBrokerApi()
+    fun provideBcsBrokerApi(logger: Logger): BcsBrokerApi = BcsBrokerApi(logger)
 
     @Provides
     @Singleton
     fun provideTInvestWsHttpClient(
         @ApplicationContext context: Context,
+        logger: Logger,
     ): HttpClient =
         HttpClient(CIO) {
             install(WebSockets)
@@ -86,7 +89,7 @@ object DataModule {
             }
             engine {
                 https {
-                    trustManager = CustomTrustManager(context)
+                    trustManager = CustomTrustManager(context, logger)
                 }
             }
         }
