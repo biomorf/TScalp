@@ -68,6 +68,145 @@ clean-audit.
 
 ## Планируемые задачи
 
+### KMP: domain → commonMain
+
+**Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
+
+**Статус:** запланировано.
+
+**Контекст:** цель — перевести `domain` в `:shared/commonMain` для KMP. Аудит 2026-10-29 (`docs/architecture.md` → «KMP readiness»): 3 блокера. Domain почти готов (repository/api/roles/log — чисты).
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** Koin (снимает `javax.inject`), фикс #1 (`Instant`) и #3 (`currentTimeMillis`) — задачи ниже.
+
+**Файлы:**
+- `settings.gradle.kts` — новый модуль `:shared` (KMP).
+- `shared/build.gradle.kts` — `commonMain` + `androidMain`.
+- `app/build.gradle.kts` — `:app` depends on `:shared`.
+- Переезд `domain/` → `shared/src/commonMain/kotlin/...`.
+
+**Шаги:**
+1. Фикс #1 (`Instant`) + #3 (`currentTimeMillis`).
+2. Koin.
+3. Создать `:shared` (KMP module): `commonMain` + `androidMain`.
+4. `git mv` domain → `shared/src/commonMain/kotlin/...`.
+5. `:app` depends on `:shared`; data импортирует domain из `:shared`.
+6. Тесты domain → `shared/src/commonTest`.
+7. Гейт.
+
+**Тесты:** domain-тесты → `commonTest`.
+
+**Референсы:** `docs/architecture.md` → «KMP readiness».
+
+**Ограничения:** `data` — не в этой задаче (`androidMain` split — отдельная фаза).
+
+**Критерий готовности:** `domain` в `:shared/commonMain`; `:app:compileDebugKotlin` зелёный.
+
+**Оценка:** ~3–4 ч (после #1, #3, Koin).
+
+**Зависимости:** Koin, `### KMP: заменить java.time.Instant в Instruments`, `### KMP: System.currentTimeMillis → Clock-интерфейс`.
+
+**Связано:** `### Плавный переход Hilt → Koin`, `docs/architecture.md`.
+
+**Открытые вопросы:**
+- `:shared` с Android target — `androidLibrary` или `com.android.kotlin.multiplatform.library`? Уточнить при старте.
+- `domain/log/Logger` — остаётся интерфейсом (`AndroidAppLogger` в `:app/data/log`).
+
+---
+### KMP: заменить java.time.Instant в Instruments
+
+**Мобильная работа:** полное закрытие.
+
+**Статус:** запланировано.
+
+**Контекст:** `domain/models/Instruments.kt:5` импортирует `java.time.Instant` (JVM-only). Блокер KMP (аудит 2026-10-29).
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `domain/models/Instruments.kt`.
+
+**Шаги:**
+1. Заменить `java.time.Instant` → `Long` (epoch) или `kotlinx-datetime.Instant`.
+2. Проверить callsites (`grep -rn "Instant" app/src`).
+3. Гейт.
+
+**Тесты:** если поле используется — проверить.
+
+**Референсы:** `docs/architecture.md` → «KMP readiness».
+
+**Ограничения:** не тянуть `kotlinx-datetime` целиком, если хватает `Long`.
+
+**Критерий готовности:** в `domain/models/Instruments.kt` нет `java.*`.
+
+**Оценка:** ~15 мин.
+
+**Зависимости:** нет.
+
+**Связано:** umbrella `### KMP: domain → commonMain`.
+
+**Открытые вопросы:** `Long` или `kotlinx-datetime.Instant`? Зависит от того, нужны ли даты в `Instruments`.
+
+---
+### KMP: System.currentTimeMillis → Clock-интерфейс
+
+**Мобильная работа:** невозможно (сборка, тесты).
+
+**Статус:** запланировано.
+
+**Контекст:** `System.currentTimeMillis()` в `OrderFlowManager` (×2), `StreamStateTracker` (×5). JVM-only. Блокер KMP (аудит 2026-10-29).
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `domain/api/managers/OrderFlowManager.kt`, `domain/api/managers/StreamStateTracker.kt`, новый `domain/clock/Clock.kt`.
+
+**Шаги:**
+1. `domain/clock/Clock.kt` — `interface Clock { fun now(): Long }` (инжект, KMP-friendly, тестируется fake'ом).
+2. `OrderFlowManager`: +`clock: Clock` в `@Inject constructor`.
+3. `StreamStateTracker`: +`clock: Clock`; `now: Long = clock.now()` в 5 методах.
+4. Тесты: fake `Clock` (уже есть fake-time в `StreamStateTrackerTest`).
+5. Гейт.
+
+**Тесты:** `StreamStateTrackerTest` — уже fake-time.
+
+**Референсы:** `docs/architecture.md` → «KMP readiness».
+
+**Ограничения:** не смешивать с Koin (инжект `Clock` — Hilt сейчас, Koin потом).
+
+**Критерий готовности:** нет `System.currentTimeMillis` в `domain/`.
+
+**Оценка:** ~30 мин.
+
+**Зависимости:** нет.
+
+**Связано:** umbrella `### KMP: domain → commonMain`.
+
+**Открытые вопросы:** `Clock` (интерфейс) или `expect fun`? Рекомендация: `Clock` — тестируется fake'ом, KMP-friendly.
+
+---
+
 ### UI: показать executedPrice / executedQuantity на карточке
 
 **Мобильная работа:** частичное (live-тест UI).

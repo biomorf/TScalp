@@ -75,3 +75,35 @@ presentation → domain ← data
 - `docs/clean-audit.md` → Н5 (отменён), Н24 (mergeWith SSoT).
 - `AGENTS.md` → 2c (отклонения), 2d (временные решения).
 - `docs/ROADMAP.md` → `### P&L: client-side fallback` (отдельная задача).
+
+## KMP readiness
+
+Цель: `domain` → `:shared/commonMain`. Аудит 2026-10-29 (read-only, `grep` по `domain/`).
+
+### Блокеры в domain
+
+| # | Что | Где | Фикс |
+|---|---|---|---|
+| 1 | `java.time.Instant` | `domain/models/Instruments.kt:5` | `kotlinx-datetime.Instant` или `Long` |
+| 2 | `javax.inject.Inject` / `Singleton` | 3 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
+| 3 | `System.currentTimeMillis()` | `OrderFlowManager` (×2), `StreamStateTracker` (×5) | `Clock`-интерфейс |
+
+### Чисто (KMP-safe)
+
+- `domain/models/*` — только #1.
+- `domain/api/repository/*` (8 интерфейсов) — ноль platform.
+- `domain/api/roles/*` — чисто.
+- `domain/log/Logger` — pure Kotlin interface.
+- `domain/usecases/*` — не аудировано (проверить при первом касании).
+
+### Не в этой фазе
+
+- `data/` — не готов к `commonMain` (`android.*`: Context, DataStore, CustomTrustManager → `androidMain`; `java.*` в 8 файлах; `javax.inject` → уйдёт с Koin).
+- Koin — предусловие (задача `### Плавный переход Hilt → Koin`).
+
+### Порядок
+
+1. Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — маленькие, безопасные.
+2. Koin — снимает #2.
+3. `domain` → `:shared/commonMain` (umbrella-задача `### KMP: domain → commonMain`).
+4. `data` → split `commonMain`/`androidMain` (отдельная фаза).
