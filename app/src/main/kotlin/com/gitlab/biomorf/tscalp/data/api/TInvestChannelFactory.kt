@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import android.content.Context
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import io.grpc.ManagedChannel
 import io.grpc.Metadata
 import io.grpc.okhttp.OkHttpChannelBuilder
@@ -22,6 +23,7 @@ class TInvestChannelFactory
     @Inject
     constructor(
         private val context: Context,
+        private val logger: Logger,
     ) {
         companion object {
             private const val SANDBOX_TARGET = "sandbox-invest-public-api.tbank.ru:443"
@@ -64,7 +66,7 @@ class TInvestChannelFactory
         ): ManagedChannel {
             val sslContext =
                 SSLContext.getInstance("TLS").apply {
-                    init(null, arrayOf(CustomTrustManager(context)), null)
+                    init(null, arrayOf(CustomTrustManager(context, logger)), null)
                 }
 
             val authInterceptor =

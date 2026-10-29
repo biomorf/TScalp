@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
+import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -31,6 +32,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                     pricesRestFallback = { restData },
                 )
 
@@ -50,6 +52,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                     pricesRestFallback = {
                         fallbackCalled = true
                         emptyMap()
@@ -76,6 +79,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                     ordersRestFallback = { restOrders },
                 )
 
@@ -95,6 +99,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                     balanceRestFallback = { restBalance },
                 )
 
@@ -122,6 +127,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
                     positionsRestFallback = { _, _ -> restPositions },
                 )
 

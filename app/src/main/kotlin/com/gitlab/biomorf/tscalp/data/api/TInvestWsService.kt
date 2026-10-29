@@ -1,12 +1,12 @@
 package com.gitlab.biomorf.tscalp.data.api
 
 import com.gitlab.biomorf.tscalp.BuildConfig
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestOrderStateWebSocket
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPositionsWebSocket
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestPricesWebSocket
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.transform
  */
 class TInvestWsService(
     private val httpClient: HttpClient,
+    private val logger: Logger,
 ) {
     private companion object {
         const val WS_BASE_URL_PROD = "wss://invest-public-api.tbank.ru/ws"
@@ -65,7 +66,7 @@ class TInvestWsService(
                 client = httpClient,
                 url = buildWsUrl(sandbox, WS_POSITIONS_CHANNEL),
                 token = token,
-                logger = { msg -> AppLogger.d("TInvestWS", msg) },
+                logger = { msg -> logger.d("TInvestWS", msg) },
             )
         wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         pricesWebSocket =
@@ -74,7 +75,7 @@ class TInvestWsService(
                 url = buildWsUrl(sandbox, WS_PRICES_CHANNEL),
                 token = token,
                 scope = wsScope!!,
-                logger = { msg -> AppLogger.d("TInvestWS/prices", msg) },
+                logger = { msg -> logger.d("TInvestWS/prices", msg) },
                 logFrames = BuildConfig.DEBUG,
             )
         orderStateWebSocket =
@@ -83,7 +84,7 @@ class TInvestWsService(
                 url = buildWsUrl(sandbox, WS_ORDER_STATE_CHANNEL),
                 token = token,
                 scope = wsScope!!,
-                logger = { msg -> AppLogger.d("TInvestWS/orders", msg) },
+                logger = { msg -> logger.d("TInvestWS/orders", msg) },
                 logFrames = BuildConfig.DEBUG,
             )
     }

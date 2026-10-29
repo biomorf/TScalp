@@ -13,6 +13,7 @@ import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import dagger.Module
 import dagger.Provides
@@ -40,7 +41,8 @@ object DataModule {
     @Singleton
     fun provideTInvestChannelFactory(
         @ApplicationContext context: Context,
-    ): TInvestChannelFactory = TInvestChannelFactory(context)
+        logger: Logger,
+    ): TInvestChannelFactory = TInvestChannelFactory(context, logger)
 
     @Provides
     @Singleton
@@ -48,7 +50,8 @@ object DataModule {
         channelFactory: TInvestChannelFactory,
         httpClient: HttpClient,
         debugFlagsRepository: DebugFlagsRepository,
-    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient, debugFlagsRepository)
+        logger: Logger,
+    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient, debugFlagsRepository, logger)
 
     @Provides
     @Singleton
@@ -68,16 +71,17 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideFinamBrokerApi(): FinamBrokerApi = FinamBrokerApi()
+    fun provideFinamBrokerApi(logger: Logger): FinamBrokerApi = FinamBrokerApi(logger)
 
     @Provides
     @Singleton
-    fun provideBcsBrokerApi(): BcsBrokerApi = BcsBrokerApi()
+    fun provideBcsBrokerApi(logger: Logger): BcsBrokerApi = BcsBrokerApi(logger)
 
     @Provides
     @Singleton
     fun provideTInvestWsHttpClient(
         @ApplicationContext context: Context,
+        logger: Logger,
     ): HttpClient =
         HttpClient(CIO) {
             install(WebSockets)
@@ -86,7 +90,7 @@ object DataModule {
             }
             engine {
                 https {
-                    trustManager = CustomTrustManager(context)
+                    trustManager = CustomTrustManager(context, logger)
                 }
             }
         }

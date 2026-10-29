@@ -14,9 +14,9 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -45,8 +45,9 @@ import java.util.concurrent.TimeUnit
  * Архитектурный долг: 24 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
  */
 @Suppress("TooManyFunctions")
-class FinamBrokerApi :
-    BrokerApi,
+class FinamBrokerApi(
+    private val logger: Logger,
+) : BrokerApi,
     BrokerLifecycleApi {
     companion object {
         private const val TAG = "FinamBrokerApi"
@@ -97,7 +98,7 @@ class FinamBrokerApi :
                     initialize(credentials.token)
                     true
                 } catch (e: Exception) {
-                    AppLogger.e("FinamBrokerApi", "lifecycle.initialize failed", e)
+                    logger.e("FinamBrokerApi", "lifecycle.initialize failed", e)
                     false
                 }
             }

@@ -5,10 +5,10 @@ import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.streamWithFallback
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -25,6 +25,7 @@ class TInvestOrchestrator(
     private val marketData: TInvestMarketDataService,
     private val debugFlagsRepository: DebugFlagsRepository,
     private val orders: TInvestOrdersService,
+    private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
     private val orderStateWsFallback: (String) -> Flow<OrderState>? = { null },
@@ -97,14 +98,14 @@ class TInvestOrchestrator(
     ): List<PositionStreamItem> {
         if (debugFlagsRepository.forceRest) {
             val rest = positionsRestFallback ?: throw IllegalStateException("REST fallback not configured")
-            AppLogger.w(TAG, "forceRest: bypassing gRPC for positions")
+            logger.w(TAG, "forceRest: bypassing gRPC for positions")
             return rest(accountId, sandboxMode)
         }
         return try {
             marketData.fetchPortfolioPositions(accountId, sandboxMode)
         } catch (e: Throwable) {
             if (isTransportError(e) && positionsRestFallback != null) {
-                AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")
+                logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")
                 positionsRestFallback(accountId, sandboxMode)
             } else {
                 throw e
@@ -113,17 +114,17 @@ class TInvestOrchestrator(
     }
 
     suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> {
-        AppLogger.d(TAG, "pricesSnapshot: forceRest=${debugFlagsRepository.forceRest}")
+        logger.d(TAG, "pricesSnapshot: forceRest=${debugFlagsRepository.forceRest}")
         if (debugFlagsRepository.forceRest) {
             val rest = pricesRestFallback ?: throw IllegalStateException("REST fallback not configured")
-            AppLogger.w(TAG, "forceRest: bypassing gRPC for prices")
+            logger.w(TAG, "forceRest: bypassing gRPC for prices")
             return rest(uids)
         }
         return try {
             marketData.getLastPricesByTscalpInstrumentId(uids)
         } catch (e: Throwable) {
             if (isTransportError(e) && pricesRestFallback != null) {
-                AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST")
+                logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST")
                 pricesRestFallback(uids)
             } else {
                 throw e
@@ -149,14 +150,14 @@ class TInvestOrchestrator(
     suspend fun ordersSnapshot(accountId: String): List<Order> {
         if (debugFlagsRepository.forceRest) {
             val rest = ordersRestFallback ?: throw IllegalStateException("REST fallback not configured")
-            AppLogger.w(TAG, "forceRest: bypassing gRPC for orders")
+            logger.w(TAG, "forceRest: bypassing gRPC for orders")
             return rest(accountId)
         }
         return try {
             orders.getOrders(accountId) + orders.getStopOrders(accountId)
         } catch (e: Throwable) {
             if (isTransportError(e) && ordersRestFallback != null) {
-                AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for orders")
+                logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for orders")
                 ordersRestFallback(accountId)
             } else {
                 throw e
@@ -167,14 +168,14 @@ class TInvestOrchestrator(
     suspend fun balanceSnapshot(accountId: String): Double {
         if (debugFlagsRepository.forceRest) {
             val rest = balanceRestFallback ?: throw IllegalStateException("REST fallback not configured")
-            AppLogger.w(TAG, "forceRest: bypassing gRPC for balance")
+            logger.w(TAG, "forceRest: bypassing gRPC for balance")
             return rest(accountId)
         }
         return try {
             marketData.getBalance(accountId)
         } catch (e: Throwable) {
             if (isTransportError(e) && balanceRestFallback != null) {
-                AppLogger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for balance")
+                logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for balance")
                 balanceRestFallback(accountId)
             } else {
                 throw e

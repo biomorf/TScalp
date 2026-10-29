@@ -1,9 +1,9 @@
 package com.gitlab.biomorf.tscalp.data.api
 
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestRestTransport
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import io.ktor.client.HttpClient
 
 /**
@@ -17,6 +17,7 @@ import io.ktor.client.HttpClient
 class TInvestRestService(
     private val state: TInvestApiState,
     private val httpClient: HttpClient,
+    private val logger: Logger,
 ) {
     private companion object {
         const val REST_BASE_URL_PROD = "https://invest-public-api.tbank.ru"
@@ -36,7 +37,7 @@ class TInvestRestService(
                 client = httpClient,
                 baseUrl = buildRestUrl(sandbox),
                 token = token,
-                logger = { msg -> AppLogger.d("TInvestRest", msg) },
+                logger = { msg -> logger.d("TInvestRest", msg) },
             )
     }
 

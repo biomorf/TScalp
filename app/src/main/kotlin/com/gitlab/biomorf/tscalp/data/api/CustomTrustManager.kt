@@ -2,7 +2,7 @@ package com.gitlab.biomorf.tscalp.data.api
 
 import android.content.Context
 import com.gitlab.biomorf.tscalp.R
-import com.gitlab.biomorf.tscalp.util.AppLogger
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import java.security.KeyStore
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
@@ -12,6 +12,7 @@ import javax.net.ssl.X509TrustManager
 
 class CustomTrustManager(
     context: Context,
+    private val logger: Logger,
 ) : X509TrustManager {
     private companion object {
         private const val TAG = "CustomTrustManager"
@@ -60,7 +61,7 @@ class CustomTrustManager(
                 keyStore.setCertificateEntry("cert_$resId", cert)
             }
         } catch (e: Exception) {
-            AppLogger.w(TAG, "Не удалось загрузить сертификат из ресурса $resId", e)
+            logger.w(TAG, "Не удалось загрузить сертификат из ресурса $resId", e)
         }
     }
 
