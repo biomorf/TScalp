@@ -197,6 +197,49 @@ fun emptyPortfolioPosition(
     )
 
 /**
+ * SSoT-merge: применяет новое событие [PositionStreamItem] к существующей
+ * [PortfolioPosition]. Канон (по образцу `PortfolioViewModel.updatePortfolioItem`):
+ *
+ * - `quantity` — из события (не объединяется).
+ * - `currentPrice`, `averagePrice`, `pointValue` — non-null из события,
+ *   иначе старое значение (partial-событие не обнуляет).
+ * - `totalValue` = `currentPrice * quantity`.
+ * - `profit` — `expectedYield` события (может быть `null`, если не пришло).
+ * - `profitPercent` — через [calculateProfitPercent] с `newAvgPrice` и
+ *   `newPointValue`.
+ * - `instrumentType` — из события.
+ * - `isin`, `classCode` — `ifBlank { old }` (пустое событие не обнуляет).
+ *
+ * Политика фильтрации partial-событий — в presentation-слое (VM).
+ * Domain предоставляет механизм, presentation решает, применять ли.
+ *
+ * Clean-audit Н24.
+ */
+fun PortfolioPosition.mergeWith(item: PositionStreamItem): PortfolioPosition {
+    val newPrice = item.currentPrice ?: currentPrice
+    val newAvgPrice = item.averagePositionPrice ?: averagePrice
+    val newPointValue = item.pointValue ?: pointValue
+    return copy(
+        quantity = item.quantity,
+        currentPrice = newPrice,
+        averagePrice = newAvgPrice,
+        totalValue = newPrice * item.quantity,
+        profit = item.expectedYield,
+        profitPercent =
+            calculateProfitPercent(
+                yield = item.expectedYield,
+                avgPrice = newAvgPrice,
+                quantity = item.quantity,
+                pointValue = newPointValue,
+            ),
+        pointValue = newPointValue,
+        instrumentType = item.instrumentType,
+        isin = item.isin.ifBlank { isin },
+        classCode = item.classCode.ifBlank { classCode },
+    )
+}
+
+/**
  * Преобразует элемент потока позиций в доменную модель портфельной позиции.
  * profitPercent считается универсально — см. calculateProfitPercent.
  */

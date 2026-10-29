@@ -28,8 +28,8 @@ import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
-import com.gitlab.biomorf.tscalp.domain.models.calculateProfitPercent
 import com.gitlab.biomorf.tscalp.domain.models.map
+import com.gitlab.biomorf.tscalp.domain.models.mergeWith
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
@@ -1041,33 +1041,13 @@ class OrdersViewModel
 
             logger.d(TAG, "updatePositionPnl: id=${item.tscalpInstrumentId}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
 
-            val profitPercent =
-                calculateProfitPercent(
-                    yield = yield,
-                    avgPrice = avgPrice,
-                    quantity = quantity,
-                    pointValue = item.pointValue,
-                )
-
             _uiState.update { state ->
                 val positions = state.portfolioPositions.toMutableList()
                 val index = positions.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }
                 if (index == -1) {
                     positions.add(item.toPortfolioPosition())
                 } else {
-                    val old = positions[index]
-                    val newPointValue = item.pointValue ?: old.pointValue
-                    positions[index] =
-                        old.copy(
-                            quantity = quantity,
-                            currentPrice = item.currentPrice ?: old.currentPrice,
-                            averagePrice = avgPrice,
-                            totalValue = (item.currentPrice ?: old.currentPrice) * quantity,
-                            profit = yield,
-                            profitPercent = profitPercent,
-                            pointValue = newPointValue,
-                            instrumentType = item.instrumentType,
-                        )
+                    positions[index] = positions[index].mergeWith(item)
                 }
                 state.copy(portfolioPositions = positions)
             }
