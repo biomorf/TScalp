@@ -123,11 +123,11 @@ clean-audit.
 
 
 
-### H17–H20. Перенос presentation-утилит из util
+### H17–H20. Перенос presentation-утилит из util (частично: H17–H19 сделаны)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе (H17–H19 сделаны, H20 остаётся).
 
 **Контекст (clean-audit Н17–Н20):** `util/` содержит
 presentation-код (`TradePhrases` — Compose, `CurrencyUtils` —
@@ -162,6 +162,13 @@ AGENTS «Логирование: `AppLogger`, не `android.util.Log`»
 фактически закрепляет отклонение без 2c-фиксации. Решение
 (переезд на `Logger` **или** 2c-фиксация) — открытый вопрос
 внизу.
+
+**Что сделано (H17–H19):**
+- H17 (PR #64): `TradePhrases` → `presentation/components/`; `stringToOrderType` удалён в Split order (`ec9c7d5`).
+- H18 (PR #64): `CurrencyUtils` → `presentation/util/CurrencyFormat.kt` с параметром `currency`; `TradeDetails`/`TradeCheckResult` несут числа, форматирование в presentation.
+- H19 (PR #65–#67): `domain.log.Logger` + `data.log.AndroidAppLogger` + `di.LogModule`; 148 callsites мигрированы; `util/AppLogger.kt` удалён.
+
+**Остаток (H20):** `AppResultExtensions` (`io.grpc` в `util`) → `data/error/AppErrorMapper.kt`. Отдельная задача ниже.
 
 **Предусловия:** нет.
 
