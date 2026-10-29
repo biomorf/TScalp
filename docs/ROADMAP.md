@@ -123,131 +123,6 @@ clean-audit.
 
 
 
-### H17–H20. Перенос presentation-утилит из util (частично: H17–H19 сделаны)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе (H17–H19 сделаны, H20 остаётся).
-
-**Контекст (clean-audit Н17–Н20):** `util/` содержит
-presentation-код (`TradePhrases` — Compose, `CurrencyUtils` —
-presentation-формат), платформенные зависимости (`AppLogger` —
-`android.util.Log`) и transport-зависимости
-(`AppResultExtensions` — `io.grpc`). `util` — grab-bag без
-слоя; domain видит платформу и gRPC транзитивно.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** dependency rule — presentation-
-код и платформенные/transport-зависимости в shared-слое
-`util/`.
-
-**Clean-альтернатива:**
-- `TradePhrases` → `presentation/util/TradePhrases.kt` (Compose +
-  UI-тексты), `presentation/theme/TradeColors.kt` (цвета).
-- `CurrencyUtils` → `presentation/util/Format.kt`.
-- `AppLogger` → `domain.log.Logger` (интерфейс) +
-  `data.log.AndroidAppLogger` (реализация через
-  `android.util.Log` + `BuildConfig.DEBUG`); `@Binds`. Domain
-  инжектит `Logger`.
-- `AppResultExtensions` → `data/error/AppErrorMapper.kt`
-  (per-broker по образцу `#### Классификатор ошибок`).
-
-Плюсы: `util` становится Compose-free, KMP-совместимым; domain
-не видит платформу. Минусы: ~30+ callsites `AppLogger.*` →
-`logger.*`, инъекция в каждый класс.
-
-**Выгоды (для «отклонение по 2c»):** —. Но отметить: правило
-AGENTS «Логирование: `AppLogger`, не `android.util.Log`»
-фактически закрепляет отклонение без 2c-фиксации. Решение
-(переезд на `Logger` **или** 2c-фиксация) — открытый вопрос
-внизу.
-
-**Что сделано (H17–H19):**
-- H17 (PR #64): `TradePhrases` → `presentation/components/`; `stringToOrderType` удалён в Split order (`ec9c7d5`).
-- H18 (PR #64): `CurrencyUtils` → `presentation/util/CurrencyFormat.kt` с параметром `currency`; `TradeDetails`/`TradeCheckResult` несут числа, форматирование в presentation.
-- H19 (PR #65–#67): `domain.log.Logger` + `data.log.AndroidAppLogger` + `di.LogModule`; 148 callsites мигрированы; `util/AppLogger.kt` удалён.
-
-**Остаток (H20):** `AppResultExtensions` (`io.grpc` в `util`) → `data/error/AppErrorMapper.kt`. Отдельная задача ниже.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `util/TradePhrases.kt` → `presentation/util/TradePhrases.kt`,
-  `presentation/theme/TradeColors.kt`.
-- `util/CurrencyUtils.kt` → `presentation/util/Format.kt`.
-- `util/AppLogger.kt` → `domain/log/Logger.kt` (интерфейс) +
-  `data/log/AndroidAppLogger.kt` (реализация).
-- `util/AppResultExtensions.kt` → `data/error/AppErrorMapper.kt`.
-- `di/LogModule.kt` (новый) — `@Binds Logger →
-  AndroidAppLogger`.
-- ~30+ callsites `AppLogger.*` в data/domain/presentation —
-  заменить на инжектированный `Logger`.
-- ~10 callsites `TradePhrases.*`, `formatCurrency`,
-  `formatPrice` — правка импортов.
-- ~5 callsites `toAppError`, `runCatchingAppResult` — правка
-  импортов (data-only; domain не должен видеть).
-
-**Шаги:**
-1. **Решение по AppLogger** (открытый вопрос): переезд на
-   `Logger`-интерфейс или 2c-фиксация текущего паттерна в
-   AGENTS с тремя элементами. **Стоп до решения.**
-2. Если переезд: `Logger` в `domain.log`, `AndroidAppLogger`
-   в `data.log`, `@Binds`, замена `AppLogger.*` на
-   `logger.*` (~30 callsites).
-3. `TradePhrases` → `presentation/util/` + `TradeColors`.
-4. `CurrencyUtils` → `presentation/util/Format.kt`.
-5. `AppResultExtensions` → `data/error/AppErrorMapper.kt`.
-6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
-   detekt`.
-
-**Тесты:** `AppLogger` не тестировался; `TradePhrases` не
-тестировался. Если переезд `AppLogger` — не тестируется
-напрямую (тонкая обёртка). `AppErrorMapper` — если переезд,
-то +тест на 1–2 сценария.
-
-**Референсы:** `docs/clean-audit.md` → Н17–Н20.
-`### Классификатор ошибок` в `### Рефакторинг
-архитектурного долга` — образец для `AppErrorMapper`.
-
-**Ограничения:** не смешивать 4 переезда в один PR — каждый
-отдельным коммитом (5a «один коммит — одна задача»; эта
-umbrella-задача — исключение, но подшаги внутри разные).
-Сохранить поведение `formatCurrency`/`formatPrice`
-(локаль, «₽», «пт»).
-
-**Критерий готовности:** `util/` содержит только
-platform-free shared (или пуст); `presentation/` не содержит
-Compose в `util/`-пути; `domain/` не видит `android.util.Log`
-и `io.grpc` транзитивно; гейт зелёный.
-
-**Оценка:** ~4–5 ч (AppLogger-переезд 2.5–3 ч, TradePhrases
-30 мин, CurrencyUtils 15 мин, AppResultExtensions 1 ч,
-гейт 15 мин). Если AppLogger — 2c-фиксация вместо переезда,
-~1.5–2 ч.
-
-**Зависимости:** H23 (`DebugFlagsRepository` — паттерн
-`domain.api` → `data` через `@Binds` установлен).
-
-**Связано:** `docs/clean-audit.md` → Н17, Н18, Н19, Н20;
-`### Классификатор ошибок` (в ROADMAP → `### Рефакторинг
-архитектурного долга`).
-
-**Открытые вопросы:**
-- **AppLogger:** переезд на `Logger`-интерфейс (Clean) или
-  2c-фиксация «AppLogger как глобальный фасад, согласовано
-  в AGENTS» (три обязательных элемента: правило нарушено —
-  domain видит платформу транзитивно; Clean-альтернатива —
-  Logger+DI; выгоды — zero-ceremony, ~30 callsites не
-  трогаются). Решение — на старте.
-- **Приоритет подшагов внутри:** если AppLogger — переезд,
-  начинать с него (влияет на 30+ файлов).'
-
-
-
-
----
-
 ### H1. PortfolioPosition factory для UI
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -1463,152 +1338,6 @@ iOS-задачи миграция станет обязательной. Сей�
 
 ---
 
-### Рефакторинг расчёта P&L для PortfolioPosition
-
-**Мобильная работа:** частичное (live-тест данных).
-
-**Статус:** запланировано.
-
-**Контекст:** расчёт `profit` и `profitPercent` в
-`TInvestMarketDataService.fetchPositionsSnapshot` содержит
-непоследовательность, которая может давать расхождения между
-прибыльными и убыточными позициями.
-
-**Обнаруженные проблемы:**
-
-1. **Условная логика выбора источника.** Текущий код:
-   ```kotlin
-   val profit: Double? = if (expectedYield > 0.0) {
-       expectedYield          // серверный P&L
-   } else if (avgPrice != null && avgPrice > 0.0) {
-       (currentPrice - avgPrice) * quantity  // клиентский
-   } else null
-   ```
-    - Для **положительного** P&L — берётся серверный
-      `expectedYield`.
-    - Для **отрицательного** или **нулевого** — клиентский
-      расчёт.
-    - Профит и убыток считаются по разным формулам.
-    - `expectedYield == 0.0` (нет изменения) уходит в клиентскую
-      ветку.
-
-2. **Клиентский расчёт для фьючерсов.** Формула
-   `(currentPrice - avgPrice) * quantity` **не учитывает
-   `pointValue`**. Для фьючерсов цена в пунктах, реальный
-   P&L зависит от стоимости пункта. В закрытой задаче
-   «Унификация profitPercent для PortfolioPosition» починили
-   `profitPercent`, но не сам `profit`.
-
-3. **Источники серверного P&L.** `expectedYield` от T-Invest
-   может отличаться от `(currentPrice - avgPrice) * quantity`
-   из-за комиссий, дивидендов, корпоративных событий,
-   НКД по облигациям. Серверный — точнее, но не всегда
-   положительный/нулевой корректно обрабатывается.
-
-**Связано:** задача «gRPC-стрим позиций». Стрим
-`PositionsStream` даёт только `balance` (количество) и
-идентификаторы, но **не даёт** `expectedYield`,
-`averagePositionPrice`, `currentPrice`. Если рефакторинг
-P&L не сделан до интеграции стрима, карточки потеряют P&L
-при переходе на gRPC.
-
-**Варианты решения:**
-
-**A. Только серверный `expectedYield`.**
-- `profit = expectedYield` всегда (если оно есть в ответе).
-- Плюс: единая формула, точнее учёт комиссий/дивидендов.
-- Минус: зависимость от того, что сервер всегда присылает
-  поле. Если `expectedYield` = 0, непонятно — это «нет
-  изменения» или «сервер не посчитал».
-
-**B. Только клиентский расчёт.**
-- `profit = (currentPrice - avgPrice) * quantity * pointValue`
-  — универсальная формула.
-- Плюс: работает без серверного `expectedYield`, единая
-  логика для всех типов инструментов.
-- Минус: не учитывает комиссии, дивиденды, корпоративные
-  события. Для точного P&L — недостаточно.
-
-**C. Гибрид с приоритетом серверного.**
-- Если `expectedYield` есть (не null) — используем его.
-- Иначе — клиентский расчёт.
-- Плюс: серверный в приоритете (точнее), клиентский —
-  fallback.
-- Минус: нужно чётко определить, когда `expectedYield`
-  считается «есть» (в proto у него double, нет отдельного
-  `hasExpectedYield`).
-
-**D. Разделить поля.**
-- `profit` — всегда серверный `expectedYield`.
-- `clientProfit` — клиентский расчёт.
-- UI решает, что показывать.
-- Плюс: обе цифры доступны для сверки.
-- Минус: удвоение модели, UI должен выбрать.
-
-**Рекомендация:** **A** для `profit`, с fallback на
-клиентский расчёт только если сервер вернул 0 и это
-подозрительно (нужен критерий). `profitPercent` — уже
-унифицирован, оставить.
-
-**Файлы:**
-- `data/api/TInvestMarketDataService.kt` — метод
-  `fetchPositionsSnapshot`.
-- `domain/models/Portfolio.kt` — модель и
-  `calculateProfitPercent`, если потребуется.
-- `domain/models/Instruments.kt` — `FutureUi.pointValue`,
-  если потребуется.
-
-**Шаги:**
-
-1. Собрать данные на реальных аккаунтах: сравнить серверный
-   `expectedYield` и клиентский расчёт на разных позициях
-   (акции, фьючерсы, положительный / отрицательный /
-   нулевой P&L).
-2. Определить, воспроизводится ли расхождение и в каких
-   случаях.
-3. Выбрать вариант (A/B/C/D).
-4. Реализовать.
-5. Покрыть unit-тестами:
-    - акция с положительным P&L;
-    - акция с отрицательным P&L;
-    - фьючерс с положительным P&L (проверка `pointValue`);
-    - фьючерс с отрицательным P&L;
-    - отсутствие `expectedYield`.
-
-**Референсы:**
-- `docs/ROADMAP.md` → «Унификация profitPercent для
-  PortfolioPosition» (закрытая) — что уже сделано.
-- Официальная документация T-Invest API → `PositionData` →
-  `expectedYield`, `averagePositionPrice`.
-- Proto-контракт: `ru.tinkoff.piapi.contract.v1.PositionData`.
-
-**Ограничения:**
-- Не менять модель `PortfolioPosition` без согласования —
-  она используется в UI.
-- Не смешивать с задачей «gRPC-стрим позиций» — отдельная
-  работа.
-- Серверный `expectedYield` остаётся приоритетным, если
-  применим вариант A или C.
-
-**Критерий готовности:**
-- Формула расчёта P&L однозначна (не зависит от знака).
-- Фьючерсы корректно учитывают `pointValue`.
-- Поведение покрыто unit-тестами.
-- Расхождения серверного и клиентского P&L либо устранены,
-  либо объяснены и задокументированы.
-
-**Оценка:** ~2–3 часа (включая сбор данных на реальных
-аккаунтах).
-
-**Зависимости:** нет. **Желательно до** интеграции
-gRPC-стрима позиций — иначе переход на стрим сломает P&L
-в карточках.
-
-
-
-
----
-
 ### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
 
 **Мобильная работа:** частичное (live-тест UI).
@@ -2078,6 +1807,67 @@ Finam в UI.
 **Оценка:** 15 минут на нового брокера + 5 минут на новый код.
 
 
+
+---
+
+### P&L: client-side fallback для PortfolioPosition (низкий приоритет)
+
+**Мобильная работа:** частичное (live-тест данных).
+
+**Статус:** запланировано.
+
+**Контекст:** сейчас `PortfolioPosition.profit = expectedYield` (серверный P&L от брокера). Если сервер не прислал `expectedYield` (изменение API, bug, первый partial-event до polling), `profit = null`, UI показывает прочерк. Клиентский расчёт `(currentPrice - averagePrice) * quantity * pointValue` мог бы дать ненулевую цифру.
+
+`PositionFlowManager.enrichAndCache` уже подставляет `expectedYield` из кеша для partial-событий, когда polling пришёл. Но если сервер не прислал его в самом polling — fallback отсутствует.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/models/Portfolio.kt` — новая `fun PositionStreamItem.clientProfit(): Double?` (pure); использовать в `toPortfolioPosition()` и `mergeWith()` как fallback.
+- `app/src/test/kotlin/com/gitlab/biomorf/tscalp/domain/models/PortfolioTest.kt` (новый) — unit-тесты.
+
+**Шаги:**
+1. Реализовать `fun PositionStreamItem.clientProfit(): Double?`: `val avg = averagePositionPrice ?: return null`; `val price = currentPrice ?: return null`; `if (avg <= 0.0 || quantity == 0L) return null`; `val point = pointValue?.takeIf { it > 0.0 } ?: 1.0`; `return (price - avg) * quantity * point`.
+2. `toPortfolioPosition()`: `val profitValue = expectedYield ?: clientProfit()`; `profit = profitValue`, `profitPercent = calculateProfitPercent(profitValue, ...)`.
+3. `mergeWith()`: то же (не затирать `profit` в null, если `expectedYield == null`, но `clientProfit()` возвращает значение).
+4. Тесты (5–6 кейсов): server (non-null), client (expectedYield == null), futures (pointValue), avgPrice == null -> null, quantity == 0 -> null, убыток (negative client).
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** 5–6 unit-кейсов.
+
+**Референсы:**
+- Закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
+- `data/api/TInvestMarketDataService.kt:173` — passthrough `expectedYield`.
+- `domain/api/managers/PositionFlowManager.enrichAndCache` — заполнение из кеша.
+
+**Ограничения:**
+- Не менять поведение, когда `expectedYield != null` — серверный приоритет.
+- Не менять модель `PortfolioPosition` (только вычисление `profit`).
+- Не трогать `profitPercent` — унифицирован (`calculateProfitPercent`).
+- Fallback только при `expectedYield == null` (не при `0.0`).
+
+**Критерий готовности:**
+- `expectedYield == null && avgPrice != null && currentPrice != null` -> profit клиентски.
+- `expectedYield != null` -> server (поведение 1:1).
+- Тесты 5–6, гейт зелёный.
+
+**Оценка:** ~1.5 ч.
+
+**Зависимости:** нет.
+
+**Связано:** закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
+
+**Открытые вопросы:**
+- Если `expectedYield != null`, но клиентский расчёт расходится > 5% — логировать для аналитики? Отложено.
+- Если `averagePrice` устарел — проверка «свежести» отдельная задача.
 
 ---
 
@@ -7657,3 +7447,280 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 **Связано:** `docs/clean-audit.md` -> Н24; `### Рефакторинг ViewModel-слоя`.
 
 **Открытые вопросы (решены):** `portfolioFlow` не создан (см. Отклонение от плана). `flow: SharedFlow<PositionStreamItem>` оставлен без изменений — используется для будущих нужд (`### UI: отображение blocked`).
+
+
+
+---
+### ✅ H17–H20. Перенос presentation-утилит из util
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст (clean-audit Н17–Н20):** `util/` содержит
+presentation-код (`TradePhrases` — Compose, `CurrencyUtils` —
+presentation-формат), платформенные зависимости (`AppLogger` —
+`android.util.Log`) и transport-зависимости
+(`AppResultExtensions` — `io.grpc`). `util` — grab-bag без
+слоя; domain видит платформу и gRPC транзитивно.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation-
+код и платформенные/transport-зависимости в shared-слое
+`util/`.
+
+**Clean-альтернатива:**
+- `TradePhrases` → `presentation/util/TradePhrases.kt` (Compose +
+  UI-тексты), `presentation/theme/TradeColors.kt` (цвета).
+- `CurrencyUtils` → `presentation/util/Format.kt`.
+- `AppLogger` → `domain.log.Logger` (интерфейс) +
+  `data.log.AndroidAppLogger` (реализация через
+  `android.util.Log` + `BuildConfig.DEBUG`); `@Binds`. Domain
+  инжектит `Logger`.
+- `AppResultExtensions` → `data/error/AppErrorMapper.kt`
+  (per-broker по образцу `#### Классификатор ошибок`).
+
+Плюсы: `util` становится Compose-free, KMP-совместимым; domain
+не видит платформу. Минусы: ~30+ callsites `AppLogger.*` →
+`logger.*`, инъекция в каждый класс.
+
+**Выгоды (для «отклонение по 2c»):** —. Но отметить: правило
+AGENTS «Логирование: `AppLogger`, не `android.util.Log`»
+фактически закрепляет отклонение без 2c-фиксации. Решение
+(переезд на `Logger` **или** 2c-фиксация) — открытый вопрос
+внизу.
+
+**Что сделано (H17–H19):**
+- H17 (PR #64): `TradePhrases` → `presentation/components/`; `stringToOrderType` удалён в Split order (`ec9c7d5`).
+- H18 (PR #64): `CurrencyUtils` → `presentation/util/CurrencyFormat.kt` с параметром `currency`; `TradeDetails`/`TradeCheckResult` несут числа, форматирование в presentation.
+- H19 (PR #65–#67): `domain.log.Logger` + `data.log.AndroidAppLogger` + `di.LogModule`; 148 callsites мигрированы; `util/AppLogger.kt` удалён.
+
+**H20 (сделано, PR #70):** `AppResultExtensions` → `data/error/AppErrorMapper.kt` + `data/api/error/` (broker-таблицы).
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `util/TradePhrases.kt` → `presentation/util/TradePhrases.kt`,
+  `presentation/theme/TradeColors.kt`.
+- `util/CurrencyUtils.kt` → `presentation/util/Format.kt`.
+- `util/AppLogger.kt` → `domain/log/Logger.kt` (интерфейс) +
+  `data/log/AndroidAppLogger.kt` (реализация).
+- `util/AppResultExtensions.kt` → `data/error/AppErrorMapper.kt`.
+- `di/LogModule.kt` (новый) — `@Binds Logger →
+  AndroidAppLogger`.
+- ~30+ callsites `AppLogger.*` в data/domain/presentation —
+  заменить на инжектированный `Logger`.
+- ~10 callsites `TradePhrases.*`, `formatCurrency`,
+  `formatPrice` — правка импортов.
+- ~5 callsites `toAppError`, `runCatchingAppResult` — правка
+  импортов (data-only; domain не должен видеть).
+
+**Шаги:**
+1. **Решение по AppLogger** (решено): переезд на `Logger`-интерфейс (H19, PR #65–#67).
+2. Если переезд: `Logger` в `domain.log`, `AndroidAppLogger`
+   в `data.log`, `@Binds`, замена `AppLogger.*` на
+   `logger.*` (~30 callsites).
+3. `TradePhrases` → `presentation/util/` + `TradeColors`.
+4. `CurrencyUtils` → `presentation/util/Format.kt`.
+5. `AppResultExtensions` → `data/error/AppErrorMapper.kt`.
+6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
+   detekt`.
+
+**Тесты:** `AppLogger` не тестировался; `TradePhrases` не
+тестировался. Если переезд `AppLogger` — не тестируется
+напрямую (тонкая обёртка). `AppErrorMapper` — если переезд,
+то +тест на 1–2 сценария.
+
+**Референсы:** `docs/clean-audit.md` → Н17–Н20.
+`### Классификатор ошибок` в `### Рефакторинг
+архитектурного долга` — образец для `AppErrorMapper`.
+
+**Ограничения:** не смешивать 4 переезда в один PR — каждый
+отдельным коммитом (5a «один коммит — одна задача»; эта
+umbrella-задача — исключение, но подшаги внутри разные).
+Сохранить поведение `formatCurrency`/`formatPrice`
+(локаль, «₽», «пт»).
+
+**Критерий готовности:** `util/` содержит только
+platform-free shared (или пуст); `presentation/` не содержит
+Compose в `util/`-пути; `domain/` не видит `android.util.Log`
+и `io.grpc` транзитивно; гейт зелёный.
+
+**Оценка:** ~4–5 ч (AppLogger-переезд 2.5–3 ч, TradePhrases
+30 мин, CurrencyUtils 15 мин, AppResultExtensions 1 ч,
+гейт 15 мин). Если AppLogger — 2c-фиксация вместо переезда,
+~1.5–2 ч.
+
+**Зависимости:** H23 (`DebugFlagsRepository` — паттерн
+`domain.api` → `data` через `@Binds` установлен).
+
+**Связано:** `docs/clean-audit.md` → Н17, Н18, Н19, Н20;
+`### Классификатор ошибок` (в ROADMAP → `### Рефакторинг
+архитектурного долга`).
+
+**Открытые вопросы:**
+- **AppLogger:** переезд на `Logger`-интерфейс (Clean) или
+  2c-фиксация «AppLogger как глобальный фасад, согласовано
+  в AGENTS» (три обязательных элемента: правило нарушено —
+  domain видит платформу транзитивно; Clean-альтернатива —
+  Logger+DI; выгоды — zero-ceremony, ~30 callsites не
+  трогаются). Решение — на старте.
+- **Приоритет подшагов внутри:** если AppLogger — переезд,
+  начинать с него (влияет на 30+ файлов).'
+
+
+
+
+---
+
+
+
+
+---
+### ✅ Рефакторинг расчёта P&L для PortfolioPosition
+
+**Мобильная работа:** частичное (live-тест данных).
+
+**Что сделано:** 2026-10-29. Проблемы #1 (условная логика `if expectedYield > 0 else client`) и #2 (фьючерсы без `pointValue` в клиентском расчёте) устранены ранее (H9 «Портфельный снимок» / H24 `mergeWith`). Сейчас `PortfolioPosition.profit = expectedYield` (чистый passthrough), `profitPercent` — через `calculateProfitPercent` (учитывает `pointValue`). KDoc обновлён.
+
+Проблема #3 (fallback, когда `expectedYield == null`) вынесена отдельной задачей `### P&L: client-side fallback для PortfolioPosition` (низкий приоритет).
+
+**Контекст:** расчёт `profit` и `profitPercent` в
+`TInvestMarketDataService.fetchPositionsSnapshot` содержит
+непоследовательность, которая может давать расхождения между
+прибыльными и убыточными позициями.
+
+**Обнаруженные проблемы:**
+
+1. **Условная логика выбора источника.** Текущий код:
+   ```kotlin
+   val profit: Double? = if (expectedYield > 0.0) {
+       expectedYield          // серверный P&L
+   } else if (avgPrice != null && avgPrice > 0.0) {
+       (currentPrice - avgPrice) * quantity  // клиентский
+   } else null
+   ```
+    - Для **положительного** P&L — берётся серверный
+      `expectedYield`.
+    - Для **отрицательного** или **нулевого** — клиентский
+      расчёт.
+    - Профит и убыток считаются по разным формулам.
+    - `expectedYield == 0.0` (нет изменения) уходит в клиентскую
+      ветку.
+
+2. **Клиентский расчёт для фьючерсов.** Формула
+   `(currentPrice - avgPrice) * quantity` **не учитывает
+   `pointValue`**. Для фьючерсов цена в пунктах, реальный
+   P&L зависит от стоимости пункта. В закрытой задаче
+   «Унификация profitPercent для PortfolioPosition» починили
+   `profitPercent`, но не сам `profit`.
+
+3. **Источники серверного P&L.** `expectedYield` от T-Invest
+   может отличаться от `(currentPrice - avgPrice) * quantity`
+   из-за комиссий, дивидендов, корпоративных событий,
+   НКД по облигациям. Серверный — точнее, но не всегда
+   положительный/нулевой корректно обрабатывается.
+
+**Связано:** задача «gRPC-стрим позиций». Стрим
+`PositionsStream` даёт только `balance` (количество) и
+идентификаторы, но **не даёт** `expectedYield`,
+`averagePositionPrice`, `currentPrice`. Если рефакторинг
+P&L не сделан до интеграции стрима, карточки потеряют P&L
+при переходе на gRPC.
+
+**Варианты решения:**
+
+**A. Только серверный `expectedYield`.**
+- `profit = expectedYield` всегда (если оно есть в ответе).
+- Плюс: единая формула, точнее учёт комиссий/дивидендов.
+- Минус: зависимость от того, что сервер всегда присылает
+  поле. Если `expectedYield` = 0, непонятно — это «нет
+  изменения» или «сервер не посчитал».
+
+**B. Только клиентский расчёт.**
+- `profit = (currentPrice - avgPrice) * quantity * pointValue`
+  — универсальная формула.
+- Плюс: работает без серверного `expectedYield`, единая
+  логика для всех типов инструментов.
+- Минус: не учитывает комиссии, дивиденды, корпоративные
+  события. Для точного P&L — недостаточно.
+
+**C. Гибрид с приоритетом серверного.**
+- Если `expectedYield` есть (не null) — используем его.
+- Иначе — клиентский расчёт.
+- Плюс: серверный в приоритете (точнее), клиентский —
+  fallback.
+- Минус: нужно чётко определить, когда `expectedYield`
+  считается «есть» (в proto у него double, нет отдельного
+  `hasExpectedYield`).
+
+**D. Разделить поля.**
+- `profit` — всегда серверный `expectedYield`.
+- `clientProfit` — клиентский расчёт.
+- UI решает, что показывать.
+- Плюс: обе цифры доступны для сверки.
+- Минус: удвоение модели, UI должен выбрать.
+
+**Рекомендация:** **A** для `profit`, с fallback на
+клиентский расчёт только если сервер вернул 0 и это
+подозрительно (нужен критерий). `profitPercent` — уже
+унифицирован, оставить.
+
+**Файлы:**
+- `data/api/TInvestMarketDataService.kt` — метод
+  `fetchPositionsSnapshot`.
+- `domain/models/Portfolio.kt` — модель и
+  `calculateProfitPercent`, если потребуется.
+- `domain/models/Instruments.kt` — `FutureUi.pointValue`,
+  если потребуется.
+
+**Шаги:**
+
+1. Собрать данные на реальных аккаунтах: сравнить серверный
+   `expectedYield` и клиентский расчёт на разных позициях
+   (акции, фьючерсы, положительный / отрицательный /
+   нулевой P&L).
+2. Определить, воспроизводится ли расхождение и в каких
+   случаях.
+3. Выбрать вариант (A/B/C/D).
+4. Реализовать.
+5. Покрыть unit-тестами:
+    - акция с положительным P&L;
+    - акция с отрицательным P&L;
+    - фьючерс с положительным P&L (проверка `pointValue`);
+    - фьючерс с отрицательным P&L;
+    - отсутствие `expectedYield`.
+
+**Референсы:**
+- `docs/ROADMAP.md` → «Унификация profitPercent для
+  PortfolioPosition» (закрытая) — что уже сделано.
+- Официальная документация T-Invest API → `PositionData` →
+  `expectedYield`, `averagePositionPrice`.
+- Proto-контракт: `ru.tinkoff.piapi.contract.v1.PositionData`.
+
+**Ограничения:**
+- Не менять модель `PortfolioPosition` без согласования —
+  она используется в UI.
+- Не смешивать с задачей «gRPC-стрим позиций» — отдельная
+  работа.
+- Серверный `expectedYield` остаётся приоритетным, если
+  применим вариант A или C.
+
+**Критерий готовности:**
+- Формула расчёта P&L однозначна (не зависит от знака).
+- Фьючерсы корректно учитывают `pointValue`.
+- Поведение покрыто unit-тестами.
+- Расхождения серверного и клиентского P&L либо устранены,
+  либо объяснены и задокументированы.
+
+**Оценка:** ~2–3 часа (включая сбор данных на реальных
+аккаунтах).
+
+**Зависимости:** нет. **Желательно до** интеграции
+gRPC-стрима позиций — иначе переход на стрим сломает P&L
+в карточках.
+
+
+
+
+---
+
