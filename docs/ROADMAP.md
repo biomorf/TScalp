@@ -295,54 +295,6 @@ Compose в `util/`-пути; `domain/` не видит `android.util.Log`
 
 ---
 
-### H24. Обогащение PositionStreamItem — в один метод
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст (clean-audit Н24):** `OrdersViewModel.updatePositionPnl` и `PortfolioViewModel.updatePortfolioItem` реализуют одну логику (обогащение `PositionStreamItem` -> `PortfolioPosition` через `toPortfolioPosition` / `calculateProfitPercent`), но с разной реализацией (в одной — `index == -1` -> добавить, в другой — аналогично, но с доп. полями `isin`/`classCode`). Дублирование, рассинхронизация.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** не строго Clean — DRY / Single Source of Truth для конверсии.
-
-**Clean-альтернатива:** вынести обогащение в `PositionFlowManager` (domain.api.managers) — эмитит готовые `PortfolioPosition`, VM не парсит `PositionStreamItem`. Плюсы: одна точка правды, VM — тонкие. Минусы: ~2 ч, переписать 2 VM + менеджер.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** H21b (VM не видят data).
-
-**Файлы:**
-- `domain/api/managers/PositionFlowManager.kt` — эмитит `PortfolioPosition` (или параллельный `portfolioFlow`).
-- `presentation/screens/orders/OrdersViewModel.kt` — удалить `updatePositionPnl`, подписаться на новый поток.
-- `presentation/screens/portfolio/PortfolioViewModel.kt` — удалить `updatePortfolioItem`, аналогично.
-- `domain/models/Portfolio.kt` — `toPortfolioPosition` остаётся, используется менеджером.
-
-**Шаги:**
-1. Решить: `PositionFlowManager.portfolioFlow: SharedFlow<PortfolioPosition>` (параллельно с `flow: SharedFlow<PositionStreamItem>`) или заменить `flow` на `PortfolioPosition`.
-2. Реализовать эмиссию в менеджере.
-3. `OrdersViewModel` / `PortfolioViewModel` — подписка на новый поток, удалить дублирующую логику.
-4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты:** `PositionFlowManagerTest` — эмиссия `PortfolioPosition` с обогащением (по образцу существующих тестов на `flow`).
-
-**Референсы:** `docs/clean-audit.md` -> Н24.
-
-**Ограничения:** не менять публичный контракт `PriceFlowManager.prices` (не трогается). `PositionFlowManager.flow` — оставить или заменить по решению шага 1. `synchronized(startLock)` в менеджере — сохранить.
-
-**Критерий готовности:** `updatePositionPnl` и `updatePortfolioItem` удалены; обогащение в `PositionFlowManager`; гейт зелёный.
-
-**Оценка:** ~2 ч.
-
-**Зависимости:** H21b.
-
-**Связано:** `docs/clean-audit.md` -> Н24; `### Рефакторинг ViewModel-слоя`.
-
-**Открытые вопросы:** оставить `flow: PositionStreamItem` параллельно с `portfolioFlow` (для существующих потребителей) или заменить? Рекомендация — параллельный `portfolioFlow`, `flow` оставить для будущих нужд (например, `PositionStreamItem` нужен для `### UI: отображение blocked`).
-
-
-
 ### H5. PortfolioPosition: разделение domain/presentation
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -7655,3 +7607,53 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 
 ---
 
+
+
+---
+### ✅ H24. Обогащение PositionStreamItem — в один метод
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Что сделано:** 2026-10-29 (PR #69). SSoT-helper `PortfolioPosition.mergeWith(item: PositionStreamItem)` в `domain/models/Portfolio.kt` (канон по `PortfolioViewModel`): `quantity` из события, `currentPrice`/`averagePrice`/`pointValue` non-null fallback, `totalValue = currentPrice * quantity`, `profit` = `expectedYield`, `profitPercent` через `calculateProfitPercent`, `isin`/`classCode` — `ifBlank { old }`. Оба VM используют `old.mergeWith(item)`. Политики (фильтр partial в Orders, без фильтра в Portfolio) — presentation.
+
+**Отклонение от плана:** вместо `portfolioFlow` в `PositionFlowManager` — SSoT-helper в domain-модели. Причина: `PortfolioPosition` содержит presentation-поля, эмитить их из domain-менеджера — углубление clean-audit Н5. `mergeWith` сохраняет SSoT без нарушения dependency rule.
+
+**Контекст (clean-audit Н24):** `OrdersViewModel.updatePositionPnl` и `PortfolioViewModel.updatePortfolioItem` реализуют одну логику (обогащение `PositionStreamItem` -> `PortfolioPosition` через `toPortfolioPosition` / `calculateProfitPercent`), но с разной реализацией (в одной — `index == -1` -> добавить, в другой — аналогично, но с доп. полями `isin`/`classCode`). Дублирование, рассинхронизация.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** не строго Clean — DRY / Single Source of Truth для конверсии.
+
+**Clean-альтернатива:** вынести обогащение в `PositionFlowManager` (domain.api.managers) — эмитит готовые `PortfolioPosition`, VM не парсит `PositionStreamItem`. Плюсы: одна точка правды, VM — тонкие. Минусы: ~2 ч, переписать 2 VM + менеджер.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** H21b (VM не видят data).
+
+**Файлы:**
+- `domain/api/managers/PositionFlowManager.kt` — эмитит `PortfolioPosition` (или параллельный `portfolioFlow`).
+- `presentation/screens/orders/OrdersViewModel.kt` — удалить `updatePositionPnl`, подписаться на новый поток.
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — удалить `updatePortfolioItem`, аналогично.
+- `domain/models/Portfolio.kt` — `toPortfolioPosition` остаётся, используется менеджером.
+
+**Шаги:**
+1. Решить: `PositionFlowManager.portfolioFlow: SharedFlow<PortfolioPosition>` (параллельно с `flow: SharedFlow<PositionStreamItem>`) или заменить `flow` на `PortfolioPosition`.
+2. Реализовать эмиссию в менеджере.
+3. `OrdersViewModel` / `PortfolioViewModel` — подписка на новый поток, удалить дублирующую логику.
+4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** `PositionFlowManagerTest` — эмиссия `PortfolioPosition` с обогащением (по образцу существующих тестов на `flow`).
+
+**Референсы:** `docs/clean-audit.md` -> Н24.
+
+**Ограничения:** не менять публичный контракт `PriceFlowManager.prices` (не трогается). `PositionFlowManager.flow` — оставить или заменить по решению шага 1. `synchronized(startLock)` в менеджере — сохранить.
+
+**Критерий готовности:** `updatePositionPnl` и `updatePortfolioItem` удалены; обогащение в `PositionFlowManager`; гейт зелёный.
+
+**Оценка:** ~2 ч.
+
+**Зависимости:** H21b.
+
+**Связано:** `docs/clean-audit.md` -> Н24; `### Рефакторинг ViewModel-слоя`.
+
+**Открытые вопросы (решены):** `portfolioFlow` не создан (см. Отклонение от плана). `flow: SharedFlow<PositionStreamItem>` оставлен без изменений — используется для будущих нужд (`### UI: отображение blocked`).
