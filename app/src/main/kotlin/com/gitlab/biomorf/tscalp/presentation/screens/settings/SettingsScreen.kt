@@ -393,7 +393,7 @@ fun TInvestSettingsPanel() {
                                     val newAccountId = openResult.data
                                     when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                                         is AppResult.Success -> availableAccounts = accountsResult.data
-
+                                        is AppResult.Failure -> Unit // логируется в SettingsViewModel
                                     }
                                     defaultAccountId = newAccountId
                                     settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, newAccountId)
@@ -491,7 +491,7 @@ fun TInvestSettingsPanel() {
                                 is AppResult.Success -> {
                                     when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                                         is AppResult.Success -> availableAccounts = accountsResult.data
-
+                                        is AppResult.Failure -> Unit // логируется в SettingsViewModel
                                     }
                                     defaultAccountId = ""
                                     settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, "")

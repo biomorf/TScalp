@@ -23,14 +23,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-private val appScope =
-    CoroutineScope(
-        Dispatchers.IO + SupervisorJob() +
-            CoroutineExceptionHandler { _, e ->
-                logger.e("TScalpApplication", "Uncaught error in background scope", e)
-            },
-    )
-
 @HiltAndroidApp
 class TScalpApplication : Application() {
     @Inject
@@ -44,6 +36,14 @@ class TScalpApplication : Application() {
 
     @Inject
     lateinit var logger: Logger
+
+    private val appScope =
+        CoroutineScope(
+            Dispatchers.IO + SupervisorJob() +
+                CoroutineExceptionHandler { _, e ->
+                    logger.e("TScalpApplication", "Uncaught error in background scope", e)
+                },
+        )
 
     override fun onCreate() {
         super.onCreate()
