@@ -15,6 +15,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
@@ -37,7 +38,6 @@ import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.util.toAppError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -71,6 +71,7 @@ class OrdersViewModel
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val prepareOrderRequest: PrepareOrderRequestUseCase,
         private val positionFlowManager: PositionFlowManager,
+        private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
         val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
@@ -95,7 +96,7 @@ class OrdersViewModel
             // StateFlow отдаёт текущее значение сразу при подписке — аналог
             // прежнего прямого вызова checkApiInitialization() в init.
             viewModelScope.launch {
-                AppLogger.d(TAG, "subscribed to anyInitialized")
+                logger.d(TAG, "subscribed to anyInitialized")
                 brokerManager.anyInitialized.collect {
                     checkApiInitialization()
                 }
@@ -105,7 +106,7 @@ class OrdersViewModel
             // в Настройках DataStore эмитит изменение, Flow доставляет,
             // state обновляется, onClick видит свежее значение.
             viewModelScope.launch {
-                AppLogger.d(TAG, "subscribed to confirmOrdersEnabledFlow")
+                logger.d(TAG, "subscribed to confirmOrdersEnabledFlow")
                 settingsRepository.confirmOrdersEnabledFlow().collect { enabled ->
                     _uiState.update { it.copy(confirmOrdersEnabled = enabled) }
                 }
@@ -115,7 +116,7 @@ class OrdersViewModel
             // задаётся через syncPriceInterest() при изменении
             // selectedInstrument / pairedInstrument.
             viewModelScope.launch {
-                AppLogger.d(TAG, "subscribed to prices")
+                logger.d(TAG, "subscribed to prices")
                 priceFlowManager.prices.collect { update ->
                     updateInstrumentPrice(update)
                 }
@@ -137,7 +138,7 @@ class OrdersViewModel
 
         fun checkApiInitialization() {
             val isAnyApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
-            AppLogger.d(TAG, "checkApiInitialization: anyApiInitialized=$isAnyApiInit")
+            logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isAnyApiInit")
             _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
 
             if (isAnyApiInit) {
@@ -230,7 +231,7 @@ class OrdersViewModel
 
         fun loadAccounts() {
             viewModelScope.launch {
-                AppLogger.d(TAG, "loadAccounts: start")
+                logger.d(TAG, "loadAccounts: start")
                 _uiState.update { it.copy(isLoading = true) }
 
                 val sandboxMode = settingsRepository.isSandboxMode()
@@ -256,7 +257,7 @@ class OrdersViewModel
                                     },
                             )
                         }
-                        AppLogger.i(
+                        logger.i(
                             TAG,
                             "loadAccounts: success, accounts=${accounts.size}, selected=${_uiState.value.selectedAccountId}",
                         )
@@ -266,7 +267,7 @@ class OrdersViewModel
                     }
 
                     is AppResult.Failure -> {
-                        AppLogger.e(
+                        logger.e(
                             TAG,
                             "loadAccounts failed: ${result.error.message}",
                             result.error.cause,
@@ -340,7 +341,7 @@ class OrdersViewModel
                     when (val pricesResult = marketDataRepository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
                         is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
                         is AppResult.Failure -> {
-                            AppLogger.w(
+                            logger.w(
                                 TAG,
                                 "onInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
                                 pricesResult.error.cause,
@@ -438,7 +439,7 @@ class OrdersViewModel
             val state = _uiState.value
             val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return
             val quantity = state.quantityAsLong ?: return
-            AppLogger.d(
+            logger.d(
                 TAG,
                 "postOrder: direction=$direction, ticker=$ticker, qty=$quantity, orderType=${state.orderType}",
             )
@@ -463,7 +464,7 @@ class OrdersViewModel
                 ) {
                     is AppResult.Success -> result.data
                     is AppResult.Failure -> {
-                        AppLogger.e(TAG, "checkTradeAvailability failed: ${result.error.message}", result.error.cause)
+                        logger.e(TAG, "checkTradeAvailability failed: ${result.error.message}", result.error.cause)
                         _uiState.update {
                             it.copy(statusMessage = "❌ ${result.error.message}", isError = true)
                         }
@@ -541,7 +542,7 @@ class OrdersViewModel
                 when (primaryOutcome) {
                     is AppResult.Success -> primaryOutcome.data
                     is AppResult.Failure -> {
-                        AppLogger.e(
+                        logger.e(
                             TAG,
                             "primary order failed: ${primaryOutcome.error.message}",
                             primaryOutcome.error.cause,
@@ -569,7 +570,7 @@ class OrdersViewModel
                                     "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
                                         "${pairedStop.quantity} лотов, ID: ${r.data.take(8)}…"
                                 is AppResult.Failure -> {
-                                    AppLogger.e(
+                                    logger.e(
                                         TAG,
                                         "paired stop order failed: ${r.error.message}",
                                         r.error.cause,
@@ -584,7 +585,7 @@ class OrdersViewModel
                                     "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
                                         "${pairedRegular.quantity} лотов, ID: ${r.data.orderId}"
                                 is AppResult.Failure -> {
-                                    AppLogger.e(
+                                    logger.e(
                                         TAG,
                                         "paired order failed: ${r.error.message}",
                                         r.error.cause,
@@ -597,7 +598,7 @@ class OrdersViewModel
                         throw e
                     } catch (e: Exception) {
                         val appError = e.toAppError()
-                        AppLogger.e(TAG, "paired order unexpected error: ${appError.message}", e)
+                        logger.e(TAG, "paired order unexpected error: ${appError.message}", e)
                         "\n❌ Ошибка контрсделки: ${appError.message}"
                     }
             }
@@ -608,7 +609,7 @@ class OrdersViewModel
                 when (val balanceResult = portfolioRepository.getBalanceResult(accountId)) {
                     is AppResult.Success -> balanceResult.data
                     is AppResult.Failure -> {
-                        AppLogger.w(
+                        logger.w(
                             TAG,
                             "postOrder: getBalance failed: ${balanceResult.error.message}",
                             balanceResult.error.cause,
@@ -685,7 +686,7 @@ class OrdersViewModel
                     ) {
                         is AppResult.Success -> result.data
                         is AppResult.Failure -> {
-                            AppLogger.e(
+                            logger.e(
                                 TAG,
                                 "Ошибка загрузки счетов для ${broker.displayName}: ${result.error.message}",
                                 result.error.cause,
@@ -772,7 +773,7 @@ class OrdersViewModel
                     }
                 }
                 is AppResult.Failure -> {
-                    AppLogger.e(
+                    logger.e(
                         TAG,
                         "Ошибка загрузки счетов для $brokerName: ${result.error.message}",
                         result.error.cause,
@@ -869,7 +870,7 @@ class OrdersViewModel
                     when (val pricesResult = marketDataRepository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
                         is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
                         is AppResult.Failure -> {
-                            AppLogger.w(
+                            logger.w(
                                 TAG,
                                 "onPairedInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
                                 pricesResult.error.cause,
@@ -930,7 +931,7 @@ class OrdersViewModel
                     }
                 }
                 is AppResult.Failure -> {
-                    AppLogger.e(
+                    logger.e(
                         TAG,
                         "Ошибка обновления статусов: ${result.error.message}",
                         result.error.cause,
@@ -962,7 +963,7 @@ class OrdersViewModel
                         is AppResult.Success ->
                             _uiState.update { it.copy(portfolioPositions = result.data) }
                         is AppResult.Failure ->
-                            AppLogger.w(
+                            logger.w(
                                 TAG,
                                 "Не удалось получить начальный портфель: ${result.error.message}",
                                 result.error.cause,
@@ -1028,7 +1029,7 @@ class OrdersViewModel
         }
 
         override fun onCleared() {
-            AppLogger.d(TAG, "onCleared")
+            logger.d(TAG, "onCleared")
             priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
@@ -1038,7 +1039,7 @@ class OrdersViewModel
             val quantity = item.quantity
             if (quantity == 0L) return
 
-            AppLogger.d(TAG, "updatePositionPnl: id=${item.tscalpInstrumentId}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
+            logger.d(TAG, "updatePositionPnl: id=${item.tscalpInstrumentId}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
 
             val profitPercent =
                 calculateProfitPercent(

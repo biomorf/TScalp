@@ -35,7 +35,6 @@ import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import kotlinx.coroutines.launch
 
 // Архитектурный долг: функция требует декомпозиции.
@@ -220,7 +219,6 @@ fun TInvestSettingsPanel() {
                     }
                 }
                 is AppResult.Failure -> {
-                    AppLogger.w("TInvestSettingsPanel", "getAccounts failed: ${result.error.message}", result.error.cause)
                     availableAccounts = emptyList()
                 }
             }
@@ -395,8 +393,7 @@ fun TInvestSettingsPanel() {
                                     val newAccountId = openResult.data
                                     when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                                         is AppResult.Success -> availableAccounts = accountsResult.data
-                                        is AppResult.Failure ->
-                                            AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+
                                     }
                                     defaultAccountId = newAccountId
                                     settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, newAccountId)
@@ -494,8 +491,7 @@ fun TInvestSettingsPanel() {
                                 is AppResult.Success -> {
                                     when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                                         is AppResult.Success -> availableAccounts = accountsResult.data
-                                        is AppResult.Failure ->
-                                            AppLogger.w("TInvestSettingsPanel", "reload accounts failed: ${accountsResult.error.message}", accountsResult.error.cause)
+
                                     }
                                     defaultAccountId = ""
                                     settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, "")

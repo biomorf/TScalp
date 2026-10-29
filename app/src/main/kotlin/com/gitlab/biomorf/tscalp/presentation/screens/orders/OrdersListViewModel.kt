@@ -6,10 +6,10 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +27,7 @@ class OrdersListViewModel
         private val ordersRepository: OrdersRepository,
         private val settingsRepository: SettingsRepository,
         private val orderFlowManager: OrderFlowManager,
+        private val logger: Logger,
     ) : ViewModel() {
         data class OrdersListState(
             val orders: List<Order> = emptyList(),
@@ -40,7 +41,7 @@ class OrdersListViewModel
 
         init {
             viewModelScope.launch {
-                AppLogger.d(TAG, "subscribed to orders+hasLoaded")
+                logger.d(TAG, "subscribed to orders+hasLoaded")
                 combine(
                     orderFlowManager.orders,
                     orderFlowManager.hasLoaded,
@@ -68,7 +69,7 @@ class OrdersListViewModel
 
         fun loadOrders() {
             viewModelScope.launch {
-                AppLogger.d(TAG, "loadOrders: start")
+                logger.d(TAG, "loadOrders: start")
                 _uiState.update { it.copy(isLoading = true, statusMessage = null, isError = false) }
 
                 val sandboxMode = settingsRepository.isSandboxMode()
@@ -78,7 +79,7 @@ class OrdersListViewModel
                     when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                         is AppResult.Success -> result.data
                         is AppResult.Failure -> {
-                            AppLogger.e(
+                            logger.e(
                                 TAG,
                                 "loadOrders: getAccounts failed: ${result.error.message}",
                                 result.error.cause,
@@ -106,14 +107,14 @@ class OrdersListViewModel
                 // Дальше UI обновляется через orderFlowManager.orders
                 // (см. init). start() идемпотентен для того же accountId.
                 orderFlowManager.start(accountId)
-                AppLogger.i(TAG, "loadOrders: account=$accountId, aggregation started")
+                logger.i(TAG, "loadOrders: account=$accountId, aggregation started")
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
 
         fun cancelOrder(order: Order) {
             viewModelScope.launch {
-                AppLogger.d(TAG, "cancelOrder: orderId=${order.orderId}, isStop=${order is Order.Stop}")
+                logger.d(TAG, "cancelOrder: orderId=${order.orderId}, isStop=${order is Order.Stop}")
                 val sandboxMode = settingsRepository.isSandboxMode()
 
                 // Шаг 1: счета
@@ -121,7 +122,7 @@ class OrdersListViewModel
                     when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                         is AppResult.Success -> result.data
                         is AppResult.Failure -> {
-                            AppLogger.e(
+                            logger.e(
                                 TAG,
                                 "cancelOrder: getAccounts failed: ${result.error.message}",
                                 result.error.cause,
@@ -146,7 +147,7 @@ class OrdersListViewModel
                 when (cancelResult) {
                     is AppResult.Success -> loadOrders()
                     is AppResult.Failure -> {
-                        AppLogger.e(
+                        logger.e(
                             TAG,
                             "cancelOrder: failed for orderId=${order.orderId}: ${cancelResult.error.message}",
                             cancelResult.error.cause,
@@ -163,7 +164,7 @@ class OrdersListViewModel
         }
 
         override fun onCleared() {
-            AppLogger.d(TAG, "onCleared")
+            logger.d(TAG, "onCleared")
             orderFlowManager.stop()
         }
     }

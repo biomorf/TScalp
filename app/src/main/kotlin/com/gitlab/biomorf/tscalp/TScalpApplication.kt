@@ -6,8 +6,8 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import com.gitlab.biomorf.tscalp.util.TInvestErrorMessages
 import dagger.hilt.android.HiltAndroidApp
 import io.appmetrica.analytics.AppMetrica
@@ -27,7 +27,7 @@ private val appScope =
     CoroutineScope(
         Dispatchers.IO + SupervisorJob() +
             CoroutineExceptionHandler { _, e ->
-                AppLogger.e("TScalpApplication", "Uncaught error in background scope", e)
+                logger.e("TScalpApplication", "Uncaught error in background scope", e)
             },
     )
 
@@ -41,6 +41,9 @@ class TScalpApplication : Application() {
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
+
+    @Inject
+    lateinit var logger: Logger
 
     override fun onCreate() {
         super.onCreate()
@@ -87,7 +90,7 @@ class TScalpApplication : Application() {
     private suspend fun restoreTInvest(broker: BrokerApi) {
         val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
         if (creds == null) {
-            AppLogger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
+            logger.w("TScalpApplication", "TInvest: нет сохранённых креденшелов")
             return
         }
         val (token, sandbox) = creds
@@ -95,7 +98,7 @@ class TScalpApplication : Application() {
         val initialized =
             broker.lifecycle?.initialize(BrokerCredentials.TInvest(token, sandbox)) ?: false
         if (!initialized) {
-            AppLogger.e("TScalpApplication", "TInvest: не удалось инициализировать API")
+            logger.e("TScalpApplication", "TInvest: не удалось инициализировать API")
             return
         }
         brokerManager.refreshInitializationState()
@@ -104,7 +107,7 @@ class TScalpApplication : Application() {
         val accountId = resolveTInvestAccountId(broker, sandbox, savedAccountId)
 
         if (accountId == null) {
-            AppLogger.w("TScalpApplication", "TInvest: не удалось выбрать/создать счёт")
+            logger.w("TScalpApplication", "TInvest: не удалось выбрать/создать счёт")
             return
         }
 
@@ -137,7 +140,7 @@ class TScalpApplication : Application() {
             try {
                 broker.accounts?.getAccounts(sandbox)
             } catch (e: Exception) {
-                AppLogger.w("TScalpApplication", "TInvest: getAccounts failed, fallback to savedAccountId", e)
+                logger.w("TScalpApplication", "TInvest: getAccounts failed, fallback to savedAccountId", e)
                 null
             }
 
@@ -161,7 +164,7 @@ class TScalpApplication : Application() {
         return try {
             broker.sandbox?.openSandboxAccount()
         } catch (e: Exception) {
-            AppLogger.w("TScalpApplication", "TInvest: openSandboxAccount failed", e)
+            logger.w("TScalpApplication", "TInvest: openSandboxAccount failed", e)
             null
         }
     }
@@ -175,7 +178,7 @@ class TScalpApplication : Application() {
         val initialized =
             broker.lifecycle?.initialize(BrokerCredentials.Bcs(refreshToken, isWriteMode)) ?: false
         if (!initialized) {
-            AppLogger.e("TScalpApplication", "Не удалось инициализировать BCS")
+            logger.e("TScalpApplication", "Не удалось инициализировать BCS")
             return
         }
         brokerManager.refreshInitializationState()
@@ -200,7 +203,7 @@ class TScalpApplication : Application() {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             when {
                 throwable is CancellationException -> {
-                    AppLogger.w(
+                    logger.w(
                         "TScalpApplication",
                         "Uncaught CancellationException (ignored)",
                         throwable,
@@ -213,7 +216,7 @@ class TScalpApplication : Application() {
                     val humanMessage =
                         description?.let { TInvestErrorMessages.messages[it] }
                             ?: "gRPC ${status.code}"
-                    AppLogger.e(
+                    logger.e(
                         "TScalpApplication",
                         "Unhandled gRPC ${status.code}: $humanMessage (description=$description)",
                         throwable,
@@ -225,7 +228,7 @@ class TScalpApplication : Application() {
                     if (original != null) {
                         original.uncaughtException(thread, throwable)
                     } else {
-                        AppLogger.e(
+                        logger.e(
                             "TScalpApplication",
                             "No original UncaughtExceptionHandler; rethrowing to kill process",
                             throwable,
@@ -240,7 +243,7 @@ class TScalpApplication : Application() {
     private fun initAppMetrica() {
         val apiKey = BuildConfig.APPMETRICA_API_KEY
         if (apiKey.isBlank()) {
-            AppLogger.w("TScalpApplication", "AppMetrica API key не задан, crash-репортинг отключён")
+            logger.w("TScalpApplication", "AppMetrica API key не задан, crash-репортинг отключён")
             return
         }
 
@@ -250,6 +253,6 @@ class TScalpApplication : Application() {
         }
 
         AppMetrica.activate(this, configBuilder.build())
-        AppLogger.d("TScalpApplication", "AppMetrica инициализирована (key.len=${apiKey.length})")
+        logger.d("TScalpApplication", "AppMetrica инициализирована (key.len=${apiKey.length})")
     }
 }
