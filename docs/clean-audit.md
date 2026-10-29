@@ -70,9 +70,11 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
 
-### Н24. Дублирование обогащения в двух VM
+### Исправленные (L1)
 
-**Статус:** открыто.
+### ✅ Н24. Дублирование обогащения в двух VM
+
+**Статус:** исправлено (2026-10-29, PR #69).
 
 **Серьёзность:** средне.
 
@@ -86,10 +88,11 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —
 
+**Что сделано:** SSoT-helper `PortfolioPosition.mergeWith(item: PositionStreamItem)` в `domain/models/Portfolio.kt` (канон по `PortfolioViewModel`): `quantity` из события, `currentPrice`/`averagePrice`/`pointValue` non-null fallback, `totalValue = currentPrice * quantity`, `profit` = `expectedYield`, `profitPercent` через `calculateProfitPercent`, `isin`/`classCode` — `ifBlank { old }`. Оба VM используют `old.mergeWith(item)`. Политики (фильтр partial в Orders, без фильтра в Portfolio) — presentation.
+
+**Отклонение от плана:** вместо `portfolioFlow` в `PositionFlowManager` (в плане) — SSoT-helper в domain-модели. Причина: `PortfolioPosition` содержит presentation-поля (`totalValue`, `profitPercent`), эмитить их из domain-менеджера — углубление clean-audit Н5, не решение Н24. `mergeWith` в domain-модели сохраняет SSoT без нарушения dependency rule.
+
 **Ссылка на задачу:** — (не заведена). Связано с `### Рефакторинг ViewModel-слоя`.
-
-
-### Исправленные (L1)
 
 ### ✅ Н1. Presentation конструирует PortfolioPosition
 
