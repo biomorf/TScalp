@@ -6,7 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
-import com.gitlab.biomorf.tscalp.util.toAppError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -292,7 +291,7 @@ class PriceFlowManager
                         }
                     }
                 } catch (e: Exception) {
-                    logger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)
+                    logger.w(TAG, "REST poll failed: ${e.message}", e)
                 }
             }
         }

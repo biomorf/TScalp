@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.util
+package com.gitlab.biomorf.tscalp.data.api.error
 
 /**
  * Расшифровка кодов ошибок T-Invest API.

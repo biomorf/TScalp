@@ -1,5 +1,6 @@
-package com.gitlab.biomorf.tscalp.util
+package com.gitlab.biomorf.tscalp.data.error
 
+import com.gitlab.biomorf.tscalp.data.api.error.BrokerErrorMessages
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
