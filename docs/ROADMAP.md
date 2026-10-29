@@ -123,53 +123,6 @@ clean-audit.
 
 
 
-### H1. PortfolioPosition factory для UI
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст (clean-audit Н1):** `OrdersScreen.kt` (два места: основной инструмент ~353, парный ~580) вручную вызывает `PortfolioPosition(...)` с `profit = null`, `profitPercent = null` для инструмента, которого нет в портфеле. Presentation конструирует domain-модель в обход domain-логики.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** dependency rule — presentation не конструирует domain-модели в обход domain-логики.
-
-**Clean-альтернатива:** domain-функция `emptyPortfolioPosition(instrument, currentPrice)` (или фабрика во ViewModel). UI получает готовую модель. Плюсы: правила конструирования в domain/presentation-фабрике. Минусы: ~30 мин + правка `OrdersUiState`.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `domain/models/Portfolio.kt` — новая функция `emptyPortfolioPosition(instrument: InstrumentUi, currentPrice: Double?): PortfolioPosition`.
-- `presentation/screens/orders/OrdersScreen.kt` — два места, заменить конструктор на вызов.
-- `presentation/screens/orders/OrdersUiState.kt` — если фабрика во ViewModel (вариант), поле-хелпер.
-
-**Шаги:**
-1. Решить: фабрика в domain (`emptyPortfolioPosition`) или во ViewModel.
-2. Реализовать.
-3. Заменить два места в `OrdersScreen`.
-4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты:** unit-тест на фабрику (пустой инструмент, instrument не в портфеле, `currentPrice = null` -> `0.0`).
-
-**Референсы:** `docs/clean-audit.md` -> Н1.
-
-**Ограничения:** не менять сигнатуру `PortfolioPosition` — это текущий контракт (см. Н5). Не смешивать с Н5.
-
-**Критерий готовности:** в `OrdersScreen` нет прямого `PortfolioPosition(...)`; гейт зелёный.
-
-**Оценка:** ~30 мин.
-
-**Зависимости:** H22.
-
-**Связано:** `docs/clean-audit.md` -> Н1, Н5 (концептуальное разделение модели — отдельно, последним).
-
-**Открытые вопросы:** фабрика в domain или во ViewModel? Рекомендация — domain (`emptyPortfolioPosition`), чтобы UI не собирал модель вручную даже через фабрику.
-
----
-
 ### H5. PortfolioPosition: разделение domain/presentation
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -7721,6 +7674,57 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
+
+---
+
+
+
+
+---
+### ✅ H1. PortfolioPosition factory для UI
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Что сделано:** 2026-10-29 (PR #68). `emptyPortfolioPosition(instrument, currentPrice, pointValue, instrumentType)` в `domain/models/Portfolio.kt`; `OrdersScreen` — 2 raw `PortfolioPosition(...)` → фабрика.
+
+**Контекст (clean-audit Н1):** `OrdersScreen.kt` (два места: основной инструмент ~353, парный ~580) вручную вызывает `PortfolioPosition(...)` с `profit = null`, `profitPercent = null` для инструмента, которого нет в портфеле. Presentation конструирует domain-модель в обход domain-логики.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — presentation не конструирует domain-модели в обход domain-логики.
+
+**Clean-альтернатива:** domain-функция `emptyPortfolioPosition(instrument, currentPrice)` (или фабрика во ViewModel). UI получает готовую модель. Плюсы: правила конструирования в domain/presentation-фабрике. Минусы: ~30 мин + правка `OrdersUiState`.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/models/Portfolio.kt` — новая функция `emptyPortfolioPosition(instrument: InstrumentUi, currentPrice: Double?): PortfolioPosition`.
+- `presentation/screens/orders/OrdersScreen.kt` — два места, заменить конструктор на вызов.
+- `presentation/screens/orders/OrdersUiState.kt` — если фабрика во ViewModel (вариант), поле-хелпер.
+
+**Шаги:**
+1. Решить: фабрика в domain (`emptyPortfolioPosition`) или во ViewModel.
+2. Реализовать.
+3. Заменить два места в `OrdersScreen`.
+4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** unit-тест на фабрику (пустой инструмент, instrument не в портфеле, `currentPrice = null` -> `0.0`).
+
+**Референсы:** `docs/clean-audit.md` -> Н1.
+
+**Ограничения:** не менять сигнатуру `PortfolioPosition` — это текущий контракт (см. Н5). Не смешивать с Н5.
+
+**Критерий готовности:** в `OrdersScreen` нет прямого `PortfolioPosition(...)`; гейт зелёный.
+
+**Оценка:** ~30 мин.
+
+**Зависимости:** H22.
+
+**Связано:** `docs/clean-audit.md` -> Н1, Н5 (концептуальное разделение модели — отдельно, последним).
+
+**Открытые вопросы:** фабрика в domain или во ViewModel? Рекомендация — domain (`emptyPortfolioPosition`), чтобы UI не собирал модель вручную даже через фабрику.
 
 ---
 
