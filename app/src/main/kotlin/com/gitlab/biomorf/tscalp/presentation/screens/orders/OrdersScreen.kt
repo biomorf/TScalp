@@ -37,6 +37,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.domain.models.emptyPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
@@ -174,20 +175,11 @@ fun OrdersScreen() {
                                         totalValue = currentPrice * portfolioPos.quantity,
                                     )
                                 } else {
-                                    PortfolioPosition(
-                                        brokerName = BrokerName.TINVEST,
-                                        tscalpInstrumentId = instrument.tscalpInstrumentId,
-                                        name = instrument.name,
-                                        isin = instrument.isin,
-                                        ticker = instrument.ticker,
-                                        classCode = instrument.classCode,
-                                        quantity = 0L,
+                                    emptyPortfolioPosition(
+                                        instrument = instrument,
                                         currentPrice = currentPrice,
-                                        totalValue = currentPrice * 0L,
-                                        profit = null,
-                                        profitPercent = null,
-                                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                         pointValue = uiState.currentPointValue,
+                                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                     )
                                 }
 
@@ -488,20 +480,11 @@ fun OrdersScreen() {
                                             totalValue = pairPrice * portfolioPos.quantity,
                                         )
                                     } else {
-                                        PortfolioPosition(
-                                            brokerName = BrokerName.TINVEST,
-                                            tscalpInstrumentId = instrument.tscalpInstrumentId,
-                                            name = instrument.name,
-                                            isin = instrument.isin,
-                                            ticker = instrument.ticker,
-                                            classCode = instrument.classCode,
-                                            quantity = 0L,
+                                        emptyPortfolioPosition(
+                                            instrument = instrument,
                                             currentPrice = pairPrice,
-                                            totalValue = pairPrice * 0L,
-                                            profit = null,
-                                            profitPercent = null,
-                                            instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                             pointValue = pairedPointValue,
+                                            instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
                                         )
                                     }
 
