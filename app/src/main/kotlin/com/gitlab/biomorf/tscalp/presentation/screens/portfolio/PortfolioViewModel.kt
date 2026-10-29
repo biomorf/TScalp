@@ -10,6 +10,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
@@ -19,7 +20,6 @@ import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.models.calculateProfitPercent
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
-import com.gitlab.biomorf.tscalp.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -44,6 +44,7 @@ class PortfolioViewModel
         private val settingsRepository: SettingsRepository,
         private val priceFlowManager: PriceFlowManager,
         private val positionFlowManager: PositionFlowManager,
+        private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
         val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
@@ -57,7 +58,7 @@ class PortfolioViewModel
             // Реагируем на изменение состояния инициализации брокеров.
             // StateFlow отдаёт текущее значение сразу при подписке.
             viewModelScope.launch {
-                AppLogger.d(TAG, "subscribed to anyInitialized")
+                logger.d(TAG, "subscribed to anyInitialized")
                 brokerManager.anyInitialized.collect {
                     checkApiInitialization()
                 }
@@ -66,7 +67,7 @@ class PortfolioViewModel
             // priceChangePercent у соответствующей позиции. Набор tscalpInstrumentId задаётся
             // через syncPriceInterest() после каждой загрузки портфеля.
             viewModelScope.launch {
-                AppLogger.d(TAG, "subscribed to prices")
+                logger.d(TAG, "subscribed to prices")
                 priceFlowManager.prices.collect { update ->
                     updatePriceFromStream(update)
                 }
@@ -87,7 +88,7 @@ class PortfolioViewModel
             // проверка «есть ли хоть один инициализированный брокер»
             val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
             val sandbox = settingsRepository.isSandboxMode()
-            AppLogger.d(TAG, "checkApiInitialization: anyApiInitialized=$isApiInit, sandbox=$sandbox")
+            logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isApiInit, sandbox=$sandbox")
             _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
 
             if (isApiInit) {
@@ -114,21 +115,21 @@ class PortfolioViewModel
 
                 val accountId =
                     settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: run {
-                        AppLogger.d(TAG, "loadPortfolio: no default account")
+                        logger.d(TAG, "loadPortfolio: no default account")
                         _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                         return@launch
                     }
                 val sandbox = settingsRepository.isSandboxMode()
-                AppLogger.d(TAG, "loadPortfolio: account=$accountId, sandbox=$sandbox")
+                logger.d(TAG, "loadPortfolio: account=$accountId, sandbox=$sandbox")
 
                 // Первичный запрос для немедленного отображения
                 when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
                     is AppResult.Success -> {
-                        AppLogger.i(TAG, "loadPortfolio: success, positions=${result.data.size}")
+                        logger.i(TAG, "loadPortfolio: success, positions=${result.data.size}")
                         _uiState.update { it.copy(positions = result.data, isLoading = false) }
                     }
                     is AppResult.Failure -> {
-                        AppLogger.e(
+                        logger.e(
                             TAG,
                             "loadPortfolio: fetchPositions failed: ${result.error.message}",
                             result.error.cause,
@@ -225,12 +226,12 @@ class PortfolioViewModel
         }
 
         override fun onCleared() {
-            AppLogger.d(TAG, "onCleared")
+            logger.d(TAG, "onCleared")
             priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
         }
 
         private fun updatePortfolioItem(item: PositionStreamItem) {
-            AppLogger.d(TAG, "updatePortfolioItem: id=${item.tscalpInstrumentId} type=${item.instrumentType} pointValue=${item.pointValue}")
+            logger.d(TAG, "updatePortfolioItem: id=${item.tscalpInstrumentId} type=${item.instrumentType} pointValue=${item.pointValue}")
             val current = _uiState.value.positions.toMutableList()
             val index = current.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }
             if (index == -1) {
@@ -272,7 +273,7 @@ class PortfolioViewModel
                 when (val result = marketDataRepository.getTradingStatusesResult(brokerName, ids)) {
                     is AppResult.Success -> allStatuses.putAll(result.data)
                     is AppResult.Failure -> {
-                        AppLogger.e(
+                        logger.e(
                             TAG,
                             "Ошибка обновления статусов для ${brokerName.displayName}: ${result.error.message}",
                             result.error.cause,
@@ -302,7 +303,7 @@ class PortfolioViewModel
                     when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                         is AppResult.Success -> result.data
                         is AppResult.Failure -> {
-                            AppLogger.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
+                            logger.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
@@ -332,7 +333,7 @@ class PortfolioViewModel
                     } else {
                         accounts.first().id
                     }
-                AppLogger.d(TAG, "Пополнение счёта $accountId через ${BrokerName.TINVEST.displayName}")
+                logger.d(TAG, "Пополнение счёта $accountId через ${BrokerName.TINVEST.displayName}")
 
                 // Шаг 2: пополнить
                 when (
@@ -343,11 +344,11 @@ class PortfolioViewModel
                         )
                 ) {
                     is AppResult.Success -> {
-                        AppLogger.d(TAG, "Пополнение выполнено успешно")
+                        logger.d(TAG, "Пополнение выполнено успешно")
                         loadPortfolio()
                     }
                     is AppResult.Failure -> {
-                        AppLogger.e(TAG, "payInSandbox: sandboxPayIn failed: ${result.error.message}", result.error.cause)
+                        logger.e(TAG, "payInSandbox: sandboxPayIn failed: ${result.error.message}", result.error.cause)
                         _uiState.update {
                             it.copy(
                                 isLoading = false,

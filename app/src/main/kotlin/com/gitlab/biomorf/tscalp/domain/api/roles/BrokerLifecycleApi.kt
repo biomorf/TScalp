@@ -25,7 +25,7 @@ interface BrokerLifecycleApi {
      * @return `true` — успех (брокер готов к работе,
      *   `isInitialized == true`), `false` — ошибка (неверный
      *   токен, сеть, отказ сервера). Сообщение об ошибке —
-     *   через [AppLogger][com.gitlab.biomorf.tscalp.util.AppLogger]
+     *   через [Logger][com.gitlab.biomorf.tscalp.domain.log.Logger]
      *   и `AppResult.Failure` на уровне ViewModel.
      * @throws IllegalArgumentException если [credentials]
      *   не того типа, который поддерживает эта реализация
