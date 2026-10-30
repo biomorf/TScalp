@@ -50,7 +50,7 @@ class TScalpApplication : Application() {
         installGrpcExceptionGuard()
 
         // Восстанавливаем подключение каждого брокера, если сохранены учётные данные.
-        // SettingsRepository работает на DataStore — все чтения suspend.
+        // Preferences-репозитории работают на DataStore — все чтения suspend.
         appScope.launch {
             for (brokerName in BrokerName.entries) {
                 restoreBrokerConnection(brokerName)
