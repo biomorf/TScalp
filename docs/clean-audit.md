@@ -1470,24 +1470,6 @@ object удалён после переноса его `@Provides` в `Repositor
 
 **Ссылка на задачу:** `H21b` (ROADMAP).
 
-### Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `installGrpcExceptionGuard` использует `util.TInvestErrorMessages.messages[description]` (T-Invest-специфичный маппинг кодов) + `util.AppLogger` (платформа). App видит util.
-
-**Нарушенное правило Clean:** dependency rule — `TInvestErrorMessages` — data-knowledge (T-Invest-специфика), не должен быть в `util` и не должен быть доступен в app напрямую.
-
-**Clean-альтернатива:** `TInvestErrorMessages` → `data/error/TInvestErrorMapper` (часть H20). `AppLogger` → `Logger`-интерфейс (H19). Плюсы: app не видит T-Invest-специфику. Минусы: зависит от H19/H20.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). **Связано с H19, H20**.
-
 ### Н50. restoreTInvest содержит domain-логику выбора счёта
 
 **Статус:** открыто.
@@ -1544,7 +1526,25 @@ object удалён после переноса его `@Provides` в `Repositor
 
 ### Исправленные (L8)
 
-[пусто]
+### ✅ Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger
+
+**Статус:** исправлено (PR #70, `dev`, 2026-10-29).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `installGrpcExceptionGuard` использует `util.TInvestErrorMessages.messages[description]` (T-Invest-специфичный маппинг кодов) + `util.AppLogger` (платформа). App видит util.
+
+**Нарушенное правило Clean:** dependency rule — `TInvestErrorMessages` — data-knowledge (T-Invest-специфика), не должен быть в `util` и не должен быть доступен в app напрямую.
+
+**Clean-альтернатива:** `TInvestErrorMessages` → `data/error/TInvestErrorMapper` (часть H20). `AppLogger` → `Logger`-интерфейс (H19). Плюсы: app не видит T-Invest-специфику. Минусы: зависит от H19/H20.
+
+**Выгоды:** —.
+
+**Что сделано:** `TInvestErrorMessages` переехал в `data/api/error/TInvestErrorMessages.kt` (PR #70 — вместе с H20); `AppLogger` заменён на `Logger`-интерфейс (H19, PR #70); `TScalpApplication` импортирует `data.api.error.TInvestErrorMessages` — для composition root допустимо (2c, как Н48). Нарушения «app → util» нет.
+
+**Ссылка на задачу:** PR #70 (H17–H20); H19, H20 (закрыты).
 
 ---
 
