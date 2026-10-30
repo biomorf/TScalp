@@ -378,6 +378,27 @@ actual). Не доверять фильтру.
 
 ---
 
+### 57. JVM/JUnit API-ограничения: проверять до первого запуска
+
+**Правило:** перед использованием API в коде/тесте — проверить его ограничения в документации, не полагаться на «выглядит логично». Три категории, на которых уже падали:
+
+**(а) `limitedParallelism` и `Dispatchers.Unconfined`.** `Dispatchers.Unconfined.limitedParallelism(n)` бросает `UnsupportedOperationException` в **конструкторе** (`Unconfined.kt:12`). Для тестов менеджеров с `limitedParallelism(1)` — `Dispatchers.Default` (поддерживает). `Unconfined` не подходит.
+
+**(б) Символы в backtick-именах JUnit-методов.** JVM method name spec запрещает `.`, `;`, `[`, `/`, `<`, `>`. Kotlin не санитизирует — компилятор: `Name contains illegal characters: ..`. Имя теста не должно содержать точек: `System.currentTimeMillis` в имени → ошибка компиляции; в KDoc-комментарии — ок.
+
+**(в) JUnit4: тест-метод должен быть `void`.** Expression body `fun foo() = runBlocking { ... }` выводит тип из последнего выражения. Если последнее возвращает не-`Unit` (например, `manager.stop()` → `Unit?` из `synchronized`), JUnit валит `InvalidTestClassError: Method ... should be void`. Block body `{ runBlocking { ... } }` — `void`.
+
+**Инцидент:** 2026-10-30, `feature/kmp-dispatchers` (#4 + fake-clock тест).
+- (а) 18 тестов менеджеров упали `UnsupportedOperationException: limitedParallelism is not supported for Dispatchers.Unconfined` — в конструкторе каждого менеджера. Замена на `Dispatchers.Default` — 17 замен, гейт зелёный.
+- (б) `OrderFlowManagerTest` — `e: Name contains illegal characters: ..` на имени `evictStale uses injected clock, not System.currentTimeMillis`.
+- (в) После (б) — `InvalidTestClassError: Method evictStale uses injected clock, not system time (fake-time regression)() should be void` из-за expression body с `= runBlocking`.
+
+Каждый раз — цикл `гейт → красный → правка → гейт`. Три цикла на одну задачу.
+
+**Проверка:** перед тестом с API — `grep` в документации/исходниках (KMP-таблица ограничений, JUnit-контракт); имя теста — без `.` `;` `[` `/` `<` `>`; JUnit4-метод — block body, не expression body.
+
+---
+
 
 
 ## Диагностика
