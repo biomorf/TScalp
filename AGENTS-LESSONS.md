@@ -401,6 +401,37 @@ actual). Не доверять фильтру.
 
 
 
+### 58. post-assert count — считать по факту диагностики, не по «логической» сумме
+
+**Правило:** перед `assert total == N` в скрипте правки — пересчитать `N` по фактическому выводу диагностики (`grep -n` / `grep -c`), а не по «ожиданию» из плана. Диагностика уже была перед глазами — из неё число берётся однозначно.
+
+**Инцидент:** 2026-10-31, пакет B (Н68). Дважды упал на post-assert `total`:
+- `SettingsViewModel`: `assert total == 19`, реально **21** (12 credentials + 3 account + 3 sandbox + 3 trading). Число 19 — из «плана», не из `grep`.
+- `BrokerLifecycleManagerTest`: `assert total == 9`, реально **12** (6 `loadBrokerCredentials` + 5 `loadDefaultAccountId` + 1 `saveDefaultAccountId`).
+
+Оба раза `write_text` не выполнялся (assert до записи), файлы не пострадали. Но каждый раз — лишний round-trip: пользователь присылал вывод диагностики, я игнорировал фактические числа и брал «ожидаемое».
+
+**Проверка:** в скрипте правки рядом с `assert total == N` — `counts` печатается в лог, и `N` пересчитывается перед отправкой по выводу диагностики. `grep -c "settingsRepository\." file` — контрольная сумма до правки.
+
+### 59. Откат блока в `.kt`/`.md` — anchor на следующий член, не на `}`
+
+**Правило:** при удалении/откате многострочного блока кода — правый якорь — **имя следующего члена** (`private val`, `internal abstract fun`, `### Header`), а не символ `}` класса/файла. `}` после блока может быть не закрывающей скобкой класса, а частью следующего члена.
+
+**Инцидент:** 2026-10-31, пакет B (Н68), откат `RepositoryBindingModule` после detekt-падения. Скрипт ждал `text[idx_end:idx_end+2] == "}
+"` после последнего нового `@Binds` (`bindTradingPreferencesRepository`). Фактически после него шёл ещё один член класса — `internal abstract fun bindDebugFlagsRepository` (не закрывающая `}`). Assert упал, файл не изменён, лишний round-trip.
+
+Правильный якорь — `"\n    @Binds\n    @Singleton\n    internal abstract fun bindDebugFlagsRepository"`, не `}`.
+
+**Проверка:** перед откатом блока — `grep -n "abstract fun bind\|^    fun \|^    private val " file` — найти реальный следующий член. Якорь в скрипте — по его сигнатуре, не по `}`.
+
+### 60. detekt `TooManyFunctions` на DI-модуле — split на доменные модули, не `@Suppress`
+
+**Правило:** при добавлении `@Binds`/`@Provides` в существующий модуль — считать **итоговое** число функций после **всех** шагов задачи (не только текущего коммита). Если итог > 11 и `@Suppress` не снимается никогда — разделить модуль на доменные (`RepositoryBindingModule` core vs `PreferencesRepositoryBindingModule`), а не ставить `@Suppress`.
+
+**Инцидент:** 2026-10-31, пакет B (Н68). В `RepositoryBindingModule` добавил 4 `@Binds` для новых preferences-репозиториев → 13 функций, detekt `TooManyFunctions` (порог 11). Альтернатива `@Suppress("TooManyFunctions")` отклонена: после коммита 3 (`bindSettingsRepository` удаляется) остаётся 12 — всё равно > 11, `@Suppress` был бы **постоянным** костылём. Разбил на 2 модуля: `RepositoryBindingModule` (8) + `PreferencesRepositoryBindingModule` (4) — оба ≤ 11, без `@Suppress`.
+
+**Проверка:** перед добавлением `@Binds` — `grep -cE "abstract fun bind" <module>.kt`, прибавить новые + учесть предстоящие удаления. Если итог > 11 и не снимается — split заранее, в том же PR.
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
