@@ -913,42 +913,6 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена). **Связано с H25**.
 
-### Н46. SearchCache.search бросает IllegalArgumentException
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `SearchCache.search` при ненайденном брокере: `throw IllegalArgumentException("Брокер … не найден")`. Остальные методы `InvestRepository` / data — возвращают `AppResult<T>`, не бросают. Исключение из data в presentation (`OrdersViewModel.onSearchQueryChanged` ловит `Exception`, показывает «Ошибка поиска: …»).
-
-**Нарушенное правило Clean:** контракт data — `AppResult<T>` (по AGENTS: «`AppResult<T>` (Success/Failure), не исключения на границах слоёв»).
-
-**Clean-альтернатива:** `SearchCache.search` возвращает `AppResult<List<InstrumentUi>>` (или `List<InstrumentUi>` без throw — пустой при ненайденном брокере, как `InvestRepository`). Плюсы: консистентность с data-контрактом. Минусы: правка `OrdersViewModel` (2 callsites).
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена).
-
-### Н47. SearchCache.search — избыточный withContext(Dispatchers.IO)
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `SearchCache.search`: `withContext(Dispatchers.IO) { broker.userInstruments?.findInstruments(query) ?: emptyList() }`. `findInstruments` — suspend, внутри data-слоя брокер сам выбирает диспатчер (gRPC/REST). `withContext(Dispatchers.IO)` в data — избыточная диспатчеризация.
-
-**Нарушенное правило Clean:** не строго Clean — data не доверяет слою ниже, дублирует диспатчеризацию.
-
-**Clean-альтернатива:** убрать `withContext(Dispatchers.IO)` — вызывать `findInstruments` напрямую. Плюсы: чисто. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `SearchCache`.
-
 ### Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket
 
 **Статус:** открыто.
@@ -1303,8 +1267,45 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi логирует refreshToken» (security-запись).
 
+### ✅ Н46. SearchCache.search бросает IllegalArgumentException
 
-[пусто]
+**Статус:** исправлено (PR #75, `dev`, 2026-10-30).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `SearchCache.search` при ненайденном брокере: `throw IllegalArgumentException("Брокер … не найден")`. Остальные методы `InvestRepository` / data — возвращают `AppResult<T>`, не бросают. Исключение из data в presentation (`OrdersViewModel.onSearchQueryChanged` ловит `Exception`, показывает «Ошибка поиска: …»).
+
+**Нарушенное правило Clean:** контракт data — `AppResult<T>` (по AGENTS: «`AppResult<T>` (Success/Failure), не исключения на границах слоёв»).
+
+**Clean-альтернатива:** `SearchCache.search` возвращает `AppResult<List<InstrumentUi>>` (или `List<InstrumentUi>` без throw — пустой при ненайденном брокере, как `InvestRepository`). Плюсы: консистентность с data-контрактом. Минусы: правка `OrdersViewModel` (2 callsites).
+
+**Выгоды:** —.
+
+**Что сделано:** `SearchCacheRepository.search` → `AppResult<List<InstrumentUi>>`; `SearchCacheImpl` — `AppResult.Failure(AppError.Unknown(…))` при ненайденном брокере, `AppResult.Success(sorted)`; `OrdersViewModel` — 2 callsites через `when`, `try/catch` для `CancellationException`; KDoc обновлён.
+
+**Ссылка на задачу:** PR #75 (`dev`, 2026-10-30).
+
+### ✅ Н47. SearchCache.search — избыточный withContext(Dispatchers.IO)
+
+**Статус:** исправлено (PR #75, `dev`, 2026-10-30).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `SearchCache.search`: `withContext(Dispatchers.IO) { broker.userInstruments?.findInstruments(query) ?: emptyList() }`. `findInstruments` — suspend, внутри data-слоя брокер сам выбирает диспатчер (gRPC/REST). `withContext(Dispatchers.IO)` в data — избыточная диспатчеризация.
+
+**Нарушенное правило Clean:** не строго Clean — data не доверяет слою ниже, дублирует диспатчеризацию.
+
+**Clean-альтернатива:** убрать `withContext(Dispatchers.IO)` — вызывать `findInstruments` напрямую. Плюсы: чисто. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** `withContext(Dispatchers.IO)` убран (`findInstruments` suspend; T-Invest gRPC-путь защищён внутри `TInvestMarketDataService`; BCS/Finam — `userInstruments = null`, не вызывают); импорты `Dispatchers`/`withContext` удалены; REST-fallback для `findInstruments` — отдельная задача в ROADMAP.
+
+**Ссылка на задачу:** PR #75 (`dev`, 2026-10-30). Связано: `### T-Invest REST: findInstruments fallback` (ROADMAP). Мелочь, правится при следующем касании `SearchCache`.
 
 ---
 
@@ -1562,24 +1563,6 @@ object удалён после переноса его `@Provides` в `Repositor
 | Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt | низко | L9 | `dto/PositionsStreamDto.kt` | - |
 | Н93. PositionsStreamDto — устаревшие комментарии-гипотезы | низко | L9 | `dto/PositionsStreamDto.kt` | - |
 
-### Н88. RestGetPortfolioRequest — без @Serializable
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `TInvestRestTransport.kt`: `data class RestGetPortfolioRequest(@SerialName("accountId") val accountId: String)` — единственный DTO из 14 **без** `@Serializable`. Используется в `getBalance(accountId, isSandbox = true)` через `setBody(request)`. При попытке сериализации kotlinx.serialization выбросит `SerializationException` в runtime (сейчас не проявляется, если sandbox-ветка не вызывается).
-
-**Нарушенное правило Clean:** не строго Clean — консистентность DTO + runtime failure.
-
-**Clean-альтернатива:** добавить `@Serializable` к `RestGetPortfolioRequest`. Плюсы: единообразие, работает. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). Связано с закрытой `### Ktor REST для позиций/заявок/баланса` — баг в реализации.
-
 ### Н87. TInvestPositionsWebSocket — cold flow, риск дублирования соединений
 
 **Статус:** открыто.
@@ -1701,6 +1684,30 @@ object удалён после переноса его `@Provides` в `Repositor
 **Выгоды:** —.
 
 **Ссылка на задачу:** — (не заведена). Связано с `docs/ISSUES.md` → «T-Invest WebSocket: решён...».
+
+---
+
+### Исправленные (L9)
+
+### ✅ Н88. RestGetPortfolioRequest — без @Serializable
+
+**Статус:** исправлено (PR #75, `dev`, 2026-10-30).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `TInvestRestTransport.kt`: `data class RestGetPortfolioRequest(@SerialName("accountId") val accountId: String)` — единственный DTO из 14 **без** `@Serializable`. Используется в `getBalance(accountId, isSandbox = true)` через `setBody(request)`. При попытке сериализации kotlinx.serialization выбросит `SerializationException` в runtime (сейчас не проявляется, если sandbox-ветка не вызывается).
+
+**Нарушенное правило Clean:** не строго Clean — консистентность DTO + runtime failure.
+
+**Clean-альтернатива:** добавить `@Serializable` к `RestGetPortfolioRequest`. Плюсы: единообразие, работает. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** `@Serializable` добавлен к `RestGetPortfolioRequest` (`TInvestRestTransport.kt`); единственный DTO из 14 без аннотации; `setBody` в `getBalance` (sandbox) теперь сериализуется.
+
+**Ссылка на задачу:** PR #75 (`dev`, 2026-10-30). Связано с закрытой `### Ktor REST для позиций/заявок/баланса` — баг в реализации.
 
 ---
 
