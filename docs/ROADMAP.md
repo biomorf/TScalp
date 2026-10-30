@@ -122,6 +122,59 @@ clean-audit.
 
 ---
 
+### T-Invest REST: findInstruments fallback
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `findInstruments` (поиск инструментов) идёт только через gRPC-путь (`TInvestMarketDataService.findInstruments` → `findInstrumentShorts` → `fetchProtoInstrument`). REST-fallback в `TInvestOrchestrator` для него отсутствует — в отличие от цен, заказов, баланса, где fallback уже работает (`pricesSnapshot` / `ordersSnapshot` / `balanceSnapshot`). При недоступности gRPC (`UNAVAILABLE` / `DEADLINE_EXCEEDED` / `UNIMPLEMENTED`) поиск инструментов ломается, хотя REST T-Invest умеет `InstrumentsService/FindInstrument`. Найдено при ревизии Н47 (`SearchCacheImpl` — внешний `withContext(Dispatchers.IO)` был избыточен, потому что gRPC-путь уже защищён; для REST-пути защита должна быть внутри транспорта/оркестратора).
+
+**Соответствие Clean:** соответствует (transport-level fallback — существующий паттерн оркестратора).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `transport-ktor/src/commonMain/.../TInvestRestTransport.kt` — новый `findInstrument(query)` + DTO (`RestFindInstrumentRequest`, `RestInstrumentShortResponse`).
+- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — новый `findInstrumentsWithFallback(query)` + `findInstrumentsRestFallback` (по образцу `pricesRestFallback`).
+- `app/src/main/kotlin/.../data/api/TInvestBrokerApi.kt` — `findInstruments` через оркестратор вместо прямого `marketDataService.findInstruments`.
+- `app/src/test/.../data/orchestrator/TInvestOrchestratorFallbackTest.kt` — 2 теста (fallback на `UNAVAILABLE`; отсутствие fallback на бизнес-ошибку).
+
+**Шаги:**
+1. `TInvestRestTransport`: DTO + `findInstrument(query)` (REST `InstrumentsService/FindInstrument`).
+2. `TInvestOrchestrator`: `findInstrumentsWithFallback` — `forceRest` → REST; иначе try gRPC / catch `isTransportError` → REST (по образцу `pricesSnapshot`).
+3. `TInvestBrokerApi.findInstruments` → `orchestrator.findInstrumentsWithFallback(query)`.
+4. `TInvestOrchestratorFallbackTest`: +2 теста.
+5. Гейт (`:app` + `:transport-ktor:allTests`).
+
+**Тесты:** `TInvestOrchestratorFallbackTest` — 2 теста (fallback на `UNAVAILABLE`, отсутствие fallback на бизнес-ошибку). По образцу существующих `pricesSnapshot`-тестов.
+
+**Референсы:** `TInvestOrchestrator.pricesSnapshot` / `ordersSnapshot` / `balanceSnapshot` — образец fallback-паттерна. `TInvestRestTransport.getLastPrices` — образец REST-метода. Официальная документация T-Invest → `InstrumentsService.FindInstrument`.
+
+**Ограничения:**
+- `TInvestMarketDataService.findInstruments` (gRPC-путь) не менять — остаётся primary.
+- Fallback только на транспортные ошибки (`UNAVAILABLE` / `DEADLINE_EXCEEDED` / `UNIMPLEMENTED`), не на бизнес.
+- Новых зависимостей не тянуть (Ktor уже есть).
+
+**Критерий готовности:** при `forceRest=true` или gRPC `UNAVAILABLE` `findInstruments` возвращает результаты через REST; тест fallback зелёный.
+
+**Оценка:** ~1–1.5 ч (DTO 15, REST-метод 20, оркестратор 20, провод 10, тесты 20, гейт 15).
+
+**Зависимости:** нет.
+
+**Связано:** Н47 (`SearchCacheImpl` — внешний `withContext` убран); `### Ktor REST для позиций/заявок/баланса` (закрыта — образец); `### Rate-limiter для unary-запросов T-Invest` (fallback добавит unary-запросы).
+
+**Открытые вопросы:**
+- `FindInstrument` REST-эндпоинт возвращает `List<InstrumentShort>` — какие поля доступны в REST-ответе (uid, ticker, classCode, instrumentType)? Уточнить при реализации по Swagger/REST-схеме T-Invest.
+- `GetInstrumentBy` REST-метод для `fetchFullInstrument` — отдельная задача или в эту? Рекомендация — отдельная (`fetchFullInstrument` сейчас тоже только gRPC).
+
+---
 
 ### UI: показать executedPrice / executedQuantity на карточке
 
