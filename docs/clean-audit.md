@@ -922,24 +922,6 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена). **Связано с H25**.
 
-### Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** ✓
-
-**Описание:** `TInvestBrokerAPI.initialize` перезаписывает `positionsWebSocket` без `close()` предыдущего. Ре-логин, смена токена, повторное «Сохранить» в настройках — старая WS-сессия держит сокет, получает ping/frames в никуда. Утечка соединения + нагрузка на сервер (WS-сессии накапливаются). `deinitialize` тоже обнуляет без `close()` — та же утечка при logout.
-
-**Нарушенное правило Clean:** не строго Clean — ресурсный leak в lifecycle.
-
-**Clean-альтернатива:** `positionsWebSocket?.close()` перед перезаписью; добавить `close()` в `TInvestPositionsWebSocket`. Плюсы: нет утечки. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Н62: TInvestWsService.initialize не вызывает stop()` (ROADMAP) — запланировано. `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket».
-
 ### Н63. TInvestMarketDataService — god-класс 622 строки
 
 **Статус:** открыто.
@@ -1344,6 +1326,26 @@ InvestRepository split` (ROADMAP).
 в H22 (`BrokerRegistry`), не в H21b.
 
 **Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
+
+### ✅ Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket
+
+**Статус:** исправлено (PR #78, `dev`, 2026-10-31).
+
+**Серьёзность:** критично.
+
+**Live тест:** ✓
+
+**Описание:** `TInvestBrokerAPI.initialize` перезаписывает `positionsWebSocket` без `close()` предыдущего. Ре-логин, смена токена, повторное «Сохранить» в настройках — старая WS-сессия держит сокет, получает ping/frames в никуда. Утечка соединения + нагрузка на сервер (WS-сессии накапливаются). `deinitialize` тоже обнуляет без `close()` — та же утечка при logout.
+
+**Нарушенное правило Clean:** не строго Clean — ресурсный leak в lifecycle.
+
+**Clean-альтернатива:** `positionsWebSocket?.close()` перед перезаписью; добавить `close()` в `TInvestPositionsWebSocket`. Плюсы: нет утечки. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** `TInvestWsService.initialize` — `stop()` первой строкой (до `if (sandbox) return`): старый `wsScope` (prices / orderState) отменяется, клиенты закрываются. Формулировка уточнена: `positionsWebSocket` — cold flow (Н87), `= null` в `stop()` достаточно. `TInvestBrokerApi.initialize` не менялся (делегирует lifecycle в `wsService.initialize`). Коммит `2e2df67`. **Live-тест PASS** (2026-10-31): сценарий A — logout → нет `connecting` до login; login → ровно 1 `connecting` на prices и 1 на positions; frames от старых соединений не идут. Сценарий C — sandbox → нет `connecting` (`if (sandbox) return`).
+
+**Ссылка на задачу:** PR #78 (`dev`, 2026-10-31). `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket».
 
 ## L7 — di
 
