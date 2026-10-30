@@ -2,7 +2,8 @@ package com.gitlab.biomorf.tscalp.domain.api.managers
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.BrokerCredentialsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BcsLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
@@ -21,7 +22,10 @@ import org.junit.Test
 
 class BrokerLifecycleManagerTest {
     private val mockRegistry = mockk<BrokerRegistry>(relaxed = true)
-    private val mockSettings = mockk<SettingsRepository>(relaxed = true)
+    private val mockAccountPreferences =
+        mockk<AccountPreferencesRepository>(relaxed = true)
+    private val mockBrokerCredentials =
+        mockk<BrokerCredentialsRepository>(relaxed = true)
     private val mockPositionFlowManager = mockk<PositionFlowManager>(relaxed = true)
     private val mockBroker = mockk<BrokerApi>(relaxed = true)
     private val mockTInvestLifecycle = mockk<TInvestLifecycleApi>(relaxed = true)
@@ -32,7 +36,8 @@ class BrokerLifecycleManagerTest {
     private fun newManager() =
         BrokerLifecycleManager(
             brokerRegistry = mockRegistry,
-            settingsRepository = mockSettings,
+            accountPreferencesRepository = mockAccountPreferences,
+            brokerCredentialsRepository = mockBrokerCredentials,
             positionFlowManager = mockPositionFlowManager,
             logger = TestLogger,
         )
@@ -53,10 +58,10 @@ class BrokerLifecycleManagerTest {
     fun `restoreTInvest uses saved account id when it is in accounts`() =
         runBlocking {
             setupTInvestBroker()
-            coEvery { mockSettings.loadBrokerCredentials(BrokerName.TINVEST) } returns
+            coEvery { mockBrokerCredentials.loadBrokerCredentials(BrokerName.TINVEST) } returns
                 ("tok" to false)
             coEvery { mockTInvestLifecycle.initialize(any()) } returns true
-            coEvery { mockSettings.loadDefaultAccountId(BrokerName.TINVEST) } returns "acc-1"
+            coEvery { mockAccountPreferences.loadDefaultAccountId(BrokerName.TINVEST) } returns "acc-1"
             coEvery { mockAccounts.getAccounts(false) } returns listOf(account("acc-1"), account("acc-2"))
 
             newManager().restoreTInvest(mockBroker)
@@ -70,26 +75,26 @@ class BrokerLifecycleManagerTest {
     fun `restoreTInvest falls back to first account when saved is not in list`() =
         runBlocking {
             setupTInvestBroker()
-            coEvery { mockSettings.loadBrokerCredentials(BrokerName.TINVEST) } returns
+            coEvery { mockBrokerCredentials.loadBrokerCredentials(BrokerName.TINVEST) } returns
                 ("tok" to false)
             coEvery { mockTInvestLifecycle.initialize(any()) } returns true
-            coEvery { mockSettings.loadDefaultAccountId(BrokerName.TINVEST) } returns "acc-old"
+            coEvery { mockAccountPreferences.loadDefaultAccountId(BrokerName.TINVEST) } returns "acc-old"
             coEvery { mockAccounts.getAccounts(false) } returns listOf(account("acc-1"), account("acc-2"))
 
             newManager().restoreTInvest(mockBroker)
 
             verify(exactly = 1) { mockPositionFlowManager.start("acc-1") }
-            coVerify(exactly = 1) { mockSettings.saveDefaultAccountId(BrokerName.TINVEST, "acc-1") }
+            coVerify(exactly = 1) { mockAccountPreferences.saveDefaultAccountId(BrokerName.TINVEST, "acc-1") }
         }
 
     @Test
     fun `restoreTInvest opens sandbox account when accounts empty and sandbox`() =
         runBlocking {
             setupTInvestBroker()
-            coEvery { mockSettings.loadBrokerCredentials(BrokerName.TINVEST) } returns
+            coEvery { mockBrokerCredentials.loadBrokerCredentials(BrokerName.TINVEST) } returns
                 ("tok" to true)
             coEvery { mockTInvestLifecycle.initialize(any()) } returns true
-            coEvery { mockSettings.loadDefaultAccountId(BrokerName.TINVEST) } returns null
+            coEvery { mockAccountPreferences.loadDefaultAccountId(BrokerName.TINVEST) } returns null
             coEvery { mockAccounts.getAccounts(true) } returns emptyList()
             coEvery { mockSandbox.openSandboxAccount() } returns "sandbox-1"
 
@@ -103,10 +108,10 @@ class BrokerLifecycleManagerTest {
     fun `restoreTInvest falls back to saved account when getAccounts throws`() =
         runBlocking {
             setupTInvestBroker()
-            coEvery { mockSettings.loadBrokerCredentials(BrokerName.TINVEST) } returns
+            coEvery { mockBrokerCredentials.loadBrokerCredentials(BrokerName.TINVEST) } returns
                 ("tok" to false)
             coEvery { mockTInvestLifecycle.initialize(any()) } returns true
-            coEvery { mockSettings.loadDefaultAccountId(BrokerName.TINVEST) } returns "acc-saved"
+            coEvery { mockAccountPreferences.loadDefaultAccountId(BrokerName.TINVEST) } returns "acc-saved"
             coEvery { mockAccounts.getAccounts(false) } throws
                 RuntimeException("UNAVAILABLE: upstream")
 
@@ -119,10 +124,10 @@ class BrokerLifecycleManagerTest {
     fun `restoreTInvest opens sandbox when getAccounts throws and no saved account`() =
         runBlocking {
             setupTInvestBroker()
-            coEvery { mockSettings.loadBrokerCredentials(BrokerName.TINVEST) } returns
+            coEvery { mockBrokerCredentials.loadBrokerCredentials(BrokerName.TINVEST) } returns
                 ("tok" to true)
             coEvery { mockTInvestLifecycle.initialize(any()) } returns true
-            coEvery { mockSettings.loadDefaultAccountId(BrokerName.TINVEST) } returns null
+            coEvery { mockAccountPreferences.loadDefaultAccountId(BrokerName.TINVEST) } returns null
             coEvery { mockAccounts.getAccounts(true) } throws
                 RuntimeException("UNAVAILABLE")
             coEvery { mockSandbox.openSandboxAccount() } returns "sandbox-1"
@@ -137,7 +142,7 @@ class BrokerLifecycleManagerTest {
     fun `restoreBcs initializes and refreshes state`() =
         runBlocking {
             every { mockBroker.lifecycleBcs } returns mockBcsLifecycle
-            coEvery { mockSettings.loadBrokerCredentials(BrokerName.BCS) } returns
+            coEvery { mockBrokerCredentials.loadBrokerCredentials(BrokerName.BCS) } returns
                 ("refresh" to true)
             coEvery { mockBcsLifecycle.initialize(any()) } returns true
 

@@ -2,7 +2,8 @@ package com.gitlab.biomorf.tscalp.domain.api.managers
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.BrokerCredentialsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -27,7 +28,8 @@ class BrokerLifecycleManager
     @Inject
     constructor(
         private val brokerRegistry: BrokerRegistry,
-        private val settingsRepository: SettingsRepository,
+        private val accountPreferencesRepository: AccountPreferencesRepository,
+        private val brokerCredentialsRepository: BrokerCredentialsRepository,
         private val positionFlowManager: PositionFlowManager,
         private val logger: Logger,
     ) {
@@ -48,7 +50,7 @@ class BrokerLifecycleManager
          * работать при временном сбое `getAccounts`.
          */
         suspend fun restoreTInvest(broker: BrokerApi) {
-            val creds = settingsRepository.loadBrokerCredentials(BrokerName.TINVEST)
+            val creds = brokerCredentialsRepository.loadBrokerCredentials(BrokerName.TINVEST)
             if (creds == null) {
                 logger.w(TAG, "TInvest: нет сохранённых креденшелов")
                 return
@@ -63,7 +65,7 @@ class BrokerLifecycleManager
             }
             brokerRegistry.refreshInitializationState()
 
-            val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
+            val savedAccountId = accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST)
             val accountId = resolveTInvestAccountId(broker, sandbox, savedAccountId)
 
             if (accountId == null) {
@@ -72,7 +74,7 @@ class BrokerLifecycleManager
             }
 
             if (accountId != savedAccountId) {
-                settingsRepository.saveDefaultAccountId(BrokerName.TINVEST, accountId)
+                accountPreferencesRepository.saveDefaultAccountId(BrokerName.TINVEST, accountId)
             }
             positionFlowManager.start(accountId)
         }
@@ -133,7 +135,7 @@ class BrokerLifecycleManager
          * Инициализирует BCS через lifecycle по сохранённым refresh-токену и режиму записи.
          */
         suspend fun restoreBcs(broker: BrokerApi) {
-            val creds = settingsRepository.loadBrokerCredentials(BrokerName.BCS) ?: return
+            val creds = brokerCredentialsRepository.loadBrokerCredentials(BrokerName.BCS) ?: return
             val (refreshToken, isWriteMode) = creds
             val initialized =
                 broker.lifecycleBcs?.initialize(BrokerCredentials.Bcs(refreshToken, isWriteMode)) ?: false

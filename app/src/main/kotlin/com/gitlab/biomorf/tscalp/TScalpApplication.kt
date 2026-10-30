@@ -4,7 +4,7 @@ import android.app.Application
 import com.gitlab.biomorf.tscalp.data.api.error.TInvestErrorMessages
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.BrokerLifecycleManager
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.BrokerCredentialsRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import dagger.hilt.android.HiltAndroidApp
@@ -30,7 +30,7 @@ class TScalpApplication : Application() {
     lateinit var lifecycleManager: BrokerLifecycleManager
 
     @Inject
-    lateinit var settingsRepository: SettingsRepository
+    lateinit var brokerCredentialsRepository: BrokerCredentialsRepository
 
     @Inject
     lateinit var logger: Logger
@@ -64,7 +64,7 @@ class TScalpApplication : Application() {
      */
     private suspend fun restoreBrokerConnection(brokerName: BrokerName) {
         val broker = brokerManager.getBroker(brokerName) ?: return
-        if (!settingsRepository.hasSavedToken(brokerName)) return
+        if (!brokerCredentialsRepository.hasSavedToken(brokerName)) return
 
         when (brokerName) {
             BrokerName.TINVEST -> lifecycleManager.restoreTInvest(broker)

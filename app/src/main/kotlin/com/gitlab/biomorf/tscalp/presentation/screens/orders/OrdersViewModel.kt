@@ -7,13 +7,15 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
@@ -64,7 +66,9 @@ class OrdersViewModel
         private val accountsRepository: AccountsRepository,
         private val instrumentRepo: InstrumentRepository,
         private val searchCache: SearchCacheRepository,
-        private val settingsRepository: SettingsRepository,
+        private val accountPreferencesRepository: AccountPreferencesRepository,
+        private val sandboxPreferencesRepository: SandboxPreferencesRepository,
+        private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val tradingStateRepository: TradingStateRepository,
         private val brokerManager: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,
@@ -107,7 +111,7 @@ class OrdersViewModel
             // state обновляется, onClick видит свежее значение.
             viewModelScope.launch {
                 logger.d(TAG, "subscribed to confirmOrdersEnabledFlow")
-                settingsRepository.confirmOrdersEnabledFlow().collect { enabled ->
+                tradingPreferencesRepository.confirmOrdersEnabledFlow().collect { enabled ->
                     _uiState.update { it.copy(confirmOrdersEnabled = enabled) }
                 }
             }
@@ -234,12 +238,12 @@ class OrdersViewModel
                 logger.d(TAG, "loadAccounts: start")
                 _uiState.update { it.copy(isLoading = true) }
 
-                val sandboxMode = settingsRepository.isSandboxMode()
+                val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
 
                 when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
                     is AppResult.Success -> {
                         val accounts = result.data
-                        val savedAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
+                        val savedAccountId = accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST)
                         val chosenAccount =
                             accounts.firstOrNull { it.id == savedAccountId }
                                 ?: accounts.firstOrNull()
@@ -511,7 +515,7 @@ class OrdersViewModel
                     quantity = quantity,
                     direction = direction,
                     accountId = accountId,
-                    sandboxMode = settingsRepository.isSandboxMode(),
+                    sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
                     orderType = state.orderType,
                     limitPrice = state.limitPrice,
                     stopPrice = state.stopPrice,
@@ -694,7 +698,7 @@ class OrdersViewModel
                         val result =
                             accountsRepository.getAccountsResult(
                                 broker,
-                                settingsRepository.isSandboxMode(),
+                                sandboxPreferencesRepository.isSandboxMode(),
                             )
                     ) {
                         is AppResult.Success -> result.data
@@ -766,7 +770,7 @@ class OrdersViewModel
                 val result =
                     accountsRepository.getAccountsResult(
                         brokerName,
-                        settingsRepository.isSandboxMode(),
+                        sandboxPreferencesRepository.isSandboxMode(),
                     )
             ) {
                 is AppResult.Success -> {
@@ -985,7 +989,7 @@ class OrdersViewModel
             // делаем разовый прямой запрос, чтобы сразу заполнить карточку
             if (_uiState.value.portfolioPositions.isEmpty()) {
                 viewModelScope.launch {
-                    val sandbox = settingsRepository.isSandboxMode()
+                    val sandbox = sandboxPreferencesRepository.isSandboxMode()
                     when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
                         is AppResult.Success ->
                             _uiState.update { it.copy(portfolioPositions = result.data) }

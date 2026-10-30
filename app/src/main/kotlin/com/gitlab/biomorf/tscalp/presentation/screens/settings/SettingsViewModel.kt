@@ -7,8 +7,11 @@ import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.BrokerCredentialsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.log.Logger
@@ -49,7 +52,10 @@ data class SettingsUiState(
 class SettingsViewModel
     @Inject
     constructor(
-        private val settingsRepository: SettingsRepository,
+        private val accountPreferencesRepository: AccountPreferencesRepository,
+        private val brokerCredentialsRepository: BrokerCredentialsRepository,
+        private val sandboxPreferencesRepository: SandboxPreferencesRepository,
+        private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val tradingStateRepository: TradingStateRepository,
         private val brokerManager: BrokerRegistry,
         private val positionFlowManager: PositionFlowManager,
@@ -77,12 +83,12 @@ class SettingsViewModel
             viewModelScope.launch {
                 _uiState.update {
                     it.copy(
-                        isSandboxMode = settingsRepository.isSandboxMode(),
-                        isConfirmOrdersEnabled = settingsRepository.isConfirmOrdersEnabled(),
-                        tInvestConnected = settingsRepository.hasSavedToken(BrokerName.TINVEST),
-                        bcsConnected = settingsRepository.hasSavedToken(BrokerName.BCS),
-                        finamConnected = settingsRepository.hasSavedToken(BrokerName.FINAM),
-                        defaultAccountIdTInvest = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: "",
+                        isSandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+                        isConfirmOrdersEnabled = tradingPreferencesRepository.isConfirmOrdersEnabled(),
+                        tInvestConnected = brokerCredentialsRepository.hasSavedToken(BrokerName.TINVEST),
+                        bcsConnected = brokerCredentialsRepository.hasSavedToken(BrokerName.BCS),
+                        finamConnected = brokerCredentialsRepository.hasSavedToken(BrokerName.FINAM),
+                        defaultAccountIdTInvest = accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: "",
                         disableGrpc = debugFlagsRepository.disableGrpc,
                         disableWs = debugFlagsRepository.disableWs,
                         forceRest = debugFlagsRepository.forceRest,
@@ -109,10 +115,10 @@ class SettingsViewModel
             token: String,
             sandbox: Boolean,
         ) {
-            settingsRepository.saveBrokerCredentials(brokerName, token, sandbox)
+            brokerCredentialsRepository.saveBrokerCredentials(brokerName, token, sandbox)
         }
 
-        suspend fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? = settingsRepository.loadBrokerCredentials(brokerName)
+        suspend fun loadBrokerCredentials(brokerName: BrokerName): Pair<String, Boolean>? = brokerCredentialsRepository.loadBrokerCredentials(brokerName)
 
         /**
          * Fire-and-forget: вызывается из синхронного onClick в UI.
@@ -121,7 +127,7 @@ class SettingsViewModel
         fun clearBrokerCredentials(brokerName: BrokerName) {
             viewModelScope.launch {
                 logger.d(TAG, "clearBrokerCredentials: $brokerName")
-                settingsRepository.clearBrokerCredentials(brokerName)
+                brokerCredentialsRepository.clearBrokerCredentials(brokerName)
                 if (brokerName == BrokerName.TINVEST) {
                     tradingStateRepository.clear()
                 }
@@ -163,12 +169,12 @@ class SettingsViewModel
             brokerName: BrokerName,
             token: String,
         ) {
-            settingsRepository.saveToken(brokerName, token)
+            brokerCredentialsRepository.saveToken(brokerName, token)
         }
 
-        suspend fun getToken(brokerName: BrokerName): String? = settingsRepository.getToken(brokerName)
+        suspend fun getToken(brokerName: BrokerName): String? = brokerCredentialsRepository.getToken(brokerName)
 
-        suspend fun hasSavedToken(brokerName: BrokerName): Boolean = settingsRepository.hasSavedToken(brokerName)
+        suspend fun hasSavedToken(brokerName: BrokerName): Boolean = brokerCredentialsRepository.hasSavedToken(brokerName)
 
         // ---------- Счёт по умолчанию ----------
 
@@ -177,34 +183,34 @@ class SettingsViewModel
             accountId: String,
         ) {
             viewModelScope.launch {
-                settingsRepository.saveDefaultAccountId(brokerName, accountId)
+                accountPreferencesRepository.saveDefaultAccountId(brokerName, accountId)
                 if (brokerName == BrokerName.TINVEST) {
                     _uiState.update { it.copy(defaultAccountIdTInvest = accountId) }
                 }
             }
         }
 
-        suspend fun loadDefaultAccountId(brokerName: BrokerName): String? = settingsRepository.loadDefaultAccountId(brokerName)
+        suspend fun loadDefaultAccountId(brokerName: BrokerName): String? = accountPreferencesRepository.loadDefaultAccountId(brokerName)
 
         // ---------- Режим песочницы ----------
 
-        suspend fun isSandboxMode(): Boolean = settingsRepository.isSandboxMode()
+        suspend fun isSandboxMode(): Boolean = sandboxPreferencesRepository.isSandboxMode()
 
         fun setSandboxMode(enabled: Boolean) {
             viewModelScope.launch {
                 logger.d(TAG, "setSandboxMode: $enabled")
-                settingsRepository.setSandboxMode(enabled)
+                sandboxPreferencesRepository.setSandboxMode(enabled)
                 _uiState.update { it.copy(isSandboxMode = enabled) }
             }
         }
 
         // ---------- Подтверждение заявок ----------
 
-        suspend fun isConfirmOrdersEnabled(): Boolean = settingsRepository.isConfirmOrdersEnabled()
+        suspend fun isConfirmOrdersEnabled(): Boolean = tradingPreferencesRepository.isConfirmOrdersEnabled()
 
         fun setConfirmOrdersEnabled(enabled: Boolean) {
             viewModelScope.launch {
-                settingsRepository.setConfirmOrdersEnabled(enabled)
+                tradingPreferencesRepository.setConfirmOrdersEnabled(enabled)
                 _uiState.update { it.copy(isConfirmOrdersEnabled = enabled) }
             }
         }
@@ -235,7 +241,7 @@ class SettingsViewModel
             logger.d(TAG, "initializeTInvest: sandbox=$sandbox")
             val cleanToken = token.trim()
             return try {
-                settingsRepository.saveBrokerCredentials(BrokerName.TINVEST, cleanToken, sandbox)
+                brokerCredentialsRepository.saveBrokerCredentials(BrokerName.TINVEST, cleanToken, sandbox)
                 val initialized =
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         brokerManager
@@ -280,7 +286,7 @@ class SettingsViewModel
                             ?.initialize(BrokerCredentials.Bcs(cleanToken, isWriteMode)) ?: false
                     }
                 if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
-                settingsRepository.saveBrokerCredentials(BrokerName.BCS, cleanToken, isWriteMode)
+                brokerCredentialsRepository.saveBrokerCredentials(BrokerName.BCS, cleanToken, isWriteMode)
                 brokerManager.refreshInitializationState()
                 _uiState.update {
                     it.copy(
@@ -306,7 +312,7 @@ class SettingsViewModel
             logger.d(TAG, "initializeFinam")
             val cleanToken = token.trim()
             return try {
-                settingsRepository.saveToken(BrokerName.FINAM, cleanToken)
+                brokerCredentialsRepository.saveToken(BrokerName.FINAM, cleanToken)
                 val initialized =
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         brokerManager
