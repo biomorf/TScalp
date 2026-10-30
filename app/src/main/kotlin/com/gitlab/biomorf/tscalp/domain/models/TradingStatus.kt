@@ -1,16 +1,16 @@
 package com.gitlab.biomorf.tscalp.domain.models
 
-sealed class TradeCheckResult {
-    data object Success : TradeCheckResult()
+sealed interface TradeCheckResult {
+    data object Success : TradeCheckResult
 
     data class Error(
         val message: String,
-    ) : TradeCheckResult()
+    ) : TradeCheckResult
 
     data class InsufficientFunds(
         val required: Double,
         val balance: Double,
-    ) : TradeCheckResult()
+    ) : TradeCheckResult
 }
 
 data class TradingStatusDetails(
