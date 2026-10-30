@@ -515,11 +515,11 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Нарушенное правило Clean:** runtime-проверка типов вместо compile-time; KDoc связывает domain с `util`.
 
-**Clean-альтернатива:** `BrokerLifecycleApi<C : BrokerCredentials>` (generic по типу credentials). Плюсы: compile-time гарантия. Минусы: параметризация роли, `BrokerApi.lifecycle: BrokerLifecycleApi<*>?` теряет типизацию.
+**Clean-альтернатива:** вариант B — 3 отдельных интерфейса в `domain/api/roles/`: `TInvestLifecycleApi`, `BcsLifecycleApi`, `FinamLifecycleApi` (каждый — `initialize(credentials: BrokerCredentials.<X>): Boolean` + `deinitialize()`). `BrokerApi` — 3 nullable-val (`lifecycleTInvest`, `lifecycleBcs`, `lifecycleFinam`) вместо одного `lifecycle`. Реализации — `= this` + supertype, без `when`, без `else -> throw`. `clearBrokerCredentials` (SettingsViewModel) — явный `when (brokerName)` на 3 ветки (вариант A; `BrokerRegistry` уже в `domain.api`). Плюсы: compile-time (generic не работает — JVM erasure: `as? BrokerLifecycleApi<TInvestCredentials>` проверяет только `BrokerLifecycleApi`, не `C`), runtime-throw исчезает. Минусы: +3 интерфейса по 1 методу, `when` в `clearBrokerCredentials`.
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** — (не заведена).
+**Ссылка на задачу:** `### Пакет 3: Н26 + Н50` (ROADMAP) — запланировано.
 
 ### Н27. StreamsApi.subscribeOrderState — suspend
 
@@ -1488,11 +1488,11 @@ object удалён после переноса его `@Provides` в `Repositor
 
 **Нарушенное правило Clean:** business logic (выбор счёта) в composition root.
 
-**Clean-альтернатива:** `BrokerLifecycleManager` (domain-сервис) с методами `restoreTInvest(broker)`, `resolveAccount(...)`. `TScalpApplication` делегирует. Плюсы: domain-логика в domain. Минусы: новый сервис (~2 ч).
+**Clean-альтернатива:** `BrokerLifecycleManager` (domain-сервис в `domain/api/managers/`): `suspend fun restoreTInvest(broker)`, `restoreBcs(broker)` (scope расширен — `restoreBcs` в `TScalpApplication` тоже содержит domain-логику), `private resolveTInvestAccountId(...)`, `private tryOpenSandboxAccount(...)`. Конструктор: `BrokerRegistry`, `SettingsRepository` (domain.api.repository), `PositionFlowManager`, `Logger`. `TScalpApplication` делегирует (`when (brokerName)`). Плюсы: domain-логика в domain; общий менеджер для TInvest/BCS. Минусы: новый сервис (~2–2.5 ч), тесты с mock.
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** — (не заведена). **Связано с ISSUES «Асимметрия lifecycle»**.
+**Ссылка на задачу:** `### Пакет 3: Н26 + Н50` (ROADMAP) — запланировано. **Связано с ISSUES «Асимметрия lifecycle»**.
 
 ### Н51. refreshInitializationState — 2 callsites в app
 
