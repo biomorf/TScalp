@@ -355,6 +355,29 @@ actual). Не доверять фильтру.
 
 ---
 
+### 56. `assert count == 1` для имени задачи — только line-anchored; структурные проверки — awk, не grep-контекст
+
+**Правило (а) — имена задач/секций в `.md`.** `assert text.count("### <name>") == 1` ложно-падает, если имя встречается в deps / preconditions / KDoc / ссылках «Связано». Считать только заголовки: `len(re.findall(r"^### <name>$", text, re.MULTILINE)) == 1`. Отсутствие в открытых — `not re.search(r"^### <name>$", text, re.MULTILINE)`. Наличие ссылки в deps — `f"`### {name}`" in text` (с backticks, но без `^`).
+
+**Правило (б) — структурные проверки файла.** «Двойные `---` подряд», «пустые строки», «секции» — проверять `awk` построчно (`prev=="---" && $0=="---"`), **не** `grep -B1 "^---$" | grep -A1 "^--$"`. Grep с `-B`/`-A`/`-C` при нескольких группах вставляет собственные разделители `--` между ними — второй grep находит эти разделители и даёт ложный FAIL.
+
+**Инцидент (а):** 2026-10-30, сессия KMP phase 1 → Dispatchers.IO. Три падения подряд на `count == 1` для `### KMP: заменить java.time.Instant в Instruments` и `### KMP: System.currentTimeMillis → Clock-интерфейс`:
+1. `pre ROADMAP: #1 not found` — regex на `\n\n---\n` не матчил из-за реального разделителя `\n\n\n\n---\n` (это ISSUES, отдельно).
+2. `post ROADMAP: #1 open still present` — `not in text` упал на ссылке в строке «Зависимости» umbrella (`### KMP: заменить …`).
+3. `post ROADMAP: new task count` — `count == 1` упал: имя новой задачи `### KMP: инжект CoroutineDispatcher` встречается в заголовке + deps + (не)preconditions.
+
+Каждый раз файл корректен, assertion — ложный. Уроки 23/26 это предупреждали, но формулировка «line-anchored для заголовков» не была явной.
+
+**Инцидент (б):** 2026-10-30, тот же сеанс. Мой `grep -B1 "^---$" | grep -A1 "^--$"` → «DOUBLE --- FOUND» на ~70 парах. Реально двойных `---` в ROADMAP — **ноль** (awk `prev=="---" && $0=="---"` → пусто). Grep-разделители `--` между группами второго grep'а — не строки файла.
+
+**Проверка:**
+- (а) `re.findall(r"^### <name>$", text, re.MULTILINE)` — длина 1. Для deps-ссылки — `f"`### {name}`" in text`.
+- (б) `awk 'prev=="---" && $0=="---" {print NR}' file` — пусто. `grep -c "^---$"` — не равно 0, но не проверка «двойных».
+
+**Связано:** урок 7 (`grep -v` фильтр врёт), урок 23 (`text.find("### Header")` — inline-ссылка), урок 26 (`assert old not in text` — KDoc), `docs/ISSUES.md` → «Separator между секциями ROADMAP не везде по шаблону» (отдельная pre-existing проблема, не мой scope).
+
+---
+
 
 
 ## Диагностика
