@@ -176,103 +176,6 @@ clean-audit.
 
 ---
 
-### Пакет 3: Н26 + Н50
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** два связанных рефакторинга lifecycle-слоя (clean-audit Н26 + Н50). Н26: `BrokerLifecycleApi.initialize(credentials: BrokerCredentials)` — runtime `when` + `throw IllegalArgumentException` вместо compile-time; generic-альтернатива не работает (JVM erasure: `as? BrokerLifecycleApi<TInvestCredentials>` проверяет только `BrokerLifecycleApi`). Н50: `restoreTInvest` + `resolveTInvestAccountId` + `tryOpenSandboxAccount` (+ `restoreBcs`) — domain-логика выбора счёта в `TScalpApplication` (composition root).
-
-**Соответствие Clean:** соответствует (nullable-val паттерн + domain-сервис).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-
-Н26:
-- `domain/api/roles/TInvestLifecycleApi.kt` (новый).
-- `domain/api/roles/BcsLifecycleApi.kt` (новый).
-- `domain/api/roles/FinamLifecycleApi.kt` (новый).
-- `domain/api/BrokerApi.kt` — −1 `lifecycle: BrokerLifecycleApi?`, +3 nullable-val (`lifecycleTInvest`, `lifecycleBcs`, `lifecycleFinam`).
-- `domain/api/roles/BrokerLifecycleApi.kt` — **удалить** (заменён 3 интерфейсами).
-- `data/api/TInvestBrokerApi.kt` — `TInvestLifecycleApi` в supertype, `lifecycleTInvest = this`, `lifecycleBcs/Finam = null`; `initialize(credentials: BrokerCredentials.TInvest)` без `when`.
-- `data/api/BcsBrokerApi.kt` — то же для BCS.
-- `data/api/FinamBrokerApi.kt` — то же для Finam.
-- `TScalpApplication.kt` — 2 callsites (`restoreTInvest`, `restoreBcs`).
-- `presentation/screens/settings/SettingsViewModel.kt` — 4 callsites (`initializeTInvest/Bcs/Finam`, `clearBrokerCredentials` через `when` на 3 ветки).
-
-Н50:
-- `domain/api/managers/BrokerLifecycleManager.kt` (новый) — `restoreTInvest(broker)`, `restoreBcs(broker)`, `private resolveTInvestAccountId(...)`, `private tryOpenSandboxAccount(...)`.
-- `TScalpApplication.kt` — `restoreBrokerConnection` делегирует в `BrokerLifecycleManager`.
-- `app/src/test/kotlin/.../domain/api/managers/BrokerLifecycleManagerTest.kt` (новый) — 5–6 сценариев.
-
-**Шаги:**
-
-**Н26 (первым — от него зависит Н50):**
-1. Создать 3 интерфейса в `domain/api/roles/`.
-2. `BrokerApi`: −`lifecycle`, +3 nullable-val.
-3. 3 реализации: supertype + `= this` для своего; `null` без supertype для чужих; `initialize(credentials: BrokerCredentials.<X>)` без `when`.
-4. Удалить `BrokerLifecycleApi.kt`.
-5. `TScalpApplication`: 2 callsites → `lifecycleTInvest/Bcs?.initialize(...)`.
-6. `SettingsViewModel`: `initialize*` → 3 разных nullable-val; `clearBrokerCredentials` → `when (brokerName) { TINVEST -> lifecycleTInvest?.deinitialize(); BCS -> lifecycleBcs?.deinitialize(); FINAM -> lifecycleFinam?.deinitialize() }` (вариант A — явный `when`, `BrokerRegistry` уже в `domain.api`).
-7. Гейт, коммит Н26.
-
-**Н50 (вторым):**
-8. `BrokerLifecycleManager` — перенос `restoreTInvest`, `restoreBcs`, `resolveTInvestAccountId`, `tryOpenSandboxAccount` из `TScalpApplication`.
-9. `TScalpApplication.restoreBrokerConnection` → делегирование в `BrokerLifecycleManager` через `when (brokerName)`.
-10. Тесты `BrokerLifecycleManagerTest` (5–6 сценариев).
-11. Гейт, коммит Н50.
-
-**Тесты:**
-
-Н26: `SettingsViewModel` — без unit (нет mock-инфраструктуры, live-test). Реализации — gate.
-
-Н50: `BrokerLifecycleManagerTest` — 5–6 сценариев: savedAccountId валиден; savedAccountId нет, accounts не пуст (первый); accounts пусто + sandbox → openSandbox; getAccounts падает + savedAccountId → fallback; getAccounts падает + null + sandbox → openSandbox; getAccounts падает + null + не sandbox → null. Mock: `BrokerRegistry`, `SettingsRepository` (domain.api.repository), `PositionFlowManager`, `Logger`.
-
-**Референсы:**
-
-`### Broker lifecycle API` (закрыта, PR #45) — исходный nullable-val паттерн, который сейчас заменяется на 3 интерфейса. `### H22. BrokerRegistry` (закрыта, PR #60) — `BrokerRegistry` уже в `domain.api` (можно использовать). `docs/clean-audit.md` → Н26, Н50.
-
-**Ограничения:**
-
-Н26:
-- Не возвращать fat-методы `BrokerApi` — только nullable-val.
-- `BrokerLifecycleApi.kt` — удалить (KDoc `BrokerApi` и clean-audit обновляются в тех же коммитах).
-- `when (brokerName)` в `clearBrokerCredentials` — вариант A (явные 3 ветки), не extension-хелпер.
-
-Н50:
-- `restoreBcs` — в scope (расширение, согласовано).
-- `TScalpApplication` остаётся composition root — `restoreBrokerConnection` + `when (brokerName)` не переносятся.
-- Не менять поведение: `savedAccountId` читается до `getAccounts`, fallback на saved при падении `getAccounts`, sandbox-fallback.
-
-**Критерий готовности:**
-
-Н26: `grep "BrokerLifecycleApi" app/src/` — пусто (файл удалён, callsites мигрированы); `initialize` в каждой реализации принимает только свой `BrokerCredentials.<X>`; `clearBrokerCredentials` — 3 ветки `when`.
-
-Н50: `grep "resolveTInvestAccountId\|tryOpenSandboxAccount" app/src/main/.../TScalpApplication.kt` — пусто (перенесены в `BrokerLifecycleManager`); `BrokerLifecycleManagerTest` — 5–6 тестов зелёные; `TScalpApplication` делегирует.
-
-Гейт (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`) — зелёный на каждом шаге.
-
-**Оценка:** ~4.5–5 ч (Н26 ~1.5–2 ч, Н50 ~2–2.5 ч, гейт/PR ~30 мин).
-
-**Зависимости:** нет.
-
-**Связано:** clean-audit Н26, Н50; `### Broker lifecycle API` (закрыта); `### H22. BrokerRegistry` (закрыта); `docs/ISSUES.md` → «Асимметрия lifecycle».
-
-**Открытые вопросы:**
-- `BrokerLifecycleApi` — удалять или оставить как deprecated? Рекомендация: удалить (0 callsites после миграции; иначе `@Deprecated` висит без задачи).
-- `restoreBcs` — тесты аналогичные `restoreTInvest`? Рекомендация: 2–3 сценария (saved, getAccounts падает + saved, getAccounts падает + null).
-- `refreshInitializationState()` (Н51) — в scope? Рекомендация: **вне scope** (Н51 — отдельная задача, связана с жизненным циклом инициализации).
-
----
-
 ### UI: показать executedPrice / executedQuantity на карточке
 
 **Мобильная работа:** частичное (live-тест UI).
@@ -8071,6 +7974,103 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:**
 - На iOS/native — `Dispatchers.Default` (в native `Dispatchers.IO` нет). `DispatcherModule` в `:app` (Android) даёт IO; при KMP-переезде — `androidMain`/`iosMain`-варианты. Сейчас — только Android.
+
+---
+
+### ✅ Пакет 3: Н26 + Н50
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** исправлено (PR #77, `dev`, 2026-10-31).
+
+**Контекст:** два связанных рефакторинга lifecycle-слоя (clean-audit Н26 + Н50). Н26: `BrokerLifecycleApi.initialize(credentials: BrokerCredentials)` — runtime `when` + `throw IllegalArgumentException` вместо compile-time; generic-альтернатива не работает (JVM erasure: `as? BrokerLifecycleApi<TInvestCredentials>` проверяет только `BrokerLifecycleApi`). Н50: `restoreTInvest` + `resolveTInvestAccountId` + `tryOpenSandboxAccount` (+ `restoreBcs`) — domain-логика выбора счёта в `TScalpApplication` (composition root).
+
+**Соответствие Clean:** соответствует (nullable-val паттерн + domain-сервис).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+
+Н26:
+- `domain/api/roles/TInvestLifecycleApi.kt` (новый).
+- `domain/api/roles/BcsLifecycleApi.kt` (новый).
+- `domain/api/roles/FinamLifecycleApi.kt` (новый).
+- `domain/api/BrokerApi.kt` — −1 `lifecycle: BrokerLifecycleApi?`, +3 nullable-val (`lifecycleTInvest`, `lifecycleBcs`, `lifecycleFinam`).
+- `domain/api/roles/BrokerLifecycleApi.kt` — **удалить** (заменён 3 интерфейсами).
+- `data/api/TInvestBrokerApi.kt` — `TInvestLifecycleApi` в supertype, `lifecycleTInvest = this`, `lifecycleBcs/Finam = null`; `initialize(credentials: BrokerCredentials.TInvest)` без `when`.
+- `data/api/BcsBrokerApi.kt` — то же для BCS.
+- `data/api/FinamBrokerApi.kt` — то же для Finam.
+- `TScalpApplication.kt` — 2 callsites (`restoreTInvest`, `restoreBcs`).
+- `presentation/screens/settings/SettingsViewModel.kt` — 4 callsites (`initializeTInvest/Bcs/Finam`, `clearBrokerCredentials` через `when` на 3 ветки).
+
+Н50:
+- `domain/api/managers/BrokerLifecycleManager.kt` (новый) — `restoreTInvest(broker)`, `restoreBcs(broker)`, `private resolveTInvestAccountId(...)`, `private tryOpenSandboxAccount(...)`.
+- `TScalpApplication.kt` — `restoreBrokerConnection` делегирует в `BrokerLifecycleManager`.
+- `app/src/test/kotlin/.../domain/api/managers/BrokerLifecycleManagerTest.kt` (новый) — 5–6 сценариев.
+
+**Шаги:**
+
+**Н26 (первым — от него зависит Н50):**
+1. Создать 3 интерфейса в `domain/api/roles/`.
+2. `BrokerApi`: −`lifecycle`, +3 nullable-val.
+3. 3 реализации: supertype + `= this` для своего; `null` без supertype для чужих; `initialize(credentials: BrokerCredentials.<X>)` без `when`.
+4. Удалить `BrokerLifecycleApi.kt`.
+5. `TScalpApplication`: 2 callsites → `lifecycleTInvest/Bcs?.initialize(...)`.
+6. `SettingsViewModel`: `initialize*` → 3 разных nullable-val; `clearBrokerCredentials` → `when (brokerName) { TINVEST -> lifecycleTInvest?.deinitialize(); BCS -> lifecycleBcs?.deinitialize(); FINAM -> lifecycleFinam?.deinitialize() }` (вариант A — явный `when`, `BrokerRegistry` уже в `domain.api`).
+7. Гейт, коммит Н26.
+
+**Н50 (вторым):**
+8. `BrokerLifecycleManager` — перенос `restoreTInvest`, `restoreBcs`, `resolveTInvestAccountId`, `tryOpenSandboxAccount` из `TScalpApplication`.
+9. `TScalpApplication.restoreBrokerConnection` → делегирование в `BrokerLifecycleManager` через `when (brokerName)`.
+10. Тесты `BrokerLifecycleManagerTest` (5–6 сценариев).
+11. Гейт, коммит Н50.
+
+**Тесты:**
+
+Н26: `SettingsViewModel` — без unit (нет mock-инфраструктуры, live-test). Реализации — gate.
+
+Н50: `BrokerLifecycleManagerTest` — 5–6 сценариев: savedAccountId валиден; savedAccountId нет, accounts не пуст (первый); accounts пусто + sandbox → openSandbox; getAccounts падает + savedAccountId → fallback; getAccounts падает + null + sandbox → openSandbox; getAccounts падает + null + не sandbox → null. Mock: `BrokerRegistry`, `SettingsRepository` (domain.api.repository), `PositionFlowManager`, `Logger`.
+
+**Референсы:**
+
+`### Broker lifecycle API` (закрыта, PR #45) — исходный nullable-val паттерн, который сейчас заменяется на 3 интерфейса. `### H22. BrokerRegistry` (закрыта, PR #60) — `BrokerRegistry` уже в `domain.api` (можно использовать). `docs/clean-audit.md` → Н26, Н50.
+
+**Ограничения:**
+
+Н26:
+- Не возвращать fat-методы `BrokerApi` — только nullable-val.
+- `BrokerLifecycleApi.kt` — удалить (KDoc `BrokerApi` и clean-audit обновляются в тех же коммитах).
+- `when (brokerName)` в `clearBrokerCredentials` — вариант A (явные 3 ветки), не extension-хелпер.
+
+Н50:
+- `restoreBcs` — в scope (расширение, согласовано).
+- `TScalpApplication` остаётся composition root — `restoreBrokerConnection` + `when (brokerName)` не переносятся.
+- Не менять поведение: `savedAccountId` читается до `getAccounts`, fallback на saved при падении `getAccounts`, sandbox-fallback.
+
+**Критерий готовности:**
+
+Н26: `grep "BrokerLifecycleApi" app/src/` — пусто (файл удалён, callsites мигрированы); `initialize` в каждой реализации принимает только свой `BrokerCredentials.<X>`; `clearBrokerCredentials` — 3 ветки `when`.
+
+Н50: `grep "resolveTInvestAccountId\|tryOpenSandboxAccount" app/src/main/.../TScalpApplication.kt` — пусто (перенесены в `BrokerLifecycleManager`); `BrokerLifecycleManagerTest` — 5–6 тестов зелёные; `TScalpApplication` делегирует.
+
+Гейт (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`) — зелёный на каждом шаге.
+
+**Оценка:** ~4.5–5 ч (Н26 ~1.5–2 ч, Н50 ~2–2.5 ч, гейт/PR ~30 мин).
+
+**Зависимости:** нет.
+
+**Связано:** clean-audit Н26, Н50; `### Broker lifecycle API` (закрыта); `### H22. BrokerRegistry` (закрыта); `docs/ISSUES.md` → «Асимметрия lifecycle».
+
+**Открытые вопросы:**
+- `BrokerLifecycleApi` — удалять или оставить как deprecated? Рекомендация: удалить (0 callsites после миграции; иначе `@Deprecated` висит без задачи).
+- `restoreBcs` — тесты аналогичные `restoreTInvest`? Рекомендация: 2–3 сценария (saved, getAccounts падает + saved, getAccounts падает + null).
+- `refreshInitializationState()` (Н51) — в scope? Рекомендация: **вне scope** (Н51 — отдельная задача, связана с жизненным циклом инициализации).
 
 ---
 

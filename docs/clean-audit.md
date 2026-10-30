@@ -503,24 +503,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н61. retryWithBackoff — busy loop на normal completion | высоко | L4 | `domain/api/StreamCombinators.kt` | - |
 | Н70. BrokerApi — @Suppress("TooManyFunctions") | средне | L4 | `domain/api/BrokerApi.kt` | - |
 
-### Н26. BrokerLifecycleApi — не 2c-фиксация
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `BrokerLifecycleApi.initialize(credentials: BrokerCredentials): Boolean` — runtime `IllegalArgumentException` при неверном типе credentials. KDoc: «Сообщение об ошибке — через `AppLogger` и `AppResult.Failure`» — domain-интерфейс ссылается на `util.AppLogger` (domain -> util).
-
-**Нарушенное правило Clean:** runtime-проверка типов вместо compile-time; KDoc связывает domain с `util`.
-
-**Clean-альтернатива:** вариант B — 3 отдельных интерфейса в `domain/api/roles/`: `TInvestLifecycleApi`, `BcsLifecycleApi`, `FinamLifecycleApi` (каждый — `initialize(credentials: BrokerCredentials.<X>): Boolean` + `deinitialize()`). `BrokerApi` — 3 nullable-val (`lifecycleTInvest`, `lifecycleBcs`, `lifecycleFinam`) вместо одного `lifecycle`. Реализации — `= this` + supertype, без `when`, без `else -> throw`. `clearBrokerCredentials` (SettingsViewModel) — явный `when (brokerName)` на 3 ветки (вариант A; `BrokerRegistry` уже в `domain.api`). Плюсы: compile-time (generic не работает — JVM erasure: `as? BrokerLifecycleApi<TInvestCredentials>` проверяет только `BrokerLifecycleApi`, не `C`), runtime-throw исчезает. Минусы: +3 интерфейса по 1 методу, `when` в `clearBrokerCredentials`.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Пакет 3: Н26 + Н50` (ROADMAP) — запланировано.
-
 ### Н27. StreamsApi.subscribeOrderState — suspend
 
 **Статус:** открыто.
@@ -727,6 +709,26 @@ L4–L8 — не проверены, заполняются по мере инс
 **Что сделано:** `streamWithFallback` → `mergeStreamSources`; KDoc — «merge, не fallback»; `TInvestOrchestrator` — импорт + 3 callsites; поведение не изменено.
 
 **Ссылка на задачу:** PR #76 (`dev`, 2026-10-30), коммит `986c330`. Объединено с Н32 в одном PR, но отдельным коммитом.
+
+### ✅ Н26. BrokerLifecycleApi — не 2c-фиксация
+
+**Статус:** исправлено (PR #77, `dev`, 2026-10-31).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `BrokerLifecycleApi.initialize(credentials: BrokerCredentials): Boolean` — runtime `IllegalArgumentException` при неверном типе credentials. KDoc: «Сообщение об ошибке — через `AppLogger` и `AppResult.Failure`» — domain-интерфейс ссылается на `util.AppLogger` (domain -> util).
+
+**Нарушенное правило Clean:** runtime-проверка типов вместо compile-time; KDoc связывает domain с `util`.
+
+**Clean-альтернатива:** вариант B — 3 отдельных интерфейса в `domain/api/roles/`: `TInvestLifecycleApi`, `BcsLifecycleApi`, `FinamLifecycleApi` (каждый — `initialize(credentials: BrokerCredentials.<X>): Boolean` + `deinitialize()`). `BrokerApi` — 3 nullable-val (`lifecycleTInvest`, `lifecycleBcs`, `lifecycleFinam`) вместо одного `lifecycle`. Реализации — `= this` + supertype, без `when`, без `else -> throw`. `clearBrokerCredentials` (SettingsViewModel) — явный `when (brokerName)` на 3 ветки (вариант A; `BrokerRegistry` уже в `domain.api`). Плюсы: compile-time (generic не работает — JVM erasure: `as? BrokerLifecycleApi<TInvestCredentials>` проверяет только `BrokerLifecycleApi`, не `C`), runtime-throw исчезает. Минусы: +3 интерфейса по 1 методу, `when` в `clearBrokerCredentials`.
+
+**Выгоды:** —.
+
+**Что сделано:** 3 интерфейса в `domain/api/roles/` (`TInvestLifecycleApi`, `BcsLifecycleApi`, `FinamLifecycleApi`); `BrokerApi` — `lifecycle` → 3 nullable-val (`lifecycleTInvest/Bcs/Finam`); реализации — supertype + `= this` / `null`, `initialize(credentials: BrokerCredentials.<X>)` без `when`; `BrokerLifecycleApi.kt` удалён; 6 callsites (`TScalpApplication` 2, `SettingsViewModel` 4), `clearBrokerCredentials` — `when (brokerName)` на 3 ветки.
+
+**Ссылка на задачу:** PR #77 (`dev`, 2026-10-31), коммит `63697ae`.
 
 ## L5 — domain/managers
 
@@ -1476,24 +1478,6 @@ object удалён после переноса его `@Provides` в `Repositor
 
 **Ссылка на задачу:** `H21b` (ROADMAP).
 
-### Н50. restoreTInvest содержит domain-логику выбора счёта
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `restoreTInvest` + `resolveTInvestAccountId` + `tryOpenSandboxAccount` — логика выбора счёта при старте (savedAccountId → accounts → sandbox-fallback). Это domain-логика (правила выбора счёта), в `TScalpApplication`.
-
-**Нарушенное правило Clean:** business logic (выбор счёта) в composition root.
-
-**Clean-альтернатива:** `BrokerLifecycleManager` (domain-сервис в `domain/api/managers/`): `suspend fun restoreTInvest(broker)`, `restoreBcs(broker)` (scope расширен — `restoreBcs` в `TScalpApplication` тоже содержит domain-логику), `private resolveTInvestAccountId(...)`, `private tryOpenSandboxAccount(...)`. Конструктор: `BrokerRegistry`, `SettingsRepository` (domain.api.repository), `PositionFlowManager`, `Logger`. `TScalpApplication` делегирует (`when (brokerName)`). Плюсы: domain-логика в domain; общий менеджер для TInvest/BCS. Минусы: новый сервис (~2–2.5 ч), тесты с mock.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Пакет 3: Н26 + Н50` (ROADMAP) — запланировано. **Связано с ISSUES «Асимметрия lifecycle»**.
-
 ### Н51. refreshInitializationState — 2 callsites в app
 
 **Статус:** открыто.
@@ -1551,6 +1535,26 @@ object удалён после переноса его `@Provides` в `Repositor
 **Что сделано:** `TInvestErrorMessages` переехал в `data/api/error/TInvestErrorMessages.kt` (PR #70 — вместе с H20); `AppLogger` заменён на `Logger`-интерфейс (H19, PR #70); `TScalpApplication` импортирует `data.api.error.TInvestErrorMessages` — для composition root допустимо (2c, как Н48). Нарушения «app → util» нет.
 
 **Ссылка на задачу:** PR #70 (H17–H20); H19, H20 (закрыты).
+
+### ✅ Н50. restoreTInvest содержит domain-логику выбора счёта
+
+**Статус:** исправлено (PR #77, `dev`, 2026-10-31).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `restoreTInvest` + `resolveTInvestAccountId` + `tryOpenSandboxAccount` — логика выбора счёта при старте (savedAccountId → accounts → sandbox-fallback). Это domain-логика (правила выбора счёта), в `TScalpApplication`.
+
+**Нарушенное правило Clean:** business logic (выбор счёта) в composition root.
+
+**Clean-альтернатива:** `BrokerLifecycleManager` (domain-сервис в `domain/api/managers/`): `suspend fun restoreTInvest(broker)`, `restoreBcs(broker)` (scope расширен — `restoreBcs` в `TScalpApplication` тоже содержит domain-логику), `private resolveTInvestAccountId(...)`, `private tryOpenSandboxAccount(...)`. Конструктор: `BrokerRegistry`, `SettingsRepository` (domain.api.repository), `PositionFlowManager`, `Logger`. `TScalpApplication` делегирует (`when (brokerName)`). Плюсы: domain-логика в domain; общий менеджер для TInvest/BCS. Минусы: новый сервис (~2–2.5 ч), тесты с mock.
+
+**Выгоды:** —.
+
+**Что сделано:** новый `domain/api/managers/BrokerLifecycleManager.kt` — `suspend restoreTInvest(broker)`, `restoreBcs(broker)`, `private resolveTInvestAccountId(...)`, `private tryOpenSandboxAccount(...)`; конструктор `BrokerRegistry` + `SettingsRepository` + `PositionFlowManager` + `Logger`; `TScalpApplication` делегирует через `when (brokerName)`, 4 метода удалены (−116 строк); `BrokerLifecycleManagerTest` — 6 тестов PASSED.
+
+**Ссылка на задачу:** PR #77 (`dev`, 2026-10-31), коммит `e194fc8`.
 
 ---
 
