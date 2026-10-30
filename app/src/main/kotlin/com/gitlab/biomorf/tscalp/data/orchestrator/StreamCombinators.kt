@@ -11,7 +11,12 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.isActive
 
 /**
- * Объединяет до трёх источников данных в один поток.
+ * Объединяет (merge) до трёх источников данных в один поток.
+ *
+ * **Это merge, не fallback.** Все переданные источники работают
+ * параллельно и эмитят одновременно; переключение по отказу не
+ * происходит. WS в T-Invest — резервный транспорт по смыслу, но
+ * технически merge параллельный (оба идут одновременно).
  *
  * @param primary Основной источник (например, gRPC-стрим).
  * @param fallback Резервный источник (например, WebSocket).
@@ -21,7 +26,7 @@ import kotlinx.coroutines.isActive
  * Возвращает `Flow`, который эмитит события из всех активных
  * источников параллельно.
  */
-fun <T> streamWithFallback(
+fun <T> mergeStreamSources(
     primary: Flow<T>?,
     fallback: Flow<T>?,
     polling: Flow<T>?,
