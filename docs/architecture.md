@@ -85,12 +85,15 @@ presentation → domain ← data
 | # | Что | Где | Фикс |
 |---|---|---|---|
 | 2 | `javax.inject.Inject` / `Singleton` | 3 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
-| 4 | `Dispatchers.IO` | `domain/api/managers/*` (scope в 3 менеджерах) | Инжект `CoroutineDispatcher` через DI — задача `### KMP: инжект CoroutineDispatcher вместо Dispatchers.IO` |
 
 **Исправлено (PR #73, `dev`, 2026-10-30):**
 
 - #1 — `java.time.Instant` → `kotlin.time.Instant` (stdlib, KMP-safe); 14 полей в `InstrumentUi`/`FutureUi`/`ShareUi`.
 - #3 — `System.currentTimeMillis()` → инжект `kotlin.time.Clock`; `StreamStateTracker`/`OrderCache` на `Instant`/`Duration`; `di/TimeModule.kt`.
+
+**Исправлено (PR #74, `dev`, 2026-10-30):**
+
+- #4 — `Dispatchers.IO` → инжект `CoroutineDispatcher` через DI (`di/DispatcherModule.kt`); `limitedParallelism(1)` сохранён (доменная сериализация); 3 менеджера + тесты.
 
 ### Чисто (KMP-safe)
 
@@ -108,7 +111,7 @@ presentation → domain ← data
 ### Порядок
 
 1. ✅ Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — закрыто в PR #73.
-2. Фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`) — блокер umbrella.
+2. ✅ Фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`) — закрыто (PR #74).
 3. Koin — снимает #2.
 4. `domain` → `:shared/commonMain` (umbrella-задача `### KMP: domain → commonMain`).
 5. `data` → split `commonMain`/`androidMain` (отдельная фаза).
