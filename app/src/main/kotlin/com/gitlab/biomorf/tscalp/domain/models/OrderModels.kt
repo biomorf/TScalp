@@ -215,28 +215,28 @@ data class BrokerOrderRequest(
     val price: Double? = null,
 )
 
-sealed class OrderTypeSelection {
-    object Market : OrderTypeSelection()
+sealed interface OrderTypeSelection {
+    object Market : OrderTypeSelection
 
-    object Limit : OrderTypeSelection()
+    object Limit : OrderTypeSelection
 
-    object StopLoss : OrderTypeSelection()
+    object StopLoss : OrderTypeSelection
 
-    object TakeProfit : OrderTypeSelection()
+    object TakeProfit : OrderTypeSelection
 
-    object StopLimit : OrderTypeSelection()
+    object StopLimit : OrderTypeSelection
 
-    /** Преобразует выбранный тип в StopOrderType, если это стоп-заявка */
+    /** Преобразует выбранный тип в StopOrderType, если это стоп-заявка. */
     val stopOrderType: StopOrderType?
         get() =
             when (this) {
-                is StopLoss -> StopOrderType.STOP_LOSS
-                is TakeProfit -> StopOrderType.TAKE_PROFIT
-                is StopLimit -> StopOrderType.STOP_LIMIT
-                else -> null
+                StopLoss -> StopOrderType.STOP_LOSS
+                TakeProfit -> StopOrderType.TAKE_PROFIT
+                StopLimit -> StopOrderType.STOP_LIMIT
+                Market, Limit -> null
             }
 
-    /** Является ли тип обычной заявкой (Market/Limit) */
+    /** Является ли тип обычной заявкой (Market/Limit). */
     val isRegular: Boolean
         get() = this is Market || this is Limit
 }
