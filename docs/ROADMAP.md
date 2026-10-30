@@ -120,92 +120,6 @@ clean-audit.
 - `domain/log/Logger` — остаётся интерфейсом (`AndroidAppLogger` в `:app/data/log`).
 
 ---
-### KMP: заменить java.time.Instant в Instruments
-
-**Мобильная работа:** полное закрытие.
-
-**Статус:** запланировано.
-
-**Контекст:** `domain/models/Instruments.kt:5` импортирует `java.time.Instant` (JVM-only). Блокер KMP (аудит 2026-10-29).
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:** `domain/models/Instruments.kt`.
-
-**Шаги:**
-1. Заменить `java.time.Instant` → `Long` (epoch) или `kotlinx-datetime.Instant`.
-2. Проверить callsites (`grep -rn "Instant" app/src`).
-3. Гейт.
-
-**Тесты:** если поле используется — проверить.
-
-**Референсы:** `docs/architecture.md` → «KMP readiness».
-
-**Ограничения:** не тянуть `kotlinx-datetime` целиком, если хватает `Long`.
-
-**Критерий готовности:** в `domain/models/Instruments.kt` нет `java.*`.
-
-**Оценка:** ~15 мин.
-
-**Зависимости:** нет.
-
-**Связано:** umbrella `### KMP: domain → commonMain`.
-
-**Открытые вопросы:** `Long` или `kotlinx-datetime.Instant`? Зависит от того, нужны ли даты в `Instruments`.
-
----
-### KMP: System.currentTimeMillis → Clock-интерфейс
-
-**Мобильная работа:** невозможно (сборка, тесты).
-
-**Статус:** запланировано.
-
-**Контекст:** `System.currentTimeMillis()` в `OrderFlowManager` (×2), `StreamStateTracker` (×5). JVM-only. Блокер KMP (аудит 2026-10-29).
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:** `domain/api/managers/OrderFlowManager.kt`, `domain/api/managers/StreamStateTracker.kt`, новый `domain/clock/Clock.kt`.
-
-**Шаги:**
-1. `domain/clock/Clock.kt` — `interface Clock { fun now(): Long }` (инжект, KMP-friendly, тестируется fake'ом).
-2. `OrderFlowManager`: +`clock: Clock` в `@Inject constructor`.
-3. `StreamStateTracker`: +`clock: Clock`; `now: Long = clock.now()` в 5 методах.
-4. Тесты: fake `Clock` (уже есть fake-time в `StreamStateTrackerTest`).
-5. Гейт.
-
-**Тесты:** `StreamStateTrackerTest` — уже fake-time.
-
-**Референсы:** `docs/architecture.md` → «KMP readiness».
-
-**Ограничения:** не смешивать с Koin (инжект `Clock` — Hilt сейчас, Koin потом).
-
-**Критерий готовности:** нет `System.currentTimeMillis` в `domain/`.
-
-**Оценка:** ~30 мин.
-
-**Зависимости:** нет.
-
-**Связано:** umbrella `### KMP: domain → commonMain`.
-
-**Открытые вопросы:** `Clock` (интерфейс) или `expect fun`? Рекомендация: `Clock` — тестируется fake'ом, KMP-friendly.
-
----
 
 ### UI: показать executedPrice / executedQuantity на карточке
 
@@ -7864,6 +7778,94 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** `docs/clean-audit.md` -> Н1, Н5 (концептуальное разделение модели — отдельно, последним).
 
 **Открытые вопросы:** фабрика в domain или во ViewModel? Рекомендация — domain (`emptyPortfolioPosition`), чтобы UI не собирал модель вручную даже через фабрику.
+
+### ✅ KMP: заменить java.time.Instant в Instruments
+
+**Мобильная работа:** полное закрытие.
+
+**Статус:** исправлено (PR #73, `dev`, 2026-10-30).
+
+**Контекст:** `domain/models/Instruments.kt:5` импортирует `java.time.Instant` (JVM-only). Блокер KMP (аудит 2026-10-29).
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `domain/models/Instruments.kt`.
+
+**Шаги:**
+1. Заменить `java.time.Instant` → `Long` (epoch) или `kotlinx-datetime.Instant`.
+2. Проверить callsites (`grep -rn "Instant" app/src`).
+3. Гейт.
+
+**Тесты:** если поле используется — проверить.
+
+**Референсы:** `docs/architecture.md` → «KMP readiness».
+
+**Ограничения:** не тянуть `kotlinx-datetime` целиком, если хватает `Long`.
+
+**Критерий готовности:** в `domain/models/Instruments.kt` нет `java.*`.
+
+**Оценка:** ~15 мин.
+
+**Зависимости:** нет.
+
+**Связано:** umbrella `### KMP: domain → commonMain`.
+
+**Открытые вопросы:** `Long` или `kotlinx-datetime.Instant`? Зависит от того, нужны ли даты в `Instruments`.
+
+---
+
+### ✅ KMP: System.currentTimeMillis → Clock-интерфейс
+
+**Мобильная работа:** невозможно (сборка, тесты).
+
+**Статус:** исправлено (PR #73, `dev`, 2026-10-30).
+
+**Контекст:** `System.currentTimeMillis()` в `OrderFlowManager` (×2), `StreamStateTracker` (×5). JVM-only. Блокер KMP (аудит 2026-10-29).
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `domain/api/managers/OrderFlowManager.kt`, `domain/api/managers/StreamStateTracker.kt`, новый `domain/clock/Clock.kt`.
+
+**Шаги:**
+1. `domain/clock/Clock.kt` — `interface Clock { fun now(): Long }` (инжект, KMP-friendly, тестируется fake'ом).
+2. `OrderFlowManager`: +`clock: Clock` в `@Inject constructor`.
+3. `StreamStateTracker`: +`clock: Clock`; `now: Long = clock.now()` в 5 методах.
+4. Тесты: fake `Clock` (уже есть fake-time в `StreamStateTrackerTest`).
+5. Гейт.
+
+**Тесты:** `StreamStateTrackerTest` — уже fake-time.
+
+**Референсы:** `docs/architecture.md` → «KMP readiness».
+
+**Ограничения:** не смешивать с Koin (инжект `Clock` — Hilt сейчас, Koin потом).
+
+**Критерий готовности:** нет `System.currentTimeMillis` в `domain/`.
+
+**Оценка:** ~30 мин.
+
+**Зависимости:** нет.
+
+**Связано:** umbrella `### KMP: domain → commonMain`.
+
+**Открытые вопросы:** `Clock` (интерфейс) или `expect fun`? Рекомендация: `Clock` — тестируется fake'ом, KMP-friendly.
+
+---
 
 ---
 
