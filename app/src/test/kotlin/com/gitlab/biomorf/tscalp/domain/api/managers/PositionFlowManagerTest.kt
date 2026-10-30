@@ -51,7 +51,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -101,7 +101,7 @@ class PositionFlowManagerTest {
                     awaitCancellation()
                 }
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -152,7 +152,7 @@ class PositionFlowManagerTest {
                     awaitCancellation()
                 }
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -191,7 +191,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -218,7 +218,7 @@ class PositionFlowManagerTest {
                 flow { awaitCancellation() }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
 
             coroutineScope {
                 (1..50)
@@ -251,7 +251,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
 
             manager.start("acc-1")
             delay(100)
@@ -291,7 +291,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(200)
             assertEquals(StreamState.LIVE, manager.connectionState.value)
@@ -320,7 +320,7 @@ class PositionFlowManagerTest {
                 flow { awaitCancellation() }
             coEvery { mockBroker.positionsSnapshot(any()) } returns listOf(share)
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger)
+            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(300)
 

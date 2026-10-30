@@ -9,9 +9,9 @@ import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import com.gitlab.biomorf.tscalp.domain.models.toOrder
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
@@ -49,7 +49,7 @@ import kotlin.time.Duration.Companion.seconds
  * по [Order.orderDate] по возрастанию (новые снизу, как
  * в текущем `OrdersListViewModel`).
  *
- * Scope — single-threaded (`Dispatchers.IO.limitedParallelism(1)`),
+ * Scope — single-threaded (`managerDispatcher.limitedParallelism(1)`),
  * поэтому доступ к кэшу не требует синхронизации: polling и
  * stream выполняются последовательно на одном worker'е.
  */
@@ -60,6 +60,7 @@ class OrderFlowManager
         private val brokerManager: BrokerRegistry,
         private val logger: Logger,
         private val clock: Clock,
+        private val managerDispatcher: CoroutineDispatcher,
     ) {
         companion object {
             private const val TAG = "OrderFlowManager"
@@ -94,7 +95,7 @@ class OrderFlowManager
 
         private val scope =
             CoroutineScope(
-                Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
+                managerDispatcher.limitedParallelism(1) + SupervisorJob() +
                     CoroutineExceptionHandler { _, e ->
                         logger.e(TAG, "Uncaught error in order stream", e)
                     },

@@ -7,9 +7,9 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
@@ -50,6 +50,7 @@ class PriceFlowManager
         private val brokerManager: BrokerRegistry,
         private val debugFlagsRepository: DebugFlagsRepository,
         private val logger: Logger,
+        private val managerDispatcher: CoroutineDispatcher,
     ) {
         companion object {
             private const val TAG = "PriceFlowManager"
@@ -110,7 +111,7 @@ class PriceFlowManager
          */
         private val scope =
             CoroutineScope(
-                Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
+                managerDispatcher.limitedParallelism(1) + SupervisorJob() +
                     CoroutineExceptionHandler { _, e ->
                         logger.e(TAG, "Uncaught error in price stream", e)
                     },

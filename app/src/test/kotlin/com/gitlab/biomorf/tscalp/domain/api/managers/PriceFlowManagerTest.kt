@@ -48,6 +48,7 @@ class PriceFlowManagerTest {
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
+                    managerDispatcher = Dispatchers.Default,
                 )
 
             // 50 параллельных setInterest с разными union.
@@ -89,6 +90,7 @@ class PriceFlowManagerTest {
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
+                    managerDispatcher = Dispatchers.Default,
                 )
 
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
@@ -128,6 +130,7 @@ class PriceFlowManagerTest {
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
+                    managerDispatcher = Dispatchers.Default,
                 )
 
             // Дать первому стриму стартовать — иначе union пуст
@@ -171,6 +174,7 @@ class PriceFlowManagerTest {
                     BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
+                    managerDispatcher = Dispatchers.Default,
                 )
             manager.setInterest(PriceConsumer.ORDERS, setOf("uid-1"))
             delay(200)
