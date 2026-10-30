@@ -60,6 +60,10 @@ class TInvestWsService(
         token: String,
         sandbox: Boolean,
     ) {
+        // Предыдущие клиенты закрываются до создания новых:
+        // ре-логин / переключение prod ↔ sandbox иначе оставляли
+        // старый wsScope и активные WS-сессии (clean-audit Н62).
+        stop()
         if (sandbox) return
         positionsWebSocket =
             TInvestPositionsWebSocket(
