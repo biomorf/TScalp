@@ -96,7 +96,7 @@ class TScalpApplication : Application() {
         val (token, sandbox) = creds
 
         val initialized =
-            broker.lifecycle?.initialize(BrokerCredentials.TInvest(token, sandbox)) ?: false
+            broker.lifecycleTInvest?.initialize(BrokerCredentials.TInvest(token, sandbox)) ?: false
         if (!initialized) {
             logger.e("TScalpApplication", "TInvest: не удалось инициализировать API")
             return
@@ -176,7 +176,7 @@ class TScalpApplication : Application() {
         val creds = settingsRepository.loadBrokerCredentials(BrokerName.BCS) ?: return
         val (refreshToken, isWriteMode) = creds
         val initialized =
-            broker.lifecycle?.initialize(BrokerCredentials.Bcs(refreshToken, isWriteMode)) ?: false
+            broker.lifecycleBcs?.initialize(BrokerCredentials.Bcs(refreshToken, isWriteMode)) ?: false
         if (!initialized) {
             logger.e("TScalpApplication", "Не удалось инициализировать BCS")
             return
