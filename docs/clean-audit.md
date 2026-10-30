@@ -575,41 +575,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `BrokerSnapshotApi.kt`.
 
-### Н32. StreamCombinators — транспорт в domain/api
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `StreamCombinators.streamWithFallback` (merge источников — gRPC + WS параллельно) + `retryWithBackoff` (переподключение с backoff и rate-limit при обрыве) — транспортные утилиты. Используются в `data/orchestrator/TInvestOrchestrator.kt` для merge gRPC + WS на транспортном уровне и переподключения при обрыве с учётом rate-limits. Живут в `domain/api/` — неверное место. Менеджеры (`domain/api/managers/*`) **не используют** `streamWithFallback` — осознанное архитектурное решение, **не долг**: `StreamStateTracker` должен различать источник (stream vs polling) для корректного `LIVE`/`POLLING`/`STALE`; `streamWithFallback` этого знания не даёт.
-
-**Нарушенное правило Clean:** dependency rule — transport-специфика (retry, backoff, rate-limit) в `domain/api/`.
-
-**Clean-альтернатива:** `data/orchestrator/StreamCombinators.kt` (рядом с `TInvestOrchestrator`) или `data/transport/StreamCombinators.kt`. Плюсы: `domain/api/` содержит только роли и `BrokerApi`; domain не знает про transport-специфику. Минусы: переезд 1 файла + правка импортов в `TInvestOrchestrator` (единственный потребитель — grep 2026-10-27).
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). Связано: `### StreamState в data-слое` (закрыта — `StreamStateTracker`), `### Оркестратор стримов и Ktor WS transport` (закрыта — `TInvestOrchestrator`).
-
-### Н32a. streamWithFallback — семантически неверное имя
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `streamWithFallback` делает `merge` (параллельная эмиссия из всех источников), а не fallback (переключение при отказе). В T-Invest-контексте WS — резервный транспорт для gRPC, но merge **параллельный**, осознанно (оба идут одновременно, WS не включается по отказу). Имя вводит в заблуждение.
-
-**Нарушенное правило Clean:** не строго Clean — семантическая честность.
-
-**Clean-альтернатива:** переименовать в `mergeStreamSources` / `combineStreams` (с KDoc «WS — резервный транспорт, merge параллельный»). Плюсы: честное имя. Минусы: правка ~3 callsites (`TInvestOrchestrator`, единственный потребитель).
-
-**Выгоды:** «fallback» отражает бизнес-логику «WS — резерв». Компромисс.
-
-**Ссылка на задачу:** — (не заведена). Может быть объединено с Н32 (переезд + переименование одним коммитом).
 ### Н60. retryWithBackoff — non-retryable не классифицирует
 
 **Статус:** открыто.
@@ -722,6 +687,46 @@ L4–L8 — не проверены, заполняются по мере инс
 - `TInvestBrokerApi`: `PARAMETER_NAME_CHANGED_ON_OVERRIDE` в class-level `@Suppress` (осознанно, all callsites позиционные; объяснение в KDoc — ktlint: EOL comment после KDoc запрещён).
 
 **Ссылка на задачу:** PR #71 (`feature/instrument-ids`), коммиты `6f74454`, `86ab1c4`.
+
+### ✅ Н32. StreamCombinators — транспорт в domain/api
+
+**Статус:** исправлено (PR #76, `dev`, 2026-10-30).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `StreamCombinators.streamWithFallback` (merge источников — gRPC + WS параллельно) + `retryWithBackoff` (переподключение с backoff и rate-limit при обрыве) — транспортные утилиты. Используются в `data/orchestrator/TInvestOrchestrator.kt` для merge gRPC + WS на транспортном уровне и переподключения при обрыве с учётом rate-limits. Живут в `domain/api/` — неверное место. Менеджеры (`domain/api/managers/*`) **не используют** `streamWithFallback` — осознанное архитектурное решение, **не долг**: `StreamStateTracker` должен различать источник (stream vs polling) для корректного `LIVE`/`POLLING`/`STALE`; `streamWithFallback` этого знания не даёт.
+
+**Нарушенное правило Clean:** dependency rule — transport-специфика (retry, backoff, rate-limit) в `domain/api/`.
+
+**Clean-альтернатива:** `data/orchestrator/StreamCombinators.kt` (рядом с `TInvestOrchestrator`) или `data/transport/StreamCombinators.kt`. Плюсы: `domain/api/` содержит только роли и `BrokerApi`; domain не знает про transport-специфику. Минусы: переезд 1 файла + правка импортов в `TInvestOrchestrator` (единственный потребитель — grep 2026-10-27).
+
+**Выгоды:** —.
+
+**Что сделано:** `git mv domain/api/StreamCombinators.kt → data/orchestrator/StreamCombinators.kt`; `package` → `data.orchestrator`; `TInvestOrchestrator` — импорты обновлены (единственный потребитель); порядок импортов — `ktlintFormat`. Поведение не изменено.
+
+**Ссылка на задачу:** PR #76 (`dev`, 2026-10-30), коммит `a636699`.
+
+### ✅ Н32a. streamWithFallback — семантически неверное имя
+
+**Статус:** исправлено (PR #76, `dev`, 2026-10-30).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `streamWithFallback` делает `merge` (параллельная эмиссия из всех источников), а не fallback (переключение при отказе). В T-Invest-контексте WS — резервный транспорт для gRPC, но merge **параллельный**, осознанно (оба идут одновременно, WS не включается по отказу). Имя вводит в заблуждение.
+
+**Нарушенное правило Clean:** не строго Clean — семантическая честность.
+
+**Clean-альтернатива:** переименовать в `mergeStreamSources` / `combineStreams` (с KDoc «WS — резервный транспорт, merge параллельный»). Плюсы: честное имя. Минусы: правка ~3 callsites (`TInvestOrchestrator`, единственный потребитель).
+
+**Выгоды:** «fallback» отражает бизнес-логику «WS — резерв». Компромисс.
+
+**Что сделано:** `streamWithFallback` → `mergeStreamSources`; KDoc — «merge, не fallback»; `TInvestOrchestrator` — импорт + 3 callsites; поведение не изменено.
+
+**Ссылка на задачу:** PR #76 (`dev`, 2026-10-30), коммит `986c330`. Объединено с Н32 в одном PR, но отдельным коммитом.
 
 ## L5 — domain/managers
 
