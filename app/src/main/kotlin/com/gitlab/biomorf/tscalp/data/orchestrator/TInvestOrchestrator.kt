@@ -2,9 +2,9 @@ package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
+import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
+import com.gitlab.biomorf.tscalp.data.orchestrator.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
-import com.gitlab.biomorf.tscalp.domain.api.retryWithBackoff
-import com.gitlab.biomorf.tscalp.domain.api.streamWithFallback
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
@@ -39,7 +39,7 @@ class TInvestOrchestrator(
     }
 
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
-        streamWithFallback(
+        mergeStreamSources(
             primary =
                 if (debugFlagsRepository.disableGrpc) {
                     null
@@ -56,7 +56,7 @@ class TInvestOrchestrator(
         )
 
     fun pricesStream(uids: Set<String>): Flow<Pair<String, Double>> =
-        streamWithFallback(
+        mergeStreamSources(
             primary =
                 if (debugFlagsRepository.disableGrpc) {
                     null
@@ -73,7 +73,7 @@ class TInvestOrchestrator(
         )
 
     fun orderStateStream(accountId: String): Flow<OrderState> =
-        streamWithFallback(
+        mergeStreamSources(
             primary =
                 if (debugFlagsRepository.disableGrpc) {
                     null
