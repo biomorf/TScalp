@@ -5,8 +5,6 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,10 +40,7 @@ class SearchCacheImpl
                 brokerManager.getBroker(brokerName)
                     ?: throw IllegalArgumentException("Брокер ${brokerName.displayName} не найден")
 
-            val results =
-                withContext(Dispatchers.IO) {
-                    broker.userInstruments?.findInstruments(query) ?: emptyList()
-                }
+            val results = broker.userInstruments?.findInstruments(query) ?: emptyList()
 
             val sorted =
                 results.sortedWith(
