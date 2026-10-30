@@ -35,7 +35,7 @@ import kotlin.time.Instant
  * вызывает [evictStale] при ошибке.
  *
  * Синхронизация: `OrderFlowManager` использует
- * `Dispatchers.IO.limitedParallelism(1)`, поэтому polling и stream
+ * `managerDispatcher.limitedParallelism(1)`, поэтому polling и stream
  * вызываются последовательно на одном worker'е. Мutex не нужен.
  */
 internal class OrderCache(

@@ -8,9 +8,9 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -42,7 +42,7 @@ import javax.inject.Singleton
  * stream) дополняется полями P&L из кэша. Если кэша нет —
  * неполное событие отдаётся как есть (UI покажет заглушку).
  *
- * Scope — single-threaded (`Dispatchers.IO.limitedParallelism(1)`),
+ * Scope — single-threaded (`managerDispatcher.limitedParallelism(1)`),
  * поэтому доступ к [snapshotCache] не требует синхронизации:
  * stream и polling выполняются последовательно на одном worker'е.
  *
@@ -60,6 +60,7 @@ class PositionFlowManager
     constructor(
         private val brokerManager: BrokerRegistry,
         private val logger: Logger,
+        private val managerDispatcher: CoroutineDispatcher,
     ) {
         companion object {
             private const val TAG = "PositionFlowManager"
@@ -99,7 +100,7 @@ class PositionFlowManager
 
         private val scope =
             CoroutineScope(
-                Dispatchers.IO.limitedParallelism(1) + SupervisorJob() +
+                managerDispatcher.limitedParallelism(1) + SupervisorJob() +
                     CoroutineExceptionHandler { _, e ->
                         logger.e(TAG, "Uncaught error in position stream", e)
                     },

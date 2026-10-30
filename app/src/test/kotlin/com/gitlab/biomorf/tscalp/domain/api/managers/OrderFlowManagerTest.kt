@@ -39,7 +39,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System)
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
 
             // 50 параллельных вызовов start() — race между check-then-set
             // в synchronized(startLock). Без synchronized создавались бы
@@ -90,7 +90,7 @@ class OrderFlowManagerTest {
                     awaitCancellation()
                 }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System)
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(200)
             assertEquals(StreamState.LIVE, manager.connectionState.value)
@@ -110,7 +110,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System)
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(300)
 
@@ -139,7 +139,7 @@ class OrderFlowManagerTest {
                     }
                 }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System)
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
 
             manager.start("acc-1")
             delay(100)
@@ -168,7 +168,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System)
+            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
 
             manager.reapplyDebugFlags()
             delay(200)
