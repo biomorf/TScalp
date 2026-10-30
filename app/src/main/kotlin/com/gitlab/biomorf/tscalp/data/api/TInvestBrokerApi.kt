@@ -37,8 +37,12 @@ import ru.ttech.piapi.core.InvestApi
  *  - TInvestMarketDataService — счета, портфель, инструменты, цены, стримы, баланс;
  *  - TInvestOrdersService — заявки, стоп-заявки, отмена.
  *  // Архитектурный долг: 22 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+ *
+ * PARAMETER_NAME_CHANGED_ON_OVERRIDE: осознанно. AGENTS.md «data честно
+ * отражает формат брокера»: T-Invest — `uids`, domain — `tscalpInstrumentIds`.
+ * Все callsites позиционные — named-argument risk отсутствует.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
     private val httpClient: HttpClient,
@@ -199,9 +203,9 @@ class TInvestBrokerAPI(
         ordersService.cancelOrder(accountId, orderId)
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>) = marketDataService.getLastPricesByTscalpInstrumentId(ids)
+    override suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>) = marketDataService.getLastPricesByTscalpInstrumentId(uids)
 
-    override suspend fun getTradingStatuses(ids: List<String>) = marketDataService.getTradingStatuses(ids)
+    override suspend fun getTradingStatuses(uids: List<String>) = marketDataService.getTradingStatuses(uids)
 
     override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = orchestrator.orderStateStream(accountId)
 
@@ -223,7 +227,7 @@ class TInvestBrokerAPI(
     // ---------- Unary snapshots (для менеджеров) ----------
     // Делегируют в оркестратор, где будет fallback gRPC → REST (шаг 2).
 
-    override suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(ids)
+    override suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(uids)
 
     override suspend fun ordersSnapshot(accountId: String): List<Order> = orchestrator.ordersSnapshot(accountId)
 

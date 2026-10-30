@@ -433,25 +433,25 @@ class TInvestMarketDataService(
 
     // ---------- Цены и статусы ----------
 
-    suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>): Map<String, Double?> =
+    suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>): Map<String, Double?> =
         withContext(Dispatchers.IO) {
-            if (ids.isEmpty()) return@withContext emptyMap()
+            if (uids.isEmpty()) return@withContext emptyMap()
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(ids).build()
-            logger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${ids.size} instruments")
+            val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(uids).build()
+            logger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${uids.size} instruments")
             val response = currentApi.marketDataServiceSync.getLastPrices(request)
             response.lastPricesList.associate { lp ->
                 lp.instrumentUid to (lp.price?.let { it.units + it.nano / 1_000_000_000.0 })
             }
         }
 
-    suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability> =
+    suspend fun getTradingStatuses(uids: List<String>): Map<String, TradingAvailability> =
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val result = mutableMapOf<String, TradingAvailability>()
             val statuses =
                 kotlinx.coroutines.coroutineScope {
-                    ids
+                    uids
                         .map { uid ->
                             async {
                                 try {
