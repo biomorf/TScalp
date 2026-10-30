@@ -24,12 +24,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Агрегирует активные заявки счёта из двух источников:
  *
  * 1. **Snapshot polling** (`getOrders` + `getStopOrders`, gRPC unary,
- *    раз в [POLLING_INTERVAL_MS]). Покрывает заявки, выставленные
+ *    раз в [POLLING_INTERVAL]). Покрывает заявки, выставленные
  *    до открытия приложения (в т.ч. с другого устройства), и
  *    stop-orders (stream их не отдаёт).
  * 2. **Stream** (`subscribeOrderState`, gRPC-stream + WS fallback).
@@ -57,11 +59,12 @@ class OrderFlowManager
     constructor(
         private val brokerManager: BrokerRegistry,
         private val logger: Logger,
+        private val clock: Clock,
     ) {
         companion object {
             private const val TAG = "OrderFlowManager"
-            private const val POLLING_INTERVAL_MS = 15_000L
-            private const val STATE_TICK_MS = 1_000L
+            private val POLLING_INTERVAL = 15.seconds
+            private val STATE_TICK = 1.seconds
             private val TERMINAL_STATUSES = setOf("FILL", "CANCELLED", "REJECTED")
         }
 
@@ -73,12 +76,12 @@ class OrderFlowManager
         val hasLoaded: StateFlow<Boolean> = _hasLoaded.asStateFlow()
 
         /** Трекер [StreamState]: LIVE / POLLING / STALE / STOPPED. */
-        private val stateTracker = StreamStateTracker(logger = logger, tag = "OrderFlowManager")
+        private val stateTracker = StreamStateTracker(logger = logger, tag = "OrderFlowManager", clock = clock)
 
         /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
         val connectionState: StateFlow<StreamState> = stateTracker.state
 
-        private val cache = OrderCache(ttlMs = POLLING_INTERVAL_MS * 2)
+        private val cache = OrderCache(ttl = POLLING_INTERVAL * 2)
         private var job: Job? = null
         private var currentAccountId: String? = null
 
@@ -187,7 +190,7 @@ class OrderFlowManager
             }
 
         /**
-         * Polling-loop: раз в [POLLING_INTERVAL_MS] (15 сек) снимает
+         * Polling-loop: раз в [POLLING_INTERVAL] (15 сек) снимает
          * `ordersSnapshot` (gRPC unary, fallback REST), обновляет
          * кэш и `_hasLoaded`. TTL-эвикция — только при успешном
          * цикле (если polling упал, `lastSeenAt` не обновляется
@@ -204,7 +207,7 @@ class OrderFlowManager
                 try {
                     val orders = snapshotApi.ordersSnapshot(accountId)
                     logger.d(TAG, "polling: ${orders.size} orders")
-                    val now = System.currentTimeMillis()
+                    val now = clock.now()
                     for (item in orders) {
                         cache.putFromPolling(item, now)
                     }
@@ -221,7 +224,7 @@ class OrderFlowManager
                 } finally {
                     _hasLoaded.value = true
                 }
-                delay(POLLING_INTERVAL_MS)
+                delay(POLLING_INTERVAL)
             }
         }
 
@@ -244,7 +247,7 @@ class OrderFlowManager
                     if (item.status in TERMINAL_STATUSES) {
                         cache.remove(item.orderId)
                     } else {
-                        cache.putFromStream(item, System.currentTimeMillis())
+                        cache.putFromStream(item, clock.now())
                     }
                     _orders.value = cache.snapshot()
                 }
@@ -256,12 +259,12 @@ class OrderFlowManager
         }
 
         /**
-         * Watchdog: раз в [STATE_TICK_MS] (1 сек) двигает
+         * Watchdog: раз в [STATE_TICK] (1 сек) двигает
          * [StreamState] через `stateTracker.tick()`.
          */
         private suspend fun stateWatchdog() {
             while (currentCoroutineContext().isActive) {
-                delay(STATE_TICK_MS)
+                delay(STATE_TICK)
                 stateTracker.tick()
             }
         }
