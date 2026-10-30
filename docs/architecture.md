@@ -84,13 +84,16 @@ presentation → domain ← data
 
 | # | Что | Где | Фикс |
 |---|---|---|---|
-| 1 | `java.time.Instant` | `domain/models/Instruments.kt:5` | `kotlinx-datetime.Instant` или `Long` |
 | 2 | `javax.inject.Inject` / `Singleton` | 3 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
-| 3 | `System.currentTimeMillis()` | `OrderFlowManager` (×2), `StreamStateTracker` (×5) | `Clock`-интерфейс |
+
+**Исправлено (PR #73, `dev`, 2026-10-30):**
+
+- #1 — `java.time.Instant` → `kotlin.time.Instant` (stdlib, KMP-safe); 14 полей в `InstrumentUi`/`FutureUi`/`ShareUi`.
+- #3 — `System.currentTimeMillis()` → инжект `kotlin.time.Clock`; `StreamStateTracker`/`OrderCache` на `Instant`/`Duration`; `di/TimeModule.kt`.
 
 ### Чисто (KMP-safe)
 
-- `domain/models/*` — только #1.
+- `domain/models/*` — KMP-safe (PR #73: `kotlin.time.Instant`).
 - `domain/api/repository/*` (8 интерфейсов) — ноль platform.
 - `domain/api/roles/*` — чисто.
 - `domain/log/Logger` — pure Kotlin interface.
@@ -103,7 +106,7 @@ presentation → domain ← data
 
 ### Порядок
 
-1. Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — маленькие, безопасные.
+1. ✅ Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — закрыто в PR #73.
 2. Koin — снимает #2.
 3. `domain` → `:shared/commonMain` (umbrella-задача `### KMP: domain → commonMain`).
 4. `data` → split `commonMain`/`androidMain` (отдельная фаза).
