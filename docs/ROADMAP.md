@@ -122,49 +122,6 @@ clean-audit.
 
 ---
 
-### Н62: TInvestWsService.initialize не вызывает stop()
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** clean-audit Н62 (формулировка уточнена 2026-10-31). `TInvestWsService.initialize` пересоздаёт `wsScope` и клиентов без предварительного `stop()`. Старый `wsScope` (со старыми `pricesWebSocket`/`orderStateWebSocket`) не отменяется — утечка при ре-логине и при переключении prod → sandbox (`if (sandbox) return` стоит до любого `stop()`, старые prod-клиенты остаются). `TInvestBrokerApi.initialize` вызывает `wsService.initialize(...)` без `wsService.stop()` — усугубляет. `positionsWebSocket` — cold flow (Н87), без активного коллектора соединения нет; при `stop()` достаточно `= null`.
-
-**Соответствие Clean:** не строго Clean — ресурсный leak в lifecycle.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** `stop()` первой строкой `TInvestWsService.initialize` (до `if (sandbox) return`). Плюсы: нет утечки. Минусы: нет.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:** `data/api/TInvestWsService.kt`.
-
-**Шаги:**
-1. `TInvestWsService.initialize`: `stop()` первой строкой, до `if (sandbox) return`.
-2. Live-тест: ре-логин (settings → logout → login), переключение prod/sandbox — в logcat нет двух `connecting` на prices/orderState.
-3. Гейт.
-
-**Тесты:** без unit (WS lifecycle — live-test). Гейт.
-
-**Референсы:** `docs/clean-audit.md` → Н62; `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket» (уточнить запись).
-
-**Ограничения:** не менять поведение `if (sandbox) return` (WS не создаются в sandbox — серверное ограничение); не трогать `positionsWebSocket` (cold flow, Н87).
-
-**Критерий готовности:** ре-логин / смена режима не оставляет старый `wsScope`; в логах нет дублей `connecting`.
-
-**Оценка:** ~20 мин + live-тест.
-
-**Зависимости:** нет.
-
-**Связано:** clean-audit Н62; `docs/ISSUES.md` → «TInvestBrokerAPI.initialize...»; Н87 (cold flow positions).
-
-**Открытые вопросы:** нет.
-
----
-
 ### Пакет C: TInvestMarketDataService split (Н63)
 
 **Мобильная работа:** невозможно (сборка + тесты на десктопе, 6 коммитов с гейтом).
@@ -734,141 +691,6 @@ success, стримы не идут» — не проверка, а конста
 ---
 
 
-
-
-### detekt: включить архитектурные правила
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст.**
-
-После `### detekt: ignoreFailures=false` (закрыта 2026-10-26)
-detekt блокирует сборку (`ignoreFailures = false`), но
-включённые правила узкие: `config/detekt/detekt.yml` —
-`active: true` только у `MagicNumber` (warn, baseline 45
-записей). Архитектурные правила выключены:
-
-- `LongMethod` — `active: false`;
-- `CyclomaticComplexMethod` — `active: false`;
-- `TooManyFunctions` — `active: false`;
-- `LargeClass` — `active: false`.
-
-`@Suppress("LongMethod")`, `@Suppress("TooManyFunctions")`,
-`@Suppress("CyclomaticComplexMethod")`, `@Suppress("LargeClass")`
-в коде — **мёртвый груз**: правило не запускается,
-аннотация ничего не делает. Кто-то добавил `@Suppress`, но
-не включил правило.
-
-**Цель.** Включить архитектурные правила (`active: true`),
-сделать `@Suppress` реальными маркерами долга (а не
-декоративными), разобраться с всплывшими нарушениями.
-
-**Стратегия разбора (после включения правил).**
-
-1. **`@Suppress` уже стоит и корректно подавляет** — оставить,
-   но зафиксировать как **активный** долг с ссылкой на
-   `### Рефакторинг архитектурного долга (detekt-группа 3)`
-   (там уже перечислены конкретные файлы / функции).
-2. **Нарушение вне `@Suppress`** (всплывёт впервые) — оценить:
-   - **тривиально** (например, `LongMethod` в 30 строк, можно
-     разбить за 10 мин) — починить сразу, отдельным PR;
-   - **сложно** (рефакторинг 100+ строк) — `@Suppress` с
-     ссылкой на ROADMAP-задачу, а сама задача — в
-     `### Рефакторинг архитектурного долга`;
-   - **ложное срабатывание** — `@Suppress` с пояснением в
-     KDoc.
-
-**Файлы:**
-- `config/detekt/detekt.yml` — 4 правила `active: false` →
-  `true`.
-- `app/detekt-baseline.xml` — обновить (если `detektBaseline`
-  покроет всплывшие) или точечные `@Suppress`.
-- Код — точечные `@Suppress` с `KDoc`-ссылками на
-  `### Рефакторинг архитектурного долга` (для отложенных
-  нарушений).
-
-**Шаги:**
-1. `config/detekt/detekt.yml`: `active: false` → `true` у 4
-   правил.
-2. Прогон `./gradlew :app:detekt --rerun-tasks` — полный
-   список новых `warn:` / `e:`.
-3. Классификация: тривиально / сложно / ложное.
-4. Для каждого: фикс, `@Suppress` + KDoc-ссылка, или
-   baseline.
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck /
-   detekt`.
-6. Синхронизировать `### Рефакторинг архитектурного долга`:
-   добавить новые отложенные нарушения (если появились сверх
-   существующих).
-
-**Тесты.** Не меняются — правила detekt не влияют на
-поведение. Гейт — доказательство.
-
-**Референсы:**
-- `config/detekt/detekt.yml` — текущий `active: true` только
-  у `MagicNumber`.
-- `app/detekt-baseline.xml` — 45 `MagicNumber`, baseline.
-- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
-  список долга (OrdersScreen 646 строк, OrdersViewModel 49
-  функций, postOrder 172 строки и т.д.) — **сюда** ложатся
-  отложенные нарушения.
-- `### detekt: ignoreFailures=false` (закрыта) — включила
-  enforcement; здесь — расширяем правила.
-
-**Ограничения:**
-- Не отключать `ignoreFailures` обратно.
-- Не удалять существующие `@Suppress` для долга — они станут
-  активными (корректно подавляют, но со ссылкой на ROADMAP).
-- Не пытаться отрефакторить весь `### Рефакторинг
-  архитектурного долга` в этой задаче — только классификация
-  и точечные фиксы тривиального. Рефакторинг — там.
-- Не смешивать с `### Рефакторинг архитектурного долга
-  (detekt-группа 3)` — там рефакторинг, здесь включение
-  правил.
-
-**Критерий готовности:**
-- 4 правила `active: true` в `config/detekt/detekt.yml`.
-- `./gradlew :app:detekt` — `BUILD SUCCESSFUL` (все всплывшие
-  либо починены, либо `@Suppress`-подавлены, либо в baseline).
-- `### Рефакторинг архитектурного долга` дополнен новыми
-  отложенными нарушениями (если появились).
-- Гейт зелёный.
-
-**Оценка:** ~2–3 ч (правка yml 5 мин, прогон + классификация
-30 мин, разбор тривиального 1–1.5 ч, отложенные `@Suppress`
-+ KDoc 30 мин, синхронизация `### Рефакторинг` 15 мин,
-гейт 10 мин). Оценка зависит от количества всплывших
-нарушений — начнётся с диагностики, может уложиться в 1 ч
-(если все `@Suppress` уже стоят), может вырасти до 3–4 ч
-(если много нового).
-
-**Зависимости:**
-- **После** `### detekt: ignoreFailures=false` (закрыта
-  2026-10-26).
-- **До** `### Рефакторинг архитектурного долга (detekt-группа
-  3)` — включение правил покажет реальный объём долга, и
-  задача рефакторинга получит актуальный список.
-
-**Связано:**
-- `### detekt: ignoreFailures=false` (закрыта) — enforcement.
-- `### Рефакторинг архитектурного долга (detekt-группа 3)` —
-  рефакторинг. Правила включены — список долга актуален.
-- Born-in-#9: `@Suppress` в коде для выключенных правил
-  обнаружены при ревизии `### detekt: ignoreFailures=false`.
-
-**Открытые вопросы.**
-- `MagicNumber` — warn, baseline 45. После включения
-  архитектурных правил baseline не меняется (только для
-  `MagicNumber`). `detektBaseline` может слить всё в один
-  файл — обновить или точечные `@Suppress`? Рекомендация:
-  точечные `@Suppress` для отложенного, baseline — только
-  `MagicNumber`.
-- Если всплывших новых много (>20) — разбить на подзадачи
-  по файлам/модулям. Решение — по результатам прогона.
-
----
 
 
 ### Архитектурный документ (docs/architecture.md)
@@ -1670,6 +1492,16 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 **Общие предусловия:**
 - Перед рефакторингом каждой группы — прогнать тесты,
   зафиксировать текущее поведение.
+
+**Правила active по дефолту (уточнение 2026-10-31).** Задача
+`### detekt: включить архитектурные правила` закрыта слиянием
+с этой: `config/detekt/detekt.yml` использует
+`buildUponDefaultConfig = true`, 4 правила
+(`LongMethod`, `CyclomaticComplexMethod`, `TooManyFunctions`,
+`LargeClass`) не переопределены в `config/detekt/detekt.yml` и
+наследуют дефолт `active: true`. `@Suppress` в коде — реальные
+маркеры долга, а не декоративные (см. `grep "@Suppress\("
+app/src/main/kotlin`). Отдельная задача не нужна.
 - Разбивать на подзадачи: один класс / одна функция за раз,
   коммит после каждого шага (правило 4b AGENTS.md).
 - После рефакторинга — снять `@Suppress`, убедиться что
@@ -8333,5 +8165,50 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** clean-audit Н68; `### Разбивка InvestRepository`.
 
 **Открытые вопросы:** `TradingStateRepository` — отдельный, не трогаем. `BrokerLifecycleManager` инжектит `SettingsRepository` — миграция в `BrokerCredentialsRepository`.
+
+---
+
+
+
+---
+
+### ✅ Н62: TInvestWsService.initialize не вызывает stop()
+
+**Контекст:** clean-audit Н62 (формулировка уточнена 2026-10-31). `TInvestWsService.initialize` пересоздаёт `wsScope` и клиентов без предварительного `stop()`. Старый `wsScope` (со старыми `pricesWebSocket`/`orderStateWebSocket`) не отменяется — утечка при ре-логине и при переключении prod → sandbox (`if (sandbox) return` стоит до любого `stop()`, старые prod-клиенты остаются). `TInvestBrokerApi.initialize` вызывает `wsService.initialize(...)` без `wsService.stop()` — усугубляет. `positionsWebSocket` — cold flow (Н87), без активного коллектора соединения нет; при `stop()` достаточно `= null`.
+
+**Соответствие Clean:** не строго Clean — ресурсный leak в lifecycle.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** `stop()` первой строкой `TInvestWsService.initialize` (до `if (sandbox) return`). Плюсы: нет утечки. Минусы: нет.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `data/api/TInvestWsService.kt`.
+
+**Шаги:**
+1. `TInvestWsService.initialize`: `stop()` первой строкой, до `if (sandbox) return`.
+2. Live-тест: ре-логин (settings → logout → login), переключение prod/sandbox — в logcat нет двух `connecting` на prices/orderState.
+3. Гейт.
+
+**Тесты:** без unit (WS lifecycle — live-test). Гейт.
+
+**Референсы:** `docs/clean-audit.md` → Н62; `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket» (уточнить запись).
+
+**Ограничения:** не менять поведение `if (sandbox) return` (WS не создаются в sandbox — серверное ограничение); не трогать `positionsWebSocket` (cold flow, Н87).
+
+**Критерий готовности:** ре-логин / смена режима не оставляет старый `wsScope`; в логах нет дублей `connecting`.
+
+**Оценка:** ~20 мин + live-тест.
+
+**Зависимости:** нет.
+
+**Что сделано:** `TInvestWsService.initialize` — `stop()` первой строкой (до `if (sandbox) return`): старый `wsScope` (prices / orderState) отменяется, клиенты закрываются. `TInvestBrokerApi.initialize` не менялся (делегирует в `wsService.initialize`). Коммит `2e2df67`. Live-тест PASS (2026-10-31): logout → нет `connecting`; login → ровно 1 `connecting` на prices и 1 на positions; sandbox → нет `connecting`.
+
+**Связано:** clean-audit Н62; `docs/ISSUES.md` → «TInvestBrokerAPI.initialize...»; Н87 (cold flow positions).
+
+**Открытые вопросы:** нет.
 
 ---
