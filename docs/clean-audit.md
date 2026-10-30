@@ -573,24 +573,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `BrokerSnapshotApi.kt`.
 
-### Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `StreamsApi.subscribeLastPrices(uids: List<String>)` — параметр `uids`. `BrokerSnapshotApi.pricesSnapshot(ids: List<String>)` — та же семантика, но `ids`. По AGENTS: «Domain-слой оперирует `tscalpInstrumentId`… ключ инструмента называется `tscalpInstrumentId`, а не `uid` и не `figi`». T-Invest-специфика (uid) протекает в domain-интерфейс.
-
-**Нарушенное правило Clean:** соглашение AGENTS «domain оперирует `tscalpInstrumentId`».
-
-**Clean-альтернатива:** переименовать в `tscalpInstrumentIds: List<String>` (или `ids`). Плюсы: консистентность, T-Invest-специфика не протекает. Минусы: правка `TInvestBrokerAPI` (2 метода — `subscribeLastPrices` в fat + role) + `PriceFlowManager` (1 callsite).
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена).
-
 ### Н32. StreamCombinators — транспорт в domain/api
 
 **Статус:** открыто.
@@ -713,6 +695,31 @@ L4–L8 — не проверены, заполняются по мере инс
 **Что сделано:** `@Suppress("TooManyFunctions")` снят: в `BrokerApi` 0 `fun`, только `val` (12 ролей). detekt не ругается.
 
 **Ссылка на задачу:** `docs/clean-audit.md` → L4-Н25; `### Рефакторинг ролей BrokerApi` (закрыта); `### Рефакторинг BrokerApi-реализаций (D)` (закрыта).
+
+### ✅ Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика
+
+**Статус:** исправлено (PR #71, `dev`, 2026-10-30).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `StreamsApi.subscribeLastPrices(uids: List<String>)` — параметр `uids`. `BrokerSnapshotApi.pricesSnapshot(ids: List<String>)` — та же семантика, но `ids`. По AGENTS: «Domain-слой оперирует `tscalpInstrumentId`… ключ инструмента называется `tscalpInstrumentId`, а не `uid` и не `figi`». T-Invest-специфика (uid) протекает в domain-интерфейс.
+
+**Нарушенное правило Clean:** соглашение AGENTS «domain оперирует `tscalpInstrumentId`».
+
+**Clean-альтернатива:** переименовать в `tscalpInstrumentIds: List<String>` (или `ids`). Плюсы: консистентность, T-Invest-специфика не протекает. Минусы: правка `TInvestBrokerAPI` (2 метода — `subscribeLastPrices` в fat + role) + `PriceFlowManager` (1 callsite).
+
+**Выгоды:** —.
+
+**Что сделано:** scope расширен (2026-10-30, по решению пользователя):
+
+- domain (4 роли): `ids` → `tscalpInstrumentIds` — `BrokerSnapshotApi.pricesSnapshot`, `MarketDataApi.getLastPricesByTscalpInstrumentId`, `UserInstrumentsApi.getTradingStatuses`, `StreamsApi.subscribeLastPrices`;
+- data T-Invest (5 сигнатур/override): `ids` → `uids` — `TInvestBrokerApi`, `TInvestMarketDataService` (data честно отражает формат брокера);
+- KDoc на 4 domain-роли — граница слоёв (T-Invest `uids`, BCS `figi`, Finam `ticker`; domain `tscalpInstrumentIds`);
+- `TInvestBrokerApi`: `PARAMETER_NAME_CHANGED_ON_OVERRIDE` в class-level `@Suppress` (осознанно, all callsites позиционные; объяснение в KDoc — ktlint: EOL comment после KDoc запрещён).
+
+**Ссылка на задачу:** PR #71 (`feature/instrument-ids`), коммиты `6f74454`, `86ab1c4`.
 
 ## L5 — domain/managers
 
