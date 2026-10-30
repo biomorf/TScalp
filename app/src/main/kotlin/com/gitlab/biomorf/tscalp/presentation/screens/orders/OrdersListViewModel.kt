@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -25,7 +25,7 @@ class OrdersListViewModel
     constructor(
         private val accountsRepository: AccountsRepository,
         private val ordersRepository: OrdersRepository,
-        private val settingsRepository: SettingsRepository,
+        private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val orderFlowManager: OrderFlowManager,
         private val logger: Logger,
     ) : ViewModel() {
@@ -72,7 +72,7 @@ class OrdersListViewModel
                 logger.d(TAG, "loadOrders: start")
                 _uiState.update { it.copy(isLoading = true, statusMessage = null, isError = false) }
 
-                val sandboxMode = settingsRepository.isSandboxMode()
+                val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
 
                 // Шаг 1: получить счета через AppResult
                 val accounts =
@@ -115,7 +115,7 @@ class OrdersListViewModel
         fun cancelOrder(order: Order) {
             viewModelScope.launch {
                 logger.d(TAG, "cancelOrder: orderId=${order.orderId}, isStop=${order is Order.Stop}")
-                val sandboxMode = settingsRepository.isSandboxMode()
+                val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
 
                 // Шаг 1: счета
                 val accounts =

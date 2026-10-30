@@ -6,10 +6,11 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -41,7 +42,8 @@ class PortfolioViewModel
         private val marketDataRepository: MarketDataRepository,
         private val accountsRepository: AccountsRepository,
         private val brokerManager: BrokerRegistry,
-        private val settingsRepository: SettingsRepository,
+        private val accountPreferencesRepository: AccountPreferencesRepository,
+        private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val priceFlowManager: PriceFlowManager,
         private val positionFlowManager: PositionFlowManager,
         private val logger: Logger,
@@ -87,7 +89,7 @@ class PortfolioViewModel
         suspend fun checkApiInitialization() {
             // проверка «есть ли хоть один инициализированный брокер»
             val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
-            val sandbox = settingsRepository.isSandboxMode()
+            val sandbox = sandboxPreferencesRepository.isSandboxMode()
             logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isApiInit, sandbox=$sandbox")
             _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
 
@@ -114,12 +116,12 @@ class PortfolioViewModel
                 _uiState.update { it.copy(isLoading = true, statusMessage = null) }
 
                 val accountId =
-                    settingsRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: run {
+                    accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: run {
                         logger.d(TAG, "loadPortfolio: no default account")
                         _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
                         return@launch
                     }
-                val sandbox = settingsRepository.isSandboxMode()
+                val sandbox = sandboxPreferencesRepository.isSandboxMode()
                 logger.d(TAG, "loadPortfolio: account=$accountId, sandbox=$sandbox")
 
                 // Первичный запрос для немедленного отображения
@@ -274,7 +276,7 @@ class PortfolioViewModel
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }
 
-                val sandboxMode = settingsRepository.isSandboxMode()
+                val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
 
                 // Шаг 1: получить счета
                 val accounts =
@@ -304,7 +306,7 @@ class PortfolioViewModel
                     return@launch
                 }
 
-                val defaultAccountId = settingsRepository.loadDefaultAccountId(BrokerName.TINVEST)
+                val defaultAccountId = accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST)
                 val accountId =
                     if (defaultAccountId != null && accounts.any { it.id == defaultAccountId }) {
                         defaultAccountId

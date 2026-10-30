@@ -7,7 +7,6 @@ import com.gitlab.biomorf.tscalp.data.repository.MarketDataRepositoryImpl
 import com.gitlab.biomorf.tscalp.data.repository.OrdersRepositoryImpl
 import com.gitlab.biomorf.tscalp.data.repository.PortfolioRepositoryImpl
 import com.gitlab.biomorf.tscalp.data.repository.SearchCacheImpl
-import com.gitlab.biomorf.tscalp.data.repository.SettingsRepositoryImpl
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepositoryImpl
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
@@ -16,7 +15,6 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SettingsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import dagger.Binds
 import dagger.Module
@@ -56,10 +54,6 @@ abstract class RepositoryBindingModule {
     @Binds
     @Singleton
     abstract fun bindSearchCacheRepository(impl: SearchCacheImpl): SearchCacheRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
 
     @Binds
     @Singleton
