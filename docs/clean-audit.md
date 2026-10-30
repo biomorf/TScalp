@@ -573,7 +573,7 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** `docs/ISSUES.md` → «gRPC retry: бесконечный retry на не-recoverable ошибках» (расширено в L5-Н60: «касается также `StreamCombinators.retryWithBackoff`»).
+**Ссылка на задачу:** `### Пакет A: retryWithBackoff resilience (Н60 + Н61)` (ROADMAP) — запланировано. `docs/ISSUES.md` → «gRPC retry: бесконечный retry на не-recoverable ошибках».
 
 ### Н61. retryWithBackoff — busy loop на normal completion
 
@@ -591,7 +591,7 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** `docs/ISSUES.md` → «PriceFlowManager.collectStream: потенциальный busy loop» (расширено в L5-Н61: «касается также `StreamCombinators.retryWithBackoff`»).
+**Ссылка на задачу:** `### Пакет A: retryWithBackoff resilience (Н60 + Н61)` (ROADMAP) — запланировано. `docs/ISSUES.md` → «PriceFlowManager.collectStream: потенциальный busy loop».
 
 ### Исправленные (L4)
 
@@ -743,24 +743,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н58. PositionFlowManager.runPolling — string matching NOT_FOUND | средне | L5 | `PositionFlowManager.kt` | - |
 | Н59. PriceFlowManager.runPolling — swallows CancellationException | средне | L5 | `PriceFlowManager.kt` | - |
 
-### Н39. PriceFlowManager → util.toAppError
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `PriceFlowManager.kt` импортирует `util.toAppError`, использует в `runPolling` (`AppLogger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)`). `toAppError` живёт в `util/AppResultExtensions.kt` и импортирует `io.grpc.StatusException`. Domain видит io.grpc транзитивно.
-
-**Нарушенное правило Clean:** dependency rule — domain видит io.grpc через `util`.
-
-**Clean-альтернатива:** `AppErrorMapper` в data (Н20). `PriceFlowManager` инжектит `AppErrorMapper` (или `Logger` с `AppError`-конвертацией). Плюсы: domain без gRPC. Минусы: инъекция в менеджер.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). **Связано с H20** (`AppErrorMapper` в data).
-
 ### Н41. Хардкод BrokerName.TINVEST в менеджерах
 
 **Статус:** открыто.
@@ -858,6 +840,26 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
 
+### ✅ Н39. PriceFlowManager → util.toAppError
+
+**Статус:** исправлено (0 вхождений `toAppError` в `PriceFlowManager`; ушло при рефакторинге, вероятно с Н47).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `PriceFlowManager.kt` импортирует `util.toAppError`, использует в `runPolling` (`AppLogger.w(TAG, "REST poll failed: ${e.toAppError(BrokerName.TINVEST).message}", e)`). `toAppError` живёт в `util/AppResultExtensions.kt` и импортирует `io.grpc.StatusException`. Domain видит io.grpc транзитивно.
+
+**Нарушенное правило Clean:** dependency rule — domain видит io.grpc через `util`.
+
+**Clean-альтернатива:** `AppErrorMapper` в data (Н20). `PriceFlowManager` инжектит `AppErrorMapper` (или `Logger` с `AppError`-конвертацией). Плюсы: domain без gRPC. Минусы: инъекция в менеджер.
+
+**Выгоды:** —.
+
+**Что сделано:** `PriceFlowManager` больше не использует `util.toAppError` (0 вхождений); `grep` 2026-10-31. Связано с H20 (`AppErrorMapper` в data).
+
+**Ссылка на задачу:** — (не заведена; закрыто фактически).
+
 ## L6 — data/repository
 
 **Краткая таблица:**
@@ -936,7 +938,7 @@ InvestRepository split` (ROADMAP).
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket» (ветка `bugfix/ws-lifecycle`).
+**Ссылка на задачу:** `### Н62: TInvestWsService.initialize не вызывает stop()` (ROADMAP) — запланировано. `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket».
 
 ### Н63. TInvestMarketDataService — god-класс 622 строки
 
@@ -954,7 +956,7 @@ InvestRepository split` (ROADMAP).
 
 **Выгоды:** все методы работают на общем `TInvestApiState`, единая точка для gRPC-каналов. Разбивка — при рефакторинге.
 
-**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (`fetchPositionsSnapshot` декомпозиция + `mapProtoToDomain`).
+**Ссылка на задачу:** `### Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP) — запланировано (отдельная сессия).
 
 ### Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
 
@@ -1051,7 +1053,7 @@ InvestRepository split` (ROADMAP).
 добавлен на интерфейс `domain.api.repository.SettingsRepository`
 (13 членов). Декомпозиция (4 области) — не выполнена, не в scope H21b.
 
-**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Репозитории` (SettingsRepository — 15 функций).
+**Ссылка на задачу:** `### Пакет B: SettingsRepository split (Н68)` (ROADMAP) — запланировано.
 
 ### Н69. InvestRepository — @Suppress("TooManyFunctions")
 
@@ -1370,7 +1372,7 @@ InvestRepository split` (ROADMAP).
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** — (не заведена). Входит в дизайн H22 (`BrokerRegistry`, ROADMAP). См. `**Анализ L7-part1:**` в L1-Н22.
+**Ссылка на задачу:** `### Пакет D: BrokerRegistry domain-config (Н35)` (ROADMAP) — запланировано. Входит в дизайн H22 (`BrokerRegistry`).
 
 ### Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
 

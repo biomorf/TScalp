@@ -122,6 +122,230 @@ clean-audit.
 
 ---
 
+### Н62: TInvestWsService.initialize не вызывает stop()
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit Н62 (формулировка уточнена 2026-10-31). `TInvestWsService.initialize` пересоздаёт `wsScope` и клиентов без предварительного `stop()`. Старый `wsScope` (со старыми `pricesWebSocket`/`orderStateWebSocket`) не отменяется — утечка при ре-логине и при переключении prod → sandbox (`if (sandbox) return` стоит до любого `stop()`, старые prod-клиенты остаются). `TInvestBrokerApi.initialize` вызывает `wsService.initialize(...)` без `wsService.stop()` — усугубляет. `positionsWebSocket` — cold flow (Н87), без активного коллектора соединения нет; при `stop()` достаточно `= null`.
+
+**Соответствие Clean:** не строго Clean — ресурсный leak в lifecycle.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** `stop()` первой строкой `TInvestWsService.initialize` (до `if (sandbox) return`). Плюсы: нет утечки. Минусы: нет.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `data/api/TInvestWsService.kt`.
+
+**Шаги:**
+1. `TInvestWsService.initialize`: `stop()` первой строкой, до `if (sandbox) return`.
+2. Live-тест: ре-логин (settings → logout → login), переключение prod/sandbox — в logcat нет двух `connecting` на prices/orderState.
+3. Гейт.
+
+**Тесты:** без unit (WS lifecycle — live-test). Гейт.
+
+**Референсы:** `docs/clean-audit.md` → Н62; `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket» (уточнить запись).
+
+**Ограничения:** не менять поведение `if (sandbox) return` (WS не создаются в sandbox — серверное ограничение); не трогать `positionsWebSocket` (cold flow, Н87).
+
+**Критерий готовности:** ре-логин / смена режима не оставляет старый `wsScope`; в логах нет дублей `connecting`.
+
+**Оценка:** ~20 мин + live-тест.
+
+**Зависимости:** нет.
+
+**Связано:** clean-audit Н62; `docs/ISSUES.md` → «TInvestBrokerAPI.initialize...»; Н87 (cold flow positions).
+
+**Открытые вопросы:** нет.
+
+---
+
+### Пакет A: retryWithBackoff resilience (Н60 + Н61)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit Н60 + Н61 в `data/orchestrator/StreamCombinators.kt` (после переезда Н32): `retryWithBackoff` (а) не различает non-retryable ошибки — `UNAUTHENTICATED` / `NOT_FOUND` / `PERMISSION_DENIED` / `INVALID_ARGUMENT` / `FAILED_PRECONDITION` retry-loop вечно (высоко); (б) при normal completion `attempt = 0` и новый цикл без `delay` — busy loop (высоко). Обе в ISSUES.
+
+**Соответствие Clean:** не строго Clean — resilience-логика.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** (а) классификация по `Status.fromThrowable(e).code`; (б) `delay(1_000)` при normal completion.
+
+**Выгоды:** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `data/orchestrator/StreamCombinators.kt`.
+
+**Шаги:**
+1. Н60: `catch (e: Exception)` → `Status.fromThrowable(e).code`; non-retry (`NOT_FOUND`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `FAILED_PRECONDITION`) — `throw e`; retry (`UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`) — backoff; `RESOURCE_EXHAUSTED` — backoff с отдельной задержкой.
+2. Н61: после `source().collect { }` (normal completion) — `attempt = 0; delay(1_000)` перед новым циклом.
+3. Тесты: `StreamCombinatorsTest` (новый) — non-retryable → throw, normal completion → delay.
+4. Гейт.
+
+**Тесты:** `StreamCombinatorsTest` — 3 теста.
+
+**Референсы:** `docs/clean-audit.md` → Н60, Н61; `docs/ISSUES.md` → «gRPC retry: бесконечный retry…», «…busy loop…»; `PriceFlowManager.collectStream` — образец `delay(1_000)`.
+
+**Ограничения:** не менять `mergeStreamSources` (Н32a, закрыта); не трогать fallback-логику оркестратора.
+
+**Критерий готовности:** non-retryable → throw; normal completion → `delay(1_000)`; тесты зелёные.
+
+**Оценка:** ~55 мин.
+
+**Зависимости:** нет.
+
+**Связано:** clean-audit Н60, Н61; ISSUES.
+
+**Открытые вопросы:** `RESOURCE_EXHAUSTED` — отдельная задержка (2×60с?) или стандартный backoff? Рекомендация: стандартный backoff + отдельная задача «Rate-limiter» для unary.
+
+---
+
+### Пакет D: BrokerRegistry domain-config (Н35)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit Н35. `DataModule.provideBrokerRegistry` содержит domain-конфигурацию: `mapOf(TINVEST to tinvest, BCS to bcs, FINAM to finam)` и порядок вкладок. При добавлении 4-го брокера — правка в `di/`.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** domain-knowledge (список брокеров + порядок) в `di`.
+
+**Clean-альтернатива:** `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — `Map<BrokerName, BrokerApi>` через `BrokerName.entries` (порядок из enum). `defaultBroker: BrokerName = TINVEST` — константа в domain. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — тонкий DI.
+
+**Выгоды:** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `domain/api/BrokerRegistry.kt`, `data/registry/BrokerRegistryImpl.kt`, `di/DataModule.kt`.
+
+**Шаги:**
+1. `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — маппинг через `BrokerName.entries`.
+2. `defaultBroker: BrokerName = TINVEST` — в `BrokerRegistry` (companion/константа).
+3. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — `@Provides`, собирает `Set` из 3 брокеров.
+4. Гейт.
+
+**Тесты:** `BrokerRegistryImplTest` (новый, если нет) — порядок из `BrokerName.entries`, `defaultBroker`.
+
+**Референсы:** `docs/clean-audit.md` → Н35; `### H22. BrokerRegistry` (закрыта).
+
+**Ограничения:** не менять `BrokerRegistry` интерфейс (6 методов); не трогать `TInvestBrokerAPI`/`BcsBrokerApi`/`FinamBrokerApi`.
+
+**Критерий готовности:** `provideBrokerRegistry` не содержит `mapOf`; порядок — из enum; `defaultBroker` — domain-константа.
+
+**Оценка:** ~1–1.5 ч.
+
+**Зависимости:** нет.
+
+**Связано:** clean-audit Н35; `### H22. BrokerRegistry`.
+
+**Открытые вопросы:** `defaultBroker` — в `BrokerRegistry` companion или отдельный `BrokerDefaults`? Рекомендация: companion `BrokerRegistry`.
+
+---
+
+### Пакет B: SettingsRepository split (Н68)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit Н68. `SettingsRepository` (12 функций) + `SettingsRepositoryImpl` (12) — `@Suppress("TooManyFunctions")`; 4 области: credentials брокеров, счёт по умолчанию, режим sandbox, подтверждение заявок.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** SRP — 4 области в одном репозитории.
+
+**Clean-альтернатива:** 4 репозитория: `BrokerCredentialsRepository`, `AccountPreferencesRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`.
+
+**Выгоды:** один репозиторий, простая навигация.
+
+**Предусловия:** нет.
+
+**Файлы:** 4 интерфейса в `domain/api/repository/`, 4 `*Impl` в `data/repository/`, 4 `@Binds` в `RepositoryBindingModule`, потребители (`SettingsViewModel`, `TScalpApplication`, `BrokerLifecycleManager`, `TradingStateRepositoryImpl`?) — миграция.
+
+**Шаги:**
+1. 4 интерфейса.
+2. 4 `*Impl` (тела из `SettingsRepositoryImpl`).
+3. `@Binds` ×4; удалить `SettingsRepository` / `Impl`.
+4. Миграция потребителей (по одному коммиту).
+5. Гейт.
+
+**Тесты:** существующие тесты репозитория — обновить callsites; новых не требуется.
+
+**Референсы:** `docs/clean-audit.md` → Н68; `### Разбивка InvestRepository` (образец).
+
+**Ограничения:** DataStore-ключи не менять (обратная совместимость); один коммит на репозиторий.
+
+**Критерий готовности:** `grep "@Suppress("TooManyFunctions")"` в 4 новых — пусто; потребители мигрированы; гейт.
+
+**Оценка:** ~2 ч.
+
+**Зависимости:** нет.
+
+**Связано:** clean-audit Н68; `### Разбивка InvestRepository`.
+
+**Открытые вопросы:** `TradingStateRepository` — отдельный, не трогаем. `BrokerLifecycleManager` инжектит `SettingsRepository` — миграция в `BrokerCredentialsRepository`.
+
+---
+
+### Пакет C: TInvestMarketDataService split (Н63)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано. **Отдельная сессия** (крупный рефакторинг).
+
+**Контекст:** clean-audit Н63. `TInvestMarketDataService` — 620 строк, `@Suppress("TooManyFunctions")` (стр. 62), 8+ доменных областей: счета, портфель, gRPC-стримы позиций, баланс, инструменты, цены/статусы, gRPC-стримы цен/ордеров, проверка.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** SRP.
+
+**Clean-альтернатива:** 6 сервисов: `TInvestAccountsService`, `TInvestPortfolioService`, `TInvestPositionsService`, `TInvestInstrumentsService`, `TInvestPricesService`, `TInvestTradingService`. `TInvestApiState` шарится.
+
+**Выгоды:** все методы на общем `TInvestApiState`, единая точка gRPC-каналов.
+
+**Предусловия:** `### KMP: domain → commonMain` — не блокер, но data-split может идти параллельно.
+
+**Файлы:** 6 новых сервисов в `data/api/`, `TInvestMarketDataService` — удалить/фасад, потребители (`TInvestBrokerAPI` — 18 делегатов).
+
+**Шаги:**
+1. Вынести счета + портфель + баланс → `TInvestAccountsService`/`TInvestPortfolioService`.
+2. Инструменты → `TInvestInstrumentsService`.
+3. Цены/статусы → `TInvestPricesService`.
+4. gRPC-стримы позиций → `TInvestPositionsService`.
+5. gRPC-стримы цен/ордеров → `TInvestPricesService`/`TInvestTradingService`.
+6. Проверка → `TInvestTradingService`.
+7. `TInvestBrokerAPI` — делегаты на 6 сервисов.
+8. Гейт после каждого шага.
+
+**Тесты:** существующие (`TInvestOrchestratorFallbackTest` и др.) — обновить callsites; новых не требуется.
+
+**Референсы:** `docs/clean-audit.md` → Н63; `### Рефакторинг BrokerApi-реализаций (D)` (образец — `TInvestWsService`, `TInvestRestService`).
+
+**Ограничения:** `TInvestApiState` — владелец `TInvestBrokerAPI` (не Hilt `@Singleton`); один сервис за коммит; гейт после каждого.
+
+**Критерий готовности:** `TInvestMarketDataService` удалён (или <100 строк фасада); 6 сервисов; `@Suppress` снят; гейт.
+
+**Оценка:** ~3–4 ч.
+
+**Зависимости:** нет.
+
+**Связано:** clean-audit Н63; `### Рефакторинг BrokerApi-реализаций (D)` (образец).
+
+**Открытые вопросы:** `fetchPositionsSnapshot` декомпозиция (`### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest`) — входит в эту задачу или отдельно? Рекомендация: **входит** (та же область — portfolio/positions).
+
+---
+
 ### T-Invest REST: findInstruments fallback
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
