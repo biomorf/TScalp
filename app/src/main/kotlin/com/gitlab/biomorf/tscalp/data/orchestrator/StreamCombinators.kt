@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
+import io.grpc.Status
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -46,8 +47,19 @@ fun <T> mergeStreamSources(
  * и без обёртки merge() падает целиком — fallback теряется тоже.
  * Штатная отмена (CancellationException) пробрасывается. Нормальное
  * завершение источника тоже переподключаем: сервер мог закрыть стрим.
+ *
+ * **Классификация ошибок.** Non-retryable gRPC-коды (NOT_FOUND,
+ * UNAUTHENTICATED, PERMISSION_DENIED, INVALID_ARGUMENT,
+ * FAILED_PRECONDITION) пробрасываются наружу — повтор бессмыслен.
+ * Retryable (UNAVAILABLE, DEADLINE_EXCEEDED, INTERNAL, UNKNOWN) —
+ * backoff. RESOURCE_EXHAUSTED — retry с максимальной задержкой
+ * (rate-limit, см. `docs/rate-limits.md`). Не-gRPC-исключения —
+ * консервативно retry.
  */
 private val DEFAULT_RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
+
+/** Пауза после нормального завершения источника (clean-audit Н61). */
+private const val NORMAL_COMPLETION_DELAY_MS = 1_000L
 
 fun <T> retryWithBackoff(
     delays: LongArray = DEFAULT_RETRY_DELAYS_MS,
@@ -59,12 +71,45 @@ fun <T> retryWithBackoff(
             try {
                 source().collect { emit(it) }
                 attempt = 0
+                // Нормальное завершение источника (сервер закрыл стрим) —
+                // не busy loop: даём паузу перед переподключением
+                // (clean-audit Н61; как в PriceFlowManager.collectStream).
+                delay(NORMAL_COMPLETION_DELAY_MS)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (!isRetryable(e)) throw e
                 attempt++
-                val idx = (attempt - 1).coerceIn(0, delays.lastIndex)
-                delay(delays[idx])
+                delay(retryDelay(e, attempt, delays))
             }
         }
     }
+
+private fun isRetryable(e: Throwable): Boolean =
+    when (Status.fromThrowable(e).code) {
+        Status.Code.NOT_FOUND,
+        Status.Code.UNAUTHENTICATED,
+        Status.Code.PERMISSION_DENIED,
+        Status.Code.INVALID_ARGUMENT,
+        Status.Code.FAILED_PRECONDITION,
+        -> false
+
+        Status.Code.UNAVAILABLE,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.INTERNAL,
+        Status.Code.UNKNOWN,
+        Status.Code.RESOURCE_EXHAUSTED,
+        -> true
+
+        else -> true
+    }
+
+private fun retryDelay(
+    e: Throwable,
+    attempt: Int,
+    delays: LongArray,
+): Long {
+    if (Status.fromThrowable(e).code == Status.Code.RESOURCE_EXHAUSTED) return delays.max()
+    val idx = (attempt - 1).coerceIn(0, delays.lastIndex)
+    return delays[idx]
+}
