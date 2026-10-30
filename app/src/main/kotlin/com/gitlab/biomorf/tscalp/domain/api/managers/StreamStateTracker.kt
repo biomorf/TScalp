@@ -5,6 +5,10 @@ import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 /**
  * Машина состояний источника данных менеджера.
@@ -16,40 +20,41 @@ import kotlinx.coroutines.flow.asStateFlow
  * в менеджере — трекер не знает про scope.
  *
  * Все методы принимают [now] параметром (default —
- * [System.currentTimeMillis]). В тестах передаётся fake-time,
+ * [clock.now()]). В тестах передаётся fake-time,
  * без `delay` / `advanceTimeBy` — переходы детерминированы.
  *
  * Пороги:
- * - [streamSilenceMs] — сколько стрим должен молчать, чтобы
+ * - [streamSilence] — сколько стрим должен молчать, чтобы
  *   LIVE понизился до POLLING (если polling при этом жив).
- * - [staleMs] — сколько polling должен молчать, чтобы состояние
+ * - [stale] — сколько polling должен молчать, чтобы состояние
  *   стало STALE.
  *
  * @param tag префикс для логов смены состояния.
- * @param streamSilenceMs порог молчания стрима (default 15 сек).
- * @param staleMs порог молчания polling (default 30 сек).
+ * @param streamSilence порог молчания стрима (default 15 секунд).
+ * @param stale порог молчания polling (default 30 секунд).
  */
 internal class StreamStateTracker(
     private val logger: Logger,
     private val tag: String = "StreamStateTracker",
-    private val streamSilenceMs: Long = 15_000L,
-    private val staleMs: Long = 30_000L,
+    private val streamSilence: Duration = 15.seconds,
+    private val stale: Duration = 30.seconds,
+    private val clock: Clock = Clock.System,
 ) {
     private val _state = MutableStateFlow(StreamState.STOPPED)
     val state: StateFlow<StreamState> = _state.asStateFlow()
 
-    private var lastStreamAt: Long = 0L
-    private var lastPollingAt: Long = 0L
+    private var lastStreamAt: Instant = Instant.DISTANT_PAST
+    private var lastPollingAt: Instant = Instant.DISTANT_PAST
 
     /** Менеджер запущен. Обе метки = now, состояние INITIALIZING. */
-    fun onStart(now: Long = System.currentTimeMillis()) {
+    fun onStart(now: Instant = clock.now()) {
         lastStreamAt = now
         lastPollingAt = now
         set(StreamState.INITIALIZING)
     }
 
     /** Пришло событие из стрима. Стрим жив → LIVE (безусловно). */
-    fun onStreamEmit(now: Long = System.currentTimeMillis()) {
+    fun onStreamEmit(now: Instant = clock.now()) {
         lastStreamAt = now
         set(StreamState.LIVE)
     }
@@ -60,7 +65,7 @@ internal class StreamStateTracker(
      * INITIALIZING или STALE переводит в POLLING. Из LIVE и
      * POLLING — не трогает (polling не может «понизить» LIVE).
      */
-    fun onPollingSuccess(now: Long = System.currentTimeMillis()) {
+    fun onPollingSuccess(now: Instant = clock.now()) {
         lastPollingAt = now
         when (_state.value) {
             StreamState.INITIALIZING, StreamState.STALE -> set(StreamState.POLLING)
@@ -75,19 +80,19 @@ internal class StreamStateTracker(
      * - POLLING / INITIALIZING: polling молчит > [staleMs] → STALE.
      * - STALE / STOPPED: ничего (реанимация — через onStreamEmit / onPollingSuccess).
      */
-    fun tick(now: Long = System.currentTimeMillis()) {
-        val streamSilentMs = now - lastStreamAt
-        val pollingSilentMs = now - lastPollingAt
+    fun tick(now: Instant = clock.now()) {
+        val streamSilent = now - lastStreamAt
+        val pollingSilent = now - lastPollingAt
         when (_state.value) {
             StreamState.LIVE -> {
                 when {
-                    streamSilentMs <= streamSilenceMs -> Unit
-                    pollingSilentMs > staleMs -> set(StreamState.STALE)
+                    streamSilent <= streamSilence -> Unit
+                    pollingSilent > stale -> set(StreamState.STALE)
                     else -> set(StreamState.POLLING)
                 }
             }
             StreamState.POLLING, StreamState.INITIALIZING -> {
-                if (pollingSilentMs > staleMs) set(StreamState.STALE)
+                if (pollingSilent > stale) set(StreamState.STALE)
             }
             StreamState.STALE, StreamState.STOPPED -> Unit
         }
@@ -95,8 +100,8 @@ internal class StreamStateTracker(
 
     /** Менеджер остановлен. Метки обнуляются, состояние STOPPED. */
     fun onStop() {
-        lastStreamAt = 0L
-        lastPollingAt = 0L
+        lastStreamAt = Instant.DISTANT_PAST
+        lastPollingAt = Instant.DISTANT_PAST
         set(StreamState.STOPPED)
     }
 

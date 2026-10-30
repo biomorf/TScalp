@@ -1,6 +1,8 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
 import com.gitlab.biomorf.tscalp.domain.models.Order
+import kotlin.time.Duration
+import kotlin.time.Instant
 
 /**
  * Кэш активных заявок с TTL-эвикцией.
@@ -12,11 +14,11 @@ import com.gitlab.biomorf.tscalp.domain.models.Order
  * - [lastStreamAt] — последнее stream-событие по этой заявке.
  *
  * [evictStale] удаляет записи, у которых **оба** источника старше
- * `now - ttlMs`. TTL задаётся параметром конструктора; в
- * [OrderFlowManager] — `2 × POLLING_INTERVAL_MS` (30 сек при
+ * `now - ttl`. TTL задаётся параметром конструктора; в
+ * [OrderFlowManager] — `2 × POLLING_INTERVAL` (30 сек при
  * интервале polling 15 сек).
  *
- * Фактическое удержание без подтверждения = `ttlMs + один
+ * Фактическое удержание без подтверждения = `ttl + один
  * polling-цикл` ≈ **3 × интервал polling** (45 сек при интервале
  * 15 сек). Так потому, что эвикция идёт **после** [putFromPolling]
  * в том же цикле. Осознанно: заявка не должна исчезать при
@@ -37,12 +39,12 @@ import com.gitlab.biomorf.tscalp.domain.models.Order
  * вызываются последовательно на одном worker'е. Мutex не нужен.
  */
 internal class OrderCache(
-    private val ttlMs: Long,
+    private val ttl: Duration,
 ) {
     private data class Entry(
         val item: Order,
-        val lastSeenAt: Long,
-        val lastStreamAt: Long,
+        val lastSeenAt: Instant,
+        val lastStreamAt: Instant,
     )
 
     private val entries = mutableMapOf<String, Entry>()
@@ -50,27 +52,27 @@ internal class OrderCache(
     /** Добавить/обновить из polling-snapshot. */
     fun putFromPolling(
         item: Order,
-        now: Long,
+        now: Instant,
     ) {
         val existing = entries[item.orderId]
         entries[item.orderId] =
             Entry(
                 item = item,
                 lastSeenAt = now,
-                lastStreamAt = existing?.lastStreamAt ?: 0L,
+                lastStreamAt = existing?.lastStreamAt ?: Instant.DISTANT_PAST,
             )
     }
 
     /** Добавить/обновить из stream-события. */
     fun putFromStream(
         item: Order,
-        now: Long,
+        now: Instant,
     ) {
         val existing = entries[item.orderId]
         entries[item.orderId] =
             Entry(
                 item = item,
-                lastSeenAt = existing?.lastSeenAt ?: 0L,
+                lastSeenAt = existing?.lastSeenAt ?: Instant.DISTANT_PAST,
                 lastStreamAt = now,
             )
     }
@@ -82,11 +84,11 @@ internal class OrderCache(
 
     /**
      * Удалить записи, у которых и `lastSeenAt`, и `lastStreamAt`
-     * старше `now - ttlMs`.
+     * старше `now - ttl`.
      */
-    fun evictStale(now: Long) {
+    fun evictStale(now: Instant) {
         if (entries.isEmpty()) return
-        val cutoff = now - ttlMs
+        val cutoff = now - ttl
         entries.entries.removeAll { (_, e) ->
             val lastTouched = maxOf(e.lastSeenAt, e.lastStreamAt)
             lastTouched < cutoff
