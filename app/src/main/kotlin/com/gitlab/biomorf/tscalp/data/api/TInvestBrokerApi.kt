@@ -199,9 +199,9 @@ class TInvestBrokerAPI(
         ordersService.cancelOrder(accountId, orderId)
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(ids: List<String>) = marketDataService.getLastPricesByTscalpInstrumentId(ids)
+    override suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>) = marketDataService.getLastPricesByTscalpInstrumentId(uids)
 
-    override suspend fun getTradingStatuses(ids: List<String>) = marketDataService.getTradingStatuses(ids)
+    override suspend fun getTradingStatuses(uids: List<String>) = marketDataService.getTradingStatuses(uids)
 
     override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = orchestrator.orderStateStream(accountId)
 
@@ -223,7 +223,7 @@ class TInvestBrokerAPI(
     // ---------- Unary snapshots (для менеджеров) ----------
     // Делегируют в оркестратор, где будет fallback gRPC → REST (шаг 2).
 
-    override suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(ids)
+    override suspend fun pricesSnapshot(uids: List<String>): Map<String, Double?> = orchestrator.pricesSnapshot(uids)
 
     override suspend fun ordersSnapshot(accountId: String): List<Order> = orchestrator.ordersSnapshot(accountId)
 

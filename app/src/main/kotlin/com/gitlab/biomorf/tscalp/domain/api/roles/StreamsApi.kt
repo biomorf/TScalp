@@ -54,6 +54,10 @@ interface StreamsApi {
      * Один поток на все интересы; incremental subscription
      * (SUBSCRIBE/UNSUBSCRIBE) — на стороне брокера (у T-Invest —
      * `TInvestPricesWebSocket` / gRPC).
+     *
+     * В реализациях data-слоя имя параметра отражает формат
+     * брокера (T-Invest — `uids`, BCS — `figi`, Finam — `ticker`);
+     * domain — универсальный `tscalpInstrumentIds`.
      */
-    fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>>
+    fun subscribeLastPrices(tscalpInstrumentIds: List<String>): Flow<Pair<String, Double>>
 }

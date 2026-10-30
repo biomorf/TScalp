@@ -55,6 +55,10 @@ interface UserInstrumentsApi {
      * `Map<tscalpInstrumentId, TradingAvailability>`.
      * Отсутствующий ключ означает, что брокер не вернул
      * статус для этого инструмента.
+     *
+     * В реализациях data-слоя имя параметра отражает формат
+     * брокера (T-Invest — `uids`, BCS — `figi`, Finam — `ticker`);
+     * domain — универсальный `tscalpInstrumentIds`.
      */
-    suspend fun getTradingStatuses(ids: List<String>): Map<String, TradingAvailability>
+    suspend fun getTradingStatuses(tscalpInstrumentIds: List<String>): Map<String, TradingAvailability>
 }

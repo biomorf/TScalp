@@ -25,8 +25,12 @@ interface BrokerSnapshotApi {
      * `null` в значении карты — цена недоступна для инструмента.
      * Fallback gRPC unary → REST на транспортные ошибки —
      * внутри реализации.
+     *
+     * В реализациях data-слоя имя параметра отражает формат
+     * брокера (T-Invest — `uids`, BCS — `figi`, Finam — `ticker`);
+     * domain — универсальный `tscalpInstrumentIds`.
      */
-    suspend fun pricesSnapshot(ids: List<String>): Map<String, Double?>
+    suspend fun pricesSnapshot(tscalpInstrumentIds: List<String>): Map<String, Double?>
 
     /**
      * Снимок активных заявок счёта (обычные + stop).
