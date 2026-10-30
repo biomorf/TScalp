@@ -1362,24 +1362,6 @@ InvestRepository split` (ROADMAP).
 | Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` | - |
 | Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` | - |
 
-### Н35. provideBrokerManager — domain-конфигурация в di
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `DataModule.provideBrokerManager` содержит domain-конфигурацию: список брокеров (TInvest, BCS, Finam) и **порядок** в `mapOf`, который определяет порядок вкладок в UI (`getAvailableBrokerNames()`) и порядок в `SearchCache`/`InvestRepository`. При добавлении 4-го брокера — правка в `di/`.
-
-**Нарушенное правило Clean:** domain-knowledge (список зарегистрированных брокеров + порядок) в di-слое.
-
-**Clean-альтернатива (чисто):** `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — строит `Map<BrokerName, BrokerApi>` через `BrokerName.entries` (порядок из enum). `defaultBroker: BrokerName = BrokerName.TINVEST` — константа в domain. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — тонкий DI. Плюсы: domain-knowledge в domain, порядок вкладок из `BrokerName.entries`. Минусы: переезд, входит в дизайн H22.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Пакет D: BrokerRegistry domain-config (Н35)` (ROADMAP) — запланировано. Входит в дизайн H22 (`BrokerRegistry`).
-
 ### Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
 
 **Статус:** открыто.
@@ -1453,6 +1435,26 @@ object удалён после переноса его `@Provides` в `Repositor
 **Анализ L6-Н44:** подтверждается — потребители `di.BrokerManager` включают 3 data/repository (`SearchCache`, `InstrumentRepository`, `InvestRepository`). Итого 10: 3 VM (L1) + 3 менеджера (L5) + 3 репозитория (L6) + 1 app (L8).
 
 **Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
+
+### ✅ Н35. provideBrokerManager — domain-конфигурация в di
+
+**Статус:** исправлено (PR #80, `dev`, 2026-10-31).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `DataModule.provideBrokerManager` содержит domain-конфигурацию: список брокеров (TInvest, BCS, Finam) и **порядок** в `mapOf`, который определяет порядок вкладок в UI (`getAvailableBrokerNames()`) и порядок в `SearchCache`/`InvestRepository`. При добавлении 4-го брокера — правка в `di/`.
+
+**Нарушенное правило Clean:** domain-knowledge (список зарегистрированных брокеров + порядок) в di-слое.
+
+**Clean-альтернатива (чисто):** `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — строит `Map<BrokerName, BrokerApi>` через `BrokerName.entries` (порядок из enum). `defaultBroker: BrokerName = BrokerName.TINVEST` — константа в domain. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — тонкий DI. Плюсы: domain-knowledge в domain, порядок вкладок из `BrokerName.entries`. Минусы: переезд, входит в дизайн H22.
+
+**Выгоды:** —.
+
+**Что сделано:** `BrokerRegistry` companion — `val defaultBroker: BrokerName = TINVEST`; `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — map по `broker.name`, порядок `getAvailableBrokerNames()`/`getAllBrokers()` из `BrokerName.entries`; `DataModule.provideBrokerRegistry` — одна строка `BrokerRegistryImpl(setOf(...))`; 18 тестовых конструирований обновлены + `broker.name` stub; новый `BrokerRegistryImplTest` (5 PASSED). Коммит `7494262`.
+
+**Ссылка на задачу:** PR #80 (`dev`, 2026-10-31). Входит в дизайн H22 (`BrokerRegistry`).
 
 ## L8 — app
 

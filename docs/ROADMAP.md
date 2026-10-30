@@ -165,50 +165,6 @@ clean-audit.
 
 ---
 
-### Пакет D: BrokerRegistry domain-config (Н35)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** clean-audit Н35. `DataModule.provideBrokerRegistry` содержит domain-конфигурацию: `mapOf(TINVEST to tinvest, BCS to bcs, FINAM to finam)` и порядок вкладок. При добавлении 4-го брокера — правка в `di/`.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** domain-knowledge (список брокеров + порядок) в `di`.
-
-**Clean-альтернатива:** `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — `Map<BrokerName, BrokerApi>` через `BrokerName.entries` (порядок из enum). `defaultBroker: BrokerName = TINVEST` — константа в domain. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — тонкий DI.
-
-**Выгоды:** —.
-
-**Предусловия:** нет.
-
-**Файлы:** `domain/api/BrokerRegistry.kt`, `data/registry/BrokerRegistryImpl.kt`, `di/DataModule.kt`.
-
-**Шаги:**
-1. `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — маппинг через `BrokerName.entries`.
-2. `defaultBroker: BrokerName = TINVEST` — в `BrokerRegistry` (companion/константа).
-3. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — `@Provides`, собирает `Set` из 3 брокеров.
-4. Гейт.
-
-**Тесты:** `BrokerRegistryImplTest` (новый, если нет) — порядок из `BrokerName.entries`, `defaultBroker`.
-
-**Референсы:** `docs/clean-audit.md` → Н35; `### H22. BrokerRegistry` (закрыта).
-
-**Ограничения:** не менять `BrokerRegistry` интерфейс (6 методов); не трогать `TInvestBrokerAPI`/`BcsBrokerApi`/`FinamBrokerApi`.
-
-**Критерий готовности:** `provideBrokerRegistry` не содержит `mapOf`; порядок — из enum; `defaultBroker` — domain-константа.
-
-**Оценка:** ~1–1.5 ч.
-
-**Зависимости:** нет.
-
-**Связано:** clean-audit Н35; `### H22. BrokerRegistry`.
-
-**Открытые вопросы:** `defaultBroker` — в `BrokerRegistry` companion или отдельный `BrokerDefaults`? Рекомендация: companion `BrokerRegistry`.
-
----
-
 ### Пакет B: SettingsRepository split (Н68)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -8297,6 +8253,52 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** clean-audit Н60, Н61; ISSUES.
 
 **Открытые вопросы:** `RESOURCE_EXHAUSTED` — отдельная задержка (2×60с?) или стандартный backoff? Рекомендация: стандартный backoff + отдельная задача «Rate-limiter» для unary.
+
+---
+
+### ✅ Пакет D: BrokerRegistry domain-config (Н35)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** исправлено (PR #80, `dev`, 2026-10-31).
+
+**Контекст:** clean-audit Н35. `DataModule.provideBrokerRegistry` содержит domain-конфигурацию: `mapOf(TINVEST to tinvest, BCS to bcs, FINAM to finam)` и порядок вкладок. При добавлении 4-го брокера — правка в `di/`.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** domain-knowledge (список брокеров + порядок) в `di`.
+
+**Clean-альтернатива:** `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — `Map<BrokerName, BrokerApi>` через `BrokerName.entries` (порядок из enum). `defaultBroker: BrokerName = TINVEST` — константа в domain. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — тонкий DI.
+
+**Выгоды:** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `domain/api/BrokerRegistry.kt`, `data/registry/BrokerRegistryImpl.kt`, `di/DataModule.kt`.
+
+**Шаги:**
+1. `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — маппинг через `BrokerName.entries`.
+2. `defaultBroker: BrokerName = TINVEST` — в `BrokerRegistry` (companion/константа).
+3. `DataModule.provideBrokerRegistry(brokers: Set<BrokerApi>)` — `@Provides`, собирает `Set` из 3 брокеров.
+4. Гейт.
+
+**Тесты:** `BrokerRegistryImplTest` (новый, если нет) — порядок из `BrokerName.entries`, `defaultBroker`.
+
+**Референсы:** `docs/clean-audit.md` → Н35; `### H22. BrokerRegistry` (закрыта).
+
+**Ограничения:** не менять `BrokerRegistry` интерфейс (6 методов); не трогать `TInvestBrokerAPI`/`BcsBrokerApi`/`FinamBrokerApi`.
+
+**Критерий готовности:** `provideBrokerRegistry` не содержит `mapOf`; порядок — из enum; `defaultBroker` — domain-константа.
+
+**Оценка:** ~1–1.5 ч.
+
+**Зависимости:** нет.
+
+**Связано:** clean-audit Н35; `### H22. BrokerRegistry`.
+
+**Что сделано:** `BrokerRegistry` companion — `defaultBroker: BrokerName = TINVEST`; `BrokerRegistryImpl(brokers: Set<BrokerApi>)` — map по `name`, порядок из `BrokerName.entries`; `DataModule.provideBrokerRegistry` — тонкий DI; `BrokerRegistryImplTest` (5 PASSED); 18 тестовых конструирований обновлены. Коммит `7494262`.
+
+**Открытые вопросы:** `defaultBroker` — в `BrokerRegistry` companion или отдельный `BrokerDefaults`? Рекомендация: companion `BrokerRegistry`.
 
 ---
 
