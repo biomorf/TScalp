@@ -1,8 +1,14 @@
 # Clean-audit
 
-Справочник отклонений от Clean-архитектуры в проекте TScalp.
-Фиксирует: что соответствует Clean, что отклоняется, почему.
+Справочник отклонений от Clean-архитектуры и MVVM-принципов в проекте TScalp.
+Фиксирует: что соответствует Clean/MVVM, что отклоняется, почему.
 Документ — справочник. Задачи реализации — в `docs/ROADMAP.md`.
+
+**Две оси инвентаризации:**
+- **Clean (ID `Нxxx`)** — dependency rule, слои, god-классы, `@Suppress` как маркер долга, swallowed exception, dead code, дублирование. Уровни L1–L9 (см. «Уровни»).
+- **MVVM (ID `Mxxx`, 3 цифры: `M001`+)** — нарушения MVVM внутри presentation. Типы M1–M7 (см. «Типы MVVM-нарушений»): от формальных (dependency rule внутри presentation) до логических (слой/подслой делает не-свои обязанности, business-logic в VM вместо UseCase).
+
+Каждая находка заводится **отдельной записью** (правило 2c AGENTS.md). Гибридные (Clean + MVVM) — основная запись под тем ID, к которому относится природа нарушения; cross-link в `**Связано:**`.
 
 ## Шаблон записи
 
@@ -24,6 +30,8 @@
 **Clean-альтернатива:** как правильно — с плюсами и минусами.
 
 **Выгоды (обязательно для «принято»):** что даёт текущий вариант.
+
+**MVVM-альтернатива:** как правильно по MVVM — с плюсами и минусами. Для Clean-only находок — «—».
 
 **Ссылка на задачу:** название задачи в `docs/ROADMAP.md` / `docs/ci-roadmap.md` или `—`.
 
@@ -57,6 +65,24 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ---
 
+### Типы MVVM-нарушений
+
+Серьёзность (см. выше) и тип (M1–M7) — **ортогональны**: одна и та же M-категория может быть и критичной, и низкой. Серьёзность ставится по «Шкале», тип — по этой таблице. В записи: `**Нарушенное правило:** M<N> — <тип>`.
+
+| M-ID | Тип | Пример | Типичная серьёзность |
+|---|---|---|---|
+| M1 | Слой/подслой делает не-свои обязанности | VM форматирует валюту; UI маппит String→domain | высоко |
+| M2 | Business-logic в VM (не в UseCase) | расчёт/валидация/orchestration в VM | критично/высоко |
+| M3 | VM знает платформу | `Context`, `android.*`, `Dispatchers.IO` в VM | критично |
+| M4 | UI конструирует domain-модели | raw `PortfolioPosition(...)` в Composable | средне |
+| M5 | Несколько `StateFlow` / дублирование состояния | `state1`, `state2` в одной VM | средне |
+| M6 | One-shot события через `StateFlow` | `NavigationEvent` в `StateFlow` без consume | низко |
+| M7 | VM конвертирует domain↔presentation | formatter внутри VM | средне |
+
+**Соответствие типов.** M1 и M7 частично пересекаются (VM форматирует = делает и то, и другое) — при заводе записи выбирается **доминирующая** (какая именно обязанность нарушена). `M4` уже закрыт как Clean (`Н1`), новые M4-записи `Н1` не дублируют.
+
+---
+
 ## L1 — presentation
 
 **Краткая таблица:**
@@ -69,6 +95,121 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н4. UI конвертирует String → domain-модель | средне | L1, L3 | `OrdersListDialog.kt` | - |
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
+| M001. OrdersViewModel форматирует overlay | средне | L1 | `OrdersViewModel.formatCostOverlay` (1148), `formatMultiplierOverlay` (1162) | - |
+| M002. OrdersViewModel.postOrder — orchestration в VM | высоко | L1 | `OrdersViewModel.postOrder` (456–657) | ✓ |
+| M003. PortfolioViewModel.payInSandbox — orchestration в VM | средне | L1 | `PortfolioViewModel.payInSandbox` (275–343) | ✓ |
+| M004. SettingsViewModel.initialize* — login-orchestration в VM | средне | L1 | `SettingsViewModel.initializeTInvest/Bcs/Finam` (237–349) | ✓ |
+| M005. SettingsViewModel — Dispatchers.IO в VM | средне | L1 | `SettingsViewModel.kt:246, 282, 317` | - |
+
+### M001. OrdersViewModel форматирует overlay (формулы в VM)
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrdersViewModel.formatCostOverlay` (1148) и `formatMultiplierOverlay` (1162) — private-функции VM строят строки `costOverlay`/`multiplierOverlay` через `formatPrice` / `formatCurrency` / `formatDomesticCurrency`. Форматирование — обязанность UI-слоя; VM должна отдавать `TradeDetails` (числа), а не строки отображения.
+
+**Нарушенное правило:** M1 — VM делает работу presentation (форматирование). Также M7 (конвертация domain↔presentation в VM).
+
+**Clean-альтернатива:** `formatCostOverlay`/`formatMultiplierOverlay` — в `presentation/util/` (рядом с `CurrencyFormat`), вызываются из Composable. Плюсы: VM отдаёт `TradeDetails`, UI форматирует. Минусы: правка `OrdersScreen` (2 callsites).
+
+**MVVM-альтернатива:** перенести форматирование в Composable (через `remember(details)`). Плюсы: VM — только состояние. Минусы: `OrdersScreen` уже 646 строк (см. detekt-группу 3 → Compose-экраны).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M002. OrdersViewModel.postOrder — orchestration в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Live тест:** ✓
+
+**Описание:** `OrdersViewModel.postOrder` (456–657, 200 строк) выполняет полный сценарий: выбор брокера/счёта/инструмента из `_uiState`, `checkTradeAvailability`, разбор `TradeCheckResult` (Success/InsufficientFunds/Error), `prepareOrderRequest.prepare`, `postOrder`, обновление статусов. Это orchestration торговой операции — business-логика, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic (orchestration торгового сценария) в VM вместо UseCase.
+
+**Clean-альтернатива:** `PostOrderUseCase` (domain.usecases): принимает `BrokerOrderRequest` + `accountId` + `brokerName`, возвращает `AppResult<PostOrderResult>`. VM — вызов use case + `_uiState.update`. Плюсы: VM тонкий, логика тестируется без mock-инфраструктуры. Минусы: новый use case + тесты (~2–3 ч).
+
+**MVVM-альтернатива:** тоже `PostOrderUseCase`; VM — «нажатие → use case → обновление UI». Плюсы: тестируемость, переиспользование для BCS/Finam. Минусы: миграция `OrdersScreen` callsites.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой` (в ROADMAP — `postOrder` 172 строки; фактически 200 — оценка устарела).
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M003. PortfolioViewModel.payInSandbox — orchestration в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `PortfolioViewModel.payInSandbox` (275–343) выполняет сценарий «получить счета → выбрать → sandboxPayIn → обновить состояние» с разбором `AppResult` на каждом шаге. Это business-orchestration, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic в VM.
+
+**Clean-альтернатива:** `PayInSandboxUseCase` (domain.usecases): `suspend fun execute(accountId: String, amount: SandboxMoney): AppResult<Unit>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий. Минусы: ~1.5 ч + тесты.
+
+**MVVM-альтернатива:** тоже UseCase; тестируется без mock VM-инфраструктуры.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M004. SettingsViewModel.initialize* — login-orchestration в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsViewModel.initializeTInvest` (237), `initializeBcs` (274), `initializeFinam` (311) — каждый выполняет сценарий: `clearBrokerCredentials` (cleanup старого) → sandbox-специфика → `saveBrokerCredentials` → `lifecycle.initialize` → `refreshInitializationState`. Login-orchestration, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic в VM.
+
+**Clean-альтернатива:** `InitializeBrokerUseCase` (domain.usecases): `suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий, тестируемость. Минусы: ~2 ч + тесты.
+
+**MVVM-альтернатива:** тоже UseCase (или расширение `BrokerLifecycleManager`).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M005. SettingsViewModel — Dispatchers.IO в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `SettingsViewModel.kt:246, 282, 317` — `withContext(Dispatchers.IO)` вокруг `brokerManager.getBroker(...)`. Диспатчеризация — обязанность data-слоя (сервисы/репозитории уже используют `withContext(Dispatchers.IO)` внутри). VM дублирует диспатчеризацию.
+
+**Нарушенное правило:** M3 — VM знает платформу (`Dispatchers.IO`).
+
+**Clean-альтернатива:** убрать `withContext(Dispatchers.IO)` из VM — data-слой уже сам диспатчеризирует. Плюсы: чисто. Минусы: — (проверить, что `brokerManager.getBroker` действительно suspend-safe).
+
+**MVVM-альтернатива:** то же — VM не управляет диспатчерами. Плюсы: тестируемость с `TestDispatcher`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
 
 ### Исправленные (L1)
 
