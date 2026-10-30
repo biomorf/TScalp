@@ -3,15 +3,17 @@ package com.gitlab.biomorf.tscalp.data.api
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BcsLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
-import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.FinamLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TInvestLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.log.Logger
@@ -48,7 +50,7 @@ import java.util.concurrent.TimeUnit
 class FinamBrokerApi(
     private val logger: Logger,
 ) : BrokerApi,
-    BrokerLifecycleApi {
+    FinamLifecycleApi {
     companion object {
         private const val TAG = "FinamBrokerApi"
         private const val BASE_URL = "https://api.finam.ru/v1/"
@@ -62,7 +64,9 @@ class FinamBrokerApi(
 
     override val name: BrokerName = BrokerName.FINAM
     override val snapshot: BrokerSnapshotApi? = null
-    override val lifecycle: BrokerLifecycleApi get() = this
+    override val lifecycleTInvest: TInvestLifecycleApi? = null
+    override val lifecycleBcs: BcsLifecycleApi? = null
+    override val lifecycleFinam: FinamLifecycleApi get() = this
     override val streams: StreamsApi? = null
     override val orders: OrdersApi? = null
     override val accounts: AccountsApi? = null
@@ -87,24 +91,17 @@ class FinamBrokerApi(
     }
 
     /**
-     * Typed lifecycle initialize via [BrokerLifecycleApi].
+     * Typed lifecycle initialize via [FinamLifecycleApi].
      * Delegates to [initialize] with Finam credentials.
      * Returns false on any exception.
      */
-    override suspend fun initialize(credentials: BrokerCredentials): Boolean =
-        when (credentials) {
-            is BrokerCredentials.Finam -> {
-                try {
-                    initialize(credentials.token)
-                    true
-                } catch (e: Exception) {
-                    logger.e("FinamBrokerApi", "lifecycle.initialize failed", e)
-                    false
-                }
-            }
-            else -> throw IllegalArgumentException(
-                "FinamBrokerApi.initialize: expected Finam credentials, got ${credentials::class.simpleName}",
-            )
+    override suspend fun initialize(credentials: BrokerCredentials.Finam): Boolean =
+        try {
+            initialize(credentials.token)
+            true
+        } catch (e: Exception) {
+            logger.e("FinamBrokerApi", "lifecycle.initialize failed", e)
+            false
         }
 
     override fun deinitialize() {

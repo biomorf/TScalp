@@ -1,5 +1,8 @@
 package com.gitlab.biomorf.tscalp.domain.api
 
+import com.gitlab.biomorf.tscalp.domain.api.roles.BcsLifecycleApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.FinamLifecycleApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TInvestLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.flow.StateFlow
 
@@ -44,7 +47,8 @@ interface BrokerRegistry {
      * **Временный side-effect.** Должен вызываться после
      * успешной инициализации любого брокера, чтобы VM получили
      * актуальное [anyInitialized]. В перспективе — автообновление
-     * через [BrokerLifecycleApi.initialize] (отдельная задача,
+     * через [TInvestLifecycleApi.initialize] / [BcsLifecycleApi.initialize] /
+     * [FinamLifecycleApi.initialize] (отдельная задача,
      * clean-audit Н50/Н51).
      */
     fun refreshInitializationState()

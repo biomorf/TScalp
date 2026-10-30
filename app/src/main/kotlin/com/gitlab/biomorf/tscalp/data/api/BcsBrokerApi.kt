@@ -3,15 +3,17 @@ package com.gitlab.biomorf.tscalp.data.api
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BcsLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
-import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.FinamLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TInvestLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.log.Logger
@@ -40,7 +42,7 @@ import java.io.IOException
 class BcsBrokerApi(
     private val logger: Logger,
 ) : BrokerApi,
-    BrokerLifecycleApi,
+    BcsLifecycleApi,
     AccountsApi,
     PortfolioApi {
     companion object {
@@ -65,7 +67,9 @@ class BcsBrokerApi(
 
     override val name: BrokerName = BrokerName.BCS
     override val snapshot: BrokerSnapshotApi? = null
-    override val lifecycle: BrokerLifecycleApi get() = this
+    override val lifecycleTInvest: TInvestLifecycleApi? = null
+    override val lifecycleBcs: BcsLifecycleApi get() = this
+    override val lifecycleFinam: FinamLifecycleApi? = null
     override val streams: StreamsApi? = null
     override val orders: OrdersApi? = null
     override val accounts: AccountsApi get() = this
@@ -95,25 +99,18 @@ class BcsBrokerApi(
     }
 
     /**
-     * Typed lifecycle initialize via [BrokerLifecycleApi].
+     * Typed lifecycle initialize via [BcsLifecycleApi].
      * Derives clientId from isWriteMode, obtains access token.
      * Returns false on any exception.
      */
-    override suspend fun initialize(credentials: BrokerCredentials): Boolean =
-        when (credentials) {
-            is BrokerCredentials.Bcs -> {
-                try {
-                    val clientId = if (credentials.isWriteMode) "trade-api-write" else "trade-api-read"
-                    initialize(credentials.refreshToken, clientId)
-                    true
-                } catch (e: Exception) {
-                    logger.e("BcsBrokerApi", "lifecycle.initialize failed", e)
-                    false
-                }
-            }
-            else -> throw IllegalArgumentException(
-                "BcsBrokerApi.initialize: expected Bcs credentials, got ${credentials::class.simpleName}",
-            )
+    override suspend fun initialize(credentials: BrokerCredentials.Bcs): Boolean =
+        try {
+            val clientId = if (credentials.isWriteMode) "trade-api-write" else "trade-api-read"
+            initialize(credentials.refreshToken, clientId)
+            true
+        } catch (e: Exception) {
+            logger.e("BcsBrokerApi", "lifecycle.initialize failed", e)
+            false
         }
 
     override fun deinitialize() {

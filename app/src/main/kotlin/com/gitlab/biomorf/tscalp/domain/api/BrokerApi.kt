@@ -2,14 +2,16 @@ package com.gitlab.biomorf.tscalp.domain.api
 
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BcsLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
-import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.FinamLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TInvestLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -32,7 +34,9 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
  * **Роли и потребители:**
  * - [BrokerSnapshotApi] (`snapshot`) → менеджеры (polling);
  * - [StreamsApi] (`streams`) → менеджеры (gRPC / WS);
- * - [BrokerLifecycleApi] (`lifecycle`) → `TScalpApplication`, `SettingsViewModel`;
+ * - [TInvestLifecycleApi] (`lifecycleTInvest`) → `TScalpApplication`, `SettingsViewModel`;
+ * - [BcsLifecycleApi] (`lifecycleBcs`) → `TScalpApplication`, `SettingsViewModel`;
+ * - [FinamLifecycleApi] (`lifecycleFinam`) → `SettingsViewModel`;
  * - [BrokerInstrumentApi] (`instrument`) → `InstrumentRepository`;
  * - [OrdersApi] (`orders`) → `OrdersRepository`;
  * - [AccountsApi] (`accounts`) → `AccountsRepository`, `TScalpApplication`;
@@ -58,8 +62,14 @@ interface BrokerApi {
     /** Опциональный контракт стрим-методов (gRPC / WS). */
     val streams: StreamsApi?
 
-    /** Опциональный контракт lifecycle (login / logout). */
-    val lifecycle: BrokerLifecycleApi?
+    /** Опциональный контракт lifecycle T-Invest (login / logout). */
+    val lifecycleTInvest: TInvestLifecycleApi?
+
+    /** Опциональный контракт lifecycle BCS. */
+    val lifecycleBcs: BcsLifecycleApi?
+
+    /** Опциональный контракт lifecycle Finam. */
+    val lifecycleFinam: FinamLifecycleApi?
 
     /** Опциональный контракт: полный доменный инструмент по uid. */
     val instrument: BrokerInstrumentApi?

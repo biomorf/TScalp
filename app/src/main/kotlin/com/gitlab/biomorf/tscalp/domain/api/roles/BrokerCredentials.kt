@@ -1,28 +1,17 @@
 package com.gitlab.biomorf.tscalp.domain.api.roles
 
 /**
- * Типизированные credentials для [BrokerLifecycleApi.initialize].
+ * Типизированные credentials для lifecycle-интерфейсов
+ * ([TInvestLifecycleApi], [BcsLifecycleApi], [FinamLifecycleApi]).
  *
- * Закрытая иерархия: каждая реализация [BrokerLifecycleApi]
- * принимает свой тип через `when` в `initialize(credentials)`,
- * неверный тип — `IllegalArgumentException`. Compile-time
- * проверка гарантирует, что все ветки покрыты, и что
- * потребитель передаёт credentials ровно тому брокеру, для
- * которого они предназначены.
+ * Каждый интерфейс принимает только свой тип
+ * (`initialize(credentials: BrokerCredentials.<X>)`) — compile-time
+ * проверка на callsite, без runtime `when` / `IllegalArgumentException`.
+ * Generic-параметризация интерфейса роли не даёт compile-time
+ * гарантии: JVM erasure стирает type-параметр, проверка `as?`
+ * видит только сам интерфейс.
  *
- * **Почему sealed interface, а не three-method API.**
- * Альтернатива — три метода в `BrokerLifecycleApi`
- * (`initializeTInvest`, `initializeBcs`, `initializeFinam`)
- * с default-реализациями no-op. Отклонено по 2c: интерфейс
- * знает про всех брокеров (протекание data в domain), у
- * BCS/Finam — no-op заглушки вместо честной типизации.
- * Sealed credentials убирают протекание: интерфейс не знает,
- * какие брокеры существуют, знает только про
- * `BrokerCredentials`.
- *
- * См. `docs/ROADMAP.md` → `### Broker lifecycle API` (#2 в
- * umbrella `### Рефакторинг ролей BrokerApi (nullable-val,
- * Scenario2)`).
+ * См. `docs/ROADMAP.md` → `### Пакет 3: Н26 + Н50` (clean-audit Н26).
  */
 sealed interface BrokerCredentials {
     /**

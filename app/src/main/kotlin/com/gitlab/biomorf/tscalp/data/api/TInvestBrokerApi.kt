@@ -5,15 +5,17 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.BcsLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerInstrumentApi
-import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.FinamLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.MarketDataApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.OrdersApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.StreamsApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.TInvestLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TradeCheckApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.log.Logger
@@ -51,7 +53,7 @@ class TInvestBrokerAPI(
 ) : BrokerApi,
     BrokerSnapshotApi,
     StreamsApi,
-    BrokerLifecycleApi,
+    TInvestLifecycleApi,
     BrokerInstrumentApi,
     OrdersApi,
     AccountsApi,
@@ -86,7 +88,9 @@ class TInvestBrokerAPI(
 
     override val snapshot: BrokerSnapshotApi get() = this
     override val streams: StreamsApi get() = this
-    override val lifecycle: BrokerLifecycleApi get() = this
+    override val lifecycleTInvest: TInvestLifecycleApi get() = this
+    override val lifecycleBcs: BcsLifecycleApi? = null
+    override val lifecycleFinam: FinamLifecycleApi? = null
     override val instrument: BrokerInstrumentApi get() = this
     override val orders: OrdersApi get() = this
     override val accounts: AccountsApi get() = this
@@ -119,24 +123,17 @@ class TInvestBrokerAPI(
     }
 
     /**
-     * Typed lifecycle initialize via [BrokerLifecycleApi].
+     * Typed lifecycle initialize via [TInvestLifecycleApi].
      * Delegates to [initialize] with TInvest credentials.
      * Returns false on any exception.
      */
-    override suspend fun initialize(credentials: BrokerCredentials): Boolean =
-        when (credentials) {
-            is BrokerCredentials.TInvest -> {
-                try {
-                    initialize(credentials.token, credentials.sandbox)
-                    true
-                } catch (e: Exception) {
-                    logger.e("TInvestBrokerAPI", "lifecycle.initialize failed", e)
-                    false
-                }
-            }
-            else -> throw IllegalArgumentException(
-                "TInvestBrokerAPI.initialize: expected TInvest credentials, got ${credentials::class.simpleName}",
-            )
+    override suspend fun initialize(credentials: BrokerCredentials.TInvest): Boolean =
+        try {
+            initialize(credentials.token, credentials.sandbox)
+            true
+        } catch (e: Exception) {
+            logger.e("TInvestBrokerAPI", "lifecycle.initialize failed", e)
+            false
         }
 
     /**

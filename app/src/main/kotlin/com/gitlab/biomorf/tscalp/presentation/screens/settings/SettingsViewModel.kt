@@ -129,7 +129,11 @@ class SettingsViewModel
                 // Деинициализируем брокера — иначе state.api остаётся non-null,
                 // isInitialized возвращает true, и anyInitialized не переключается.
                 // lifecycle == null — брокер не поддерживает (no-op).
-                brokerManager.getBroker(brokerName)?.lifecycle?.deinitialize()
+                when (brokerName) {
+                    BrokerName.TINVEST -> brokerManager.getBroker(BrokerName.TINVEST)?.lifecycleTInvest?.deinitialize()
+                    BrokerName.BCS -> brokerManager.getBroker(BrokerName.BCS)?.lifecycleBcs?.deinitialize()
+                    BrokerName.FINAM -> brokerManager.getBroker(BrokerName.FINAM)?.lifecycleFinam?.deinitialize()
+                }
 
                 // Останавливаем общий стрим позиций сразу, не дожидаясь,
                 // будет ли создан PortfolioViewModel.
@@ -236,7 +240,7 @@ class SettingsViewModel
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         brokerManager
                             .getBroker(BrokerName.TINVEST)
-                            ?.lifecycle
+                            ?.lifecycleTInvest
                             ?.initialize(BrokerCredentials.TInvest(cleanToken, sandbox)) ?: false
                     }
                 if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
@@ -272,7 +276,7 @@ class SettingsViewModel
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         brokerManager
                             .getBroker(BrokerName.BCS)
-                            ?.lifecycle
+                            ?.lifecycleBcs
                             ?.initialize(BrokerCredentials.Bcs(cleanToken, isWriteMode)) ?: false
                     }
                 if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
@@ -307,7 +311,7 @@ class SettingsViewModel
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         brokerManager
                             .getBroker(BrokerName.FINAM)
-                            ?.lifecycle
+                            ?.lifecycleFinam
                             ?.initialize(BrokerCredentials.Finam(cleanToken)) ?: false
                     }
                 if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
