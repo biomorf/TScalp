@@ -37,8 +37,12 @@ import ru.ttech.piapi.core.InvestApi
  *  - TInvestMarketDataService — счета, портфель, инструменты, цены, стримы, баланс;
  *  - TInvestOrdersService — заявки, стоп-заявки, отмена.
  *  // Архитектурный долг: 22 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+ *
+ * PARAMETER_NAME_CHANGED_ON_OVERRIDE: осознанно. AGENTS.md «data честно
+ * отражает формат брокера»: T-Invest — `uids`, domain — `tscalpInstrumentIds`.
+ * Все callsites позиционные — named-argument risk отсутствует.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
     private val httpClient: HttpClient,
