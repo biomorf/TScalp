@@ -1086,8 +1086,10 @@ Actions-минут, запись в origin. Перед ними — пауза:
 **Шаблон блока 2 (обязательный):**
 
 ```bash
+set -uo pipefail
 ./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug   :app:ktlintCheck :app:detekt --rerun-tasks > /tmp/gate.log 2>&1
 GATE=$?
+set -e
 echo "exit=$GATE"
 grep -E '\[warn\]|\[error\]|^w:|^e:|FAILED|BUILD|\.kt:[0-9]+:[0-9]+' /tmp/gate.log
 echo "---"
