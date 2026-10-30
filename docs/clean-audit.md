@@ -557,42 +557,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `BrokerSnapshotApi.kt`.
 
-### Н60. retryWithBackoff — non-retryable не классифицирует
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `StreamCombinators.retryWithBackoff` переподключает любой источник при любой ошибке с backoff. `UNAUTHENTICATED`, `NOT_FOUND`, `PERMISSION_DENIED`, `INVALID_ARGUMENT` — вечный retry-loop (до остановки вручную). `CancellationException` пробрасывается, но не-recoverable gRPC-коды не различаются.
-
-**Нарушенное правило Clean:** не строго Clean — resilience-логика не различает recoverable/non-recoverable.
-
-**Clean-альтернатива:** классификация по `Status.fromThrowable(e).code`: retry — `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`; non-retry — `NOT_FOUND`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `FAILED_PRECONDITION`. Плюсы: батарея, трафик, rate-limit не тратятся на безнадёжный retry. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Пакет A: retryWithBackoff resilience (Н60 + Н61)` (ROADMAP) — запланировано. `docs/ISSUES.md` → «gRPC retry: бесконечный retry на не-recoverable ошибках».
-
-### Н61. retryWithBackoff — busy loop на normal completion
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `StreamCombinators.retryWithBackoff`: при normal completion (`source().collect { emit(it) }` вернулся без exception) — `attempt = 0` и новый цикл **без delay**. Если source завершается мгновенно-пустым (сервер закрыл стрим, gRPC завершился нормально) — busy loop, CPU 100%, батарея в ноль.
-
-**Нарушенное правило Clean:** не строго Clean — resilience-логика не защищена от мгновенного нормального завершения.
-
-**Clean-альтернатива:** при normal completion — `delay(1_000)` перед новой попыткой (как в `PriceFlowManager.collectStream`). Плюсы: защита от busy loop. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Пакет A: retryWithBackoff resilience (Н60 + Н61)` (ROADMAP) — запланировано. `docs/ISSUES.md` → «PriceFlowManager.collectStream: потенциальный busy loop».
-
 ### Исправленные (L4)
 
 ### ✅ Н25. BrokerApi fat дублирует nullable-val роли
@@ -729,6 +693,46 @@ L4–L8 — не проверены, заполняются по мере инс
 **Что сделано:** 3 интерфейса в `domain/api/roles/` (`TInvestLifecycleApi`, `BcsLifecycleApi`, `FinamLifecycleApi`); `BrokerApi` — `lifecycle` → 3 nullable-val (`lifecycleTInvest/Bcs/Finam`); реализации — supertype + `= this` / `null`, `initialize(credentials: BrokerCredentials.<X>)` без `when`; `BrokerLifecycleApi.kt` удалён; 6 callsites (`TScalpApplication` 2, `SettingsViewModel` 4), `clearBrokerCredentials` — `when (brokerName)` на 3 ветки.
 
 **Ссылка на задачу:** PR #77 (`dev`, 2026-10-31), коммит `63697ae`.
+
+### ✅ Н60. retryWithBackoff — non-retryable не классифицирует
+
+**Статус:** исправлено (PR #79, `dev`, 2026-10-31).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `StreamCombinators.retryWithBackoff` переподключает любой источник при любой ошибке с backoff. `UNAUTHENTICATED`, `NOT_FOUND`, `PERMISSION_DENIED`, `INVALID_ARGUMENT` — вечный retry-loop (до остановки вручную). `CancellationException` пробрасывается, но не-recoverable gRPC-коды не различаются.
+
+**Нарушенное правило Clean:** не строго Clean — resilience-логика не различает recoverable/non-recoverable.
+
+**Clean-альтернатива:** классификация по `Status.fromThrowable(e).code`: retry — `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`; non-retry — `NOT_FOUND`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `FAILED_PRECONDITION`. Плюсы: батарея, трафик, rate-limit не тратятся на безнадёжный retry. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** `private isRetryable(e)` — non-retry (`NOT_FOUND`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `FAILED_PRECONDITION`) → `throw`; retry (`UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`) → backoff; не-gRPC → retry. `private retryDelay(e, attempt, delays)` — `RESOURCE_EXHAUSTED` → `delays.max()` (60 с), иначе стандартный шаг. Коммит `fe58413`, тесты `181de0f` (5 PASSED).
+
+**Ссылка на задачу:** PR #79 (`dev`, 2026-10-31). `docs/ISSUES.md` → «gRPC retry: бесконечный retry на не-recoverable ошибках».
+
+### ✅ Н61. retryWithBackoff — busy loop на normal completion
+
+**Статус:** исправлено (PR #79, `dev`, 2026-10-31).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `StreamCombinators.retryWithBackoff`: при normal completion (`source().collect { emit(it) }` вернулся без exception) — `attempt = 0` и новый цикл **без delay**. Если source завершается мгновенно-пустым (сервер закрыл стрим, gRPC завершился нормально) — busy loop, CPU 100%, батарея в ноль.
+
+**Нарушенное правило Clean:** не строго Clean — resilience-логика не защищена от мгновенного нормального завершения.
+
+**Clean-альтернатива:** при normal completion — `delay(1_000)` перед новой попыткой (как в `PriceFlowManager.collectStream`). Плюсы: защита от busy loop. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** `private const NORMAL_COMPLETION_DELAY_MS = 1_000L`; `delay(NORMAL_COMPLETION_DELAY_MS)` после `source().collect { }` без исключения (перед новой итерацией). Коммит `6bf349d`, тесты `181de0f` (virtual time ≥ 2000 мс).
+
+**Ссылка на задачу:** PR #79 (`dev`, 2026-10-31). `docs/ISSUES.md` → «PriceFlowManager.collectStream: потенциальный busy loop».
 
 ## L5 — domain/managers
 

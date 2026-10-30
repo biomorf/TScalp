@@ -165,50 +165,6 @@ clean-audit.
 
 ---
 
-### Пакет A: retryWithBackoff resilience (Н60 + Н61)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** clean-audit Н60 + Н61 в `data/orchestrator/StreamCombinators.kt` (после переезда Н32): `retryWithBackoff` (а) не различает non-retryable ошибки — `UNAUTHENTICATED` / `NOT_FOUND` / `PERMISSION_DENIED` / `INVALID_ARGUMENT` / `FAILED_PRECONDITION` retry-loop вечно (высоко); (б) при normal completion `attempt = 0` и новый цикл без `delay` — busy loop (высоко). Обе в ISSUES.
-
-**Соответствие Clean:** не строго Clean — resilience-логика.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** (а) классификация по `Status.fromThrowable(e).code`; (б) `delay(1_000)` при normal completion.
-
-**Выгоды:** —.
-
-**Предусловия:** нет.
-
-**Файлы:** `data/orchestrator/StreamCombinators.kt`.
-
-**Шаги:**
-1. Н60: `catch (e: Exception)` → `Status.fromThrowable(e).code`; non-retry (`NOT_FOUND`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `FAILED_PRECONDITION`) — `throw e`; retry (`UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`) — backoff; `RESOURCE_EXHAUSTED` — backoff с отдельной задержкой.
-2. Н61: после `source().collect { }` (normal completion) — `attempt = 0; delay(1_000)` перед новым циклом.
-3. Тесты: `StreamCombinatorsTest` (новый) — non-retryable → throw, normal completion → delay.
-4. Гейт.
-
-**Тесты:** `StreamCombinatorsTest` — 3 теста.
-
-**Референсы:** `docs/clean-audit.md` → Н60, Н61; `docs/ISSUES.md` → «gRPC retry: бесконечный retry…», «…busy loop…»; `PriceFlowManager.collectStream` — образец `delay(1_000)`.
-
-**Ограничения:** не менять `mergeStreamSources` (Н32a, закрыта); не трогать fallback-логику оркестратора.
-
-**Критерий готовности:** non-retryable → throw; normal completion → `delay(1_000)`; тесты зелёные.
-
-**Оценка:** ~55 мин.
-
-**Зависимости:** нет.
-
-**Связано:** clean-audit Н60, Н61; ISSUES.
-
-**Открытые вопросы:** `RESOURCE_EXHAUSTED` — отдельная задержка (2×60с?) или стандартный backoff? Рекомендация: стандартный backoff + отдельная задача «Rate-limiter» для unary.
-
----
-
 ### Пакет D: BrokerRegistry domain-config (Н35)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -8295,6 +8251,52 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `BrokerLifecycleApi` — удалять или оставить как deprecated? Рекомендация: удалить (0 callsites после миграции; иначе `@Deprecated` висит без задачи).
 - `restoreBcs` — тесты аналогичные `restoreTInvest`? Рекомендация: 2–3 сценария (saved, getAccounts падает + saved, getAccounts падает + null).
 - `refreshInitializationState()` (Н51) — в scope? Рекомендация: **вне scope** (Н51 — отдельная задача, связана с жизненным циклом инициализации).
+
+---
+
+### ✅ Пакет A: retryWithBackoff resilience (Н60 + Н61)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** исправлено (PR #79, `dev`, 2026-10-31).
+
+**Контекст:** clean-audit Н60 + Н61 в `data/orchestrator/StreamCombinators.kt` (после переезда Н32): `retryWithBackoff` (а) не различает non-retryable ошибки — `UNAUTHENTICATED` / `NOT_FOUND` / `PERMISSION_DENIED` / `INVALID_ARGUMENT` / `FAILED_PRECONDITION` retry-loop вечно (высоко); (б) при normal completion `attempt = 0` и новый цикл без `delay` — busy loop (высоко). Обе в ISSUES.
+
+**Соответствие Clean:** не строго Clean — resilience-логика.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** (а) классификация по `Status.fromThrowable(e).code`; (б) `delay(1_000)` при normal completion.
+
+**Выгоды:** —.
+
+**Предусловия:** нет.
+
+**Файлы:** `data/orchestrator/StreamCombinators.kt`.
+
+**Шаги:**
+1. Н60: `catch (e: Exception)` → `Status.fromThrowable(e).code`; non-retry (`NOT_FOUND`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `FAILED_PRECONDITION`) — `throw e`; retry (`UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`) — backoff; `RESOURCE_EXHAUSTED` — backoff с отдельной задержкой.
+2. Н61: после `source().collect { }` (normal completion) — `attempt = 0; delay(1_000)` перед новым циклом.
+3. Тесты: `StreamCombinatorsTest` (новый) — non-retryable → throw, normal completion → delay.
+4. Гейт.
+
+**Тесты:** `StreamCombinatorsTest` — 3 теста.
+
+**Референсы:** `docs/clean-audit.md` → Н60, Н61; `docs/ISSUES.md` → «gRPC retry: бесконечный retry…», «…busy loop…»; `PriceFlowManager.collectStream` — образец `delay(1_000)`.
+
+**Ограничения:** не менять `mergeStreamSources` (Н32a, закрыта); не трогать fallback-логику оркестратора.
+
+**Критерий готовности:** non-retryable → throw; normal completion → `delay(1_000)`; тесты зелёные.
+
+**Оценка:** ~55 мин.
+
+**Зависимости:** нет.
+
+**Что сделано:** Н60 — `isRetryable`/`retryDelay`, non-retry → `throw`, `RESOURCE_EXHAUSTED` → `delays.max()`; Н61 — `NORMAL_COMPLETION_DELAY_MS` на normal completion. `StreamCombinatorsTest` (5 PASSED). Коммиты `fe58413`, `6bf349d`, `181de0f`.
+
+**Связано:** clean-audit Н60, Н61; ISSUES.
+
+**Открытые вопросы:** `RESOURCE_EXHAUSTED` — отдельная задержка (2×60с?) или стандартный backoff? Рекомендация: стандартный backoff + отдельная задача «Rate-limiter» для unary.
 
 ---
 
