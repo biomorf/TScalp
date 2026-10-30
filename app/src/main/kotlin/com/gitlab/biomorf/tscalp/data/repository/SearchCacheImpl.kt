@@ -2,11 +2,11 @@ package com.gitlab.biomorf.tscalp.data.repository
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
+import com.gitlab.biomorf.tscalp.domain.models.AppError
+import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,20 +32,19 @@ class SearchCacheImpl
         override suspend fun search(
             brokerName: BrokerName,
             query: String,
-        ): List<InstrumentUi> {
+        ): AppResult<List<InstrumentUi>> {
             val normalizedQuery = query.trim().lowercase()
             val key = "${brokerName.key}:$normalizedQuery"
 
-            cache[key]?.let { return it }
+            cache[key]?.let { return AppResult.Success(it) }
 
             val broker =
                 brokerManager.getBroker(brokerName)
-                    ?: throw IllegalArgumentException("Брокер ${brokerName.displayName} не найден")
+                    ?: return AppResult.Failure(
+                        AppError.Unknown("Брокер ${brokerName.displayName} не найден"),
+                    )
 
-            val results =
-                withContext(Dispatchers.IO) {
-                    broker.userInstruments?.findInstruments(query) ?: emptyList()
-                }
+            val results = broker.userInstruments?.findInstruments(query) ?: emptyList()
 
             val sorted =
                 results.sortedWith(
@@ -54,7 +53,7 @@ class SearchCacheImpl
                 )
 
             cache[key] = sorted
-            return sorted
+            return AppResult.Success(sorted)
         }
 
         /**

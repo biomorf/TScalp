@@ -293,14 +293,28 @@ class OrdersViewModel
                         try {
                             delay(500)
                             _uiState.update { it.copy(isSearching = true) }
-                            val results = searchCache.search(_uiState.value.searchBroker, query)
-                            // Обновляем статусы доступности для найденных инструментов
-                            if (results.isNotEmpty()) {
-                                launch {
-                                    updateTradingStatuses(results.map { it.tscalpInstrumentId })
+                            when (val result = searchCache.search(_uiState.value.searchBroker, query)) {
+                                is AppResult.Success -> {
+                                    val results = result.data
+                                    // Обновляем статусы доступности для найденных инструментов
+                                    if (results.isNotEmpty()) {
+                                        launch {
+                                            updateTradingStatuses(results.map { it.tscalpInstrumentId })
+                                        }
+                                    }
+                                    _uiState.update { it.copy(searchResults = results, isSearching = false) }
+                                }
+                                is AppResult.Failure -> {
+                                    _uiState.update {
+                                        it.copy(
+                                            searchResults = emptyList(),
+                                            isSearching = false,
+                                            statusMessage = "Ошибка поиска: ${result.error.message}",
+                                            isError = true,
+                                        )
+                                    }
                                 }
                             }
-                            _uiState.update { it.copy(searchResults = results, isSearching = false) }
                         } catch (ce: kotlinx.coroutines.CancellationException) {
                             _uiState.update { it.copy(isSearching = false) }
                         } catch (e: Exception) {
@@ -835,14 +849,28 @@ class OrdersViewModel
                         delay(500)
                         _uiState.update { it.copy(isPairSearching = true) }
                         try {
-                            val results = searchCache.search(_uiState.value.pairSearchBroker, query)
-                            // Обновляем статусы доступности для найденных инструментов
-                            if (results.isNotEmpty()) {
-                                launch {
-                                    updateTradingStatuses(results.map { it.tscalpInstrumentId })
+                            when (val result = searchCache.search(_uiState.value.pairSearchBroker, query)) {
+                                is AppResult.Success -> {
+                                    val results = result.data
+                                    // Обновляем статусы доступности для найденных инструментов
+                                    if (results.isNotEmpty()) {
+                                        launch {
+                                            updateTradingStatuses(results.map { it.tscalpInstrumentId })
+                                        }
+                                    }
+                                    _uiState.update { it.copy(pairSearchResults = results, isPairSearching = false) }
+                                }
+                                is AppResult.Failure -> {
+                                    _uiState.update {
+                                        it.copy(
+                                            pairSearchResults = emptyList(),
+                                            isPairSearching = false,
+                                            statusMessage = "Ошибка поиска: ${result.error.message}",
+                                            isError = true,
+                                        )
+                                    }
                                 }
                             }
-                            _uiState.update { it.copy(pairSearchResults = results, isPairSearching = false) }
                         } catch (ce: CancellationException) {
                             _uiState.update { it.copy(isPairSearching = false) }
                         } catch (e: Exception) {

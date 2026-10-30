@@ -156,6 +156,7 @@ data class RestQuotation(
 @Serializable
 data class RestGetOrdersRequest(@SerialName("accountId") val accountId: String)
 
+@Serializable
 data class RestGetPortfolioRequest(@SerialName("accountId") val accountId: String)
 
 @Serializable
