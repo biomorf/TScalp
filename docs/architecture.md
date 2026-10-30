@@ -85,6 +85,7 @@ presentation → domain ← data
 | # | Что | Где | Фикс |
 |---|---|---|---|
 | 2 | `javax.inject.Inject` / `Singleton` | 3 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
+| 4 | `Dispatchers.IO` | `domain/api/managers/*` (scope в 3 менеджерах) | Инжект `CoroutineDispatcher` через DI — задача `### KMP: инжект CoroutineDispatcher вместо Dispatchers.IO` |
 
 **Исправлено (PR #73, `dev`, 2026-10-30):**
 
@@ -107,6 +108,7 @@ presentation → domain ← data
 ### Порядок
 
 1. ✅ Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — закрыто в PR #73.
-2. Koin — снимает #2.
-3. `domain` → `:shared/commonMain` (umbrella-задача `### KMP: domain → commonMain`).
-4. `data` → split `commonMain`/`androidMain` (отдельная фаза).
+2. Фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`) — блокер umbrella.
+3. Koin — снимает #2.
+4. `domain` → `:shared/commonMain` (umbrella-задача `### KMP: domain → commonMain`).
+5. `data` → split `commonMain`/`androidMain` (отдельная фаза).

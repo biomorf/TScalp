@@ -74,7 +74,7 @@ clean-audit.
 
 **Статус:** запланировано.
 
-**Контекст:** цель — перевести `domain` в `:shared/commonMain` для KMP. Аудит 2026-10-29 (`docs/architecture.md` → «KMP readiness»): 3 блокера. Domain почти готов (repository/api/roles/log — чисты).
+**Контекст:** цель — перевести `domain` в `:shared/commonMain` для KMP. Аудит 2026-10-29 (`docs/architecture.md` → «KMP readiness»): 4 блокера. Domain почти готов (repository/api/roles/log — чисты); #1 (`Instant`) и #3 (`currentTimeMillis`) закрыты в PR #73.
 
 **Соответствие Clean:** соответствует.
 
@@ -84,7 +84,7 @@ clean-audit.
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия:** Koin (снимает `javax.inject`), фикс #1 (`Instant`) и #3 (`currentTimeMillis`) — задачи ниже.
+**Предусловия:** Koin (снимает `javax.inject`), фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`) — задачи ниже. #1 (`Instant`) и #3 (`currentTimeMillis`) закрыты в PR #73.
 
 **Файлы:**
 - `settings.gradle.kts` — новый модуль `:shared` (KMP).
@@ -93,13 +93,14 @@ clean-audit.
 - Переезд `domain/` → `shared/src/commonMain/kotlin/...`.
 
 **Шаги:**
-1. Фикс #1 (`Instant`) + #3 (`currentTimeMillis`).
-2. Koin.
-3. Создать `:shared` (KMP module): `commonMain` + `androidMain`.
-4. `git mv` domain → `shared/src/commonMain/kotlin/...`.
-5. `:app` depends on `:shared`; data импортирует domain из `:shared`.
-6. Тесты domain → `shared/src/commonTest`.
-7. Гейт.
+1. ✅ Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — закрыто (PR #73).
+2. Фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`).
+3. Koin.
+4. Создать `:shared` (KMP module): `commonMain` + `androidMain`.
+5. `git mv` domain → `shared/src/commonMain/kotlin/...`.
+6. `:app` depends on `:shared`; data импортирует domain из `:shared`.
+7. Тесты domain → `shared/src/commonTest`.
+8. Гейт.
 
 **Тесты:** domain-тесты → `commonTest`.
 
@@ -109,15 +110,70 @@ clean-audit.
 
 **Критерий готовности:** `domain` в `:shared/commonMain`; `:app:compileDebugKotlin` зелёный.
 
-**Оценка:** ~3–4 ч (после #1, #3, Koin).
+**Оценка:** ~3–4 ч (после #4, Koin).
 
-**Зависимости:** Koin, `### KMP: заменить java.time.Instant в Instruments`, `### KMP: System.currentTimeMillis → Clock-интерфейс`.
+**Зависимости:** Koin, `### KMP: инжект CoroutineDispatcher вместо Dispatchers.IO`. #1 (`Instant`) и #3 (`currentTimeMillis`) закрыты в PR #73.
 
 **Связано:** `### Плавный переход Hilt → Koin`, `docs/architecture.md`.
 
 **Открытые вопросы:**
 - `:shared` с Android target — `androidLibrary` или `com.android.kotlin.multiplatform.library`? Уточнить при старте.
 - `domain/log/Logger` — остаётся интерфейсом (`AndroidAppLogger` в `:app/data/log`).
+
+---
+
+### KMP: инжект CoroutineDispatcher вместо Dispatchers.IO
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** в `domain/api/managers/` три менеджера (`OrderFlowManager:97`, `PriceFlowManager:113`, `PositionFlowManager:102`) создают scope через `Dispatchers.IO.limitedParallelism(1)`. `Dispatchers.IO` — JVM-only, блокер KMP. Найдено при KMP phase 1 (#3 Clock): задача #3 закрыла `System.currentTimeMillis`, но `Dispatchers.IO` в тех же файлах осталась. `limitedParallelism(1)` — KMP-safe (coroutines 1.6+, у нас 1.11.0), проблема только в `Dispatchers.IO`. Сериализация доступа к мутабельному state (`snapshotCache`, `OrderCache`, `stateTracker`) — доменное требование, её сохраняем.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** dependency rule — domain видит платформенную деталь (`Dispatchers.IO`) вместо KMP-типа.
+
+**Clean-альтернатива:** инжект `CoroutineDispatcher` через DI (`di/DispatcherModule.kt`: `@Provides @Singleton managerDispatcher: CoroutineDispatcher = Dispatchers.IO` на Android; на iOS/native — `Dispatchers.Default`). Менеджер: `constructor(..., managerDispatcher: CoroutineDispatcher)`, `scope = CoroutineScope(managerDispatcher.limitedParallelism(1) + …)`. Плюсы: domain не видит платформу, DI решает «IO vs Default», тестируемо (`Unconfined`/`StandardTestDispatcher`), консистентно с `Clock`-инжектом. Минусы: +1 модуль, +3 конструктора, +5 правок тестов.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** KMP phase 1 (#1, #3) закрыта (PR #73).
+
+**Файлы:**
+- `di/DispatcherModule.kt` (новый) — `@Provides @Singleton CoroutineDispatcher = Dispatchers.IO`.
+- `domain/api/managers/OrderFlowManager.kt` — +1 параметр конструктора, scope.
+- `domain/api/managers/PriceFlowManager.kt` — +1 параметр, scope.
+- `domain/api/managers/PositionFlowManager.kt` — +1 параметр, scope.
+- `app/src/test/.../OrderFlowManagerTest.kt` — +1 аргумент (`Dispatchers.Unconfined`), fake-clock тест.
+- `app/src/test/.../PriceFlowManagerTest.kt` — +1 аргумент.
+- `app/src/test/.../PositionFlowManagerTest.kt` — +1 аргумент.
+
+**Шаги:**
+1. `di/DispatcherModule.kt` — `@Provides @Singleton fun provideManagerDispatcher(): CoroutineDispatcher = Dispatchers.IO`.
+2. `OrderFlowManager` — +`managerDispatcher: CoroutineDispatcher`, scope на `managerDispatcher.limitedParallelism(1)`.
+3. `PriceFlowManager` — то же.
+4. `PositionFlowManager` — то же.
+5. Тесты 3 менеджеров — +`managerDispatcher = Dispatchers.Unconfined`.
+6. `OrderFlowManagerTest` — fake-clock тест (регрессия: `clock.now()` вместо `System.currentTimeMillis()`).
+7. Гейт.
+
+**Тесты:** fake-clock тест в `OrderFlowManagerTest` — `FakeClock` с контролируемым `now: Instant`; trigger polling → `putFromPolling(item, fakeClock.now())`; продвинуть fakeClock за `ttl` → `evictStale` → запись удалена. Регрессия: если кто-то заменит `clock.now()` на `System.currentTimeMillis()`, тест падает.
+
+**Референсы:** `di/TimeModule.kt` (образец), `OrderFlowManagerTest`, `StreamStateTrackerTest` (fake-time).
+
+**Ограничения:** не менять `limitedParallelism(1)` (доменная сериализация); не трогать `Clock` (#3, закрыто); не смешивать с Koin (#2, отдельная фаза); BCS/Finam — не в scope.
+
+**Критерий готовности:** `grep "Dispatchers.IO" app/src/main/kotlin/com/gitlab/biomorf/tscalp/domain` — пусто; 3 менеджера инжектят `CoroutineDispatcher`; fake-clock тест зелёный; гейт зелёный.
+
+**Оценка:** ~2–3 ч (DispatcherModule 15 мин, 3 менеджера 30, 3 теста 30, fake-clock 45, гейт/PR 15).
+
+**Зависимости:** KMP phase 1 (#1, #3) — закрыта (PR #73).
+
+**Связано:** umbrella `### KMP: domain → commonMain`; `docs/architecture.md` → «KMP readiness» #4.
+
+**Открытые вопросы:**
+- На iOS/native — `Dispatchers.Default` (в native `Dispatchers.IO` нет). `DispatcherModule` в `:app` (Android) даёт IO; при KMP-переезде — `androidMain`/`iosMain`-варианты. Сейчас — только Android.
 
 ---
 
