@@ -8,8 +8,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class BrokerRegistryImpl(
-    private val brokers: Map<BrokerName, BrokerApi>,
+    brokers: Set<BrokerApi>,
 ) : BrokerRegistry {
+    /** Map по имени; порядок не используется — порядок задаёт [BrokerName.entries]. */
+    private val brokersByName: Map<BrokerName, BrokerApi> = brokers.associateBy { it.name }
+
     /**
      * Есть ли хотя бы один инициализированный брокер.
      * Реактивный источник для ViewModel вместо синхронного опроса.
@@ -21,24 +24,24 @@ class BrokerRegistryImpl(
     /**
      * Возвращает брокера по имени. Типобезопасный вариант.
      */
-    override fun getBroker(name: BrokerName): BrokerApi? = brokers[name]
+    override fun getBroker(name: BrokerName): BrokerApi? = brokersByName[name]
 
     /**
      * Брокер по умолчанию (Т‑Инвестиции).
      */
     override fun getDefaultBroker(): BrokerApi =
-        brokers[BrokerName.TINVEST]
-            ?: throw IllegalStateException("Брокер TInvest не зарегистрирован")
+        brokersByName[BrokerRegistry.defaultBroker]
+            ?: throw IllegalStateException("Брокер ${BrokerRegistry.defaultBroker} не зарегистрирован")
 
     /**
      * Возвращает список ключей брокеров в типизированном виде — для UI и pager'а.
      */
-    override fun getAvailableBrokerNames(): List<BrokerName> = brokers.keys.toList()
+    override fun getAvailableBrokerNames(): List<BrokerName> = BrokerName.entries.filter { brokersByName.containsKey(it) }
 
     /**
      * Возвращает список всех брокеров (для массовых операций).
      */
-    override fun getAllBrokers(): List<BrokerApi> = brokers.values.toList()
+    override fun getAllBrokers(): List<BrokerApi> = getAvailableBrokerNames().mapNotNull { brokersByName[it] }
 
     /**
      * Пересчитывает состояние инициализации.
@@ -49,5 +52,5 @@ class BrokerRegistryImpl(
         _anyInitialized.value = computeAnyInitialized()
     }
 
-    private fun computeAnyInitialized(): Boolean = brokers.values.any { it.isInitialized }
+    private fun computeAnyInitialized(): Boolean = brokersByName.values.any { it.isInitialized }
 }

@@ -37,6 +37,7 @@ class OrderFlowManagerTest {
             // ordersSnapshot → emptyList(), polling-цикл после первого снимка
             // уходит в delay(POLLING_INTERVAL_MS).
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -44,7 +45,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
+            val manager = OrderFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
 
             // 50 параллельных вызовов start() — race между check-then-set
             // в synchronized(startLock). Без synchronized создавались бы
@@ -70,6 +71,7 @@ class OrderFlowManagerTest {
     fun `connectionState transitions to LIVE on stream emit and STOPPED on stop`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -95,7 +97,7 @@ class OrderFlowManagerTest {
                     awaitCancellation()
                 }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
+            val manager = OrderFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(200)
             assertEquals(StreamState.LIVE, manager.connectionState.value)
@@ -108,6 +110,7 @@ class OrderFlowManagerTest {
     fun `connectionState transitions to POLLING on polling-only`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -115,7 +118,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
+            val manager = OrderFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(300)
 
@@ -130,6 +133,7 @@ class OrderFlowManagerTest {
         runBlocking {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -144,7 +148,7 @@ class OrderFlowManagerTest {
                     }
                 }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
+            val manager = OrderFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
 
             manager.start("acc-1")
             delay(100)
@@ -166,6 +170,7 @@ class OrderFlowManagerTest {
     fun `reapplyDebugFlags before start is no-op`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -173,7 +178,7 @@ class OrderFlowManagerTest {
             coEvery { mockBroker.subscribeOrderState(any()) } returns
                 flow { awaitCancellation() }
 
-            val manager = OrderFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
+            val manager = OrderFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, clock = Clock.System, managerDispatcher = Dispatchers.Default)
 
             manager.reapplyDebugFlags()
             delay(200)
@@ -197,6 +202,7 @@ class OrderFlowManagerTest {
             val t0 = Instant.parse("2070-01-01T00:00:00Z")
             val fakeClock = FakeClock(t0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -206,7 +212,7 @@ class OrderFlowManagerTest {
 
             val manager =
                 OrderFlowManager(
-                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(setOf(mockBroker)),
                     logger = TestLogger,
                     clock = fakeClock,
                     managerDispatcher = Dispatchers.Default,
