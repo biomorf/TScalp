@@ -2,10 +2,12 @@
 
 package com.gitlab.biomorf.tscalp.domain.models
 
-import java.time.Instant
+import kotlin.time.Instant
 
 /**
  * Базовый класс торгового инструмента.
+ *
+ * Даты — `kotlin.time.Instant` (KMP-safe, stdlib с Kotlin 2.3+).
  *
  * Содержит поля, общие для всех типов, а также поля,
  * специфичные для отдельных типов (акции, фьючерсы, опционы и т.д.).
@@ -53,8 +55,8 @@ open class InstrumentUi(
     open val dshort: Double? = null,
     open val dlongMin: Double? = null, // ставка начальной маржи long КПУР
     open val dshortMin: Double? = null,
-    open val first1minCandleDate: java.time.Instant? = null,
-    open val first1dayCandleDate: java.time.Instant? = null,
+    open val first1minCandleDate: Instant? = null,
+    open val first1dayCandleDate: Instant? = null,
     open val forIisFlag: Boolean? = null,
     open val forQualInvestorFlag: Boolean? = null,
     open val weekendFlag: Boolean? = null,
@@ -65,7 +67,7 @@ open class InstrumentUi(
     open val brand: String? = null, // (упрощённо)
     open val requiredTests: List<String>? = null,
     // --- Поля, специфичные для акций (Share) ---
-    open val ipoDate: java.time.Instant? = null,
+    open val ipoDate: Instant? = null,
     open val issueSize: Long? = null,
     open val issueSizePlan: Long? = null,
     open val nominal: Double? = null,
@@ -75,9 +77,9 @@ open class InstrumentUi(
     open val assetUid: String? = null,
     open val instrumentExchange: String? = null,
     // --- Поля, специфичные для фьючерсов (Future) ---
-    open val expirationDate: java.time.Instant? = null,
-    open val firstTradeDate: java.time.Instant? = null,
-    open val lastTradeDate: java.time.Instant? = null,
+    open val expirationDate: Instant? = null,
+    open val firstTradeDate: Instant? = null,
+    open val lastTradeDate: Instant? = null,
     open val futuresType: String? = null,
     open val assetType: String? = null,
     open val basicAsset: String? = null,
@@ -121,8 +123,8 @@ data class FutureUi(
     override val dshort: Double? = null,
     override val dlongMin: Double? = null,
     override val dshortMin: Double? = null,
-    override val first1minCandleDate: java.time.Instant? = null,
-    override val first1dayCandleDate: java.time.Instant? = null,
+    override val first1minCandleDate: Instant? = null,
+    override val first1dayCandleDate: Instant? = null,
     override val forIisFlag: Boolean? = null,
     override val forQualInvestorFlag: Boolean? = null,
     override val weekendFlag: Boolean? = null,
@@ -133,9 +135,9 @@ data class FutureUi(
     override val brand: String? = null,
     override val requiredTests: List<String>? = null,
     // Уникальные поля фьючерсов
-    override val expirationDate: java.time.Instant? = null,
-    override val firstTradeDate: java.time.Instant? = null,
-    override val lastTradeDate: java.time.Instant? = null,
+    override val expirationDate: Instant? = null,
+    override val firstTradeDate: Instant? = null,
+    override val lastTradeDate: Instant? = null,
     override val futuresType: String? = null,
     override val assetType: String? = null,
     override val basicAsset: String? = null,
@@ -245,8 +247,8 @@ data class ShareUi(
     override val dshort: Double? = null,
     override val dlongMin: Double? = null,
     override val dshortMin: Double? = null,
-    override val first1minCandleDate: java.time.Instant? = null,
-    override val first1dayCandleDate: java.time.Instant? = null,
+    override val first1minCandleDate: Instant? = null,
+    override val first1dayCandleDate: Instant? = null,
     override val forIisFlag: Boolean? = null,
     override val forQualInvestorFlag: Boolean? = null,
     override val weekendFlag: Boolean? = null,
@@ -257,7 +259,7 @@ data class ShareUi(
     override val brand: String? = null,
     override val requiredTests: List<String>? = null,
     // Уникальные поля акций
-    override val ipoDate: java.time.Instant? = null,
+    override val ipoDate: Instant? = null,
     override val issueSize: Long? = null,
     override val issueSizePlan: Long? = null,
     override val nominal: Double? = null,
