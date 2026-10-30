@@ -423,42 +423,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена). Требует 2d-фиксации.
 
-### Н8. OrderTypeSelection — sealed class для sum-type
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `domain/models/OrderModels.kt` — `OrderTypeSelection` объявлен как `sealed class` для чистого sum-type (5 `object`-веток без shared state). По 2a (актуальность): Kotlin 1.5+ рекомендует `sealed interface` для sum-types без shared state. В том же файле для `Order` уже выбрано `sealed interface` (`### Split order domain into sealed Regular/Stop`).
-
-**Нарушенное правило:** Не Clean — стилистическая последовательность (2a).
-
-**Clean-альтернатива:** `sealed interface OrderTypeSelection`. Плюсы: консистентность с `Order`, рекомендация Kotlin. Минусы: правка `when`-конструкций (механически совместимо), ~10 мин.
-
-**Выгоды:** — (нет существенных).
-
-**Ссылка на задачу:** — (не заведена). Можно включить в `### Split order domain into sealed Regular/Stop`.
-
-### Н16. TradeCheckResult — sealed class для sum-type
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `domain/models/TradingStatus.kt` — `TradeCheckResult` объявлен как `sealed class` (`data object Success` + `data class Error(message: String)`). Тот же класс проблемы, что Н8.
-
-**Нарушенное правило:** Не Clean — стилистическая последовательность (2a).
-
-**Clean-альтернатива:** `sealed interface TradeCheckResult`. Плюсы: консистентность. Минусы: механическая правка `when`-конструкций (~5 мин).
-
-**Выгоды:** — (нет существенных).
-
-**Ссылка на задачу:** — (не заведена).
-
 ### Н13. KDoc StreamState — устаревший пакет
 
 **Статус:** открыто.
@@ -479,7 +443,45 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ### Исправленные (L3)
 
-[пусто]
+### ✅ Н8. OrderTypeSelection — sealed class для sum-type
+
+**Статус:** исправлено (PR #72, `dev`, 2026-10-30).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `domain/models/OrderModels.kt` — `OrderTypeSelection` объявлен как `sealed class` с 5 `object`-ветками. Хранимого состояния нет, но есть два computed default-члена: `stopOrderType: StopOrderType?` (через `when (this)` с `else -> null`) и `isRegular: Boolean`. Формально sum-type «без shared state» верен, но запись это маскировала: простая замена на `sealed interface` требует решить, куда деть computed-члены. По 2a (актуальность): Kotlin 1.5+ рекомендует `sealed interface` для sum-types без shared state. В том же файле для `Order` уже выбрано `sealed interface` (`### Split order domain into sealed Regular/Stop`).
+
+**Нарушенное правило:** Не Clean — стилистическая последовательность (2a).
+
+**Clean-альтернатива:** `sealed interface OrderTypeSelection` с двумя default-членами (`stopOrderType`, `isRegular`) внутри интерфейса. `when (this)` в `stopOrderType` — все 5 веток явно, без `else` (exhaustive на новый подтип). Плюсы: консистентность с `Order`, 2a, усиление exhaustive-check. Минусы: нет (callsites `stopOrderType` / `isRegular` не меняются).
+
+**Выгоды:** — (нет существенных).
+
+**Что сделано:** `sealed class` → `sealed interface`; 5 `object`-подтипов без `()`; `stopOrderType` и `isRegular` — default-члены интерфейса; `when (this)` в `stopOrderType` — все 5 веток явно (`Market, Limit -> null`, без `else`), exhaustive на новый подтип.
+
+**Ссылка на задачу:** PR #72 (`feature/sealed-interface-sumtypes`), коммит `3d491db`.
+
+### ✅ Н16. TradeCheckResult — sealed class для sum-type
+
+**Статус:** исправлено (PR #72, `dev`, 2026-10-30).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `domain/models/TradingStatus.kt` — `TradeCheckResult` объявлен как `sealed class` (`data object Success` + `data class Error(message: String)`). Тот же класс проблемы, что Н8.
+
+**Нарушенное правило:** Не Clean — стилистическая последовательность (2a).
+
+**Clean-альтернатива:** `sealed interface TradeCheckResult`. Плюсы: консистентность. Минусы: механическая правка `when`-конструкций (~5 мин).
+
+**Выгоды:** — (нет существенных).
+
+**Что сделано:** `sealed class` → `sealed interface`; 3 подтипа (`data object Success`, `data class Error`, `data class InsufficientFunds`) без `()` после имени; `when` в `OrdersViewModel:475` — `is` по всем трём, без `else` (exhaustive сохраняется).
+
+**Ссылка на задачу:** PR #72 (`feature/sealed-interface-sumtypes`), коммит `1b7a944`.
 
 ---
 
