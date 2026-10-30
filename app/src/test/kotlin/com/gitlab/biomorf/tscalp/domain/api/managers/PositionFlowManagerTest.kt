@@ -30,6 +30,7 @@ class PositionFlowManagerTest {
     fun `ws currency without polling cache is not emitted`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             val wsItem =
@@ -51,7 +52,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -69,6 +70,7 @@ class PositionFlowManagerTest {
     fun `ws currency merges into cached polling currency item`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             val pollingItem =
@@ -101,7 +103,7 @@ class PositionFlowManagerTest {
                     awaitCancellation()
                 }
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -121,6 +123,7 @@ class PositionFlowManagerTest {
     fun `ws currency with no matching currency in cache is not emitted`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             val usdItem =
@@ -152,7 +155,7 @@ class PositionFlowManagerTest {
                     awaitCancellation()
                 }
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -171,6 +174,7 @@ class PositionFlowManagerTest {
     fun `full share item is emitted unchanged`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             val share =
@@ -191,7 +195,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             val collected = mutableListOf<PositionStreamItem>()
             val collectorJob = launch { manager.flow.collect { collected.add(it) } }
 
@@ -211,6 +215,7 @@ class PositionFlowManagerTest {
     fun `concurrent start creates single job`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -218,7 +223,7 @@ class PositionFlowManagerTest {
                 flow { awaitCancellation() }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
 
             coroutineScope {
                 (1..50)
@@ -237,6 +242,7 @@ class PositionFlowManagerTest {
         runBlocking {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             every { mockBroker.streams } returns mockBroker
@@ -251,7 +257,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
 
             manager.start("acc-1")
             delay(100)
@@ -272,6 +278,7 @@ class PositionFlowManagerTest {
     fun `connectionState transitions to LIVE on stream emit and STOPPED on stop`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             val share =
@@ -291,7 +298,7 @@ class PositionFlowManagerTest {
                 }
             coEvery { mockBroker.positionsSnapshot(any()) } returns emptyList()
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(200)
             assertEquals(StreamState.LIVE, manager.connectionState.value)
@@ -304,6 +311,7 @@ class PositionFlowManagerTest {
     fun `connectionState transitions to POLLING on polling-only`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             val share =
@@ -320,7 +328,7 @@ class PositionFlowManagerTest {
                 flow { awaitCancellation() }
             coEvery { mockBroker.positionsSnapshot(any()) } returns listOf(share)
 
-            val manager = PositionFlowManager(BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
+            val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
             manager.start("acc-1")
             delay(300)
 

@@ -10,11 +10,9 @@ import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.TInvestChannelFactory
 import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
-import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -59,15 +57,7 @@ object DataModule {
         tinvest: TInvestBrokerAPI,
         finam: FinamBrokerApi,
         bcs: BcsBrokerApi,
-    ): BrokerRegistry {
-        val brokers: Map<BrokerName, BrokerApi> =
-            mapOf(
-                BrokerName.TINVEST to tinvest,
-                BrokerName.BCS to bcs,
-                BrokerName.FINAM to finam,
-            )
-        return BrokerRegistryImpl(brokers)
-    }
+    ): BrokerRegistry = BrokerRegistryImpl(setOf(tinvest, bcs, finam))
 
     @Provides
     @Singleton

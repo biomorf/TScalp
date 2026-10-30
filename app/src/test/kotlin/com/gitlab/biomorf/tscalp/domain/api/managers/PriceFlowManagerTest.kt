@@ -28,6 +28,7 @@ class PriceFlowManagerTest {
         runBlocking {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
@@ -45,7 +46,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(setOf(mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     managerDispatcher = Dispatchers.Default,
@@ -77,6 +78,7 @@ class PriceFlowManagerTest {
     fun `sequential setInterest with same union creates single stream`() {
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
@@ -87,7 +89,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(setOf(mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     managerDispatcher = Dispatchers.Default,
@@ -110,6 +112,7 @@ class PriceFlowManagerTest {
         runBlocking {
             val activeCount = AtomicInteger(0)
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
@@ -127,7 +130,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(setOf(mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     managerDispatcher = Dispatchers.Default,
@@ -158,6 +161,7 @@ class PriceFlowManagerTest {
     fun `connectionState transitions to LIVE on stream emit and STOPPED on clearInterest`() =
         runBlocking {
             val mockBroker = mockk<TInvestBrokerAPI>(relaxed = true)
+            every { mockBroker.name } returns BrokerName.TINVEST
             every { mockBroker.isInitialized } returns true
             every { mockBroker.snapshot } returns mockBroker
             coEvery { mockBroker.pricesSnapshot(any()) } returns emptyMap()
@@ -171,7 +175,7 @@ class PriceFlowManagerTest {
 
             val manager =
                 PriceFlowManager(
-                    BrokerRegistryImpl(mapOf(BrokerName.TINVEST to mockBroker)),
+                    BrokerRegistryImpl(setOf(mockBroker)),
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     managerDispatcher = Dispatchers.Default,

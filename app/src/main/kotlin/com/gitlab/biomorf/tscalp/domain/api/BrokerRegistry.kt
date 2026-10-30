@@ -30,8 +30,8 @@ interface BrokerRegistry {
     fun getBroker(name: BrokerName): BrokerApi?
 
     /**
-     * Брокер по умолчанию (T-Invest).
-     * @throws IllegalStateException если T-Invest не зарегистрирован.
+     * Брокер по умолчанию ([defaultBroker]).
+     * @throws IllegalStateException если [defaultBroker] не зарегистрирован.
      */
     fun getDefaultBroker(): BrokerApi
 
@@ -52,4 +52,12 @@ interface BrokerRegistry {
      * clean-audit Н50/Н51).
      */
     fun refreshInitializationState()
+
+    companion object {
+        /**
+         * Брокер по умолчанию — domain-константа (clean-audit Н35).
+         * Раньше жила в `di/DataModule.provideBrokerRegistry`.
+         */
+        val defaultBroker: BrokerName = BrokerName.TINVEST
+    }
 }
