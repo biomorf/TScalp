@@ -58,6 +58,9 @@ fun <T> mergeStreamSources(
  */
 private val DEFAULT_RETRY_DELAYS_MS = longArrayOf(1_000, 5_000, 15_000, 30_000, 60_000)
 
+/** Пауза после нормального завершения источника (clean-audit Н61). */
+private const val NORMAL_COMPLETION_DELAY_MS = 1_000L
+
 fun <T> retryWithBackoff(
     delays: LongArray = DEFAULT_RETRY_DELAYS_MS,
     source: () -> Flow<T>,
@@ -68,6 +71,10 @@ fun <T> retryWithBackoff(
             try {
                 source().collect { emit(it) }
                 attempt = 0
+                // Нормальное завершение источника (сервер закрыл стрим) —
+                // не busy loop: даём паузу перед переподключением
+                // (clean-audit Н61; как в PriceFlowManager.collectStream).
+                delay(NORMAL_COMPLETION_DELAY_MS)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
