@@ -165,51 +165,6 @@ clean-audit.
 
 ---
 
-### Пакет B: SettingsRepository split (Н68)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** clean-audit Н68. `SettingsRepository` (12 функций) + `SettingsRepositoryImpl` (12) — `@Suppress("TooManyFunctions")`; 4 области: credentials брокеров, счёт по умолчанию, режим sandbox, подтверждение заявок.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** SRP — 4 области в одном репозитории.
-
-**Clean-альтернатива:** 4 репозитория: `BrokerCredentialsRepository`, `AccountPreferencesRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`.
-
-**Выгоды:** один репозиторий, простая навигация.
-
-**Предусловия:** нет.
-
-**Файлы:** 4 интерфейса в `domain/api/repository/`, 4 `*Impl` в `data/repository/`, 4 `@Binds` в `RepositoryBindingModule`, потребители (`SettingsViewModel`, `TScalpApplication`, `BrokerLifecycleManager`, `TradingStateRepositoryImpl`?) — миграция.
-
-**Шаги:**
-1. 4 интерфейса.
-2. 4 `*Impl` (тела из `SettingsRepositoryImpl`).
-3. `@Binds` ×4; удалить `SettingsRepository` / `Impl`.
-4. Миграция потребителей (по одному коммиту).
-5. Гейт.
-
-**Тесты:** существующие тесты репозитория — обновить callsites; новых не требуется.
-
-**Референсы:** `docs/clean-audit.md` → Н68; `### Разбивка InvestRepository` (образец).
-
-**Ограничения:** DataStore-ключи не менять (обратная совместимость); один коммит на репозиторий.
-
-**Критерий готовности:** `grep "@Suppress("TooManyFunctions")"` в 4 новых — пусто; потребители мигрированы; гейт.
-
-**Оценка:** ~2 ч.
-
-**Зависимости:** нет.
-
-**Связано:** clean-audit Н68; `### Разбивка InvestRepository`.
-
-**Открытые вопросы:** `TradingStateRepository` — отдельный, не трогаем. `BrokerLifecycleManager` инжектит `SettingsRepository` — миграция в `BrokerCredentialsRepository`.
-
----
-
 ### Пакет C: TInvestMarketDataService split (Н63)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -8304,3 +8259,49 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 ---
 
+
+
+---
+
+### ✅ Пакет B: SettingsRepository split (Н68)
+
+**Контекст:** clean-audit Н68. `SettingsRepository` (12 функций) + `SettingsRepositoryImpl` (12) — `@Suppress("TooManyFunctions")`; 4 области: credentials брокеров, счёт по умолчанию, режим sandbox, подтверждение заявок.
+
+**Соответствие Clean:** отклонение (открыто).
+
+**Нарушенное правило Clean:** SRP — 4 области в одном репозитории.
+
+**Clean-альтернатива:** 4 репозитория: `BrokerCredentialsRepository`, `AccountPreferencesRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`.
+
+**Выгоды:** один репозиторий, простая навигация.
+
+**Предусловия:** нет.
+
+**Файлы:** 4 интерфейса в `domain/api/repository/`, 4 `*Impl` в `data/repository/`, 4 `@Binds` в `RepositoryBindingModule`, потребители (`SettingsViewModel`, `TScalpApplication`, `BrokerLifecycleManager`, `TradingStateRepositoryImpl`?) — миграция.
+
+**Шаги:**
+1. 4 интерфейса.
+2. 4 `*Impl` (тела из `SettingsRepositoryImpl`).
+3. `@Binds` ×4; удалить `SettingsRepository` / `Impl`.
+4. Миграция потребителей (по одному коммиту).
+5. Гейт.
+
+**Тесты:** существующие тесты репозитория — обновить callsites; новых не требуется.
+
+**Референсы:** `docs/clean-audit.md` → Н68; `### Разбивка InvestRepository` (образец).
+
+**Ограничения:** DataStore-ключи не менять (обратная совместимость); один коммит на репозиторий.
+
+**Критерий готовности:** `grep "@Suppress("TooManyFunctions")"` в 4 новых — пусто; потребители мигрированы; гейт.
+
+**Оценка:** ~2 ч.
+
+**Зависимости:** нет.
+
+**Что сделано:** `SettingsRepository` (13 методов) разбит на 4 интерфейса в `domain/api/repository/`: `BrokerCredentialsRepository` (6), `AccountPreferencesRepository` (2), `SandboxPreferencesRepository` (2), `TradingPreferencesRepository` (3); 4 `*Impl` в `data/repository/` + `SettingsKeys` (общие DataStore-ключи, legacy-формат сохранён). 4 `@Binds` — в новый `PreferencesRepositoryBindingModule` (`RepositoryBindingModule` иначе превышал `TooManyFunctions`: 13 > 11, после удаления — 12). Мигрированы 6 потребителей: `BrokerLifecycleManager`, `TScalpApplication`, `SettingsViewModel` (21 callsite), `PortfolioViewModel` (5), `OrdersViewModel` (7), `OrdersListViewModel` (2); `BrokerLifecycleManagerTest` — 2 мока вместо `mockSettings`. `SettingsRepository` / `SettingsRepositoryImpl` / `bindSettingsRepository` удалены; `RepositoryBindingModule` — 8 binds. Коммиты `d96687a`, `ec464bd`, `ad53ef5`.
+
+**Связано:** clean-audit Н68; `### Разбивка InvestRepository`.
+
+**Открытые вопросы:** `TradingStateRepository` — отдельный, не трогаем. `BrokerLifecycleManager` инжектит `SettingsRepository` — миграция в `BrokerCredentialsRepository`.
+
+---

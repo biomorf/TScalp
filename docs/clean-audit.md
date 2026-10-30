@@ -1016,31 +1016,6 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)`.
 
-### Н68. SettingsRepository — @Suppress("TooManyFunctions")
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `SettingsRepository` — 125 строк, 15 функций, `@Suppress("TooManyFunctions")`. Объединяет: учётные данные брокеров (5 методов), счёт по умолчанию (2), режим песочницы (2), подтверждение заявок (3), ключи (3). KDoc ссылается на `### Рефакторинг репозиториев`.
-
-**Нарушенное правило Clean:** SRP — репозиторий отвечает за 4 области настроек.
-
-**Clean-альтернатива:** разбить на `BrokerCredentialsRepository`, `AccountPreferencesRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`. Плюсы: SRP. Минусы: 4 репозитория вместо 1; `@Binds` для каждого.
-
-**Выгоды:** один репозиторий, простая навигация.
-
-
-**Уточнение (2026-10-27, H21b):** после `git mv` класс →
-`SettingsRepositoryImpl`; 12 функций (было 15: KDoc устарел).
-`@Suppress("TooManyFunctions")` остался на `SettingsRepositoryImpl` и
-добавлен на интерфейс `domain.api.repository.SettingsRepository`
-(13 членов). Декомпозиция (4 области) — не выполнена, не в scope H21b.
-
-**Ссылка на задачу:** `### Пакет B: SettingsRepository split (Н68)` (ROADMAP) — запланировано.
-
 ### Н69. InvestRepository — @Suppress("TooManyFunctions")
 
 **Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
@@ -1241,6 +1216,33 @@ InvestRepository split` (ROADMAP).
 **Ссылка на задачу:** — (не заведена). Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
 
 ### Исправленные (L6)
+
+### ✅ Н68. SettingsRepository — @Suppress("TooManyFunctions")
+
+**Статус:** исправлено (PR #81, `dev`, 2026-10-31).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `SettingsRepository` — 125 строк, 15 функций, `@Suppress("TooManyFunctions")`. Объединяет: учётные данные брокеров (5 методов), счёт по умолчанию (2), режим песочницы (2), подтверждение заявок (3), ключи (3). KDoc ссылается на `### Рефакторинг репозиториев`.
+
+**Нарушенное правило Clean:** SRP — репозиторий отвечает за 4 области настроек.
+
+**Clean-альтернатива:** разбить на `BrokerCredentialsRepository`, `AccountPreferencesRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`. Плюсы: SRP. Минусы: 4 репозитория вместо 1; `@Binds` для каждого.
+
+**Выгоды:** один репозиторий, простая навигация.
+
+
+**Уточнение (2026-10-27, H21b):** после `git mv` класс →
+`SettingsRepositoryImpl`; 12 функций (было 15: KDoc устарел).
+`@Suppress("TooManyFunctions")` остался на `SettingsRepositoryImpl` и
+добавлен на интерфейс `domain.api.repository.SettingsRepository`
+(13 членов). Декомпозиция (4 области) — не выполнена, не в scope H21b.
+
+**Что сделано:** split на 4 интерфейса (`BrokerCredentialsRepository`, `AccountPreferencesRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`) + 4 `*Impl` + `SettingsKeys` (общие DataStore-ключи, legacy-формат). 4 `@Binds` — в новый `PreferencesRepositoryBindingModule` (иначе `RepositoryBindingModule` превышал detekt `TooManyFunctions`: 13 > 11, после удаления старого `@Binds` было бы 12). Мигрированы 6 потребителей + `BrokerLifecycleManagerTest`. `SettingsRepository` / `SettingsRepositoryImpl` / `bindSettingsRepository` удалены; `RepositoryBindingModule` — 8 binds. Коммиты `d96687a`, `ec464bd`, `ad53ef5`.
+
+**Ссылка на задачу:** PR #81 (`feature/clean-audit-pkg-b`, `dev`).
 
 ### Н71. BcsBrokerApi.initialize логирует refreshToken
 
