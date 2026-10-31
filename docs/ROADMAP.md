@@ -124,9 +124,11 @@ clean-audit.
 
 ### Пакет C: TInvestMarketDataService split (Н63)
 
-**Мобильная работа:** невозможно (сборка + тесты на десктопе, 6 коммитов с гейтом).
+**Мобильная работа:** невозможно (сборка + тесты на десктопе, 8 коммитов с гейтом).
 
-**Статус:** запланировано. **Отдельная сессия** (крупный рефакторинг).
+**Статус:** в работе.
+
+**Ветка:** feature/tinvest-market-data-split
 
 **Контекст:** clean-audit Н63. `TInvestMarketDataService` — 620 строк, 15 public-функций, `@Suppress("TooManyFunctions")` (стр. 62), +2 точечных `@Suppress` (`CyclomaticComplexMethod` на `fetchPortfolioPositions`, `DEPRECATION` на `fetchFullInstrument`). 8+ доменных областей: счета, портфель, gRPC-стримы позиций, баланс, инструменты, цены/статусы, gRPC-стримы цен/ордеров, проверка. Потребители: `TInvestBrokerApi` (10 делегатов) + `TInvestOrchestrator` (6 методов через конструктор `marketData: TInvestMarketDataService`). `TInvestApiState` (4 `@Volatile` поля: `api`, `channels`, `token`, `sandboxMode`) шарится.
 
@@ -155,8 +157,16 @@ clean-audit.
 - `app/src/main/kotlin/.../data/api/TInvestMarketDataService.kt` — удалить (после 6 коммитов сервисов).
 - `app/src/test/.../data/orchestrator/TInvestOrchestratorFallbackTest.kt` — 4 мока сервисов вместо `TInvestMarketDataService`.
 
-**Шаги (6 коммитов сервисов + финальный коммит, один push в конце):**
+**Шаги (шаг 0 — переезд + 6 коммитов сервисов + финальный, один push в конце):**
 
+0. **Переезд `data/api/` по подпапкам (Н53).** `git mv` 17 файлов:
+   `common/` (`CustomTrustManager.kt`, `RestMappers.kt`),
+   `tinvest/` (13 `TInvest*`), `bcs/` (`BcsBrokerApi.kt`),
+   `finam/` (`FinamBrokerApi.kt`); `error/` без изменений.
+   Обновить package-декларации и 14 строк импорта в 8 файлах
+   (4 main + 4 test). Гейт. Коммит. Причина «до split»:
+   новые 6 сервисов создаются сразу в `tinvest/services/`,
+   импорты правильные с рождения, без второй волны правок.
 1. **`TInvestAccountsService`.** Создать (`getAccounts`, `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`). Переключить 4 делегата в `TInvestBrokerApi`. Удалить эти функции из `TInvestMarketDataService`. Гейт. Коммит.
 2. **`TInvestPortfolioService`.** Создать (`fetchPortfolioPositions` + private `getPortfolio`, `getBalance`). Переключить 1 делегат в `TInvestBrokerApi` + 2 callsites в `TInvestOrchestrator` (`fetchPortfolioPositions`, `getBalance`). Удалить из `TInvestMarketDataService`. Гейт. Коммит.
 3. **`TInvestPositionsService`.** Создать (`subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect` + private `convertSecurity`/`convertFuture`). Переключить 1 callsite в `TInvestOrchestrator` (`subscribePositionsGrpcWithReconnect`). Удалить из `TInvestMarketDataService`. Гейт. Коммит.
@@ -196,7 +206,7 @@ clean-audit.
 
 **Зависимости:** нет.
 
-**Связано:** clean-audit Н63; `### Рефакторинг BrokerApi-реализаций (D)` (образец); `### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest` (декомпозиция `fetchPortfolioPositions` — входит в эту задачу).
+**Связано:** clean-audit Н63, Н53 (переезд — шаг 0); `### Рефакторинг BrokerApi-реализаций (D)` (образец); `### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest` (декомпозиция `fetchPortfolioPositions` — входит в эту задачу).
 
 **Открытые вопросы:** нет (все дефолты зафиксированы при планировании 2026-10-31).
 
