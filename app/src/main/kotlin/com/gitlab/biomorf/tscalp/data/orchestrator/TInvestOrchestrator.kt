@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.orchestrator
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
 import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
 import com.gitlab.biomorf.tscalp.data.orchestrator.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
@@ -27,6 +28,7 @@ class TInvestOrchestrator(
     private val debugFlagsRepository: DebugFlagsRepository,
     private val orders: TInvestOrdersService,
     private val accounts: TInvestAccountsService,
+    private val portfolio: TInvestPortfolioService,
     private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -104,7 +106,7 @@ class TInvestOrchestrator(
             return rest(accountId, sandboxMode)
         }
         return try {
-            marketData.fetchPortfolioPositions(accountId, sandboxMode)
+            portfolio.fetchPortfolioPositions(accountId, sandboxMode)
         } catch (e: Throwable) {
             if (isTransportError(e) && positionsRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")

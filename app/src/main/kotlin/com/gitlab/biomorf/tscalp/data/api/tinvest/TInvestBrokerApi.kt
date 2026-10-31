@@ -65,8 +65,9 @@ class TInvestBrokerAPI(
     TradeCheckApi {
     private val state = TInvestApiState()
     private val instrumentsService = TInvestInstrumentsService(state, logger)
+    private val portfolioService = TInvestPortfolioService(state, instrumentsService)
     private val accountsService = TInvestAccountsService(state, logger)
-    private val marketDataService = TInvestMarketDataService(state, logger, instrumentsService, accountsService)
+    private val marketDataService = TInvestMarketDataService(state, logger, accountsService)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
@@ -76,6 +77,7 @@ class TInvestBrokerAPI(
             debugFlagsRepository = debugFlagsRepository,
             orders = ordersService,
             accounts = accountsService,
+            portfolio = portfolioService,
             logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
@@ -166,7 +168,7 @@ class TInvestBrokerAPI(
     override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
-    ) = marketDataService.fetchPortfolioPositions(accountId, sandboxMode)
+    ) = portfolioService.fetchPortfolioPositions(accountId, sandboxMode)
 
     override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
 

@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.orchestrator
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
@@ -22,6 +23,7 @@ class TInvestOrchestratorFallbackTest {
     private val marketData = mockk<TInvestMarketDataService>()
     private val accounts = mockk<TInvestAccountsService>()
     private val orders = mockk<TInvestOrdersService>()
+    private val portfolio = mockk<TInvestPortfolioService>()
 
     @Test
     fun `pricesSnapshot falls back to REST on UNAVAILABLE`() =
@@ -34,6 +36,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     accounts = accounts,
+                    portfolio = portfolio,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = { restData },
@@ -55,6 +58,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     accounts = accounts,
+                    portfolio = portfolio,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = {
@@ -83,6 +87,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     accounts = accounts,
+                    portfolio = portfolio,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     ordersRestFallback = { restOrders },
@@ -104,6 +109,7 @@ class TInvestOrchestratorFallbackTest {
                     marketData = marketData,
                     orders = orders,
                     accounts = accounts,
+                    portfolio = portfolio,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     balanceRestFallback = { restBalance },
@@ -126,13 +132,14 @@ class TInvestOrchestratorFallbackTest {
                         quantity = 1L,
                     ),
                 )
-            coEvery { marketData.fetchPortfolioPositions(any(), any()) } throws StatusException(Status.UNAVAILABLE)
+            coEvery { portfolio.fetchPortfolioPositions(any(), any()) } throws StatusException(Status.UNAVAILABLE)
 
             val orchestrator =
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
                     accounts = accounts,
+                    portfolio = portfolio,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     positionsRestFallback = { _, _ -> restPositions },
@@ -140,6 +147,6 @@ class TInvestOrchestratorFallbackTest {
 
             val result = orchestrator.positionsSnapshot("acc1", false)
             assertEquals(restPositions, result)
-            coVerify(exactly = 1) { marketData.fetchPortfolioPositions(any(), any()) }
+            coVerify(exactly = 1) { portfolio.fetchPortfolioPositions(any(), any()) }
         }
 }
