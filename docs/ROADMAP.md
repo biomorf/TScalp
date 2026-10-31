@@ -122,94 +122,6 @@ clean-audit.
 
 ---
 
-### Пакет C: TInvestMarketDataService split (Н63)
-
-**Мобильная работа:** невозможно (сборка + тесты на десктопе, 8 коммитов с гейтом).
-
-**Статус:** в работе.
-
-**Ветка:** feature/tinvest-market-data-split
-
-**Контекст:** clean-audit Н63. `TInvestMarketDataService` — 620 строк, 15 public-функций, `@Suppress("TooManyFunctions")` (стр. 62), +2 точечных `@Suppress` (`CyclomaticComplexMethod` на `fetchPortfolioPositions`, `DEPRECATION` на `fetchFullInstrument`). 8+ доменных областей: счета, портфель, gRPC-стримы позиций, баланс, инструменты, цены/статусы, gRPC-стримы цен/ордеров, проверка. Потребители: `TInvestBrokerApi` (10 делегатов) + `TInvestOrchestrator` (6 методов через конструктор `marketData: TInvestMarketDataService`). `TInvestApiState` (4 `@Volatile` поля: `api`, `channels`, `token`, `sandboxMode`) шарится.
-
-**Соответствие Clean:** отклонение (открыто).
-
-**Нарушенное правило Clean:** SRP — 8+ доменных областей в одном сервисе.
-
-**Clean-альтернатива:** 6 сервисов (все `internal class` в `data/api/`):
-- `TInvestAccountsService` — `getAccounts`, `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`;
-- `TInvestPortfolioService` — `fetchPortfolioPositions` + private `getPortfolio`, `getBalance`;
-- `TInvestPositionsService` — `subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect` + private `convertSecurity`/`convertFuture`;
-- `TInvestInstrumentsService` — `fetchFullInstrument`, `findInstruments`;
-- `TInvestPricesService` — `getLastPricesByTscalpInstrumentId`, `subscribeLastPrices`;
-- `TInvestTradingService` — `getTradingStatuses`, `checkTradeAvailability`, `subscribeOrderState`.
-
-`TInvestApiState` шарится, владелец — `TInvestBrokerApi` (не Hilt `@Singleton`). Плюсы: SRP, `@Suppress("TooManyFunctions")` снимается, точечные `@Suppress` (`CyclomaticComplexMethod`, `DEPRECATION`) уходят вместе с декомпозицией. Минусы: 6 файлов вместо 1, +3 параметра в `TInvestOrchestrator` (4 сервиса вместо одного), правка 10 делегатов + 6 callsites оркестратора.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- 6 новых сервисов в `app/src/main/kotlin/.../data/api/`: `TInvestAccountsService.kt`, `TInvestPortfolioService.kt`, `TInvestPositionsService.kt`, `TInvestInstrumentsService.kt`, `TInvestPricesService.kt`, `TInvestTradingService.kt`.
-- `app/src/main/kotlin/.../data/api/TInvestBrokerApi.kt` — конструктор (6 сервисов вместо `marketDataService`), 10 делегатов.
-- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — конструктор (4 сервиса: positions, prices, trading, portfolio вместо `marketData`), 6 callsites.
-- `app/src/main/kotlin/.../data/api/TInvestMarketDataService.kt` — удалить (после 6 коммитов сервисов).
-- `app/src/test/.../data/orchestrator/TInvestOrchestratorFallbackTest.kt` — 4 мока сервисов вместо `TInvestMarketDataService`.
-
-**Шаги (шаг 0 — переезд + 6 коммитов сервисов + финальный, один push в конце):**
-
-0. **Переезд `data/api/` по подпапкам (Н53).** `git mv` 17 файлов:
-   `common/` (`CustomTrustManager.kt`, `RestMappers.kt`),
-   `tinvest/` (13 `TInvest*`), `bcs/` (`BcsBrokerApi.kt`),
-   `finam/` (`FinamBrokerApi.kt`); `error/` без изменений.
-   Обновить package-декларации и 14 строк импорта в 8 файлах
-   (4 main + 4 test). Гейт. Коммит. Причина «до split»:
-   новые 6 сервисов создаются сразу в `tinvest/services/`,
-   импорты правильные с рождения, без второй волны правок.
-1. **`TInvestAccountsService`.** Создать (`getAccounts`, `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`). Переключить 4 делегата в `TInvestBrokerApi`. Удалить эти функции из `TInvestMarketDataService`. Гейт. Коммит.
-2. **`TInvestPortfolioService`.** Создать (`fetchPortfolioPositions` + private `getPortfolio`, `getBalance`). Переключить 1 делегат в `TInvestBrokerApi` + 2 callsites в `TInvestOrchestrator` (`fetchPortfolioPositions`, `getBalance`). Удалить из `TInvestMarketDataService`. Гейт. Коммит.
-3. **`TInvestPositionsService`.** Создать (`subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect` + private `convertSecurity`/`convertFuture`). Переключить 1 callsite в `TInvestOrchestrator` (`subscribePositionsGrpcWithReconnect`). Удалить из `TInvestMarketDataService`. Гейт. Коммит.
-4. **`TInvestInstrumentsService`.** Создать (`fetchFullInstrument`, `findInstruments`). Переключить 2 делегата в `TInvestBrokerApi`. Удалить из `TInvestMarketDataService`. Гейт. Коммит.
-5. **`TInvestPricesService`.** Создать (`getLastPricesByTscalpInstrumentId`, `subscribeLastPrices`). Переключить 1 делегат в `TInvestBrokerApi` + 2 callsites в `TInvestOrchestrator`. Удалить из `TInvestMarketDataService`. Гейт. Коммит.
-6. **`TInvestTradingService`.** Создать (`getTradingStatuses`, `checkTradeAvailability`, `subscribeOrderState`). Переключить 2 делегата в `TInvestBrokerApi` + 1 callsite в `TInvestOrchestrator`. Удалить из `TInvestMarketDataService`. Гейт. Коммит.
-7. **Финал.** Удалить `TInvestMarketDataService.kt` (файл пуст). Обновить `TInvestOrchestratorFallbackTest` (4 мока). Проверить KDoc `TInvestBrokerApi` (стр. 39: «TInvestMarketDataService — счета, портфель...» → 6 сервисов). Гейт. Коммит. **Один push** в `feature/tinvest-market-data-split`, PR.
-
-**Тесты:** `TInvestOrchestratorFallbackTest` — 4 мока (`mockPositionsService`, `mockPricesService`, `mockTradingService`, `mockPortfolioService`). Остальные тесты не затронуты (потребители — 2 файла main + 1 test). Новых тестов не требуется (перенос 1:1, поведение не меняется; гейт — доказательство).
-
-**Референсы:**
-- `docs/clean-audit.md` → Н63.
-- `### Рефакторинг BrokerApi-реализаций (D)` (закрыта) — образец: `TInvestWsService`, `TInvestRestService` (в `data/api/`, `internal class`, `TInvestApiState` через конструктор).
-- AGENTS.md «Nullable-val роли» — паттерн supertype = «реализую все методы».
-
-**Ограничения:**
-- Все 6 сервисов — `internal class`. Потребитель один (`TInvestBrokerApi` в том же пакете `data.api`), сервисы — деталь реализации фасада.
-- Sandbox-методы (`open`/`close`/`payIn`) — в `TInvestAccountsService` (одна доменная область «счёт»), не отдельный сервис.
-- `getPortfolio` — `private` helper `TInvestPortfolioService` (0 callsites снаружи, 1 внутренний в `fetchPortfolioPositions`).
-- gRPC-стримы не выносить в отдельный «Streams»-сервис (Q-grpc = C): `subscribeOrderState` — в `TInvestTradingService`, `subscribePositionsGrpc` — в `TInvestPositionsService`, `subscribeLastPrices` — в `TInvestPricesService`.
-- `TInvestApiState` — владелец `TInvestBrokerApi`, сервисы получают через конструктор. Не выносить в Hilt `@Singleton`.
-- `@Suppress("TooManyFunctions")` снять после финального коммита (у каждого сервиса ≤ 11 функций: `TInvestPositionsService` 4, `TInvestTradingService` 3, остальные 2–4).
-- `@Suppress("CyclomaticComplexMethod")` на `fetchPortfolioPositions` — снять после декомпозиции (вынести `enrichWithInstrumentData` + `enrichWithMarginData` в private helpers; если сложность < порога — снять, иначе оставить и завести отдельную задачу).
-- `@Suppress("DEPRECATION")` на `fetchFullInstrument` — оставить (T-Invest SDK deprecation, не наш долг).
-- **Один push в конце** (все коммиты локально, 7 штук), не push после каждого коммита. PR после push.
-- Локальный гейт (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`) после каждого коммита (5a desktop).
-
-**Критерий готовности:**
-- `TInvestMarketDataService.kt` удалён.
-- 6 сервисов, все `internal class`, каждый ≤ 11 функций.
-- `TInvestBrokerApi` делегирует в 6 сервисов; `TInvestOrchestrator` — в 4 (positions, prices, trading, portfolio).
-- `TInvestOrchestratorFallbackTest` — 4 мока, зелёный.
-- Гейт зелёный.
-- Один PR.
-
-**Оценка:** ~4–4.5 ч (6 сервисов + перенос функций 2–2.5 ч, 10 делегатов + 6 callsites оркестратора 30–45 мин, удаление старого файла + KDoc 15 мин, тесты 15 мин, гейт ×7 30 мин).
-
-**Зависимости:** нет.
-
-**Связано:** clean-audit Н63, Н53 (переезд — шаг 0); `### Рефакторинг BrokerApi-реализаций (D)` (образец); `### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest` (декомпозиция `fetchPortfolioPositions` — входит в эту задачу).
-
-**Открытые вопросы:** нет (все дефолты зафиксированы при планировании 2026-10-31).
-
 ### T-Invest REST: findInstruments fallback
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -8220,5 +8132,104 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** clean-audit Н62; `docs/ISSUES.md` → «TInvestBrokerAPI.initialize...»; Н87 (cold flow positions).
 
 **Открытые вопросы:** нет.
+
+---
+
+### ✅ Пакет C: TInvestMarketDataService split (Н63)
+
+**Мобильная работа:** невозможно (сборка + тесты на десктопе, 8 коммитов с гейтом).
+
+**Контекст:** clean-audit Н63. `TInvestMarketDataService` — 620 строк, 15 public-функций, `@Suppress("TooManyFunctions")` (стр. 62), +2 точечных `@Suppress` (`CyclomaticComplexMethod` на `fetchPortfolioPositions`, `DEPRECATION` на `fetchFullInstrument`). 8+ доменных областей: счета, портфель, gRPC-стримы позиций, баланс, инструменты, цены/статусы, gRPC-стримы цен/ордеров, проверка. Потребители: `TInvestBrokerApi` (10 делегатов) + `TInvestOrchestrator` (6 методов через конструктор `marketData: TInvestMarketDataService`). `TInvestApiState` (4 `@Volatile` поля: `api`, `channels`, `token`, `sandboxMode`) шарится.
+
+**Соответствие Clean:** соответствует (реализовано: 6 сервисов).
+
+**Нарушенное правило Clean:** — (закрыто: SRP восстановлен разбиением на 6 сервисов).
+
+**Clean-альтернатива:** 6 сервисов (все `internal class` в `data/api/`):
+- `TInvestAccountsService` — `getAccounts`, `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`;
+- `TInvestPortfolioService` — `fetchPortfolioPositions` + private `getPortfolio`, `getBalance`;
+- `TInvestPositionsService` — `subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect` + private `convertSecurity`/`convertFuture`;
+- `TInvestInstrumentsService` — `fetchFullInstrument`, `findInstruments`;
+- `TInvestPricesService` — `getLastPricesByTscalpInstrumentId`, `subscribeLastPrices`;
+- `TInvestTradingService` — `getTradingStatuses`, `checkTradeAvailability`, `subscribeOrderState`.
+
+`TInvestApiState` шарится, владелец — `TInvestBrokerApi` (не Hilt `@Singleton`). Плюсы: SRP, `@Suppress("TooManyFunctions")` снимается, точечные `@Suppress` (`CyclomaticComplexMethod`, `DEPRECATION`) уходят вместе с декомпозицией. Минусы: 6 файлов вместо 1, +3 параметра в `TInvestOrchestrator` (4 сервиса вместо одного), правка 10 делегатов + 6 callsites оркестратора.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- 6 новых сервисов в `app/src/main/kotlin/.../data/api/`: `TInvestAccountsService.kt`, `TInvestPortfolioService.kt`, `TInvestPositionsService.kt`, `TInvestInstrumentsService.kt`, `TInvestPricesService.kt`, `TInvestTradingService.kt`.
+- `app/src/main/kotlin/.../data/api/TInvestBrokerApi.kt` — конструктор (6 сервисов вместо `marketDataService`), 10 делегатов.
+- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — конструктор (4 сервиса: positions, prices, trading, portfolio вместо `marketData`), 6 callsites.
+- `app/src/main/kotlin/.../data/api/TInvestMarketDataService.kt` — удалить (после 6 коммитов сервисов).
+- `app/src/test/.../data/orchestrator/TInvestOrchestratorFallbackTest.kt` — 4 мока сервисов вместо `TInvestMarketDataService`.
+
+**Шаги (шаг 0 — переезд + 6 коммитов сервисов + финальный, один push в конце):**
+
+0. **Переезд `data/api/` по подпапкам (Н53).** `git mv` 17 файлов:
+   `common/` (`CustomTrustManager.kt`, `RestMappers.kt`),
+   `tinvest/` (13 `TInvest*`), `bcs/` (`BcsBrokerApi.kt`),
+   `finam/` (`FinamBrokerApi.kt`); `error/` без изменений.
+   Обновить package-декларации и 14 строк импорта в 8 файлах
+   (4 main + 4 test). Гейт. Коммит. Причина «до split»:
+   новые 6 сервисов создаются сразу в `tinvest/services/`,
+   импорты правильные с рождения, без второй волны правок.
+1. **`TInvestAccountsService`.** Создать (`getAccounts`, `openSandboxAccount`, `closeSandboxAccount`, `sandboxPayIn`). Переключить 4 делегата в `TInvestBrokerApi`. Удалить эти функции из `TInvestMarketDataService`. Гейт. Коммит.
+2. **`TInvestPortfolioService`.** Создать (`fetchPortfolioPositions` + private `getPortfolio`, `getBalance`). Переключить 1 делегат в `TInvestBrokerApi` + 2 callsites в `TInvestOrchestrator` (`fetchPortfolioPositions`, `getBalance`). Удалить из `TInvestMarketDataService`. Гейт. Коммит.
+3. **`TInvestPositionsService`.** Создать (`subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect` + private `convertSecurity`/`convertFuture`). Переключить 1 callsite в `TInvestOrchestrator` (`subscribePositionsGrpcWithReconnect`). Удалить из `TInvestMarketDataService`. Гейт. Коммит.
+4. **`TInvestInstrumentsService`.** Создать (`fetchFullInstrument`, `findInstruments`). Переключить 2 делегата в `TInvestBrokerApi`. Удалить из `TInvestMarketDataService`. Гейт. Коммит.
+5. **`TInvestPricesService`.** Создать (`getLastPricesByTscalpInstrumentId`, `subscribeLastPrices`). Переключить 1 делегат в `TInvestBrokerApi` + 2 callsites в `TInvestOrchestrator`. Удалить из `TInvestMarketDataService`. Гейт. Коммит.
+6. **`TInvestTradingService`.** Создать (`getTradingStatuses`, `checkTradeAvailability`, `subscribeOrderState`). Переключить 2 делегата в `TInvestBrokerApi` + 1 callsite в `TInvestOrchestrator`. Удалить из `TInvestMarketDataService`. Гейт. Коммит.
+7. **Финал.** Удалить `TInvestMarketDataService.kt` (файл пуст). Обновить `TInvestOrchestratorFallbackTest` (4 мока). Проверить KDoc `TInvestBrokerApi` (стр. 39: «TInvestMarketDataService — счета, портфель...» → 6 сервисов). Гейт. Коммит. **Один push** в `feature/tinvest-market-data-split`, PR.
+
+**Тесты:** `TInvestOrchestratorFallbackTest` — 4 мока (`mockPositionsService`, `mockPricesService`, `mockTradingService`, `mockPortfolioService`). Остальные тесты не затронуты (потребители — 2 файла main + 1 test). Новых тестов не требуется (перенос 1:1, поведение не меняется; гейт — доказательство).
+
+**Референсы:**
+- `docs/clean-audit.md` → Н63.
+- `### Рефакторинг BrokerApi-реализаций (D)` (закрыта) — образец: `TInvestWsService`, `TInvestRestService` (в `data/api/`, `internal class`, `TInvestApiState` через конструктор).
+- AGENTS.md «Nullable-val роли» — паттерн supertype = «реализую все методы».
+
+**Ограничения:**
+- Все 6 сервисов — `internal class`. Потребитель один (`TInvestBrokerApi` в том же пакете `data.api`), сервисы — деталь реализации фасада.
+- Sandbox-методы (`open`/`close`/`payIn`) — в `TInvestAccountsService` (одна доменная область «счёт»), не отдельный сервис.
+- `getPortfolio` — `private` helper `TInvestPortfolioService` (0 callsites снаружи, 1 внутренний в `fetchPortfolioPositions`).
+- gRPC-стримы не выносить в отдельный «Streams»-сервис (Q-grpc = C): `subscribeOrderState` — в `TInvestTradingService`, `subscribePositionsGrpc` — в `TInvestPositionsService`, `subscribeLastPrices` — в `TInvestPricesService`.
+- `TInvestApiState` — владелец `TInvestBrokerApi`, сервисы получают через конструктор. Не выносить в Hilt `@Singleton`.
+- `@Suppress("TooManyFunctions")` снять после финального коммита (у каждого сервиса ≤ 11 функций: `TInvestPositionsService` 4, `TInvestTradingService` 3, остальные 2–4).
+- `@Suppress("CyclomaticComplexMethod")` на `fetchPortfolioPositions` — снять после декомпозиции (вынести `enrichWithInstrumentData` + `enrichWithMarginData` в private helpers; если сложность < порога — снять, иначе оставить и завести отдельную задачу).
+- `@Suppress("DEPRECATION")` на `fetchFullInstrument` — оставить (T-Invest SDK deprecation, не наш долг).
+- **Один push в конце** (все коммиты локально, 7 штук), не push после каждого коммита. PR после push.
+- Локальный гейт (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`) после каждого коммита (5a desktop).
+
+**Критерий готовности:**
+- `TInvestMarketDataService.kt` удалён.
+- 6 сервисов, все `internal class`, каждый ≤ 11 функций.
+- `TInvestBrokerApi` делегирует в 6 сервисов; `TInvestOrchestrator` — в 4 (positions, prices, trading, portfolio).
+- `TInvestOrchestratorFallbackTest` — 4 мока, зелёный.
+- Гейт зелёный.
+- Один PR.
+
+**Оценка:** ~4–4.5 ч (6 сервисов + перенос функций 2–2.5 ч, 10 делегатов + 6 callsites оркестратора 30–45 мин, удаление старого файла + KDoc 15 мин, тесты 15 мин, гейт ×7 30 мин).
+
+**Зависимости:** нет.
+
+
+**Что сделано:** фактическая последовательность (ROADMAP-план скорректирован по ходу):
+- шаг 0 — переезд `data/api/` по подпапкам (выполнен до старта сессии).
+- шаг 1 (`0fc3dfd`) — `TInvestAccountsService` (4 делегата).
+- шаг 2 (`ba4ef81`) — **`TInvestInstrumentsService`** (вместо `TInvestPortfolioService` по плану): `fetchFullInstrument`, `findInstruments`, `fetchProtoInstrument`, `getFuturesMargin`, `findInstrumentShorts`. Причина: `fetchProtoInstrument`/`getFuturesMargin` используются и в `fetchFullInstrument` (instruments), и в `fetchPortfolioPositions` (portfolio); направление `portfolio -> instruments` корректно, сервис создан раньше плана.
+- шаг 3 (`256cf69`) — **`getBalance` → `TInvestAccountsService`** (вместо `TInvestPortfolioService`): баланс — атрибут счёта; `checkTradeAvailability` (trading) зависит от accounts, не от portfolio.
+- шаг 4 (`6a1d154`) — `TInvestPortfolioService` (`fetchPortfolioPositions` + private `getPortfolio`).
+- шаг 5 (`ead9e92`) — `TInvestPricesService` (`getLastPricesByTscalpInstrumentId`, `subscribeLastPrices`).
+- шаг 6 (`bc6757c`) — `TInvestTradingService` (`getTradingStatuses`, `subscribeOrderState`, `checkTradeAvailability`).
+- шаг 7 (`9fb105c`) — **rename** `TInvestMarketDataService.kt` → `TInvestPositionsService.kt` (вместо удаления по плану): после шагов 1–6 в файле остались только positions-функции (`subscribePositionsGrpc`, `convertSecurity`, `convertFuture`, `subscribePositionsGrpcWithReconnect`, `retryDelayMs`) — это единственный живой positions-сервис, удалять нечего. `git mv` сохранил историю (`git log --follow`). `@Suppress("TooManyFunctions")` снят.
+
+**Текущее состояние:** закрыта 2026-10-31. 6 сервисов (`Accounts`, `Instruments`, `Portfolio`, `Positions`, `Prices`, `Trading`) + `TInvestBrokerApi` делегирует в 7 (включая `Orders`); `TInvestOrchestrator` — в 6 (`positions`, `orders`, `accounts`, `portfolio`, `prices`, `trading`). `@Suppress("TooManyFunctions")` снят с бывшего god-класса. **Не выполнено из плана:** `@Suppress("CyclomaticComplexMethod")` на `fetchPortfolioPositions` — **оставлен** (перенесён 1:1, декомпозиция не делалась; отдельная задача). `@Suppress("DEPRECATION")` на `getFuturesMargin` — **оставлен** (T-Invest SDK deprecation, не наш долг).
+
+**Связано:** clean-audit Н63, Н53 (переезд — шаг 0); `### Рефакторинг BrokerApi-реализаций (D)` (образец); `### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest` (декомпозиция `fetchPortfolioPositions` — входит в эту задачу).
+
+**Открытые вопросы:** нет (все дефолты зафиксированы при планировании 2026-10-31).
 
 ---
