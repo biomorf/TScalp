@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.data.api
+package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
@@ -35,8 +35,13 @@ import ru.ttech.piapi.core.InvestApi
 
 /**
  * Фасад T-Invest API.
- * Держит состояние (api, channels, sandboxMode), делегирует в два сервиса:
- *  - TInvestMarketDataService — счета, портфель, инструменты, цены, стримы, баланс;
+ * Держит состояние (api, channels, sandboxMode) и делегирует в 7 сервисов:
+ *  - TInvestPositionsService — gRPC-стрим позиций + reconnect;
+ *  - TInvestAccountsService — счета, sandbox-операции, баланс;
+ *  - TInvestInstrumentsService — полный инструмент по uid, поиск, стоимость шага цены;
+ *  - TInvestPortfolioService — портфель, обогащение позиций инструментами;
+ *  - TInvestPricesService — unary GetLastPrices + gRPC-стрим последних цен;
+ *  - TInvestTradingService — статусы инструментов, стрим статусов заявок, проверка доступности;
  *  - TInvestOrdersService — заявки, стоп-заявки, отмена.
  *  // Архитектурный долг: 22 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
  *
@@ -64,15 +69,24 @@ class TInvestBrokerAPI(
     MarketDataApi,
     TradeCheckApi {
     private val state = TInvestApiState()
-    private val marketDataService = TInvestMarketDataService(state, logger)
+    private val instrumentsService = TInvestInstrumentsService(state, logger)
+    private val portfolioService = TInvestPortfolioService(state, instrumentsService)
+    private val accountsService = TInvestAccountsService(state, logger)
+    private val pricesService = TInvestPricesService(state, logger)
+    private val tradingService = TInvestTradingService(state, logger, accountsService, pricesService)
+    private val positionsService = TInvestPositionsService(state, logger)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
     private val orchestrator =
         TInvestOrchestrator(
-            marketData = marketDataService,
+            positions = positionsService,
             debugFlagsRepository = debugFlagsRepository,
             orders = ordersService,
+            accounts = accountsService,
+            portfolio = portfolioService,
+            prices = pricesService,
+            trading = tradingService,
             logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
@@ -152,18 +166,18 @@ class TInvestBrokerAPI(
 
     // ---------- BrokerApi: делегирование ----------
 
-    override suspend fun getAccounts(sandboxMode: Boolean) = marketDataService.getAccounts(sandboxMode)
+    override suspend fun getAccounts(sandboxMode: Boolean) = accountsService.getAccounts(sandboxMode)
 
-    override suspend fun openSandboxAccount() = marketDataService.openSandboxAccount()
+    override suspend fun openSandboxAccount() = accountsService.openSandboxAccount()
 
     override suspend fun closeSandboxAccount(accountId: String) {
-        marketDataService.closeSandboxAccount(accountId)
+        accountsService.closeSandboxAccount(accountId)
     }
 
     override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
-    ) = marketDataService.fetchPortfolioPositions(accountId, sandboxMode)
+    ) = portfolioService.fetchPortfolioPositions(accountId, sandboxMode)
 
     override fun subscribePositions(accountId: String): Flow<PositionStreamItem> = orchestrator.positionsStream(accountId)
 
@@ -173,10 +187,10 @@ class TInvestBrokerAPI(
         accountId: String,
         amount: SandboxMoney,
     ) {
-        marketDataService.sandboxPayIn(accountId, amount)
+        accountsService.sandboxPayIn(accountId, amount)
     }
 
-    override suspend fun findInstruments(query: String) = marketDataService.findInstruments(query)
+    override suspend fun findInstruments(query: String) = instrumentsService.findInstruments(query)
 
     override suspend fun postOrder(request: BrokerOrderRequest) = ordersService.postOrder(request)
 
@@ -200,9 +214,9 @@ class TInvestBrokerAPI(
         ordersService.cancelOrder(accountId, orderId)
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>) = marketDataService.getLastPricesByTscalpInstrumentId(uids)
+    override suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>) = pricesService.getLastPricesByTscalpInstrumentId(uids)
 
-    override suspend fun getTradingStatuses(uids: List<String>) = marketDataService.getTradingStatuses(uids)
+    override suspend fun getTradingStatuses(uids: List<String>) = tradingService.getTradingStatuses(uids)
 
     override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = orchestrator.orderStateStream(accountId)
 
@@ -216,7 +230,7 @@ class TInvestBrokerAPI(
         val resolvedUid =
             brokerUid
                 ?: return TradeCheckResult.Error("Нет brokerUid")
-        return marketDataService.checkTradeAvailability(accountId, resolvedUid, direction, quantity)
+        return tradingService.checkTradeAvailability(accountId, resolvedUid, direction, quantity)
     }
 
     // ---------- Публичные методы вне BrokerApi ----------
@@ -237,7 +251,7 @@ class TInvestBrokerAPI(
      * Реализация [BrokerInstrumentApi.fetchFullInstrument]
      * (nullable-val роль, см. `BrokerApi.instrument`).
      */
-    override suspend fun fetchFullInstrument(uid: String): InstrumentUi? = marketDataService.fetchFullInstrument(uid)
+    override suspend fun fetchFullInstrument(uid: String): InstrumentUi? = instrumentsService.fetchFullInstrument(uid)
 
     /**
      * Стрим последних цен. Используется OrdersViewModel.startPriceUpdates().

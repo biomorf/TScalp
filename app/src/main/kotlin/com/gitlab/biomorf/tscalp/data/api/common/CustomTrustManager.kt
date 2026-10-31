@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.data.api
+package com.gitlab.biomorf.tscalp.data.api.common
 
 import android.content.Context
 import com.gitlab.biomorf.tscalp.R

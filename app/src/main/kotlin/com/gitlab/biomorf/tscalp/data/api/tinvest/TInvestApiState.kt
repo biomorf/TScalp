@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.data.api
+package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import ru.ttech.piapi.core.InvestApi
 

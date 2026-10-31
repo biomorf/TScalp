@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.data.api
+package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.MoneyValueDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsFuturesDto

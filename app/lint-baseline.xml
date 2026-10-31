@@ -7,7 +7,7 @@
         errorLine1="class CustomTrustManager("
         errorLine2="      ~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/CustomTrustManager.kt"
+            file="src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/common/CustomTrustManager.kt"
             line="13"
             column="7"/>
     </issue>

@@ -1,7 +1,11 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
-import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPositionsService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestTradingService
 import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
 import com.gitlab.biomorf.tscalp.data.orchestrator.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
@@ -22,9 +26,13 @@ import kotlinx.coroutines.flow.Flow
  * Фаза 2 добавит WS как fallback стрим-уровня.
  */
 class TInvestOrchestrator(
-    private val marketData: TInvestMarketDataService,
+    private val positions: TInvestPositionsService,
     private val debugFlagsRepository: DebugFlagsRepository,
     private val orders: TInvestOrdersService,
+    private val accounts: TInvestAccountsService,
+    private val portfolio: TInvestPortfolioService,
+    private val prices: TInvestPricesService,
+    private val trading: TInvestTradingService,
     private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -44,7 +52,7 @@ class TInvestOrchestrator(
                 if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
-                    marketData.subscribePositionsGrpcWithReconnect(accountId)
+                    positions.subscribePositionsGrpcWithReconnect(accountId)
                 },
             fallback =
                 if (debugFlagsRepository.disableWs) {
@@ -61,7 +69,7 @@ class TInvestOrchestrator(
                 if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
-                    retryWithBackoff { marketData.subscribeLastPrices(uids.toList()) }
+                    retryWithBackoff { prices.subscribeLastPrices(uids.toList()) }
                 },
             fallback =
                 if (debugFlagsRepository.disableWs) {
@@ -78,7 +86,7 @@ class TInvestOrchestrator(
                 if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
-                    retryWithBackoff { marketData.subscribeOrderState(accountId) }
+                    retryWithBackoff { trading.subscribeOrderState(accountId) }
                 },
             fallback =
                 if (debugFlagsRepository.disableWs) {
@@ -102,7 +110,7 @@ class TInvestOrchestrator(
             return rest(accountId, sandboxMode)
         }
         return try {
-            marketData.fetchPortfolioPositions(accountId, sandboxMode)
+            portfolio.fetchPortfolioPositions(accountId, sandboxMode)
         } catch (e: Throwable) {
             if (isTransportError(e) && positionsRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")
@@ -121,7 +129,7 @@ class TInvestOrchestrator(
             return rest(uids)
         }
         return try {
-            marketData.getLastPricesByTscalpInstrumentId(uids)
+            prices.getLastPricesByTscalpInstrumentId(uids)
         } catch (e: Throwable) {
             if (isTransportError(e) && pricesRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST")
@@ -172,7 +180,7 @@ class TInvestOrchestrator(
             return rest(accountId)
         }
         return try {
-            marketData.getBalance(accountId)
+            accounts.getBalance(accountId)
         } catch (e: Throwable) {
             if (isTransportError(e) && balanceRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for balance")

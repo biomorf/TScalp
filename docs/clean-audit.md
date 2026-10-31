@@ -1287,24 +1287,6 @@ InvestRepository split` (ROADMAP).
 
 **Сводный отчёт, 2026-10-31:** — (не включена).
 
-### Н63. TInvestMarketDataService — god-класс 622 строки
-
-**Статус:** открыто.
-
-**Серьёзность:** критично.
-
-**Live тест:** -
-
-**Описание:** `TInvestMarketDataService` — 622 строки, 19 функций, `@Suppress("TooManyFunctions")`. Отвечает за: счета (`getAccounts`, `openSandboxAccount`, `closeSandboxAccount`), портфель (`getPortfolio`, `fetchPortfolioPositions`), gRPC-стримы позиций (`subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect`, `convertSecurity`, `convertFuture`), баланс (`getBalance`, `sandboxPayIn`), инструменты (`fetchFullInstrument`, `findInstruments`, `findInstrumentShorts`, `fetchProtoInstrument`, `getFuturesMargin`), цены/статусы (`getLastPricesByTscalpInstrumentId`, `getTradingStatuses`), gRPC-стримы цен/ордеров (`subscribeLastPrices`, `subscribeOrderState`), проверка (`checkTradeAvailability`).
-
-**Нарушенное правило Clean:** SRP — класс отвечает за 8+ доменных областей.
-
-**Clean-альтернатива:** разбить по областям: `TInvestAccountsService`, `TInvestPortfolioService`, `TInvestPositionsService`, `TInvestInstrumentsService`, `TInvestPricesService`, `TInvestTradingService`. Плюсы: один сервис — одна область. Минусы: 6 файлов вместо 1, `TInvestApiState` шарится.
-
-**Выгоды:** все методы работают на общем `TInvestApiState`, единая точка для gRPC-каналов. Разбивка — при рефакторинге.
-
-**Ссылка на задачу:** `### Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP) — запланировано (отдельная сессия).
-
 ### Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
 
 **Статус:** открыто.
@@ -1605,7 +1587,7 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** PR #81 (`feature/clean-audit-pkg-b`, `dev`).
 
-### Н71. BcsBrokerApi.initialize логирует refreshToken
+### ✅ Н71. BcsBrokerApi.initialize логирует refreshToken
 
 **Статус:** исправлено (2026-10-28, ветка `bugfix/security-token-logging`).
 
@@ -1713,6 +1695,24 @@ InvestRepository split` (ROADMAP).
 **Что сделано:** `TInvestWsService.initialize` — `stop()` первой строкой (до `if (sandbox) return`): старый `wsScope` (prices / orderState) отменяется, клиенты закрываются. Формулировка уточнена: `positionsWebSocket` — cold flow (Н87), `= null` в `stop()` достаточно. `TInvestBrokerApi.initialize` не менялся (делегирует lifecycle в `wsService.initialize`). Коммит `2e2df67`. **Live-тест PASS** (2026-10-31): сценарий A — logout → нет `connecting` до login; login → ровно 1 `connecting` на prices и 1 на positions; frames от старых соединений не идут. Сценарий C — sandbox → нет `connecting` (`if (sandbox) return`).
 
 **Ссылка на задачу:** PR #78 (`dev`, 2026-10-31). `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket».
+
+### ✅ Н63. TInvestMarketDataService — god-класс 622 строки
+
+**Статус:** исправлено (2026-10-31, feature/tinvest-market-data-split, PR pending).
+
+**Серьёзность:** критично.
+
+**Live тест:** -
+
+**Описание:** `TInvestMarketDataService` — 622 строки, 19 функций, `@Suppress("TooManyFunctions")`. Отвечает за: счета (`getAccounts`, `openSandboxAccount`, `closeSandboxAccount`), портфель (`getPortfolio`, `fetchPortfolioPositions`), gRPC-стримы позиций (`subscribePositionsGrpc`, `subscribePositionsGrpcWithReconnect`, `convertSecurity`, `convertFuture`), баланс (`getBalance`, `sandboxPayIn`), инструменты (`fetchFullInstrument`, `findInstruments`, `findInstrumentShorts`, `fetchProtoInstrument`, `getFuturesMargin`), цены/статусы (`getLastPricesByTscalpInstrumentId`, `getTradingStatuses`), gRPC-стримы цен/ордеров (`subscribeLastPrices`, `subscribeOrderState`), проверка (`checkTradeAvailability`).
+
+**Нарушенное правило Clean:** SRP — класс отвечает за 8+ доменных областей.
+
+**Clean-альтернатива:** разбить по областям: `TInvestAccountsService`, `TInvestPortfolioService`, `TInvestPositionsService`, `TInvestInstrumentsService`, `TInvestPricesService`, `TInvestTradingService`. Плюсы: один сервис — одна область. Минусы: 6 файлов вместо 1, `TInvestApiState` шарится.
+
+**Выгоды:** все методы работают на общем `TInvestApiState`, единая точка для gRPC-каналов. Разбивка — при рефакторинге.
+
+**Ссылка на задачу:** `### ✅ Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP, `dev`, 2026-10-31; PR pending).
 
 ## L7 — di
 
