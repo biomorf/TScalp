@@ -18,17 +18,20 @@ import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
 import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
 
 /**
- * Маркет-данные, портфель, стримы и счета T-Invest.
- * Работает на разделяемом TInvestApiState.
- * // Архитектурный долг: 19 функций в классе. См. ROADMAP → «Рефакторинг data-слоя T-Invest».
+ * Стримы позиций T-Invest (gRPC + reconnect).
+ *
+ * Выделен из `TInvestMarketDataService` (clean-audit Н63, шаг 7).
+ * Отвечает только за gRPC-стрим позиций: `subscribePositionsGrpc`
+ * (одиночная попытка) и `subscribePositionsGrpcWithReconnect`
+ * (переподключение с backoff). Polling и P&L-обогащение —
+ * в `PositionFlowManager`.
  */
-@Suppress("TooManyFunctions")
-class TInvestMarketDataService(
+class TInvestPositionsService(
     private val state: TInvestApiState,
     private val logger: Logger,
 ) {
     companion object {
-        private const val TAG = "TInvestMarketData"
+        private const val TAG = "TInvestPositions"
 
         /** Интервал polling позиций. */
         private const val RETRY_DELAY_MS = 10_000L

@@ -1,9 +1,9 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
-import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPositionsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestTradingService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
@@ -22,7 +22,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class TInvestOrchestratorFallbackTest {
-    private val marketData = mockk<TInvestMarketDataService>()
+    private val positions = mockk<TInvestPositionsService>()
     private val accounts = mockk<TInvestAccountsService>()
     private val orders = mockk<TInvestOrdersService>()
     private val portfolio = mockk<TInvestPortfolioService>()
@@ -37,7 +37,7 @@ class TInvestOrchestratorFallbackTest {
 
             val orchestrator =
                 TInvestOrchestrator(
-                    marketData = marketData,
+                    positions = positions,
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
@@ -61,7 +61,7 @@ class TInvestOrchestratorFallbackTest {
             var fallbackCalled = false
             val orchestrator =
                 TInvestOrchestrator(
-                    marketData = marketData,
+                    positions = positions,
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
@@ -92,7 +92,7 @@ class TInvestOrchestratorFallbackTest {
 
             val orchestrator =
                 TInvestOrchestrator(
-                    marketData = marketData,
+                    positions = positions,
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
@@ -116,7 +116,7 @@ class TInvestOrchestratorFallbackTest {
 
             val orchestrator =
                 TInvestOrchestrator(
-                    marketData = marketData,
+                    positions = positions,
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
@@ -148,7 +148,7 @@ class TInvestOrchestratorFallbackTest {
 
             val orchestrator =
                 TInvestOrchestrator(
-                    marketData = marketData,
+                    positions = positions,
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,

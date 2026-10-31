@@ -1,9 +1,9 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
-import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPositionsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestTradingService
 import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.Flow
  * Фаза 2 добавит WS как fallback стрим-уровня.
  */
 class TInvestOrchestrator(
-    private val marketData: TInvestMarketDataService,
+    private val positions: TInvestPositionsService,
     private val debugFlagsRepository: DebugFlagsRepository,
     private val orders: TInvestOrdersService,
     private val accounts: TInvestAccountsService,
@@ -52,7 +52,7 @@ class TInvestOrchestrator(
                 if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
-                    marketData.subscribePositionsGrpcWithReconnect(accountId)
+                    positions.subscribePositionsGrpcWithReconnect(accountId)
                 },
             fallback =
                 if (debugFlagsRepository.disableWs) {

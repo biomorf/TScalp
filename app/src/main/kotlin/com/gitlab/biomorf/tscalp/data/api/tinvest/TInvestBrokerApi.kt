@@ -35,8 +35,13 @@ import ru.ttech.piapi.core.InvestApi
 
 /**
  * Фасад T-Invest API.
- * Держит состояние (api, channels, sandboxMode), делегирует в два сервиса:
- *  - TInvestMarketDataService — счета, портфель, инструменты, цены, стримы, баланс;
+ * Держит состояние (api, channels, sandboxMode) и делегирует в 7 сервисов:
+ *  - TInvestPositionsService — gRPC-стрим позиций + reconnect;
+ *  - TInvestAccountsService — счета, sandbox-операции, баланс;
+ *  - TInvestInstrumentsService — полный инструмент по uid, поиск, стоимость шага цены;
+ *  - TInvestPortfolioService — портфель, обогащение позиций инструментами;
+ *  - TInvestPricesService — unary GetLastPrices + gRPC-стрим последних цен;
+ *  - TInvestTradingService — статусы инструментов, стрим статусов заявок, проверка доступности;
  *  - TInvestOrdersService — заявки, стоп-заявки, отмена.
  *  // Архитектурный долг: 22 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
  *
@@ -69,13 +74,13 @@ class TInvestBrokerAPI(
     private val accountsService = TInvestAccountsService(state, logger)
     private val pricesService = TInvestPricesService(state, logger)
     private val tradingService = TInvestTradingService(state, logger, accountsService, pricesService)
-    private val marketDataService = TInvestMarketDataService(state, logger)
+    private val positionsService = TInvestPositionsService(state, logger)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
     private val orchestrator =
         TInvestOrchestrator(
-            marketData = marketDataService,
+            positions = positionsService,
             debugFlagsRepository = debugFlagsRepository,
             orders = ordersService,
             accounts = accountsService,
