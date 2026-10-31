@@ -1587,7 +1587,7 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** PR #81 (`feature/clean-audit-pkg-b`, `dev`).
 
-### Н71. BcsBrokerApi.initialize логирует refreshToken
+### ✅ Н71. BcsBrokerApi.initialize логирует refreshToken
 
 **Статус:** исправлено (2026-10-28, ветка `bugfix/security-token-logging`).
 
