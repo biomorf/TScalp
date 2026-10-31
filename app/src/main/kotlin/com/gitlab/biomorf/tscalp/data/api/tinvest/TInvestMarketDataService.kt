@@ -1,15 +1,12 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.log.Logger
-import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
-import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
-import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import io.grpc.stub.StreamObserver
@@ -27,7 +24,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
-import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
 import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
 import ru.tinkoff.piapi.contract.v1.GetLastPricesRequest
 import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
@@ -40,7 +36,6 @@ import ru.tinkoff.piapi.contract.v1.LastPriceInstrument
 import ru.tinkoff.piapi.contract.v1.MarketDataResponse
 import ru.tinkoff.piapi.contract.v1.MarketDataServerSideStreamRequest
 import ru.tinkoff.piapi.contract.v1.MarketDataStreamServiceGrpc
-import ru.tinkoff.piapi.contract.v1.MoneyValue
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
 import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
@@ -50,7 +45,6 @@ import ru.tinkoff.piapi.contract.v1.PositionsFutures
 import ru.tinkoff.piapi.contract.v1.PositionsSecurities
 import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
 import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
-import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
 import ru.tinkoff.piapi.contract.v1.SubscribeLastPriceRequest
 import ru.tinkoff.piapi.contract.v1.SubscriptionAction
 
@@ -78,53 +72,6 @@ class TInvestMarketDataService(
     }
 
     // ---------- Счета ----------
-
-    suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> =
-        withContext(Dispatchers.IO) {
-            val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val request = GetAccountsRequest.getDefaultInstance()
-            val accounts =
-                if (sandboxMode) {
-                    currentApi.sandboxServiceSync.getSandboxAccounts(request).accountsList
-                } else {
-                    currentApi.usersServiceSync.getAccounts(request).accountsList
-                }
-            accounts.map { acc ->
-                BrokerAccount(
-                    id = acc.id,
-                    name = acc.name.ifBlank { "Счёт ${acc.id.take(8)}…" },
-                    type =
-                        when (acc.typeValue) {
-                            1 -> BrokerAccountType.BROKER
-                            2 -> BrokerAccountType.IIS
-                            3 -> BrokerAccountType.INVEST_BOX
-                            else -> BrokerAccountType.OTHER
-                        },
-                )
-            }
-        }
-
-    suspend fun openSandboxAccount(): String =
-        withContext(Dispatchers.IO) {
-            val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val request =
-                ru.tinkoff.piapi.contract.v1.OpenSandboxAccountRequest
-                    .newBuilder()
-                    .build()
-            currentApi.sandboxServiceSync.openSandboxAccount(request).accountId
-        }
-
-    suspend fun closeSandboxAccount(accountId: String) =
-        withContext(Dispatchers.IO) {
-            val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val request =
-                ru.tinkoff.piapi.contract.v1.CloseSandboxAccountRequest
-                    .newBuilder()
-                    .setAccountId(accountId)
-                    .build()
-            currentApi.sandboxServiceSync.closeSandboxAccount(request)
-            logger.d(TAG, "Счёт песочницы $accountId закрыт")
-        }
 
     // ---------- Портфель ----------
 
@@ -350,27 +297,6 @@ class TInvestMarketDataService(
                 (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
             }
         }
-
-    suspend fun sandboxPayIn(
-        accountId: String,
-        amount: SandboxMoney,
-    ) = withContext(Dispatchers.IO) {
-        val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-        val money =
-            MoneyValue
-                .newBuilder()
-                .setCurrency(amount.currency)
-                .setUnits(amount.units)
-                .setNano(amount.nano)
-                .build()
-        val request =
-            SandboxPayInRequest
-                .newBuilder()
-                .setAccountId(accountId)
-                .setAmount(money)
-                .build()
-        currentApi.sandboxServiceSync.sandboxPayIn(request)
-    }
 
     // ---------- Инструменты ----------
 

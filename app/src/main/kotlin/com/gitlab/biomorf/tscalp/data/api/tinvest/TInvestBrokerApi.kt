@@ -65,6 +65,7 @@ class TInvestBrokerAPI(
     TradeCheckApi {
     private val state = TInvestApiState()
     private val marketDataService = TInvestMarketDataService(state, logger)
+    private val accountsService = TInvestAccountsService(state, logger)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
@@ -152,12 +153,12 @@ class TInvestBrokerAPI(
 
     // ---------- BrokerApi: делегирование ----------
 
-    override suspend fun getAccounts(sandboxMode: Boolean) = marketDataService.getAccounts(sandboxMode)
+    override suspend fun getAccounts(sandboxMode: Boolean) = accountsService.getAccounts(sandboxMode)
 
-    override suspend fun openSandboxAccount() = marketDataService.openSandboxAccount()
+    override suspend fun openSandboxAccount() = accountsService.openSandboxAccount()
 
     override suspend fun closeSandboxAccount(accountId: String) {
-        marketDataService.closeSandboxAccount(accountId)
+        accountsService.closeSandboxAccount(accountId)
     }
 
     override suspend fun fetchPortfolioPositions(
@@ -173,7 +174,7 @@ class TInvestBrokerAPI(
         accountId: String,
         amount: SandboxMoney,
     ) {
-        marketDataService.sandboxPayIn(accountId, amount)
+        accountsService.sandboxPayIn(accountId, amount)
     }
 
     override suspend fun findInstruments(query: String) = marketDataService.findInstruments(query)
