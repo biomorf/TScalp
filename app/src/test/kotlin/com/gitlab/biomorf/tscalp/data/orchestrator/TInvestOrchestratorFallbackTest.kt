@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestMarketDataService
-import com.gitlab.biomorf.tscalp.data.api.TInvestOrdersService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order

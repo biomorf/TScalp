@@ -1,6 +1,7 @@
-package com.gitlab.biomorf.tscalp.data.api
+package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import android.content.Context
+import com.gitlab.biomorf.tscalp.data.api.common.CustomTrustManager
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import io.grpc.ManagedChannel
 import io.grpc.Metadata

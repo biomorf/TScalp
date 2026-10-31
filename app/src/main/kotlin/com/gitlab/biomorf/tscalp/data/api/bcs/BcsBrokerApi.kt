@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.data.api
+package com.gitlab.biomorf.tscalp.data.api.bcs
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.AccountsApi

@@ -4,11 +4,11 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-import com.gitlab.biomorf.tscalp.data.api.BcsBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.CustomTrustManager
-import com.gitlab.biomorf.tscalp.data.api.FinamBrokerApi
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
-import com.gitlab.biomorf.tscalp.data.api.TInvestChannelFactory
+import com.gitlab.biomorf.tscalp.data.api.bcs.BcsBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.common.CustomTrustManager
+import com.gitlab.biomorf.tscalp.data.api.finam.FinamBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestBrokerAPI
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestChannelFactory
 import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository

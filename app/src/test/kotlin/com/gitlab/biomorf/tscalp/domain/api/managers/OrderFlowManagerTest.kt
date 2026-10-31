@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
-import com.gitlab.biomorf.tscalp.data.api.TInvestBrokerAPI
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
