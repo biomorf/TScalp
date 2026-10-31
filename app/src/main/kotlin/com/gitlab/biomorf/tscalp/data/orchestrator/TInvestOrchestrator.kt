@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
@@ -25,6 +26,7 @@ class TInvestOrchestrator(
     private val marketData: TInvestMarketDataService,
     private val debugFlagsRepository: DebugFlagsRepository,
     private val orders: TInvestOrdersService,
+    private val accounts: TInvestAccountsService,
     private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -172,7 +174,7 @@ class TInvestOrchestrator(
             return rest(accountId)
         }
         return try {
-            marketData.getBalance(accountId)
+            accounts.getBalance(accountId)
         } catch (e: Throwable) {
             if (isTransportError(e) && balanceRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for balance")

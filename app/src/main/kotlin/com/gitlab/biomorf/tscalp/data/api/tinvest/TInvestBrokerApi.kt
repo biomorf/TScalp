@@ -65,8 +65,8 @@ class TInvestBrokerAPI(
     TradeCheckApi {
     private val state = TInvestApiState()
     private val instrumentsService = TInvestInstrumentsService(state, logger)
-    private val marketDataService = TInvestMarketDataService(state, logger, instrumentsService)
     private val accountsService = TInvestAccountsService(state, logger)
+    private val marketDataService = TInvestMarketDataService(state, logger, instrumentsService, accountsService)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
@@ -75,6 +75,7 @@ class TInvestBrokerAPI(
             marketData = marketDataService,
             debugFlagsRepository = debugFlagsRepository,
             orders = ordersService,
+            accounts = accountsService,
             logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },

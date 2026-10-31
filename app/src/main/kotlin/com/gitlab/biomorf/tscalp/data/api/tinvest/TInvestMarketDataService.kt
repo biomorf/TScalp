@@ -23,7 +23,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.GetLastPricesRequest
-import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
 import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
 import ru.tinkoff.piapi.contract.v1.LastPriceInstrument
 import ru.tinkoff.piapi.contract.v1.MarketDataResponse
@@ -51,6 +50,7 @@ class TInvestMarketDataService(
     private val state: TInvestApiState,
     private val logger: Logger,
     private val instrumentsService: TInvestInstrumentsService,
+    private val accountsService: TInvestAccountsService,
 ) {
     companion object {
         private const val TAG = "TInvestMarketData"
@@ -264,34 +264,6 @@ class TInvestMarketDataService(
         return GRPC_RETRY_DELAYS_MS[idx]
     }
 
-    // ---------- Баланс и пополнение ----------
-
-    suspend fun getBalance(accountId: String): Double =
-        withContext(Dispatchers.IO) {
-            val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            if (state.sandboxMode) {
-                val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
-                val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(request)
-                val totalRub =
-                    (portfolio.totalAmountCurrencies?.units ?: 0) +
-                        (portfolio.totalAmountCurrencies?.nano ?: 0) / 1_000_000_000.0
-                val positionsValue =
-                    portfolio.positionsList
-                        .filterNot { it.instrumentType == "currency" }
-                        .sumOf { pos ->
-                            val price = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                            val qty = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
-                            price * qty
-                        }
-                totalRub - positionsValue
-            } else {
-                val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-                val response = currentApi.usersServiceSync.getMarginAttributes(request)
-                val money = response.liquidPortfolio
-                (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
-            }
-        }
-
     // ---------- Цены и статусы ----------
 
     suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>): Map<String, Double?> =
@@ -467,7 +439,7 @@ class TInvestMarketDataService(
         direction: OrderDirection,
         quantity: Long,
     ): TradeCheckResult {
-        val balance = getBalance(accountId)
+        val balance = accountsService.getBalance(accountId)
         val lastPrice =
             getLastPricesByTscalpInstrumentId(listOf(uid))[uid]
                 ?: return TradeCheckResult.Error("Цена не получена")

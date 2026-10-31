@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
@@ -19,6 +20,7 @@ import org.junit.Test
 
 class TInvestOrchestratorFallbackTest {
     private val marketData = mockk<TInvestMarketDataService>()
+    private val accounts = mockk<TInvestAccountsService>()
     private val orders = mockk<TInvestOrdersService>()
 
     @Test
@@ -31,6 +33,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    accounts = accounts,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = { restData },
@@ -51,6 +54,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    accounts = accounts,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = {
@@ -78,6 +82,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    accounts = accounts,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     ordersRestFallback = { restOrders },
@@ -92,12 +97,13 @@ class TInvestOrchestratorFallbackTest {
     fun `balanceSnapshot falls back to REST on UNAVAILABLE`() =
         runBlocking {
             val restBalance = 5000.0
-            coEvery { marketData.getBalance(any()) } throws StatusException(Status.UNAVAILABLE)
+            coEvery { accounts.getBalance(any()) } throws StatusException(Status.UNAVAILABLE)
 
             val orchestrator =
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    accounts = accounts,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     balanceRestFallback = { restBalance },
@@ -105,7 +111,7 @@ class TInvestOrchestratorFallbackTest {
 
             val result = orchestrator.balanceSnapshot("acc1")
             assertEquals(restBalance, result, 0.0001)
-            coVerify(exactly = 1) { marketData.getBalance(any()) }
+            coVerify(exactly = 1) { accounts.getBalance(any()) }
         }
 
     @Test
@@ -126,6 +132,7 @@ class TInvestOrchestratorFallbackTest {
                 TInvestOrchestrator(
                     marketData = marketData,
                     orders = orders,
+                    accounts = accounts,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     positionsRestFallback = { _, _ -> restPositions },

@@ -8,8 +8,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.CloseSandboxAccountRequest
 import ru.tinkoff.piapi.contract.v1.GetAccountsRequest
+import ru.tinkoff.piapi.contract.v1.GetMarginAttributesRequest
 import ru.tinkoff.piapi.contract.v1.MoneyValue
 import ru.tinkoff.piapi.contract.v1.OpenSandboxAccountRequest
+import ru.tinkoff.piapi.contract.v1.PortfolioRequest
 import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
 
 /**
@@ -18,7 +20,7 @@ import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
  * Выделен из `TInvestMarketDataService` (clean-audit Н63, шаг 1).
  * Отвечает за: счета, песочницу (открытие/закрытие счёта, пополнение).
  */
-internal class TInvestAccountsService(
+class TInvestAccountsService(
     private val state: TInvestApiState,
     private val logger: Logger,
 ) {
@@ -86,6 +88,32 @@ internal class TInvestAccountsService(
                 .build()
         currentApi.sandboxServiceSync.sandboxPayIn(request)
     }
+
+    suspend fun getBalance(accountId: String): Double =
+        withContext(Dispatchers.IO) {
+            val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
+            if (state.sandboxMode) {
+                val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
+                val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(request)
+                val totalRub =
+                    (portfolio.totalAmountCurrencies?.units ?: 0) +
+                        (portfolio.totalAmountCurrencies?.nano ?: 0) / 1_000_000_000.0
+                val positionsValue =
+                    portfolio.positionsList
+                        .filterNot { it.instrumentType == "currency" }
+                        .sumOf { pos ->
+                            val price = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                            val qty = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0
+                            price * qty
+                        }
+                totalRub - positionsValue
+            } else {
+                val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
+                val response = currentApi.usersServiceSync.getMarginAttributes(request)
+                val money = response.liquidPortfolio
+                (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
+            }
+        }
 
     companion object {
         private const val TAG = "TInvestAccounts"
