@@ -1698,7 +1698,7 @@ InvestRepository split` (ROADMAP).
 
 ### ✅ Н63. TInvestMarketDataService — god-класс 622 строки
 
-**Статус:** исправлено (2026-10-31, feature/tinvest-market-data-split, PR pending).
+**Статус:** исправлено (2026-10-31, PR #84, `dev`).
 
 **Серьёзность:** критично.
 
@@ -1712,7 +1712,7 @@ InvestRepository split` (ROADMAP).
 
 **Выгоды:** все методы работают на общем `TInvestApiState`, единая точка для gRPC-каналов. Разбивка — при рефакторинге.
 
-**Ссылка на задачу:** `### ✅ Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP, `dev`, 2026-10-31; PR pending).
+**Ссылка на задачу:** `### ✅ Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP, `dev`, 2026-10-31; PR #84).
 
 ## L7 — di
 
