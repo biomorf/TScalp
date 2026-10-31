@@ -5,6 +5,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestTradingService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
@@ -26,6 +27,7 @@ class TInvestOrchestratorFallbackTest {
     private val orders = mockk<TInvestOrdersService>()
     private val portfolio = mockk<TInvestPortfolioService>()
     private val prices = mockk<TInvestPricesService>()
+    private val trading = mockk<TInvestTradingService>()
 
     @Test
     fun `pricesSnapshot falls back to REST on UNAVAILABLE`() =
@@ -40,6 +42,7 @@ class TInvestOrchestratorFallbackTest {
                     accounts = accounts,
                     portfolio = portfolio,
                     prices = prices,
+                    trading = trading,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = { restData },
@@ -63,6 +66,7 @@ class TInvestOrchestratorFallbackTest {
                     accounts = accounts,
                     portfolio = portfolio,
                     prices = prices,
+                    trading = trading,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = {
@@ -93,6 +97,7 @@ class TInvestOrchestratorFallbackTest {
                     accounts = accounts,
                     portfolio = portfolio,
                     prices = prices,
+                    trading = trading,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     ordersRestFallback = { restOrders },
@@ -116,6 +121,7 @@ class TInvestOrchestratorFallbackTest {
                     accounts = accounts,
                     portfolio = portfolio,
                     prices = prices,
+                    trading = trading,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     balanceRestFallback = { restBalance },
@@ -147,6 +153,7 @@ class TInvestOrchestratorFallbackTest {
                     accounts = accounts,
                     portfolio = portfolio,
                     prices = prices,
+                    trading = trading,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     positionsRestFallback = { _, _ -> restPositions },

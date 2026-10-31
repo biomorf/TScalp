@@ -68,7 +68,8 @@ class TInvestBrokerAPI(
     private val portfolioService = TInvestPortfolioService(state, instrumentsService)
     private val accountsService = TInvestAccountsService(state, logger)
     private val pricesService = TInvestPricesService(state, logger)
-    private val marketDataService = TInvestMarketDataService(state, logger, accountsService, pricesService)
+    private val tradingService = TInvestTradingService(state, logger, accountsService, pricesService)
+    private val marketDataService = TInvestMarketDataService(state, logger)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
@@ -80,6 +81,7 @@ class TInvestBrokerAPI(
             accounts = accountsService,
             portfolio = portfolioService,
             prices = pricesService,
+            trading = tradingService,
             logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
@@ -209,7 +211,7 @@ class TInvestBrokerAPI(
 
     override suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>) = pricesService.getLastPricesByTscalpInstrumentId(uids)
 
-    override suspend fun getTradingStatuses(uids: List<String>) = marketDataService.getTradingStatuses(uids)
+    override suspend fun getTradingStatuses(uids: List<String>) = tradingService.getTradingStatuses(uids)
 
     override suspend fun subscribeOrderState(accountId: String): Flow<OrderState> = orchestrator.orderStateStream(accountId)
 
@@ -223,7 +225,7 @@ class TInvestBrokerAPI(
         val resolvedUid =
             brokerUid
                 ?: return TradeCheckResult.Error("Нет brokerUid")
-        return marketDataService.checkTradeAvailability(accountId, resolvedUid, direction, quantity)
+        return tradingService.checkTradeAvailability(accountId, resolvedUid, direction, quantity)
     }
 
     // ---------- Публичные методы вне BrokerApi ----------

@@ -5,6 +5,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestTradingService
 import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
 import com.gitlab.biomorf.tscalp.data.orchestrator.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
@@ -31,6 +32,7 @@ class TInvestOrchestrator(
     private val accounts: TInvestAccountsService,
     private val portfolio: TInvestPortfolioService,
     private val prices: TInvestPricesService,
+    private val trading: TInvestTradingService,
     private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -84,7 +86,7 @@ class TInvestOrchestrator(
                 if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
-                    retryWithBackoff { marketData.subscribeOrderState(accountId) }
+                    retryWithBackoff { trading.subscribeOrderState(accountId) }
                 },
             fallback =
                 if (debugFlagsRepository.disableWs) {
