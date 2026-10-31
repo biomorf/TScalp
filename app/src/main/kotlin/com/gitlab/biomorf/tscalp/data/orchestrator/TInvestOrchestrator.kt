@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
 import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
 import com.gitlab.biomorf.tscalp.data.orchestrator.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
@@ -29,6 +30,7 @@ class TInvestOrchestrator(
     private val orders: TInvestOrdersService,
     private val accounts: TInvestAccountsService,
     private val portfolio: TInvestPortfolioService,
+    private val prices: TInvestPricesService,
     private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -65,7 +67,7 @@ class TInvestOrchestrator(
                 if (debugFlagsRepository.disableGrpc) {
                     null
                 } else {
-                    retryWithBackoff { marketData.subscribeLastPrices(uids.toList()) }
+                    retryWithBackoff { prices.subscribeLastPrices(uids.toList()) }
                 },
             fallback =
                 if (debugFlagsRepository.disableWs) {
@@ -125,7 +127,7 @@ class TInvestOrchestrator(
             return rest(uids)
         }
         return try {
-            marketData.getLastPricesByTscalpInstrumentId(uids)
+            prices.getLastPricesByTscalpInstrumentId(uids)
         } catch (e: Throwable) {
             if (isTransportError(e) && pricesRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST")

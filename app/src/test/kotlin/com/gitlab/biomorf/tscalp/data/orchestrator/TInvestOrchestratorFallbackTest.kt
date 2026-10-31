@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestMarketDataService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
@@ -24,12 +25,13 @@ class TInvestOrchestratorFallbackTest {
     private val accounts = mockk<TInvestAccountsService>()
     private val orders = mockk<TInvestOrdersService>()
     private val portfolio = mockk<TInvestPortfolioService>()
+    private val prices = mockk<TInvestPricesService>()
 
     @Test
     fun `pricesSnapshot falls back to REST on UNAVAILABLE`() =
         runBlocking {
             val restData = mapOf("uid1" to 100.0)
-            coEvery { marketData.getLastPricesByTscalpInstrumentId(any()) } throws StatusException(Status.UNAVAILABLE)
+            coEvery { prices.getLastPricesByTscalpInstrumentId(any()) } throws StatusException(Status.UNAVAILABLE)
 
             val orchestrator =
                 TInvestOrchestrator(
@@ -37,6 +39,7 @@ class TInvestOrchestratorFallbackTest {
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
+                    prices = prices,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = { restData },
@@ -44,13 +47,13 @@ class TInvestOrchestratorFallbackTest {
 
             val result = orchestrator.pricesSnapshot(listOf("uid1"))
             assertEquals(restData, result)
-            coVerify(exactly = 1) { marketData.getLastPricesByTscalpInstrumentId(any()) }
+            coVerify(exactly = 1) { prices.getLastPricesByTscalpInstrumentId(any()) }
         }
 
     @Test
     fun `pricesSnapshot does not fall back on business error`() =
         runBlocking {
-            coEvery { marketData.getLastPricesByTscalpInstrumentId(any()) } throws StatusException(Status.INVALID_ARGUMENT)
+            coEvery { prices.getLastPricesByTscalpInstrumentId(any()) } throws StatusException(Status.INVALID_ARGUMENT)
 
             var fallbackCalled = false
             val orchestrator =
@@ -59,6 +62,7 @@ class TInvestOrchestratorFallbackTest {
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
+                    prices = prices,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = {
@@ -88,6 +92,7 @@ class TInvestOrchestratorFallbackTest {
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
+                    prices = prices,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     ordersRestFallback = { restOrders },
@@ -110,6 +115,7 @@ class TInvestOrchestratorFallbackTest {
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
+                    prices = prices,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     balanceRestFallback = { restBalance },
@@ -140,6 +146,7 @@ class TInvestOrchestratorFallbackTest {
                     orders = orders,
                     accounts = accounts,
                     portfolio = portfolio,
+                    prices = prices,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     positionsRestFallback = { _, _ -> restPositions },

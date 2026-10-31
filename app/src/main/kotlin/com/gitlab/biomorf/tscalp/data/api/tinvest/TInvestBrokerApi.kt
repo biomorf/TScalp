@@ -67,7 +67,8 @@ class TInvestBrokerAPI(
     private val instrumentsService = TInvestInstrumentsService(state, logger)
     private val portfolioService = TInvestPortfolioService(state, instrumentsService)
     private val accountsService = TInvestAccountsService(state, logger)
-    private val marketDataService = TInvestMarketDataService(state, logger, accountsService)
+    private val pricesService = TInvestPricesService(state, logger)
+    private val marketDataService = TInvestMarketDataService(state, logger, accountsService, pricesService)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
@@ -78,6 +79,7 @@ class TInvestBrokerAPI(
             orders = ordersService,
             accounts = accountsService,
             portfolio = portfolioService,
+            prices = pricesService,
             logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
@@ -205,7 +207,7 @@ class TInvestBrokerAPI(
         ordersService.cancelOrder(accountId, orderId)
     }
 
-    override suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>) = marketDataService.getLastPricesByTscalpInstrumentId(uids)
+    override suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>) = pricesService.getLastPricesByTscalpInstrumentId(uids)
 
     override suspend fun getTradingStatuses(uids: List<String>) = marketDataService.getTradingStatuses(uids)
 

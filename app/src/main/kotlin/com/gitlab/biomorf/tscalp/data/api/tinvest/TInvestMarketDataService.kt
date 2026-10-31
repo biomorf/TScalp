@@ -21,12 +21,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import ru.tinkoff.piapi.contract.v1.GetLastPricesRequest
 import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
-import ru.tinkoff.piapi.contract.v1.LastPriceInstrument
-import ru.tinkoff.piapi.contract.v1.MarketDataResponse
-import ru.tinkoff.piapi.contract.v1.MarketDataServerSideStreamRequest
-import ru.tinkoff.piapi.contract.v1.MarketDataStreamServiceGrpc
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamResponse
 import ru.tinkoff.piapi.contract.v1.OrdersStreamServiceGrpc
@@ -34,8 +29,6 @@ import ru.tinkoff.piapi.contract.v1.PositionsFutures
 import ru.tinkoff.piapi.contract.v1.PositionsSecurities
 import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest
 import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse
-import ru.tinkoff.piapi.contract.v1.SubscribeLastPriceRequest
-import ru.tinkoff.piapi.contract.v1.SubscriptionAction
 
 /**
  * Маркет-данные, портфель, стримы и счета T-Invest.
@@ -47,6 +40,7 @@ class TInvestMarketDataService(
     private val state: TInvestApiState,
     private val logger: Logger,
     private val accountsService: TInvestAccountsService,
+    private val pricesService: TInvestPricesService,
 ) {
     companion object {
         private const val TAG = "TInvestMarketData"
@@ -198,18 +192,6 @@ class TInvestMarketDataService(
 
     // ---------- Цены и статусы ----------
 
-    suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>): Map<String, Double?> =
-        withContext(Dispatchers.IO) {
-            if (uids.isEmpty()) return@withContext emptyMap()
-            val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(uids).build()
-            logger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${uids.size} instruments")
-            val response = currentApi.marketDataServiceSync.getLastPrices(request)
-            response.lastPricesList.associate { lp ->
-                lp.instrumentUid to (lp.price?.let { it.units + it.nano / 1_000_000_000.0 })
-            }
-        }
-
     suspend fun getTradingStatuses(uids: List<String>): Map<String, TradingAvailability> =
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
@@ -236,54 +218,6 @@ class TInvestMarketDataService(
                 }
             result.putAll(statuses)
             result
-        }
-
-    // ---------- Стрим последних цен ----------
-
-    fun subscribeLastPrices(uids: List<String>): Flow<Pair<String, Double>> =
-        callbackFlow {
-            val channel =
-                state.channels?.pricesStream
-                    ?: throw IllegalStateException("gRPC-стрим не инициализирован")
-            val stub = MarketDataStreamServiceGrpc.newStub(channel)
-
-            val instruments = uids.map { LastPriceInstrument.newBuilder().setInstrumentId(it).build() }
-            val subscribe =
-                SubscribeLastPriceRequest
-                    .newBuilder()
-                    .setSubscriptionAction(SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE)
-                    .addAllInstruments(instruments)
-                    .build()
-            val serverSideRequest =
-                MarketDataServerSideStreamRequest
-                    .newBuilder()
-                    .setSubscribeLastPriceRequest(subscribe)
-                    .build()
-
-            val responseObserver =
-                object : StreamObserver<MarketDataResponse> {
-                    override fun onNext(value: MarketDataResponse) {
-                        if (value.hasLastPrice()) {
-                            val lp = value.lastPrice
-                            val price = lp.price?.let { it.units + it.nano / 1_000_000_000.0 }
-                            if (price != null) {
-                                logger.d(TAG, "[stream/gRPC/TInvest] LastPrice ${lp.instrumentUid} = $price")
-                                trySend(lp.instrumentUid to price)
-                            }
-                        }
-                    }
-
-                    override fun onError(t: Throwable) {
-                        close(t)
-                    }
-
-                    override fun onCompleted() {
-                        close()
-                    }
-                }
-
-            stub.marketDataServerSideStream(serverSideRequest, responseObserver)
-            awaitClose { }
         }
 
     // ---------- Стрим статусов заявок ----------
@@ -373,7 +307,7 @@ class TInvestMarketDataService(
     ): TradeCheckResult {
         val balance = accountsService.getBalance(accountId)
         val lastPrice =
-            getLastPricesByTscalpInstrumentId(listOf(uid))[uid]
+            pricesService.getLastPricesByTscalpInstrumentId(listOf(uid))[uid]
                 ?: return TradeCheckResult.Error("Цена не получена")
         val required = lastPrice * quantity
         return if (balance >= required) {
