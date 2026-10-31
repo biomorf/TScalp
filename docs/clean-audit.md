@@ -1,8 +1,14 @@
 # Clean-audit
 
-Справочник отклонений от Clean-архитектуры в проекте TScalp.
-Фиксирует: что соответствует Clean, что отклоняется, почему.
+Справочник отклонений от Clean-архитектуры и MVVM-принципов в проекте TScalp.
+Фиксирует: что соответствует Clean/MVVM, что отклоняется, почему.
 Документ — справочник. Задачи реализации — в `docs/ROADMAP.md`.
+
+**Две оси инвентаризации:**
+- **Clean (ID `Нxxx`)** — dependency rule, слои, god-классы, `@Suppress` как маркер долга, swallowed exception, dead code, дублирование. Уровни L1–L9 (см. «Уровни»).
+- **MVVM (ID `Mxxx`, 3 цифры: `M001`+)** — нарушения MVVM внутри presentation. Типы M1–M7 (см. «Типы MVVM-нарушений»): от формальных (dependency rule внутри presentation) до логических (слой/подслой делает не-свои обязанности, business-logic в VM вместо UseCase).
+
+Каждая находка заводится **отдельной записью** (правило 2c AGENTS.md). Гибридные (Clean + MVVM) — основная запись под тем ID, к которому относится природа нарушения; cross-link в `**Связано:**`.
 
 ## Шаблон записи
 
@@ -24,6 +30,8 @@
 **Clean-альтернатива:** как правильно — с плюсами и минусами.
 
 **Выгоды (обязательно для «принято»):** что даёт текущий вариант.
+
+**MVVM-альтернатива:** как правильно по MVVM — с плюсами и минусами. Для Clean-only находок — «—».
 
 **Ссылка на задачу:** название задачи в `docs/ROADMAP.md` / `docs/ci-roadmap.md` или `—`.
 
@@ -57,6 +65,24 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ---
 
+### Типы MVVM-нарушений
+
+Серьёзность (см. выше) и тип (M1–M7) — **ортогональны**: одна и та же M-категория может быть и критичной, и низкой. Серьёзность ставится по «Шкале», тип — по этой таблице. В записи: `**Нарушенное правило:** M<N> — <тип>`.
+
+| M-ID | Тип | Пример | Типичная серьёзность |
+|---|---|---|---|
+| M1 | Слой/подслой делает не-свои обязанности | VM форматирует валюту; UI маппит String→domain | высоко |
+| M2 | Business-logic в VM (не в UseCase) | расчёт/валидация/orchestration в VM | критично/высоко |
+| M3 | VM знает платформу | `Context`, `android.*`, `Dispatchers.IO` в VM | критично |
+| M4 | UI конструирует domain-модели | raw `PortfolioPosition(...)` в Composable | средне |
+| M5 | Несколько `StateFlow` / дублирование состояния | `state1`, `state2` в одной VM | средне |
+| M6 | One-shot события через `StateFlow` | `NavigationEvent` в `StateFlow` без consume | низко |
+| M7 | VM конвертирует domain↔presentation | formatter внутри VM | средне |
+
+**Соответствие типов.** M1 и M7 частично пересекаются (VM форматирует = делает и то, и другое) — при заводе записи выбирается **доминирующая** (какая именно обязанность нарушена). `M4` уже закрыт как Clean (`Н1`), новые M4-записи `Н1` не дублируют.
+
+---
+
 ## L1 — presentation
 
 **Краткая таблица:**
@@ -69,6 +95,314 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н4. UI конвертирует String → domain-модель | средне | L1, L3 | `OrdersListDialog.kt` | - |
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
+| M001. OrdersViewModel форматирует overlay | средне | L1 | `OrdersViewModel.formatCostOverlay` (1148), `formatMultiplierOverlay` (1162) | - |
+| M002. OrdersViewModel.postOrder — orchestration в VM | высоко | L1 | `OrdersViewModel.postOrder` (456–657) | ✓ |
+| M003. PortfolioViewModel.payInSandbox — orchestration в VM | средне | L1 | `PortfolioViewModel.payInSandbox` (275–343) | ✓ |
+| M004. SettingsViewModel.initialize* — login-orchestration в VM | средне | L1 | `SettingsViewModel.initializeTInvest/Bcs/Finam` (237–349) | ✓ |
+| M005. SettingsViewModel — Dispatchers.IO в VM | средне | L1 | `SettingsViewModel.kt:246, 282, 317` | - |
+| M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
+| M007. SettingsScreen — login-orchestration в UI | средне | L1 | `SettingsScreen.kt` (TInvest 238, Bcs 600, Finam 770) | ✓ |
+| M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable | средне | L1 | `OrdersScreen.kt` (~330–350) | - |
+| M009. OrdersScreen — состояние торговой операции в UI | высоко | L1 | `OrdersScreen.kt` `showConfirmDialog`, `pendingDirection` (56–57) | - |
+| M010. OrdersScreen — UI читает VM через метод, не через state | низко | L1 | `OrdersScreen.kt` `viewModel.isConfirmOrdersEnabled()` (~845) | - |
+| M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
+| M012. OrdersViewModel — `MutableStateFlow`-поля вместо `UiState` | высоко | L1 | `OrdersViewModel.kt` (`selectedSearchBroker`, `showSearchBrokerDialog`, `selectedPairSearchBroker`, `showPairSearchBrokerDialog`) | - |
+| Н94. God-функции Compose под `@Suppress` (10 функций, 5 файлов) | средне | L1 | `SettingsScreen` (4), `OrdersScreen` (2), `PortfolioScreen` (1), `AssetPositionCard` (2), `BrokerAccountDialog` (1) | - |
+
+### M001. OrdersViewModel форматирует overlay (формулы в VM)
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrdersViewModel.formatCostOverlay` (1148) и `formatMultiplierOverlay` (1162) — private-функции VM строят строки `costOverlay`/`multiplierOverlay` через `formatPrice` / `formatCurrency` / `formatDomesticCurrency`. Форматирование — обязанность UI-слоя; VM должна отдавать `TradeDetails` (числа), а не строки отображения.
+
+**Нарушенное правило:** M1 — VM делает работу presentation (форматирование). Также M7 (конвертация domain↔presentation в VM).
+
+**Clean-альтернатива:** `formatCostOverlay`/`formatMultiplierOverlay` — в `presentation/util/` (рядом с `CurrencyFormat`), вызываются из Composable. Плюсы: VM отдаёт `TradeDetails`, UI форматирует. Минусы: правка `OrdersScreen` (2 callsites).
+
+**MVVM-альтернатива:** перенести форматирование в Composable (через `remember(details)`). Плюсы: VM — только состояние. Минусы: `OrdersScreen` уже 646 строк (см. detekt-группу 3 → Compose-экраны).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M002. OrdersViewModel.postOrder — orchestration в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Live тест:** ✓
+
+**Описание:** `OrdersViewModel.postOrder` (456–657, 200 строк) выполняет полный сценарий: выбор брокера/счёта/инструмента из `_uiState`, `checkTradeAvailability`, разбор `TradeCheckResult` (Success/InsufficientFunds/Error), `prepareOrderRequest.prepare`, `postOrder`, обновление статусов. Это orchestration торговой операции — business-логика, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic (orchestration торгового сценария) в VM вместо UseCase.
+
+**Clean-альтернатива:** `PostOrderUseCase` (domain.usecases): принимает `BrokerOrderRequest` + `accountId` + `brokerName`, возвращает `AppResult<PostOrderResult>`. VM — вызов use case + `_uiState.update`. Плюсы: VM тонкий, логика тестируется без mock-инфраструктуры. Минусы: новый use case + тесты (~2–3 ч).
+
+**MVVM-альтернатива:** тоже `PostOrderUseCase`; VM — «нажатие → use case → обновление UI». Плюсы: тестируемость, переиспользование для BCS/Finam. Минусы: миграция `OrdersScreen` callsites.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой` (в ROADMAP — `postOrder` 172 строки; фактически 200 — оценка устарела).
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M003. PortfolioViewModel.payInSandbox — orchestration в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `PortfolioViewModel.payInSandbox` (275–343) выполняет сценарий «получить счета → выбрать → sandboxPayIn → обновить состояние» с разбором `AppResult` на каждом шаге. Это business-orchestration, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic в VM.
+
+**Clean-альтернатива:** `PayInSandboxUseCase` (domain.usecases): `suspend fun execute(accountId: String, amount: SandboxMoney): AppResult<Unit>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий. Минусы: ~1.5 ч + тесты.
+
+**MVVM-альтернатива:** тоже UseCase; тестируется без mock VM-инфраструктуры.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M004. SettingsViewModel.initialize* — login-orchestration в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsViewModel.initializeTInvest` (237), `initializeBcs` (274), `initializeFinam` (311) — каждый выполняет сценарий: `clearBrokerCredentials` (cleanup старого) → sandbox-специфика → `saveBrokerCredentials` → `lifecycle.initialize` → `refreshInitializationState`. Login-orchestration, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic в VM.
+
+**Clean-альтернатива:** `InitializeBrokerUseCase` (domain.usecases): `suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий, тестируемость. Минусы: ~2 ч + тесты.
+
+**MVVM-альтернатива:** тоже UseCase (или расширение `BrokerLifecycleManager`).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M005. SettingsViewModel — Dispatchers.IO в VM
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `SettingsViewModel.kt:246, 282, 317` — `withContext(Dispatchers.IO)` вокруг `brokerManager.getBroker(...)`. Диспатчеризация — обязанность data-слоя (сервисы/репозитории уже используют `withContext(Dispatchers.IO)` внутри). VM дублирует диспатчеризацию.
+
+**Нарушенное правило:** M3 — VM знает платформу (`Dispatchers.IO`).
+
+**Clean-альтернатива:** убрать `withContext(Dispatchers.IO)` из VM — data-слой уже сам диспатчеризирует. Плюсы: чисто. Минусы: — (проверить, что `brokerManager.getBroker` действительно suspend-safe).
+
+**MVVM-альтернатива:** то же — VM не управляет диспатчерами. Плюсы: тестируемость с `TestDispatcher`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M006. TInvestSettingsPanel — счета и orchestration в UI
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsScreen.kt` → `TInvestSettingsPanel` (172–525) — Composable сам вызывает `settingsViewModel.getAccountsResult` / `openSandboxAccountResult` / `closeSandboxAccountResult` в `LaunchedEffect` + `scope.launch`, а также **принимает business-решение**: при пустом `defaultAccountId` автоматически выбирает первый счёт и вызывает `saveDefaultAccountId`. Выбор счёта по умолчанию — не UI-обязанность.
+
+**Нарушенное правило:** M2 — business-logic (выбор счёта, orchestration sandbox-операций) в UI.
+
+**Clean-альтернатива:** `TInvestSettingsViewModel` с `UiState` (`availableAccounts`, `defaultAccountId`, `isRefreshing`), методами `loadAccounts()`, `openSandboxAccount()`, `closeSandboxAccount()`. UI — только рендер + `onClick`. Плюсы: тестируемо, логика вне UI. Минусы: VM-слой растёт.
+
+**MVVM-альтернатива:** тоже VM с UiState (стандартный паттерн). Плюсы: единая точка состояния.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`; связана с M007.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M007. SettingsScreen — login-orchestration в UI
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsScreen.kt` — три панели (`TInvestSettingsPanel`, `BcsSettingsPanel`, `FinamSettingsPanel`) вызывают `settingsViewModel.initializeTInvest/Bcs/Finam` из `scope.launch { ... }` в `onClick` кнопки «Подключиться». UI оркестрирует login-сценарий: старт → обработка success/failure → `statusMessage`. Логика сценария — не UI.
+
+**Нарушенное правило:** M2 — orchestration в UI.
+
+**Clean-альтернатива:** VM-метод `connect(token)`, который сам вызывает `initialize*`, обновляет `isConnected` в `UiState`, выставляет `statusMessage`. UI — `onClick { vm.connect(token) }`. Плюсы: UI тонкий. Минусы: —.
+
+**MVVM-альтернатива:** тоже VM-метод. Плюсы: UI читает `uiState.isConnected`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrdersScreen.kt` (~330–350): `if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) { ... PairOrderMapper.map(uiState.orderType, OrderDirection.valueOf(direction), primaryPrice) ... }`. Расчёт цены/типа контрсделки — business-логика в Composable.
+
+**Нарушенное правило:** M1 — Composable делает работу VM/UseCase (расчёт).
+
+**Clean-альтернатива:** `pairExecPrice`/`pairedOrderType` — в `OrdersUiState` (вычисляются в VM при `onOrderTypeChanged`/`onQuantityChanged`/`setPairTradingEnabled`). Composable читает готовые поля. Плюсы: UI — только рендер. Минусы: VM добавляет 2 поля.
+
+**MVVM-альтернатива:** то же — вычисления в VM. Плюсы: тестируемо без Compose.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M009. OrdersScreen — состояние торговой операции в UI
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `OrdersScreen.kt:56–57` — `var showConfirmDialog by remember { mutableStateOf(false) }` и `var pendingDirection by remember { mutableStateOf("") }`. Флаг «диалог подтверждения открыт» + направление pending-заявки — состояние торговой операции, а не UI. При recomposition/конфигурационном изменении теряется (не `rememberSaveable`, не VM).
+
+**Нарушенное правило:** M5 — состояние в UI вместо `UiState` VM.
+
+**Clean-альтернатива:** `showConfirmDialog` + `pendingDirection` — в `OrdersUiState`, VM-методы `onBuyClick()`/`onSellClick()` сразу выставляют `showConfirmDialog = true` + `pendingDirection`, `onConfirm()` — отправляет + сбрасывает. Composable — рендер по state. Плюсы: переживает config change, тестируемо. Минусы: —.
+
+**MVVM-альтернатива:** то же — состояние в VM. Плюсы: standard MVVM.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`; связана с M002 (`postOrder`).
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M010. OrdersScreen — UI читает VM через метод, не через state
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `OrdersScreen.kt` — `if (viewModel.isConfirmOrdersEnabled()) { pendingDirection = "..."; showConfirmDialog = true } else { viewModel.onBuyClick() }`. Метод `isConfirmOrdersEnabled(): Boolean = _uiState.value.confirmOrdersEnabled` — прокси к `uiState.confirmOrdersEnabled`. UI читает поле через метод, а не через `uiState`, из-за чего при recomposition используется снимок `_uiState.value`, а не наблюдаемое значение.
+
+**Нарушенное правило:** M1 — UI работает с VM-методом вместо state (нарушение data flow).
+
+**Clean-альтернатива:** UI читает `uiState.confirmOrdersEnabled`. Метод `isConfirmOrdersEnabled()` удаляется. Плюсы: однонаправленный data flow. Минусы: — (~5 мин).
+
+**MVVM-альтернатива:** то же — `state → UI`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M011. OrdersListDialog — `as?` и расчёт в UI
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrdersListDialog.kt` — `totalCost = (order as? Order.Stop)?.let { it.stopPrice * it.quantity }`. UI делает type-cast и расчёт `totalCost`. Для `Order.Regular` — `null`, значит totalCost не показывается (возможно, ошибка). Логика отображения + расчёт — не UI-обязанность.
+
+**Нарушенное правило:** M1 — Composable делает расчёт и type-cast.
+
+**Clean-альтернатива:** `Order` (sealed interface) — computed property `totalCost: Double? get() = when (this) { is Regular -> price * quantity; is Stop -> stopPrice * quantity }` (domain). UI — `order.totalCost` без cast. Плюсы: exhaustiveness, один расчёт. Минусы: домен-модель получает computed-поле.
+
+**MVVM-альтернатива:** `totalCost` через VM (маппинг в `OrdersListUiState`). Плюсы: без `as?` в UI.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### M012. OrdersViewModel — MutableStateFlow-поля вместо UiState
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `OrdersViewModel.kt:1088–1110` + `OrdersScreen.kt:718–742` — 4 поля (`selectedSearchBroker`, `showSearchBrokerDialog`, `selectedPairSearchBroker`, `showPairSearchBrokerDialog`) живут как отдельные `MutableStateFlow` в VM, а UI читает их через `viewModel.X.value` (`.value` в Composable — bypass `collectAsState`). Это раздвоение состояния: часть в `_uiState`, часть — в отдельных flow.
+
+**Нарушенное правило:** M5 — несколько `StateFlow` / дублирование состояния; плюс UI читает `.value` в обход observable.
+
+**Clean-альтернатива:** 4 поля → в `OrdersUiState`; VM-методы обновляют через `_uiState.update { it.copy(...) }`. UI — `uiState.showSearchBrokerDialog` из `collectAsState`. Плюсы: единый `UiState`, observable. Минусы: — (~30 мин).
+
+**MVVM-альтернатива:** то же — один `StateFlow<OrdersUiState>`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
+### Н94. God-функции Compose под `@Suppress` (10 функций, 5 файлов)
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** 10 Composable-функций несут `@Suppress("LongMethod")` / `@Suppress("LongMethod", "CyclomaticComplexMethod")` как **постоянный** маркер долга (правило `LongMethod` активно по дефолту, `buildUponDefaultConfig = true`):
+
+- `SettingsScreen` (44, 172), `TInvestSettingsPanel` (172), `BcsSettingsPanel` (528), `FinamSettingsPanel` (729);
+- `OrdersScreen` (53), `InstrumentSearchField` (768);
+- `PortfolioScreen` (37);
+- `AssetPositionCard` (52), `AssetCardContent` (197);
+- `BrokerAccountDialog` (20).
+
+Ни одна не имеет плановой задачи (только ссылки в KDoc на `detekt-группу 3` и `Compose-экраны`). Формулировки `// Архитектурный долг: см. ROADMAP → «Рефакторинг Compose-экранов»` — указатели есть, но **инвентарной записи в clean-audit не было** (нарушение 2c).
+
+**Нарушенное правило:** SRP — Composable-функции делают слишком много (форма, карточка, диалог в одной функции). Формально — `LongMethod`/`CyclomaticComplexMethod`.
+
+**Clean-альтернатива:** разбить по маркерам (форма/список/поиск/диалоги) — план в `### Рефакторинг архитектурного долга` → `#### Compose-экраны`. Плюсы: читаемость, снятие `@Suppress`. Минусы: ~6 ч.
+
+**MVVM-альтернатива:** UI-композиция (Extract composables + один UiState) — часть того же рефакторинга.
+
+**Выгоды:** функции работают, UI-итерации быстрее без разделения.
+
+**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты`.
+
+**Сводный отчёт, 2026-10-31:** — (не включена).
+
 
 ### Исправленные (L1)
 
