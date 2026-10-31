@@ -1231,62 +1231,6 @@ L4–L8 — не проверены, заполняются по мере инс
 **Соответствуют Clean (data-only, никаких утечек):**
 `TradingStateRepository`, `SettingsRepository`.
 
-### Н45. InvestRepository использует 4 fat-метода BrokerApi
-
-**Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
-4 fat-метода `BrokerApi` (`getLastPricesByTscalpInstrumentId`,
-`fetchPortfolioPositions`, `checkTradeAvailability`,
-`subscribePositions`) остались без потребителя — ревизия fat-части
-вынесена задачей `### BrokerApi: ревизия fat-части после
-InvestRepository split` (ROADMAP).
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `InvestRepository` вызывает 4 fat-метода `BrokerApi`:
-- `broker.getLastPricesByTscalpInstrumentId(ids)` — `getLastPricesResult`;
-- `broker.fetchPortfolioPositions(accountId, sandboxMode)` — `fetchPositionsResult`;
-- `broker.checkTradeAvailability(...)` — `checkTradeAvailabilityResult`;
-- `broker.subscribePositions(accountId)` — `subscribePositions` (дубль: есть `streams?.subscribePositions`).
-
-Остальные 12 методов — через nullable-val роли. KDoc `BrokerApi` говорит «`InvestRepository` — фасад на fat `BrokerApi`, 29 callsites, использует все» — фактически использует 4 fat-метода, остальное через роли.
-
-**Нарушенное правило Clean:** Interface Segregation — `InvestRepository` зависит от fat `BrokerApi` ради 4 методов.
-
-**Clean-альтернатива (по H25):** выделить `PortfolioApi` (`fetchPortfolioPositions`), `MarketDataApi` (`getLastPricesByTscalpInstrumentId`), `TradeApi` (`checkTradeAvailability`); `subscribePositions` — на `streams?.subscribePositions`. `InvestRepository` инжектит роли. Плюсы: полный ISP. Минусы: 4 callsite правок в `InvestRepository` + новые роли.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). **Связано с H25**.
-
-### Н53. `data/api` — плоская структура (17 файлов в одном пакете)
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `app/.../data/api/` содержит 17 файлов в одном пакете: 13 `TInvest*`, 1 `Bcs*`, 1 `Finam*`, `CustomTrustManager.kt`, `RestMappers.kt` + подпапка `error/`. При добавлении новых брокеров и сервисов (например, 6 сервисов из `### Пакет C`) пакет растёт линейно, навигация ухудшается. Находка упоминалась в сводном отчёте 2026-10-27 (стр. 1799, 1823) и в cross-ссылках Н89/Н90, но **инвентарной записи не имела** (нарушение 2c). Backfill 2026-10-31.
-
-**Нарушенное правило Clean:** не строго Clean — организация пакета data-слоя (SRP на уровне модуля/пакета).
-
-**Clean-альтернатива:** раскладка по подпапкам:
-- `data/api/common/` — `CustomTrustManager.kt`, `RestMappers.kt`;
-- `data/api/tinvest/` — 13 `TInvest*` (при #63 — `tinvest/services/`, `tinvest/mappers/`);
-- `data/api/bcs/` — `BcsBrokerApi.kt`;
-- `data/api/finam/` — `FinamBrokerApi.kt`;
-- `data/api/error/` — без изменений.
-
-Плюсы: навигация, изоляция брокеров, новые файлы создаются сразу в целевом пакете. Минусы: `git mv` 17 файлов + 14 строк импорта в 8 файлах (4 main + 4 test) — механическая работа.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP) — шаг 0 (переезд до split).
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
 ### Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
 
 **Статус:** открыто.
@@ -1358,25 +1302,6 @@ InvestRepository split` (ROADMAP).
 **Выгоды:** работает `GOOD_TILL_CANCEL` (default), пользователь не может выбрать дату.
 
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)`.
-
-### Н69. InvestRepository — @Suppress("TooManyFunctions")
-
-**Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
-`@Suppress` ушёл вместе с ним.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `InvestRepository` — 357 строк, 17 функций, `@Suppress("TooManyFunctions")`. Объединяет 4 доменные области (аккаунты, заявки, портфель, стримы) + фасад над `BrokerApi`.
-
-**Нарушенное правило Clean:** SRP + Clean-граница (presentation → domain, а не presentation → data → domain).
-
-**Clean-альтернатива:** `### Разбивка InvestRepository по доменным областям` — 4 domain-интерфейса + 4 data-реализации.
-
-**Выгоды:** один фасад, простой доступ для UI.
-
-**Ссылка на задачу:** `docs/ROADMAP.md` → `### Разбивка InvestRepository по доменным областям` (в работе).
 
 ### Н72. BcsBrokerApi.orders = null при работающем postOrder
 
@@ -1713,6 +1638,81 @@ InvestRepository split` (ROADMAP).
 **Выгоды:** все методы работают на общем `TInvestApiState`, единая точка для gRPC-каналов. Разбивка — при рефакторинге.
 
 **Ссылка на задачу:** `### ✅ Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP, `dev`, 2026-10-31; PR #84).
+
+### ✅ Н45. InvestRepository использует 4 fat-метода BrokerApi
+
+**Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
+4 fat-метода `BrokerApi` (`getLastPricesByTscalpInstrumentId`,
+`fetchPortfolioPositions`, `checkTradeAvailability`,
+`subscribePositions`) остались без потребителя — ревизия fat-части
+вынесена задачей `### BrokerApi: ревизия fat-части после
+InvestRepository split` (ROADMAP).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `InvestRepository` вызывает 4 fat-метода `BrokerApi`:
+- `broker.getLastPricesByTscalpInstrumentId(ids)` — `getLastPricesResult`;
+- `broker.fetchPortfolioPositions(accountId, sandboxMode)` — `fetchPositionsResult`;
+- `broker.checkTradeAvailability(...)` — `checkTradeAvailabilityResult`;
+- `broker.subscribePositions(accountId)` — `subscribePositions` (дубль: есть `streams?.subscribePositions`).
+
+Остальные 12 методов — через nullable-val роли. KDoc `BrokerApi` говорит «`InvestRepository` — фасад на fat `BrokerApi`, 29 callsites, использует все» — фактически использует 4 fat-метода, остальное через роли.
+
+**Нарушенное правило Clean:** Interface Segregation — `InvestRepository` зависит от fat `BrokerApi` ради 4 методов.
+
+**Clean-альтернатива (по H25):** выделить `PortfolioApi` (`fetchPortfolioPositions`), `MarketDataApi` (`getLastPricesByTscalpInstrumentId`), `TradeApi` (`checkTradeAvailability`); `subscribePositions` — на `streams?.subscribePositions`. `InvestRepository` инжектит роли. Плюсы: полный ISP. Минусы: 4 callsite правок в `InvestRepository` + новые роли.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### ✅ BrokerApi: ревизия fat-части после InvestRepository split` (закрыта, PR #61). **Связано с H25**.
+
+### ✅ Н53. `data/api` — плоская структура (17 файлов в одном пакете)
+
+**Статус:** исправлено (PR #84, `dev`, 2026-10-31).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `app/.../data/api/` содержит 17 файлов в одном пакете: 13 `TInvest*`, 1 `Bcs*`, 1 `Finam*`, `CustomTrustManager.kt`, `RestMappers.kt` + подпапка `error/`. При добавлении новых брокеров и сервисов (например, 6 сервисов из `### Пакет C`) пакет растёт линейно, навигация ухудшается. Находка упоминалась в сводном отчёте 2026-10-27 (стр. 1799, 1823) и в cross-ссылках Н89/Н90, но **инвентарной записи не имела** (нарушение 2c). Backfill 2026-10-31.
+
+**Нарушенное правило Clean:** не строго Clean — организация пакета data-слоя (SRP на уровне модуля/пакета).
+
+**Clean-альтернатива:** раскладка по подпапкам:
+- `data/api/common/` — `CustomTrustManager.kt`, `RestMappers.kt`;
+- `data/api/tinvest/` — 13 `TInvest*` (при #63 — `tinvest/services/`, `tinvest/mappers/`);
+- `data/api/bcs/` — `BcsBrokerApi.kt`;
+- `data/api/finam/` — `FinamBrokerApi.kt`;
+- `data/api/error/` — без изменений.
+
+Плюсы: навигация, изоляция брокеров, новые файлы создаются сразу в целевом пакете. Минусы: `git mv` 17 файлов + 14 строк импорта в 8 файлах (4 main + 4 test) — механическая работа.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### ✅ Пакет C: TInvestMarketDataService split (Н63)` (закрыта, PR #84) — шаг 0 (переезд).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
+
+### ✅ Н69. InvestRepository — @Suppress("TooManyFunctions")
+
+**Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
+`@Suppress` ушёл вместе с ним.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `InvestRepository` — 357 строк, 17 функций, `@Suppress("TooManyFunctions")`. Объединяет 4 доменные области (аккаунты, заявки, портфель, стримы) + фасад над `BrokerApi`.
+
+**Нарушенное правило Clean:** SRP + Clean-граница (presentation → domain, а не presentation → data → domain).
+
+**Clean-альтернатива:** `### Разбивка InvestRepository по доменным областям` — 4 domain-интерфейса + 4 data-реализации.
+
+**Выгоды:** один фасад, простой доступ для UI.
+
+**Ссылка на задачу:** `### ✅ Разбивка InvestRepository по доменным областям` (закрыта, PR #56).
 
 ## L7 — di
 
@@ -2104,6 +2104,7 @@ object удалён после переноса его `@Provides` в `Repositor
 - 2026-10-26 — создан. Заполнены L1 (7), L2 (4), L3 (7). L4–L8 — заглушки.
 - 2026-10-27 — L1-L8 полная инвентаризация; L9 (transport-ktor): Н87-Н91 (part 1), Н92+ — по мере части 2.
 - 2026-10-31 — сводный отчёт: 76 Н (36 закрыто, 40 открыто), 12 M (0 закрыто); новая ось MVVM (M001–M012).
+- 2026-10-31 — ревизия Н45/Н53/Н69 после Пакета C: все три закрыты (после отчёта; счётчик отчёта не меняется).
 
 ## Сводный отчёт, 2026-10-27
 
