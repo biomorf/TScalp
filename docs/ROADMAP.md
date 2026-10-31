@@ -1011,9 +1011,12 @@ polling — рубли), без разбивки на свободные/заб�
   добавить `money: Double? = null`, `blocked: Double? = null`
   в `PortfolioPosition`; пробросить в
   `PositionStreamItem.toPortfolioPosition()`.
-- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioViewModel.kt` —
-  `updatePortfolioItem` (копирование полей при обновлении,
-  сейчас `old.copy(...)` не переносит `money`/`blocked`).
+- `app/src/main/kotlin/.../domain/models/Portfolio.kt` —
+  `PortfolioPosition.mergeWith` (копирование полей при обновлении,
+  `old.copy(...)` не переносит `money`/`blocked`; вызывается из
+  `PortfolioViewModel:242` и `OrdersViewModel:1081`).
+  `PortfolioViewModel.updatePortfolioItem` — посредник, правок
+  не требует.
 - `app/src/main/kotlin/.../ui/components/AssetPositionCard.kt` —
   отображение (варианты ниже).
 - `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioScreen.kt` —
@@ -1039,9 +1042,10 @@ polling — рубли), без разбивки на свободные/заб�
 **Шаги:**
 1. Добавить `money`/`blocked` в `PortfolioPosition` (domain).
 2. Пробросить в `PositionStreamItem.toPortfolioPosition()`.
-3. Обновить `PortfolioViewModel.updatePortfolioItem` — при
+3. Обновить `PortfolioPosition.mergeWith` (domain) — при
    обновлении переносить `money`/`blocked` (по аналогии с
-   `expectedYield`).
+   `expectedYield`). `updatePortfolioItem` не трогать: он
+   делегирует в `mergeWith` / `toPortfolioPosition`.
 4. **Санкция на UI** — согласовать вариант (A/B/C) и тексты.
 5. Реализовать отображение в `AssetPositionCard`.
 6. Compose Preview для трёх состояний: `blocked == null`,
@@ -1077,8 +1081,8 @@ polling — рубли), без разбивки на свободные/заб�
 - Тесты на `toPortfolioPosition` добавлены.
 - Сборка и тесты зелёные.
 
-**Оценка:** ~2–3 часа (domain+ViewModel — 1 ч, UI — 1 ч,
-превью+тесты — 1 ч).
+**Оценка:** ~2–2.5 часа (domain: `PortfolioPosition` + 2 функции
+в `Portfolio.kt` — 30 мин; UI — 1 ч; превью+тесты — 1 ч).
 
 **Зависимости:** нет. **Блокирует** отображение полной
 картины валютной позиции (свободные + заблокированные).
