@@ -84,7 +84,9 @@ presentation → domain ← data
 
 | # | Что | Где | Фикс |
 |---|---|---|---|
-| 2 | `javax.inject.Inject` / `Singleton` | 3 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
+| 2 | `javax.inject.Inject` / `Singleton` | 4 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
+
+**`javax.inject` — 4 файла** в `domain/api/managers/`: `PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`, `BrokerLifecycleManager`. Аудит 2026-10-29 зафиксировал 3; `BrokerLifecycleManager` добавлен позже (PR #77, H50, 2026-10-31). Строка #4 (PR #74) — 3 менеджера, потому что `BrokerLifecycleManager` тогда ещё не существовал.
 
 **Исправлено (PR #73, `dev`, 2026-10-30):**
 
