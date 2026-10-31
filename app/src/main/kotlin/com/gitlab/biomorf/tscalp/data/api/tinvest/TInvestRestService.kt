@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestRestTransport
@@ -65,5 +66,14 @@ class TInvestRestService(
     suspend fun balanceRestFallback(accountId: String): Double {
         val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
         return rest.getBalance(accountId, state.sandboxMode)
+    }
+
+    suspend fun findInstrumentsRestFallback(query: String): List<InstrumentUi> {
+        val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
+        val shorts = rest.findInstrument(query)
+        return shorts.mapNotNull { short ->
+            val instrument = rest.getInstrumentBy(short.uid) ?: return@mapNotNull null
+            instrument.toInstrumentUi()
+        }
     }
 }
