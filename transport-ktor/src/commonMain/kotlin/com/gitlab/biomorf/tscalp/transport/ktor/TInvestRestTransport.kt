@@ -56,6 +56,60 @@ class TInvestRestTransport(
         }
     }
 
+
+    /**
+     * Найти инструменты по строке запроса.
+     * Аналог gRPC `InstrumentsService/FindInstrument`.
+     *
+     * Возвращает короткие метаданные ([RestInstrumentShort]).
+     * Для полных данных использовать [getInstrumentBy].
+     */
+    suspend fun findInstrument(query: String): List<RestInstrumentShort> {
+        if (query.isBlank()) return emptyList()
+
+        val url = "$baseUrl/rest/$SERVICE_PREFIX.InstrumentsService/FindInstrument"
+        logger("$TAG POST $url (query=$query)")
+
+        val request = RestFindInstrumentRequest(query = query)
+        val response: RestFindInstrumentResponse =
+            client
+                .post(url) {
+                    header("Authorization", "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }.body()
+
+        return response.instruments
+    }
+
+    /**
+     * Получить полный инструмент по uid.
+     * Аналог gRPC `InstrumentsService/GetInstrumentBy`.
+     *
+     * Возвращает `null`, если инструмент не найден.
+     */
+    suspend fun getInstrumentBy(uid: String): RestInstrument? {
+        if (uid.isBlank()) return null
+
+        val url = "$baseUrl/rest/$SERVICE_PREFIX.InstrumentsService/GetInstrumentBy"
+        logger("$TAG POST $url (uid=$uid)")
+
+        val request =
+            RestGetInstrumentByRequest(
+                idType = "INSTRUMENT_ID_TYPE_UID",
+                id = uid,
+            )
+        val response: RestInstrumentResponse =
+            client
+                .post(url) {
+                    header("Authorization", "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }.body()
+
+        return response.instrument
+    }
+
     suspend fun getOrders(accountId: String): List<RestOrder> {
         val url = "$baseUrl/rest/$SERVICE_PREFIX.OrdersService/GetOrders"
         logger("$TAG POST $url (account=$accountId)")
@@ -218,4 +272,72 @@ data class RestGetMarginAttributesRequest(@SerialName("accountId") val accountId
 @Serializable
 data class RestMarginAttributesResponse(
     @SerialName("liquidPortfolio") val liquidPortfolio: RestQuotation? = null,
+)
+
+// ---------- Instruments ----------
+
+@Serializable
+data class RestFindInstrumentRequest(
+    @SerialName("query") val query: String,
+)
+
+@Serializable
+data class RestFindInstrumentResponse(
+    @SerialName("instruments") val instruments: List<RestInstrumentShort> = emptyList(),
+)
+
+@Serializable
+data class RestInstrumentShort(
+    @SerialName("uid") val uid: String = "",
+    @SerialName("figi") val figi: String? = null,
+    @SerialName("ticker") val ticker: String = "",
+    @SerialName("classCode") val classCode: String = "",
+    @SerialName("isin") val isin: String? = null,
+    @SerialName("instrumentType") val instrumentType: String = "",
+    @SerialName("name") val name: String = "",
+    @SerialName("positionUid") val positionUid: String? = null,
+    @SerialName("instrumentExchange") val instrumentExchange: String? = null,
+    @SerialName("apiTradeAvailableFlag") val apiTradeAvailableFlag: Boolean? = null,
+    @SerialName("forIisFlag") val forIisFlag: Boolean? = null,
+    @SerialName("forQualInvestorFlag") val forQualInvestorFlag: Boolean? = null,
+    @SerialName("weekendFlag") val weekendFlag: Boolean? = null,
+    @SerialName("blockedTcaFlag") val blockedTcaFlag: Boolean? = null,
+)
+
+@Serializable
+data class RestGetInstrumentByRequest(
+    @SerialName("idType") val idType: String,
+    @SerialName("id") val id: String,
+)
+
+@Serializable
+data class RestInstrumentResponse(
+    @SerialName("instrument") val instrument: RestInstrument? = null,
+)
+
+@Serializable
+data class RestInstrument(
+    @SerialName("uid") val uid: String = "",
+    @SerialName("figi") val figi: String? = null,
+    @SerialName("ticker") val ticker: String = "",
+    @SerialName("classCode") val classCode: String = "",
+    @SerialName("isin") val isin: String? = null,
+    @SerialName("instrumentType") val instrumentType: String = "",
+    @SerialName("name") val name: String = "",
+    @SerialName("currency") val currency: String = "rub",
+    @SerialName("lot") val lot: Int = 0,
+    @SerialName("exchange") val exchange: String? = null,
+    @SerialName("tradingStatus") val tradingStatus: String? = null,
+    @SerialName("apiTradeAvailableFlag") val apiTradeAvailableFlag: Boolean? = null,
+    @SerialName("buyAvailableFlag") val buyAvailableFlag: Boolean? = null,
+    @SerialName("sellAvailableFlag") val sellAvailableFlag: Boolean? = null,
+    @SerialName("shortEnabledFlag") val shortEnabledFlag: Boolean? = null,
+    @SerialName("forIisFlag") val forIisFlag: Boolean? = null,
+    @SerialName("forQualInvestorFlag") val forQualInvestorFlag: Boolean? = null,
+    @SerialName("weekendFlag") val weekendFlag: Boolean? = null,
+    @SerialName("blockedTcaFlag") val blockedTcaFlag: Boolean? = null,
+    @SerialName("countryOfRisk") val countryOfRisk: String? = null,
+    @SerialName("countryOfRiskName") val countryOfRiskName: String? = null,
+    @SerialName("positionUid") val positionUid: String? = null,
+    @SerialName("minPriceIncrement") val minPriceIncrement: RestQuotation? = null,
 )
