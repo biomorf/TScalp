@@ -1239,7 +1239,7 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Live тест:** -
 
-**Описание:** `TInvestMarketDataService.fetchPortfolioPositions` — `@Suppress("CyclomaticComplexMethod")`. ~40 строк, внутри: mapNotNull по позициям, fetchProtoInstrument для каждой, getFuturesMargin для фьючерсов, маппинг proto → domain, вычисление quantity/currentPrice/expectedYield/averagePrice, сборка `PositionStreamItem`.
+**Описание:** `TInvestPortfolioService.fetchPortfolioPositions` — `@Suppress("CyclomaticComplexMethod")`. ~40 строк, внутри: mapNotNull по позициям, fetchProtoInstrument для каждой, getFuturesMargin для фьючерсов, маппинг proto → domain, вычисление quantity/currentPrice/expectedYield/averagePrice, сборка `PositionStreamItem`.
 
 **Нарушенное правило Clean:** SRP — функция делает 3 вещи (fetch instrument, fetch margin, map position).
 
@@ -1247,7 +1247,7 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** один метод, работает.
 
-**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (упомянут `fetchPositionsSnapshot` декомпозиция).
+**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (упомянут `fetchPortfolioPositions` декомпозиция).
 
 ### Н65. TInvestInstrumentMapper.mapProtoToDomain — @Suppress("LongMethod")
 
