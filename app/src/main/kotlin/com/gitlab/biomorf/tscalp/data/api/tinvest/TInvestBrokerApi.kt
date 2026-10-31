@@ -64,7 +64,8 @@ class TInvestBrokerAPI(
     MarketDataApi,
     TradeCheckApi {
     private val state = TInvestApiState()
-    private val marketDataService = TInvestMarketDataService(state, logger)
+    private val instrumentsService = TInvestInstrumentsService(state, logger)
+    private val marketDataService = TInvestMarketDataService(state, logger, instrumentsService)
     private val accountsService = TInvestAccountsService(state, logger)
     private val ordersService = TInvestOrdersService(state)
     private val wsService = TInvestWsService(httpClient, logger)
@@ -177,7 +178,7 @@ class TInvestBrokerAPI(
         accountsService.sandboxPayIn(accountId, amount)
     }
 
-    override suspend fun findInstruments(query: String) = marketDataService.findInstruments(query)
+    override suspend fun findInstruments(query: String) = instrumentsService.findInstruments(query)
 
     override suspend fun postOrder(request: BrokerOrderRequest) = ordersService.postOrder(request)
 
@@ -238,7 +239,7 @@ class TInvestBrokerAPI(
      * Реализация [BrokerInstrumentApi.fetchFullInstrument]
      * (nullable-val роль, см. `BrokerApi.instrument`).
      */
-    override suspend fun fetchFullInstrument(uid: String): InstrumentUi? = marketDataService.fetchFullInstrument(uid)
+    override suspend fun fetchFullInstrument(uid: String): InstrumentUi? = instrumentsService.fetchFullInstrument(uid)
 
     /**
      * Стрим последних цен. Используется OrdersViewModel.startPriceUpdates().
