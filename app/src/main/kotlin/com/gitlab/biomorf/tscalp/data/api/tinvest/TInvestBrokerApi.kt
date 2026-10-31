@@ -87,6 +87,7 @@ class TInvestBrokerAPI(
             portfolio = portfolioService,
             prices = pricesService,
             trading = tradingService,
+            instruments = instrumentsService,
             logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
@@ -95,6 +96,7 @@ class TInvestBrokerAPI(
             positionsRestFallback = { accountId, _ -> restService.positionsRestFallback(accountId) },
             ordersRestFallback = { accountId -> restService.ordersRestFallback(accountId) },
             balanceRestFallback = { accountId -> restService.balanceRestFallback(accountId) },
+            findInstrumentsRestFallback = { query -> restService.findInstrumentsRestFallback(query) },
         )
 
     override val name: BrokerName = BrokerName.TINVEST
@@ -190,7 +192,7 @@ class TInvestBrokerAPI(
         accountsService.sandboxPayIn(accountId, amount)
     }
 
-    override suspend fun findInstruments(query: String) = instrumentsService.findInstruments(query)
+    override suspend fun findInstruments(query: String) = orchestrator.findInstrumentsWithFallback(query)
 
     override suspend fun postOrder(request: BrokerOrderRequest) = ordersService.postOrder(request)
 

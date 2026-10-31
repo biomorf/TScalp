@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestInstrumentsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPositionsService
@@ -8,6 +9,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestTradingService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import io.grpc.Status
@@ -28,6 +30,7 @@ class TInvestOrchestratorFallbackTest {
     private val portfolio = mockk<TInvestPortfolioService>()
     private val prices = mockk<TInvestPricesService>()
     private val trading = mockk<TInvestTradingService>()
+    private val instruments = mockk<TInvestInstrumentsService>()
 
     @Test
     fun `pricesSnapshot falls back to REST on UNAVAILABLE`() =
@@ -43,6 +46,7 @@ class TInvestOrchestratorFallbackTest {
                     portfolio = portfolio,
                     prices = prices,
                     trading = trading,
+                    instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = { restData },
@@ -67,6 +71,7 @@ class TInvestOrchestratorFallbackTest {
                     portfolio = portfolio,
                     prices = prices,
                     trading = trading,
+                    instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     pricesRestFallback = {
@@ -98,6 +103,7 @@ class TInvestOrchestratorFallbackTest {
                     portfolio = portfolio,
                     prices = prices,
                     trading = trading,
+                    instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     ordersRestFallback = { restOrders },
@@ -122,6 +128,7 @@ class TInvestOrchestratorFallbackTest {
                     portfolio = portfolio,
                     prices = prices,
                     trading = trading,
+                    instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     balanceRestFallback = { restBalance },
@@ -154,6 +161,7 @@ class TInvestOrchestratorFallbackTest {
                     portfolio = portfolio,
                     prices = prices,
                     trading = trading,
+                    instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
                     logger = TestLogger,
                     positionsRestFallback = { _, _ -> restPositions },
@@ -162,5 +170,62 @@ class TInvestOrchestratorFallbackTest {
             val result = orchestrator.positionsSnapshot("acc1", false)
             assertEquals(restPositions, result)
             coVerify(exactly = 1) { portfolio.fetchPortfolioPositions(any(), any()) }
+        }
+
+    @Test
+    fun `findInstrumentsWithFallback falls back to REST on UNAVAILABLE`() =
+        runBlocking {
+            val restData = listOf<InstrumentUi>(mockk())
+            coEvery { instruments.findInstruments(any()) } throws StatusException(Status.UNAVAILABLE)
+
+            val orchestrator =
+                TInvestOrchestrator(
+                    positions = positions,
+                    orders = orders,
+                    accounts = accounts,
+                    portfolio = portfolio,
+                    prices = prices,
+                    trading = trading,
+                    instruments = instruments,
+                    debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
+                    findInstrumentsRestFallback = { restData },
+                )
+
+            val result = orchestrator.findInstrumentsWithFallback("sber")
+            assertEquals(restData, result)
+            coVerify(exactly = 1) { instruments.findInstruments(any()) }
+        }
+
+    @Test
+    fun `findInstrumentsWithFallback does not fall back on business error`() =
+        runBlocking {
+            coEvery { instruments.findInstruments(any()) } throws StatusException(Status.INVALID_ARGUMENT)
+
+            var fallbackCalled = false
+            val orchestrator =
+                TInvestOrchestrator(
+                    positions = positions,
+                    orders = orders,
+                    accounts = accounts,
+                    portfolio = portfolio,
+                    prices = prices,
+                    trading = trading,
+                    instruments = instruments,
+                    debugFlagsRepository = mockk(relaxed = true),
+                    logger = TestLogger,
+                    findInstrumentsRestFallback = {
+                        fallbackCalled = true
+                        emptyList()
+                    },
+                )
+
+            try {
+                orchestrator.findInstrumentsWithFallback("sber")
+                fail("Expected StatusException")
+            } catch (e: StatusException) {
+                assertEquals(Status.Code.INVALID_ARGUMENT, e.status.code)
+            }
+            assertFalse(fallbackCalled)
         }
 }
