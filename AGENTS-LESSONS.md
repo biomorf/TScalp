@@ -432,6 +432,46 @@ actual). Не доверять фильтру.
 
 **Проверка:** перед добавлением `@Binds` — `grep -cE "abstract fun bind" <module>.kt`, прибавить новые + учесть предстоящие удаления. Если итог > 11 и не снимается — split заранее, в том же PR.
 
+### 61. Двусторонняя проверка импортов после удаления кода
+
+**Правило:** после удаления функций/секций — проверять импорты в **две стороны**: (а) каждый импорт используется в оставшемся теле; (б) каждый не-builtin символ в теле имеет импорт. Односторонняя проверка («все импорты используются») пропускает случаи, когда **нужный** импорт случайно удалён вместе с «ненужным».
+
+**Инцидент:** 2026-10-31, шаг 6/8 split `TInvestMarketDataService` (`bc6757c`). Удалил импорт `CancellationException` как «unused» — он был нужен только в `subscribePositionsGrpcWithReconnect`, которая осталась в файле. `compileDebugKotlin` упал: `Unresolved reference 'CancellationException'` (MD:154). Pre-commit self-check проверял только «все импорты используются», но не «все символы в теле имеют импорт».
+
+**Проверка:** в pre-commit по 4h для каждого изменённого `.kt`: (1) каждый импорт используется (>= 2 вхождений — import + тело); (2) после удаления любого импорта — `grep -n '<symbol>' <file>` без `^import` — если непусто, импорт **нельзя** удалять. Быстрый вариант: `./gradlew :app:compileDebugKotlin` до коммита.
+
+### 62. Import order после rename — лексикографически, не только «нет старого имени»
+
+**Правило:** при переименовании класса (rename) — пересортировать блок `import` **заново**, не просто заменить строку `<Old> -> <New>` на месте. Лексикографический порядок может измениться: `TInvestPositionsService` (`Pos`) идёт **после** `TInvestPortfolioService` (`Por`), но `TInvestOrdersService` (`O`) — раньше обоих.
+
+**Инцидент:** 2026-10-31, шаг 7/8 split (`9fb105c`). Заменил `import ...TInvestMarketDataService` -> `import ...TInvestPositionsService` на той же позиции — между `TInvestAccountsService` и `TInvestOrdersService`. `ktlintTestSourceSetCheck` упал: `Imports must be ordered in lexicographic order...` в `TInvestOrchestrator.kt` и `TInvestOrchestratorFallbackTest.kt`. Grep «нет старого имени» прошёл — старое имя действительно удалено, порядок сломан.
+
+**Проверка:** после rename — `awk '/^import / { if (prev != "" && $0 < prev) print "OOD: " prev " >> " $0; prev = $0 }' <file>` — пусто => порядок верный. Дополнительно — `./gradlew :app:ktlintCheck` (уже в гейте).
+
+### 63. Rename класса — все формы
+
+**Правило:** при rename класса — искать **все формы** использования, не только callsites методов: `Class.method()` (callsites), `param = <ClassName>` (named-args в конструкторах), `[<ClassName>]` (KDoc-ссылки), `import ...<ClassName>` (импорты), `<ClassName>(` (конструкторы). Grep по `<OldName>` **без** `\.` ловит все формы. Дополнительно — `git grep` по main + test (не только main, урок 1).
+
+**Инцидент:** 2026-10-31, шаг 7/8 split (`9fb105c`). При rename `TInvestMarketDataService` -> `TInvestPositionsService` переименовал import, ctor, mockk, callsites методов, но **пропустил** named-arg `marketData = marketDataService` в конструкторе `TInvestOrchestrator` (внутри `TInvestBrokerApi`). `compileDebugKotlin` упал: `No value passed for parameter 'positions'` + `No parameter with name 'marketData' found` + `Unresolved reference 'marketDataService'` (BA:82–83). Pre-commit grep смотрел `marketDataService\.` (callsites методов) — named-arg без точки не поймал.
+
+**Проверка:** `grep -rn '<OldName>' app/src/main app/src/test` (без `\.`) — до нуля перед коммитом. Если результат не пустой — не только callsites, но и named-args, KDoc, импорты.
+
+### 64. echo с backticks внутри двойных кавычек — command substitution
+
+**Правило:** в bash-скриптах, которые ассистент выдаёт пользователю, **backticks** внутри `"..."` — это command substitution, даже рядом с одинарными кавычками. Пример: `echo` с тремя backtick'ами внутри двойных кавычек — bash видит `$(...)`, парсер валится с `syntax error near unexpected token`. Писать: одинарные кавычки вокруг всего аргумента (`echo '...'`), экранирование, или без backticks вообще.
+
+**Инцидент:** 2026-10-31, docs-commit 8b (`mark Пакет C done`). Pre-check block содержал `echo` с тремя backtick'ами внутри двойных кавычек (проверка баланса fence'ов markdown). Bash упал на строке 15 — до `git add` / `git commit`. Pre-checks 1 и 2 прошли, 3 — нет. Коммит не создан (не страшно), но лишний round-trip.
+
+**Проверка:** перед отправкой скрипта — визуально просмотреть все `echo "..."`, где могут быть backticks (типично — markdown fence-проверки, примеры кода); заменить на `echo '...'` (одинарные) или убрать backticks.
+
+### 65. assert new not in text, когда new — подстрока old
+
+**Правило:** если `new_fragment` содержит `old_fragment` как подстроку (`new = old + suffix` или `new` с префиксом вокруг `old`), `assert new not in text` **всегда** падает, когда `old` присутствует — это не «already applied», а «old found». Запрещено писать `assert new not in text` для проверки «уже применено», если `new` может содержать `old` как подстроку. Правильно: `assert text.count(old) == 1` (pre-check через count старой формы), потом `text.replace(old, new, 1)`, потом `assert old not in text` (пост — старой формы больше нет).
+
+**Инцидент:** 2026-10-31, 8b-b (`mark Пакет C done`). `old_cls = "internal class TInvestAccountsService("`, `new_cls = "class TInvestAccountsService("`. `assert new_cls not in text` ложно-сработал как «already public» — потому что `new_cls` ⊂ `old_cls` (префикс `internal ` + `class TInvestAccountsService(`). Скрипт упал **до** `write_text` (файл не изменён, pre-assert сработал правильно), но с ложным сообщением. Урок 26/2d был, но применён не полностью.
+
+**Проверка:** в скрипте правки: если `old_fragment in new_fragment` — pre-check через `assert text.count(old) == 1`, **не** `assert new not in text`; пост-проверка — `assert old not in check` (старой формы нет) или `assert check.count(new) == 1`.
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
@@ -524,6 +564,15 @@ actual). Не доверять фильтру.
 **Инцидент:** 2026-10-27, по ходу clean-audit я 13 раз сказал «уже в ISSUES/ROADMAP, не заводим новую запись». Пользователь: «Э! Отмена всем ранее бывшим в сессии "не заводим новые"... Нельзя на этом основании делать дыру в инвентаризации!». Backfill Н58-Н70 — 13 записей. Правило в AGENTS 2c добавлено (коммит `c9468c3`).
 
 **Проверка:** `grep -n "не заводим\|уже известно\|не новая находка" docs/clean-audit.md` — пусто. `grep -c "^### Н" docs/clean-audit.md` — число должно совпадать с ожидаемым.
+
+### 66. Перенос в «Исправленные (L<N>)» — ### ✅ и актуальная ссылка на задачу
+
+**Правило:** при переносе записи из открытых в `### Исправленные (L<N>)` менять **три** вещи, не одну: (1) `**Статус:** открыто.` → `исправлено (дата, ветка/PR)`; (2) **заголовок** `### Н<xx>.` → `### ✅ Н<xx>.` (маркер «исправлено» в шапке, как у всех записей блока); (3) `**Ссылка на задачу:**` — на актуальное состояние (закрытая задача в ROADMAP, PR pending/merged), не «запланировано». Поля `**Серьёзность:**`, `**Описание:**`, `**Clean-альтернатива:**`, `**Что сделано:**` — сохранять дословно (5g.4).
+
+**Инцидент:** 2026-10-31, 8c (Н63, перенос в Исправленные L6). Перенёс секцию с `**Статус:** исправлено`, но (1) **заголовок** остался `### Н63.` без ✅, (2) `**Ссылка на задачу:**` остался «запланировано (отдельная сессия)». Fix-коммитом (`c6e1baf`) догонял: `### ✅ Н63.` + ссылка на `### ✅ Пакет C ... (PR pending)`. Pre-commit verify проверял только, что запись «есть в блоке», не «все ### в блоке — с ✅».
+
+**Проверка:** после переноса — `awk` по блоку от `### Исправленные (L<N>)` до следующего `## `: все `### ` должны начинаться с `### ✅ ` (иначе — `ERROR: <line>`). Плюс `grep -nE "^\*\*Ссылка на задачу:\*\*" | grep -v "PR pending|PR #|dev"` — пусто (нет «запланировано»).
+
 
 ---
 
