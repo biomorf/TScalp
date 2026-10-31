@@ -48,7 +48,7 @@ BCS / Finam — заполнить по мере интеграции.
 - `postOrder` — самый строгий лимит (15 в секунду), фактически
   ограничивает интенсивность торговли.
 - `getTradingStatuses` через `coroutineScope { awaitAll() }`
-  (текущая реализация в `TInvestMarketDataService`) — это
+  (текущая реализация в `TInvestTradingService`) — это
   **N параллельных unary-запросов**, не 1. На 100 инструментах
   за раз — 100 запросов к `MarketData`, почти половина
   минутного лимита. Нужен rate-limiter перед таким вызовом.
@@ -81,7 +81,7 @@ BCS / Finam — заполнить по мере интеграции.
 
 - `PriceFlowManager` держит **один** gRPC-стрим на котировки
   (union всех интересов) — укладывается в 1 (лимит грейда 1).
-- `TInvestMarketDataService.subscribePositionsGrpcWithReconnect`
+- `TInvestPositionsService.subscribePositionsGrpcWithReconnect`
   держит **один** стрим на позиции — укладывается в 1.
 - `subscribeOrderState` — один стрим на ордера — укладывается в 1.
 - `TInvestPositionsWebSocket` — отдельный WS-стрим, идёт в счёт

@@ -498,7 +498,7 @@ handshake проходит за миллисекунды.
 
 **Статус:** открыт. Небольшой фикс. Связан с WS/retry — см. следующую запись.
 
-**Симптом:** в `TInvestMarketDataService.subscribePositionsGrpcWithReconnect`
+**Симптом:** в `TInvestPositionsService.subscribePositionsGrpcWithReconnect`
 и `subscribePositionsPolling` условие остановки —
 `e.message?.contains("NOT_FOUND") == true`. `e.message` у
 `StatusException` — человекочитаемый текст, не код. Если формат
@@ -509,7 +509,7 @@ handshake проходит за миллисекунды.
 **Решение:** `Status.fromThrowable(e).code == Status.Code.NOT_FOUND` —
 стандартный API, не зависит от формата `message`.
 
-**Файлы:** `data/api/TInvestMarketDataService.kt`.
+**Файлы:** `data/api/tinvest/TInvestPositionsService.kt`.
 
 **Касается также:** `domain/api/managers/PositionFlowManager.kt` —
 `runPolling` использует тот же pattern
@@ -546,7 +546,7 @@ INVALID_ARGUMENT (битый запрос) — retry вечно каждые 60s
 - **RESOURCE_EXHAUSTED** — retry, но с отдельной задержкой
   (учитывает rate-limit, см. `docs/rate-limits.md`).
 
-**Файлы:** `data/api/TInvestMarketDataService.kt`.
+**Файлы:** `data/api/tinvest/TInvestPositionsService.kt`.
 
 **Касается также:** `domain/api/StreamCombinators.kt` —
 `retryWithBackoff` (в `TInvestOrchestrator`, единственный
@@ -1168,3 +1168,25 @@ live-тесте #2 задержки почти не было видно — View
 - `domain/api/PositionFlowManager.kt` /
   `PriceFlowManager.kt` / `OrderFlowManager.kt` — точки `start` /
   `setInterest`, вызываемые из ViewModel.
+
+---
+
+## T-Invest REST findInstruments fallback (N+1 unary)
+
+**Статус:** открыт. Латентный, не блокер.
+
+**Симптом:** REST fallback `findInstruments` (variant B, PR #85) делает N+1 unary-запросов: 1 `InstrumentsService/FindInstrument` + N `InstrumentsService/GetInstrumentBy` (по одному на каждый uid из короткого списка).
+
+**Причина:** REST `FindInstrument` возвращает `InstrumentShort` без `currency`/`lot`, обязательных для `InstrumentUi` (8 обязательных полей в `domain/models/Instruments.kt`). Полный `Instrument` — только через `GetInstrumentBy`. Fallback повторяет gRPC-путь (там тоже N+1).
+
+**Последствия:** при поиске на 100 инструментов — 101 unary-запрос подряд. Fallback редкий (только когда gRPC `UNAVAILABLE` / `DEADLINE_EXCEEDED` / `UNIMPLEMENTED`), но при совпадении с rate-limit T-Invest (6 unary/сек) — `RESOURCE_EXHAUSTED` и деградация поиска.
+
+**Решение:** rate-limiter для unary-запросов (`docs/ROADMAP.md` → `### Rate-limiter для unary-запросов T-Invest`) — обернуть fallback в него, либо батчинг `GetInstrumentBy` (если API даст batch-метод), либо ограничить concurrency `Semaphore`.
+
+**Файлы:**
+- `data/api/tinvest/TInvestRestService.kt` — `findInstrumentsRestFallback` (N+1).
+- `data/api/tinvest/TInvestOrchestrator.kt` — `findInstrumentsWithFallback` (вызывает fallback).
+
+**Связано:** `docs/ROADMAP.md` → `### Rate-limiter для unary-запросов T-Invest`; ROADMAP → `### ✅ T-Invest REST: findInstruments fallback` (PR #85).
+
+**Когда вернуться:** при появлении rate-limiter (закроется автоматически), или при жалобах на `RESOURCE_EXHAUSTED` при поиске.

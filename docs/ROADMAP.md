@@ -636,10 +636,10 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 7. **BrokerApi.**
     - 19 функций + `snapshot: BrokerSnapshotApi?`,
       `@Suppress("TooManyFunctions")`.
-    - `fetchPositionsSnapshot` — unary с fallback на уровне
-      брокера; полный `PortfolioPosition` (UI + база для
-      оркестратора, конвертируется в `PositionStreamItem` в
-      `positionsSnapshot`).
+    - `fetchPortfolioPositions` (was `fetchPositionsSnapshot`) —
+      unary с fallback на уровне брокера; полный `PortfolioPosition`
+      (UI + база для оркестратора, конвертируется в
+      `PositionStreamItem` в `positionsSnapshot`).
     - `pricesSnapshot` / `ordersSnapshot` / `positionsSnapshot` —
       `BrokerSnapshotApi` (композиция через `BrokerApi.snapshot`).
       `TInvestBrokerAPI`: `snapshot = this`. `BcsBrokerApi` /
@@ -760,14 +760,16 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 **Файлы:**
 
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestRateLimiter.kt` (новый) —
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestRateLimiter.kt` (новый) —
   rate-limiter (токен-бакет) с учётом лимитов по сервисам и
   общего лимита 50/сек.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestMarketDataService.kt` —
-  обернуть `getLastPricesByTscalpInstrumentId`,
-  `getTradingStatuses`, `getPortfolio`, `fetchPositionsSnapshot`
-  (внутри — unary) в rate-limiter.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/TInvestOrdersService.kt` —
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/` —
+  unary-вызовы в `TInvestPricesService` (`getLastPricesByTscalpInstrumentId`),
+  `TInvestTradingService` (`getTradingStatuses`, `checkTradeAvailability`),
+  `TInvestPortfolioService` (`fetchPortfolioPositions` — was `fetchPositionsSnapshot`),
+  `TInvestInstrumentsService` (`fetchFullInstrument`, `findInstruments`),
+  `TInvestAccountsService` (`getAccounts`, `getBalance`) — обернуть в rate-limiter.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestOrdersService.kt` —
   обернуть `postOrder` (15/сек), `postStopOrder`,
   `getOrders`/`getStopOrders`, `cancel*`.
 - `app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/DataModule.kt` —
@@ -783,7 +785,9 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
    `suspend fun <T> withPermission(service: TInvestService, block: suspend () -> T): T`.
    Внутри — `Semaphore` или `Channel`-based limiter с
    двумя уровнями: per-service (N/мин) и глобальный (50/сек).
-3. **Интегрировать** в `TInvestMarketDataService` и
+3. **Интегрировать** в 5 data-сервисов (`TInvestPricesService`,
+   `TInvestTradingService`, `TInvestPortfolioService`,
+   `TInvestInstrumentsService`, `TInvestAccountsService`) и
    `TInvestOrdersService`: обернуть каждый unary-вызов в
    `rateLimiter.withPermission(...) { broker.method() }`.
 4. **Особый случай `getTradingStatuses`:** сейчас
@@ -829,7 +833,9 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 **Критерий готовности:**
 
 - `TInvestRateLimiter` реализован, покрыт unit-тестами.
-- Все unary-вызовы в `TInvestMarketDataService` и
+- Все unary-вызовы в 5 data-сервисах (`TInvestPricesService`,
+  `TInvestTradingService`, `TInvestPortfolioService`,
+  `TInvestInstrumentsService`, `TInvestAccountsService`) и
   `TInvestOrdersService` проходят через rate-limiter.
 - `getTradingStatuses` не превышает лимит `MarketData`
   (300/мин для gRPC) даже при 100 инструментах за раз.
@@ -1259,7 +1265,7 @@ GOOD_TILL_DATE }`, proto-поле `PostStopOrderRequest.expire_date`
   `expireDate` в use case.
 - `domain/usecases/PrepareOrderRequestUseCase.kt` — параметр
   `expireDate`, проброс в `StopOrderRequest`.
-- `data/api/TInvestOrdersService.kt` — восстановить
+- `data/api/tinvest/TInvestOrdersService.kt` — восстановить
   `parseDate` + `builder.setExpireDate(...)`.
 
 **Шаги:**
@@ -1526,13 +1532,13 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 #### Data-слой T-Invest
 
 **Файлы:**
-- `data/api/TInvestMarketDataService.kt` — 19 функций;
-  `fetchPositionsSnapshot` (complexity 26).
-- `data/api/TInvestInstrumentMapper.kt` — `mapProtoToDomain`
+- `data/api/tinvest/TInvestPortfolioService.kt` —
+  `fetchPortfolioPositions` (was `fetchPositionsSnapshot`; complexity 26).
+- `data/api/tinvest/TInvestInstrumentMapper.kt` — `mapProtoToDomain`
   (118 строк).
 
-**Пути решения:** `fetchPositionsSnapshot` разбить на
-`fetchPositions` + `enrichWithInstrumentData` +
+**Пути решения:** `fetchPortfolioPositions` (was `fetchPositionsSnapshot`)
+разбить на `fetchPortfolio` + `enrichWithInstrumentData` +
 `enrichWithMarginData`. `mapProtoToDomain` — на
 `mapFutures` / `mapShares` / `mapDefault`.
 
@@ -1601,13 +1607,13 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
   как у T-Invest.
 
 **Файлы:**
-- `data/api/FinamBrokerApi.kt` — основная реализация.
+- `data/api/finam/FinamBrokerApi.kt` — основная реализация.
 - `util/FinamErrorMessages.kt` — расшифровка кодов ошибок
   (может не существовать, см. ROADMAP → «Расшифровка
   кодов ошибок брокеров»).
-- `data/api/FinamModels.kt` (новый) — data-классы для
+- `data/api/finam/FinamModels.kt` (новый) — data-классы для
   JSON-ответов API.
-- `data/api/FinamConverters.kt` (новый) — конвертеры
+- `data/api/finam/FinamConverters.kt` (новый) — конвертеры
   JSON ↔ доменные модели.
 
 **Шаги:**
@@ -1616,7 +1622,8 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
    (боевой и sandbox), авторизация, формат запросов
    и ответов.
 2. Реализовать `getAccounts(sandboxMode)`.
-3. Реализовать `fetchPositionsSnapshot(accountId, sandboxMode)`.
+3. Реализовать `fetchPortfolioPositions(accountId, sandboxMode)`
+   (was `fetchPositionsSnapshot`).
 4. Реализовать `getBalance(accountId)`.
 5. Реализовать `findInstruments(query)`.
 6. Реализовать `postOrder` / `postStopOrder` /
@@ -1730,7 +1737,8 @@ Finam в UI.
 
 **Референсы:**
 - Закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
-- `data/api/TInvestMarketDataService.kt:173` — passthrough `expectedYield`.
+- `data/api/tinvest/TInvestPortfolioService.kt` — passthrough
+  `expectedYield` в `fetchPortfolioPositions`.
 - `domain/api/managers/PositionFlowManager.enrichAndCache` — заполнение из кеша.
 
 **Ограничения:**
