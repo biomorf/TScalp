@@ -1,9 +1,13 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.FutureUi
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.ShareUi
 import com.gitlab.biomorf.tscalp.domain.models.toOrderTypeSelection
+import com.gitlab.biomorf.tscalp.transport.ktor.RestInstrument
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
 import com.gitlab.biomorf.tscalp.transport.ktor.RestPosition
 import com.gitlab.biomorf.tscalp.transport.ktor.RestQuotation
@@ -61,4 +65,85 @@ internal fun RestPosition.toStreamItem(): PositionStreamItem =
         pointValue = null,
         instrumentType = instrumentType,
         currency = null,
+    )
+
+// ---------- RestInstrument → InstrumentUi (REST fallback) ----------
+// Эквивалент `TInvestInstrumentMapper.mapProtoToDomain` для REST-транспорта.
+// Поля, которых нет в `RestInstrument`, — default/null. Остальные
+// (klong, kshort, dlong, dshort, dlongMin, dshortMin, first*CandleDate,
+// sector, brand, requiredTests, и futures/share-специфичные) не приходят
+// в REST `GetInstrumentBy` и остаются `null`.
+
+internal fun RestInstrument.toInstrumentUi(): InstrumentUi =
+    when (instrumentType) {
+        "futures" -> toFutureUi()
+        "share" -> toShareUi()
+        else -> toDefaultUi()
+    }
+
+private fun RestInstrument.toFutureUi(): FutureUi =
+    FutureUi(
+        tscalpInstrumentId = uid,
+        ticker = ticker,
+        classCode = classCode,
+        isin = isin ?: "",
+        ttech_uid = uid,
+        ttech_figi = figi ?: "",
+        name = name,
+        currency = currency,
+        lot = lot,
+        exchange = exchange,
+        tradingStatus = tradingStatus,
+        apiTradeAvailableFlag = apiTradeAvailableFlag,
+        buyAvailableFlag = buyAvailableFlag,
+        sellAvailableFlag = sellAvailableFlag,
+        shortEnabledFlag = shortEnabledFlag,
+        minPriceIncrement = minPriceIncrement.toDouble(),
+        forIisFlag = forIisFlag,
+        forQualInvestorFlag = forQualInvestorFlag,
+        weekendFlag = weekendFlag,
+        blockedTcaFlag = blockedTcaFlag,
+        countryOfRisk = countryOfRisk,
+        countryOfRiskName = countryOfRiskName,
+        positionUid = positionUid,
+    )
+
+private fun RestInstrument.toShareUi(): ShareUi =
+    ShareUi(
+        tscalpInstrumentId = uid,
+        ticker = ticker,
+        classCode = classCode,
+        isin = isin ?: "",
+        ttech_uid = uid,
+        ttech_figi = figi ?: "",
+        name = name,
+        currency = currency,
+        lot = lot,
+        exchange = exchange,
+        tradingStatus = tradingStatus,
+        apiTradeAvailableFlag = apiTradeAvailableFlag,
+        buyAvailableFlag = buyAvailableFlag,
+        sellAvailableFlag = sellAvailableFlag,
+        shortEnabledFlag = shortEnabledFlag,
+        minPriceIncrement = minPriceIncrement.toDouble(),
+        forIisFlag = forIisFlag,
+        forQualInvestorFlag = forQualInvestorFlag,
+        weekendFlag = weekendFlag,
+        blockedTcaFlag = blockedTcaFlag,
+        countryOfRisk = countryOfRisk,
+        countryOfRiskName = countryOfRiskName,
+    )
+
+private fun RestInstrument.toDefaultUi(): InstrumentUi =
+    InstrumentUi(
+        tscalpInstrumentId = uid,
+        ticker = ticker,
+        classCode = classCode,
+        isin = isin ?: "",
+        ttech_uid = uid,
+        ttech_figi = figi ?: "",
+        name = name,
+        currency = currency,
+        lot = lot,
+        instrumentType = instrumentType,
     )
