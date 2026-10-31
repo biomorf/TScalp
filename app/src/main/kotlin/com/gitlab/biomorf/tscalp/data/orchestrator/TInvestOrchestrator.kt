@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
+import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestInstrumentsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPortfolioService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPositionsService
@@ -10,6 +11,7 @@ import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
 import com.gitlab.biomorf.tscalp.data.orchestrator.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -33,6 +35,7 @@ class TInvestOrchestrator(
     private val portfolio: TInvestPortfolioService,
     private val prices: TInvestPricesService,
     private val trading: TInvestTradingService,
+    private val instruments: TInvestInstrumentsService,
     private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -41,6 +44,7 @@ class TInvestOrchestrator(
     private val positionsRestFallback: (suspend (String, Boolean) -> List<PositionStreamItem>)? = null,
     private val ordersRestFallback: (suspend (String) -> List<Order>)? = null,
     private val balanceRestFallback: (suspend (String) -> Double)? = null,
+    private val findInstrumentsRestFallback: (suspend (String) -> List<InstrumentUi>)? = null,
 ) {
     private companion object {
         private const val TAG = "TInvestOrchestrator"
@@ -185,6 +189,24 @@ class TInvestOrchestrator(
             if (isTransportError(e) && balanceRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for balance")
                 balanceRestFallback(accountId)
+            } else {
+                throw e
+            }
+        }
+    }
+
+    suspend fun findInstrumentsWithFallback(query: String): List<InstrumentUi> {
+        if (debugFlagsRepository.forceRest) {
+            val rest = findInstrumentsRestFallback ?: throw IllegalStateException("REST fallback not configured")
+            logger.w(TAG, "forceRest: bypassing gRPC for instruments")
+            return rest(query)
+        }
+        return try {
+            instruments.findInstruments(query)
+        } catch (e: Throwable) {
+            if (isTransportError(e) && findInstrumentsRestFallback != null) {
+                logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for instruments")
+                findInstrumentsRestFallback(query)
             } else {
                 throw e
             }
