@@ -72,7 +72,9 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/instrument-cmin.
 
 **Контекст:** центральная доменная модель `Instruments` спроектирована в `docs/domain_models.md` (§1–§10). Две фазы рефакторинга: **C-min** (снять 9 кастов `as? FutureUi`, nullable `classCode`/`currency`/`lot`, `+settlementCurrency`, `moneyPerPointOfPrice` extension, `instrumentType` → enum, `InstrumentUi`/`FutureUi`/`ShareUi` → `Instrument`/`Future`/`Share`) и **sealed interface** (ISP/LSP, exhaustive `when`, subtype-specific поля в своих типах). Подготовка к реализации BCS/Finam API — сейчас `userInstruments = null` у обоих, модель не нагружена.
 
