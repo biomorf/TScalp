@@ -180,6 +180,18 @@
 
 **Триггер:** начало реализации BCS Broker API или Finam Broker API. Сейчас `userInstruments = null` у обоих — модель не нагружена.
 
+**Почему sealed interface, а не open class.** Короткое обоснование, чтобы через полгода не возвращаться:
+
+- **Exhaustive `when` — главный бонус.** `when (instrument) { is Share -> ...; is Future -> ... }` без `else` — компилятор не даст забыть новый тип (`Bond`, `Etf`, `Option`). Сейчас `when (instrumentType: String)` с `else` молча проглатывает новое значение (`OrdersScreen.getInstrumentTypeColor`, `TInvestPositionsWsMapper`, `TInvestPortfolioService` и т.д.).
+- **Убирает positional delegation.** `FutureUi`/`ShareUi` сейчас дублируют ~48 позиционных аргументов в `: InstrumentUi(...)`. Ошибка «перепутал `classCode` и `name`» — оба `String`, компилятор молчит, ловится только runtime. С sealed — `override` в декларации класса, не в вызове.
+- **No phantom fields (ISP).** `ShareUi` наследует `expirationDate`, `initialMarginOnBuy`, `basicAsset` — все `null`, никогда не используются. С sealed — `Share` только share-поля, `Future` — только futures.
+- **Type-safe subtype-доступ.** `SearchCacheImpl:52`: `(it as? FutureUi)?.expirationDate : Instant?` — тип говорит «может быть null», хотя для `Future` он всегда есть. С `when (is Future)` — smart cast в non-null `Instant`.
+- **LSP честно.** `ShareUi IS-A InstrumentUi` формально валидно, но объект с бессмысленными полями. Sealed — сиблинги с минимальным интерфейсом, иерархии нет.
+
+**Честный trade-off.** Больше `override` в декларациях (каждый общий член переобъявляется). Нет shared behavior — но у `InstrumentUi` методов с реализацией ноль (`moneyPerPointOfPrice` уходит в extension по C-min). Если бы были методы с реализацией — интерфейс потребовал бы default-реализаций.
+
+**Что sealed НЕ даёт.** Не убирает `as? Future` касты (это C-min, extension). Меняет форму: `when (is Future)` + smart cast вместо `as?`. Не ускоряет JVM-`instanceof`. Не решает «сколько типов» — если брокеры дадут 50 `type`, sealed превратится в 50 `data class` (поэтому `InstrumentType` enum — 14 значений — компромисс, а sealed — на 6–7 конкретных типах).
+
 ### 9. Сравнительные таблицы
 
 #### Акции
