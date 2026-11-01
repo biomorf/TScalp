@@ -155,7 +155,7 @@
 
 - [ ] **7.** `+ moneyPerPointOfPrice: Double` — **extension** на `InstrumentUi` в `Instruments.kt`, computed из `priceStepCost`/`minPriceIncrement`. `FutureUi.pointValue` — **удалить** (заменён extension).
 - [ ] **8.** `expirationDate: Instant?` → в `InstrumentUi` (было только `FutureUi`); `FutureUi`/`ShareUi` — убрать `override` (наследуется).
-- [ ] **9.** Удалить 9 кастов `as? FutureUi`:
+- [ ] **9.** Удалить 8 кастов `as? FutureUi`:
   - `TInvestPortfolioService:64` — `instrumentUi?.moneyPerPointOfPrice` (extension)
   - `CalculateTradeDetailsUseCase:48,78` — `instrument.moneyPerPointOfPrice` (extension)
   - `OrdersViewModel:201,215,403,915` — `instrument?.moneyPerPointOfPrice` (extension)
@@ -164,7 +164,7 @@
 
 #### Коммит 4 — `instrumentType` enum + rename (шаги 10–14)
 
-- [ ] **10.** `instrumentType: String` → `enum InstrumentType` — `Instruments.kt` (новый enum), `Portfolio.kt` (2 модели), все `== "..."` и `when`, мапперы (маппинг строки в enum, см. ниже).
+- [ ] **10.** `instrumentType: String` → `enum InstrumentType` — `Instruments.kt` (новый enum), `Portfolio.kt` (2 модели), `OrderModels.kt` (`Order`, `OrderState`), все `== "..."` и `when`, мапперы (маппинг строки в enum, см. ниже).
 - [ ] **11.** Переименовать `pointValue` → `moneyPerPointOfPrice` в `Portfolio.kt` (`PositionStreamItem`, `PortfolioPosition`) — это **снимки**, не computed.
 - [ ] **12.** `InstrumentUi` → `Instrument` (~25 call-sites, alias `import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument` в `TInvestInstrumentMapper`).
 - [ ] **13.** `FutureUi` → `Future` (~10 call-sites).
@@ -185,10 +185,11 @@
 
 - `InstrumentUi`, `FutureUi`, `ShareUi` (`Instruments.kt`)
 - `PositionStreamItem`, `PortfolioPosition` (`Portfolio.kt`)
-- data: `TInvestInstrumentMapper`, `TInvestRestMappers`, `TInvestPositionsWsMapper`, `TInvestPositionsService`, `TInvestPortfolioService`, `TInvestAccountsService`, `TInvestInstrumentsService`
+- `Order`, `OrderState` (`OrderModels.kt`)
+- data: `TInvestInstrumentMapper`, `TInvestRestMappers`, `TInvestPositionsWsMapper`, `TInvestPositionsService`, `TInvestPortfolioService`, `TInvestAccountsService`, `TInvestInstrumentsService`, `TInvestOrdersMapper`
 - domain: `PositionFlowManager`, `CalculateTradeDetailsUseCase`
 - data: `SearchCacheImpl`
-- presentation: `OrdersViewModel`, `AssetPositionCard`, `PortfolioScreen`, `OrdersScreen`, `PositionFormatter`
+- presentation: `OrdersViewModel`, `PortfolioViewModel`, `AssetPositionCard`, `ConfirmOrderDialog`, `OrderCard`, `OrdersListDialog`, `PortfolioScreen`, `OrdersScreen`, `PositionFormatter`, `CurrencyFormat`
 - tests: `CalculateTradeDetailsUseCaseTest`, другие.
 
 #### Критерий готовности
