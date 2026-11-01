@@ -203,32 +203,77 @@
 
 **Цель:** ISP/LSP, exhaustive `when`, subtype-specific поля — только в своих типах.
 
-**Шаги:**
+**2c:** соответствует Clean (domain-модель меняет форму; dependency rule не нарушен).
 
-1. `sealed interface Instrument` (core 5 + common 9 + флаги).
-2. `data class Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other` — с subtype-specific.
-3. `InstrumentUi` / `FutureUi` / `ShareUi` — удалить.
-4. `mapProtoToDomain` (146 строк) → 6 мапперов + диспетчер.
-5. `toInstrumentUi` (4 функции) → 6 функций.
-6. `SearchCacheImpl` сортировка — `when (instrument)` вместо `as? FutureUi`.
-7. Margin/risk — вынести в `TradeCheckResult` (отдельная задача, `2026-11-02`).
-8. Все `when (instrumentType)` → `when (instrument)` — exhaustive.
-
-**Оценка:** ~5–6 ч.
+**Оценка:** ~5 ч (step 0 + 7 шагов + 3 гейта). После C-min rename — экономия ~30 мин на переименовании: `Instrument`/`Future`/`Share` уже названы правильно, остаётся только сменить relation.
 
 **Триггер:** начало реализации BCS Broker API или Finam Broker API. Сейчас `userInstruments = null` у обоих — модель не нагружена.
+
+**Ветка:** `feature/instrument-sealed-interface`, один PR, 3 коммита внутри.
+
+**Что НЕ входит в Phase 2** (сознательно):
+
+- **Margin/risk** (`initialMarginOnBuy/Sell`, `dlong*`, `klong/kshort`) — отдельная задача `### Margin/risk → TradeCheckResult` в ROADMAP, дата **2026-11-02**. Зависит от Phase 2: после неё однозначно видно, что эти поля — Future-specific и account-specific (Finam `GetAssetParams` с `account_id`), их место — не в `Instrument`.
+
+#### Шаг 0. Полный маппинг subtype-specific (read-only)
+
+- [ ] **0.1.** T-Invest: proto `Share`, `Future`, `Bond`, `Option`, `Etf`, `Currency` — полные списки полей. `Share`/`Future`/`Option`/`Instrument` — уже получены 2026-11-01. `Bond`/`Etf`/`Currency` — при реализации (тривиальные списки).
+- [ ] **0.2.** BCS: `instruments/by-isins`, `by-type` — какие поля относятся к Share/Future/Bond/Etf. Сверить `(?)`-пометки в §9 (например, `emissionDate` ↔ `ipoDate`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `subType` ↔ `shareType`, `liquidityRating` vs `liquidityFlag`).
+- [ ] **0.3.** Finam: `AssetsService/GetAsset` — `future_details`, `bond_details`, `option_details`. Сверить.
+- [ ] **0.4.** Обновить §5 и §9: полные списки, без `(?)` там, где подтверждено; оставшиеся `(?)` — в §10.
+- **Оценка:** 30 мин. **Блокер:** нет.
+
+#### Коммит 1 — sealed interface + data classes (шаги 1–2)
+
+- [ ] **1.** `sealed interface Instrument` (core 4 + common 9 + флаги). Общие члены — на интерфейсе: core non-null, common nullable, флаги nullable.
+- [ ] **2.** 7 `data class`: `Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other` — с subtype-specific полями из §5.
+  - `Etf`, `Currency`, `Other` — только core + common (нет subtype-specific по §5). Различаются **самим типом**, не полем — в этом смысл sealed.
+  - `Option` — с полями из §5 (`direction`, `paymentType`, `style`, `settlementType`, `strikePrice`, `firstTradeDate`, `lastTradeDate`). Не реализуется в мапперах и операциях, но **в модели есть** — иначе `when` не exhaustive при появлении опционов.
+- **Оценка:** 1 ч.
+
+#### Коммит 2 — `mapProtoToDomain` split (шаги 3–4)
+
+- [ ] **3.** Сменить relation (после C-min `InstrumentUi` → `Instrument`, `FutureUi` → `Future`, `ShareUi` → `Share`):
+  - `open class Instrument` → `sealed interface Instrument`.
+  - `data class Future`/`Share` — `: InstrumentUi(...)` → `: Instrument`.
+  - Позиционное делегирование (48 аргументов в `FutureUi`/`ShareUi`) **удаляется**: `override` в декларации, не в вызове.
+- [ ] **4.** `mapProtoToDomain` (146 строк) → 6 мапперов + диспетчер:
+  - `mapShare(proto: Share): Share`, `mapFuture(proto: Future): Future`, `mapBond(proto: Bond): Bond`, `mapOption(proto: Option): Option`, `mapEtf(...): Etf`, `mapCurrency(...): Currency`.
+  - Диспетчер: `when (proto) { is Share -> mapShare(...); is Future -> mapFuture(...); ... }` — exhaustive по proto-типам.
+- **Оценка:** 1.5 ч.
+
+#### Коммит 3 — `toInstrumentUi` split + SearchCache + exhaustive `when` (шаги 5–7)
+
+- [ ] **5.** `toInstrumentUi` (4 функции в `TInvestRestMappers`) → 6 функций по аналогии с шагом 4.
+- [ ] **6.** `SearchCacheImpl:52` — сортировка: `when (instrument) { is Future -> instrument.expirationDate; ... }` вместо `as? FutureUi`.
+- [ ] **7.** Все `when (instrumentType)` → `when (instrument)`:
+  - `OrdersScreen.getInstrumentTypeColor` — `when (instrument) { is Share -> ...; is Future -> ...; ... }`.
+  - `TInvestPositionsWsMapper`, `TInvestPortfolioService` — проверка типа через `is`.
+  - `PositionFlowManager:234,237` — склейка currency через `is Currency`.
+  - Все оставшиеся `== InstrumentType.XXX` в `main` — `is XXX`.
+- **Оценка:** 40 мин.
+
+#### Критерий готовности
+
+- `grep "as? FutureUi\|as? ShareUi\|as? InstrumentUi"` в `main` = 0.
+- `grep "InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0.
+- Все `when (instrument)` — без `else`, exhaustive (компилятор подтверждает).
+- `InstrumentType` enum — остаётся как поле на интерфейсе (удобно для логов, метрик, UI-текстов; маппинг enum → строка — в presentation).
+- Гейт зелёный на каждом коммите.
+- §8 чек-боксы `[x]` — в том же PR.
 
 **Почему sealed interface, а не open class.** Короткое обоснование, чтобы через полгода не возвращаться:
 
 - **Exhaustive `when` — главный бонус.** `when (instrument) { is Share -> ...; is Future -> ... }` без `else` — компилятор не даст забыть новый тип (`Bond`, `Etf`, `Option`). Сейчас `when (instrumentType: String)` с `else` молча проглатывает новое значение (`OrdersScreen.getInstrumentTypeColor`, `TInvestPositionsWsMapper`, `TInvestPortfolioService` и т.д.).
-- **Убирает positional delegation.** `FutureUi`/`ShareUi` сейчас дублируют ~48 позиционных аргументов в `: InstrumentUi(...)`. Ошибка «перепутал `classCode` и `name`» — оба `String`, компилятор молчит, ловится только runtime. С sealed — `override` в декларации класса, не в вызове.
-- **No phantom fields (ISP).** `ShareUi` наследует `expirationDate`, `initialMarginOnBuy`, `basicAsset` — все `null`, никогда не используются. С sealed — `Share` только share-поля, `Future` — только futures.
-- **Type-safe subtype-доступ.** `SearchCacheImpl:52`: `(it as? FutureUi)?.expirationDate : Instant?` — тип говорит «может быть null», хотя для `Future` он всегда есть. С `when (is Future)` — smart cast в non-null `Instant`.
-- **LSP честно.** `ShareUi IS-A InstrumentUi` формально валидно, но объект с бессмысленными полями. Sealed — сиблинги с минимальным интерфейсом, иерархии нет.
+- **Убирает positional delegation.** `Future`/`Share` сейчас дублируют ~48 позиционных аргументов в `: InstrumentUi(...)` (Phase 2 снимает это окончательно). Ошибка «перепутал `classCode` и `name`» — оба `String`, компилятор молчит, ловится только runtime. С sealed — `override` в декларации класса, не в вызове.
+- **No phantom fields (ISP).** `Share` наследует `expirationDate`, `initialMarginOnBuy`, `basicAsset` — все `null`, никогда не используются. С sealed — `Share` только share-поля, `Future` — только futures.
+- **Type-safe subtype-доступ.** `SearchCacheImpl:52`: `(it as? Future)?.expirationDate : Instant?` — тип говорит «может быть null», хотя для `Future` он всегда есть. С `when (is Future)` — smart cast в non-null `Instant`.
+- **LSP честно.** `Share IS-A InstrumentUi` формально валидно, но объект с бессмысленными полями. Sealed — сиблинги с минимальным интерфейсом, иерархии нет.
 
-**Честный trade-off.** Больше `override` в декларациях (каждый общий член переобъявляется). Нет shared behavior — но у `InstrumentUi` методов с реализацией ноль (`moneyPerPointOfPrice` уходит в extension по C-min). Если бы были методы с реализацией — интерфейс потребовал бы default-реализаций.
+**Честный trade-off.** Больше `override` в декларациях (каждый общий член переобъявляется). Нет shared behavior — но у `InstrumentUi` методов с реализацией ноль (`moneyPerPointOfPrice` — extension по C-min). Если бы были методы с реализацией — интерфейс потребовал бы default-реализаций.
 
-**Что sealed НЕ даёт.** Не убирает `as? Future` касты (это C-min, extension). Меняет форму: `when (is Future)` + smart cast вместо `as?`. Не ускоряет JVM-`instanceof`. Не решает «сколько типов» — если брокеры дадут 50 `type`, sealed превратится в 50 `data class` (поэтому `InstrumentType` enum — 14 значений — компромисс, а sealed — на 6–7 конкретных типах).
+**Что sealed НЕ даёт.** Заменяет `as? Future` на `is Future` + smart cast (форма exhaustive, но проверка типа никуда не уходит). Не ускоряет JVM-`instanceof`. Не решает «сколько типов» — если брокеры дадут 50 `type`, sealed превратится в 50 `data class` (поэтому `InstrumentType` enum — 14 значений — компромисс, а sealed — на 7 конкретных типах).
+
 
 ### 9. Сравнительные таблицы
 
