@@ -122,53 +122,82 @@
 
 **Также вне модели:** `tradingStatus` (режим торгов — это не свойство инструмента, а состояние торговой сессии), `initialMargin*`, `dlong*`.
 
-### 7. Этап 1 (C-min) — что делаем в коде
+### 7. Этап 1 (C-min) — чек-лист
 
-**Цель:** снять 9 кастов `as? FutureUi`, убрать 3 неоднозначных/дублирующих поля, добавить 3 отсутствующих. Модель остаётся `open class` + 2 `data class` — без sealed interface.
+**Цель:** снять 9 кастов `as? FutureUi`, убрать 3 неоднозначных/дублирующих поля, добавить 3 отсутствующих, переименовать модель. Модель остаётся `open class` + 2 `data class` — без sealed interface.
 
 **2c:** соответствует Clean (поля-изменения в domain; мапперы в data; dependency rule не нарушен).
 
-**Шаги (11):**
+**Оценка:** ~3 ч (шаг 0 + 14 шагов + 4 гейта). **Ветка:** `feature/instrument-cmin`, один PR, 4 коммита внутри.
 
-1. **Удалить `ttech_uid`** — `InstrumentUi`, `FutureUi`, `ShareUi`, `mapProtoToDomain`, `toInstrumentUi`. Заменить на `tscalpInstrumentId` там, где использовалось (= `uid`).
-2. **`ttech_figi` → `figi: String? = null`** — `InstrumentUi`, `FutureUi`, `ShareUi`, мапперы.
-3. **`classCode: String` → `String? = null`** — `InstrumentUi`, мапперы (`?: ""` → `null`).
-4. **`currency: String` → `String? = null`** — `InstrumentUi`, мапперы.
-5. **`lot: Int` → `Long? = null`** — `InstrumentUi`, мапперы (`lot.toLong()`), `CalculateTradeDetailsUseCase`.
-6. **`+ settlementCurrency: String? = null`** — `InstrumentUi`, мапперы.
-7. **`+ moneyPerPointOfPrice` (extension)** — в `Instruments.kt`, computed из `priceStepCost`/`minPriceIncrement`; `FutureUi.pointValue` — **удалить** (заменён extension).
-8. **`expirationDate: Instant?` → в `InstrumentUi`** (было только `FutureUi`); `FutureUi`/`ShareUi` — убрать `override` (наследуется).
-9. **Удалить 9 кастов `as? FutureUi`** — заменить на extension/поле:
-   - `TInvestPortfolioService:64` — `instrumentUi?.moneyPerPointOfPrice` (extension)
-   - `CalculateTradeDetailsUseCase:48,78` — `instrument.moneyPerPointOfPrice` (extension)
-   - `OrdersViewModel:201,215,403,915` — `instrument?.moneyPerPointOfPrice` (extension)
-   - `SearchCacheImpl:52` — `it.expirationDate`
-10. **`instrumentType: String` → `enum InstrumentType`** — `Instruments.kt` (новый enum), `Portfolio.kt` (2 модели), все `== "..."` и `when`, мапперы (маппинг строки в enum).
-11. **Переименовать `pointValue` → `moneyPerPointOfPrice`** в `Portfolio.kt` (`PositionStreamItem`, `PortfolioPosition`) — это **снимки**, не computed.
+#### Шаг 0. Маппинг `InstrumentType` (read-only)
 
-**Enum `InstrumentType` (значения):**
+- [ ] **0.1.** Прочитать proto T-Invest `Share`/`Future`/`Option`/`Instrument` (`instrument_type`, `instrument_kind`), BCS `type` (`STOCK`/`FOREIGN_STOCK`/`BONDS`/...), Finam `type` (`STOCK`/`BOND`/`FUTURES`/...).
+- [ ] **0.2.** Обновить §9 (таблицы): столбец `instrumentType` — маппинг каждого значения.
+- [ ] **0.3.** Зафиксировать в §10 неоднозначности, если есть (T-Invest `"fond"` vs `"etf"`, BCS `MUTUAL_FUNDS` vs `ETF`, Finam `type` — точный список).
+- **Оценка:** 15 мин. **Блокер:** нет.
+
+#### Коммит 1 — переименования (шаги 1–2)
+
+- [ ] **1.** Удалить `ttech_uid` — `InstrumentUi`, `FutureUi`, `ShareUi`, `mapProtoToDomain`, `toInstrumentUi`. Заменить на `tscalpInstrumentId` (= `uid`) там, где использовалось.
+- [ ] **2.** `ttech_figi` → `figi: String? = null` — `InstrumentUi`, `FutureUi`, `ShareUi`, мапперы.
+- **Оценка:** 25 мин.
+
+#### Коммит 2 — nullable + новые поля (шаги 3–6)
+
+- [ ] **3.** `classCode: String` → `String? = null` — `InstrumentUi`, мапперы (`?: ""` → `null`).
+- [ ] **4.** `currency: String` → `String? = null` — `InstrumentUi`, мапперы.
+- [ ] **5.** `lot: Int` → `Long? = null` — `InstrumentUi`, мапперы (`lot.toLong()`), `CalculateTradeDetailsUseCase` (fallback `?: 1L` где нужен non-null).
+- [ ] **6.** `+ settlementCurrency: String? = null` — `InstrumentUi`, мапперы.
+- **Оценка:** 25 мин.
+
+#### Коммит 3 — `moneyPerPointOfPrice` + удаление кастов (шаги 7–9)
+
+- [ ] **7.** `+ moneyPerPointOfPrice: Double` — **extension** на `InstrumentUi` в `Instruments.kt`, computed из `priceStepCost`/`minPriceIncrement`. `FutureUi.pointValue` — **удалить** (заменён extension).
+- [ ] **8.** `expirationDate: Instant?` → в `InstrumentUi` (было только `FutureUi`); `FutureUi`/`ShareUi` — убрать `override` (наследуется).
+- [ ] **9.** Удалить 9 кастов `as? FutureUi`:
+  - `TInvestPortfolioService:64` — `instrumentUi?.moneyPerPointOfPrice` (extension)
+  - `CalculateTradeDetailsUseCase:48,78` — `instrument.moneyPerPointOfPrice` (extension)
+  - `OrdersViewModel:201,215,403,915` — `instrument?.moneyPerPointOfPrice` (extension)
+  - `SearchCacheImpl:52` — `it.expirationDate`
+- **Оценка:** 40 мин.
+
+#### Коммит 4 — `instrumentType` enum + rename (шаги 10–14)
+
+- [ ] **10.** `instrumentType: String` → `enum InstrumentType` — `Instruments.kt` (новый enum), `Portfolio.kt` (2 модели), все `== "..."` и `when`, мапперы (маппинг строки в enum, см. ниже).
+- [ ] **11.** Переименовать `pointValue` → `moneyPerPointOfPrice` в `Portfolio.kt` (`PositionStreamItem`, `PortfolioPosition`) — это **снимки**, не computed.
+- [ ] **12.** `InstrumentUi` → `Instrument` (~25 call-sites, alias `import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument` в `TInvestInstrumentMapper`).
+- [ ] **13.** `FutureUi` → `Future` (~10 call-sites).
+- [ ] **14.** `ShareUi` → `Share` (~5 call-sites).
+- **Оценка:** 65 мин.
+
+#### Enum `InstrumentType`
+
 `SHARE`, `FOREIGN_SHARE`, `BOND`, `NOTE`, `EURO_BOND`, `DEPOSITARY_RECEIPT`, `ETF`, `MUTUAL_FUND`, `FUTURES`, `OPTION`, `CURRENCY`, `COMMODITY`, `INDEX`, `OTHER`.
 
-**Маппинг брокерских значений → enum:**
-- T-Invest: `"share"` → `SHARE`, `"bond"` → `BOND`, `"etf"` → `ETF`, `"currency"` → `CURRENCY`, `"futures"` → `FUTURES`, `"option"` → `OPTION`, `"fond"` → `MUTUAL_FUND`, остальное → `OTHER`.
-- BCS: `STOCK` → `SHARE`, `FOREIGN_STOCK` → `FOREIGN_SHARE`, `BONDS` → `BOND`, `NOTES` → `NOTE`, `DEPOSITARY_RECEIPTS` → `DEPOSITARY_RECEIPT`, `EURO_BONDS` → `EURO_BOND`, `MUTUAL_FUNDS` → `MUTUAL_FUND`, `ETF` → `ETF`, `FUTURES` → `FUTURES`, `OPTIONS` → `OPTION`, `CURRENCY` → `CURRENCY`, `GOODS` → `COMMODITY`, `INDICES` → `INDEX`, остальное → `OTHER`.
-- Finam: `STOCK` → `SHARE`, `BOND` → `BOND`, `FUTURES` → `FUTURES`, остальное — по `type`.
+#### Маппинг брокерских значений → enum
 
-**Call-sites (сводно):**
+- **T-Invest:** `"share"` → `SHARE`, `"bond"` → `BOND`, `"etf"` → `ETF`, `"currency"` → `CURRENCY`, `"futures"` → `FUTURES`, `"option"` → `OPTION`, `"fond"` → `MUTUAL_FUND`, остальное → `OTHER`.
+- **BCS:** `STOCK` → `SHARE`, `FOREIGN_STOCK` → `FOREIGN_SHARE`, `BONDS` → `BOND`, `NOTES` → `NOTE`, `DEPOSITARY_RECEIPTS` → `DEPOSITARY_RECEIPT`, `EURO_BONDS` → `EURO_BOND`, `MUTUAL_FUNDS` → `MUTUAL_FUND`, `ETF` → `ETF`, `FUTURES` → `FUTURES`, `OPTIONS` → `OPTION`, `CURRENCY` → `CURRENCY`, `GOODS` → `COMMODITY`, `INDICES` → `INDEX`, остальное → `OTHER`.
+- **Finam:** `STOCK` → `SHARE`, `BOND` → `BOND`, `FUTURES` → `FUTURES`, остальное — по `type` (точный список в шаге 0).
+
+#### Call-sites (сводно)
+
 - `InstrumentUi`, `FutureUi`, `ShareUi` (`Instruments.kt`)
 - `PositionStreamItem`, `PortfolioPosition` (`Portfolio.kt`)
-- `TInvestInstrumentMapper`, `TInvestRestMappers`, `TInvestPositionsWsMapper`, `TInvestPositionsService`, `TInvestPortfolioService`, `TInvestAccountsService`, `TInvestInstrumentsService` (data)
-- `PositionFlowManager` (domain)
-- `CalculateTradeDetailsUseCase` (domain)
-- `SearchCacheImpl` (data)
-- `OrdersViewModel` (presentation)
-- `AssetPositionCard`, `PortfolioScreen`, `OrdersScreen` (presentation)
-- `PositionFormatter` (presentation)
-- `CalculateTradeDetailsUseCaseTest`, другие тесты.
+- data: `TInvestInstrumentMapper`, `TInvestRestMappers`, `TInvestPositionsWsMapper`, `TInvestPositionsService`, `TInvestPortfolioService`, `TInvestAccountsService`, `TInvestInstrumentsService`
+- domain: `PositionFlowManager`, `CalculateTradeDetailsUseCase`
+- data: `SearchCacheImpl`
+- presentation: `OrdersViewModel`, `AssetPositionCard`, `PortfolioScreen`, `OrdersScreen`, `PositionFormatter`
+- tests: `CalculateTradeDetailsUseCaseTest`, другие.
 
-**Оценка:** ~1.5–2 ч.
+#### Критерий готовности
 
-**Критерий готовности:** `grep "as? FutureUi"` = 0; `grep "ttech_uid\|ttech_figi\|minPriceIncrementAmount\|pointValue"` в main = 0; `instrumentType` — enum везде; гейт зелёный.
+- `grep "as? FutureUi"` в `main` = 0.
+- `grep "ttech_uid\|ttech_figi\|minPriceIncrementAmount\|pointValue\|InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0 (кроме исторических KDoc-ссылок в комментариях — проверить глазами).
+- `instrumentType` — enum везде.
+- Гейт (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`) зелёный на каждом коммите.
+- `docs/domain_models.md` §7 — все чек-боксы `[x]` (обновляется в том же PR).
 
 ### 8. Этап 2 (A) — sealed interface
 
