@@ -18,13 +18,9 @@ import kotlin.time.Instant
  * @property tscalpInstrumentId универсальный идентификатор
  *   инструмента в TScalp (не `uid`/`figi`). Domain-слой оперирует
  *   только им; трансляция в брокерские id — в data-слое.
- * @property ttech_uid `instrument_uid` из T-Invest API.
- *   **T-Invest-специфичное поле** (см. AGENTS.md:
- *   «`InstrumentUi.ttech_uid` — исключение: специфика T-Invest»).
- *   Используется при вызовах T-Invest API и в маппинге.
- * @property ttech_figi `figi` из T-Invest API. **Временно** — нужен
- *   для подписки на `LastPrice` через gRPC-стрим (там figi, не uid).
- *   Уйдёт, когда стрим перейдёт на `instrumentUid`.
+ * @property figi FIGI инструмента (международный идентификатор,
+ *   Bloomberg). Не T-Invest-специфичный: BCS в позициях тоже
+ *   даёт figi.
  * @property instrumentType строковый enum: `"share"`, `"futures"`,
  *   `"currency"`, `"etf"`, `"bond"`, `"option"`. Не sealed-тип,
  *   потому что часть моделей использует один общий класс.
@@ -34,8 +30,7 @@ open class InstrumentUi(
     open val ticker: String,
     open val classCode: String, // код класса (например, SPBFUT)
     open val isin: String, // ISIN
-    open val ttech_uid: String, // instrument_uid из T-tech Invest API
-    open val ttech_figi: String = "", // временно для стрима LastPrice
+    open val figi: String? = null,
     open val name: String,
     open val currency: String,
     open val lot: Int,
@@ -102,8 +97,7 @@ data class FutureUi(
     override val ticker: String,
     override val classCode: String,
     override val isin: String,
-    override val ttech_uid: String,
-    override val ttech_figi: String = "",
+    override val figi: String? = null,
     override val name: String,
     override val currency: String,
     override val lot: Int,
@@ -153,8 +147,7 @@ data class FutureUi(
         ticker,
         classCode,
         isin,
-        ttech_uid,
-        ttech_figi,
+        figi,
         name,
         currency,
         lot,
@@ -226,8 +219,7 @@ data class ShareUi(
     override val ticker: String,
     override val classCode: String,
     override val isin: String,
-    override val ttech_uid: String,
-    override val ttech_figi: String = "",
+    override val figi: String? = null,
     override val name: String,
     override val currency: String,
     override val lot: Int,
@@ -275,8 +267,7 @@ data class ShareUi(
         ticker,
         classCode,
         isin,
-        ttech_uid,
-        ttech_figi,
+        figi,
         name,
         currency,
         lot,

@@ -25,7 +25,7 @@ object TInvestInstrumentMapper {
         minPriceIncrementAmountOverride: Double? = null,
     ): InstrumentUi {
         val brokerUid = instrument.uid
-        val figi = instrument.figi ?: ""
+        val figi = instrument.figi?.takeIf { it.isNotBlank() }
         val type = instrument.instrumentType ?: ""
         val minInc = TInvestConverters.quotationToDouble(instrument.minPriceIncrement)
         val tradingStatus = instrument.tradingStatus.name
@@ -37,8 +37,7 @@ object TInvestInstrumentMapper {
                     ticker = instrument.ticker,
                     classCode = instrument.classCode ?: "",
                     isin = instrument.isin ?: "",
-                    ttech_uid = brokerUid,
-                    ttech_figi = figi,
+                    figi = figi,
                     name = instrument.name,
                     currency = instrument.currency,
                     lot = instrument.lot,
@@ -88,8 +87,7 @@ object TInvestInstrumentMapper {
                     ticker = instrument.ticker,
                     classCode = instrument.classCode ?: "",
                     isin = instrument.isin ?: "",
-                    ttech_uid = brokerUid,
-                    ttech_figi = figi,
+                    figi = figi,
                     name = instrument.name,
                     currency = instrument.currency,
                     lot = instrument.lot,
@@ -135,8 +133,7 @@ object TInvestInstrumentMapper {
                     ticker = instrument.ticker,
                     classCode = instrument.classCode ?: "",
                     isin = instrument.isin ?: "",
-                    ttech_uid = brokerUid,
-                    ttech_figi = figi,
+                    figi = figi,
                     name = instrument.name,
                     currency = instrument.currency,
                     lot = instrument.lot,
