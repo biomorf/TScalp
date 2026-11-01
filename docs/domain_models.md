@@ -41,7 +41,7 @@
 **Формула P&L фьючерса:** `(currentPrice - avgPrice) × quantity × moneyPerPointOfPrice`.
 Эквивалентно: `((currentPrice - avgPrice) / minPriceIncrement) × priceStepCost × quantity`.
 
-### 3. Core (обязательные, 5)
+### 3. Core (обязательные, 4)
 
 Без них инструмент не идентифицируется. Все — non-null.
 
@@ -49,11 +49,12 @@
 |---|---|---|---|
 | `tscalpInstrumentId: String` | `uid` | `figi` | `id` |
 | `ticker: String` | `ticker` | `ticker` | `ticker` |
-| `isin: String` | `isin` | `isin` | `isin` |
 | `name: String` | `name` | `displayName` | `name` |
-| `instrumentType: InstrumentType` | `instrumentType` (маппинг) | `type` (= `instrumentType`) | `type` |
+| `instrumentType: InstrumentType` | контекст маппера (см. ниже) | `type` | `type` |
 
-`isin` — общий у всех трёх брокеров (подтверждено документацией BCS и Finam). Не nullable.
+**Почему `isin` не в core.** proto T-Invest (v1.51+): `Share` и `Instrument` имеют `isin`, **`Future` и `Option` — нет**. Если оставить `isin: String` в core, для futures/options пришлось бы писать `""` (ложь). `isin` — common optional (§4).
+
+**Почему `instrumentType` не из proto-поля.** У T-Invest `Share`/`Future`/`Option` **нет общего** `instrument_type` — есть только `Instrument.instrument_type` и `Instrument.instrument_kind` (через `GetInstrumentBy`). Поле заполняется **маппером по контексту**: `Shares()` → `SHARE`, `Futures()` → `FUTURES`, `Options()` → `OPTION`. В Phase 2 (A) тип определяется самим `data class`.
 
 ### 4. Common optional (на интерфейсе, nullable)
 
@@ -64,14 +65,15 @@
 | Поле | T-Invest | BCS | Finam | Примечание |
 |---|---|---|---|---|
 | `classCode: String?` | `classCode` | `boards[0].classCode` | — | Нужен BCS для order-route |
+| `isin: String?` | `isin` (Share/Instrument), **нет у Future/Option** | `isin` | `isin` | Common optional: у фьючерсов и опционов T-Invest отсутствует |
 | `exchange: String?` | `exchange` | `boards[0].exchange` | `mic` | Значения не канонизируем («MOEX» vs «MISX») |
 | `lot: Long?` | `lot: Int` | `lotSize: double` | `lot_size: Decimal` | Лот целый, `toLong()` без потерь |
 | `currency: String?` | `currency` | `tradingCurrency` | `quote_currency` | Валюта цены |
-| `settlementCurrency: String?` | — | `settlementCurrency` | `bond_details.currency` | Валюта расчётов (Bond, BCS) |
+| `settlementCurrency: String?` | `settlement_currency` (только Option) | `settlementCurrency` | `bond_details.currency` | Валюта расчётов |
 | `figi: String?` | `figi` | `figi` (из позиций) | — | Международный идентификатор |
 | `priceStepCost: Double?` | `minPriceIncrementAmount` | `stepPrice` | compute `min_step/10^decimals × contract_size` | Стоимость шага цены |
 | `minPriceIncrement: Double?` | `minPriceIncrement` | `minimumStep` | `min_step / 10^decimals` | Шаг цены |
-| `expirationDate: Instant?` | `expirationDate` (Future) | `maturityDate` (общее) | `future_details.expiration_date` | Только futures (у T-Invest), общее у BCS/Finam |
+| `expirationDate: Instant?` | `expirationDate` (Future/Option) | `maturityDate` (общее) | `future_details.expiration_date` | T-Invest — только Future/Option (у Share нет), BCS/Finam — общее |
 
 **Флаги (T-Invest-специфичные, но лежат в common nullable — BCS/Finam могут не заполнять):**
 - `apiTradeAvailableFlag: Boolean?`
@@ -90,19 +92,26 @@
 
 Поля, применимые только к одному типу инструмента. В C-min — `null` / не используются. В A — переезжают в свой `data class`.
 
-**`Share`:**
-- `ipoDate: Instant?`, `issueSize: Long?`, `issueSizePlan: Long?`, `nominal: Double?`, `divYieldFlag: Boolean?`, `shareType: String?`, `liquidityFlag: Boolean?`, `assetUid: String?`
+**`Share`** (proto T-Invest `Share` + BCS + Finam):
+- `ipoDate: Instant?`, `issueSize: Long?`, `issueSizePlan: Long?`, `nominal: Double?`, `divYieldFlag: Boolean?`, `shareType: String?`, `liquidityFlag: Boolean?`
 
-**`Future`:**
-- `firstTradeDate: Instant?`, `lastTradeDate: Instant?`, `futuresType: String?`, `assetType: String?`, `basicAsset: String?`, `basicAssetSize: Double?`, `positionUid: String?`, `basicAssetPositionUid: String?`
+**`Future`** (proto T-Invest `Future` + BCS + Finam):
+- `firstTradeDate: Instant?`, `lastTradeDate: Instant?`, `futuresType: String?`, `assetType: String?`, `basicAsset: String?`, `basicAssetSize: Double?`, `basicAssetPositionUid: String?`
 
-**`Bond`:**
+**`Bond`** (proto T-Invest `Bond` + BCS `bond_details`):
 - `faceValue: Double?`, `couponRate: Double?`, `nextCoupon: Instant?`, `couponsPerYear: Long?`, `accruedInt: Double?`, `creditRating: String?`
 
-**`Option`:**
-- `strike: Double?`
+**`Option`** (не реализуется сейчас; зафиксировано для полноты по proto T-Invest `Option`):
+- `direction: String?` (`PUT`/`CALL`), `paymentType: String?` (`PREMIUM`/`MARGINAL`), `style: String?` (`AMERICAN`/`EUROPEAN`), `settlementType: String?` (`PHYSICAL_DELIVERY`/`CASH_SETTLEMENT`), `strikePrice: Double?`, `firstTradeDate: Instant?`, `lastTradeDate: Instant?`, `expirationDate: Instant?` (последний — уже в common, здесь переопределяется как `non-null` в Phase 2)
 
 **`Etf`, `Currency`, `Other`:** только core + common.
+
+**Явно не включаем в модель** (решения от 2026-11-01):
+- `requiredTests: List<String>` — пользователь проходит тесты на сайте брокера; при попытке операции ошибка ловится с сервера. YAGNI.
+- `positionUid`, `assetUid` — не нужны текущим операциям.
+- `otcFlag` — «ранее для внебиржевых», deprecated по смыслу.
+- `realExchange: RealExchange` — реальная площадка расчётов; у нас `exchange` достаточно.
+- `klong`, `kshort` — `[deprecated = true]` в proto T-Invest, не тащить.
 
 ### 6. Вне модели (Этап 2, A; отдельная задача)
 
@@ -278,6 +287,12 @@
 | 6 | **Margin/risk → `TradeCheckResult`** (отдельная задача). | `initialMargin*`, `dlong*` | **2026-11-02** |
 | 7 | `InstrumentType` enum — точный маппинг T-Invest proto (`SHARE`/`BOND`/`ETF`/`FUTURES`/...) и Finam `type` (по документации). | `InstrumentType` | C-min |
 | 8 | `PositionFlowManager:234,237` — склейка валютных позиций по `currency` (и `instrumentType == "currency"`). При переименовании в enum — `InstrumentType.CURRENCY`. | `PositionFlowManager` | C-min |
+
+**Закрытые (2026-11-01):**
+- `requiredTests` — не включаем (Q3). Тесты проходятся на сайте брокера; ошибка операции ловится как `AppError` с сервера.
+- `positionUid`, `assetUid`, `otcFlag`, `realExchange` — не включаем (Q4, YAGNI). Добавим при реальной необходимости.
+- `klong`/`kshort` — `[deprecated = true]` в proto T-Invest; не тащим.
+- `instrumentType` — заполняется маппером по контексту (`Shares()` → `SHARE`), не из proto-поля: у `Share`/`Future`/`Option` нет общего `instrument_type`. В Phase 2 (A) subtype сам определяет тип.
 
 ### 11. Связанные документы
 

@@ -57,8 +57,7 @@ transport» (`docs/ROADMAP.md`).
 - Общая: `https://developer.tbank.ru/invest/intro/developer/`
 - Протоколы: `https://developer.tbank.ru/invest/intro/developer/protocols/restapi`
 - Stream-соединения: раздел «Stream-соединения».
-- AsyncAPI-спецификация WS: репозиторий
-  `RussianInvestments/investAPI`, файл `src/docs/ws/asyncapi.yaml`.
+- AsyncAPI-спецификация WS: репозиторий `https://github.com/RussianInvestments/investAPI`, файл `src/docs/ws/asyncapi.yaml`.
 
 **Особенности:**
 
