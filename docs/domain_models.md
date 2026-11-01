@@ -421,7 +421,219 @@
 
 ## Портфель (Portfolio)
 
-*Раздел в проектировании. Открывается после завершения `Instruments`.*
+### 1. Роль моделей
+
+- **`Position`** — снимок позиции по инструменту в конкретном счёте. Тип инструмента — через `instrument: Instrument` (композиция). Плоские subtypes: `SharePosition`, `FuturePosition`, `BondPosition`, `EtfPosition`.
+- **`AccountBalance`** — денежный остаток по валюте в конкретном счёте. Не позиция (валюта — не ценная бумага).
+- **`AccountPortfolio`** — агрегат одного счёта: позиции + балансы.
+- **`PortfolioSheet`** — мультисчётный агрегат: `Map<AccountKey, AccountPortfolio>`.
+
+**Жизненный цикл:**
+
+1. Заполняется при unary snapshot (`GetPortfolio` / `GET /portfolio` / `GetAccount`) и обновляется через WS-стрим (T-Invest `PositionsStream`, BCS `/portfolio/ws`; у Finam WS портфеля нет — только unary).
+2. UI рендерит по счетам: шапка счёта (баланс — графических элементов пока нет, предстоит сделать) + список позиций.
+3. Derived-поля (`totalValue`, `profitPercent`, `priceChangePercent`, `AccountBalance.total`, `AccountPortfolio.totalProfit`) — computed getters, не хранятся.
+
+**Следствия (проектные ограничения):**
+
+- Мультиброкерность и мультисчётность обязательны: на Портфеле одновременно отображаются счета разных брокеров, у одного брокера — несколько счетов.
+- Составной ключ `AccountKey(brokerName, accountId)` — единственный идентификатор счёта в агрегате.
+- `Position` не зависит от того, какие подтипы есть в `Instrument`; добавление `Bond` / `Etf` не ломает `Position` — только добавляет `BondPosition` / `EtfPosition`.
+
+### 2. Терминология (переименования)
+
+| Было | Стало | Что означает | Почему |
+|---|---|---|---|
+| `PortfolioPosition` | `Position` (sealed interface) + subtypes | Позиция по инструменту в счёте | Тип инструмента через `instrument: Instrument`; плоские subtypes по паттерну проекта |
+| `PortfolioPosition.money` | `AccountBalance.money` | Свободный остаток по валюте | Деньги — не позиция |
+| `PortfolioPosition.blocked` | `AccountBalance.blocked` | Заблокированный остаток по валюте | То же |
+| `PortfolioPosition.totalValue` | `Position.totalValue` (getter) | Стоимость позиции | Derived, не хранится |
+| `PortfolioPosition.profitPercent` | `Position.profitPercent` (getter) | ROI на вложенное | Derived |
+| `PortfolioPosition.priceChangePercent` | `Position.priceChangePercent` (getter) | Изменение цены | Derived; брать из DTO нельзя — считаем сами |
+| `PortfolioPosition.name` | `Position.instrument.name` | Имя инструмента | Композиция; отдельного `name` нет |
+| `PortfolioPosition.brokerName: String` | `Position.brokerName: BrokerName` | Брокер | Enum, типизация |
+| — (новое) | `Position.accountId: String` | ID счёта | Мультисчётность |
+| — (новое) | `Position.lockedQuantity: Double?` | Заблокированное количество бумаг | T-Invest `blocked`, BCS `locked` |
+| — (новое) | `AccountKey(brokerName, accountId)` | Составной ключ | Мультиброкерность |
+| — (новое) | `AccountPortfolio` / `PortfolioSheet` | Агрегаты | Мультисчётность |
+
+### 3. Core `Position` (обязательные)
+
+| Поле | T-Invest | BCS | Finam |
+|---|---|---|---|
+| `instrument: Instrument` | `instrumentUid` + `GetInstrumentBy` (композиция) | `ticker` + `board` + `AssetsService` (композиция) | `symbol` + `AssetsService/GetAsset` (композиция) |
+| `brokerName: BrokerName` | `TINVEST` (контекст) | `BCS` | `FINAM` |
+| `accountId: String` | `accountId` (из запроса) | `account` (в записи) | `account_id` (из запроса) |
+| `quantity: Double` | `balance` (Long) → `toDouble()` | `quantity` (number) | `quantity.value` (Decimal) → `toDouble()` |
+| `currentPrice: Double` | `currentPrice` | `currentPrice` | `current_price.value` |
+| `averagePrice: Double?` | `averagePositionPrice` | `balancePrice` | `average_price.value` (null для FORTS) |
+| `profit: Double?` | `expectedYield` | `unrealizedPL` | `unrealized_pnl.value` |
+| `lockedQuantity: Double?` | `blocked` (WS) | `locked` | — (null) |
+
+`quantity: Double` — компромисс: Finam поддерживает дробное количество, T-Invest/BCS — целое. Presentation-формат («10 шт» vs «10.5 шт») — в UI.
+
+### 4. Common optional (`AccountBalance`, `AccountPortfolio`, `PortfolioSheet`)
+
+**`AccountBalance`** — по валюте, множественный (`List<AccountBalance>` в `AccountPortfolio`):
+
+| Поле | T-Invest | BCS | Finam |
+|---|---|---|---|
+| `currency: String` | `currency` (из `moneyList`) | `currency` (из `moneyLimit`) | `cash.currency_code` |
+| `money: Double` | `units + nanos / 1e9` | `quantity` (из `moneyLimit`) | `units + nanos / 1e9` |
+| `blocked: Double` | `blocked` (из `moneyList`) | `locked` (из `moneyLimit`) | `portfolio_forts.money_reserved` (только FORTS); иначе `0.0` |
+
+**`AccountPortfolio`** — агрегат счёта:
+
+- `accountId: String`
+- `brokerName: BrokerName`
+- `positions: List<Position>`
+- `balances: List<AccountBalance>`
+- `totalProfit: Double?` — getter
+
+**`PortfolioSheet`**:
+
+- `accounts: Map<AccountKey, AccountPortfolio>`
+
+**`AccountKey`**:
+
+- `brokerName: BrokerName`
+- `accountId: String`
+
+**Derived getters (computed, не хранятся):**
+
+- `Position.totalValue: Double get() = currentPrice * quantity * instrument.moneyPerPointOfPrice`
+- `Position.profitPercent: Double? get() = profit / (averagePrice * quantity * instrument.moneyPerPointOfPrice)`
+- `Position.priceChangePercent: Double? get() = (currentPrice - averagePrice) / averagePrice`
+- `AccountBalance.total: Double get() = money + blocked`
+- `AccountPortfolio.totalProfit: Double? get() = positions.sumOf { it.profit ?: 0.0 }.takeIf { positions.any { it.profit != null } }`
+
+`moneyPerPointOfPrice` — extension из `Instrument` (C-min §7 шаг 7). Единая формула `totalValue` для shares / futures / bonds / etf.
+
+### 5. Subtype-specific `Position`
+
+Плоские subtypes: `SharePosition`, `FuturePosition`, `BondPosition`, `EtfPosition`. Каждый — `data class` с тем же набором override-полей, что и интерфейс. Subtype-специфичных полей **сейчас нет** (все поля — common). Если когда-нибудь появится (например, `margin` только для фьючерсов) — место уже есть.
+
+Плоскость следует из `Instrument`: `SharePosition.instrument: Share`, `FuturePosition.instrument: Future`. Компилятор проверяет соответствие.
+
+### 6. Связь с `Instrument`
+
+- Композиция: `Position.instrument: Instrument`. Поля `Instrument` (ticker, name, classCode, isin, currency, moneyPerPointOfPrice, …) не дублируются.
+- `moneyPerPointOfPrice` — extension из `Instruments` C-min §7 шаг 7.
+- `Position` не зависит от того, какие подтипы есть в `Instrument`. Добавление `Bond` / `Etf` в `Instrument` не ломает `Position` — только добавляет `BondPosition` / `EtfPosition`.
+- `when (position)` — exhaustive по `Position` (4 подтипа); `when (position.instrument)` — вложенный exhaustive по `Instrument` (7 подтипов). Оба — явные.
+
+### 7. Вне модели
+
+- `equity` (Finam, account-level) — не включаем. При появлении UI-шапки — extension или отдельная задача.
+- `unrealized_profit` (Finam, account-level) — не включаем. `AccountPortfolio.totalProfit` — computed.
+- `dailyPL`, `dailyPercentPL` (BCS), `daily_pnl` (Finam) — PnL за день, отдельная концепция. Не включаем.
+- `maintenance_margin` (Finam, FORTS), `initial_margin` (Finam `portfolio_mc`), `lockedForFutures` (BCS) — margin/risk, отдельная задача `### Margin/risk → TradeCheckResult`.
+- `portfolioShare`, `balanceValue*`, `currentValue*` (BCS) — производные от `Position.totalValue` (в разных валютах). Не включаем.
+- `unrealizedPercentPL` (BCS) — совпадает с `priceChangePercent` (проверено на SBER: `(296 - 300.5267) / 300.5267 = -1.5062%`). Не включаем, считаем сами.
+- `faceValue`, `accruedIncome` (BCS, облигации) — subtype-специфика `Instrument` (Bond), не позиции. В `Instrument` — при реализации Bond.
+- `portfolio_mc` / `portfolio_forts` / `portfolio_mct` (Finam) — margin/risk, не портфель.
+- `open_account_date`, `first_trade_date`, `first_non_trade_date` (Finam) — метаданные счёта, не портфель.
+- `isBlocked` / `isBlockedTradeAccount` (BCS) — статус, не портфель.
+- `otcLimit` (BCS) — внебиржевые, не поддерживаем, пропускать.
+- `futuresLimit` (BCS) — открытый вопрос §10.
+
+**UI-шапка счёта с балансом** — **предстоит сделать**, графических элементов на `PortfolioScreen` сейчас нет (зафиксировано в задаче `### UI: отображение blocked на валютной карточке`).
+
+### 8. Этапы
+
+**Одна фаза.** `Position` сразу `sealed interface` + плоские `data class`. `AccountBalance`, `AccountPortfolio`, `PortfolioSheet`, `AccountKey` — `data class`.
+
+**Триггер:** `Instrument` Phase 2 (sealed interface) реализована. «Сначала Instruments, затем Portfolio». Проектирование — сейчас; реализация — после `Instrument` Phase 2 (не после C-min).
+
+**Ветка:** `feature/portfolio-model`, один PR.
+
+**Шаги (заполняются при реализации):**
+
+1. `Position` (sealed interface) + `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`.
+2. `AccountBalance` + `AccountPortfolio` + `PortfolioSheet` + `AccountKey`.
+3. `moneyPerPointOfPrice` — extension на `Instrument` (из C-min §7 шаг 7), использовать в `totalValue` / `profitPercent`.
+4. Мапперы `TInvestPortfolioMapper` / `BcsPortfolioMapper` / `FinamPortfolioMapper` — из DTO в `AccountPortfolio`.
+5. `PositionFlowManager` — эмитит `PortfolioSheet` вместо `SharedFlow<PositionStreamItem>`; merge stream + polling.
+6. UI — `AssetPositionCard` принимает `Position`; `PortfolioScreen` — по счетам.
+7. Удалить `PortfolioPosition`, `PositionStreamItem` (если больше не нужен), `toPortfolioPosition`, `mergeWith`.
+8. Гейт.
+
+### 9. Сравнительные таблицы
+
+#### 9.1 Позиции (`Position`)
+
+| Domain | T-Invest | BCS | Finam |
+|---|---|---|---|
+| `instrument` | `instrumentUid` + `GetInstrumentBy` | `ticker` + `board` + `AssetsService` | `symbol` + `AssetsService/GetAsset` |
+| `brokerName` | `TINVEST` | `BCS` | `FINAM` |
+| `accountId` | `accountId` | `account` | `account_id` |
+| `quantity` | `balance: Long` → `toDouble()` | `quantity: number` | `quantity.value: string` (Decimal) → `toDouble()` |
+| `currentPrice` | `currentPrice` | `currentPrice` | `current_price.value` |
+| `averagePrice` | `averagePositionPrice` | `balancePrice` | `average_price.value` (null для FORTS) |
+| `profit` | `expectedYield` | `unrealizedPL` | `unrealized_pnl.value` |
+| `lockedQuantity` | `blocked` (WS) | `locked` | — (null) |
+
+**Источники (позиции):**
+
+- T-Invest: `GetPortfolio` (gRPC unary) + REST fallback, `PositionsStream` WS.
+- BCS: `GET https://be.broker.ru/trade-api-bff-portfolio/api/v1/portfolio`, `wss://ws.broker.ru/trade-api-bff-portfolio/api/v1/portfolio/ws`.
+- Finam: `AccountsService/GetAccount` (gRPC), `GET /v1/accounts/{account_id}` (REST); WS портфель не отдаёт.
+
+#### 9.2 Денежные остатки (`AccountBalance`)
+
+| Domain | T-Invest | BCS | Finam |
+|---|---|---|---|
+| `currency` | `currency` | `currency` | `cash.currency_code` |
+| `money` | `units + nanos / 1e9` | `quantity` | `units + nanos / 1e9` |
+| `blocked` | `blocked` | `locked` | `portfolio_forts.money_reserved` (только FORTS); иначе `0.0` |
+| `total` | getter | getter | getter |
+
+**Источники (балансы):**
+
+- T-Invest: `moneyList` в `GetPortfolio` (gRPC/REST) и `PositionsStream` WS.
+- BCS: `moneyLimit` в `/portfolio` (HTTP/WS).
+- Finam: `cash[]` в `GetAccount`; `portfolio_forts.money_reserved` — blocked для FORTS.
+
+#### 9.3 Матрица источников портфеля
+
+| Брокер | Unary snapshot | WS stream | Периодичность polling |
+|---|---|---|---|
+| T-Invest | `GetPortfolio` (gRPC) / REST fallback | `PositionsStream` (`moneyList` + `securities` / `futures`) | 10 с (`PositionFlowManager.runPolling`) |
+| BCS | `GET /portfolio` | `wss://ws.broker.ru/trade-api-bff-portfolio/api/v1/portfolio/ws` (формат = HTTP-ответ) | при реализации |
+| Finam | `GetAccount` (gRPC) / `GET /v1/accounts/{id}` (REST) | **нет** (WS только ORDERS / QUOTES / TRADES / BARS / ORDER_BOOK) | при реализации; REST-лимит 200 req/min |
+
+### 10. Открытые вопросы
+
+| # | Вопрос | Где | Когда |
+|---|---|---|---|
+| 1 | **BCS `futuresLimit`** — деньги под ГО или фьючерсная позиция? Не угадываем. | `type` enum BCS | при реализации BCS |
+| 2 | **Finam `positions.quantity` включает теоретические позиции** (по неисполненным активным заявкам). Разделять `actual` vs `theoretical` или нет? | `Position.quantity` | при реализации Finam |
+| 3 | **Finam `current_price_currency` / `average_price_currency`** — только для общих счетов Мосбиржи. Наша модель — одна `instrument.currency`. Если валюты разные — пометить как ограничение. | `Position` | при реализации Finam |
+| 4 | **Источник `money` / `blocked` для T-Invest gRPC/REST и BCS** — приходит в `GetPortfolio` / `/portfolio` или нужен отдельный запрос. WS — `moneyList`, подтверждено. | data | при реализации |
+| 5 | **`PortfolioSheet` — Map vs List.** Финал: Map. | — | — |
+| 6 | **`Position.lockedQuantity` для Finam** — `null`, `maintenance_margin` — деньги ГО, не количество бумаг. Если нужен — отдельная семантика (деньги), не в `Position`. | `lockedQuantity` | при реализации Finam |
+| 7 | **`AccountPortfolio.totalProfit`** — у Finam `unrealized_profit` на уровне счёта (может включать комиссии). Считать самим — потенциальное расхождение с серверным. | `totalProfit` | при появлении UI-шапки |
+
+**Закрытые (2026-11-01):**
+
+- Все проектные вопросы (модель, поля, getters, ключ агрегата, форма subtypes, источники) — зафиксированы в этом разделе.
+- `lockedQuantity: Double?` — включено.
+- `futuresLimit` (BCS) — открытый вопрос §10.
+
+### 11. Связанные документы
+
+- `docs/architecture.md` — «Data flow: позиции» (текущее состояние, `PortfolioPosition`, `PositionFlowManager`).
+- `docs/clean-audit.md` — Н5 (`PortfolioPosition` — presentation-поля, пересматривается), Н15 (`TradingStateSnapshot`).
+- `docs/ROADMAP.md` — `### H5. PortfolioPosition: разделение domain/presentation` (реализация), `### UI: отображение blocked на валютной карточке`, `### Обогащение name в PortfolioPosition (вариант C)` (отменяется как подзадача — `name` в `Instrument`), `### Margin/risk → TradeCheckResult`, `### Instrument: C-min → sealed interface` (предусловие).
+- `docs/domain_models.md` → `## Instruments` (связь через `Position.instrument: Instrument`).
+- **Источники брокеров:**
+  - T-Invest: `docs/brokers.md`, `docs/streams.md`, `docs/rate-limits.md`.
+  - BCS: `https://trade-api.bcs.ru/http/portfolio`, `https://trade-api.bcs.ru/websocket/portfolio/`.
+  - Finam: `https://api.finam.ru/docs/grpc/#introduction`, `https://api.finam.ru/docs/async-api/#introduction`, `https://api.finam.ru/docs/rest/`.
+
+### 12. Реализация — отдельная задача
+
+Этот документ — **проектирование**. Реализация — `docs/ROADMAP.md` → `### Portfolio: модель портфеля`. Задача самодостаточная (5e), по образцу `### Instrument: C-min → sealed interface`.
 
 ---
 
