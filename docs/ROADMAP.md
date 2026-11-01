@@ -68,6 +68,139 @@ clean-audit.
 
 ## Планируемые задачи
 
+### Instrument: C-min → sealed interface (две фазы)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** центральная доменная модель `Instruments` спроектирована в `docs/domain_models.md` (§1–§10). Две фазы рефакторинга: **C-min** (снять 9 кастов `as? FutureUi`, nullable `classCode`/`currency`/`lot`, `+settlementCurrency`, `moneyPerPointOfPrice` extension, `instrumentType` → enum, `InstrumentUi`/`FutureUi`/`ShareUi` → `Instrument`/`Future`/`Share`) и **sealed interface** (ISP/LSP, exhaustive `when`, subtype-specific поля в своих типах). Подготовка к реализации BCS/Finam API — сейчас `userInstruments = null` у обоих, модель не нагружена.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:**
+- Phase 1 (C-min): нет.
+- Phase 2 (sealed interface): начало реализации BCS Broker API или Finam Broker API.
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/models/Instruments.kt` — модель, enum, extension.
+- `app/src/main/kotlin/.../domain/models/Portfolio.kt` — `PositionStreamItem`, `PortfolioPosition` (`instrumentType`, `moneyPerPointOfPrice`).
+- `app/src/main/kotlin/.../data/api/tinvest/` — мапперы и сервисы T-Invest (см. §7 «Call-sites»).
+- `app/src/main/kotlin/.../data/repository/SearchCacheImpl.kt` — сортировка.
+- `app/src/main/kotlin/.../domain/api/managers/PositionFlowManager.kt`, `domain/usecases/CalculateTradeDetailsUseCase.kt` — domain.
+- `app/src/main/kotlin/.../presentation/screens/orders/OrdersViewModel.kt`, `presentation/components/AssetPositionCard.kt`, `presentation/util/PositionFormatter.kt` — presentation.
+- `app/src/test/.../domain/usecases/CalculateTradeDetailsUseCaseTest.kt` — тесты.
+
+**Шаги:**
+
+*Phase 1 — C-min. Детали — `docs/domain_models.md` §7 (чек-лист, 15 шагов, 4 коммита).*
+1. Шаг 0 (read-only): маппинг `instrumentType` по 3 брокерам, обновить §9/§10.
+2. Коммит 1: переименования — удалить `ttech_uid`, `ttech_figi` → `figi`.
+3. Коммит 2: `classCode`/`currency` → `String?`, `lot` → `Long?`, `+settlementCurrency`.
+4. Коммит 3: `moneyPerPointOfPrice` extension, `expirationDate` в `InstrumentUi`, удалить 9 кастов `as? FutureUi`.
+5. Коммит 4: `instrumentType` → enum `InstrumentType`, rename `InstrumentUi`/`FutureUi`/`ShareUi` → `Instrument`/`Future`/`Share`, `pointValue` → `moneyPerPointOfPrice` в снимках.
+
+*Phase 2 — sealed interface. Детали — `docs/domain_models.md` §8 (чек-лист, 11 шагов, 3 коммита).*
+6. Шаг 0 (read-only): полный маппинг subtype-specific по 3 брокерам, обновить §5/§9.
+7. Коммит 1: `sealed interface Instrument` + 7 `data class`.
+8. Коммит 2: сменить relation, `mapProtoToDomain` → 6 мапперов + диспетчер.
+9. Коммит 3: `toInstrumentUi` → 6 функций, `SearchCacheImpl` сортировка, все `when (instrumentType)` → `when (instrument)`.
+
+**Тесты:** `CalculateTradeDetailsUseCaseTest` — обновить под `lot: Long?`; `TInvestOrchestratorFallbackTest` — обновить под `Instrument` (Phase 1). Phase 2 — тесты мапперов Share/Future/Bond (по образцу текущих). Live-тест не требуется (рефакторинг, поведение не меняется).
+
+**Референсы:** `docs/domain_models.md` §1–§10 (мастер-план, таблицы, обоснования); `docs/clean-audit.md` → Н5 (`PortfolioPosition` — presentation-поля), Н6 (`InstrumentUi` — god-класс), Н7 (`ttech_figi` — временное).
+
+**Ограничения:**
+- Не менять UI без санкции (правило 1) — Phase 1/2 не меняют визуал.
+- Не смешивать Phase 1 и Phase 2 в одном PR — разные триггеры, разные PR.
+- `PortfolioPosition` (Н5, разделение domain/presentation) — **отдельная задача**, не в scope.
+- Margin/risk — **отдельная задача** `### Margin/risk → TradeCheckResult`, не в scope.
+
+**Критерий готовности:**
+- Phase 1: `grep "as? FutureUi"` = 0; `grep "ttech_uid\|ttech_figi\|minPriceIncrementAmount\|pointValue\|InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0; `instrumentType` — enum; гейт зелёный; `docs/domain_models.md` §7 чек-боксы `[x]`.
+- Phase 2: все `when (instrument)` exhaustive; `grep "InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0; гейт зелёный; §8 чек-боксы `[x]`.
+
+**Оценка:** Phase 1 — ~3 ч; Phase 2 — ~5 ч.
+
+**Зависимости:** Phase 1 — нет; Phase 2 — `### Реализация BCS Broker API` / `### Реализация Finam Broker API` (начало).
+
+**Связано:** `docs/domain_models.md`; `docs/clean-audit.md` → Н5, Н6, Н7; `### Margin/risk → TradeCheckResult` (ниже).
+
+**Открытые вопросы:**
+- BCS mapping для subtype-полей (`emissionDate` ↔ `ipoDate`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `subType` ↔ `shareType`, `liquidityRating` vs `liquidityFlag`) — Phase 2, шаг 0.
+- Finam `priceStepCost` формула (`min_step/10^decimals × contract_size`) — live-подтверждение.
+- T-Invest `"fond"` vs `"etf"` в `instrumentType` — Phase 1, шаг 0.
+
+---
+
+### Margin/risk → TradeCheckResult
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** margin/risk-поля (`initialMarginOnBuy/Sell`, `dlong/kshort`, `dlongMin/dshortMin`, `klong/kshort`) — account-specific. У T-Invest — свойства инструмента в `Future`/`Option`. У Finam — `AssetsService/GetAssetParams` с `account_id` (per-account). Это **не свойство инструмента**, а «доступность в этом счёте». Сейчас лежат в `FutureUi`, что мешает и чистоте (не property of instrument), и мультиброкерности (у BCS/Finam другой источник).
+
+**Соответствие Clean:** соответствует (domain-модель разделяется по ответственности).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### Instrument: C-min → sealed interface (две фазы)` — Phase 2 закрыта (в Phase 2 однозначно видно, что margin — Future-specific и account-specific).
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/models/Instruments.kt` — удалить margin/risk из `Future`, `Option`.
+- `app/src/main/kotlin/.../domain/models/TradingStatus.kt` (или новый `MarginInfo.kt`) — `MarginInfo` (или расширить `TradeCheckResult`).
+- `app/src/main/kotlin/.../data/api/tinvest/` — мапперы T-Invest: margin из `Future`/`GetFuturesMargin`.
+- Finam — при реализации `GetAssetParams`.
+- `app/src/main/kotlin/.../domain/usecases/CalculateTradeDetailsUseCase.kt` — использовать `MarginInfo` (если нужно).
+
+**Шаги:**
+1. Решить форму: новый `MarginInfo` (отдельная модель) или расширение `TradeCheckResult` (`margin: MarginInfo?`).
+2. Удалить margin/risk из `Future`/`Option` (после Phase 2).
+3. Добавить `MarginInfo` (buy/sell margin, klong/kshort, dlong/dshort, dlongMin/dshortMin, dlongClient/dshortClient — nullable).
+4. T-Invest: маппер — из `Future`/`GetFuturesMargin` в `MarginInfo` (через `TradeCheckResult`).
+5. Finam: при реализации `GetAssetParams` — маппинг.
+6. Тесты: `MarginInfo` (T-Invest futures), `TradeCheckResult.margin` (success/failure).
+7. Гейт.
+
+**Тесты:** `MarginInfo` (T-Invest futures), `TradeCheckResult.margin` (success/failure), Finam — при реализации.
+
+**Референсы:** proto T-Invest `Future` (`initial_margin_on_buy/sell`, `dlong*`, `klong/kshort` — deprecated), `GetFuturesMarginResponse`. Finam `GetAssetParams` (`long_initial_margin`, `short_initial_margin`, `long_risk_rate`, `short_risk_rate`, `longable`, `shortable`).
+
+**Ограничения:**
+- Не смешивать с `### Instrument: C-min → sealed interface` — отдельная задача после Phase 2.
+- `klong`/`kshort` — `[deprecated = true]` в T-Invest proto; в `MarginInfo` можно не включать, зафиксировать в KDoc.
+- Не менять UI без санкции.
+
+**Критерий готовности:**
+- `MarginInfo` (или `TradeCheckResult.margin`) создан.
+- Margin/risk не в `Instrument`/`Future`/`Option`.
+- T-Invest маппинг работает (unit-тесты).
+- Finam — заглушка (при реализации).
+- Гейт зелёный.
+
+**Оценка:** ~2 ч.
+
+**Зависимости:** `### Instrument: C-min → sealed interface (две фазы)` — Phase 2.
+
+**Связано:** `docs/domain_models.md` §6 «Вне модели»; `docs/clean-audit.md` → Н5 (концептуальное разделение модели).
+
+**Открытые вопросы:**
+- Форма: отдельный `MarginInfo` или поле в `TradeCheckResult` — решить при старте.
+- `klong`/`kshort` — deprecated в T-Invest; включать в модель или нет — решить при старте.
+
+---
+
 ### KMP: domain → commonMain
 
 **Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
