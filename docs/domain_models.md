@@ -211,16 +211,23 @@
 | `ticker` | `ticker` | `ticker` | `ticker` |
 | `isin` | `isin` | `isin` | `isin` |
 | `name` | `name` | `displayName` | `name` |
-| `instrumentType` | `"share"` | `STOCK` | `STOCK` |
+| `instrumentType` | `SHARE` (enum; контекст `Shares()`) | `STOCK` | `STOCK` |
 | `classCode` | `classCode` | `boards[0].classCode` | — |
 | `exchange` | `exchange` | `boards[0].exchange` | `mic` |
 | `lot` | `lot: Int` | `lotSize: double` | `lot_size: Decimal` (только `GetAsset`) |
 | `currency` | `currency` | `tradingCurrency` | `quote_currency` |
 | `settlementCurrency` | — | `settlementCurrency` | — |
 | `figi` | `figi` | `figi` (из позиций) | — |
-| `priceStepCost` | — | `stepPrice` | — |
+| `priceStepCost` | — | — | — |
 | `minPriceIncrement` | `minPriceIncrement` | `minimumStep` | `min_step / 10^decimals` |
 | `moneyPerPointOfPrice` | computed = 1.0 | computed = 1.0 | computed = 1.0 |
+| `ipoDate` | `ipoDate` | `emissionDate` (?) | — |
+| `issueSize` | `issueSize` | — | — |
+| `issueSizePlan` | `issueSizePlan` | — | — |
+| `nominal` | `nominal` | `faceValue` | — |
+| `divYieldFlag` | `divYieldFlag` | `dividendYield` (double, не флаг) | — |
+| `shareType` | `shareType` | `subType` (?) | — |
+| `liquidityFlag` | `liquidityFlag` | `liquidityRating` (строка, не флаг) | — |
 
 **Источники (акции):**
 - T-Invest: `ru.tinkoff.piapi.contract.v1.Share` (proto), SDK `kotlin-sdk-grpc-contract`.
@@ -233,13 +240,14 @@
 |---|---|---|---|
 | `tscalpInstrumentId` | `uid` | `figi` | `id` |
 | `ticker` | `ticker` | `ticker` | `ticker` |
-| `isin` | `isin` | `isin` | `isin` |
+| `isin` | **—** (у proto `Future` нет) | `isin` | `isin` |
 | `name` | `name` | `displayName` | `name` |
-| `instrumentType` | `"futures"` | `FUTURES` | `FUTURES` |
+| `instrumentType` | `FUTURES` (enum; контекст `Futures()`) | `FUTURES` | `FUTURES` |
 | `classCode` | `classCode` | `boards[0].classCode` | — |
 | `exchange` | `exchange` | `boards[0].exchange` | `mic` |
 | `lot` | `lot: Int` | `lotSize: double` | `lot_size: Decimal` |
 | `currency` | `currency` | `tradingCurrency` | `quote_currency` |
+| `settlementCurrency` | — | `settlementCurrency` | — |
 | `figi` | `figi` | `figi` | — |
 | `priceStepCost` | `minPriceIncrementAmount` | `stepPrice` | compute: `min_step/10^decimals × contract_size` |
 | `minPriceIncrement` | `minPriceIncrement` | `minimumStep` | `min_step / 10^decimals` |
@@ -251,12 +259,45 @@
 | `assetType` | `assetType` | — | — |
 | `basicAsset` | `basicAsset` | `baseAsset` | — |
 | `basicAssetSize` | `basicAssetSize` | — | `future_details.contract_size` |
-| `positionUid` | `positionUid` | — | — |
+| `basicAssetPositionUid` | `basicAssetPositionUid` | — | — |
 
 **Источники (фьючерсы):**
 - T-Invest: `ru.tinkoff.piapi.contract.v1.Future` (proto), `GetFuturesMargin`.
 - BCS: https://trade-api.bcs.ru/http/information (get-instruments-by-isins, by-type).
 - Finam: https://api.finam.ru/docs/grpc/#allassets (`future_details`).
+
+#### Опционы
+
+Не реализуется сейчас. Зафиксировано для полноты (proto T-Invest `Option`); поля BCS/Finam — из их документации.
+
+| Domain | T-Invest | BCS | Finam |
+|---|---|---|---|
+| `tscalpInstrumentId` | `uid` | `figi` | `id` |
+| `ticker` | `ticker` | `ticker` | `ticker` |
+| `name` | `name` | `displayName` | `name` |
+| `instrumentType` | `OPTION` (enum; контекст `Options()`) | `OPTIONS` | — |
+| `classCode` | `classCode` | `boards[0].classCode` | — |
+| `exchange` | `exchange` | `boards[0].exchange` | `mic` |
+| `lot` | `lot: Int` | `lotSize: double` | — |
+| `currency` | `currency` | `tradingCurrency` | — |
+| `settlementCurrency` | `settlement_currency` | `settlementCurrency` | — |
+| `figi` | `figi` | `figi` | — |
+| `priceStepCost` | — | — | — |
+| `minPriceIncrement` | `minPriceIncrement` | `minimumStep` | — |
+| `moneyPerPointOfPrice` | computed = 1.0 | computed = 1.0 | computed = 1.0 |
+| `direction` | `direction` (`PUT`/`CALL`) | — | — |
+| `paymentType` | `paymentType` (`PREMIUM`/`MARGINAL`) | — | — |
+| `style` | `style` (`AMERICAN`/`EUROPEAN`) | — | — |
+| `settlementType` | `settlementType` (`PHYSICAL_DELIVERY`/`CASH_SETTLEMENT`) | — | — |
+| `strikePrice` | `strike_price` (MoneyValue) | `strike` (double) | — |
+| `expirationDate` | `expirationDate` | `maturityDate` | — |
+| `firstTradeDate` | `firstTradeDate` | — | — |
+| `lastTradeDate` | `lastTradeDate` | — | — |
+
+**Источники (опционы):**
+- T-Invest: `ru.tinkoff.piapi.contract.v1.Option` (proto).
+- BCS: https://trade-api.bcs.ru/http/information (get-instruments-by-type, `type=OPTIONS`).
+- Finam: не подтверждено; при реализации — `AssetsService/GetAsset` (если появятся опционы).
 
 #### Заявки (order-route)
 
