@@ -249,7 +249,9 @@ clean-audit.
 
 **Мобильная работа:** частичное (live-тест UI — мультисчётность, шапка счёта с балансом, отображение `lockedQuantity`). Правки `.kt` через proot; гейт — CI `gate` на PR.
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/portfolio-model
 
 **Контекст:** проектирование завершено в `docs/domain_models.md` → `## Портфель (Portfolio)` (§1–§12). Текущее состояние: одна модель `PortfolioPosition` (`domain/models/Portfolio.kt`) с presentation-полями (`totalValue`, `profitPercent`), `PositionFlowManager` эмитит `SharedFlow<PositionStreamItem>`, UI на одном счёте. Целевое (по проекту): `Position` (sealed interface + плоские subtypes `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`), `AccountBalance` (деньги по валюте, отдельно от позиции), `AccountPortfolio` (агрегат счёта), `PortfolioSheet` (`Map<AccountKey, AccountPortfolio>`), `AccountKey(brokerName, accountId)`. Мультиброкерность и мультисчётность — обязательны (на Портфеле одновременно счета разных брокеров, у одного брокера — несколько счетов). `Position.instrument: Instrument` — композиция, поля `Instrument` не дублируются. `moneyPerPointOfPrice` — extension из `Instruments` C-min §7 шаг 7.
 
