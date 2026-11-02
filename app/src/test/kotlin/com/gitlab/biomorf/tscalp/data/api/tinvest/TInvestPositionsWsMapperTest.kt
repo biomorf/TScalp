@@ -1,11 +1,11 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.MoneyValueDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsFuturesDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsResponseDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsSecuritiesDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsStreamResponseDto
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
