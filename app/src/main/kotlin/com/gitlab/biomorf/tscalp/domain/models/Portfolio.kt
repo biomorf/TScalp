@@ -139,6 +139,12 @@ data class PortfolioPosition(
     // Источник — Instrument.currency в fetchPortfolioPositions.
     // Используется для склейки с WS-стримом (money/blocked).
     val currency: String? = null,
+    // Идентификатор счёта. Заполняется из Position.accountId в toUiPosition.
+    // Нужен для группировки UI по AccountKey (мультисчёт).
+    val accountId: String? = null,
+    // Заблокированное количество бумаг. Заполняется из Position.lockedQuantity.
+    // T-Invest blocked, BCS locked. `null` — нет данных.
+    val lockedQuantity: Double? = null,
 )
 
 /**

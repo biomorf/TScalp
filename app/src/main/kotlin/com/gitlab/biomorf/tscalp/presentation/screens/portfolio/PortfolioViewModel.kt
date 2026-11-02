@@ -242,6 +242,8 @@ class PortfolioViewModel
                 classCode = instrument.classCode ?: "",
                 currency = instrument.currency,
                 priceChangePercent = pct,
+                accountId = accountId,
+                lockedQuantity = lockedQuantity,
             )
         }
 
@@ -271,40 +273,9 @@ class PortfolioViewModel
         // Архитектурный долг: функция требует декомпозиции.
         // См. ROADMAP → «Рефакторинг ViewModel-слоя».
         @Suppress("LongMethod")
-        fun payInSandbox() {
+        fun payInSandbox(accountId: String) {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }
-
-                val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
-
-                val accounts =
-                    when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                        is AppResult.Success -> result.data
-                        is AppResult.Failure -> {
-                            logger.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    statusMessage = "Ошибка пополнения: ${result.error.message}",
-                                    isError = true,
-                                )
-                            }
-                            return@launch
-                        }
-                    }
-
-                if (accounts.isEmpty()) {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = "Ошибка пополнения: Нет доступных счетов",
-                            isError = true,
-                        )
-                    }
-                    return@launch
-                }
-
-                val accountId = accounts.first().id
                 logger.d(TAG, "Пополнение счёта $accountId через ${BrokerName.TINVEST.displayName}")
 
                 when (

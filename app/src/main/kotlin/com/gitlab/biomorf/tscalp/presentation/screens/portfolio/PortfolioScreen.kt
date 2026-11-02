@@ -123,7 +123,12 @@ fun PortfolioScreen(
                         }
                         Spacer(Modifier.weight(1f))
                         if (uiState.sandboxMode) {
-                            Button(onClick = { viewModel.payInSandbox() }) {
+                            // Legacy: до перестройки Screen (коммит 8c) кнопка одна
+                            // на всю страницу. accountId — из uiState (первый счёт).
+                            // После 8c — per-account в шапке.
+                            Button(
+                                onClick = { uiState.accountId?.let { viewModel.payInSandbox(it) } },
+                            ) {
                                 Text("Пополнить")
                             }
                         }
