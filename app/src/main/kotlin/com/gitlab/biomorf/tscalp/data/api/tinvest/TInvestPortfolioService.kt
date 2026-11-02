@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -61,7 +60,7 @@ class TInvestPortfolioService(
                     protoInstrument?.let {
                         TInvestInstrumentMapper.mapProtoToDomain(it, marginAmount)
                     }
-                val pointVal = (instrumentUi as? FutureUi)?.pointValue
+                val pointVal = instrumentUi?.moneyPerPointOfPrice
 
                 val quantity = pos.quantity?.let { it.units + it.nano / 1_000_000_000.0 }?.toLong() ?: 0L
                 val currentPrice = pos.currentPrice?.let { it.units + it.nano / 1_000_000_000.0 } ?: 0.0

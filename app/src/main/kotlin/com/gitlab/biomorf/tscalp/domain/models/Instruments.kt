@@ -130,9 +130,9 @@ data class FutureUi(
     override val brand: String? = null,
     override val requiredTests: List<String>? = null,
     // Уникальные поля фьючерсов
-    override val expirationDate: Instant? = null,
-    override val firstTradeDate: Instant? = null,
-    override val lastTradeDate: Instant? = null,
+    expirationDate: Instant? = null,
+    firstTradeDate: Instant? = null,
+    lastTradeDate: Instant? = null,
     override val futuresType: String? = null,
     override val assetType: String? = null,
     override val basicAsset: String? = null,
@@ -200,15 +200,7 @@ data class FutureUi(
         initialMarginOnSell,
         dlongClient,
         dshortClient,
-    ) {
-    /** Стоимость одного пункта цены в рублях (для фьючерсов) */
-    val pointValue: Double
-        get() {
-            val inc = minPriceIncrement ?: 0.0
-            val amount = minPriceIncrementAmount ?: 0.0
-            return if (inc > 0.0) amount / inc else 1.0
-        }
-}
+    )
 
 /**
  * Модель акции.
@@ -322,3 +314,21 @@ data class ShareUi(
         dlongClient = null,
         dshortClient = null,
     )
+
+/**
+ * Стоимость одного пункта цены в рублях.
+ *
+ * Единая формула для всех типов инструментов:
+ * `minPriceIncrementAmount / minPriceIncrement`.
+ * Для акций / облигаций / ETF — `1.0` (`minPriceIncrementAmount = null`).
+ * Для фьючерсов — реальный множитель (`pointValue`).
+ *
+ * Заменяет `FutureUi.pointValue` (C-min шаг 7): extension работает
+ * на любом `InstrumentUi`, включая будущие подтипы.
+ */
+val InstrumentUi.moneyPerPointOfPrice: Double
+    get() {
+        val inc = minPriceIncrement ?: 0.0
+        val amount = minPriceIncrementAmount ?: 0.0
+        return if (inc > 0.0) amount / inc else 1.0
+    }

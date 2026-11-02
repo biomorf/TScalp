@@ -1,6 +1,5 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
-import com.gitlab.biomorf.tscalp.domain.models.FutureUi
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 
@@ -45,7 +44,7 @@ class CalculateTradeDetailsUseCase {
         val costDomesticCurrency: Double?
         if (quantity > 0 && executionPrice > 0) {
             if (instrumentType == "futures") {
-                val pointValue = (instrument as? FutureUi)?.pointValue ?: 1.0
+                val pointValue = instrument?.moneyPerPointOfPrice ?: 1.0
                 costPoints = executionPrice * quantity
                 costCurrency = null
                 costDomesticCurrency = costPoints * pointValue
@@ -75,7 +74,7 @@ class CalculateTradeDetailsUseCase {
             if (totalQty > 0 && pairExecPrice > 0) {
                 val pairedInstrumentType = pairedInstrument.instrumentType
                 if (pairedInstrumentType == "futures") {
-                    val pairedPointValue = (pairedInstrument as? FutureUi)?.pointValue ?: 1.0
+                    val pairedPointValue = pairedInstrument?.moneyPerPointOfPrice ?: 1.0
                     multiplierPoints = pairExecPrice * totalQty
                     multiplierCurrency = null
                     multiplierDomesticCurrency = multiplierPoints * pairedPointValue

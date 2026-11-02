@@ -49,7 +49,7 @@ class SearchCacheImpl
             val sorted =
                 results.sortedWith(
                     compareBy<InstrumentUi> { it !is FutureUi }
-                        .thenBy { (it as? FutureUi)?.expirationDate },
+                        .thenBy { it.expirationDate },
                 )
 
             cache[key] = sorted
