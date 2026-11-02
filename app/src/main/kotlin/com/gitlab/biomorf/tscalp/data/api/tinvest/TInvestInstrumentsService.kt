@@ -6,10 +6,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
 import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
-import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument
 import ru.tinkoff.piapi.contract.v1.InstrumentIdType
 import ru.tinkoff.piapi.contract.v1.InstrumentRequest
 import ru.tinkoff.piapi.contract.v1.InstrumentShort
+import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument
 
 /**
  * Инструменты T-Invest: полный инструмент по uid, поиск, стоимость шага цены.
