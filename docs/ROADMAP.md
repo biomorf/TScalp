@@ -68,15 +68,13 @@ clean-audit.
 
 ## Планируемые задачи
 
-### Instrument: C-min → sealed interface (две фазы)
+### Instrument: Phase 2 (sealed interface)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** в работе.
+**Статус:** запланировано.
 
-**Ветка:** feature/instrument-cmin.
-
-**Контекст:** центральная доменная модель `Instruments` спроектирована в `docs/domain_models.md` (§1–§10). Две фазы рефакторинга: **C-min** (снять 9 кастов `as? FutureUi`, nullable `classCode`/`currency`/`lot`, `+settlementCurrency`, `moneyPerPointOfPrice` extension, `instrumentType` → enum, `InstrumentUi`/`FutureUi`/`ShareUi` → `Instrument`/`Future`/`Share`) и **sealed interface** (ISP/LSP, exhaustive `when`, subtype-specific поля в своих типах). Подготовка к реализации BCS/Finam API — сейчас `userInstruments = null` у обоих, модель не нагружена.
+**Контекст:** C-min (Phase 1) закрыт — `Instrument` / `Future` / `Share` / `InstrumentType` работают в `domain` + `data` + `presentation`. Phase 2 — `sealed interface Instrument` (ISP/LSP, exhaustive `when`, subtype-specific поля в своих типах). Разблокирует реализацию BCS/Finam API: сейчас `userInstruments = null` у обоих, модель не нагружена. Подробности — `docs/domain_models.md` §8 (11 шагов, 3 коммита).
 
 **Соответствие Clean:** соответствует.
 
@@ -87,57 +85,49 @@ clean-audit.
 **Выгоды (для «отклонение по 2c»):** —.
 
 **Предусловия:**
-- Phase 1 (C-min): нет.
-- Phase 2 (sealed interface): начало реализации BCS Broker API или Finam Broker API.
+- `### ✅ Instrument: C-min (Phase 1)` — закрыт.
+- Начало реализации `### Реализация BCS Broker API` или `### Реализация Finam Broker API` (триггер).
 
 **Файлы:**
-- `app/src/main/kotlin/.../domain/models/Instruments.kt` — модель, enum, extension.
-- `app/src/main/kotlin/.../domain/models/Portfolio.kt` — `PositionStreamItem`, `PortfolioPosition` (`instrumentType`, `moneyPerPointOfPrice`).
-- `app/src/main/kotlin/.../data/api/tinvest/` — мапперы и сервисы T-Invest (см. §7 «Call-sites»).
-- `app/src/main/kotlin/.../data/repository/SearchCacheImpl.kt` — сортировка.
-- `app/src/main/kotlin/.../domain/api/managers/PositionFlowManager.kt`, `domain/usecases/CalculateTradeDetailsUseCase.kt` — domain.
-- `app/src/main/kotlin/.../presentation/screens/orders/OrdersViewModel.kt`, `presentation/components/AssetPositionCard.kt`, `presentation/util/PositionFormatter.kt` — presentation.
-- `app/src/test/.../domain/usecases/CalculateTradeDetailsUseCaseTest.kt` — тесты.
+- `app/src/main/kotlin/.../domain/models/Instruments.kt` — `sealed interface Instrument` + 7 `data class` (`Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other`).
+- `app/src/main/kotlin/.../data/api/tinvest/TInvestInstrumentMapper.kt` — `mapProtoToDomain` split на 6 мапперов + диспетчер.
+- `app/src/main/kotlin/.../data/api/tinvest/TInvestRestMappers.kt` — `toInstrument` split на 6 функций.
+- `app/src/main/kotlin/.../data/repository/SearchCacheImpl.kt` — сортировка: `when (instrument) { is Future -> ... }`.
+- `app/src/main/kotlin/.../presentation/` — все `when (instrumentType)` → `when (instrument)` (AssetPositionCard, OrdersScreen, ConfirmOrderDialog, OrderCard, PositionFormatter, OrdersViewModel).
+- `app/src/test/.../` — тесты мапперов Share/Future/Bond (по образцу текущих).
 
-**Шаги:**
+**Шаги** (детали — `docs/domain_models.md` §8):
+1. Шаг 0 (read-only): полный маппинг subtype-specific по 3 брокерам, обновить §5/§9.
+2. Коммит 1: `sealed interface Instrument` + 7 `data class`.
+3. Коммит 2: сменить relation, `mapProtoToDomain` → 6 мапперов + диспетчер.
+4. Коммит 3: `toInstrument` → 6 функций, `SearchCacheImpl` сортировка, все `when (instrumentType)` → `when (instrument)`.
 
-*Phase 1 — C-min. Детали — `docs/domain_models.md` §7 (чек-лист, 15 шагов, 4 коммита).*
-1. Шаг 0 (read-only): маппинг `instrumentType` по 3 брокерам, обновить §9/§10.
-2. Коммит 1: переименования — удалить `ttech_uid`, `ttech_figi` → `figi`.
-3. Коммит 2: `classCode`/`currency` → `String?`, `lot` → `Long?`, `+settlementCurrency`.
-4. Коммит 3: `moneyPerPointOfPrice` extension, `expirationDate` в `InstrumentUi`, удалить 9 кастов `as? FutureUi`.
-5. Коммит 4: `instrumentType` → enum `InstrumentType`, rename `InstrumentUi`/`FutureUi`/`ShareUi` → `Instrument`/`Future`/`Share`, `pointValue` → `moneyPerPointOfPrice` в снимках.
+**Тесты:** тесты мапперов Share/Future/Bond (по образцу текущих). Live-тест не требуется (рефакторинг, поведение не меняется).
 
-*Phase 2 — sealed interface. Детали — `docs/domain_models.md` §8 (чек-лист, 11 шагов, 3 коммита).*
-6. Шаг 0 (read-only): полный маппинг subtype-specific по 3 брокерам, обновить §5/§9.
-7. Коммит 1: `sealed interface Instrument` + 7 `data class`.
-8. Коммит 2: сменить relation, `mapProtoToDomain` → 6 мапперов + диспетчер.
-9. Коммит 3: `toInstrumentUi` → 6 функций, `SearchCacheImpl` сортировка, все `when (instrumentType)` → `when (instrument)`.
-
-**Тесты:** `CalculateTradeDetailsUseCaseTest` — обновить под `lot: Long?`; `TInvestOrchestratorFallbackTest` — обновить под `Instrument` (Phase 1). Phase 2 — тесты мапперов Share/Future/Bond (по образцу текущих). Live-тест не требуется (рефакторинг, поведение не меняется).
-
-**Референсы:** `docs/domain_models.md` §1–§10 (мастер-план, таблицы, обоснования); `docs/clean-audit.md` → Н5 (`PortfolioPosition` — presentation-поля), Н6 (`InstrumentUi` — god-класс), Н7 (`ttech_figi` — временное).
+**Референсы:** `docs/domain_models.md` §5, §8, §9 (мастер-план, таблицы, обоснования); `docs/clean-audit.md` → Н6 (`InstrumentUi` — god-класс).
 
 **Ограничения:**
-- Не менять UI без санкции (правило 1) — Phase 1/2 не меняют визуал.
-- Не смешивать Phase 1 и Phase 2 в одном PR — разные триггеры, разные PR.
+- Не менять UI без санкции (правило 1) — Phase 2 не меняет визуал.
 - `PortfolioPosition` (Н5, разделение domain/presentation) — **отдельная задача**, не в scope.
 - Margin/risk — **отдельная задача** `### Margin/risk → TradeCheckResult`, не в scope.
+- Proto-поля `Bond` / `Option` / `Etf` / `Currency` — из `docs/domain_models.md` §5 (стартовые), при реализации расширить (BCS/Finam дадут полный список).
 
 **Критерий готовности:**
-- Phase 1: `grep "as? FutureUi"` = 0; `grep "ttech_uid\|ttech_figi\|minPriceIncrementAmount\|pointValue\|InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0; `instrumentType` — enum; гейт зелёный; `docs/domain_models.md` §7 чек-боксы `[x]`.
-- Phase 2: все `when (instrument)` exhaustive; `grep "InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0; гейт зелёный; §8 чек-боксы `[x]`.
+- Все `when (instrument)` exhaustive (компилятор подтверждает).
+- `grep "InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0.
+- `grep "when (instrumentType)"` в `main` = 0.
+- Гейт зелёный; `docs/domain_models.md` §8 чек-боксы `[x]`.
 
-**Оценка:** Phase 1 — ~3 ч; Phase 2 — ~5 ч.
+**Оценка:** ~5 ч + 3–5 CI-циклов.
 
-**Зависимости:** Phase 1 — нет; Phase 2 — `### Реализация BCS Broker API` / `### Реализация Finam Broker API` (начало).
+**Зависимости:** начало `### Реализация BCS Broker API` / `### Реализация Finam Broker API` (триггер).
 
-**Связано:** `docs/domain_models.md`; `docs/clean-audit.md` → Н5, Н6, Н7; `### Margin/risk → TradeCheckResult` (ниже).
+**Связано:** `docs/domain_models.md` §5, §8, §9; `docs/clean-audit.md` → Н6; `### ✅ Instrument: C-min (Phase 1)` (предусловие).
 
 **Открытые вопросы:**
 - BCS mapping для subtype-полей (`emissionDate` ↔ `ipoDate`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `subType` ↔ `shareType`, `liquidityRating` vs `liquidityFlag`) — Phase 2, шаг 0.
 - Finam `priceStepCost` формула (`min_step/10^decimals × contract_size`) — live-подтверждение.
-- T-Invest `"fond"` vs `"etf"` в `instrumentType` — Phase 1, шаг 0.
+- T-Invest `"fond"` vs `"etf"` — уже отражено в `InstrumentType.fromBrokerString` (C-min), при Phase 2 — проверить.
 
 ---
 
@@ -8495,3 +8485,24 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 ---
 
+### ✅ Instrument: C-min (Phase 1)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** центральная доменная модель `Instrument` реорганизована: nullable-поля (`classCode`, `currency`, `lot`), `+ settlementCurrency`, `moneyPerPointOfPrice` extension, `instrumentType` → enum `InstrumentType`, `InstrumentUi`/`FutureUi`/`ShareUi` → `Instrument`/`Future`/`Share`. Проектирование — `docs/domain_models.md` §1–§10; реализация — §7 (14 шагов). Phase 2 (sealed interface) вынесена отдельно — `### Instrument: Phase 2 (sealed interface)`.
+
+**Что сделано:**
+
+- `ttech_uid` удалён (слит с `tscalpInstrumentId`); `ttech_figi: String` → `figi: String?` (шаги 1–2, коммит `241b8cb`).
+- `classCode` / `currency` → `String? = null`, `lot: Int` → `Long? = null`, `+ settlementCurrency: String? = null` (шаги 3–6, коммит `d9df967`).
+- `moneyPerPointOfPrice` — extension на `Instrument` (`minPriceIncrementAmount / minPriceIncrement`, 1.0 fallback); `FutureUi.pointValue` удалён; 8 кастов `as? FutureUi` → extension; `expirationDate` / `firstTradeDate` / `lastTradeDate` в `Instrument` (шаги 7–9, коммит `47a5e0e` + fix `241b8cb`).
+- `enum InstrumentType` (14 значений, `fromBrokerString` на `Map` — detekt complexity 1); `instrumentType: String` → `InstrumentType` в `Instrument`, `Future`, `Share`, `Order`, `OrderState`, `PositionStreamItem`, `PortfolioPosition`; `pointValue` → `moneyPerPointOfPrice` в снимках `Portfolio.kt` (шаги 10–11, коммиты `b44d26d`, `d9df967`, `01161b0`).
+- `InstrumentUi` → `Instrument`, `FutureUi` → `Future`, `ShareUi` → `Share` (21 файл main+test); proto `Instrument` — alias `as ProtoInstrument` в 2 файлах; extensions `TInvestRestMappers.toInstrumentUi` → `toInstrument` и т.д. (шаги 12–14, коммит `6f75478`).
+- Warnings `Unnecessary safe call on non-null receiver` — 5 шт убрано (4 в `OrdersViewModel`, 1 в `CalculateTradeDetailsUseCase`).
+- ktlint: import order `Instrument` < `InstrumentType` (5 файлов); alias в конце `ru.tinkoff` группы (1 файл).
+- `grep "InstrumentUi\|FutureUi\|ShareUi\|ttech_uid\|ttech_figi\|minPriceIncrementAmount\|pointValue"` в `app/src/main` = 0.
+- `grep "as? FutureUi"` = 0.
+
+**Оценка:** план ~3 ч; факт — 14 коммитов (включая 4 fix'а на ktlint/detekt и 1 на import order после rename), 6 CI-итераций. Основные задержки — anchor'ы для массовых замен (визуальные отступы vs regex) и data class constraints (`override val` обязательны).
+
+**Связано:** `docs/domain_models.md` §7; `docs/clean-audit.md` → Н7 (закрыт), Н6 (частично — god-класс остаётся до Phase 2); `### Instrument: Phase 2 (sealed interface)` (следующая фаза).
