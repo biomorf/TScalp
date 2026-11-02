@@ -520,6 +520,27 @@
 
 `moneyPerPointOfPrice` — extension из `Instrument` (C-min §7 шаг 7). Единая формула `totalValue` для shares / futures / bonds / etf.
 
+### 4.x `PortfolioSheet` — агрегат мультисчётности
+
+**Что.** Полный снимок всех счетов пользователя: все инициализированные брокеры × все счета × позиции × `AccountBalance` per currency.
+
+**Зачем.** Единственный публичный эмитируемый тип `PositionFlowManager`. Убирает плоский `List<PortfolioPosition>` из `PortfolioViewModel`. UI группирует по счёту (`AccountKey`), не по брокеру.
+
+**Кто эмитит.** `PositionFlowManager.portfolioSheet: StateFlow<PortfolioSheet>` — multi-account. Legacy `flow: SharedFlow<PositionStreamItem>` — временно для `OrdersViewModel` (миграция — задача `### OrdersViewModel: миграция на PortfolioSheet`).
+
+**Кто потребляет.** `PortfolioViewModel` — единственный потребитель на момент введения. `OrdersViewModel` — через `flow` (legacy). После миграции `OrdersViewModel` — только `portfolioSheet`.
+
+**Инварианты.**
+- Ключ `AccountKey(brokerName, accountId)` уникален в `accounts`.
+- Порядок: `BrokerName.entries` (TINVEST, BCS, FINAM), внутри — `accountId` лексикографически. Детерминированно, не зависит от UI-состояния.
+- `PortfolioSheet` — immutable снимок. При обновлении одной позиции/баланса одного счёта создаётся новый `PortfolioSheet` (не мутируется).
+
+**Разница с `AccountPortfolio`.** `AccountPortfolio` — один счёт (`positions`, `balances`, `totalProfit`). `PortfolioSheet` — все счета. `AccountPortfolio` — элемент `Map`, а не самостоятельный эмитируемый тип.
+
+**Жизненный цикл.** Создаётся при `PositionFlowManager.start(accountKeys)` — все счета, которые UI запросил. Обновляется per-account (stream / polling). Сбрасывается в `stop()`.
+
+**Связь с `PositionStreamItem` / `Position`.** `PositionStreamItem` — internal-событие источника (stream / polling). `Position` — domain-модель позиции (в `AccountPortfolio.positions`). Конверсия `PositionStreamItem → Position` — в маппере / менеджере. `PortfolioSheet` наружу не отдаёт `PositionStreamItem`.
+
 ### 5. Subtype-specific `Position`
 
 Плоские subtypes: `SharePosition`, `FuturePosition`, `BondPosition`, `EtfPosition`. Каждый — `data class` с тем же набором override-полей, что и интерфейс. Subtype-специфичных полей **сейчас нет** (все поля — common). Если когда-нибудь появится (например, `margin` только для фьючерсов) — место уже есть.
