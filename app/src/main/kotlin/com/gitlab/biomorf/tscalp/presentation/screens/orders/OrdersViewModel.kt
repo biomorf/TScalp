@@ -1070,6 +1070,10 @@ class OrdersViewModel
         }
 
         private fun updatePositionPnl(item: PositionStreamItem) {
+            // Multi-account: PositionFlowManager эмитит события со всех счетов.
+            // Обновляем карточку только по активному счёту (null = backward-compat).
+            val activeAccount = _uiState.value.selectedAccountId
+            if (item.accountId != null && item.accountId != activeAccount) return
             val avgPrice = item.averagePositionPrice ?: return
             val yield = item.expectedYield ?: return
             val quantity = item.quantity

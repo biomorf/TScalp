@@ -124,6 +124,7 @@ class PortfolioViewModel
                     }
                 val sandbox = sandboxPreferencesRepository.isSandboxMode()
                 logger.d(TAG, "loadPortfolio: account=$accountId, sandbox=$sandbox")
+                _uiState.update { it.copy(accountId = accountId) }
 
                 // Первичный запрос для немедленного отображения
                 when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
@@ -240,6 +241,10 @@ class PortfolioViewModel
         }
 
         private fun updatePortfolioItem(item: PositionStreamItem) {
+            // Multi-account: PositionFlowManager эмитит события со всех счетов.
+            // Обновляем карточку только по активному счёту (null = backward-compat).
+            val activeAccount = _uiState.value.accountId
+            if (item.accountId != null && item.accountId != activeAccount) return
             logger.d(TAG, "updatePortfolioItem: id=${item.tscalpInstrumentId} type=${item.instrumentType} moneyPerPointOfPrice=${item.moneyPerPointOfPrice}")
             val current = _uiState.value.positions.toMutableList()
             val index = current.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }

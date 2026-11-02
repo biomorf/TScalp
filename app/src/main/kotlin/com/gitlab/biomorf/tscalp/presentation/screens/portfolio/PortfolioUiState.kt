@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
  * UI-состояние экрана портфеля.
  */
 data class PortfolioUiState(
+    val accountId: String? = null,
     val positions: List<PortfolioPosition> = emptyList(),
     val totalValue: Double = 0.0,
     val balance: Double = 0.0, // 👈 новое поле
