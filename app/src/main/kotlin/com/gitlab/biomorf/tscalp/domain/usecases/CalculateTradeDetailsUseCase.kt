@@ -76,7 +76,7 @@ class CalculateTradeDetailsUseCase {
             if (totalQty > 0 && pairExecPrice > 0) {
                 val pairedInstrumentType = pairedInstrument.instrumentType
                 if (pairedInstrumentType == InstrumentType.FUTURES) {
-                    val pairedPointValue = pairedInstrument.moneyPerPointOfPrice ?: 1.0
+                    val pairedPointValue = pairedInstrument.moneyPerPointOfPrice
                     multiplierPoints = pairExecPrice * totalQty
                     multiplierCurrency = null
                     multiplierDomesticCurrency = multiplierPoints * pairedPointValue
