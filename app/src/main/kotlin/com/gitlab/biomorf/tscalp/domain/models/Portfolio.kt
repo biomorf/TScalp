@@ -184,7 +184,7 @@ fun emptyPortfolioPosition(
         name = instrument.name,
         isin = instrument.isin,
         ticker = instrument.ticker,
-        classCode = instrument.classCode,
+        classCode = instrument.classCode ?: "",
         quantity = 0L,
         currentPrice = currentPrice,
         totalValue = currentPrice * 0L,

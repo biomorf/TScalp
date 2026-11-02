@@ -28,12 +28,12 @@ import kotlin.time.Instant
 open class InstrumentUi(
     open val tscalpInstrumentId: String, // универсальный идентификатор TScalp
     open val ticker: String,
-    open val classCode: String, // код класса (например, SPBFUT)
+    open val classCode: String? = null, // код класса (например, SPBFUT)
     open val isin: String, // ISIN
     open val figi: String? = null,
     open val name: String,
-    open val currency: String,
-    open val lot: Int,
+    open val currency: String? = null,
+    open val lot: Long? = null,
     open val instrumentType: String = "", // / тип инструмента: share, bond, etf, currency, futures, option
     // --- Общие поля (присутствуют у большинства типов) ---
     open val exchange: String? = null, // торговая площадка
@@ -85,6 +85,7 @@ open class InstrumentUi(
     open val initialMarginOnSell: Double? = null,
     open val dlongClient: Double? = null,
     open val dshortClient: Double? = null,
+    open val settlementCurrency: String? = null, // валюта расчётов (Option/bond_details), не заполняется
 )
 
 /**
@@ -95,12 +96,12 @@ open class InstrumentUi(
 data class FutureUi(
     override val tscalpInstrumentId: String,
     override val ticker: String,
-    override val classCode: String,
+    override val classCode: String? = null,
     override val isin: String,
     override val figi: String? = null,
     override val name: String,
-    override val currency: String,
-    override val lot: Int,
+    override val currency: String? = null,
+    override val lot: Long? = null,
     override val instrumentType: String = "futures",
     // Поля, специфичные для фьючерсов, с переопределением из базового класса
     override val exchange: String? = null,
@@ -217,12 +218,12 @@ data class FutureUi(
 data class ShareUi(
     override val tscalpInstrumentId: String,
     override val ticker: String,
-    override val classCode: String,
+    override val classCode: String? = null,
     override val isin: String,
     override val figi: String? = null,
     override val name: String,
-    override val currency: String,
-    override val lot: Int,
+    override val currency: String? = null,
+    override val lot: Long? = null,
     override val instrumentType: String = "share",
     // Общие поля (могут переопределяться)
     override val exchange: String? = null,
