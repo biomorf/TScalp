@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.util
 
 import androidx.compose.ui.graphics.Color
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
@@ -62,7 +63,7 @@ class PositionFormatterTest {
         val (total, detail) =
             PositionFormatter.formatAverage(
                 position(averagePrice = null),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
             )
         assertNull(total)
         assertNull(detail)
@@ -73,7 +74,7 @@ class PositionFormatterTest {
         val (total, detail) =
             PositionFormatter.formatAverage(
                 position(averagePrice = 0.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
             )
         assertNull(total)
         assertNull(detail)
@@ -84,7 +85,7 @@ class PositionFormatterTest {
         val (total, detail) =
             PositionFormatter.formatAverage(
                 position(averagePrice = -1.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
             )
         assertNull(total)
         assertNull(detail)
@@ -95,7 +96,7 @@ class PositionFormatterTest {
         val (total, detail) =
             PositionFormatter.formatAverage(
                 position(quantity = 5L, averagePrice = 100.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
             )
         assertNotNull(total)
         assertNotNull(detail)
@@ -109,7 +110,7 @@ class PositionFormatterTest {
         val (total, detail) =
             PositionFormatter.formatAverage(
                 position(quantity = 2L, averagePrice = 100.0),
-                instrumentType = "futures",
+                instrumentType = InstrumentType.FUTURES,
             )
         assertNotNull(total)
         assertNotNull(detail)
@@ -124,7 +125,7 @@ class PositionFormatterTest {
         val (profitStr, _, percentStr) =
             PositionFormatter.formatProfit(
                 position(profit = null, profitPercent = null),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNull(profitStr)
@@ -138,7 +139,7 @@ class PositionFormatterTest {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
                 position(profit = 100.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNotNull(profitStr)
@@ -152,7 +153,7 @@ class PositionFormatterTest {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
                 position(profit = -50.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNotNull(profitStr)
@@ -166,7 +167,7 @@ class PositionFormatterTest {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
                 position(profit = 0.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNotNull(profitStr)
@@ -182,7 +183,7 @@ class PositionFormatterTest {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
                 position(profit = 10.0),
-                instrumentType = "futures",
+                instrumentType = InstrumentType.FUTURES,
                 pointValue = 5.0,
             )
         assertNotNull(profitStr)
@@ -198,7 +199,7 @@ class PositionFormatterTest {
         val (profitStr, _, _) =
             PositionFormatter.formatProfit(
                 position(profit = 10.0),
-                instrumentType = "futures",
+                instrumentType = InstrumentType.FUTURES,
                 pointValue = null,
             )
         assertNotNull(profitStr)
@@ -212,7 +213,7 @@ class PositionFormatterTest {
         val (profitStr, _, _) =
             PositionFormatter.formatProfit(
                 position(profit = 10.0),
-                instrumentType = "futures",
+                instrumentType = InstrumentType.FUTURES,
                 pointValue = 0.0,
             )
         assertNotNull(profitStr)
@@ -225,7 +226,7 @@ class PositionFormatterTest {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
                 position(profit = -25.5),
-                instrumentType = "futures",
+                instrumentType = InstrumentType.FUTURES,
                 pointValue = 5.0,
             )
         assertNotNull(profitStr)
@@ -241,7 +242,7 @@ class PositionFormatterTest {
         val (_, _, percentStr) =
             PositionFormatter.formatProfit(
                 position(profit = 10.0, profitPercent = 5.25),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNotNull(percentStr)
@@ -254,7 +255,7 @@ class PositionFormatterTest {
         val (_, _, percentStr) =
             PositionFormatter.formatProfit(
                 position(profit = -10.0, profitPercent = -3.5),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNotNull(percentStr)
@@ -266,7 +267,7 @@ class PositionFormatterTest {
         val (_, _, percentStr) =
             PositionFormatter.formatProfit(
                 position(profit = 10.0, profitPercent = null),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNull(percentStr)
@@ -279,7 +280,7 @@ class PositionFormatterTest {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
                 position(currentPrice = 0.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNull(price)
@@ -291,7 +292,7 @@ class PositionFormatterTest {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
                 position(currentPrice = 250.0),
-                instrumentType = "share",
+                instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNotNull(price)
@@ -304,7 +305,7 @@ class PositionFormatterTest {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
                 position(currentPrice = 100.0),
-                instrumentType = "futures",
+                instrumentType = InstrumentType.FUTURES,
                 pointValue = 5.0,
             )
         assertNotNull(price)
@@ -318,7 +319,7 @@ class PositionFormatterTest {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
                 position(currentPrice = 100.0),
-                instrumentType = "futures",
+                instrumentType = InstrumentType.FUTURES,
                 pointValue = null,
             )
         assertNotNull(price)

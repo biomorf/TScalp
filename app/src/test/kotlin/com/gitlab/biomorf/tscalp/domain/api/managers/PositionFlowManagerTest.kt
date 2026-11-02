@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import io.mockk.coEvery
@@ -39,7 +40,7 @@ class PositionFlowManagerTest {
                     brokerName = BrokerName.TINVEST,
                     ticker = "",
                     quantity = 0L,
-                    instrumentType = "currency",
+                    instrumentType = InstrumentType.CURRENCY,
                     currency = "rub",
                     money = 2415.31,
                     blocked = null,
@@ -80,7 +81,7 @@ class PositionFlowManagerTest {
                     ticker = "RUB000UTSTOM",
                     quantity = 2415L,
                     currentPrice = 1.0,
-                    instrumentType = "currency",
+                    instrumentType = InstrumentType.CURRENCY,
                     currency = "rub",
                 )
             val wsItem =
@@ -89,7 +90,7 @@ class PositionFlowManagerTest {
                     brokerName = BrokerName.TINVEST,
                     ticker = "",
                     quantity = 0L,
-                    instrumentType = "currency",
+                    instrumentType = InstrumentType.CURRENCY,
                     currency = "rub",
                     money = 2415.31,
                     blocked = 100.0,
@@ -133,7 +134,7 @@ class PositionFlowManagerTest {
                     ticker = "USD000UTSTOM",
                     quantity = 100L,
                     currentPrice = 1.0,
-                    instrumentType = "currency",
+                    instrumentType = InstrumentType.CURRENCY,
                     currency = "usd",
                 )
             val wsRub =
@@ -142,7 +143,7 @@ class PositionFlowManagerTest {
                     brokerName = BrokerName.TINVEST,
                     ticker = "",
                     quantity = 0L,
-                    instrumentType = "currency",
+                    instrumentType = InstrumentType.CURRENCY,
                     currency = "rub",
                     money = 100.0,
                 )
@@ -184,7 +185,7 @@ class PositionFlowManagerTest {
                     ticker = "SBER",
                     quantity = 2L,
                     currentPrice = 292.6,
-                    instrumentType = "share",
+                    instrumentType = InstrumentType.SHARE,
                     expectedYield = 14.73,
                 )
             every { mockBroker.streams } returns mockBroker
@@ -288,7 +289,7 @@ class PositionFlowManagerTest {
                     ticker = "SBER",
                     quantity = 1L,
                     currentPrice = 292.6,
-                    instrumentType = "share",
+                    instrumentType = InstrumentType.SHARE,
                 )
             every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns
@@ -321,7 +322,7 @@ class PositionFlowManagerTest {
                     ticker = "SBER",
                     quantity = 1L,
                     currentPrice = 292.6,
-                    instrumentType = "share",
+                    instrumentType = InstrumentType.SHARE,
                 )
             every { mockBroker.streams } returns mockBroker
             every { mockBroker.subscribePositions(any()) } returns

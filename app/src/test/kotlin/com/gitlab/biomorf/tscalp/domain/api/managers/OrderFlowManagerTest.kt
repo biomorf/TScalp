@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.registry.BrokerRegistryImpl
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -237,7 +238,7 @@ class OrderFlowManagerTest {
             orderId = id,
             ticker = "SBER",
             tscalpInstrumentId = "uid-sber",
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
             direction = "BUY",
             quantity = 1L,
             orderType = OrderTypeSelection.Limit,

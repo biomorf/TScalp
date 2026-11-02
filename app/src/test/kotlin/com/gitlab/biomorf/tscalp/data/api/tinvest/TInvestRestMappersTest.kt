@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -97,7 +98,7 @@ class TInvestRestMappersTest {
         assertEquals(120.0, item.currentPrice!!, 0.0001)
         assertEquals(100.0, item.averagePositionPrice!!, 0.0001)
         assertEquals(200.0, item.expectedYield!!, 0.0001)
-        assertEquals("share", item.instrumentType)
+        assertEquals(InstrumentType.SHARE, item.instrumentType)
         assertEquals("", item.ticker)
         assertEquals("", item.classCode)
         assertEquals("", item.isin)

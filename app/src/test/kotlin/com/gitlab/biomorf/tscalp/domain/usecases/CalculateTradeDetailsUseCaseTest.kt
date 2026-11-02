@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import org.junit.AfterClass
@@ -43,7 +44,7 @@ class CalculateTradeDetailsUseCaseTest {
             name = "$ticker Inc.",
             currency = "rub",
             lot = 1,
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
         )
 
     private fun future(

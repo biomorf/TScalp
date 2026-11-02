@@ -199,7 +199,7 @@ class OrdersViewModel
                 if (instrument != null) {
                     _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
 
-                    val pointVal = instrument?.moneyPerPointOfPrice
+                    val pointVal = instrument.moneyPerPointOfPrice
                     _uiState.update { it.copy(currentPointValue = pointVal) }
 
                     syncPriceInterest()
@@ -213,7 +213,7 @@ class OrdersViewModel
                 if (pairInstrument != null) {
                     _uiState.update { it.copy(pairedInstrument = pairInstrument) }
 
-                    val pairPointVal = pairInstrument?.moneyPerPointOfPrice
+                    val pairPointVal = pairInstrument.moneyPerPointOfPrice
                     _uiState.update { it.copy(pairedPointValue = pairPointVal) }
 
                     // если не был запущен ценовой стрим для основного, запустим сейчас
@@ -401,7 +401,7 @@ class OrdersViewModel
                     )
                 }
                 // Сохраняем pointValue для UI
-                val pointVal = actualInstrument?.moneyPerPointOfPrice
+                val pointVal = actualInstrument.moneyPerPointOfPrice
                 _uiState.update { it.copy(currentPointValue = pointVal) }
 
                 updateTradeDetails()
@@ -913,7 +913,7 @@ class OrdersViewModel
                 if (price != null) {
                     _uiState.update { it.copy(pairCurrentPrice = price) }
                     // Сохраняем pointValue парного инструмента
-                    val pairedPointVal = instrument?.moneyPerPointOfPrice
+                    val pairedPointVal = instrument.moneyPerPointOfPrice
                     _uiState.update { it.copy(pairedPointValue = pairedPointVal) }
                 }
                 updateTradeDetails()
