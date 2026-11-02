@@ -484,3 +484,90 @@ data class AccountKey(
     val brokerName: BrokerName,
     val accountId: String,
 )
+
+// =============================================================================
+// Converters: PositionStreamItem -> Position / AccountBalance.
+// See docs/domain_models.md §Portfolio.
+// =============================================================================
+
+/**
+ * Преобразует [PositionStreamItem] в [Position] с указанным [instrument].
+ *
+ * Возвращает `null`, если конверсия невозможна (вызывающий может залогировать):
+ * - `instrument == null` (инструмент не резолвнут).
+ * - `accountId == null` (не установлен контекст счёта).
+ * - `isDomesticCurrency = true` и `instrument` — это `Currency`: домашняя
+ *   валюта (RUB) — это деньги, её место в `AccountBalance`, а не в `Position`.
+ *   См. [toAccountBalance].
+ * - Mismatch: `item.instrumentType` не совпадает с `instrument.instrumentType`
+ *   и не равен `OTHER` (OTHER = «не задано, доверяем instrument»).
+ *
+ * Subtype `Position` определяется по типу [instrument]:
+ * `Share` -> [SharePosition], `Future` -> [FuturePosition] и т.д.
+ * `lockedQuantity` и `priceChangePercent` пока `null` — источники в
+ * задаче `Position: источники priceChangePercent и lockedQuantity`.
+ */
+fun PositionStreamItem.toPosition(instrument: Instrument?): Position? {
+    if (instrument == null) return null
+    val acc = accountId ?: return null
+    if (isDomesticCurrency && instrument is Currency) return null
+    if (instrumentType != instrument.instrumentType && instrumentType != InstrumentType.OTHER) return null
+    val c = PositionCommon.of(this, acc)
+    return when (instrument) {
+        is Share -> SharePosition(instrument, c.brokerName, c.accountId, c.quantity, c.currentPrice, c.averagePrice, c.profit)
+        is Future -> FuturePosition(instrument, c.brokerName, c.accountId, c.quantity, c.currentPrice, c.averagePrice, c.profit)
+        is Bond -> BondPosition(instrument, c.brokerName, c.accountId, c.quantity, c.currentPrice, c.averagePrice, c.profit)
+        is Option -> OptionPosition(instrument, c.brokerName, c.accountId, c.quantity, c.currentPrice, c.averagePrice, c.profit)
+        is Etf -> EtfPosition(instrument, c.brokerName, c.accountId, c.quantity, c.currentPrice, c.averagePrice, c.profit)
+        is Currency -> CurrencyPosition(instrument, c.brokerName, c.accountId, c.quantity, c.currentPrice, c.averagePrice, c.profit)
+        is Other -> OtherPosition(instrument, c.brokerName, c.accountId, c.quantity, c.currentPrice, c.averagePrice, c.profit)
+    }
+}
+
+/** Общие поля конструктора [Position] (из [PositionStreamItem] + резолвнутый accountId). */
+private class PositionCommon(
+    val brokerName: BrokerName,
+    val accountId: String,
+    val quantity: Double,
+    val currentPrice: Double,
+    val averagePrice: Double?,
+    val profit: Double?,
+) {
+    companion object {
+        fun of(
+            item: PositionStreamItem,
+            accountId: String,
+        ): PositionCommon =
+            PositionCommon(
+                brokerName = item.brokerName,
+                accountId = accountId,
+                quantity = item.quantity.toDouble(),
+                currentPrice = item.currentPrice ?: 0.0,
+                averagePrice = item.averagePositionPrice,
+                profit = item.expectedYield,
+            )
+    }
+}
+
+/**
+ * Преобразует [PositionStreamItem] в [AccountBalance].
+ *
+ * Возвращает `null`, если:
+ * - `instrumentType != CURRENCY` (не валютная позиция).
+ * - `isDomesticCurrency = false` (иностранная валюта — это [CurrencyPosition],
+ *   см. [toPosition]).
+ *
+ * `currency == null` — fallback на `brokerName.domesticCurrency` (брокер знает
+ * домашнюю валюту; для `isDomesticCurrency = true` это корректно).
+ * `money`/`blocked` — `0.0` при `null` (нет данных — пустой баланс).
+ */
+fun PositionStreamItem.toAccountBalance(): AccountBalance? {
+    if (instrumentType != InstrumentType.CURRENCY) return null
+    if (!isDomesticCurrency) return null
+    val cur = currency ?: brokerName.domesticCurrency
+    return AccountBalance(
+        currency = cur,
+        money = money ?: 0.0,
+        blocked = blocked ?: 0.0,
+    )
+}
