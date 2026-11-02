@@ -361,26 +361,42 @@ enum class InstrumentType {
     companion object {
         /**
          * Broker string → [InstrumentType]. Case-insensitive.
+         *
          * T-Invest (lower): share, bond, etf, currency, futures, option, fond.
          * BCS (UPPER): STOCK, FOREIGN_STOCK, BONDS, NOTES, ...
          * Finam (UPPER): STOCK, BOND, FUTURES, ...
+         *
+         * Map-based dispatch вместо `when` — 24 ключа на 14 типов,
+         * `when` даёт cyclomatic complexity 15 (detekt max 14).
          */
-        fun fromBrokerString(value: String): InstrumentType =
-            when (value.lowercase()) {
-                "share", "stock" -> SHARE
-                "foreign_stock" -> FOREIGN_SHARE
-                "bond", "bonds" -> BOND
-                "note", "notes" -> NOTE
-                "euro_bond", "euro_bonds" -> EURO_BOND
-                "depositary_receipt", "depositary_receipts" -> DEPOSITARY_RECEIPT
-                "etf" -> ETF
-                "mutual_fund", "mutual_funds", "fond" -> MUTUAL_FUND
-                "futures" -> FUTURES
-                "option", "options" -> OPTION
-                "currency" -> CURRENCY
-                "commodity", "goods" -> COMMODITY
-                "index", "indices" -> INDEX
-                else -> OTHER
-            }
+        private val BROKER_TYPE_MAP: Map<String, InstrumentType> =
+            mapOf(
+                "share" to SHARE,
+                "stock" to SHARE,
+                "foreign_stock" to FOREIGN_SHARE,
+                "bond" to BOND,
+                "bonds" to BOND,
+                "note" to NOTE,
+                "notes" to NOTE,
+                "euro_bond" to EURO_BOND,
+                "euro_bonds" to EURO_BOND,
+                "depositary_receipt" to DEPOSITARY_RECEIPT,
+                "depositary_receipts" to DEPOSITARY_RECEIPT,
+                "etf" to ETF,
+                "mutual_fund" to MUTUAL_FUND,
+                "mutual_funds" to MUTUAL_FUND,
+                "fond" to MUTUAL_FUND,
+                "futures" to FUTURES,
+                "option" to OPTION,
+                "options" to OPTION,
+                "currency" to CURRENCY,
+                "commodity" to COMMODITY,
+                "goods" to COMMODITY,
+                "index" to INDEX,
+                "indices" to INDEX,
+            )
+
+        /** Broker string → [InstrumentType]; unknown → [OTHER]. */
+        fun fromBrokerString(value: String): InstrumentType = BROKER_TYPE_MAP[value.lowercase()] ?: OTHER
     }
 }
