@@ -1,17 +1,10 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
-import com.gitlab.biomorf.tscalp.domain.models.Bond
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Currency
-import com.gitlab.biomorf.tscalp.domain.models.Etf
-import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.Option
 import com.gitlab.biomorf.tscalp.domain.models.Order
-import com.gitlab.biomorf.tscalp.domain.models.Other
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
-import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.toOrderTypeSelection
 import com.gitlab.biomorf.tscalp.transport.ktor.RestInstrument
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
@@ -74,9 +67,8 @@ internal fun RestPosition.toStreamItem(): PositionStreamItem =
     )
 
 // ---------- RestInstrument → Instrument (REST fallback) ----------
-// 6 mappers + dispatcher (by InstrumentType), симметрично TInvestInstrumentMapper.
-// Поля, которых нет в RestInstrument, — default/null. Subtype-specific
-// (margin, share-, bond-, option-only) не приходят в REST GetInstrumentBy.
+// Dispatcher; 7 concrete mappers — в TInvestRestInstrumentMappers.kt
+// (split by detekt TooManyFunctions: 13 > 11).
 
 internal fun RestInstrument.toInstrument(): Instrument =
     when (InstrumentType.fromBrokerString(instrumentType)) {
@@ -88,185 +80,3 @@ internal fun RestInstrument.toInstrument(): Instrument =
         InstrumentType.CURRENCY -> toCurrency()
         else -> toOther()
     }
-
-private fun RestInstrument.toFuture(): Future =
-    Future(
-        tscalpInstrumentId = uid,
-        ticker = ticker,
-        name = name,
-        isin = isin ?: "",
-        classCode = classCode.takeIf { it.isNotBlank() },
-        figi = figi?.takeIf { it.isNotBlank() },
-        exchange = exchange,
-        lot = lot.toLong(),
-        currency = currency.takeIf { it.isNotBlank() },
-        settlementCurrency = null,
-        priceStepCost = null,
-        minPriceIncrement = minPriceIncrement.toDouble(),
-        expirationDate = null,
-        apiTradeAvailableFlag = apiTradeAvailableFlag,
-        buyAvailableFlag = buyAvailableFlag,
-        sellAvailableFlag = sellAvailableFlag,
-        shortEnabledFlag = shortEnabledFlag,
-        forIisFlag = forIisFlag,
-        forQualInvestorFlag = forQualInvestorFlag,
-        weekendFlag = weekendFlag,
-        blockedTcaFlag = blockedTcaFlag,
-        instrumentType = InstrumentType.FUTURES,
-    )
-
-private fun RestInstrument.toShare(): Share =
-    Share(
-        tscalpInstrumentId = uid,
-        ticker = ticker,
-        name = name,
-        isin = isin ?: "",
-        classCode = classCode.takeIf { it.isNotBlank() },
-        figi = figi?.takeIf { it.isNotBlank() },
-        exchange = exchange,
-        lot = lot.toLong(),
-        currency = currency.takeIf { it.isNotBlank() },
-        settlementCurrency = null,
-        priceStepCost = null,
-        minPriceIncrement = minPriceIncrement.toDouble(),
-        expirationDate = null,
-        apiTradeAvailableFlag = apiTradeAvailableFlag,
-        buyAvailableFlag = buyAvailableFlag,
-        sellAvailableFlag = sellAvailableFlag,
-        shortEnabledFlag = shortEnabledFlag,
-        forIisFlag = forIisFlag,
-        forQualInvestorFlag = forQualInvestorFlag,
-        weekendFlag = weekendFlag,
-        blockedTcaFlag = blockedTcaFlag,
-        instrumentType = InstrumentType.SHARE,
-    )
-
-private fun RestInstrument.toBond(): Bond =
-    Bond(
-        tscalpInstrumentId = uid,
-        ticker = ticker,
-        name = name,
-        isin = isin ?: "",
-        classCode = classCode.takeIf { it.isNotBlank() },
-        figi = figi?.takeIf { it.isNotBlank() },
-        exchange = exchange,
-        lot = lot.toLong(),
-        currency = currency.takeIf { it.isNotBlank() },
-        settlementCurrency = null,
-        priceStepCost = null,
-        minPriceIncrement = minPriceIncrement.toDouble(),
-        expirationDate = null,
-        apiTradeAvailableFlag = apiTradeAvailableFlag,
-        buyAvailableFlag = buyAvailableFlag,
-        sellAvailableFlag = sellAvailableFlag,
-        shortEnabledFlag = shortEnabledFlag,
-        forIisFlag = forIisFlag,
-        forQualInvestorFlag = forQualInvestorFlag,
-        weekendFlag = weekendFlag,
-        blockedTcaFlag = blockedTcaFlag,
-        instrumentType = InstrumentType.BOND,
-    )
-
-private fun RestInstrument.toOption(): Option =
-    Option(
-        tscalpInstrumentId = uid,
-        ticker = ticker,
-        name = name,
-        isin = isin ?: "",
-        classCode = classCode.takeIf { it.isNotBlank() },
-        figi = figi?.takeIf { it.isNotBlank() },
-        exchange = exchange,
-        lot = lot.toLong(),
-        currency = currency.takeIf { it.isNotBlank() },
-        settlementCurrency = null,
-        priceStepCost = null,
-        minPriceIncrement = minPriceIncrement.toDouble(),
-        expirationDate = null,
-        apiTradeAvailableFlag = apiTradeAvailableFlag,
-        buyAvailableFlag = buyAvailableFlag,
-        sellAvailableFlag = sellAvailableFlag,
-        shortEnabledFlag = shortEnabledFlag,
-        forIisFlag = forIisFlag,
-        forQualInvestorFlag = forQualInvestorFlag,
-        weekendFlag = weekendFlag,
-        blockedTcaFlag = blockedTcaFlag,
-        instrumentType = InstrumentType.OPTION,
-    )
-
-private fun RestInstrument.toEtf(): Etf =
-    Etf(
-        tscalpInstrumentId = uid,
-        ticker = ticker,
-        name = name,
-        isin = isin ?: "",
-        classCode = classCode.takeIf { it.isNotBlank() },
-        figi = figi?.takeIf { it.isNotBlank() },
-        exchange = exchange,
-        lot = lot.toLong(),
-        currency = currency.takeIf { it.isNotBlank() },
-        settlementCurrency = null,
-        priceStepCost = null,
-        minPriceIncrement = minPriceIncrement.toDouble(),
-        expirationDate = null,
-        apiTradeAvailableFlag = apiTradeAvailableFlag,
-        buyAvailableFlag = buyAvailableFlag,
-        sellAvailableFlag = sellAvailableFlag,
-        shortEnabledFlag = shortEnabledFlag,
-        forIisFlag = forIisFlag,
-        forQualInvestorFlag = forQualInvestorFlag,
-        weekendFlag = weekendFlag,
-        blockedTcaFlag = blockedTcaFlag,
-        instrumentType = InstrumentType.ETF,
-    )
-
-private fun RestInstrument.toCurrency(): Currency =
-    Currency(
-        tscalpInstrumentId = uid,
-        ticker = ticker,
-        name = name,
-        isin = isin ?: "",
-        classCode = classCode.takeIf { it.isNotBlank() },
-        figi = figi?.takeIf { it.isNotBlank() },
-        exchange = exchange,
-        lot = lot.toLong(),
-        currency = currency.takeIf { it.isNotBlank() },
-        settlementCurrency = null,
-        priceStepCost = null,
-        minPriceIncrement = minPriceIncrement.toDouble(),
-        expirationDate = null,
-        apiTradeAvailableFlag = apiTradeAvailableFlag,
-        buyAvailableFlag = buyAvailableFlag,
-        sellAvailableFlag = sellAvailableFlag,
-        shortEnabledFlag = shortEnabledFlag,
-        forIisFlag = forIisFlag,
-        forQualInvestorFlag = forQualInvestorFlag,
-        weekendFlag = weekendFlag,
-        blockedTcaFlag = blockedTcaFlag,
-        instrumentType = InstrumentType.CURRENCY,
-    )
-
-private fun RestInstrument.toOther(): Other =
-    Other(
-        tscalpInstrumentId = uid,
-        ticker = ticker,
-        name = name,
-        isin = isin ?: "",
-        classCode = classCode.takeIf { it.isNotBlank() },
-        figi = figi?.takeIf { it.isNotBlank() },
-        exchange = exchange,
-        lot = lot.toLong(),
-        currency = currency.takeIf { it.isNotBlank() },
-        settlementCurrency = null,
-        priceStepCost = null,
-        minPriceIncrement = minPriceIncrement.toDouble(),
-        expirationDate = null,
-        apiTradeAvailableFlag = apiTradeAvailableFlag,
-        buyAvailableFlag = buyAvailableFlag,
-        sellAvailableFlag = sellAvailableFlag,
-        shortEnabledFlag = shortEnabledFlag,
-        forIisFlag = forIisFlag,
-        forQualInvestorFlag = forQualInvestorFlag,
-        weekendFlag = weekendFlag,
-        blockedTcaFlag = blockedTcaFlag,
-        instrumentType = InstrumentType.fromBrokerString(instrumentType),
-    )
