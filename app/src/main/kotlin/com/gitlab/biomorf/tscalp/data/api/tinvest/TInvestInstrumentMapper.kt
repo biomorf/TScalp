@@ -44,7 +44,10 @@ object TInvestInstrumentMapper {
         }
     }
 
-    private fun mapFuture(instrument: ProtoInstrument, priceStepCostOverride: Double?): Future =
+    private fun mapFuture(
+        instrument: ProtoInstrument,
+        priceStepCostOverride: Double?,
+    ): Future =
         Future(
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
@@ -200,7 +203,10 @@ object TInvestInstrumentMapper {
             instrumentType = InstrumentType.CURRENCY,
         )
 
-    private fun mapOther(instrument: ProtoInstrument, type: InstrumentType): Other =
+    private fun mapOther(
+        instrument: ProtoInstrument,
+        type: InstrumentType,
+    ): Other =
         Other(
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,

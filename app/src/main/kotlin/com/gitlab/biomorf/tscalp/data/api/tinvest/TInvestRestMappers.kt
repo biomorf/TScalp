@@ -8,8 +8,8 @@ import com.gitlab.biomorf.tscalp.domain.models.Bond
 import com.gitlab.biomorf.tscalp.domain.models.Currency
 import com.gitlab.biomorf.tscalp.domain.models.Etf
 import com.gitlab.biomorf.tscalp.domain.models.Option
-import com.gitlab.biomorf.tscalp.domain.models.Other
 import com.gitlab.biomorf.tscalp.domain.models.Order
+import com.gitlab.biomorf.tscalp.domain.models.Other
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.toOrderTypeSelection
