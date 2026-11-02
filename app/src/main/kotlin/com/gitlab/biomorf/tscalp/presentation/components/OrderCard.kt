@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.presentation.components.TradePhrases
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
@@ -42,7 +43,7 @@ fun OrderCard(
     price: Double,
     currency: String,
     modifier: Modifier = Modifier,
-    instrumentType: String = "",
+    instrumentType: InstrumentType = InstrumentType.OTHER,
     totalCost: Double? = null,
     onCancel: (() -> Unit)? = null,
 ) {
@@ -123,7 +124,7 @@ private fun OrderCardMarketPreview() {
             status = "NEW",
             quantity = 10,
             price = 250.5,
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
             currency = "RUB",
             totalCost = 2505.0,
             onCancel = {},
@@ -143,7 +144,7 @@ private fun OrderCardLimitPreview() {
             status = "PARTIALLY_FILL",
             quantity = 20,
             price = 150.0,
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
             currency = "RUB",
             totalCost = 3000.0,
             onCancel = {},
@@ -163,7 +164,7 @@ private fun OrderCardExecutedPreview() {
             status = "FILL",
             quantity = 1,
             price = 85000.0,
-            instrumentType = "futures",
+            instrumentType = InstrumentType.FUTURES,
             currency = "RUB",
             totalCost = 85000.0,
             onCancel = null,

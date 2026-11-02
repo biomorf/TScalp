@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 
 data class TradeDetails(
     val executionPrice: Double,

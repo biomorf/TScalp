@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
@@ -18,11 +19,11 @@ fun ConfirmOrderDialog(
     quantity: Long,
     pendingDirection: String,
     orderType: OrderTypeSelection, // оставлен, он нужен для OrderCard основной сделки
-    instrumentType: String,
+    instrumentType: InstrumentType,
     executionPrice: Double,
     pairTradingEnabled: Boolean,
     pairedInstrumentTicker: String?,
-    pairedInstrumentType: String?,
+    pairedInstrumentType: InstrumentType?,
     pairedMultiplier: String?,
     pairExecPrice: Double, // новое: цена исполнения контрсделки
     pairedOrderType: OrderTypeSelection?, // новое: тип контрсделки (может быть null, если парная отключена)
@@ -67,7 +68,7 @@ fun ConfirmOrderDialog(
                         status = null,
                         quantity = pairedQty,
                         price = pairExecPrice,
-                        instrumentType = pairedInstrumentType ?: "",
+                        instrumentType = pairedInstrumentType ?: InstrumentType.OTHER,
                         currency = DOMESTIC_CURRENCY,
                         totalCost = pairExecPrice * pairedQty,
                     )
@@ -97,7 +98,7 @@ private fun ConfirmOrderDialogMarketPreview() {
             quantity = 10,
             pendingDirection = "BUY",
             orderType = OrderTypeSelection.Market,
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
             executionPrice = 250.5,
             pairTradingEnabled = false,
             pairedInstrumentTicker = null,
@@ -121,7 +122,7 @@ private fun ConfirmOrderDialogLimitPreview() {
             quantity = 20,
             pendingDirection = "SELL",
             orderType = OrderTypeSelection.Limit,
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
             executionPrice = 150.0,
             pairTradingEnabled = false,
             pairedInstrumentTicker = null,
@@ -145,11 +146,11 @@ private fun ConfirmOrderDialogPairedPreview() {
             quantity = 1,
             pendingDirection = "BUY",
             orderType = OrderTypeSelection.Limit,
-            instrumentType = "futures",
+            instrumentType = InstrumentType.FUTURES,
             executionPrice = 85000.0,
             pairTradingEnabled = true,
             pairedInstrumentTicker = "SBER",
-            pairedInstrumentType = "share",
+            pairedInstrumentType = InstrumentType.SHARE,
             pairedMultiplier = "10",
             pairExecPrice = 250.5,
             pairedOrderType = OrderTypeSelection.Market,

@@ -22,6 +22,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -33,6 +34,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.mergeWith
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
@@ -1148,7 +1150,7 @@ class OrdersViewModel
             details: TradeDetails,
             state: OrdersUiState,
         ): String? {
-            val instrumentType = state.selectedInstrument?.instrumentType ?: ""
+            val instrumentType = state.selectedInstrument?.instrumentType ?: InstrumentType.OTHER
             val currency = state.selectedInstrument?.currency ?: DOMESTIC_CURRENCY
             return when {
                 details.costPoints != null && details.costDomesticCurrency != null ->
@@ -1162,7 +1164,7 @@ class OrdersViewModel
             details: TradeDetails,
             state: OrdersUiState,
         ): String? {
-            val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: ""
+            val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: InstrumentType.OTHER
             val currency = state.pairedInstrument?.currency ?: DOMESTIC_CURRENCY
             return when {
                 details.multiplierPoints != null && details.multiplierDomesticCurrency != null ->

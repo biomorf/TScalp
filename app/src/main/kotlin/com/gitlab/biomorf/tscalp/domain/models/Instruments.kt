@@ -182,9 +182,9 @@ data class FutureUi(
     override val brand: String? = null,
     override val requiredTests: List<String>? = null,
     // Уникальные поля фьючерсов
-    expirationDate: Instant? = null,
-    firstTradeDate: Instant? = null,
-    lastTradeDate: Instant? = null,
+    override val expirationDate: Instant? = null,
+    override val firstTradeDate: Instant? = null,
+    override val lastTradeDate: Instant? = null,
     override val futuresType: String? = null,
     override val assetType: String? = null,
     override val basicAsset: String? = null,

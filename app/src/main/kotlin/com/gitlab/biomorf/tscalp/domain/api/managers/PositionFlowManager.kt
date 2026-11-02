@@ -256,7 +256,7 @@ class PositionFlowManager
                 averagePositionPrice = cached.averagePositionPrice,
                 expectedYield = cached.expectedYield,
                 isin = cached.isin,
-                pointValue = cached.pointValue,
+                moneyPerPointOfPrice = cached.moneyPerPointOfPrice,
             )
         }
 

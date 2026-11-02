@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.api.tinvest
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.PortfolioRequest

@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.util
 
 import androidx.compose.ui.graphics.Color
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 
 object PositionFormatter {
@@ -10,7 +11,7 @@ object PositionFormatter {
      */
     fun formatAverage(
         position: PortfolioPosition,
-        instrumentType: String,
+        instrumentType: InstrumentType,
     ): Pair<String?, String?> {
         val avgPrice = position.averagePrice
         if (avgPrice == null || avgPrice <= 0) {
@@ -28,7 +29,7 @@ object PositionFormatter {
      */
     fun formatProfit(
         position: PortfolioPosition,
-        instrumentType: String,
+        instrumentType: InstrumentType,
         pointValue: Double?,
     ): Triple<String?, Color, String?> {
         val profit = position.profit
@@ -41,7 +42,7 @@ object PositionFormatter {
         val profitColor = if (profit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
 
         val profitStr =
-            if (instrumentType == "futures") {
+            if (instrumentType == InstrumentType.FUTURES) {
                 val pointsStr = "%.2f".format(profit)
                 val sign = if (profit >= 0) "+" else ""
                 if (pointValue != null && pointValue > 0) {
@@ -80,13 +81,13 @@ object PositionFormatter {
      */
     fun formatCurrentPrice(
         position: PortfolioPosition,
-        instrumentType: String,
+        instrumentType: InstrumentType,
         pointValue: Double?,
     ): Pair<String?, String?> {
         if (position.currentPrice <= 0) return null to null
         val priceStr = formatPrice(position.currentPrice, instrumentType, position.currency ?: DOMESTIC_CURRENCY)
         val rubStr =
-            if (instrumentType == "futures" && pointValue != null && pointValue > 0) {
+            if (instrumentType == InstrumentType.FUTURES && pointValue != null && pointValue > 0) {
                 formatDomesticCurrency(position.currentPrice * pointValue)
             } else {
                 null

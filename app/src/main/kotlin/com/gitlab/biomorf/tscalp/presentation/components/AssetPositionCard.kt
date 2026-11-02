@@ -28,6 +28,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
@@ -52,7 +53,7 @@ import kotlin.math.roundToInt
 fun AssetPositionCard(
     position: PortfolioPosition,
     modifier: Modifier = Modifier,
-    instrumentType: String = "",
+    instrumentType: InstrumentType = InstrumentType.OTHER,
     priceChangePercent: Double? = null,
     onDelete: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null,
@@ -196,7 +197,7 @@ fun AssetPositionCard(
 @Composable
 private fun AssetCardContent(
     position: PortfolioPosition,
-    instrumentType: String,
+    instrumentType: InstrumentType,
     priceChangePercent: Double?,
     onClick: (() -> Unit)?,
     isSelected: Boolean,
@@ -223,10 +224,10 @@ private fun AssetCardContent(
 
     val typeColor =
         when (instrumentType) {
-            "share" -> Color(0xFF1565C0)
-            "bond" -> Color(0xFFE65100)
-            "etf" -> Color(0xFF2E7D32)
-            "currency" -> Color(0xFF6A1B9A)
+            InstrumentType.SHARE -> Color(0xFF1565C0)
+            InstrumentType.BOND -> Color(0xFFE65100)
+            InstrumentType.ETF -> Color(0xFF2E7D32)
+            InstrumentType.CURRENCY -> Color(0xFF6A1B9A)
             else -> Color(0xFF757575)
         }
 
@@ -371,11 +372,11 @@ private fun AssetPositionCardShareProfitPreview() {
                     averagePrice = 200.0,
                     profit = 505.0,
                     profitPercent = 25.25,
-                    instrumentType = "share",
+                    instrumentType = InstrumentType.SHARE,
                     isin = "RU0009029540",
                     classCode = "TQBR",
                 ),
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
             priceChangePercent = 1.5,
             onClick = {},
             onDelete = {},
@@ -402,11 +403,11 @@ private fun AssetPositionCardShareLossPreview() {
                     averagePrice = 200.0,
                     profit = -500.0,
                     profitPercent = -25.0,
-                    instrumentType = "share",
+                    instrumentType = InstrumentType.SHARE,
                     isin = "RU0007661625",
                     classCode = "TQBR",
                 ),
-            instrumentType = "share",
+            instrumentType = InstrumentType.SHARE,
             priceChangePercent = -2.0,
             onClick = {},
             onDelete = {},
@@ -433,11 +434,11 @@ private fun AssetPositionCardFuturesPreview() {
                     averagePrice = 84000.0,
                     profit = 2000.0,
                     profitPercent = 2.38,
-                    instrumentType = "futures",
+                    instrumentType = InstrumentType.FUTURES,
                     classCode = "SPBFUT",
-                    pointValue = 1.0,
+                    moneyPerPointOfPrice = 1.0,
                 ),
-            instrumentType = "futures",
+            instrumentType = InstrumentType.FUTURES,
             priceChangePercent = 0.5,
             pointValue = 1.0,
             onClick = {},
