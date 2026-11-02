@@ -82,6 +82,8 @@ class TInvestPortfolioService(
                     instrumentType = instrumentUi?.instrumentType ?: InstrumentType.OTHER,
                     moneyPerPointOfPrice = pointVal,
                     currency = instrumentUi?.currency,
+                    isDomesticCurrency =
+                        instrumentUi?.currency?.equals(BrokerName.TINVEST.domesticCurrency, ignoreCase = true) == true,
                 )
             }
         }

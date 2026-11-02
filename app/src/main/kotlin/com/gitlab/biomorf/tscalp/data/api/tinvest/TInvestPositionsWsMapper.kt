@@ -98,6 +98,7 @@ object TInvestPositionsWsMapper {
             quantity = 0L,
             instrumentType = InstrumentType.CURRENCY,
             currency = currency,
+            isDomesticCurrency = currency.equals(BrokerName.TINVEST.domesticCurrency, ignoreCase = true),
         )
 
     private fun MoneyValueDto.toAmountOrZero(): Double = (units.toLongOrNull() ?: 0L).toDouble() + nano / 1_000_000_000.0

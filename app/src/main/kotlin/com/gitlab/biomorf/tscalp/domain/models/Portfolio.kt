@@ -75,6 +75,11 @@ data class PositionStreamItem(
     // Идентификатор счёта-источника события. Заполняется с момента
     // multi-account; null — для обратной совместимости в тестах.
     val accountId: String? = null,
+    // Домашняя валюта брокера (`BrokerName.domesticCurrency`).
+    // Валютная позиция с `isDomesticCurrency = true` — это деньги
+    // в домашней валюте (RUB); в `Position` не попадает, идёт в
+    // `AccountBalance`. `false` — иностранная валюта (`CurrencyPosition`).
+    val isDomesticCurrency: Boolean = false,
 )
 
 /**
