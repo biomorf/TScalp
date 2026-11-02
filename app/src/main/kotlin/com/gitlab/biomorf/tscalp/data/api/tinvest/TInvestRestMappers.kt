@@ -1,11 +1,12 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.FutureUi
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Future
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
-import com.gitlab.biomorf.tscalp.domain.models.ShareUi
+import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.toOrderTypeSelection
 import com.gitlab.biomorf.tscalp.transport.ktor.RestInstrument
 import com.gitlab.biomorf.tscalp.transport.ktor.RestOrder
@@ -25,7 +26,7 @@ internal fun RestOrder.toOrder(): Order.Regular =
         orderId = orderId,
         ticker = ticker,
         tscalpInstrumentId = instrumentUid,
-        instrumentType = "",
+        instrumentType = InstrumentType.OTHER,
         direction = direction.removePrefix("ORDER_DIRECTION_"),
         quantity = lotsRequested,
         orderType = orderType.removePrefix("ORDER_TYPE_").toOrderTypeSelection(),
@@ -41,7 +42,7 @@ internal fun RestStopOrder.toOrder(): Order.Stop =
         orderId = stopOrderId,
         ticker = ticker,
         tscalpInstrumentId = instrumentUid,
-        instrumentType = "",
+        instrumentType = InstrumentType.OTHER,
         direction = direction.removePrefix("ORDER_DIRECTION_"),
         quantity = lotsRequested,
         orderType = orderType.removePrefix("ORDER_TYPE_").toOrderTypeSelection(),
@@ -62,36 +63,35 @@ internal fun RestPosition.toStreamItem(): PositionStreamItem =
         expectedYield = expectedYield.toDouble(),
         classCode = "",
         isin = "",
-        pointValue = null,
-        instrumentType = instrumentType,
+        moneyPerPointOfPrice = null,
+        instrumentType = InstrumentType.fromBrokerString(instrumentType),
         currency = null,
     )
 
-// ---------- RestInstrument → InstrumentUi (REST fallback) ----------
+// ---------- RestInstrument → Instrument (REST fallback) ----------
 // Эквивалент `TInvestInstrumentMapper.mapProtoToDomain` для REST-транспорта.
 // Поля, которых нет в `RestInstrument`, — default/null. Остальные
 // (klong, kshort, dlong, dshort, dlongMin, dshortMin, first*CandleDate,
 // sector, brand, requiredTests, и futures/share-специфичные) не приходят
 // в REST `GetInstrumentBy` и остаются `null`.
 
-internal fun RestInstrument.toInstrumentUi(): InstrumentUi =
-    when (instrumentType) {
-        "futures" -> toFutureUi()
-        "share" -> toShareUi()
-        else -> toDefaultUi()
+internal fun RestInstrument.toInstrument(): Instrument =
+    when (InstrumentType.fromBrokerString(instrumentType)) {
+        InstrumentType.FUTURES -> toFuture()
+        InstrumentType.SHARE -> toShare()
+        else -> toDefault()
     }
 
-private fun RestInstrument.toFutureUi(): FutureUi =
-    FutureUi(
+private fun RestInstrument.toFuture(): Future =
+    Future(
         tscalpInstrumentId = uid,
         ticker = ticker,
-        classCode = classCode,
+        classCode = classCode.takeIf { it.isNotBlank() },
         isin = isin ?: "",
-        ttech_uid = uid,
-        ttech_figi = figi ?: "",
+        figi = figi?.takeIf { it.isNotBlank() },
         name = name,
-        currency = currency,
-        lot = lot,
+        currency = currency.takeIf { it.isNotBlank() },
+        lot = lot.toLong(),
         exchange = exchange,
         tradingStatus = tradingStatus,
         apiTradeAvailableFlag = apiTradeAvailableFlag,
@@ -108,17 +108,16 @@ private fun RestInstrument.toFutureUi(): FutureUi =
         positionUid = positionUid,
     )
 
-private fun RestInstrument.toShareUi(): ShareUi =
-    ShareUi(
+private fun RestInstrument.toShare(): Share =
+    Share(
         tscalpInstrumentId = uid,
         ticker = ticker,
-        classCode = classCode,
+        classCode = classCode.takeIf { it.isNotBlank() },
         isin = isin ?: "",
-        ttech_uid = uid,
-        ttech_figi = figi ?: "",
+        figi = figi?.takeIf { it.isNotBlank() },
         name = name,
-        currency = currency,
-        lot = lot,
+        currency = currency.takeIf { it.isNotBlank() },
+        lot = lot.toLong(),
         exchange = exchange,
         tradingStatus = tradingStatus,
         apiTradeAvailableFlag = apiTradeAvailableFlag,
@@ -134,16 +133,15 @@ private fun RestInstrument.toShareUi(): ShareUi =
         countryOfRiskName = countryOfRiskName,
     )
 
-private fun RestInstrument.toDefaultUi(): InstrumentUi =
-    InstrumentUi(
+private fun RestInstrument.toDefault(): Instrument =
+    Instrument(
         tscalpInstrumentId = uid,
         ticker = ticker,
-        classCode = classCode,
+        classCode = classCode.takeIf { it.isNotBlank() },
         isin = isin ?: "",
-        ttech_uid = uid,
-        ttech_figi = figi ?: "",
+        figi = figi?.takeIf { it.isNotBlank() },
         name = name,
-        currency = currency,
-        lot = lot,
-        instrumentType = instrumentType,
+        currency = currency.takeIf { it.isNotBlank() },
+        lot = lot.toLong(),
+        instrumentType = InstrumentType.fromBrokerString(instrumentType),
     )

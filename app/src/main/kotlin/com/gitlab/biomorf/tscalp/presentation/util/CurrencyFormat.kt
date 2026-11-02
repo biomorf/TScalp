@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.util
 
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
@@ -30,10 +31,10 @@ fun formatDomesticCurrency(value: Double): String = formatCurrency(value, DOMEST
  */
 fun formatPrice(
     price: Double,
-    instrumentType: String,
+    instrumentType: InstrumentType,
     currency: String,
 ): String =
-    if (instrumentType == "futures") {
+    if (instrumentType == InstrumentType.FUTURES) {
         "%.2f пт".format(price)
     } else {
         formatCurrency(price, currency)

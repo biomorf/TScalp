@@ -136,7 +136,7 @@ fun OrdersScreen() {
                                     onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
                                     isSearching = uiState.isSearching,
                                     searchResults = uiState.searchResults,
-                                    onInstrumentSelected = { instrument: InstrumentUi ->
+                                    onInstrumentSelected = { instrument: Instrument ->
                                         viewModel.onInstrumentSelected(instrument)
                                         focusManager.clearFocus()
                                     },
@@ -158,7 +158,7 @@ fun OrdersScreen() {
                             }
                         }
                     } else {
-                        uiState.selectedInstrument?.let { instrument: InstrumentUi ->
+                        uiState.selectedInstrument?.let { instrument: Instrument ->
                             val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
 
                             // Цену берём из PriceFlowManager (uiState.currentPrice) —
@@ -177,15 +177,15 @@ fun OrdersScreen() {
                                     emptyPortfolioPosition(
                                         instrument = instrument,
                                         currentPrice = currentPrice,
-                                        pointValue = uiState.currentPointValue,
-                                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+                                        moneyPerPointOfPrice = uiState.currentPointValue,
+                                        instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
                                     )
                                 }
 
                             AssetPositionCard(
                                 position = position,
-                                instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                                pointValue = position.pointValue, // теперь всегда валидный
+                                instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
+                                pointValue = position.moneyPerPointOfPrice, // теперь всегда валидный
                                 priceChangePercent = uiState.selectedPriceChangePercent,
                                 onDelete = { viewModel.clearSelectedInstrument() },
                                 onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
@@ -229,7 +229,7 @@ fun OrdersScreen() {
                         quantity = uiState.quantityAsLong ?: 0L,
                         pendingDirection = pendingDirection,
                         orderType = uiState.orderType,
-                        instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+                        instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
                         executionPrice = uiState.executionPrice,
                         pairTradingEnabled = uiState.pairTradingEnabled,
                         pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
@@ -243,8 +243,6 @@ fun OrdersScreen() {
                             showConfirmDialog = false
                         },
                     )
-
-                    val instrumentType = uiState.selectedInstrument?.instrumentType ?: ""
 
                     val costOverlay = uiState.costOverlay
 
@@ -440,7 +438,7 @@ fun OrdersScreen() {
                                         onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
                                         isSearching = uiState.isPairSearching,
                                         searchResults = uiState.pairSearchResults,
-                                        onInstrumentSelected = { instrument: InstrumentUi ->
+                                        onInstrumentSelected = { instrument: Instrument ->
                                             viewModel.onPairedInstrumentSelected(instrument)
                                             focusManager.clearFocus()
                                         },
@@ -463,7 +461,7 @@ fun OrdersScreen() {
                             }
                         } else {
                             // Карточка парного инструмента и множитель
-                            uiState.pairedInstrument?.let { instrument: InstrumentUi ->
+                            uiState.pairedInstrument?.let { instrument: Instrument ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
                                 val pairedPointValue = uiState.pairedPointValue
                                 // Цену берём из PriceFlowManager (uiState.pairCurrentPrice).
@@ -482,15 +480,15 @@ fun OrdersScreen() {
                                         emptyPortfolioPosition(
                                             instrument = instrument,
                                             currentPrice = pairPrice,
-                                            pointValue = pairedPointValue,
-                                            instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
+                                            moneyPerPointOfPrice = pairedPointValue,
+                                            instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
                                         )
                                     }
 
                                 AssetPositionCard(
                                     position = position,
-                                    instrumentType = uiState.selectedInstrument?.instrumentType ?: "",
-                                    pointValue = position.pointValue, // теперь всегда валидный
+                                    instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
+                                    pointValue = position.moneyPerPointOfPrice, // теперь всегда валидный
                                     priceChangePercent = uiState.selectedPriceChangePercent,
                                     onDelete = { viewModel.clearPairSearch() },
                                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
@@ -769,11 +767,11 @@ fun InstrumentSearchField(
     query: String,
     onQueryChanged: (String) -> Unit,
     isSearching: Boolean,
-    searchResults: List<InstrumentUi>,
-    onInstrumentSelected: (InstrumentUi) -> Unit,
+    searchResults: List<Instrument>,
+    onInstrumentSelected: (Instrument) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
-    recentInstruments: List<InstrumentUi> = emptyList(),
+    recentInstruments: List<Instrument> = emptyList(),
     tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
 ) {
     var inputText by remember { mutableStateOf(query) }
@@ -910,11 +908,11 @@ fun InstrumentSearchField(
     }
 }
 
-fun getInstrumentTypeColor(instrumentType: String): Color =
+fun getInstrumentTypeColor(instrumentType: InstrumentType): Color =
     when (instrumentType) {
-        "share" -> Color(0xFF1565C0)
-        "bond" -> Color(0xFFE65100)
-        "etf" -> Color(0xFF2E7D32)
-        "currency" -> Color(0xFF6A1B9A)
+        InstrumentType.SHARE -> Color(0xFF1565C0)
+        InstrumentType.BOND -> Color(0xFFE65100)
+        InstrumentType.ETF -> Color(0xFF2E7D32)
+        InstrumentType.CURRENCY -> Color(0xFF6A1B9A)
         else -> Color(0xFF757575)
     }

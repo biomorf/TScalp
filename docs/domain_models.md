@@ -132,30 +132,30 @@
 
 #### Шаг 0. Маппинг `InstrumentType` (read-only)
 
-- [ ] **0.1.** Прочитать proto T-Invest `Share`/`Future`/`Option`/`Instrument` (`instrument_type`, `instrument_kind`), BCS `type` (`STOCK`/`FOREIGN_STOCK`/`BONDS`/...), Finam `type` (`STOCK`/`BOND`/`FUTURES`/...).
-- [ ] **0.2.** Обновить §9 (таблицы): столбец `instrumentType` — маппинг каждого значения.
-- [ ] **0.3.** Зафиксировать в §10 неоднозначности, если есть (T-Invest `"fond"` vs `"etf"`, BCS `MUTUAL_FUNDS` vs `ETF`, Finam `type` — точный список).
+- [x] **0.1.** Прочитать proto T-Invest `Share`/`Future`/`Option`/`Instrument` (`instrument_type`, `instrument_kind`), BCS `type` (`STOCK`/`FOREIGN_STOCK`/`BONDS`/...), Finam `type` (`STOCK`/`BOND`/`FUTURES`/...).
+- [x] **0.2.** Обновить §9 (таблицы): столбец `instrumentType` — маппинг каждого значения.
+- [x] **0.3.** Зафиксировать в §10 неоднозначности, если есть (T-Invest `"fond"` vs `"etf"`, BCS `MUTUAL_FUNDS` vs `ETF`, Finam `type` — точный список).
 - **Оценка:** 15 мин. **Блокер:** нет.
 
 #### Коммит 1 — переименования (шаги 1–2)
 
-- [ ] **1.** Удалить `ttech_uid` — `InstrumentUi`, `FutureUi`, `ShareUi`, `mapProtoToDomain`, `toInstrumentUi`. Заменить на `tscalpInstrumentId` (= `uid`) там, где использовалось.
-- [ ] **2.** `ttech_figi` → `figi: String? = null` — `InstrumentUi`, `FutureUi`, `ShareUi`, мапперы.
+- [x] **1.** Удалить `ttech_uid` — `InstrumentUi`, `FutureUi`, `ShareUi`, `mapProtoToDomain`, `toInstrumentUi`. Заменить на `tscalpInstrumentId` (= `uid`) там, где использовалось.
+- [x] **2.** `ttech_figi` → `figi: String? = null` — `InstrumentUi`, `FutureUi`, `ShareUi`, мапперы.
 - **Оценка:** 25 мин.
 
 #### Коммит 2 — nullable + новые поля (шаги 3–6)
 
-- [ ] **3.** `classCode: String` → `String? = null` — `InstrumentUi`, мапперы (`?: ""` → `null`).
-- [ ] **4.** `currency: String` → `String? = null` — `InstrumentUi`, мапперы.
-- [ ] **5.** `lot: Int` → `Long? = null` — `InstrumentUi`, мапперы (`lot.toLong()`), `CalculateTradeDetailsUseCase` (fallback `?: 1L` где нужен non-null).
-- [ ] **6.** `+ settlementCurrency: String? = null` — `InstrumentUi`, мапперы.
+- [x] **3.** `classCode: String` → `String? = null` — `InstrumentUi`, мапперы (`?: ""` → `null`).
+- [x] **4.** `currency: String` → `String? = null` — `InstrumentUi`, мапперы.
+- [x] **5.** `lot: Int` → `Long? = null` — `InstrumentUi`, мапперы (`lot.toLong()`), `CalculateTradeDetailsUseCase` (fallback `?: 1L` где нужен non-null).
+- [x] **6.** `+ settlementCurrency: String? = null` — `InstrumentUi`, мапперы.
 - **Оценка:** 25 мин.
 
 #### Коммит 3 — `moneyPerPointOfPrice` + удаление кастов (шаги 7–9)
 
-- [ ] **7.** `+ moneyPerPointOfPrice: Double` — **extension** на `InstrumentUi` в `Instruments.kt`, computed из `priceStepCost`/`minPriceIncrement`. `FutureUi.pointValue` — **удалить** (заменён extension).
-- [ ] **8.** `expirationDate: Instant?` → в `InstrumentUi` (было только `FutureUi`); `FutureUi`/`ShareUi` — убрать `override` (наследуется).
-- [ ] **9.** Удалить 8 кастов `as? FutureUi`:
+- [x] **7.** `+ moneyPerPointOfPrice: Double` — **extension** на `InstrumentUi` в `Instruments.kt`, computed из `priceStepCost`/`minPriceIncrement`. `FutureUi.pointValue` — **удалить** (заменён extension).
+- [x] **8.** `expirationDate: Instant?` → в `InstrumentUi` (было только `FutureUi`); `FutureUi`/`ShareUi` — убрать `override` (наследуется).
+- [x] **9.** Удалить 8 кастов `as? FutureUi`:
   - `TInvestPortfolioService:64` — `instrumentUi?.moneyPerPointOfPrice` (extension)
   - `CalculateTradeDetailsUseCase:48,78` — `instrument.moneyPerPointOfPrice` (extension)
   - `OrdersViewModel:201,215,403,915` — `instrument?.moneyPerPointOfPrice` (extension)
@@ -164,11 +164,11 @@
 
 #### Коммит 4 — `instrumentType` enum + rename (шаги 10–14)
 
-- [ ] **10.** `instrumentType: String` → `enum InstrumentType` — `Instruments.kt` (новый enum), `Portfolio.kt` (2 модели), `OrderModels.kt` (`Order`, `OrderState`), все `== "..."` и `when`, мапперы (маппинг строки в enum, см. ниже).
-- [ ] **11.** Переименовать `pointValue` → `moneyPerPointOfPrice` в `Portfolio.kt` (`PositionStreamItem`, `PortfolioPosition`) — это **снимки**, не computed.
-- [ ] **12.** `InstrumentUi` → `Instrument` (~25 call-sites, alias `import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument` в `TInvestInstrumentMapper`).
-- [ ] **13.** `FutureUi` → `Future` (~10 call-sites).
-- [ ] **14.** `ShareUi` → `Share` (~5 call-sites).
+- [x] **10.** `instrumentType: String` → `enum InstrumentType` — `Instruments.kt` (новый enum), `Portfolio.kt` (2 модели), `OrderModels.kt` (`Order`, `OrderState`), все `== "..."` и `when`, мапперы (маппинг строки в enum, см. ниже).
+- [x] **11.** Переименовать `pointValue` → `moneyPerPointOfPrice` в `Portfolio.kt` (`PositionStreamItem`, `PortfolioPosition`) — это **снимки**, не computed.
+- [x] **12.** `InstrumentUi` → `Instrument` (~25 call-sites, alias `import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument` в `TInvestInstrumentMapper`).
+- [x] **13.** `FutureUi` → `Future` (~10 call-sites).
+- [x] **14.** `ShareUi` → `Share` (~5 call-sites).
 - **Оценка:** 65 мин.
 
 #### Enum `InstrumentType`

@@ -22,8 +22,8 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
-import com.gitlab.biomorf.tscalp.domain.models.FutureUi
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -33,6 +33,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.mergeWith
+import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
@@ -198,7 +199,7 @@ class OrdersViewModel
                 if (instrument != null) {
                     _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
 
-                    val pointVal = (instrument as? FutureUi)?.pointValue
+                    val pointVal = instrument.moneyPerPointOfPrice
                     _uiState.update { it.copy(currentPointValue = pointVal) }
 
                     syncPriceInterest()
@@ -212,7 +213,7 @@ class OrdersViewModel
                 if (pairInstrument != null) {
                     _uiState.update { it.copy(pairedInstrument = pairInstrument) }
 
-                    val pairPointVal = (pairInstrument as? FutureUi)?.pointValue
+                    val pairPointVal = pairInstrument.moneyPerPointOfPrice
                     _uiState.update { it.copy(pairedPointValue = pairPointVal) }
 
                     // если не был запущен ценовой стрим для основного, запустим сейчас
@@ -337,7 +338,7 @@ class OrdersViewModel
             }
         }
 
-        fun onInstrumentSelected(instrument: InstrumentUi) {
+        fun onInstrumentSelected(instrument: Instrument) {
             // Обновляем выбранный инструмент и поисковую строку
             _uiState.update {
                 it.copy(
@@ -351,7 +352,7 @@ class OrdersViewModel
             viewModelScope.launch {
                 _uiState.update { it.copy(isPriceLoading = true) }
 
-                // Загружаем актуальный InstrumentUi с pointValue
+                // Загружаем актуальный Instrument с pointValue
                 val actualInstrument = instrumentRepo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
 
                 // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
@@ -400,7 +401,7 @@ class OrdersViewModel
                     )
                 }
                 // Сохраняем pointValue для UI
-                val pointVal = (actualInstrument as? FutureUi)?.pointValue
+                val pointVal = actualInstrument.moneyPerPointOfPrice
                 _uiState.update { it.copy(currentPointValue = pointVal) }
 
                 updateTradeDetails()
@@ -893,7 +894,7 @@ class OrdersViewModel
             }
         }
 
-        fun onPairedInstrumentSelected(instrument: InstrumentUi) {
+        fun onPairedInstrumentSelected(instrument: Instrument) {
             _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
             syncPriceInterest() // обновляем интерес к ценам обоих инструментов
             viewModelScope.launch {
@@ -912,7 +913,7 @@ class OrdersViewModel
                 if (price != null) {
                     _uiState.update { it.copy(pairCurrentPrice = price) }
                     // Сохраняем pointValue парного инструмента
-                    val pairedPointVal = (instrument as? FutureUi)?.pointValue
+                    val pairedPointVal = instrument.moneyPerPointOfPrice
                     _uiState.update { it.copy(pairedPointValue = pairedPointVal) }
                 }
                 updateTradeDetails()
@@ -1149,7 +1150,7 @@ class OrdersViewModel
             details: TradeDetails,
             state: OrdersUiState,
         ): String? {
-            val instrumentType = state.selectedInstrument?.instrumentType ?: ""
+            val instrumentType = state.selectedInstrument?.instrumentType ?: InstrumentType.OTHER
             val currency = state.selectedInstrument?.currency ?: DOMESTIC_CURRENCY
             return when {
                 details.costPoints != null && details.costDomesticCurrency != null ->
@@ -1163,7 +1164,7 @@ class OrdersViewModel
             details: TradeDetails,
             state: OrdersUiState,
         ): String? {
-            val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: ""
+            val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: InstrumentType.OTHER
             val currency = state.pairedInstrument?.currency ?: DOMESTIC_CURRENCY
             return when {
                 details.multiplierPoints != null && details.multiplierDomesticCurrency != null ->

@@ -11,35 +11,31 @@ import kotlin.time.Instant
  *
  * Содержит поля, общие для всех типов, а также поля,
  * специфичные для отдельных типов (акции, фьючерсы, опционы и т.д.).
- * Остаётся открытым для наследования: [FutureUi], [ShareUi] —
+ * Остаётся открытым для наследования: [Future], [Share] —
  * подтипы с переопределёнными полями. Поля, не применимые к
  * конкретному типу, остаются `null`.
  *
  * @property tscalpInstrumentId универсальный идентификатор
  *   инструмента в TScalp (не `uid`/`figi`). Domain-слой оперирует
  *   только им; трансляция в брокерские id — в data-слое.
- * @property ttech_uid `instrument_uid` из T-Invest API.
- *   **T-Invest-специфичное поле** (см. AGENTS.md:
- *   «`InstrumentUi.ttech_uid` — исключение: специфика T-Invest»).
- *   Используется при вызовах T-Invest API и в маппинге.
- * @property ttech_figi `figi` из T-Invest API. **Временно** — нужен
- *   для подписки на `LastPrice` через gRPC-стрим (там figi, не uid).
- *   Уйдёт, когда стрим перейдёт на `instrumentUid`.
+ * @property figi FIGI инструмента (международный идентификатор,
+ *   Bloomberg). Не T-Invest-специфичный: BCS в позициях тоже
+ *   даёт figi.
  * @property instrumentType строковый enum: `"share"`, `"futures"`,
  *   `"currency"`, `"etf"`, `"bond"`, `"option"`. Не sealed-тип,
  *   потому что часть моделей использует один общий класс.
  */
-open class InstrumentUi(
+
+open class Instrument(
     open val tscalpInstrumentId: String, // универсальный идентификатор TScalp
     open val ticker: String,
-    open val classCode: String, // код класса (например, SPBFUT)
+    open val classCode: String? = null, // код класса (например, SPBFUT)
     open val isin: String, // ISIN
-    open val ttech_uid: String, // instrument_uid из T-tech Invest API
-    open val ttech_figi: String = "", // временно для стрима LastPrice
+    open val figi: String? = null,
     open val name: String,
-    open val currency: String,
-    open val lot: Int,
-    open val instrumentType: String = "", // / тип инструмента: share, bond, etf, currency, futures, option
+    open val currency: String? = null,
+    open val lot: Long? = null,
+    open val instrumentType: InstrumentType = InstrumentType.OTHER,
     // --- Общие поля (присутствуют у большинства типов) ---
     open val exchange: String? = null, // торговая площадка
     open val tradingStatus: String? = null, // режим торгов
@@ -90,6 +86,7 @@ open class InstrumentUi(
     open val initialMarginOnSell: Double? = null,
     open val dlongClient: Double? = null,
     open val dshortClient: Double? = null,
+    open val settlementCurrency: String? = null, // валюта расчётов (Option/bond_details), не заполняется
 )
 
 /**
@@ -97,17 +94,16 @@ open class InstrumentUi(
  * Содержит все поля базового класса, а также дополнительные поля,
  * специфичные для фьючерсов, и вычисляемое свойство pointValue.
  */
-data class FutureUi(
+data class Future(
     override val tscalpInstrumentId: String,
     override val ticker: String,
-    override val classCode: String,
+    override val classCode: String? = null,
     override val isin: String,
-    override val ttech_uid: String,
-    override val ttech_figi: String = "",
+    override val figi: String? = null,
     override val name: String,
-    override val currency: String,
-    override val lot: Int,
-    override val instrumentType: String = "futures",
+    override val currency: String? = null,
+    override val lot: Long? = null,
+    override val instrumentType: InstrumentType = InstrumentType.FUTURES,
     // Поля, специфичные для фьючерсов, с переопределением из базового класса
     override val exchange: String? = null,
     override val tradingStatus: String? = null,
@@ -148,13 +144,12 @@ data class FutureUi(
     override val initialMarginOnSell: Double? = null,
     override val dlongClient: Double? = null,
     override val dshortClient: Double? = null,
-) : InstrumentUi(
+) : Instrument(
         tscalpInstrumentId,
         ticker,
         classCode,
         isin,
-        ttech_uid,
-        ttech_figi,
+        figi,
         name,
         currency,
         lot,
@@ -206,32 +201,23 @@ data class FutureUi(
         initialMarginOnSell,
         dlongClient,
         dshortClient,
-    ) {
-    /** Стоимость одного пункта цены в рублях (для фьючерсов) */
-    val pointValue: Double
-        get() {
-            val inc = minPriceIncrement ?: 0.0
-            val amount = minPriceIncrementAmount ?: 0.0
-            return if (inc > 0.0) amount / inc else 1.0
-        }
-}
+    )
 
 /**
  * Модель акции.
  * Содержит все поля базового класса, а также дополнительные поля,
  * специфичные для акций.
  */
-data class ShareUi(
+data class Share(
     override val tscalpInstrumentId: String,
     override val ticker: String,
-    override val classCode: String,
+    override val classCode: String? = null,
     override val isin: String,
-    override val ttech_uid: String,
-    override val ttech_figi: String = "",
+    override val figi: String? = null,
     override val name: String,
-    override val currency: String,
-    override val lot: Int,
-    override val instrumentType: String = "share",
+    override val currency: String? = null,
+    override val lot: Long? = null,
+    override val instrumentType: InstrumentType = InstrumentType.SHARE,
     // Общие поля (могут переопределяться)
     override val exchange: String? = null,
     override val tradingStatus: String? = null,
@@ -270,13 +256,12 @@ data class ShareUi(
     override val instrumentExchange: String? = null,
     // Поля фьючерсов скрыты (оставлены null)
     // ...
-) : InstrumentUi(
+) : Instrument(
         tscalpInstrumentId,
         ticker,
         classCode,
         isin,
-        ttech_uid,
-        ttech_figi,
+        figi,
         name,
         currency,
         lot,
@@ -330,3 +315,88 @@ data class ShareUi(
         dlongClient = null,
         dshortClient = null,
     )
+
+/**
+ * Стоимость одного пункта цены в рублях.
+ *
+ * Единая формула для всех типов инструментов:
+ * `minPriceIncrementAmount / minPriceIncrement`.
+ * Для акций / облигаций / ETF — `1.0` (`minPriceIncrementAmount = null`).
+ * Для фьючерсов — реальный множитель (`pointValue`).
+ *
+ * Заменяет `Future.pointValue` (C-min шаг 7): extension работает
+ * на любом `Instrument`, включая будущие подтипы.
+ */
+val Instrument.moneyPerPointOfPrice: Double
+    get() {
+        val inc = minPriceIncrement ?: 0.0
+        val amount = minPriceIncrementAmount ?: 0.0
+        return if (inc > 0.0) amount / inc else 1.0
+    }
+
+/**
+ * Тип инструмента (универсальный для всех брокеров).
+ *
+ * Заполняется маппером по контексту (T-Invest: `Shares()` → SHARE,
+ * `Futures()` → FUTURES) или `fromBrokerString` (REST/WS-строки).
+ * C-min шаг 10 (§7 `docs/domain_models.md`).
+ */
+enum class InstrumentType {
+    SHARE,
+    FOREIGN_SHARE,
+    BOND,
+    NOTE,
+    EURO_BOND,
+    DEPOSITARY_RECEIPT,
+    ETF,
+    MUTUAL_FUND,
+    FUTURES,
+    OPTION,
+    CURRENCY,
+    COMMODITY,
+    INDEX,
+    OTHER,
+    ;
+
+    companion object {
+        /**
+         * Broker string → [InstrumentType]. Case-insensitive.
+         *
+         * T-Invest (lower): share, bond, etf, currency, futures, option, fond.
+         * BCS (UPPER): STOCK, FOREIGN_STOCK, BONDS, NOTES, ...
+         * Finam (UPPER): STOCK, BOND, FUTURES, ...
+         *
+         * Map-based dispatch вместо `when` — 24 ключа на 14 типов,
+         * `when` даёт cyclomatic complexity 15 (detekt max 14).
+         */
+        private val BROKER_TYPE_MAP: Map<String, InstrumentType> =
+            mapOf(
+                "share" to SHARE,
+                "stock" to SHARE,
+                "foreign_stock" to FOREIGN_SHARE,
+                "bond" to BOND,
+                "bonds" to BOND,
+                "note" to NOTE,
+                "notes" to NOTE,
+                "euro_bond" to EURO_BOND,
+                "euro_bonds" to EURO_BOND,
+                "depositary_receipt" to DEPOSITARY_RECEIPT,
+                "depositary_receipts" to DEPOSITARY_RECEIPT,
+                "etf" to ETF,
+                "mutual_fund" to MUTUAL_FUND,
+                "mutual_funds" to MUTUAL_FUND,
+                "fond" to MUTUAL_FUND,
+                "futures" to FUTURES,
+                "option" to OPTION,
+                "options" to OPTION,
+                "currency" to CURRENCY,
+                "commodity" to COMMODITY,
+                "goods" to COMMODITY,
+                "index" to INDEX,
+                "indices" to INDEX,
+            )
+
+        /** Broker string → [InstrumentType]; unknown → [OTHER]. */
+        fun fromBrokerString(value: String): InstrumentType = BROKER_TYPE_MAP[value.lowercase()] ?: OTHER
+    }
+}

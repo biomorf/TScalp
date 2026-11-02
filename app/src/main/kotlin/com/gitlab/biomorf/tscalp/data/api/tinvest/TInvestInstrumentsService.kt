@@ -1,15 +1,15 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.log.Logger
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
 import ru.tinkoff.piapi.contract.v1.GetFuturesMarginRequest
-import ru.tinkoff.piapi.contract.v1.Instrument
 import ru.tinkoff.piapi.contract.v1.InstrumentIdType
 import ru.tinkoff.piapi.contract.v1.InstrumentRequest
 import ru.tinkoff.piapi.contract.v1.InstrumentShort
+import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument
 
 /**
  * Инструменты T-Invest: полный инструмент по uid, поиск, стоимость шага цены.
@@ -28,7 +28,7 @@ class TInvestInstrumentsService(
         private const val TAG = "TInvestInstruments"
     }
 
-    suspend fun fetchFullInstrument(uid: String): InstrumentUi? {
+    suspend fun fetchFullInstrument(uid: String): Instrument? {
         val protoInstrument = fetchProtoInstrument(uid) ?: return null
         var marginAmount: Double? = null
         if (protoInstrument.instrumentType == "futures" && protoInstrument.figi != null) {
@@ -37,7 +37,7 @@ class TInvestInstrumentsService(
         return TInvestInstrumentMapper.mapProtoToDomain(protoInstrument, marginAmount)
     }
 
-    internal suspend fun fetchProtoInstrument(uid: String): Instrument? =
+    internal suspend fun fetchProtoInstrument(uid: String): ProtoInstrument? =
         withContext(Dispatchers.IO) {
             val currentApi =
                 state.api ?: run {
@@ -72,7 +72,7 @@ class TInvestInstrumentsService(
             currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
         }
 
-    suspend fun findInstruments(query: String): List<InstrumentUi> =
+    suspend fun findInstruments(query: String): List<Instrument> =
         withContext(Dispatchers.IO) {
             findInstrumentShorts(query).mapNotNull { short ->
                 try {

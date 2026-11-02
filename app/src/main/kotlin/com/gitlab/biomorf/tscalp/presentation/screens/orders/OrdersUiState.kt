@@ -2,7 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
@@ -12,7 +12,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
  * Информация о выбранном инструменте для отображения в карточке «Последние просмотренные».
  */
 data class SelectedInstrumentInfo(
-    val instrument: InstrumentUi,
+    val instrument: Instrument,
     val currentPrice: Double?,
     val priceChangePercent: Double?,
     val quantity: Long,
@@ -34,9 +34,9 @@ data class OrdersUiState(
     val isApiInitialized: Boolean = false,
     val confirmOrdersEnabled: Boolean = true,
     val searchQuery: String = "",
-    val searchResults: List<InstrumentUi> = emptyList(),
+    val searchResults: List<Instrument> = emptyList(),
     val isSearching: Boolean = false,
-    val selectedInstrument: InstrumentUi? = null,
+    val selectedInstrument: Instrument? = null,
     val selectedTicker: String? = selectedInstrument?.ticker,
     val currentPrice: Double? = null,
     val pairCurrentPrice: Double? = null,
@@ -57,9 +57,9 @@ data class OrdersUiState(
     // Парная торговля
     val pairTradingEnabled: Boolean = false,
     val pairSearchQuery: String = "", // запрос второго поиска
-    val pairSearchResults: List<InstrumentUi> = emptyList(), // результаты второго поиска
+    val pairSearchResults: List<Instrument> = emptyList(), // результаты второго поиска
     val isPairSearching: Boolean = false, // индикатор загрузки второго поиска
-    val pairedInstrument: InstrumentUi? = null, // выбранный парный инструмент
+    val pairedInstrument: Instrument? = null, // выбранный парный инструмент
     val pairedMultiplier: String = "1", // множитель (по умолчанию 10)
     val swipeResetTrigger: Boolean = false,
     val pairSearchBroker: BrokerName = BrokerName.TINVEST, // брокер для парного поиска

@@ -26,7 +26,7 @@ package com.gitlab.biomorf.tscalp.domain.models
  *   в неполных событиях; заполняется из polling.
  * @property classCode код режима торгов (`TQBR`, `SPBRU`).
  * @property isin ISIN инструмента.
- * @property pointValue стоимость шага цены (только фьючерсы).
+ * @property moneyPerPointOfPrice стоимость шага цены (только фьючерсы).
  * @property instrumentType строковый тип: `"share"`, `"futures"`,
  *   `"currency"`, `"etf"`.
  * @property money для валютных позиций: свободный остаток.
@@ -49,8 +49,8 @@ data class PositionStreamItem(
     val expectedYield: Double? = null,
     val classCode: String = "",
     val isin: String = "",
-    val pointValue: Double? = null,
-    val instrumentType: String = "",
+    val moneyPerPointOfPrice: Double? = null,
+    val instrumentType: InstrumentType = InstrumentType.OTHER,
     // Для валютных позиций (instrumentType = "currency").
     // Из WS PositionsStream: money — свободный остаток,
     // blocked — заблокированный. Обе величины — в единицах
@@ -105,7 +105,7 @@ data class PositionStreamItem(
  *   учитывает `pointValue` для фьючерсов.
  * @property priceChangePercent изменение цены в процентах
  *   (может быть `null`).
- * @property pointValue стоимость шага цены (только фьючерсы).
+ * @property moneyPerPointOfPrice стоимость шага цены (только фьючерсы).
  * @property currency ISO-4217 код валюты (для
  *   `instrumentType = "currency"`); нужен для склейки с WS.
  */
@@ -119,16 +119,16 @@ data class PortfolioPosition(
     val currentPrice: Double,
     val totalValue: Double,
     // Опциональные: с разумными дефолтами
-    val instrumentType: String = "",
+    val instrumentType: InstrumentType = InstrumentType.OTHER,
     val classCode: String = "",
     val isin: String = "",
     val averagePrice: Double? = null,
     val profit: Double? = null,
     val profitPercent: Double? = null,
     val priceChangePercent: Double? = null,
-    val pointValue: Double? = null,
+    val moneyPerPointOfPrice: Double? = null,
     // Код валюты (ISO-4217) для валютных позиций.
-    // Источник — InstrumentUi.currency в fetchPortfolioPositions.
+    // Источник — Instrument.currency в fetchPortfolioPositions.
     // Используется для склейки с WS-стримом (money/blocked).
     val currency: String? = null,
 )
@@ -173,10 +173,10 @@ fun calculateProfitPercent(
  * domain-модели принадлежат domain (clean-audit Н1).
  */
 fun emptyPortfolioPosition(
-    instrument: InstrumentUi,
+    instrument: Instrument,
     currentPrice: Double,
-    pointValue: Double?,
-    instrumentType: String,
+    moneyPerPointOfPrice: Double?,
+    instrumentType: InstrumentType,
 ): PortfolioPosition =
     PortfolioPosition(
         brokerName = BrokerName.TINVEST,
@@ -184,14 +184,14 @@ fun emptyPortfolioPosition(
         name = instrument.name,
         isin = instrument.isin,
         ticker = instrument.ticker,
-        classCode = instrument.classCode,
+        classCode = instrument.classCode ?: "",
         quantity = 0L,
         currentPrice = currentPrice,
         totalValue = currentPrice * 0L,
         profit = null,
         profitPercent = null,
         instrumentType = instrumentType,
-        pointValue = pointValue,
+        moneyPerPointOfPrice = moneyPerPointOfPrice,
     )
 
 /**
@@ -216,7 +216,7 @@ fun emptyPortfolioPosition(
 fun PortfolioPosition.mergeWith(item: PositionStreamItem): PortfolioPosition {
     val newPrice = item.currentPrice ?: currentPrice
     val newAvgPrice = item.averagePositionPrice ?: averagePrice
-    val newPointValue = item.pointValue ?: pointValue
+    val newMoneyPerPointOfPrice = item.moneyPerPointOfPrice ?: moneyPerPointOfPrice
     return copy(
         quantity = item.quantity,
         currentPrice = newPrice,
@@ -228,9 +228,9 @@ fun PortfolioPosition.mergeWith(item: PositionStreamItem): PortfolioPosition {
                 yield = item.expectedYield,
                 avgPrice = newAvgPrice,
                 quantity = item.quantity,
-                pointValue = newPointValue,
+                pointValue = newMoneyPerPointOfPrice,
             ),
-        pointValue = newPointValue,
+        moneyPerPointOfPrice = newMoneyPerPointOfPrice,
         instrumentType = item.instrumentType,
         isin = item.isin.ifBlank { isin },
         classCode = item.classCode.ifBlank { classCode },
@@ -258,9 +258,9 @@ fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
                 yield = expectedYield,
                 avgPrice = averagePositionPrice,
                 quantity = quantity,
-                pointValue = pointValue,
+                pointValue = moneyPerPointOfPrice,
             ),
-        pointValue = pointValue,
+        moneyPerPointOfPrice = moneyPerPointOfPrice,
         instrumentType = instrumentType,
         isin = isin,
         classCode = classCode,

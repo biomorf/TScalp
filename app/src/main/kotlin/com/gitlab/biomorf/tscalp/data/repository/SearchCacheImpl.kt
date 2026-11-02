@@ -5,8 +5,8 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.FutureUi
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Future
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,7 +23,7 @@ class SearchCacheImpl
         private val brokerManager: BrokerRegistry,
     ) : SearchCacheRepository {
         // Ключ: "brokerName:нормализованныйЗапрос"
-        private val cache = ConcurrentHashMap<String, List<InstrumentUi>>()
+        private val cache = ConcurrentHashMap<String, List<Instrument>>()
 
         /**
          * Выполняет поиск инструментов через указанного брокера, кеширует результат
@@ -32,7 +32,7 @@ class SearchCacheImpl
         override suspend fun search(
             brokerName: BrokerName,
             query: String,
-        ): AppResult<List<InstrumentUi>> {
+        ): AppResult<List<Instrument>> {
             val normalizedQuery = query.trim().lowercase()
             val key = "${brokerName.key}:$normalizedQuery"
 
@@ -48,8 +48,8 @@ class SearchCacheImpl
 
             val sorted =
                 results.sortedWith(
-                    compareBy<InstrumentUi> { it !is FutureUi }
-                        .thenBy { (it as? FutureUi)?.expirationDate },
+                    compareBy<Instrument> { it !is Future }
+                        .thenBy { it.expirationDate },
                 )
 
             cache[key] = sorted

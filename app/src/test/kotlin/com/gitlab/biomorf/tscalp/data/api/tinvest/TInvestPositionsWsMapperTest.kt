@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.MoneyValueDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsFuturesDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsResponseDto
@@ -25,7 +26,7 @@ class TInvestPositionsWsMapperTest {
 
         assertEquals(1, result.size)
         val item = result.single()
-        assertEquals("currency", item.instrumentType)
+        assertEquals(InstrumentType.CURRENCY, item.instrumentType)
         assertEquals("", item.tscalpInstrumentId)
         assertEquals("rub", item.currency)
         assertEquals(2415.31, item.money!!, 0.0001)
@@ -120,8 +121,8 @@ class TInvestPositionsWsMapperTest {
         val result = TInvestPositionsWsMapper.mapAll(response)
 
         assertEquals(2, result.size)
-        assertTrue(result.any { it.tscalpInstrumentId == "uid-sber" && it.instrumentType == "share" })
-        assertTrue(result.any { it.instrumentType == "currency" && it.currency == "rub" })
+        assertTrue(result.any { it.tscalpInstrumentId == "uid-sber" && it.instrumentType == InstrumentType.SHARE })
+        assertTrue(result.any { it.instrumentType == InstrumentType.CURRENCY && it.currency == "rub" })
     }
 
     // ---------- helpers ----------

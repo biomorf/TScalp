@@ -2259,8 +2259,6 @@ hotfix-веток.
   `ticker` + `exchange` (Finam) честно отражают формат брокера.
 - **Трансляция** `tscalpInstrumentId ↔ broker-specific-id`
   происходит в репозитории или в брокере.
-- **`InstrumentUi.ttech_uid`** — исключение: специфика T-Invest,
-  задокументирована в KDoc поля.
 
 ### Перед правками
 

@@ -233,7 +233,7 @@ class PortfolioViewModel
         }
 
         private fun updatePortfolioItem(item: PositionStreamItem) {
-            logger.d(TAG, "updatePortfolioItem: id=${item.tscalpInstrumentId} type=${item.instrumentType} pointValue=${item.pointValue}")
+            logger.d(TAG, "updatePortfolioItem: id=${item.tscalpInstrumentId} type=${item.instrumentType} moneyPerPointOfPrice=${item.moneyPerPointOfPrice}")
             val current = _uiState.value.positions.toMutableList()
             val index = current.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }
             if (index == -1) {

@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.managers
 
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import org.junit.Assert.assertEquals
@@ -17,7 +18,7 @@ class OrderCacheTest {
         orderId = orderId,
         ticker = "SBER",
         tscalpInstrumentId = "uid-sber",
-        instrumentType = "share",
+        instrumentType = InstrumentType.SHARE,
         direction = "BUY",
         price = price,
         quantity = 1L,

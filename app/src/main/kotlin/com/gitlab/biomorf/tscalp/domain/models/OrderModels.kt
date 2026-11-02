@@ -85,7 +85,7 @@ sealed interface Order {
     val orderId: String
     val ticker: String
     val tscalpInstrumentId: String
-    val instrumentType: String
+    val instrumentType: InstrumentType
     val direction: String
     val quantity: Long
     val price: Double
@@ -107,7 +107,7 @@ sealed interface Order {
         override val orderId: String,
         override val ticker: String,
         override val tscalpInstrumentId: String,
-        override val instrumentType: String,
+        override val instrumentType: InstrumentType,
         override val direction: String,
         override val quantity: Long,
         override val orderType: OrderTypeSelection,
@@ -135,7 +135,7 @@ sealed interface Order {
         override val orderId: String,
         override val ticker: String,
         override val tscalpInstrumentId: String,
-        override val instrumentType: String,
+        override val instrumentType: InstrumentType,
         override val direction: String,
         override val quantity: Long,
         override val orderType: OrderTypeSelection,
@@ -285,7 +285,7 @@ internal fun OrderState.toOrder(): Order.Regular =
         orderId = orderId,
         ticker = ticker,
         tscalpInstrumentId = tscalpInstrumentId ?: "",
-        instrumentType = "",
+        instrumentType = InstrumentType.OTHER,
         direction = direction,
         quantity = quantity,
         orderType = (orderType?.takeIf { it != "UNSPECIFIED" } ?: "LIMIT").toOrderTypeSelection(),

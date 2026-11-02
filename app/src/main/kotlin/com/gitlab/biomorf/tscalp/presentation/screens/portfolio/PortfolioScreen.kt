@@ -168,7 +168,7 @@ fun PortfolioScreen(
                             AssetPositionCard(
                                 position = position,
                                 instrumentType = position.instrumentType,
-                                pointValue = position.pointValue,
+                                pointValue = position.moneyPerPointOfPrice,
                                 priceChangePercent = position.priceChangePercent,
                                 tscalpInstrumentId = position.tscalpInstrumentId,
                                 tradingAvailability = uiState.tradingStatuses[position.tscalpInstrumentId] ?: TradingAvailability.UNKNOWN,

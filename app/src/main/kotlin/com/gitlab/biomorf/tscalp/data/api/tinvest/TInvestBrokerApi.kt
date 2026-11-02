@@ -21,7 +21,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.UserInstrumentsApi
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
@@ -253,7 +253,7 @@ class TInvestBrokerAPI(
      * Реализация [BrokerInstrumentApi.fetchFullInstrument]
      * (nullable-val роль, см. `BrokerApi.instrument`).
      */
-    override suspend fun fetchFullInstrument(uid: String): InstrumentUi? = instrumentsService.fetchFullInstrument(uid)
+    override suspend fun fetchFullInstrument(uid: String): Instrument? = instrumentsService.fetchFullInstrument(uid)
 
     /**
      * Стрим последних цен. Используется OrdersViewModel.startPriceUpdates().
