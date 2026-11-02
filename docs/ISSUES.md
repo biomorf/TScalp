@@ -1190,3 +1190,21 @@ live-тесте #2 задержки почти не было видно — View
 **Связано:** `docs/ROADMAP.md` → `### Rate-limiter для unary-запросов T-Invest`; ROADMAP → `### ✅ T-Invest REST: findInstruments fallback` (PR #85).
 
 **Когда вернуться:** при появлении rate-limiter (закроется автоматически), или при жалобах на `RESOURCE_EXHAUSTED` при поиске.
+
+## AGENTS.md ссылался на удалённое `InstrumentUi.ttech_uid`
+
+**Статус:** решён.
+
+**Симптом:** в `AGENTS.md` → «Идентификаторы инструментов» был пункт «`InstrumentUi.ttech_uid` — исключение: специфика T-Invest». Поле `ttech_uid` удалено в C-min шаг 1 (`241b8cb`, feature/instrument-cmin) — правило ссылалось на несуществующее поле.
+
+**Причина:** правило добавлено, когда поле ещё было (специфика T-Invest в domain-модели). После C-min `ttech_uid` слит с `tscalpInstrumentId` (оба — `uid` из T-Invest), `ttech_figi` переименован в `figi: String?` (common nullable). Правило не обновлено вместе с кодом.
+
+**Решение:** пункт удалён из `AGENTS.md`. `tscalpInstrumentId` — единственный идентификатор инструмента в domain; `figi` — common nullable, не T-Invest-специфичен.
+
+**Файлы:**
+- `AGENTS.md` → «Идентификаторы инструментов» — пункт про `ttech_uid` удалён.
+- `domain/models/Instruments.kt` — поля `ttech_uid` / `ttech_figi` заменены на `figi: String?` (C-min шаги 1-2).
+
+**Связано:** `docs/ROADMAP.md` → `### Instrument: C-min → sealed interface (две фазы)`, коммит `241b8cb`.
+
+**Когда вернуться:** при следующем изменении `tscalpInstrumentId` / `figi` в domain-модели, чтобы правило не рассинхронизировалось с кодом.
