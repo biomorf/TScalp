@@ -421,6 +421,77 @@ clean-audit.
 
 
 ---
+### Position: источники priceChangePercent и lockedQuantity
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `Position` (sealed, 7 subtypes) имеет computed-поля `priceChangePercent: Double?` и `lockedQuantity: Double?`, но `PositionStreamItem` их не содержит (коммит «Portfolio: модель портфеля» добавляет конвертер `toPosition` с этими полями = `null`). Нужны источники в мапперах брокеров:
+- **`priceChangePercent`** — изменение цены за торговый день, % от цены открытия. **Не** `(currentPrice - averagePrice) / averagePrice` (это P&L, отдельно). Источники: T-Invest `dailyYieldRelative` (`PositionData`), BCS `dailyPercentPL`, Finam `daily_pnl`.
+- **`lockedQuantity`** — заблокированное количество бумаг. T-Invest `blocked` в позициях `securities`/`futures`/`options`, BCS `locked`, Finam — `null` (у Finam `maintenance_margin` — деньги ГО, не бумаги).
+
+Сейчас в `PositionStreamItem` эти поля отсутствуют, конвертер отдаёт `null` (правило 2d — временное, задача = полное).
+
+**Соответствие Clean:** соответствует (расширение domain-модели + мапперов).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### Portfolio: модель портфеля` — закрыта (конвертер `toPosition` реализован).
+
+**Файлы:**
+- `domain/models/Portfolio.kt` — `PositionStreamItem + priceChangePercent: Double? = null + lockedQuantity: Double? = null`.
+- `data/api/tinvest/TInvestPortfolioService.kt` — из `PositionData.dailyYieldRelative`, `PositionsSecurities.blocked`.
+- `data/api/tinvest/TInvestPositionsWsMapper.kt` — из `PositionsStreamResponseDto` (`dailyYieldRelative`, `blocked`).
+- `data/api/tinvest/TInvestRestMappers.kt` / `TInvestRestInstrumentMappers.kt` — из `RestPosition` (если DTO содержит).
+- `data/api/bcs/BcsBrokerApi.kt` — `dailyPercentPL`, `locked`.
+- `data/api/finam/FinamBrokerApi.kt` — `daily_pnl`, `locked = null`.
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — убрать локальный пересчёт `priceChangePercent` из tick-to-tick (`updatePriceFromStream`); брать из `Position`.
+- `presentation/components/AssetPositionCard.kt` — tick-delta для анимации цвета считать локально (из `previousPrice`), не из VM.
+
+**Шаги:**
+1. `PositionStreamItem` — 2 новых поля.
+2. Мапперы T-Invest — заполнить из `dailyYieldRelative` / `blocked`.
+3. Мапперы BCS / Finam — при реализации брокеров (эта задача — только T-Invest; BCS/Finam — заглушки `null`).
+4. `toPosition` — передавать поля в `Position` (без хардкода `null`).
+5. `PortfolioViewModel.updatePriceFromStream` — убрать пересчёт `changePercent`; тик-дельту для цвета считать в `AssetPositionCard` локально.
+6. Тесты мапперов (T-Invest) + `AssetPositionCard` превью с `priceChangePercent != null`.
+7. Гейт.
+
+**Тесты:** `TInvestPositionsWsMapperTest` / `TInvestRestMappersTest` — `priceChangePercent`, `lockedQuantity` заполнены. `PositionTest` (если есть) — `toPosition` передаёт поля.
+
+**Референсы:** proto T-Invest `PositionData.daily_yield_relative`, `PositionsSecurities.blocked`. BCS `https://trade-api.bcs.ru/http/portfolio`. Master-plan `docs/domain_models.md` §4.
+
+**Ограничения:**
+- **UI-санкция** (правило 1): `PortfolioViewModel` перестаёт считать tick-to-tick `priceChangePercent`; `AssetPositionCard` считает локально. Визуально — оба элемента (карточка и P&L-секция) сохраняют цветовую индикацию, но карточка — от `dailyYieldRelative` (стабильно в течение дня, без мигания при каждом тике), P&L-секция — от `profitPercent`.
+- `lockedQuantity` — `Double?`, как и в модели.
+- Не смешивать с `### UI: отображение blocked на валютной карточке` (там `money`/`blocked` валюты) — это про позиции бумаг.
+- Не трогать `PortfolioPosition` (legacy) — миграция в `### OrdersViewModel: миграция на PortfolioSheet`.
+
+**Критерий готовности:**
+- `PositionStreamItem.priceChangePercent` / `lockedQuantity` заполняются в T-Invest мапперах.
+- `Position` (из `toPosition`) содержит значения.
+- `PortfolioViewModel` не пересчитывает `priceChangePercent` через тик-дельту.
+- `AssetPositionCard` анимация цвета — на локальной тик-дельте, цвет — на `position.priceChangePercent`.
+- Гейт зелёный.
+
+**Оценка:** ~2–3 ч (поля 10 мин, T-Invest мапперы 45 мин, `toPosition` 10 мин, VM+Card 1 ч, тесты 30 мин, гейт 15 мин).
+
+**Зависимости:** `### Portfolio: модель портфеля` (blocker).
+
+**Связано:** `### Portfolio: модель портфеля`; `### OrdersViewModel: миграция на PortfolioSheet`; `### UI: отображение blocked на валютной карточке` (разные `blocked`); `docs/domain_models.md` §4.
+
+**Открытые вопросы:**
+- `AssetPositionCard` сейчас принимает `priceChangePercent: Double?` параметром. После задачи — брать из `position.priceChangePercent`? Или оставить параметром (гибче для тестов)? **Рекомендация:** из `position` (модель знает, UI читает).
+
+
+
+
+---
 ### KMP: domain → commonMain
 
 **Мобильная работа:** невозможно (сборка KMP-модуля, desktop).

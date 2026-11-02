@@ -460,7 +460,7 @@
 | `PortfolioPosition.blocked` | `AccountBalance.blocked` | Заблокированный остаток по валюте | То же |
 | `PortfolioPosition.totalValue` | `Position.totalValue` (getter) | Стоимость позиции | Derived, не хранится |
 | `PortfolioPosition.profitPercent` | `Position.profitPercent` (getter) | ROI на вложенное | Derived |
-| `PortfolioPosition.priceChangePercent` | `Position.priceChangePercent` (getter) | Изменение цены | Derived; брать из DTO нельзя — считаем сами |
+| `PortfolioPosition.priceChangePercent` | `Position.priceChangePercent` (поле) | Изменение цены за торговый день | Не getter — источник из DTO брокера: T-Invest `dailyYieldRelative`, BCS `dailyPercentPL`, Finam `daily_pnl` |
 | `PortfolioPosition.name` | `Position.instrument.name` | Имя инструмента | Композиция; отдельного `name` нет |
 | `PortfolioPosition.brokerName: String` | `Position.brokerName: BrokerName` | Брокер | Enum, типизация |
 | — (новое) | `Position.accountId: String` | ID счёта | Мультисчётность |
@@ -514,7 +514,7 @@
 
 - `Position.totalValue: Double get() = currentPrice * quantity * instrument.moneyPerPointOfPrice`
 - `Position.profitPercent: Double? get() = profit / (averagePrice * quantity * instrument.moneyPerPointOfPrice)`
-- `Position.priceChangePercent: Double? get() = (currentPrice - averagePrice) / averagePrice`
+- `Position.priceChangePercent: Double?` — **поле** (не getter), источник — DTO брокера (см. §2). Семантика: изменение цены за торговый день от цены открытия.
 - `AccountBalance.total: Double get() = money + blocked`
 - `AccountPortfolio.totalProfit: Double? get() = positions.sumOf { it.profit ?: 0.0 }.takeIf { positions.any { it.profit != null } }`
 
@@ -543,16 +543,18 @@
 
 ### 5. Subtype-specific `Position`
 
-Плоские subtypes: `SharePosition`, `FuturePosition`, `BondPosition`, `EtfPosition`. Каждый — `data class` с тем же набором override-полей, что и интерфейс. Subtype-специфичных полей **сейчас нет** (все поля — common). Если когда-нибудь появится (например, `margin` только для фьючерсов) — место уже есть.
+Плоские subtypes (7, симметрично `Instrument`): `SharePosition`, `FuturePosition`, `BondPosition`, `OptionPosition`, `EtfPosition`, `CurrencyPosition`, `OtherPosition`. Каждый — `data class` с тем же набором override-полей, что и интерфейс. Subtype-специфичных полей **сейчас нет** (все поля — common). Если когда-нибудь появится (например, `margin` только для фьючерсов) — место уже есть.
 
-Плоскость следует из `Instrument`: `SharePosition.instrument: Share`, `FuturePosition.instrument: Future`. Компилятор проверяет соответствие.
+`CurrencyPosition` — валюта иностранного государства. Деньги в домашней валюте (RUB) — в `AccountBalance`, не в `Position`.
+
+Плоскость следует из `Instrument`: `SharePosition.instrument: Share`, `FuturePosition.instrument: Future`, `BondPosition.instrument: Bond`, `OptionPosition.instrument: Option`, `EtfPosition.instrument: Etf`, `CurrencyPosition.instrument: Currency`, `OtherPosition.instrument: Other`. Компилятор проверяет соответствие.
 
 ### 6. Связь с `Instrument`
 
 - Композиция: `Position.instrument: Instrument`. Поля `Instrument` (ticker, name, classCode, isin, currency, moneyPerPointOfPrice, …) не дублируются.
 - `moneyPerPointOfPrice` — extension из `Instruments` C-min §7 шаг 7.
 - `Position` не зависит от того, какие подтипы есть в `Instrument`. Добавление `Bond` / `Etf` в `Instrument` не ломает `Position` — только добавляет `BondPosition` / `EtfPosition`.
-- `when (position)` — exhaustive по `Position` (4 подтипа); `when (position.instrument)` — вложенный exhaustive по `Instrument` (7 подтипов). Оба — явные.
+- `when (position)` — exhaustive по `Position` (7 подтипов); `when (position.instrument)` — вложенный exhaustive по `Instrument` (7 подтипов). Оба — явные.
 
 ### 7. Вне модели
 
@@ -561,7 +563,7 @@
 - `dailyPL`, `dailyPercentPL` (BCS), `daily_pnl` (Finam) — PnL за день, отдельная концепция. Не включаем.
 - `maintenance_margin` (Finam, FORTS), `initial_margin` (Finam `portfolio_mc`), `lockedForFutures` (BCS) — margin/risk, отдельная задача `### Margin/risk → TradeCheckResult`.
 - `portfolioShare`, `balanceValue*`, `currentValue*` (BCS) — производные от `Position.totalValue` (в разных валютах). Не включаем.
-- `unrealizedPercentPL` (BCS) — совпадает с `priceChangePercent` (проверено на SBER: `(296 - 300.5267) / 300.5267 = -1.5062%`). Не включаем, считаем сами.
+- `unrealizedPercentPL` (BCS) — совпадает с `profitPercent` (проверено на SBER: `(296 - 300.5267) / 300.5267 = -1.5062%`), **не** с `priceChangePercent`. Не включаем — `profitPercent` computed. `priceChangePercent` — это day change, источник — `dailyPercentPL` (см. §2).
 - `faceValue`, `accruedIncome` (BCS, облигации) — subtype-специфика `Instrument` (Bond), не позиции. В `Instrument` — при реализации Bond.
 - `portfolio_mc` / `portfolio_forts` / `portfolio_mct` (Finam) — margin/risk, не портфель.
 - `open_account_date`, `first_trade_date`, `first_non_trade_date` (Finam) — метаданные счёта, не портфель.
