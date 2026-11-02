@@ -33,8 +33,8 @@ import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.mergeWith
-import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
+import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
