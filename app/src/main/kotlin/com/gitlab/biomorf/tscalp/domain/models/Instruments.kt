@@ -346,9 +346,9 @@ data class Other(
  */
 val Instrument.moneyPerPointOfPrice: Double
     get() {
-        val inc = minPriceIncrement ?: 0.0
-        val amount = priceStepCost ?: 0.0
-        return if (inc > 0.0) amount / inc else 1.0
+        val amount = priceStepCost?.takeIf { it > 0.0 } ?: return 1.0
+        val inc = minPriceIncrement?.takeIf { it > 0.0 } ?: return 1.0
+        return amount / inc
     }
 
 /**
