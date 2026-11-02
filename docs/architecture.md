@@ -7,57 +7,99 @@
 
 ### Модели
 
-**Одна domain-модель:** `PortfolioPosition` (`domain/models/Portfolio.kt`).
+**Domain (`domain/models/Portfolio.kt`):**
 
-- **Domain-данные (stored):** `tscalpInstrumentId`, `brokerName`, `name`, `ticker`,
-  `quantity`, `currentPrice`, `averagePrice`, `profit`, `money`, `blocked`,
-  `pointValue`, `instrumentType`, `classCode`, `isin`, `currency`.
-- **Derived domain (computed getters, не хранятся):**
-  - `val totalValue: Double get() = currentPrice * quantity`
-  - `val profitPercent: Double? get() = calculateProfitPercent(profit, averagePrice, quantity, pointValue)`
-- **Presentation (вне модели):** `priceChangePercent` (передаётся в `AssetPositionCard`
-  отдельным параметром); цвета — `PositionFormatter.priceChangeColor`; форматирование —
-  `presentation/util/CurrencyFormat`.
+- `Position` (sealed interface, 7 subtypes: `SharePosition` / `FuturePosition` /
+  `BondPosition` / `OptionPosition` / `EtfPosition` / `CurrencyPosition` /
+  `OtherPosition`) — позиция по инструменту в конкретном счёте. Поле
+  `instrument: Instrument` типизировано по subtype (компилятор проверяет
+  соответствие `Position` ↔ `Instrument`). Общие поля: `accountId`,
+  `brokerName`, `quantity: Double`, `currentPrice`, `averagePrice?`,
+  `profit?`, `lockedQuantity?`, `priceChangePercent?`. Computed getters:
+  `totalValue` (`= currentPrice * quantity * instrument.moneyPerPointOfPrice`),
+  `profitPercent` (от `averagePrice`).
+- `AccountBalance(currency, money, blocked)` — деньги по валюте в счёте.
+  Computed `total`.
+- `AccountPortfolio(accountId, brokerName, positions: List<Position>,
+  balances: List<AccountBalance>)` — агрегат одного счёта. Computed
+  `totalProfit`.
+- `AccountKey(brokerName, accountId)` — составной ключ счёта.
+- `PortfolioSheet(accounts: Map<AccountKey, AccountPortfolio>)` —
+  мультисчётный агрегат. **Единственный публичный эмитируемый тип**
+  `PositionFlowManager`.
+- `PositionStreamItem` — internal-событие источника (stream / polling).
+  Наружу не эмитится; конверсия в `Position` / `AccountBalance` — через
+  `toPosition(instrument)` / `toAccountBalance()`.
 
-**Почему так (Clean):**
-- Derived-поля — pure Kotlin, без platform/framework. Это domain-факты
-  (`totalValue` — стоимость позиции, не «как её показать»), а не UI-предпочтения.
-- Computed getters исключают рассогласование (нечего «забыть обновить»).
-- Presentation-формат вынесен в presentation (PR #64): domain не знает о Locale/Compose.
+**Presentation (legacy, там же):**
 
-**Отменённое решение (clean-audit Н5):** разделение на `Position` (domain) +
-`PortfolioPositionUi` (presentation). Причина отмены: derived-поля — domain,
-presentation-часть уже вынесена. Держать одну модель проще и достаточно Clean.
+- `PortfolioPosition` — legacy-модель для `OrdersViewModel`
+  (`uiState.portfolioPositions`). Удаление — задача
+  `### OrdersViewModel: миграция на PortfolioSheet`.
+
+**Почему (Clean):**
+
+- `Position` — domain-факт; subtype соответствует subtype `Instrument`.
+- Derived-поля (`totalValue`, `profitPercent`) — computed getters,
+  нечего «забыть обновить».
+- Presentation-формат (Locale / Compose / цвета) — вне domain.
+
+**Решение по clean-audit Н5:** `PortfolioPosition` — legacy, удаляется.
+Целевая domain-модель — `Position` (sealed) без presentation-полей;
+presentation-поля (`priceChangePercent` day-change, цвета) — в
+`PositionFormatter` и presentation-util.
 
 ### Обогащение (SSoT)
 
 **Владелец:** `PositionFlowManager` (`domain/api/managers/PositionFlowManager.kt`).
 
-- **Cache:** `Map<String, PositionStreamItem>` — всегда актуальное enriched raw-состояние.
-  - Full-событие (polling, `currentPrice != null`) → `cache[uid] = item`.
-  - Partial-событие (stream, `currentPrice == null`) → `cache[uid] = mergeWith(cached, item)`.
-    Ключевое: **partial тоже пишется в cache** (иначе cache отстаёт от UI).
-- **Emission:** `_positions: StateFlow<List<PortfolioPosition>>`.
-  - На каждое событие: `cache[uid] = ...`, затем `_positions.value = cache.values.map { it.toPortfolioPosition() }`.
-  - Derived-поля (`totalValue`, `profitPercent`) вычисляются геттерами при чтении —
-    хранить их не нужно.
-- **Начальная загрузка:** `fetchPositionsResult` (репозиторий) → менеджер кладёт в cache,
-  `_positions` заполняется до первого события. UI не пустой на старте.
+- **`sheet: StateFlow<PortfolioSheet>`** — единственный источник истины.
+- **Polling** (`broker.portfolio?.fetchPortfolioPositions(accountId, sandboxMode)`,
+  раз в 10 сек): возвращает `AccountPortfolio`. Заменяет
+  `sheet.accounts[accountKey]` целиком. Existing `AccountBalance`
+  сохраняются, если polling не дал balances (`GetPortfolio` не отдаёт
+  `money/blocked`; интеграция через `GetPositions` — отдельная задача).
+- **Stream** (`broker.streams?.subscribePositions(accountId)`):
+  - `Position` уже есть в `sheet.accounts[accountKey].positions` →
+    `mergePartial` (только `quantity`, `currentPrice`, `averagePrice`,
+    `profit`).
+  - `Position` нет, `Instrument` есть в `instrumentCache` →
+    `toPosition(instrument)`.
+  - `Instrument` нет → skip (ждём polling, который заполнит
+    `instrumentCache`).
+- **Domestic currency** (`isDomesticCurrency = true`) → `mergeBalance`
+  в `AccountBalance`. Иностранная валюта → `CurrencyPosition` через
+  общий merge.
+- **`instrumentCache: Map<AccountKey, Map<tscalpInstrumentId, Instrument>>`** —
+  заполняется polling'ом.
 
-**Правило merge (`PortfolioPosition.mergeWith` / `PositionStreamItem.mergeWith`):**
-- `quantity` — из события.
-- `currentPrice` / `averagePrice` / `pointValue` — non-null fallback.
-- `money` / `blocked` — non-null fallback.
-- `profit` — `expectedYield` из события (passthrough; client-side fallback — отдельная задача).
-- `isin` / `classCode` — `ifBlank { old }`.
-- `instrumentType` — из события.
+**Правило `mergePartial`:** `quantity` — из события; `currentPrice` /
+`averagePrice` / `profit` — non-null fallback. Политика фильтрации
+partial-событий — в manager.
+
+**Окно отката:** polling раз в 10 сек может «откатить» свежее WS-обновление
+(≤10 сек). Приемлемо.
+
+### Legacy `flow`
+
+`flow: SharedFlow<PositionStreamItem>` — retained для `OrdersViewModel`
+(`updatePositionPnl`). Эмитится из обоих источников (polling — через
+`position.toStreamItem()`, stream — как пришло). Миграция — задача
+`### OrdersViewModel: миграция на PortfolioSheet`.
 
 ### ViewModel
 
-- Подписывается на `positionFlowManager.positions` (`StateFlow<List<PortfolioPosition>>`).
-- Кладёт список в `UiState`. **Не мержит, не вычисляет derived-поля.**
-- `priceChangePercent` — если нужен, VM вычисляет из истории цен (presentation-логика)
-  и передаёт в UI отдельно.
+`PortfolioViewModel`:
+
+- Подписывается на `positionFlowManager.sheet` (`StateFlow<PortfolioSheet>`).
+- Adapter `Position → PortfolioPosition` в private `toUiPosition()`:
+  структурные поля из `Position`, overlay `currentPrice` /
+  `priceChangePercent` из `PriceFlowManager` (tick-to-tick,
+  presentation-логика; day-change — задача
+  `### Position: источники priceChangePercent и lockedQuantity`).
+- `uiState.positions: List<PortfolioPosition>` — legacy, для
+  `PortfolioScreen` до миграции на `sheet`. Группировка per-account —
+  по `AccountKey(brokerName, accountId)`.
 
 ### Границы (dependency rule)
 
@@ -65,16 +107,23 @@ presentation-часть уже вынесена. Держать одну мод�
 presentation → domain ← data
 ~~~
 
-- `domain` не знает о `data` (источник `PositionStreamItem`) и `presentation`
-  (формат/цвета).
-- `data` создаёт `PositionStreamItem` (raw), отдаёт менеджеру.
-- `presentation` читает `PortfolioPosition` (готовую), не мержит.
+- `domain` не знает о `data` (`PositionStreamItem` — internal источника)
+  и `presentation` (формат / цвета).
+- `data` создаёт `PositionStreamItem` (raw) и `AccountPortfolio`
+  (полный polling-снимок), отдаёт менеджеру.
+- `presentation` читает `PortfolioSheet` (готовый), не мержит.
 
 ### Связанные документы
 
-- `docs/clean-audit.md` → Н5 (отменён), Н24 (mergeWith SSoT).
+- `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 —
+  проектный мастер-план.
+- `docs/clean-audit.md` → Н5 (пересматривается: legacy `PortfolioPosition`
+  → `Position`), Н24 (mergeWith SSoT).
 - `AGENTS.md` → 2c (отклонения), 2d (временные решения).
-- `docs/ROADMAP.md` → `### P&L: client-side fallback` (отдельная задача).
+- `docs/ROADMAP.md` → `### OrdersViewModel: миграция на PortfolioSheet`
+  (удаление legacy), `### Position: источники priceChangePercent и
+  lockedQuantity` (day-change, lockedQuantity, balances), `### P&L:
+  client-side fallback` (отдельная задача).
 
 ## KMP readiness
 

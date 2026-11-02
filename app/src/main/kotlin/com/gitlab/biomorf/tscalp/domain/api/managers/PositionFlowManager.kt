@@ -2,12 +2,27 @@ package com.gitlab.biomorf.tscalp.domain.api.managers
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
-import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
+import com.gitlab.biomorf.tscalp.domain.api.roles.PortfolioApi
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AccountBalance
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
+import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
+import com.gitlab.biomorf.tscalp.domain.models.BondPosition
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.CurrencyPosition
+import com.gitlab.biomorf.tscalp.domain.models.EtfPosition
+import com.gitlab.biomorf.tscalp.domain.models.FuturePosition
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import com.gitlab.biomorf.tscalp.domain.models.OptionPosition
+import com.gitlab.biomorf.tscalp.domain.models.OtherPosition
+import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
+import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.SharePosition
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
+import com.gitlab.biomorf.tscalp.domain.models.toPosition
+import com.gitlab.biomorf.tscalp.domain.models.toStreamItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -19,41 +34,40 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Агрегирует обновления позиций счёта из двух источников:
+ * Агрегирует обновления позиций всех запрошенных счетов в единый
+ * [PortfolioSheet]. Два источника:
  *
- * 1. **Stream** (`subscribePositions`, gRPC + WS fallback).
- *    Мгновенные события изменения количества. Отдаёт неполные
- *    [PositionStreamItem]: без `currentPrice` / `averagePositionPrice` /
- *    `expectedYield` (стрим их не присылает).
- * 2. **Snapshot polling** (`positionsSnapshot`, gRPC unary + REST
- *    fallback, раз в [POLLING_INTERVAL_MS]). Полные снимки
- *    с P&L. Обогащают неполные события stream-уровня из кэша.
+ * 1. **Stream** (`broker.streams?.subscribePositions(accountId)`):
+ *    мгновенные partial-события (только quantity/идентификаторы).
+ *    Мержатся поверх existing [Position] из `_sheet` (или создаются
+ *    через `toPosition(instrument)` из [instrumentCache], если позиции
+ *    ещё нет).
+ * 2. **Polling** (`broker.portfolio?.fetchPortfolioPositions(accountId,
+ *    sandboxMode)` раз в [POLLING_INTERVAL_MS]): полные [AccountPortfolio]
+ *    со всех счетов. Заменяет `_sheet.accounts[accountKey]` целиком
+ *    (existing [AccountBalance] от WS сохраняются, если polling балансы
+ *    не даёт — GetPortfolio money/blocked не отдаёт).
  *
- * Merge-семантика — через [enrichAndCache]: полное событие (от
- * polling, `currentPrice != null`) обновляет кэш, неполное (от
- * stream) дополняется полями P&L из кэша. Если кэша нет —
- * неполное событие отдаётся как есть (UI покажет заглушку).
+ * `_sheet` — единственный публичный эмитируемый тип (`sheet: StateFlow<PortfolioSheet>`).
+ * `flow: SharedFlow<PositionStreamItem>` — legacy для `OrdersViewModel`
+ * (миграция — задача «OrdersViewModel: миграция на PortfolioSheet»).
+ * [connectionState] — агрегат по всем счетам (один tracker).
  *
- * Scope — single-threaded (`managerDispatcher.limitedParallelism(1)`),
- * поэтому доступ к [snapshotCache] не требует синхронизации:
- * stream и polling выполняются последовательно на одном worker'е.
- *
- * Polling позиций идёт через `BrokerApi.snapshot`
- * ([BrokerSnapshotApi], опциональный контракт). Fallback
- * gRPC→REST живёт в оркестраторе (реализация TInvest).
- * `snapshot == null` (BCS / Finam) → polling не запускается;
- * `stateTracker` остаётся `INITIALIZING`, watchdog через
- * 30 сек → `STALE` (честно «брокер не поддерживает polling»,
- * не «пустые данные»). Stream при этом работает.
+ * Polling идёт через `BrokerApi.portfolio` ([PortfolioApi], опциональный
+ * контракт). `portfolio == null` (Finam / BCS-заглушка) → polling не
+ * запускается; stream работает; watchdog через 30 сек → STALE.
  */
 @Singleton
 class PositionFlowManager
@@ -69,34 +83,33 @@ class PositionFlowManager
             private const val STATE_TICK_MS = 1_000L
         }
 
+        private val _sheet = MutableStateFlow(PortfolioSheet(emptyMap()))
+
+        /** Полный снимок всех запрошенных счетов. */
+        val sheet: StateFlow<PortfolioSheet> = _sheet.asStateFlow()
+
         private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)
+
+        /**
+         * Legacy: per-event проекция для `OrdersViewModel` (карточки позиций
+         * в заявках). Содержит только позиции (без `AccountBalance`); источник —
+         * merged [Position] (stream + polling). Для UI портфеля — [sheet].
+         * Миграция `OrdersViewModel` — задача «OrdersViewModel: миграция на PortfolioSheet».
+         */
         val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
 
-        private val stateTracker = StreamStateTracker(logger = logger, tag = "PositionFlowManager")
+        private val stateTracker = StreamStateTracker(logger = logger, tag = TAG)
 
-        /** Состояние источника данных: LIVE / POLLING / STALE / STOPPED. */
+        /** Состояние источника данных по всем счетам: LIVE / POLLING / STALE / STOPPED. */
         val connectionState: StateFlow<StreamState> = stateTracker.state
 
-        /**
-         * Кэш последних полных снимков по инструментам.
-         *
-         * Полный снимок — событие с непустым `currentPrice` (приходит
-         * от polling). Неполные события от stream-уровня (только
-         * количество и идентификаторы) обогащаются полями P&L из
-         * этого кэша.
-         *
-         * Чистится при смене счёта в [doStart].
-         */
-        private val snapshotCache = mutableMapOf<String, PositionStreamItem>()
+        /** Кэш `Instrument` per account (заполняется polling'ом). */
+        private val instrumentCache = mutableMapOf<AccountKey, MutableMap<String, Instrument>>()
 
         private var job: Job? = null
-        private var currentAccountId: String? = null
+        private var currentKeys: Set<AccountKey> = emptySet()
+        private var currentSandboxMode: Boolean = false
 
-        /**
-         * Защищает check-then-set в [start] / [stop] / [reapplyDebugFlags]
-         * от race: два параллельных вызова иначе проходят проверку
-         * идемпотентности и создают по job'у (первый — orphan).
-         */
         private val startLock = Any()
 
         private val scope =
@@ -108,34 +121,41 @@ class PositionFlowManager
             )
 
         /**
-         * Запускает единый источник обновлений позиций.
-         * Идемпотентен для одного и того же accountId. При смене
-         * счёта — перезапускает оба источника и очищает кэш +
-         * replay-кэш [flow].
+         * Запускает сбор позиций со всех [accountKeys]. Идемпотентно
+         * для того же набора счетов и режима. При изменении — перезапускает
+         * оба источника и очищает [instrumentCache] + [PortfolioSheet] + replay [flow].
          */
         fun start(
-            accountId: String,
+            accountKeys: Set<AccountKey>,
+            sandboxMode: Boolean,
             forceRestart: Boolean = false,
         ) = synchronized(startLock) {
-            doStart(accountId, forceRestart)
+            doStart(accountKeys, sandboxMode, forceRestart)
         }
 
         @OptIn(ExperimentalCoroutinesApi::class)
         private fun doStart(
-            accountId: String,
+            accountKeys: Set<AccountKey>,
+            sandboxMode: Boolean,
             forceRestart: Boolean,
         ) {
-            if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
-                logger.d(TAG, "Поток позиций уже запущен для $accountId")
+            if (!forceRestart &&
+                job?.isActive == true &&
+                currentKeys == accountKeys &&
+                currentSandboxMode == sandboxMode
+            ) {
+                logger.d(TAG, "Поток позиций уже запущен для $accountKeys")
                 return
             }
-            if (currentAccountId != accountId) {
-                logger.d(TAG, "Перезапуск потока позиций: $currentAccountId → $accountId")
-                snapshotCache.clear()
+            if (currentKeys != accountKeys || currentSandboxMode != sandboxMode) {
+                logger.d(TAG, "Перезапуск потока позиций: $currentKeys → $accountKeys, sandbox=$sandboxMode")
+                instrumentCache.clear()
+                _sheet.value = PortfolioSheet(emptyMap())
                 _flow.resetReplayCache()
             }
             job?.cancel()
-            currentAccountId = accountId
+            currentKeys = accountKeys
+            currentSandboxMode = sandboxMode
             stateTracker.onStart()
             job =
                 scope.launch {
@@ -145,14 +165,16 @@ class PositionFlowManager
                         stateTracker.onStop()
                         return@launch
                     }
-                    val snapshotApi = broker.snapshot
-                    if (snapshotApi == null) {
-                        logger.e(TAG, "${broker.name.key}: *Snapshot не поддерживается, polling не запускаем")
+                    val portfolioApi = broker.portfolio
+                    if (portfolioApi == null) {
+                        logger.e(TAG, "${broker.name.key}: *Portfolio не поддерживается, polling не запускаем")
                     }
                     coroutineScope {
-                        launch { collectStream(broker, accountId) }
-                        if (snapshotApi != null) {
-                            launch { runPolling(snapshotApi, accountId) }
+                        for (key in accountKeys) {
+                            launch { collectStream(broker, key) }
+                            if (portfolioApi != null) {
+                                launch { runPolling(portfolioApi, key, sandboxMode) }
+                            }
                         }
                         launch { stateWatchdog() }
                     }
@@ -161,110 +183,148 @@ class PositionFlowManager
 
         private suspend fun collectStream(
             broker: BrokerApi,
-            accountId: String,
+            accountKey: AccountKey,
         ) {
             try {
-                broker.streams?.subscribePositions(accountId)?.collect { item ->
+                broker.streams?.subscribePositions(accountKey.accountId)?.collect { item ->
                     stateTracker.onStreamEmit()
-                    emitEnriched(item, source = "stream")
+                    handleStreamItem(item, accountKey)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                logger.e(TAG, "stream error: ${e.message}", e)
+                logger.e(TAG, "stream error for $accountKey: ${e.message}", e)
             }
         }
 
         private suspend fun runPolling(
-            snapshotApi: BrokerSnapshotApi,
-            accountId: String,
+            portfolioApi: PortfolioApi,
+            accountKey: AccountKey,
+            sandboxMode: Boolean,
         ) {
             while (currentCoroutineContext().isActive) {
                 try {
-                    val positions = snapshotApi.positionsSnapshot(accountId)
+                    val accountPortfolio = portfolioApi.fetchPortfolioPositions(accountKey.accountId, sandboxMode)
                     stateTracker.onPollingSuccess()
-                    logger.d(TAG, "polling: ${positions.size} positions")
-                    for (item in positions) {
-                        emitEnriched(item, source = "polling")
-                    }
+                    logger.d(TAG, "polling $accountKey: ${accountPortfolio.positions.size} positions")
+                    handlePollingSnapshot(accountPortfolio, accountKey)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     if (e.message?.contains("NOT_FOUND") == true) {
-                        logger.w(TAG, "polling: account not found — stopping")
+                        logger.w(TAG, "polling $accountKey: account not found — stopping")
                         return
                     }
-                    logger.w(TAG, "polling error: ${e.message}")
+                    logger.w(TAG, "polling $accountKey error: ${e.message}")
                 }
                 delay(POLLING_INTERVAL_MS)
             }
         }
 
-        private suspend fun emitEnriched(
-            item: PositionStreamItem,
-            source: String,
+        private suspend fun handlePollingSnapshot(
+            accountPortfolio: AccountPortfolio,
+            accountKey: AccountKey,
         ) {
-            val enriched = enrichAndCache(item) ?: return
-            logger.d(
-                TAG,
-                "[$source] ${enriched.tscalpInstrumentId}, " +
-                    "qty=${enriched.quantity}, " +
-                    "price=${enriched.currentPrice}, " +
-                    "yield=${enriched.expectedYield}",
-            )
-            _flow.emit(enriched)
+            val cache = instrumentCache.getOrPut(accountKey) { mutableMapOf() }
+            for (position in accountPortfolio.positions) {
+                cache[position.instrument.tscalpInstrumentId] = position.instrument
+            }
+            val existingBalances = _sheet.value.accounts[accountKey]?.balances ?: emptyList()
+            val mergedBalances =
+                if (accountPortfolio.balances.isEmpty()) existingBalances else accountPortfolio.balances
+            val merged = accountPortfolio.copy(balances = mergedBalances)
+            _sheet.update { current ->
+                current.copy(accounts = current.accounts + (accountKey to merged))
+            }
+            for (position in accountPortfolio.positions) {
+                _flow.emit(position.toStreamItem())
+            }
         }
 
-        /**
-         * Обогащает событие полями P&L из кэша последнего полного снимка.
-         *
-         * Маркер полного события — непустой [PositionStreamItem.currentPrice].
-         * Polling заполняет его (даже нулём), stream-уровень — оставляет `null`.
-         *
-         * Если событие полное — обновляем кэш и возвращаем как есть.
-         * Если неполное и кэш есть — дополняем поля, которые stream
-         * не даёт. Если неполное и кэша нет (первое событие после
-         * старта) — возвращаем как есть; UI покажет заглушку для P&L.
-         */
-        private fun enrichAndCache(item: PositionStreamItem): PositionStreamItem? {
-            // Валютная позиция из WS (money/blocked): приходит без
-            // tscalpInstrumentId и ticker — только currency. Сливаем
-            // в закэшированный item из polling по currency. Если
-            // polling ещё не пришёл — null (ждём, чтобы не создавать
-            // дубликат карточки).
-            if (item.instrumentType == InstrumentType.CURRENCY && item.tscalpInstrumentId.isBlank()) {
-                val cached =
-                    snapshotCache.values.firstOrNull {
-                        it.instrumentType == InstrumentType.CURRENCY && it.currency == item.currency
-                    } ?: return null
-                val merged =
-                    cached.copy(
-                        money = item.money ?: cached.money,
-                        blocked = item.blocked ?: cached.blocked,
+        private suspend fun handleStreamItem(
+            item: PositionStreamItem,
+            accountKey: AccountKey,
+        ) {
+            if (item.instrumentType == InstrumentType.CURRENCY && item.isDomesticCurrency) {
+                mergeBalance(item, accountKey)
+                return
+            }
+            val currentAccount = _sheet.value.accounts[accountKey] ?: return
+            val existing =
+                currentAccount.positions.firstOrNull {
+                    it.instrument.tscalpInstrumentId == item.tscalpInstrumentId
+                }
+            val merged: Position? =
+                if (existing != null) {
+                    mergePartial(existing, item)
+                } else {
+                    val instrument = instrumentCache[accountKey]?.get(item.tscalpInstrumentId) ?: return
+                    item.toPosition(instrument)
+                }
+            if (merged == null) return
+            val newPositions =
+                if (existing != null) {
+                    currentAccount.positions.map { if (it === existing) merged else it }
+                } else {
+                    currentAccount.positions + merged
+                }
+            _sheet.update { current ->
+                current.copy(accounts = current.accounts + (accountKey to currentAccount.copy(positions = newPositions)))
+            }
+            _flow.emit(item)
+        }
+
+        private fun mergePartial(
+            existing: Position,
+            item: PositionStreamItem,
+        ): Position {
+            val qty = item.quantity.toDouble()
+            val price = item.currentPrice ?: existing.currentPrice
+            val avg = item.averagePositionPrice ?: existing.averagePrice
+            val profit = item.expectedYield ?: existing.profit
+            return when (existing) {
+                is SharePosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+                is FuturePosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+                is BondPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+                is OptionPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+                is EtfPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+                is CurrencyPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+                is OtherPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+            }
+        }
+
+        private fun mergeBalance(
+            item: PositionStreamItem,
+            accountKey: AccountKey,
+        ) {
+            val currentAccount = _sheet.value.accounts[accountKey] ?: return
+            val currency = item.currency ?: item.brokerName.domesticCurrency
+            val existing = currentAccount.balances.firstOrNull { it.currency == currency }
+            val newBalance =
+                if (existing != null) {
+                    existing.copy(
+                        money = item.money ?: existing.money,
+                        blocked = item.blocked ?: existing.blocked,
                     )
-                snapshotCache[cached.tscalpInstrumentId] = merged
-                return merged
+                } else {
+                    AccountBalance(currency = currency, money = item.money ?: 0.0, blocked = item.blocked ?: 0.0)
+                }
+            val newBalances =
+                if (existing != null) {
+                    currentAccount.balances.map { if (it === existing) newBalance else it }
+                } else {
+                    currentAccount.balances + newBalance
+                }
+            _sheet.update { current ->
+                current.copy(accounts = current.accounts + (accountKey to currentAccount.copy(balances = newBalances)))
             }
-            val isFull = item.currentPrice != null
-            if (isFull) {
-                snapshotCache[item.tscalpInstrumentId] = item
-                return item
-            }
-            val cached = snapshotCache[item.tscalpInstrumentId] ?: return item
-            return item.copy(
-                currentPrice = cached.currentPrice,
-                averagePositionPrice = cached.averagePositionPrice,
-                expectedYield = cached.expectedYield,
-                isin = cached.isin,
-                moneyPerPointOfPrice = cached.moneyPerPointOfPrice,
-            )
         }
 
         fun reapplyDebugFlags() =
             synchronized(startLock) {
-                val accountId = currentAccountId ?: return@synchronized
+                if (currentKeys.isEmpty()) return@synchronized
                 logger.d(TAG, "reapplyDebugFlags: restarting stream")
-                doStart(accountId, forceRestart = true)
+                doStart(currentKeys, currentSandboxMode, forceRestart = true)
             }
 
         private suspend fun stateWatchdog() {
@@ -279,10 +339,11 @@ class PositionFlowManager
             synchronized(startLock) {
                 job?.cancel()
                 job = null
-                currentAccountId = null
-                stateTracker.onStop()
-                // Сбрасываем replay-кэш, чтобы новые подписчики
-                // не получили устаревший элемент от прошлой сессии.
+                currentKeys = emptySet()
+                currentSandboxMode = false
+                instrumentCache.clear()
+                _sheet.value = PortfolioSheet(emptyMap())
                 _flow.resetReplayCache()
+                stateTracker.onStop()
             }
     }

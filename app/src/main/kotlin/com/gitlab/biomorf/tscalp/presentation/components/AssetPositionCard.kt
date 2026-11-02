@@ -63,6 +63,7 @@ fun AssetPositionCard(
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
     pointValue: Double? = null,
+    lockedQuantity: Double? = null,
 ) {
     // --- Цветовая индикация изменения цены (состояния) ---
     var previousPrice by remember { mutableDoubleStateOf(position.currentPrice) }
@@ -107,6 +108,7 @@ fun AssetPositionCard(
                 tscalpInstrumentId = tscalpInstrumentId,
                 tradingAvailability = tradingAvailability,
                 pointValue = pointValue,
+                lockedQuantity = lockedQuantity,
             )
         }
     }
@@ -205,6 +207,7 @@ private fun AssetCardContent(
     tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
     pointValue: Double? = null,
+    lockedQuantity: Double? = null,
 ) {
     // --- Анимация цвета цены ---
     val targetPriceColor = PositionFormatter.priceChangeColor(priceChangePercent)
@@ -323,6 +326,13 @@ private fun AssetCardContent(
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                             )
+                            if (lockedQuantity != null && lockedQuantity > 0.0) {
+                                Text(
+                                    text = "В блоке: ${lockedQuantity.toInt()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
 
                         // Правая часть: прибыль / убыток

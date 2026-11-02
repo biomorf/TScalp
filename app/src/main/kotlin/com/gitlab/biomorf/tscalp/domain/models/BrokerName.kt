@@ -10,10 +10,11 @@ package com.gitlab.biomorf.tscalp.domain.models
 enum class BrokerName(
     val key: String,
     val displayName: String,
+    val domesticCurrency: String,
 ) {
-    TINVEST("TInvest", "Т-Инвестиции"),
-    BCS("bcs", "БКС"),
-    FINAM("finam", "Финам"),
+    TINVEST("TInvest", "Т-Инвестиции", "rub"),
+    BCS("bcs", "БКС", "rub"),
+    FINAM("finam", "Финам", "rub"),
     ;
 
     companion object {

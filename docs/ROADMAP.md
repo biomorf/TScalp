@@ -245,107 +245,7 @@ clean-audit.
 
 ---
 
-### Portfolio: модель портфеля
 
-**Мобильная работа:** частичное (live-тест UI — мультисчётность, шапка счёта с балансом, отображение `lockedQuantity`). Правки `.kt` через proot; гейт — CI `gate` на PR.
-
-**Статус:** в работе.
-
-**Ветка:** feature/portfolio-model
-
-**Контекст:** проектирование завершено в `docs/domain_models.md` → `## Портфель (Portfolio)` (§1–§12). Текущее состояние: одна модель `PortfolioPosition` (`domain/models/Portfolio.kt`) с presentation-полями (`totalValue`, `profitPercent`), `PositionFlowManager` эмитит `SharedFlow<PositionStreamItem>`, UI на одном счёте. Целевое (по проекту): `Position` (sealed interface + плоские subtypes `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`), `AccountBalance` (деньги по валюте, отдельно от позиции), `AccountPortfolio` (агрегат счёта), `PortfolioSheet` (`Map<AccountKey, AccountPortfolio>`), `AccountKey(brokerName, accountId)`. Мультиброкерность и мультисчётность — обязательны (на Портфеле одновременно счета разных брокеров, у одного брокера — несколько счетов). `Position.instrument: Instrument` — композиция, поля `Instrument` не дублируются. `moneyPerPointOfPrice` — extension из `Instruments` C-min §7 шаг 7.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:**
-- `### Instrument: C-min → sealed interface (две фазы)` — **Phase 2** (sealed interface) закрыта. Проектирование — сейчас (документ), реализация — после Phase 2. Это ключевое: `Position` ссылается на `Instrument` (sealed), `SharePosition.instrument: Share` и т.д.
-- Проектирование `docs/domain_models.md` §Портфель — закрыто (этот документ).
-
-**Файлы:**
-- `app/src/main/kotlin/.../domain/models/Portfolio.kt` — новые модели: `Position` (sealed) + `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`; `AccountBalance`; `AccountPortfolio`; `PortfolioSheet`; `AccountKey`. Удалить `PortfolioPosition`, `PositionStreamItem`, `toPortfolioPosition`, `mergeWith` (если больше не нужны).
-- `app/src/main/kotlin/.../domain/models/Instruments.kt` — extension `moneyPerPointOfPrice` на `Instrument` (если ещё не создан в C-min).
-- `app/src/main/kotlin/.../domain/api/managers/PositionFlowManager.kt` — эмитит `PortfolioSheet` (`Map<AccountKey, AccountPortfolio>`); merge stream + polling на уровне счетов.
-- `app/src/main/kotlin/.../data/api/tinvest/...` — мапперы T-Invest: `GetPortfolio` (gRPC) / REST fallback / `PositionsStream` WS → `AccountPortfolio` (позиции + `AccountBalance` из `moneyList`). `fetchPortfolioPositions` → `PortfolioSheet` (или per-account).
-- `app/src/main/kotlin/.../data/api/bcs/...` — мапперы BCS: `GET /portfolio` / `wss://.../portfolio/ws` → `AccountPortfolio`. Разделение по `type` (`moneyLimit` → `AccountBalance`, `depoLimit` / `futuresHolding` → `Position`, `futuresLimit` — открытый вопрос §10, `otcLimit` — пропускать).
-- `app/src/main/kotlin/.../data/api/finam/...` — мапперы Finam при реализации (`GetAccount` gRPC / REST → `AccountPortfolio`).
-- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioViewModel.kt` — на `PortfolioSheet`.
-- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioScreen.kt` — по счетам: шапка счёта с балансом (`AccountBalance.total`), список позиций.
-- `app/src/main/kotlin/.../presentation/screens/orders/OrdersViewModel.kt` — если использует `PortfolioPosition` — на `Position`.
-- `app/src/main/kotlin/.../presentation/components/AssetPositionCard.kt` — принимает `Position`.
-- `app/src/main/kotlin/.../presentation/util/PositionFormatter.kt` — принимает `Position` (или отдельные поля).
-- Тесты: `PositionFlowManagerTest`, мапперы T-Invest / BCS, `Position` getters, `AccountBalance.total`, `AccountPortfolio.totalProfit`.
-
-**Шаги:** подробно в `docs/domain_models.md` §Портфель §8 (8 шагов). Кратко:
-1. `Position` (sealed interface) + `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`.
-2. `AccountBalance` + `AccountPortfolio` + `PortfolioSheet` + `AccountKey`.
-3. `moneyPerPointOfPrice` — extension на `Instrument`, использовать в `totalValue` / `profitPercent`.
-4. Мапперы `TInvestPortfolioMapper` / `BcsPortfolioMapper` / `FinamPortfolioMapper` — из DTO в `AccountPortfolio`.
-5. `PositionFlowManager` — эмитит `PortfolioSheet` вместо `SharedFlow<PositionStreamItem>`; merge stream + polling на уровне счетов.
-6. UI — `AssetPositionCard` принимает `Position`; `PortfolioScreen` — по счетам, шапка счёта с балансом.
-7. Удалить `PortfolioPosition`, `PositionStreamItem` (если больше не нужен), `toPortfolioPosition`, `mergeWith`.
-8. Гейт.
-
-**Тесты:**
-- `Position` getters: `totalValue` (shares = 1.0 ×; futures = `pointValue` ×), `profitPercent`, `priceChangePercent` (null для Finam FORTS).
-- `AccountBalance.total`.
-- `AccountPortfolio.totalProfit` (все `profit == null` → `null`; часть `null` → сумма non-null).
-- Мапперы T-Invest / BCS — по образцу `TInvestInstrumentMapper` (Phase 1 / Phase 2).
-- `PositionFlowManager` — эмиссия `PortfolioSheet` (мультисчётность).
-- Live-тест UI (санкция): мультисчётность (T-Invest + BCS одновременно), шапка счёта с балансом, `lockedQuantity` на карточке.
-
-**Референсы:**
-- `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 — источник истины для модели.
-- `docs/domain_models.md` → `## Instruments` — композиция `Position.instrument: Instrument`.
-- `docs/architecture.md` → «Data flow: позиции» — текущее состояние (`PortfolioPosition`, `PositionFlowManager`).
-- `docs/clean-audit.md` → Н5 (`PortfolioPosition` — presentation-поля), Н15.
-- `docs/streams.md` → «WebSocket (T-Invest)» — `moneyList`, sandbox-ограничение.
-- BCS: `https://trade-api.bcs.ru/http/portfolio`, `https://trade-api.bcs.ru/websocket/portfolio/`.
-- Finam: `https://api.finam.ru/docs/grpc/#introduction`, `https://api.finam.ru/docs/async-api/#introduction`, `https://api.finam.ru/docs/rest/`.
-
-**Ограничения:**
-- **UI-санкция** (правило 1 AGENTS): шапка счёта с балансом, мультисчётность на `PortfolioScreen`, отображение `lockedQuantity` — согласовать до правки.
-- `money` / `blocked` — в `AccountBalance`, не в `Position`. Формула `money ↔ blocked ↔ quantity` не подтверждена (§10).
-- `name` — через `instrument.name` (композиция). `### Обогащение name в PortfolioPosition (вариант C)` — **отменяется** (name уже в `Instrument`).
-- `quantity: Double` — компромисс (Finam поддерживает дробное; presentation-формат «10 шт» vs «10.5 шт» — в UI).
-- `futuresLimit` (BCS) — открытый вопрос §10, при реализации BCS — live-проверка.
-- `lockedQuantity` для Finam — `null` (у Finam `maintenance_margin` — деньги ГО, не количество бумаг).
-- `totalProfit` / `equity` — не включаем как поля; `AccountPortfolio.totalProfit` — extension (сумма per-position profit).
-- `positions` в Finam `GetAccount` включает теоретические позиции (по неисполненным заявкам) — §10, при реализации Finam.
-- Не смешивать с `### UI: отображение blocked на валютной карточке` — после этой задачи `blocked` уже в `AccountBalance`; задача пересматривается (UI-шапка счёта, а не поле карточки).
-- Не смешивать с `### Margin/risk → TradeCheckResult` — там margin/risk (account-specific), здесь портфель.
-
-**Критерий готовности:**
-- `Position` (sealed) + плоские subtypes в `domain/models/Portfolio.kt`.
-- `AccountBalance` / `AccountPortfolio` / `PortfolioSheet` / `AccountKey` — в `domain/models/Portfolio.kt`.
-- `PositionFlowManager` эмитит `PortfolioSheet`.
-- Мапперы T-Invest и BCS работают (unit-тесты); Finam — заглушка до реализации.
-- `PortfolioScreen` показывает несколько счетов, шапка счёта с балансом (санкция UI).
-- `grep "PortfolioPosition"` в `app/src/main` — пусто.
-- `grep "PositionStreamItem"` в `app/src/main` — пусто (если удалён).
-- Гейт зелёный.
-
-**Оценка:** ~12–16 ч (модель 1–1.5 ч, мапперы T-Invest 2–3 ч, мапперы BCS 1.5–2 ч, `PositionFlowManager` 2–3 ч, VM + UI 2–3 ч, удаление старого 30 мин, тесты 1–2 ч, гейт + PR-цикл 30 мин). Finam — при реализации отдельно, не в этой задаче.
-
-**Зависимости:** `### Instrument: C-min → sealed interface (две фазы)` — Phase 2.
-
-**Связано:**
-- `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 — источник модели.
-- `### H5. PortfolioPosition: разделение domain/presentation` — **скорее всего решает Н5** (одна модель `Position` — domain, presentation-поля — getters/extension; разделение на `Position` + `PortfolioPositionUi` не потребуется). Если не решает — увидим при ревизии H5 **после** закрытия этой задачи. H5 не закрывать автоматически.
-- `### Обогащение name в PortfolioPosition (вариант C)` — **отменяется** (`name` — через `instrument.name`).
-- `### UI: отображение blocked на валютной карточке` — **пересматривается** после этой задачи (шапка счёта вместо поля карточки).
-- `### Instrument: C-min → sealed interface (две фазы)` — предусловие.
-- `### Margin/risk → TradeCheckResult` — параллельная работа, не конфликтует.
-- `docs/clean-audit.md` → Н5, Н15.
-
-**Открытые вопросы:** 7 из `docs/domain_models.md` §Портфель §10 (BCS `futuresLimit`, Finam теоретические позиции, Finam `current_price_currency` / `average_price_currency`, источник `money` / `blocked` для T-Invest gRPC/REST и BCS, `lockedQuantity` для Finam, `totalProfit` и Finam `unrealized_profit`, `PortfolioSheet` Map vs List — финал Map).
-
----
 
 ### OrdersViewModel: миграция на PortfolioSheet
 
@@ -419,7 +319,6 @@ clean-audit.
 
 
 
-
 ---
 ### Position: источники priceChangePercent и lockedQuantity
 
@@ -487,7 +386,6 @@ clean-audit.
 
 **Открытые вопросы:**
 - `AssetPositionCard` сейчас принимает `priceChangePercent: Double?` параметром. После задачи — брать из `position.priceChangePercent`? Или оставить параметром (гибче для тестов)? **Рекомендация:** из `position` (модель знает, UI читает).
-
 
 
 
@@ -1149,7 +1047,6 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 
 
 
-
 ---
 
 ### Rate-limiter для unary-запросов T-Invest
@@ -1287,7 +1184,6 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 
 
-
 ---
 
 ### UI-индикатор состояния стримов
@@ -1351,7 +1247,6 @@ live-теста. UI-индикатор блокируется **закрытие
 **Оценка:** ~2 часа.
 
 **Зависимости:** блокируется StreamState.
-
 
 
 
@@ -1473,7 +1368,6 @@ polling — рубли), без разбивки на свободные/заб�
 - Нужно ли отображать `blocked` в `OrdersScreen` (карточка
   позиции в контексте заявки) — сейчас нет, но при
   блокировке инструмента биржей может быть полезно.
-
 
 
 
@@ -1640,7 +1534,6 @@ iOS-задачи миграция станет обязательной. Сей�
 
 
 
-
 ---
 
 ### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
@@ -1753,7 +1646,6 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 
 
-
 ---
 
 ### Переход на edge-to-edge (statusBarColor deprecated)
@@ -1773,7 +1665,6 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 **Оценка:** ~2 часа + прогон на устройствах разных версий.
 **Когда:** при подготовке релиза под Android 15 или target SDK 36.
-
 
 
 
@@ -1823,7 +1714,6 @@ app/src/main/kotlin`). Отдельная задача не нужна.
 
 
 
-
 ---
 
 #### Compose-экраны
@@ -1856,7 +1746,6 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
-
 ---
 
 #### Compose-компоненты
@@ -1869,7 +1758,6 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
   (62 строки).
 
 **Оценка:** ~2 часа.
-
 
 
 
@@ -1931,7 +1819,6 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
-
 ---
 
 #### UseCase-слой
@@ -1947,7 +1834,6 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 валидацию, сборку request, разрешение uid в отдельные шаги.
 
 **Оценка:** ~2 часа.
-
 
 
 
@@ -1970,7 +1856,6 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
-
 ---
 
 #### Классификатор ошибок
@@ -1984,7 +1869,6 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 диспетчеризацией по `BrokerName`.
 
 **Оценка:** ~1 час.
-
 
 
 
@@ -2006,7 +1890,6 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 **Оценка:** ~1 час (после санкции на UI).
 
 **Когда вернуться:** при следующей итерации по UI портфеля.
-
 
 
 
@@ -2096,7 +1979,6 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 **Зависимости:** нет. Блокирует полноценное использование
 Finam в UI.
-
 
 
 
@@ -7711,7 +7593,6 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 
 
 
-
 ---
 
 
@@ -7886,7 +7767,6 @@ Compose в `util/`-пути; `domain/` не видит `android.util.Log`
 
 
 
-
 ---
 
 
@@ -8035,7 +7915,6 @@ P&L не сделан до интеграции стрима, карточки �
 **Зависимости:** нет. **Желательно до** интеграции
 gRPC-стрима позиций — иначе переход на стрим сломает P&L
 в карточках.
-
 
 
 
@@ -8724,3 +8603,122 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Оценка:** план ~5 ч; факт — 3 коммита + 5 fix-коммитов (4 ktlint/detekt + 1 import order + 1 trailing newline + split `TooManyFunctions`) = 9 коммитов, 4 CI-цикла. Основные задержки — ktlint на split-мапперах (multiline signatures, import order, alias) и detekt `TooManyFunctions` (split `TInvestRestMappers`).
 
 **Связано:** `docs/domain_models.md` §8; `docs/clean-audit.md` → Н6 (закрыт); `### Реализация BCS Broker API` (0.2); `### Реализация Finam Broker API` (0.3); `### T-Invest: subtype-specific поля` (шаг 3); `### Margin/risk → TradeCheckResult` (margin из `Future`).
+
+### ✅ Portfolio: модель портфеля
+
+**Мобильная работа:** частичное (live-тест UI — мультисчётность, шапка счёта с балансом, отображение `lockedQuantity`). Правки `.kt` через proot; гейт — CI `gate` на PR.
+
+**Контекст:** проектирование завершено в `docs/domain_models.md` → `## Портфель (Portfolio)` (§1–§12). Текущее состояние: одна модель `PortfolioPosition` (`domain/models/Portfolio.kt`) с presentation-полями (`totalValue`, `profitPercent`), `PositionFlowManager` эмитит `SharedFlow<PositionStreamItem>`, UI на одном счёте. Целевое (по проекту): `Position` (sealed interface + плоские subtypes `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`), `AccountBalance` (деньги по валюте, отдельно от позиции), `AccountPortfolio` (агрегат счёта), `PortfolioSheet` (`Map<AccountKey, AccountPortfolio>`), `AccountKey(brokerName, accountId)`. Мультиброкерность и мультисчётность — обязательны (на Портфеле одновременно счета разных брокеров, у одного брокера — несколько счетов). `Position.instrument: Instrument` — композиция, поля `Instrument` не дублируются. `moneyPerPointOfPrice` — extension из `Instruments` C-min §7 шаг 7.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:**
+- `### Instrument: C-min → sealed interface (две фазы)` — **Phase 2** (sealed interface) закрыта. Проектирование — сейчас (документ), реализация — после Phase 2. Это ключевое: `Position` ссылается на `Instrument` (sealed), `SharePosition.instrument: Share` и т.д.
+- Проектирование `docs/domain_models.md` §Портфель — закрыто (этот документ).
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/models/Portfolio.kt` — новые модели: `Position` (sealed) + `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`; `AccountBalance`; `AccountPortfolio`; `PortfolioSheet`; `AccountKey`. Удалить `PortfolioPosition`, `PositionStreamItem`, `toPortfolioPosition`, `mergeWith` (если больше не нужны).
+- `app/src/main/kotlin/.../domain/models/Instruments.kt` — extension `moneyPerPointOfPrice` на `Instrument` (если ещё не создан в C-min).
+- `app/src/main/kotlin/.../domain/api/managers/PositionFlowManager.kt` — эмитит `PortfolioSheet` (`Map<AccountKey, AccountPortfolio>`); merge stream + polling на уровне счетов.
+- `app/src/main/kotlin/.../data/api/tinvest/...` — мапперы T-Invest: `GetPortfolio` (gRPC) / REST fallback / `PositionsStream` WS → `AccountPortfolio` (позиции + `AccountBalance` из `moneyList`). `fetchPortfolioPositions` → `PortfolioSheet` (или per-account).
+- `app/src/main/kotlin/.../data/api/bcs/...` — мапперы BCS: `GET /portfolio` / `wss://.../portfolio/ws` → `AccountPortfolio`. Разделение по `type` (`moneyLimit` → `AccountBalance`, `depoLimit` / `futuresHolding` → `Position`, `futuresLimit` — открытый вопрос §10, `otcLimit` — пропускать).
+- `app/src/main/kotlin/.../data/api/finam/...` — мапперы Finam при реализации (`GetAccount` gRPC / REST → `AccountPortfolio`).
+- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioViewModel.kt` — на `PortfolioSheet`.
+- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioScreen.kt` — по счетам: шапка счёта с балансом (`AccountBalance.total`), список позиций.
+- `app/src/main/kotlin/.../presentation/screens/orders/OrdersViewModel.kt` — если использует `PortfolioPosition` — на `Position`.
+- `app/src/main/kotlin/.../presentation/components/AssetPositionCard.kt` — принимает `Position`.
+- `app/src/main/kotlin/.../presentation/util/PositionFormatter.kt` — принимает `Position` (или отдельные поля).
+- Тесты: `PositionFlowManagerTest`, мапперы T-Invest / BCS, `Position` getters, `AccountBalance.total`, `AccountPortfolio.totalProfit`.
+
+**Шаги:** подробно в `docs/domain_models.md` §Портфель §8 (8 шагов). Кратко:
+1. `Position` (sealed interface) + `SharePosition` / `FuturePosition` / `BondPosition` / `EtfPosition`.
+2. `AccountBalance` + `AccountPortfolio` + `PortfolioSheet` + `AccountKey`.
+3. `moneyPerPointOfPrice` — extension на `Instrument`, использовать в `totalValue` / `profitPercent`.
+4. Мапперы `TInvestPortfolioMapper` / `BcsPortfolioMapper` / `FinamPortfolioMapper` — из DTO в `AccountPortfolio`.
+5. `PositionFlowManager` — эмитит `PortfolioSheet` вместо `SharedFlow<PositionStreamItem>`; merge stream + polling на уровне счетов.
+6. UI — `AssetPositionCard` принимает `Position`; `PortfolioScreen` — по счетам, шапка счёта с балансом.
+7. Удалить `PortfolioPosition`, `PositionStreamItem` (если больше не нужен), `toPortfolioPosition`, `mergeWith`.
+8. Гейт.
+
+**Тесты:**
+- `Position` getters: `totalValue` (shares = 1.0 ×; futures = `pointValue` ×), `profitPercent`, `priceChangePercent` (null для Finam FORTS).
+- `AccountBalance.total`.
+- `AccountPortfolio.totalProfit` (все `profit == null` → `null`; часть `null` → сумма non-null).
+- Мапперы T-Invest / BCS — по образцу `TInvestInstrumentMapper` (Phase 1 / Phase 2).
+- `PositionFlowManager` — эмиссия `PortfolioSheet` (мультисчётность).
+- Live-тест UI (санкция): мультисчётность (T-Invest + BCS одновременно), шапка счёта с балансом, `lockedQuantity` на карточке.
+
+**Референсы:**
+- `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 — источник истины для модели.
+- `docs/domain_models.md` → `## Instruments` — композиция `Position.instrument: Instrument`.
+- `docs/architecture.md` → «Data flow: позиции» — текущее состояние (`PortfolioPosition`, `PositionFlowManager`).
+- `docs/clean-audit.md` → Н5 (`PortfolioPosition` — presentation-поля), Н15.
+- `docs/streams.md` → «WebSocket (T-Invest)» — `moneyList`, sandbox-ограничение.
+- BCS: `https://trade-api.bcs.ru/http/portfolio`, `https://trade-api.bcs.ru/websocket/portfolio/`.
+- Finam: `https://api.finam.ru/docs/grpc/#introduction`, `https://api.finam.ru/docs/async-api/#introduction`, `https://api.finam.ru/docs/rest/`.
+
+**Ограничения:**
+- **UI-санкция** (правило 1 AGENTS): шапка счёта с балансом, мультисчётность на `PortfolioScreen`, отображение `lockedQuantity` — согласовать до правки.
+- `money` / `blocked` — в `AccountBalance`, не в `Position`. Формула `money ↔ blocked ↔ quantity` не подтверждена (§10).
+- `name` — через `instrument.name` (композиция). `### Обогащение name в PortfolioPosition (вариант C)` — **отменяется** (name уже в `Instrument`).
+- `quantity: Double` — компромисс (Finam поддерживает дробное; presentation-формат «10 шт» vs «10.5 шт» — в UI).
+- `futuresLimit` (BCS) — открытый вопрос §10, при реализации BCS — live-проверка.
+- `lockedQuantity` для Finam — `null` (у Finam `maintenance_margin` — деньги ГО, не количество бумаг).
+- `totalProfit` / `equity` — не включаем как поля; `AccountPortfolio.totalProfit` — extension (сумма per-position profit).
+- `positions` в Finam `GetAccount` включает теоретические позиции (по неисполненным заявкам) — §10, при реализации Finam.
+- Не смешивать с `### UI: отображение blocked на валютной карточке` — после этой задачи `blocked` уже в `AccountBalance`; задача пересматривается (UI-шапка счёта, а не поле карточки).
+- Не смешивать с `### Margin/risk → TradeCheckResult` — там margin/risk (account-specific), здесь портфель.
+
+**Критерий готовности:**
+- `Position` (sealed) + плоские subtypes в `domain/models/Portfolio.kt`.
+- `AccountBalance` / `AccountPortfolio` / `PortfolioSheet` / `AccountKey` — в `domain/models/Portfolio.kt`.
+- `PositionFlowManager` эмитит `PortfolioSheet`.
+- Мапперы T-Invest и BCS работают (unit-тесты); Finam — заглушка до реализации.
+- `PortfolioScreen` показывает несколько счетов, шапка счёта с балансом (санкция UI).
+- `grep "PortfolioPosition"` в `app/src/main` — пусто.
+- `grep "PositionStreamItem"` в `app/src/main` — пусто (если удалён).
+- Гейт зелёный.
+
+**Оценка:** ~12–16 ч (модель 1–1.5 ч, мапперы T-Invest 2–3 ч, мапперы BCS 1.5–2 ч, `PositionFlowManager` 2–3 ч, VM + UI 2–3 ч, удаление старого 30 мин, тесты 1–2 ч, гейт + PR-цикл 30 мин). Finam — при реализации отдельно, не в этой задаче.
+
+**Зависимости:** `### Instrument: C-min → sealed interface (две фазы)` — Phase 2.
+
+**Что сделано:**
+
+- Модель `domain/models/Portfolio.kt`: `Position` (sealed interface, 7 subtypes — `SharePosition` / `FuturePosition` / `BondPosition` / `OptionPosition` / `EtfPosition` / `CurrencyPosition` / `OtherPosition`, симметрично `Instrument`) + `AccountBalance` + `AccountPortfolio` + `PortfolioSheet` + `AccountKey`. `Position.instrument: Instrument` типизирован per-subtype. Computed getters `totalValue` / `profitPercent`. `PositionStreamItem + accountId: String? + isDomesticCurrency: Boolean`.
+- `BrokerName + domesticCurrency: String` (`"rub"` у всех трёх; расширяемо).
+- Конвертеры `PositionStreamItem.toPosition(instrument): Position?` / `toAccountBalance(): AccountBalance?` (16 тестов: 7 subtypes + edge cases). Обратный `Position.toStreamItem()` (internal, для orchestrator). `PositionCommon` private-класс (detekt без `@Suppress`).
+- `PortfolioApi.fetchPortfolioPositions` → `AccountPortfolio` (было `List<PositionStreamItem>`). `TInvestPortfolioService` собирает `AccountPortfolio` из `GetPortfolio` через `toPosition`; `balances = emptyList()` (GetPortfolio не даёт `money/blocked`). BCS — заглушка, `### Реализация BCS Broker API`.
+- `PositionFlowManager` multi-account: `start(accountKeys: Set<AccountKey>, sandboxMode: Boolean)`. Эмитит `sheet: StateFlow<PortfolioSheet>` (SSoT); polling через `PortfolioApi` per-account + merge stream-partial в существующие `Position`; domestic currency → `mergeBalance` в `AccountBalance`; `instrumentCache: Map<AccountKey, Map<String, Instrument>>`. Legacy `flow: SharedFlow<PositionStreamItem>` retained. `connectionState` — один агрегат. `snapshotCache` + `enrichAndCache` удалены.
+- `PortfolioViewModel` — на `sheet`, multi-account `loadPortfolio`. Adapter `Position → PortfolioPosition` с overlay `currentPrice` / `priceChangePercent` (tick-to-tick). `uiState.sheet` + `uiState.accountId`.
+- `PortfolioScreen` per-account: `AccountHeaderCard` (broker + маска счёта + RUB `AccountBalance.total` + «Пополнить» в sandbox TINVEST); группировка по `AccountKey`; `lockedQuantity` на карточке («В блоке: N»); `EmptyPortfolioCard`. Глобальная карточка «Баланс» удалена.
+- `PortfolioPosition` (legacy) — `+accountId` / `+lockedQuantity`; остаётся для `OrdersViewModel` (`### OrdersViewModel: миграция на PortfolioSheet`).
+- `docs/architecture.md` → «Data flow: позиции» переписан под `PortfolioSheet`.
+- 11 коммитов в `feature/portfolio-model`: `39dc02a` (bugfix `moneyPerPointOfPrice = 1.0`), `d4f8ac5` (модель), `10b3ffe` (`isDomesticCurrency`), `b7790dd` (конвертеры), `6d2b322` (API → `AccountPortfolio`), `6275051` (`PositionFlowManager` multi-account + sheet), `6a40ec3` (account-фильтр), `e159795` (VM на sheet), `a0d0c4d` (per-account поля + lockedQuantity), `0a9504d` (per-account Screen), `2501972` (architecture docs).
+
+**Отклонения от плана:**
+
+- 7 subtypes `Position` (не 4): симметрично sealed `Instrument`, exhaustive `when`. `CurrencyPosition` — иностранная валюта, RUB — в `AccountBalance`.
+- Reverse-adapter `Position.toStreamItem()` (internal) вместо C-full миграции `PositionFlowManager` на `AccountPortfolio` (C-lite отклонён как промежуточный слой; миграция orchestrator/`BrokerSnapshotApi` — отдельная задача).
+- `payInSandbox(accountId)` — per-account кнопка в шапке; default-account preference удалён (multi-account, первый счёт).
+- BCS — заглушка `AccountPortfolio(emptyList, emptyList)`.
+- `priceChangePercent` = tick-to-tick из overlay `PriceFlowManager` (`Position.priceChangePercent = null` до задачи `### Position: источники priceChangePercent и lockedQuantity`).
+- `PortfolioPosition` расширен `accountId` / `lockedQuantity` (legacy), удаление — задача `### OrdersViewModel: миграция на PortfolioSheet`.
+**Связано:**
+- `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 — источник модели.
+- `### H5. PortfolioPosition: разделение domain/presentation` — **скорее всего решает Н5** (одна модель `Position` — domain, presentation-поля — getters/extension; разделение на `Position` + `PortfolioPositionUi` не потребуется). Если не решает — увидим при ревизии H5 **после** закрытия этой задачи. H5 не закрывать автоматически.
+- `### Обогащение name в PortfolioPosition (вариант C)` — **отменяется** (`name` — через `instrument.name`).
+- `### UI: отображение blocked на валютной карточке` — **пересматривается** после этой задачи (шапка счёта вместо поля карточки).
+- `### Instrument: C-min → sealed interface (две фазы)` — предусловие.
+- `### Margin/risk → TradeCheckResult` — параллельная работа, не конфликтует.
+- `docs/clean-audit.md` → Н5, Н15.
+
+**Открытые вопросы:** 7 из `docs/domain_models.md` §Портфель §10 (BCS `futuresLimit`, Finam теоретические позиции, Finam `current_price_currency` / `average_price_currency`, источник `money` / `blocked` для T-Invest gRPC/REST и BCS, `lockedQuantity` для Finam, `totalProfit` и Finam `unrealized_profit`, `PortfolioSheet` Map vs List — финал Map).
+
+---

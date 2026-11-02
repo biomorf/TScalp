@@ -18,6 +18,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -972,10 +973,13 @@ class OrdersViewModel
             }
         }
 
-        fun startPositionUpdates() {
+        suspend fun startPositionUpdates() {
             stopPositionUpdates()
             val accountId = _uiState.value.selectedAccountId ?: return
-            positionFlowManager.start(accountId)
+            positionFlowManager.start(
+                accountKeys = setOf(AccountKey(BrokerName.TINVEST, accountId)),
+                sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+            )
             positionStreamJob =
                 viewModelScope.launch {
                     // Ошибки потока логирует сам PositionFlowManager
@@ -1066,6 +1070,10 @@ class OrdersViewModel
         }
 
         private fun updatePositionPnl(item: PositionStreamItem) {
+            // Multi-account: PositionFlowManager эмитит события со всех счетов.
+            // Обновляем карточку только по активному счёту (null = backward-compat).
+            val activeAccount = _uiState.value.selectedAccountId
+            if (item.accountId != null && item.accountId != activeAccount) return
             val avgPrice = item.averagePositionPrice ?: return
             val yield = item.expectedYield ?: return
             val quantity = item.quantity

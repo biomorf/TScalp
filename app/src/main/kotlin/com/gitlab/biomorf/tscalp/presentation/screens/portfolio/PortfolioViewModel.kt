@@ -6,21 +6,21 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
-import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
-import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
+import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.domain.models.mergeWith
-import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -42,7 +42,6 @@ class PortfolioViewModel
         private val marketDataRepository: MarketDataRepository,
         private val accountsRepository: AccountsRepository,
         private val brokerManager: BrokerRegistry,
-        private val accountPreferencesRepository: AccountPreferencesRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val priceFlowManager: PriceFlowManager,
         private val positionFlowManager: PositionFlowManager,
@@ -50,6 +49,10 @@ class PortfolioViewModel
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
         val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
+
+        private val sheetState = MutableStateFlow(PortfolioSheet(emptyMap()))
+        private val pricesMap = mutableMapOf<String, Double>()
+        private val priceChangePercentsMap = mutableMapOf<String, Double>()
         private var positionStreamJob: Job? = null
 
         companion object {
@@ -57,24 +60,18 @@ class PortfolioViewModel
         }
 
         init {
-            // Реагируем на изменение состояния инициализации брокеров.
-            // StateFlow отдаёт текущее значение сразу при подписке.
             viewModelScope.launch {
                 logger.d(TAG, "subscribed to anyInitialized")
                 brokerManager.anyInitialized.collect {
                     checkApiInitialization()
                 }
             }
-            // Подписка на единый поток цен. Обновляет currentPrice / totalValue /
-            // priceChangePercent у соответствующей позиции. Набор tscalpInstrumentId задаётся
-            // через syncPriceInterest() после каждой загрузки портфеля.
             viewModelScope.launch {
                 logger.d(TAG, "subscribed to prices")
                 priceFlowManager.prices.collect { update ->
                     updatePriceFromStream(update)
                 }
             }
-            // Обновление статусов каждые 5 минут
             viewModelScope.launch {
                 while (isActive) {
                     delay(5 * 60 * 1000L)
@@ -87,7 +84,6 @@ class PortfolioViewModel
         }
 
         suspend fun checkApiInitialization() {
-            // проверка «есть ли хоть один инициализированный брокер»
             val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
             val sandbox = sandboxPreferencesRepository.isSandboxMode()
             logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isApiInit, sandbox=$sandbox")
@@ -96,16 +92,18 @@ class PortfolioViewModel
             if (isApiInit) {
                 viewModelScope.launch { loadPortfolio() }
             } else {
-                // Logout: останавливаем фоновые задачи, снимаем интерес к ценам
-                // и очищаем состояние, чтобы UI не показывал устаревшие позиции.
                 stopPositionUpdates()
                 priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
                 positionFlowManager.stop()
+                sheetState.value = PortfolioSheet(emptyMap())
+                pricesMap.clear()
+                priceChangePercentsMap.clear()
                 _uiState.update {
                     it.copy(
                         positions = emptyList(),
                         totalValue = 0.0,
                         tradingStatuses = emptyMap(),
+                        sheet = PortfolioSheet(emptyMap()),
                     )
                 }
             }
@@ -114,59 +112,65 @@ class PortfolioViewModel
         fun loadPortfolio() {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-
-                val accountId =
-                    accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST) ?: run {
-                        logger.d(TAG, "loadPortfolio: no default account")
-                        _uiState.update { it.copy(isLoading = false, statusMessage = "Нет выбранного счёта", isError = true) }
-                        return@launch
-                    }
                 val sandbox = sandboxPreferencesRepository.isSandboxMode()
-                logger.d(TAG, "loadPortfolio: account=$accountId, sandbox=$sandbox")
 
-                // Первичный запрос для немедленного отображения
-                when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
-                    is AppResult.Success -> {
-                        logger.i(TAG, "loadPortfolio: success, positions=${result.data.size}")
-                        _uiState.update { it.copy(positions = result.data, isLoading = false) }
-                    }
-                    is AppResult.Failure -> {
-                        logger.e(
-                            TAG,
-                            "loadPortfolio: fetchPositions failed: ${result.error.message}",
-                            result.error.cause,
-                        )
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                statusMessage = "Ошибка загрузки: ${result.error.message}",
-                                isError = true,
-                            )
+                val accounts =
+                    when (val r = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandbox)) {
+                        is AppResult.Success -> r.data
+                        is AppResult.Failure -> {
+                            logger.e(TAG, "loadPortfolio: getAccounts failed: ${r.error.message}", r.error.cause)
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    statusMessage = "Ошибка загрузки: ${r.error.message}",
+                                    isError = true,
+                                )
+                            }
+                            return@launch
                         }
-                        return@launch
+                    }
+                if (accounts.isEmpty()) {
+                    logger.d(TAG, "loadPortfolio: no accounts")
+                    _uiState.update { it.copy(isLoading = false, positions = emptyList(), totalValue = 0.0) }
+                    return@launch
+                }
+                logger.d(TAG, "loadPortfolio: ${accounts.size} accounts, sandbox=$sandbox")
+
+                // Первичный fetch по каждому счёту (сразу заполнить UI)
+                val allPositions = mutableListOf<PortfolioPosition>()
+                for (account in accounts) {
+                    when (val r = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, account.id, sandbox)) {
+                        is AppResult.Success -> allPositions.addAll(r.data)
+                        is AppResult.Failure ->
+                            logger.e(TAG, "loadPortfolio[${account.id}] failed: ${r.error.message}", r.error.cause)
                     }
                 }
+                _uiState.update {
+                    it.copy(
+                        positions = allPositions,
+                        totalValue = allPositions.sumOf { p -> p.totalValue },
+                        isLoading = false,
+                    )
+                }
 
-                // Запускаем (или перезапускаем) подписку на общий поток позиций
-                startPositionUpdates(accountId)
-                // Обновляем интерес к ценам: набор tscalpInstrumentId мог измениться
+                val keys = accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
+                startPositionUpdates(keys, sandbox)
                 syncPriceInterest()
             }
         }
 
-        /**
-         * Запускает подписку на PositionFlowManager.flow.
-         * Перед новой подпиской отменяет предыдущую — иначе каждый вызов
-         * loadPortfolio (init, refresh, payInSandbox) добавлял бы новый
-         * вечный коллектор к бесконечному SharedFlow.
-         */
-        private fun startPositionUpdates(accountId: String) {
+        private fun startPositionUpdates(
+            keys: Set<AccountKey>,
+            sandbox: Boolean,
+        ) {
             stopPositionUpdates()
-            positionFlowManager.start(accountId)
+            positionFlowManager.start(accountKeys = keys, sandboxMode = sandbox)
             positionStreamJob =
                 viewModelScope.launch {
-                    positionFlowManager.flow.collect { item ->
-                        updatePortfolioItem(item)
+                    positionFlowManager.sheet.collect { sheet ->
+                        sheetState.value = sheet
+                        _uiState.update { it.copy(sheet = sheet) }
+                        recomputePositions()
                     }
                 }
         }
@@ -176,55 +180,24 @@ class PortfolioViewModel
             positionStreamJob = null
         }
 
-        /**
-         * Собирает текущий набор tscalpInstrumentId из портфельных позиций
-         * и передаёт в PriceFlowManager. Рублёвый кэш (RUB000UTSTOM)
-         * исключается: его цена фиксирована на 1.0 и не идёт через биржевой стрим.
-         * Менеджер пересоздаст стрим только при фактическом изменении union.
-         */
         private fun syncPriceInterest() {
-            val tscalpInstrumentIds =
+            val ids =
                 _uiState.value.positions
-                    .filter { it.ticker != "RUB000UTSTOM" }
                     .map { it.tscalpInstrumentId }
+                    .filter { it.isNotBlank() && it != "RUB000UTSTOM" }
                     .toSet()
-            priceFlowManager.setInterest(PriceConsumer.PORTFOLIO, tscalpInstrumentIds)
+            priceFlowManager.setInterest(PriceConsumer.PORTFOLIO, ids)
         }
 
-        /**
-         * Применяет обновление цены из PriceFlowManager к позиции
-         * с соответствующим tscalpInstrumentId. Пересчитывает totalValue,
-         * priceChangePercent и суммарную стоимость портфеля. Для
-         * неизвестного tscalpInstrumentId — no-op.
-         */
         private fun updatePriceFromStream(update: PriceUpdate) {
             if (update.price <= 0.0) return
-            // Пока активен только TInvest — фильтрация по брокеру не нужна.
-            // При мультиброкерности здесь появится сравнение с brokerName
-            // соответствующей позиции.
-            val tscalpId = update.tscalpInstrumentId
-            val price = update.price
-            val current = _uiState.value.positions
-            val index = current.indexOfFirst { it.tscalpInstrumentId == tscalpId }
-            if (index == -1) return
-            val old = current[index]
-            if (old.currentPrice == price) return // нет изменений — не перерисовываем
-            val newPrice = price
-            val changePercent =
-                if (old.currentPrice != 0.0) {
-                    ((newPrice - old.currentPrice) / old.currentPrice) * 100.0
-                } else {
-                    null
-                }
-            val updated = current.toMutableList()
-            updated[index] =
-                old.copy(
-                    currentPrice = newPrice,
-                    totalValue = newPrice * old.quantity,
-                    priceChangePercent = changePercent,
-                )
-            val newTotalValue = updated.sumOf { it.totalValue }
-            _uiState.update { it.copy(positions = updated, totalValue = newTotalValue) }
+            val id = update.tscalpInstrumentId
+            val prev = pricesMap[id]
+            pricesMap[id] = update.price
+            if (prev != null && prev != 0.0 && prev != update.price) {
+                priceChangePercentsMap[id] = ((update.price - prev) / prev) * 100.0
+            }
+            recomputePositions()
         }
 
         override fun onCleared() {
@@ -232,16 +205,46 @@ class PortfolioViewModel
             priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
         }
 
-        private fun updatePortfolioItem(item: PositionStreamItem) {
-            logger.d(TAG, "updatePortfolioItem: id=${item.tscalpInstrumentId} type=${item.instrumentType} moneyPerPointOfPrice=${item.moneyPerPointOfPrice}")
-            val current = _uiState.value.positions.toMutableList()
-            val index = current.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }
-            if (index == -1) {
-                current.add(item.toPortfolioPosition())
-            } else {
-                current[index] = current[index].mergeWith(item)
-            }
-            _uiState.update { it.copy(positions = current) }
+        /**
+         * Пересобирает `uiState.positions` из `sheetState` (структурные данные) +
+         * overlay `pricesMap` / `priceChangePercentsMap` (tick-to-tick из PriceFlowManager).
+         *
+         * `PortfolioPosition` — legacy-модель для `PortfolioScreen` (до миграции
+         * на `sheet`). `Position.priceChangePercent` = null (источник — задача
+         * «Position: источники priceChangePercent...»), здесь подставляется
+         * tick-to-tick из overlay.
+         */
+        private fun recomputePositions() {
+            val sheet = sheetState.value
+            val positions = sheet.accounts.values.flatMap { acc -> acc.positions.map { it.toUiPosition() } }
+            _uiState.update { it.copy(positions = positions, totalValue = positions.sumOf { p -> p.totalValue }) }
+            syncPriceInterest()
+        }
+
+        private fun Position.toUiPosition(): PortfolioPosition {
+            val id = instrument.tscalpInstrumentId
+            val price = pricesMap[id] ?: currentPrice
+            val pct = priceChangePercentsMap[id]
+            return PortfolioPosition(
+                tscalpInstrumentId = id,
+                brokerName = brokerName,
+                name = instrument.name,
+                ticker = instrument.ticker,
+                quantity = quantity.toLong(),
+                currentPrice = price,
+                averagePrice = averagePrice,
+                totalValue = price * quantity.toLong() * instrument.moneyPerPointOfPrice,
+                profit = profit,
+                profitPercent = profitPercent,
+                moneyPerPointOfPrice = instrument.moneyPerPointOfPrice,
+                instrumentType = instrument.instrumentType,
+                isin = instrument.isin,
+                classCode = instrument.classCode ?: "",
+                currency = instrument.currency,
+                priceChangePercent = pct,
+                accountId = accountId,
+                lockedQuantity = lockedQuantity,
+            )
         }
 
         private suspend fun updateTradingStatuses(positions: List<PortfolioPosition>) {
@@ -252,17 +255,15 @@ class PortfolioViewModel
                 if (ids.isEmpty()) continue
                 when (val result = marketDataRepository.getTradingStatusesResult(brokerName, ids)) {
                     is AppResult.Success -> allStatuses.putAll(result.data)
-                    is AppResult.Failure -> {
+                    is AppResult.Failure ->
                         logger.e(
                             TAG,
                             "Ошибка обновления статусов для ${brokerName.displayName}: ${result.error.message}",
                             result.error.cause,
                         )
-                    }
                 }
             }
             if (allStatuses.isNotEmpty()) {
-                // Merge: не теряем статусы, полученные из поиска
                 _uiState.update { state ->
                     state.copy(tradingStatuses = state.tradingStatuses + allStatuses)
                 }
@@ -272,50 +273,11 @@ class PortfolioViewModel
         // Архитектурный долг: функция требует декомпозиции.
         // См. ROADMAP → «Рефакторинг ViewModel-слоя».
         @Suppress("LongMethod")
-        fun payInSandbox() {
+        fun payInSandbox(accountId: String) {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }
-
-                val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
-
-                // Шаг 1: получить счета
-                val accounts =
-                    when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                        is AppResult.Success -> result.data
-                        is AppResult.Failure -> {
-                            logger.e(TAG, "payInSandbox: getAccounts failed: ${result.error.message}", result.error.cause)
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    statusMessage = "Ошибка пополнения: ${result.error.message}",
-                                    isError = true,
-                                )
-                            }
-                            return@launch
-                        }
-                    }
-
-                if (accounts.isEmpty()) {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = "Ошибка пополнения: Нет доступных счетов",
-                            isError = true,
-                        )
-                    }
-                    return@launch
-                }
-
-                val defaultAccountId = accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST)
-                val accountId =
-                    if (defaultAccountId != null && accounts.any { it.id == defaultAccountId }) {
-                        defaultAccountId
-                    } else {
-                        accounts.first().id
-                    }
                 logger.d(TAG, "Пополнение счёта $accountId через ${BrokerName.TINVEST.displayName}")
 
-                // Шаг 2: пополнить
                 when (
                     val result =
                         accountsRepository.sandboxPayInResult(

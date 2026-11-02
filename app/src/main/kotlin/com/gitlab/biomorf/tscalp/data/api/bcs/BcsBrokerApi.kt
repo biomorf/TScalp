@@ -21,7 +21,6 @@ import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -252,41 +251,13 @@ class BcsBrokerApi(
     override suspend fun fetchPortfolioPositions(
         accountId: String,
         sandboxMode: Boolean,
-    ): List<PositionStreamItem> {
-        val response = makeRequest("GET", PORTFOLIO_PATH)
-        if (!response.isSuccessful) throw IOException("Ошибка получения портфеля: ${response.code}")
-
-        val json = response.body.string().ifBlank { throw IOException("Пустой ответ") }
-        logger.d("BcsBrokerApi", "Ответ портфеля (позиции): $json")
-
-        val allPositions: List<Map<String, Any>> =
-            gson.fromJson(
-                json,
-                object : TypeToken<List<Map<String, Any>>>() {}.type,
-            )
-
-        // Фильтруем только те позиции, которые принадлежат указанному счёту
-        val filtered =
-            allPositions.filter { posMap ->
-                val acc = posMap["account"] as? String ?: ""
-                acc == accountId
-            }
-
-        return filtered
-            .mapNotNull { posMap: Map<String, Any> ->
-                val ticker = posMap["ticker"] as? String ?: return@mapNotNull null
-                val exchange = posMap["exchange"] as? String ?: ""
-                val figi = if (exchange.isNotEmpty()) "$ticker:$exchange" else ticker
-                val quantity = (posMap["quantity"] as? Number)?.toLong() ?: 0L
-                val currentPrice = (posMap["currentPrice"] as? Number)?.toDouble() ?: 0.0
-
-                PositionStreamItem(
-                    tscalpInstrumentId = figi,
-                    brokerName = BrokerName.BCS,
-                    ticker = ticker,
-                    quantity = quantity,
-                    currentPrice = currentPrice,
-                )
-            }.distinctBy { it.ticker }
-    }
+    ): AccountPortfolio =
+        // Заглушка. Реальная реализация BCS-парсинга портфеля + резолва
+        // Instrument + AccountBalance — задача «Реализация BCS Broker API».
+        AccountPortfolio(
+            accountId = accountId,
+            brokerName = BrokerName.BCS,
+            positions = emptyList(),
+            balances = emptyList(),
+        )
 }

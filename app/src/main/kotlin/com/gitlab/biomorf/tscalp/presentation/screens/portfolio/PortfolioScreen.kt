@@ -13,7 +13,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -25,6 +24,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
+import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
@@ -41,10 +43,6 @@ fun PortfolioScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Pull‑to‑Refresh состояние
-    val pullToRefreshState = rememberPullToRefreshState()
-
-    // Автоматическое обновление при открытии вкладки
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -52,7 +50,6 @@ fun PortfolioScreen(
         }
     }
 
-    // Синхронизация isRefreshing с isLoading
     LaunchedEffect(uiState.isLoading) {
         isRefreshing = uiState.isLoading
     }
@@ -79,7 +76,6 @@ fun PortfolioScreen(
             return@Scaffold
         }
 
-        // Pull-to-Refresh контейнер
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refresh() },
@@ -96,41 +92,12 @@ fun PortfolioScreen(
                         .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                // Индикатор загрузки (показываем, если не используется pull-to-refresh)
                 if (uiState.isLoading && !isRefreshing) {
                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 }
 
-                // Свободные средства и кнопка пополнения
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        // horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column {
-                            Text("Баланс", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                formatDomesticCurrency(uiState.balance),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
-                        if (uiState.sandboxMode) {
-                            Button(onClick = { viewModel.payInSandbox() }) {
-                                Text("Пополнить")
-                            }
-                        }
-                    }
-                }
-
-                // Сообщение об ошибке
                 LaunchedEffect(uiState.statusMessage) {
                     uiState.statusMessage?.let { message ->
                         val visuals =
@@ -145,38 +112,55 @@ fun PortfolioScreen(
                                         SnackbarDuration.Short
                                     }
                             }
-                        // Скрыть предыдущий снекбар, если висит
                         snackbarHostState.currentSnackbarData?.dismiss()
                         snackbarHostState.showSnackbar(visuals)
                         viewModel.clearStatus()
                     }
                 }
 
-                // Пустой портфель
-                if (uiState.positions.isEmpty() && !uiState.isLoading) {
+                val positionsByAccount =
+                    uiState.positions.groupBy { p ->
+                        AccountKey(p.brokerName, p.accountId ?: "")
+                    }
+                val allKeys =
+                    (uiState.sheet.accounts.keys + positionsByAccount.keys).sortedWith(
+                        compareBy({ it.brokerName.ordinal }, { it.accountId }),
+                    )
+
+                if (allKeys.isEmpty() && !uiState.isLoading) {
                     EmptyPortfolioCard()
-                } else if (uiState.positions.isNotEmpty()) {
-                    // Группировка по брокерам
-                    val grouped = uiState.positions.groupBy { it.brokerName }
-                    for ((brokerName, positions) in grouped) {
-                        Text(
-                            "--- ${brokerName.displayName} ---",
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(vertical = 8.dp),
+                } else {
+                    for (key in allKeys) {
+                        AccountHeaderCard(
+                            accountKey = key,
+                            accountPortfolio = uiState.sheet.accounts[key],
+                            sandboxMode = uiState.sandboxMode,
+                            onPayIn = { viewModel.payInSandbox(key.accountId) },
                         )
-                        positions.forEach { position ->
-                            AssetPositionCard(
-                                position = position,
-                                instrumentType = position.instrumentType,
-                                pointValue = position.moneyPerPointOfPrice,
-                                priceChangePercent = position.priceChangePercent,
-                                tscalpInstrumentId = position.tscalpInstrumentId,
-                                tradingAvailability = uiState.tradingStatuses[position.tscalpInstrumentId] ?: TradingAvailability.UNKNOWN,
+                        val positions = positionsByAccount[key].orEmpty()
+                        if (positions.isEmpty()) {
+                            Text(
+                                "Нет позиций",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 8.dp),
                             )
+                        } else {
+                            positions.forEach { position ->
+                                AssetPositionCard(
+                                    position = position,
+                                    instrumentType = position.instrumentType,
+                                    pointValue = position.moneyPerPointOfPrice,
+                                    priceChangePercent = position.priceChangePercent,
+                                    tscalpInstrumentId = position.tscalpInstrumentId,
+                                    tradingAvailability =
+                                        uiState.tradingStatuses[position.tscalpInstrumentId]
+                                            ?: TradingAvailability.UNKNOWN,
+                                    lockedQuantity = position.lockedQuantity,
+                                )
+                            }
                         }
-                        if (brokerName != grouped.keys.last()) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -216,6 +200,64 @@ fun PortfolioScreen(
         }
     }
 }
+
+@Composable
+private fun AccountHeaderCard(
+    accountKey: AccountKey,
+    accountPortfolio: AccountPortfolio?,
+    sandboxMode: Boolean,
+    onPayIn: () -> Unit,
+) {
+    val rubBalance =
+        accountPortfolio
+            ?.balances
+            ?.firstOrNull { it.currency.equals("rub", ignoreCase = true) }
+            ?.total
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            ),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    accountKey.brokerName.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    maskAccountId(accountKey.accountId),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    rubBalance?.let { formatDomesticCurrency(it) } ?: "нет данных",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            if (sandboxMode && accountKey.brokerName == BrokerName.TINVEST) {
+                Button(onClick = onPayIn) {
+                    Text("Пополнить")
+                }
+            }
+        }
+    }
+}
+
+private const val MASK_VISIBLE_DIGITS = 4
+private const val MASK_BULLET = "\u2022"
+
+private fun maskAccountId(id: String): String =
+    if (id.length <= MASK_VISIBLE_DIGITS) {
+        id
+    } else {
+        MASK_BULLET.repeat(MASK_VISIBLE_DIGITS) + id.takeLast(MASK_VISIBLE_DIGITS)
+    }
 
 @Composable
 fun ApiNotInitializedCard() {
