@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -77,8 +78,8 @@ class TInvestPortfolioService(
                     currentPrice = currentPrice,
                     averagePositionPrice = avgPrice,
                     expectedYield = expectedYield,
-                    instrumentType = instrumentUi?.instrumentType ?: "",
-                    pointValue = pointVal,
+                    instrumentType = instrumentUi?.instrumentType ?: InstrumentType.OTHER,
+                    moneyPerPointOfPrice = pointVal,
                     currency = instrumentUi?.currency,
                 )
             }

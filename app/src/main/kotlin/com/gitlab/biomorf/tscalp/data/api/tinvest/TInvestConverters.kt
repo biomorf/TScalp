@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import ru.tinkoff.piapi.contract.v1.MoneyValue
 import ru.tinkoff.piapi.contract.v1.Quotation
 
@@ -35,13 +36,13 @@ object TInvestConverters {
      * Код класса инструмента → доменный тип (share / bond / futures / etf / currency).
      * Взято из classCodeToInstrumentType в TInvestBrokerAPI.
      */
-    fun classCodeToInstrumentType(classCode: String): String =
+    fun classCodeToInstrumentType(classCode: String): InstrumentType =
         when (classCode) {
-            "SPBFUT", "SPBOPT" -> "futures"
-            "TQBR", "TQBS", "TQIF", "TQIR" -> "share"
-            "TQOB", "TQCB", "TQRD" -> "bond"
-            "TQTF" -> "etf"
-            "CETS" -> "currency"
-            else -> ""
+            "SPBFUT", "SPBOPT" -> InstrumentType.FUTURES
+            "TQBR", "TQBS", "TQIF", "TQIR" -> InstrumentType.SHARE
+            "TQOB", "TQCB", "TQRD" -> InstrumentType.BOND
+            "TQTF" -> InstrumentType.ETF
+            "CETS" -> InstrumentType.CURRENCY
+            else -> InstrumentType.OTHER
         }
 }

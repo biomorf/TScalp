@@ -5,6 +5,7 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerSnapshotApi
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import kotlinx.coroutines.CancellationException
@@ -231,10 +232,10 @@ class PositionFlowManager
             // в закэшированный item из polling по currency. Если
             // polling ещё не пришёл — null (ждём, чтобы не создавать
             // дубликат карточки).
-            if (item.instrumentType == "currency" && item.tscalpInstrumentId.isBlank()) {
+            if (item.instrumentType == InstrumentType.CURRENCY && item.tscalpInstrumentId.isBlank()) {
                 val cached =
                     snapshotCache.values.firstOrNull {
-                        it.instrumentType == "currency" && it.currency == item.currency
+                        it.instrumentType == InstrumentType.CURRENCY && it.currency == item.currency
                     } ?: return null
                 val merged =
                     cached.copy(

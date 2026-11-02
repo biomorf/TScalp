@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
@@ -116,7 +117,7 @@ class TInvestPositionsService(
             ticker = s.ticker,
             quantity = s.balance,
             classCode = s.classCode,
-            instrumentType = s.instrumentType.ifBlank { "share" },
+            instrumentType = InstrumentType.fromBrokerString(s.instrumentType.ifBlank { "share" }),
         )
 
     private fun convertFuture(f: PositionsFutures): PositionStreamItem =
@@ -126,7 +127,7 @@ class TInvestPositionsService(
             ticker = f.ticker,
             quantity = f.balance,
             classCode = f.classCode,
-            instrumentType = "futures",
+            instrumentType = InstrumentType.FUTURES,
         )
 
     // ---------- Стрим позиций (параллельно) ----------

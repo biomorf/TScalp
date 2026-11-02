@@ -25,6 +25,58 @@ import kotlin.time.Instant
  *   `"currency"`, `"etf"`, `"bond"`, `"option"`. Не sealed-тип,
  *   потому что часть моделей использует один общий класс.
  */
+
+/**
+ * Тип инструмента (универсальный для всех брокеров).
+ *
+ * Заполняется маппером по контексту (T-Invest: `Shares()` → SHARE,
+ * `Futures()` → FUTURES) или `fromBrokerString` (REST/WS-строки).
+ * C-min шаг 10 (§7 `docs/domain_models.md`).
+ */
+enum class InstrumentType {
+    SHARE,
+    FOREIGN_SHARE,
+    BOND,
+    NOTE,
+    EURO_BOND,
+    DEPOSITARY_RECEIPT,
+    ETF,
+    MUTUAL_FUND,
+    FUTURES,
+    OPTION,
+    CURRENCY,
+    COMMODITY,
+    INDEX,
+    OTHER,
+    ;
+
+    companion object {
+        /**
+         * Broker string → [InstrumentType]. Case-insensitive.
+         * T-Invest (lower): share, bond, etf, currency, futures, option, fond.
+         * BCS (UPPER): STOCK, FOREIGN_STOCK, BONDS, NOTES, ...
+         * Finam (UPPER): STOCK, BOND, FUTURES, ...
+         */
+        fun fromBrokerString(value: String): InstrumentType =
+            when (value.lowercase()) {
+                "share", "stock" -> SHARE
+                "foreign_stock" -> FOREIGN_SHARE
+                "bond", "bonds" -> BOND
+                "note", "notes" -> NOTE
+                "euro_bond", "euro_bonds" -> EURO_BOND
+                "depositary_receipt", "depositary_receipts" -> DEPOSITARY_RECEIPT
+                "etf" -> ETF
+                "mutual_fund", "mutual_funds", "fond" -> MUTUAL_FUND
+                "futures" -> FUTURES
+                "option", "options" -> OPTION
+                "currency" -> CURRENCY
+                "commodity", "goods" -> COMMODITY
+                "index", "indices" -> INDEX
+                else -> OTHER
+            }
+    }
+}
+
 open class InstrumentUi(
     open val tscalpInstrumentId: String, // универсальный идентификатор TScalp
     open val ticker: String,
@@ -34,7 +86,7 @@ open class InstrumentUi(
     open val name: String,
     open val currency: String? = null,
     open val lot: Long? = null,
-    open val instrumentType: String = "", // / тип инструмента: share, bond, etf, currency, futures, option
+    open val instrumentType: InstrumentType = InstrumentType.OTHER,
     // --- Общие поля (присутствуют у большинства типов) ---
     open val exchange: String? = null, // торговая площадка
     open val tradingStatus: String? = null, // режим торгов
@@ -102,7 +154,7 @@ data class FutureUi(
     override val name: String,
     override val currency: String? = null,
     override val lot: Long? = null,
-    override val instrumentType: String = "futures",
+    override val instrumentType: InstrumentType = InstrumentType.FUTURES,
     // Поля, специфичные для фьючерсов, с переопределением из базового класса
     override val exchange: String? = null,
     override val tradingStatus: String? = null,
@@ -216,7 +268,7 @@ data class ShareUi(
     override val name: String,
     override val currency: String? = null,
     override val lot: Long? = null,
-    override val instrumentType: String = "share",
+    override val instrumentType: InstrumentType = InstrumentType.SHARE,
     // Общие поля (могут переопределяться)
     override val exchange: String? = null,
     override val tradingStatus: String? = null,

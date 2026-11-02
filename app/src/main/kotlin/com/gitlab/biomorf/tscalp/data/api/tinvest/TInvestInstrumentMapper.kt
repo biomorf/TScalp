@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.ShareUi
 import ru.tinkoff.piapi.contract.v1.Instrument
@@ -26,12 +27,12 @@ object TInvestInstrumentMapper {
     ): InstrumentUi {
         val brokerUid = instrument.uid
         val figi = instrument.figi?.takeIf { it.isNotBlank() }
-        val type = instrument.instrumentType ?: ""
+        val type = InstrumentType.fromBrokerString(instrument.instrumentType ?: "")
         val minInc = TInvestConverters.quotationToDouble(instrument.minPriceIncrement)
         val tradingStatus = instrument.tradingStatus.name
 
         return when (type) {
-            "futures" ->
+            InstrumentType.FUTURES ->
                 FutureUi(
                     tscalpInstrumentId = brokerUid,
                     ticker = instrument.ticker,
@@ -81,7 +82,7 @@ object TInvestInstrumentMapper {
                     dshortClient = null,
                 )
 
-            "share" ->
+            InstrumentType.SHARE ->
                 ShareUi(
                     tscalpInstrumentId = brokerUid,
                     ticker = instrument.ticker,

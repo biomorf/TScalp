@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.FutureUi
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -25,7 +26,7 @@ internal fun RestOrder.toOrder(): Order.Regular =
         orderId = orderId,
         ticker = ticker,
         tscalpInstrumentId = instrumentUid,
-        instrumentType = "",
+        instrumentType = InstrumentType.OTHER,
         direction = direction.removePrefix("ORDER_DIRECTION_"),
         quantity = lotsRequested,
         orderType = orderType.removePrefix("ORDER_TYPE_").toOrderTypeSelection(),
@@ -41,7 +42,7 @@ internal fun RestStopOrder.toOrder(): Order.Stop =
         orderId = stopOrderId,
         ticker = ticker,
         tscalpInstrumentId = instrumentUid,
-        instrumentType = "",
+        instrumentType = InstrumentType.OTHER,
         direction = direction.removePrefix("ORDER_DIRECTION_"),
         quantity = lotsRequested,
         orderType = orderType.removePrefix("ORDER_TYPE_").toOrderTypeSelection(),
@@ -62,8 +63,8 @@ internal fun RestPosition.toStreamItem(): PositionStreamItem =
         expectedYield = expectedYield.toDouble(),
         classCode = "",
         isin = "",
-        pointValue = null,
-        instrumentType = instrumentType,
+        moneyPerPointOfPrice = null,
+        instrumentType = InstrumentType.fromBrokerString(instrumentType),
         currency = null,
     )
 
@@ -75,9 +76,9 @@ internal fun RestPosition.toStreamItem(): PositionStreamItem =
 // в REST `GetInstrumentBy` и остаются `null`.
 
 internal fun RestInstrument.toInstrumentUi(): InstrumentUi =
-    when (instrumentType) {
-        "futures" -> toFutureUi()
-        "share" -> toShareUi()
+    when (InstrumentType.fromBrokerString(instrumentType)) {
+        InstrumentType.FUTURES -> toFutureUi()
+        InstrumentType.SHARE -> toShareUi()
         else -> toDefaultUi()
     }
 
@@ -142,5 +143,5 @@ private fun RestInstrument.toDefaultUi(): InstrumentUi =
         name = name,
         currency = currency.takeIf { it.isNotBlank() },
         lot = lot.toLong(),
-        instrumentType = instrumentType,
+        instrumentType = InstrumentType.fromBrokerString(instrumentType),
     )

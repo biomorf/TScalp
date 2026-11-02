@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.MoneyValueDto
 import com.gitlab.biomorf.tscalp.transport.ktor.dto.PositionsFuturesDto
@@ -45,7 +46,7 @@ object TInvestPositionsWsMapper {
             ticker = dto.ticker,
             quantity = dto.balance?.toLongOrNull() ?: 0L,
             classCode = dto.classCode,
-            instrumentType = dto.instrumentType.ifBlank { "share" },
+            instrumentType = InstrumentType.fromBrokerString(dto.instrumentType.ifBlank { "share" }),
         )
 
     private fun fromFuture(dto: PositionsFuturesDto): PositionStreamItem =
@@ -55,7 +56,7 @@ object TInvestPositionsWsMapper {
             ticker = dto.ticker,
             quantity = dto.balance?.toLongOrNull() ?: 0L,
             classCode = dto.classCode,
-            instrumentType = "futures",
+            instrumentType = InstrumentType.FUTURES,
         )
 
     /**
@@ -95,7 +96,7 @@ object TInvestPositionsWsMapper {
             brokerName = BrokerName.TINVEST,
             ticker = "",
             quantity = 0L,
-            instrumentType = "currency",
+            instrumentType = InstrumentType.CURRENCY,
             currency = currency,
         )
 
