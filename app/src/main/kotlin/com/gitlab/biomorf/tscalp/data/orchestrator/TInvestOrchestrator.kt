@@ -15,6 +15,7 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.toStreamItem
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -114,7 +115,7 @@ class TInvestOrchestrator(
             return rest(accountId, sandboxMode)
         }
         return try {
-            portfolio.fetchPortfolioPositions(accountId, sandboxMode)
+            portfolio.fetchPortfolioPositions(accountId, sandboxMode).positions.map { it.toStreamItem() }
         } catch (e: Throwable) {
             if (isTransportError(e) && positionsRestFallback != null) {
                 logger.w(TAG, "gRPC transport error (${e.message}), falling back to REST for positions")

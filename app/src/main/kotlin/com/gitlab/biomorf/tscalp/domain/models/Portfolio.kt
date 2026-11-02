@@ -571,3 +571,32 @@ fun PositionStreamItem.toAccountBalance(): AccountBalance? {
         blocked = blocked ?: 0.0,
     )
 }
+
+/**
+ * Обратный адаптер [Position] -> [PositionStreamItem].
+ *
+ * Нужен для `TInvestOrchestrator.positionsSnapshot`: тот возвращает
+ * `List<PositionStreamItem>` для merge в `PositionFlowManager`, а источник
+ * (`PortfolioApi.fetchPortfolioPositions`) уже отдаёт `AccountPortfolio`.
+ *
+ * `quantity` приводится к `Long` (lossy — Finam дробное; до миграции Finam
+ * не работает). `isDomesticCurrency = false` — `Position` для currency только
+ * иностранная (RUB идёт в `AccountBalance`). `money`/`blocked` = `null`
+ * (их место — `AccountBalance`).
+ */
+internal fun Position.toStreamItem(): PositionStreamItem =
+    PositionStreamItem(
+        tscalpInstrumentId = instrument.tscalpInstrumentId,
+        brokerName = brokerName,
+        ticker = instrument.ticker,
+        quantity = quantity.toLong(),
+        currentPrice = currentPrice,
+        averagePositionPrice = averagePrice,
+        expectedYield = profit,
+        classCode = instrument.classCode ?: "",
+        isin = instrument.isin,
+        moneyPerPointOfPrice = instrument.moneyPerPointOfPrice,
+        instrumentType = instrument.instrumentType,
+        accountId = accountId,
+        isDomesticCurrency = false,
+    )
