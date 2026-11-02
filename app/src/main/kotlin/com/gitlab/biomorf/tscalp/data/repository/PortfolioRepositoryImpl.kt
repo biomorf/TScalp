@@ -90,5 +90,7 @@ class PortfolioRepositoryImpl
                 isin = instrument.isin,
                 classCode = instrument.classCode ?: "",
                 currency = instrument.currency,
+                accountId = accountId,
+                lockedQuantity = lockedQuantity,
             )
     }
