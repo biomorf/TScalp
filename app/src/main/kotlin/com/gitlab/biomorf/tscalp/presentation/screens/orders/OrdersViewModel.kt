@@ -18,6 +18,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -972,10 +973,13 @@ class OrdersViewModel
             }
         }
 
-        fun startPositionUpdates() {
+        suspend fun startPositionUpdates() {
             stopPositionUpdates()
             val accountId = _uiState.value.selectedAccountId ?: return
-            positionFlowManager.start(accountId)
+            positionFlowManager.start(
+                accountKeys = setOf(AccountKey(BrokerName.TINVEST, accountId)),
+                sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+            )
             positionStreamJob =
                 viewModelScope.launch {
                     // Ошибки потока логирует сам PositionFlowManager

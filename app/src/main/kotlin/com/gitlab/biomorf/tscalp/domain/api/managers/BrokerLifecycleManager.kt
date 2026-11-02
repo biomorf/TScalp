@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesReposit
 import com.gitlab.biomorf.tscalp.domain.api.repository.BrokerCredentialsRepository
 import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -76,7 +77,10 @@ class BrokerLifecycleManager
             if (accountId != savedAccountId) {
                 accountPreferencesRepository.saveDefaultAccountId(BrokerName.TINVEST, accountId)
             }
-            positionFlowManager.start(accountId)
+            positionFlowManager.start(
+                accountKeys = setOf(AccountKey(BrokerName.TINVEST, accountId)),
+                sandboxMode = sandbox,
+            )
         }
 
         /**

@@ -12,6 +12,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
@@ -148,7 +149,7 @@ class PortfolioViewModel
                 }
 
                 // Запускаем (или перезапускаем) подписку на общий поток позиций
-                startPositionUpdates(accountId)
+                startPositionUpdates(accountId, sandbox)
                 // Обновляем интерес к ценам: набор tscalpInstrumentId мог измениться
                 syncPriceInterest()
             }
@@ -160,9 +161,15 @@ class PortfolioViewModel
          * loadPortfolio (init, refresh, payInSandbox) добавлял бы новый
          * вечный коллектор к бесконечному SharedFlow.
          */
-        private fun startPositionUpdates(accountId: String) {
+        private fun startPositionUpdates(
+            accountId: String,
+            sandbox: Boolean,
+        ) {
             stopPositionUpdates()
-            positionFlowManager.start(accountId)
+            positionFlowManager.start(
+                accountKeys = setOf(AccountKey(BrokerName.TINVEST, accountId)),
+                sandboxMode = sandbox,
+            )
             positionStreamJob =
                 viewModelScope.launch {
                     positionFlowManager.flow.collect { item ->

@@ -10,6 +10,7 @@ import com.gitlab.biomorf.tscalp.domain.api.roles.BrokerCredentials
 import com.gitlab.biomorf.tscalp.domain.api.roles.SandboxApi
 import com.gitlab.biomorf.tscalp.domain.api.roles.TInvestLifecycleApi
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
+import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import io.mockk.coEvery
@@ -68,7 +69,7 @@ class BrokerLifecycleManagerTest {
 
             coVerify(exactly = 1) { mockTInvestLifecycle.initialize(BrokerCredentials.TInvest("tok", false)) }
             verify(exactly = 1) { mockRegistry.refreshInitializationState() }
-            verify(exactly = 1) { mockPositionFlowManager.start("acc-1") }
+            verify(exactly = 1) { mockPositionFlowManager.start(setOf(AccountKey(BrokerName.TINVEST, "acc-1")), false) }
         }
 
     @Test
@@ -83,7 +84,7 @@ class BrokerLifecycleManagerTest {
 
             newManager().restoreTInvest(mockBroker)
 
-            verify(exactly = 1) { mockPositionFlowManager.start("acc-1") }
+            verify(exactly = 1) { mockPositionFlowManager.start(setOf(AccountKey(BrokerName.TINVEST, "acc-1")), false) }
             coVerify(exactly = 1) { mockAccountPreferences.saveDefaultAccountId(BrokerName.TINVEST, "acc-1") }
         }
 
@@ -101,7 +102,7 @@ class BrokerLifecycleManagerTest {
             newManager().restoreTInvest(mockBroker)
 
             coVerify(exactly = 1) { mockSandbox.openSandboxAccount() }
-            verify(exactly = 1) { mockPositionFlowManager.start("sandbox-1") }
+            verify(exactly = 1) { mockPositionFlowManager.start(setOf(AccountKey(BrokerName.TINVEST, "sandbox-1")), true) }
         }
 
     @Test
@@ -117,7 +118,7 @@ class BrokerLifecycleManagerTest {
 
             newManager().restoreTInvest(mockBroker)
 
-            verify(exactly = 1) { mockPositionFlowManager.start("acc-saved") }
+            verify(exactly = 1) { mockPositionFlowManager.start(setOf(AccountKey(BrokerName.TINVEST, "acc-saved")), false) }
         }
 
     @Test
@@ -135,7 +136,7 @@ class BrokerLifecycleManagerTest {
             newManager().restoreTInvest(mockBroker)
 
             coVerify(exactly = 1) { mockSandbox.openSandboxAccount() }
-            verify(exactly = 1) { mockPositionFlowManager.start("sandbox-1") }
+            verify(exactly = 1) { mockPositionFlowManager.start(setOf(AccountKey(BrokerName.TINVEST, "sandbox-1")), true) }
         }
 
     @Test
