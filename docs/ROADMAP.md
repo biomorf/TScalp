@@ -68,71 +68,6 @@ clean-audit.
 
 ## Планируемые задачи
 
-### Instrument: Phase 2 (sealed interface)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-
-**Ветка:** feature/instrument-sealed-interface.
-
-**Контекст:** C-min (Phase 1) закрыт — `Instrument` / `Future` / `Share` / `InstrumentType` работают в `domain` + `data` + `presentation`. Phase 2 — `sealed interface Instrument` (ISP/LSP, exhaustive `when`, subtype-specific поля в своих типах). Разблокирует реализацию BCS/Finam API: сейчас `userInstruments = null` у обоих, модель не нагружена. Подробности — `docs/domain_models.md` §8 (11 шагов, 3 коммита).
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:**
-- `### ✅ Instrument: C-min (Phase 1)` — закрыт.
-- Начало реализации `### Реализация BCS Broker API` или `### Реализация Finam Broker API` (триггер).
-
-**Файлы:**
-- `app/src/main/kotlin/.../domain/models/Instruments.kt` — `sealed interface Instrument` + 7 `data class` (`Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other`).
-- `app/src/main/kotlin/.../data/api/tinvest/TInvestInstrumentMapper.kt` — `mapProtoToDomain` split на 6 мапперов + диспетчер.
-- `app/src/main/kotlin/.../data/api/tinvest/TInvestRestMappers.kt` — `toInstrument` split на 6 функций.
-- `app/src/main/kotlin/.../data/repository/SearchCacheImpl.kt` — сортировка: `when (instrument) { is Future -> ... }`.
-- `app/src/main/kotlin/.../presentation/` — все `when (instrumentType)` → `when (instrument)` (AssetPositionCard, OrdersScreen, ConfirmOrderDialog, OrderCard, PositionFormatter, OrdersViewModel).
-- `app/src/test/.../` — тесты мапперов Share/Future/Bond (по образцу текущих).
-
-**Шаги** (детали — `docs/domain_models.md` §8):
-1. Шаг 0 (read-only): полный маппинг subtype-specific по 3 брокерам, обновить §5/§9.
-2. Коммит 1: `sealed interface Instrument` + 7 `data class`.
-3. Коммит 2: сменить relation, `mapProtoToDomain` → 6 мапперов + диспетчер.
-4. Коммит 3: `toInstrument` → 6 функций, `SearchCacheImpl` сортировка, все `when (instrumentType)` → `when (instrument)`.
-
-**Тесты:** тесты мапперов Share/Future/Bond (по образцу текущих). Live-тест не требуется (рефакторинг, поведение не меняется).
-
-**Референсы:** `docs/domain_models.md` §5, §8, §9 (мастер-план, таблицы, обоснования); `docs/clean-audit.md` → Н6 (`InstrumentUi` — god-класс).
-
-**Ограничения:**
-- Не менять UI без санкции (правило 1) — Phase 2 не меняет визуал.
-- `PortfolioPosition` (Н5, разделение domain/presentation) — **отдельная задача**, не в scope.
-- Margin/risk — **отдельная задача** `### Margin/risk → TradeCheckResult`, не в scope.
-- Proto-поля `Bond` / `Option` / `Etf` / `Currency` — из `docs/domain_models.md` §5 (стартовые), при реализации расширить (BCS/Finam дадут полный список).
-
-**Критерий готовности:**
-- Все `when (instrument)` exhaustive (компилятор подтверждает).
-- `grep "InstrumentUi\|FutureUi\|ShareUi"` в `main` = 0.
-- `grep "when (instrumentType)"` в `main` = 0.
-- Гейт зелёный; `docs/domain_models.md` §8 чек-боксы `[x]`.
-
-**Оценка:** ~5 ч + 3–5 CI-циклов.
-
-**Зависимости:** начало `### Реализация BCS Broker API` / `### Реализация Finam Broker API` (триггер).
-
-**Связано:** `docs/domain_models.md` §5, §8, §9; `docs/clean-audit.md` → Н6; `### ✅ Instrument: C-min (Phase 1)` (предусловие).
-
-**Открытые вопросы:**
-- BCS mapping для subtype-полей (`emissionDate` ↔ `ipoDate`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `subType` ↔ `shareType`, `liquidityRating` vs `liquidityFlag`) — Phase 2, шаг 0.
-- Finam `priceStepCost` формула (`min_step/10^decimals × contract_size`) — live-подтверждение.
-- T-Invest `"fond"` vs `"etf"` — уже отражено в `InstrumentType.fromBrokerString` (C-min), при Phase 2 — проверить.
-
----
-
 ### Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -192,6 +127,121 @@ clean-audit.
 **Открытые вопросы:**
 - Форма: отдельный `MarginInfo` или поле в `TradeCheckResult` — решить при старте.
 - `klong`/`kshort` — deprecated в T-Invest; включать в модель или нет — решить при старте.
+
+---
+
+### Реализация BCS Broker API
+
+**Мобильная работа:** частичное (live-тест BCS API).
+
+**Статус:** запланировано.
+
+**Контекст:** `BcsBrokerApi` — заглушка. Из 25 методов работают 3-4: `getAccounts` (HTTP GET к портфелю), `postOrder` (HTTP POST). Остальные — `emptyList`, `UnsupportedOperationException`, no-op. `userInstruments = null`, `streams = null`, `sandbox = null`, `lifecycle` — есть. BCS REST + WebSocket — отдельная история (docs `https://trade-api.bcs.ru/`). Закрывает §8 шаг 0.2 (BCS mapping subtype-полей: `emissionDate` ↔ `ipoDate`, `subType` ↔ `shareType`, `baseAssetFuture` ↔ `futuresType`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `liquidityRating` vs `liquidityFlag` — 6 `(?)` в `docs/domain_models.md` §9).
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `data/api/bcs/BcsBrokerApi.kt` — реализация.
+- `data/api/bcs/BcsModels.kt` (новый) — DTO для JSON-ответов BCS.
+- `data/api/bcs/BcsMappers.kt` (новый) — конвертеры JSON ↔ domain.
+- `docs/domain_models.md` §9 — снять `(?)` для BCS-колонки.
+- `docs/domain_models.md` §10 — закрыть или обновить открытые вопросы.
+
+**Шаги:**
+1. Изучить BCS API: базовый URL (`https://trade-api.bcs.ru/`), авторизация (OAuth2 через Keycloak, refresh-token 90 дней), REST-эндпоинты, WS (`wss://ws.broker.ru/trade-api-*/api/v1/.../ws`).
+2. Реализовать `getAccounts`, `fetchPortfolioPositions`, `getBalance`, `findInstruments`, `getTradingStatuses`.
+3. Реализовать `postOrder` (уже есть), `postStopOrder`, `getOrders`, `getStopOrders`, `cancelOrder`, `cancelStopOrder` — реально или `null` (по nullable-val).
+4. Реализовать `userInstruments` (если BCS даёт поиск — `findInstruments` + `getTradingStatuses`).
+5. Реализовать `streams` (BCS WS: котировки, статус заявок, лимиты). BCS WS — `type` + payload.
+6. BCS mapping subtype-полей (6 `(?)` в §9).
+7. Закрыть §8 шаг 0.2.
+
+**Тесты:** unit-тесты мапперов (моки OkHttp/JSON). Live-тест на реальном BCS-счёте (согласование с руководителем).
+
+**Референсы:** `docs/brokers.md` → BCS; `https://trade-api.bcs.ru/`; `https://trade-api.bcs.ru/http/information`; `### Реализация Finam Broker API` (образец).
+
+**Ограничения:**
+- Не менять `BcsBrokerApi` публичный контракт — только реализация.
+- `BcsBrokerApi.orders = null` → **не** ставить supertype `OrdersApi`, если не все 6 методов работают (nullable-val правило).
+- `sandbox = null` у BCS не будет по природе брокера (нет песочницы).
+
+**Критерий готовности:**
+- `BcsBrokerApi` реализует `AccountsApi`, `PortfolioApi`, `MarketDataApi`, `UserInstrumentsApi`, `StreamsApi`, `OrdersApi` (кроме неработающих — `null`).
+- BCS-mapping subtype-полей: 0 `(?)` в BCS-колонке §9.
+- §8 шаг 0.2 — `[x]`.
+- Live-тест PASS.
+
+**Оценка:** ~15–20 ч (зависит от BCS API и сложности WS).
+
+**Зависимости:** нет.
+
+**Связано:** `### Реализация Finam Broker API` (образец); `docs/domain_models.md` §8 шаг 0.2; `### Пакет C: TInvestMarketDataService split` (образец data-слоя).
+
+**Открытые вопросы:** BCS WS `type` + payload формат — по `https://trade-api.bcs.ru/websocket/portfolio/`; при реализации подтвердить.
+
+---
+
+### T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** в Phase 2 (§8 шаг 3) `mapShare` / `mapFuture` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` принимают `ProtoInstrument` — bulk-тип, в котором **нет** subtype-specific полей. Поэтому `mapShare` возвращает `Share` с `ipoDate = null`, `issueSize = null`, ...; `mapFuture` — `Future` с `firstTradeDate = null`, ...; и т.д. Поля из §5 (`ipoDate`, `issueSize`, `futureType`, `firstTradeDate`, `faceValue`, `couponRate`, `direction`, `strikePrice`, ...) **не заполняются**. Это `0.2`/`0.3` для T-Invest proto — §8 шаг 0.1 говорит «`Share`/`Future`/`Option`/`Instrument` уже получены 2026-11-01», но маппинг не сделан.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `data/api/tinvest/TInvestInstrumentMapper.kt` — переписать `mapShare` / `mapFuture` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` на proto `Share` / `Future` / `Bond` / `Option` / `Etf` / `Currency`.
+- `data/api/tinvest/TInvestInstrumentsService.kt` — `fetchProtoInstrument` возвращает `Instrument` (bulk); для каждого типа — отдельный вызов SDK (`Shares().shareBy` / `Futures().futureBy` / ...) или `Instrument` + `GetInstrumentBy` c `instrumentKind`.
+- `data/api/tinvest/TInvestRestMappers.kt` / `TInvestRestInstrumentMappers.kt` — то же для REST (если REST отдаёт `Share`/`Future`/... — сейчас `RestInstrument` единый).
+- `data/repository/InstrumentRepositoryImpl.kt` — если нужен кэш по типу.
+
+**Шаги:**
+1. Проверить, какие proto-типы T-Invest SDK доступны (`Share` / `Future` / `Bond` / `Option` / `Etf` / `Currency`).
+2. Переписать 6 мапперов на proto-subtype (T-Invest API: `InstrumentsService.Shares` / `Futures` / `Bonds` / `Options` / `Etfs` / `Currencies`).
+3. `fetchProtoInstrument` → `fetchProtoInstrumentByType` (dispatcher по `instrumentType`).
+4. Заполнить subtype-specific в 6 data class.
+5. `Bond` / `Option` / `Etf` / `Currency` — тоже заполнить (не только `Future` / `Share`).
+6. Тесты: 6 мапперов (unit).
+
+**Тесты:** `TInvestInstrumentMapperTest` — 6 функций, каждый subtype-specific-поле проверено.
+
+**Референсы:** proto T-Invest: `ru.tinkoff.piapi.contract.v1.{Share, Future, Bond, Option, Etf, Currency}`; SDK: `InstrumentsService` (`shares` / `futures` / `bonds` / `options` / `etfs` / `currencies`).
+
+**Ограничения:**
+- Не менять `Instrument` интерфейс — только заполнение subtype-specific.
+- `mapOther` — остаётся `Other` без subtype-specific (по §5).
+- REST fallback: `RestInstrument` — единый DTO; если REST не даёт subtype-specific — оставить `null` (см. §8 «при реализации BCS/Finam»).
+
+**Критерий готовности:**
+- `mapShare` / `mapFuture` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` заполняют subtype-specific поля (не `null` по умолчанию).
+- Тесты мапперов — 6 функций, subtype-specific поля проверены.
+- Гейт зелёный.
+
+**Оценка:** ~4–6 ч.
+
+**Зависимости:** нет.
+
+**Связано:** `docs/domain_models.md` §5, §8 шаг 3; `### Пакет C: TInvestMarketDataService split` (образец).
+
+**Открытые вопросы:** какие proto-поля `Bond` / `Etf` / `Currency` точно доступны — при реализации подтвердить.
 
 ---
 
@@ -8508,3 +8558,22 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Оценка:** план ~3 ч; факт — 14 коммитов (включая 4 fix'а на ktlint/detekt и 1 на import order после rename), 6 CI-итераций. Основные задержки — anchor'ы для массовых замен (визуальные отступы vs regex) и data class constraints (`override val` обязательны).
 
 **Связано:** `docs/domain_models.md` §7; `docs/clean-audit.md` → Н7 (закрыт), Н6 (частично — god-класс остаётся до Phase 2); `### Instrument: Phase 2 (sealed interface)` (следующая фаза).
+
+### ✅ Instrument: Phase 2 (sealed interface)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** `open class Instrument` (39 полей, god-класс) → `sealed interface Instrument` (22 поля: core 4 + common 10 + 8 флагов) + 7 `data class` (`Share`, `Future`, `Bond`, `Option`, `Etf`, `Currency`, `Other`). `mapProtoToDomain` split на 7 мапперов (`mapFuture` / `mapShare` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` / `mapOther`), `toInstrument` split на 7 (`toFuture` / `toShare` / `toBond` / `toOption` / `toEtf` / `toCurrency` / `toOther`), оба — dispatcher по `InstrumentType`. Подробности — `docs/domain_models.md` §8 (11 шагов).
+
+**Что сделано:**
+
+- `Instruments.kt`: `open class Instrument` (39) → `sealed interface Instrument` (22) + 7 `data class` (коммит `bf34061`). Margin/risk (10) — в `Future` (до `### Margin/risk`). Удалены 7 YAGNI-полей (`first1minCandleDate`, `first1dayCandleDate`, `countryOfRisk`, `countryOfRiskName`, `sector`, `brand`, `requiredTests`) + 4 «не включаем» (`tradingStatus`, `instrumentExchange`, `assetUid`, `positionUid`). `minPriceIncrementAmount` → `priceStepCost` (§2/§4).
+- `TInvestInstrumentMapper`: 7 мапперов + dispatcher (коммит `53810b9`). Каждая функция ~25 строк (было 146 строк в одной).
+- `TInvestRestMappers`: split на 2 файла — `TInvestRestMappers.kt` (6 функций, dispatcher) + `TInvestRestInstrumentMappers.kt` (7 функций) (коммит `f9d53b9`, detekt `TooManyFunctions`).
+- `CalculateTradeDetailsUseCaseTest`: `Share(...)` / `Future(...)` вместо `Instrument(...)` (sealed — нельзя конструировать); `minPriceIncrementAmount` → `priceStepCost` (коммит `08f0132`).
+- `clean-audit` Н6 (`InstrumentUi` god-класс) — закрывается.
+- 0.2 (BCS mapping) / 0.3 (Finam mapping) — **отложены** до `### Реализация BCS Broker API` / `### Реализация Finam Broker API` (в §10 §8).
+
+**Оценка:** план ~5 ч; факт — 3 коммита + 5 fix-коммитов (4 ktlint/detekt + 1 import order + 1 trailing newline + split `TooManyFunctions`) = 9 коммитов, 4 CI-цикла. Основные задержки — ktlint на split-мапперах (multiline signatures, import order, alias) и detekt `TooManyFunctions` (split `TInvestRestMappers`).
+
+**Связано:** `docs/domain_models.md` §8; `docs/clean-audit.md` → Н6 (закрыт); `### Реализация BCS Broker API` (0.2); `### Реализация Finam Broker API` (0.3); `### T-Invest: subtype-specific поля` (шаг 3); `### Margin/risk → TradeCheckResult` (margin из `Future`).

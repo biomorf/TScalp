@@ -97,6 +97,7 @@
 
 **`Future`** (proto T-Invest `Future` + BCS + Finam):
 - `firstTradeDate: Instant?`, `lastTradeDate: Instant?`, `futuresType: String?`, `assetType: String?`, `basicAsset: String?`, `basicAssetSize: Double?`, `basicAssetPositionUid: String?`
+- Margin/risk (10, из §6, переносятся из `Instrument` в Phase 2; `### Margin/risk` вынесет их позже в `TradeCheckResult`): `initialMarginOnBuy: Double?`, `initialMarginOnSell: Double?`, `dlong: Double?`, `dshort: Double?`, `dlongMin: Double?`, `dshortMin: Double?`, `dlongClient: Double?`, `dshortClient: Double?`, `klong: Double?`, `kshort: Double?`
 
 **`Bond`** (proto T-Invest `Bond` + BCS `bond_details`):
 - `faceValue: Double?`, `couponRate: Double?`, `nextCoupon: Instant?`, `couponsPerYear: Long?`, `accruedInt: Double?`, `creditRating: String?`
@@ -105,6 +106,10 @@
 - `direction: String?` (`PUT`/`CALL`), `paymentType: String?` (`PREMIUM`/`MARGINAL`), `style: String?` (`AMERICAN`/`EUROPEAN`), `settlementType: String?` (`PHYSICAL_DELIVERY`/`CASH_SETTLEMENT`), `strikePrice: Double?`, `firstTradeDate: Instant?`, `lastTradeDate: Instant?`, `expirationDate: Instant?` (последний — уже в common, здесь переопределяется как `non-null` в Phase 2)
 
 **`Etf`, `Currency`, `Other`:** только core + common.
+
+**Удаляем в Phase 2** (нет в §4 common, в main не читаются — YAGNI):
+- `first1minCandleDate: Instant?`, `first1dayCandleDate: Instant?` — даты первой свечи, не используются.
+- `countryOfRisk: String?`, `countryOfRiskName: String?`, `sector: String?`, `brand: String?` — метаданные эмитента, не используются.
 
 **Явно не включаем в модель** (решения от 2026-11-01):
 - `requiredTests: List<String>` — пользователь проходит тесты на сайте брокера; при попытке операции ошибка ловится с сервера. YAGNI.
@@ -208,7 +213,7 @@
 
 **Оценка:** ~5 ч (step 0 + 7 шагов + 3 гейта). После C-min rename — экономия ~30 мин на переименовании: `Instrument`/`Future`/`Share` уже названы правильно, остаётся только сменить relation.
 
-**Триггер:** начало реализации BCS Broker API или Finam Broker API. Сейчас `userInstruments = null` у обоих — модель не нагружена.
+**Триггер:** снят явно (2026-11-02, руководитель). Phase 2 выполнена без BCS/Finam — модель готова; шаги 0.2/0.3 (BCS/Finam mapping) отложены до `### Реализация BCS Broker API` / `### Реализация Finam Broker API`.
 
 **Ветка:** `feature/instrument-sealed-interface`, один PR, 3 коммита внутри.
 
@@ -218,36 +223,36 @@
 
 #### Шаг 0. Полный маппинг subtype-specific (read-only)
 
-- [ ] **0.1.** T-Invest: proto `Share`, `Future`, `Bond`, `Option`, `Etf`, `Currency` — полные списки полей. `Share`/`Future`/`Option`/`Instrument` — уже получены 2026-11-01. `Bond`/`Etf`/`Currency` — при реализации (тривиальные списки).
-- [ ] **0.2.** BCS: `instruments/by-isins`, `by-type` — какие поля относятся к Share/Future/Bond/Etf. Сверить `(?)`-пометки в §9 (например, `emissionDate` ↔ `ipoDate`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `subType` ↔ `shareType`, `liquidityRating` vs `liquidityFlag`).
-- [ ] **0.3.** Finam: `AssetsService/GetAsset` — `future_details`, `bond_details`, `option_details`. Сверить.
-- [ ] **0.4.** Обновить §5 и §9: полные списки, без `(?)` там, где подтверждено; оставшиеся `(?)` — в §10.
+- [x] **0.1.** T-Invest: proto `Share`, `Future`, `Bond`, `Option`, `Etf`, `Currency` — полные списки полей. `Share`/`Future`/`Option`/`Instrument` — уже получены 2026-11-01. `Bond`/`Etf`/`Currency` — при реализации (тривиальные списки). **Выполнено (2026-11-02):** списки зафиксированы в §5, для `Bond`/`Etf`/`Currency` — стартовые; точные proto-поля — при реализации.
+- [ ] **0.2.** BCS: `instruments/by-isins`, `by-type` — какие поля относятся к Share/Future/Bond/Etf. Сверить `(?)`-пометки в §9 (например, `emissionDate` ↔ `ipoDate`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `subType` ↔ `shareType`, `liquidityRating` vs `liquidityFlag`). **Отложено:** BCS-документации нет в переданных docs; `(?)` в §9 остаются до `### Реализация BCS Broker API`.
+- [ ] **0.3.** Finam: `AssetsService/GetAsset` — `future_details`, `bond_details`, `option_details`. Сверить. **Отложено:** Finam-документации нет в переданных docs; до `### Реализация Finam Broker API`.
+- [x] **0.4.** Обновить §5 и §9: полные списки, без `(?)` там, где подтверждено; оставшиеся `(?)` — в §10. **Выполнено (2026-11-02):** §5 актуален (списки + margin + удаляем 6 полей); §9 `(?)` (3 шт) остаются — BCS mapping, отложено (см. §10).
 - **Оценка:** 30 мин. **Блокер:** нет.
 
 #### Коммит 1 — sealed interface + data classes (шаги 1–2)
 
-- [ ] **1.** `sealed interface Instrument` (core 4 + common 9 + флаги). Общие члены — на интерфейсе: core non-null, common nullable, флаги nullable.
-- [ ] **2.** 7 `data class`: `Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other` — с subtype-specific полями из §5.
+- [x] **1.** `sealed interface Instrument` (core 4 + common 9 + флаги). Общие члены — на интерфейсе: core non-null, common nullable, флаги nullable.
+- [x] **2.** 7 `data class`: `Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other` — с subtype-specific полями из §5.
   - `Etf`, `Currency`, `Other` — только core + common (нет subtype-specific по §5). Различаются **самим типом**, не полем — в этом смысл sealed.
   - `Option` — с полями из §5 (`direction`, `paymentType`, `style`, `settlementType`, `strikePrice`, `firstTradeDate`, `lastTradeDate`). Не реализуется в мапперах и операциях, но **в модели есть** — иначе `when` не exhaustive при появлении опционов.
 - **Оценка:** 1 ч.
 
 #### Коммит 2 — `mapProtoToDomain` split (шаги 3–4)
 
-- [ ] **3.** Сменить relation (после C-min `InstrumentUi` → `Instrument`, `FutureUi` → `Future`, `ShareUi` → `Share`):
+- [x] **3.** Сменить relation (после C-min `InstrumentUi` → `Instrument`, `FutureUi` → `Future`, `ShareUi` → `Share`):
   - `open class Instrument` → `sealed interface Instrument`.
   - `data class Future`/`Share` — `: InstrumentUi(...)` → `: Instrument`.
   - Позиционное делегирование (48 аргументов в `FutureUi`/`ShareUi`) **удаляется**: `override` в декларации, не в вызове.
-- [ ] **4.** `mapProtoToDomain` (146 строк) → 6 мапперов + диспетчер:
+- [x] **4.** `mapProtoToDomain` (146 строк) → 6 мапперов + диспетчер:
   - `mapShare(proto: Share): Share`, `mapFuture(proto: Future): Future`, `mapBond(proto: Bond): Bond`, `mapOption(proto: Option): Option`, `mapEtf(...): Etf`, `mapCurrency(...): Currency`.
   - Диспетчер: `when (proto) { is Share -> mapShare(...); is Future -> mapFuture(...); ... }` — exhaustive по proto-типам.
 - **Оценка:** 1.5 ч.
 
 #### Коммит 3 — `toInstrumentUi` split + SearchCache + exhaustive `when` (шаги 5–7)
 
-- [ ] **5.** `toInstrumentUi` (4 функции в `TInvestRestMappers`) → 6 функций по аналогии с шагом 4.
-- [ ] **6.** `SearchCacheImpl:52` — сортировка: `when (instrument) { is Future -> instrument.expirationDate; ... }` вместо `as? FutureUi`.
-- [ ] **7.** Все `when (instrumentType)` → `when (instrument)`:
+- [x] **5.** `toInstrumentUi` (4 функции в `TInvestRestMappers`) → 6 функций по аналогии с шагом 4.
+- [x] **6.** `SearchCacheImpl:52` — сортировка: `when (instrument) { is Future -> instrument.expirationDate; ... }` вместо `as? FutureUi`.
+- [x] **7.** Все `when (instrumentType)` → `when (instrument)`:
   - `OrdersScreen.getInstrumentTypeColor` — `when (instrument) { is Share -> ...; is Future -> ...; ... }`.
   - `TInvestPositionsWsMapper`, `TInvestPortfolioService` — проверка типа через `is`.
   - `PositionFlowManager:234,237` — склейка currency через `is Currency`.
@@ -275,6 +280,9 @@
 
 **Что sealed НЕ даёт.** Заменяет `as? Future` на `is Future` + smart cast (форма exhaustive, но проверка типа никуда не уходит). Не ускоряет JVM-`instanceof`. Не решает «сколько типов» — если брокеры дадут 50 `type`, sealed превратится в 50 `data class` (поэтому `InstrumentType` enum — 14 значений — компромисс, а sealed — на 7 конкретных типах).
 
+
+
+**Phase 2 закрыта (2026-11-02).** 9/11 шагов; шаги 0.2/0.3 (BCS/Finam mapping subtype-полей) отложены до `### Реализация BCS Broker API` / `### Реализация Finam Broker API`. 9 коммитов (`bf34061`..`f9d53b9` + fix'ы), CI зелёный.
 
 ### 9. Сравнительные таблицы
 
@@ -403,6 +411,8 @@
 | 6 | **Margin/risk → `TradeCheckResult`** (отдельная задача). | `initialMargin*`, `dlong*` | **2026-11-02** |
 | 7 | `InstrumentType` enum — точный маппинг T-Invest proto (`SHARE`/`BOND`/`ETF`/`FUTURES`/...) и Finam `type` (по документации). | `InstrumentType` | C-min |
 | 8 | `PositionFlowManager:234,237` — склейка валютных позиций по `currency` (и `instrumentType == "currency"`). При переименовании в enum — `InstrumentType.CURRENCY`. | `PositionFlowManager` | C-min |
+
+| 9 | **BCS mapping subtype-полей** (`emissionDate` ↔ `ipoDate`, `subType` ↔ `shareType`, `baseAssetFuture` ↔ `futuresType`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `liquidityRating` vs `liquidityFlag`) — §9 `(?)` (3 шт) остаются до `### Реализация BCS Broker API`. Finam `future_details`/`bond_details`/`option_details` — до `### Реализация Finam Broker API`. | §9 | при реализации BCS/Finam |
 
 **Закрытые (2026-11-01):**
 - `requiredTests` — не включаем (Q3). Тесты проходятся на сайте брокера; ошибка операции ловится как `AppError` с сервера.

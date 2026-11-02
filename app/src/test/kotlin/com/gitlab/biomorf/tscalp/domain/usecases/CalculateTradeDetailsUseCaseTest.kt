@@ -1,9 +1,8 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
 import com.gitlab.biomorf.tscalp.domain.models.Future
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.Share
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -35,22 +34,21 @@ class CalculateTradeDetailsUseCaseTest {
 
     // ---------- Хелперы ----------
 
-    private fun share(ticker: String = "SBER"): Instrument =
-        Instrument(
+    private fun share(ticker: String = "SBER"): Share =
+        Share(
             tscalpInstrumentId = "uid_$ticker",
             ticker = ticker,
             classCode = "TQBR",
             isin = "ISIN_$ticker",
             name = "$ticker Inc.",
             currency = "rub",
-            lot = 1,
-            instrumentType = InstrumentType.SHARE,
+            lot = 1L,
         )
 
     private fun future(
         ticker: String = "SBRF",
         minPriceIncrement: Double = 1.0,
-        minPriceIncrementAmount: Double = 1.0,
+        priceStepCost: Double = 1.0,
     ): Future =
         Future(
             tscalpInstrumentId = "uid_$ticker",
@@ -59,9 +57,9 @@ class CalculateTradeDetailsUseCaseTest {
             isin = "ISIN_$ticker",
             name = "$ticker future",
             currency = "rub",
-            lot = 1,
+            lot = 1L,
             minPriceIncrement = minPriceIncrement,
-            minPriceIncrementAmount = minPriceIncrementAmount,
+            priceStepCost = priceStepCost,
         )
 
     // ---------- executionPrice: выбор по типу ордера ----------
@@ -253,7 +251,7 @@ class CalculateTradeDetailsUseCaseTest {
                 limitPrice = null,
                 stopPrice = null,
                 orderType = OrderTypeSelection.Market,
-                instrument = future(minPriceIncrement = 0.5, minPriceIncrementAmount = 10.0),
+                instrument = future(minPriceIncrement = 0.5, priceStepCost = 10.0),
                 pairedInstrument = null,
                 quantity = 2,
                 pairedMultiplier = null,
@@ -276,9 +274,9 @@ class CalculateTradeDetailsUseCaseTest {
                 isin = "ISIN_f",
                 name = "F",
                 currency = "rub",
-                lot = 1,
+                lot = 1L,
                 minPriceIncrement = null,
-                minPriceIncrementAmount = null,
+                priceStepCost = null,
             )
         val result =
             useCase.calculate(
@@ -388,7 +386,7 @@ class CalculateTradeDetailsUseCaseTest {
                 stopPrice = null,
                 orderType = OrderTypeSelection.Market,
                 instrument = share("SBER"),
-                pairedInstrument = future(minPriceIncrement = 0.5, minPriceIncrementAmount = 10.0),
+                pairedInstrument = future(minPriceIncrement = 0.5, priceStepCost = 10.0),
                 quantity = 2,
                 pairedMultiplier = "3.0",
                 pairCurrentPrice = 100.0,

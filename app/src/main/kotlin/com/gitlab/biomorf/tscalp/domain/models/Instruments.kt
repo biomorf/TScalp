@@ -5,341 +5,357 @@ package com.gitlab.biomorf.tscalp.domain.models
 import kotlin.time.Instant
 
 /**
- * Базовый класс торгового инструмента.
+ * Доменная модель торгового инструмента (Phase 2, sealed interface).
  *
- * Даты — `kotlin.time.Instant` (KMP-safe, stdlib с Kotlin 2.3+).
+ * ISP/LSP: общие члены (core 4 + common 10 + 8 флагов = 22) — на интерфейсе.
+ * Subtype-specific поля — только в своих data class (см. `docs/domain_models.md` §4/§5).
+ * `when (instrument)` — exhaustive по подтипам.
  *
- * Содержит поля, общие для всех типов, а также поля,
- * специфичные для отдельных типов (акции, фьючерсы, опционы и т.д.).
- * Остаётся открытым для наследования: [Future], [Share] —
- * подтипы с переопределёнными полями. Поля, не применимые к
- * конкретному типу, остаются `null`.
- *
- * @property tscalpInstrumentId универсальный идентификатор
- *   инструмента в TScalp (не `uid`/`figi`). Domain-слой оперирует
- *   только им; трансляция в брокерские id — в data-слое.
- * @property figi FIGI инструмента (международный идентификатор,
- *   Bloomberg). Не T-Invest-специфичный: BCS в позициях тоже
- *   даёт figi.
- * @property instrumentType строковый enum: `"share"`, `"futures"`,
- *   `"currency"`, `"etf"`, `"bond"`, `"option"`. Не sealed-тип,
- *   потому что часть моделей использует один общий класс.
+ * @property tscalpInstrumentId универсальный идентификатор TScalp.
+ * @property ticker биржевой тикер.
+ * @property name отображаемое имя.
+ * @property instrumentType тип инструмента (enum).
+ * @property classCode код класса (TQBR, SPBFUT, ...).
+ * @property isin ISIN.
+ * @property figi FIGI (международный идентификатор).
+ * @property exchange торговая площадка.
+ * @property lot размер лота.
+ * @property currency валюта цены.
+ * @property settlementCurrency валюта расчётов.
+ * @property priceStepCost стоимость шага цены (бывш. minPriceIncrementAmount).
+ * @property minPriceIncrement шаг цены.
+ * @property expirationDate дата экспирации (Future / Option).
+ * @property apiTradeAvailableFlag флаг доступности через API.
+ * @property buyAvailableFlag флаг доступности покупки.
+ * @property sellAvailableFlag флаг доступности продажи.
+ * @property shortEnabledFlag флаг доступности шорта.
+ * @property forIisFlag флаг доступности для ИИС.
+ * @property forQualInvestorFlag флаг для квалифицированных инвесторов.
+ * @property weekendFlag флаг выходных торгов.
+ * @property blockedTcaFlag флаг блокировки TCA.
  */
+sealed interface Instrument {
+    val tscalpInstrumentId: String
+    val ticker: String
+    val name: String
+    val instrumentType: InstrumentType
 
-open class Instrument(
-    open val tscalpInstrumentId: String, // универсальный идентификатор TScalp
-    open val ticker: String,
-    open val classCode: String? = null, // код класса (например, SPBFUT)
-    open val isin: String, // ISIN
-    open val figi: String? = null,
-    open val name: String,
-    open val currency: String? = null,
-    open val lot: Long? = null,
-    open val instrumentType: InstrumentType = InstrumentType.OTHER,
-    // --- Общие поля (присутствуют у большинства типов) ---
-    open val exchange: String? = null, // торговая площадка
-    open val tradingStatus: String? = null, // режим торгов
-    open val apiTradeAvailableFlag: Boolean? = null, // доступность через API
-    open val buyAvailableFlag: Boolean? = null,
-    open val sellAvailableFlag: Boolean? = null,
-    open val shortEnabledFlag: Boolean? = null,
-    open val minPriceIncrement: Double? = null, // шаг цены
-    open val minPriceIncrementAmount: Double? = null, // стоимость шага цены
-    open val klong: Double? = null, // коэффициент риска long КСУР
-    open val kshort: Double? = null,
-    open val dlong: Double? = null, // ставка начальной маржи long КСУР
-    open val dshort: Double? = null,
-    open val dlongMin: Double? = null, // ставка начальной маржи long КПУР
-    open val dshortMin: Double? = null,
-    open val first1minCandleDate: Instant? = null,
-    open val first1dayCandleDate: Instant? = null,
-    open val forIisFlag: Boolean? = null,
-    open val forQualInvestorFlag: Boolean? = null,
-    open val weekendFlag: Boolean? = null,
-    open val blockedTcaFlag: Boolean? = null,
-    open val countryOfRisk: String? = null,
-    open val countryOfRiskName: String? = null,
-    open val sector: String? = null,
-    open val brand: String? = null, // (упрощённо)
-    open val requiredTests: List<String>? = null,
-    // --- Поля, специфичные для акций (Share) ---
-    open val ipoDate: Instant? = null,
-    open val issueSize: Long? = null,
-    open val issueSizePlan: Long? = null,
-    open val nominal: Double? = null,
-    open val divYieldFlag: Boolean? = null,
-    open val shareType: String? = null,
-    open val liquidityFlag: Boolean? = null,
-    open val assetUid: String? = null,
-    open val instrumentExchange: String? = null,
-    // --- Поля, специфичные для фьючерсов (Future) ---
-    open val expirationDate: Instant? = null,
-    open val firstTradeDate: Instant? = null,
-    open val lastTradeDate: Instant? = null,
-    open val futuresType: String? = null,
-    open val assetType: String? = null,
-    open val basicAsset: String? = null,
-    open val basicAssetSize: Double? = null,
-    open val positionUid: String? = null,
-    open val basicAssetPositionUid: String? = null,
-    open val initialMarginOnBuy: Double? = null,
-    open val initialMarginOnSell: Double? = null,
-    open val dlongClient: Double? = null,
-    open val dshortClient: Double? = null,
-    open val settlementCurrency: String? = null, // валюта расчётов (Option/bond_details), не заполняется
-)
+    val classCode: String?
+    val isin: String
+    val figi: String?
+    val exchange: String?
+    val lot: Long?
+    val currency: String?
+    val settlementCurrency: String?
+    val priceStepCost: Double?
+    val minPriceIncrement: Double?
+    val expirationDate: Instant?
+
+    val apiTradeAvailableFlag: Boolean?
+    val buyAvailableFlag: Boolean?
+    val sellAvailableFlag: Boolean?
+    val shortEnabledFlag: Boolean?
+    val forIisFlag: Boolean?
+    val forQualInvestorFlag: Boolean?
+    val weekendFlag: Boolean?
+    val blockedTcaFlag: Boolean?
+}
 
 /**
- * Модель фьючерса.
- * Содержит все поля базового класса, а также дополнительные поля,
- * специфичные для фьючерсов, и вычисляемое свойство pointValue.
+ * Фьючерс (proto T-Invest `Future` + BCS + Finam).
+ *
+ * Margin/risk-поля (10) — account-specific, будут вынесены в
+ * `TradeCheckResult` задачей `### Margin/risk`.
+ *
+ * @property firstTradeDate дата начала торгов.
+ * @property lastTradeDate дата окончания торгов.
+ * @property futuresType тип фьючерса.
+ * @property assetType тип базового актива.
+ * @property basicAsset базовый актив.
+ * @property basicAssetSize размер базового актива.
+ * @property basicAssetPositionUid uid базового актива.
+ * @property initialMarginOnBuy начальная маржа на покупку.
+ * @property initialMarginOnSell начальная маржа на продажу.
+ * @property dlong ставка начальной маржи long КСУР.
+ * @property dshort ставка начальной маржи short КСУР.
+ * @property dlongMin ставка начальной маржи long КПУР.
+ * @property dshortMin ставка начальной маржи short КПУР.
+ * @property dlongClient ставка начальной маржи long клиентская.
+ * @property dshortClient ставка начальной маржи short клиентская.
+ * @property klong коэффициент риска long.
+ * @property kshort коэффициент риска short.
  */
 data class Future(
     override val tscalpInstrumentId: String,
     override val ticker: String,
-    override val classCode: String? = null,
-    override val isin: String,
-    override val figi: String? = null,
     override val name: String,
-    override val currency: String? = null,
-    override val lot: Long? = null,
-    override val instrumentType: InstrumentType = InstrumentType.FUTURES,
-    // Поля, специфичные для фьючерсов, с переопределением из базового класса
+    override val isin: String,
+    override val classCode: String? = null,
+    override val figi: String? = null,
     override val exchange: String? = null,
-    override val tradingStatus: String? = null,
+    override val lot: Long? = null,
+    override val currency: String? = null,
+    override val settlementCurrency: String? = null,
+    override val priceStepCost: Double? = null,
+    override val minPriceIncrement: Double? = null,
+    override val expirationDate: Instant? = null,
     override val apiTradeAvailableFlag: Boolean? = null,
     override val buyAvailableFlag: Boolean? = null,
     override val sellAvailableFlag: Boolean? = null,
     override val shortEnabledFlag: Boolean? = null,
-    override val minPriceIncrement: Double? = null,
-    override val minPriceIncrementAmount: Double? = null,
-    override val klong: Double? = null,
-    override val kshort: Double? = null,
-    override val dlong: Double? = null,
-    override val dshort: Double? = null,
-    override val dlongMin: Double? = null,
-    override val dshortMin: Double? = null,
-    override val first1minCandleDate: Instant? = null,
-    override val first1dayCandleDate: Instant? = null,
     override val forIisFlag: Boolean? = null,
     override val forQualInvestorFlag: Boolean? = null,
     override val weekendFlag: Boolean? = null,
     override val blockedTcaFlag: Boolean? = null,
-    override val countryOfRisk: String? = null,
-    override val countryOfRiskName: String? = null,
-    override val sector: String? = null,
-    override val brand: String? = null,
-    override val requiredTests: List<String>? = null,
-    // Уникальные поля фьючерсов
-    override val expirationDate: Instant? = null,
-    override val firstTradeDate: Instant? = null,
-    override val lastTradeDate: Instant? = null,
-    override val futuresType: String? = null,
-    override val assetType: String? = null,
-    override val basicAsset: String? = null,
-    override val basicAssetSize: Double? = null,
-    override val positionUid: String? = null,
-    override val basicAssetPositionUid: String? = null,
-    override val initialMarginOnBuy: Double? = null,
-    override val initialMarginOnSell: Double? = null,
-    override val dlongClient: Double? = null,
-    override val dshortClient: Double? = null,
-) : Instrument(
-        tscalpInstrumentId,
-        ticker,
-        classCode,
-        isin,
-        figi,
-        name,
-        currency,
-        lot,
-        instrumentType,
-        exchange,
-        tradingStatus,
-        apiTradeAvailableFlag,
-        buyAvailableFlag,
-        sellAvailableFlag,
-        shortEnabledFlag,
-        minPriceIncrement,
-        minPriceIncrementAmount,
-        klong,
-        kshort,
-        dlong,
-        dshort,
-        dlongMin,
-        dshortMin,
-        first1minCandleDate,
-        first1dayCandleDate,
-        forIisFlag,
-        forQualInvestorFlag,
-        weekendFlag,
-        blockedTcaFlag,
-        countryOfRisk,
-        countryOfRiskName,
-        sector,
-        brand,
-        requiredTests,
-        ipoDate = null,
-        issueSize = null,
-        issueSizePlan = null,
-        nominal = null,
-        divYieldFlag = null,
-        shareType = null,
-        liquidityFlag = null,
-        assetUid = null,
-        instrumentExchange = null,
-        expirationDate,
-        firstTradeDate,
-        lastTradeDate,
-        futuresType,
-        assetType,
-        basicAsset,
-        basicAssetSize,
-        positionUid,
-        basicAssetPositionUid,
-        initialMarginOnBuy,
-        initialMarginOnSell,
-        dlongClient,
-        dshortClient,
-    )
+    override val instrumentType: InstrumentType = InstrumentType.FUTURES,
+    val firstTradeDate: Instant? = null,
+    val lastTradeDate: Instant? = null,
+    val futuresType: String? = null,
+    val assetType: String? = null,
+    val basicAsset: String? = null,
+    val basicAssetSize: Double? = null,
+    val basicAssetPositionUid: String? = null,
+    val initialMarginOnBuy: Double? = null,
+    val initialMarginOnSell: Double? = null,
+    val dlong: Double? = null,
+    val dshort: Double? = null,
+    val dlongMin: Double? = null,
+    val dshortMin: Double? = null,
+    val dlongClient: Double? = null,
+    val dshortClient: Double? = null,
+    val klong: Double? = null,
+    val kshort: Double? = null,
+) : Instrument
 
 /**
- * Модель акции.
- * Содержит все поля базового класса, а также дополнительные поля,
- * специфичные для акций.
+ * Акция (proto T-Invest `Share` + BCS + Finam).
+ *
+ * @property ipoDate дата IPO.
+ * @property issueSize размер выпуска.
+ * @property issueSizePlan плановый размер выпуска.
+ * @property nominal номинал.
+ * @property divYieldFlag флаг дивидендной доходности.
+ * @property shareType тип акции.
+ * @property liquidityFlag флаг ликвидности.
  */
 data class Share(
     override val tscalpInstrumentId: String,
     override val ticker: String,
-    override val classCode: String? = null,
-    override val isin: String,
-    override val figi: String? = null,
     override val name: String,
-    override val currency: String? = null,
-    override val lot: Long? = null,
-    override val instrumentType: InstrumentType = InstrumentType.SHARE,
-    // Общие поля (могут переопределяться)
+    override val isin: String,
+    override val classCode: String? = null,
+    override val figi: String? = null,
     override val exchange: String? = null,
-    override val tradingStatus: String? = null,
+    override val lot: Long? = null,
+    override val currency: String? = null,
+    override val settlementCurrency: String? = null,
+    override val priceStepCost: Double? = null,
+    override val minPriceIncrement: Double? = null,
+    override val expirationDate: Instant? = null,
     override val apiTradeAvailableFlag: Boolean? = null,
     override val buyAvailableFlag: Boolean? = null,
     override val sellAvailableFlag: Boolean? = null,
     override val shortEnabledFlag: Boolean? = null,
-    override val minPriceIncrement: Double? = null,
-    override val minPriceIncrementAmount: Double? = null,
-    override val klong: Double? = null,
-    override val kshort: Double? = null,
-    override val dlong: Double? = null,
-    override val dshort: Double? = null,
-    override val dlongMin: Double? = null,
-    override val dshortMin: Double? = null,
-    override val first1minCandleDate: Instant? = null,
-    override val first1dayCandleDate: Instant? = null,
     override val forIisFlag: Boolean? = null,
     override val forQualInvestorFlag: Boolean? = null,
     override val weekendFlag: Boolean? = null,
     override val blockedTcaFlag: Boolean? = null,
-    override val countryOfRisk: String? = null,
-    override val countryOfRiskName: String? = null,
-    override val sector: String? = null,
-    override val brand: String? = null,
-    override val requiredTests: List<String>? = null,
-    // Уникальные поля акций
-    override val ipoDate: Instant? = null,
-    override val issueSize: Long? = null,
-    override val issueSizePlan: Long? = null,
-    override val nominal: Double? = null,
-    override val divYieldFlag: Boolean? = null,
-    override val shareType: String? = null,
-    override val liquidityFlag: Boolean? = null,
-    override val assetUid: String? = null,
-    override val instrumentExchange: String? = null,
-    // Поля фьючерсов скрыты (оставлены null)
-    // ...
-) : Instrument(
-        tscalpInstrumentId,
-        ticker,
-        classCode,
-        isin,
-        figi,
-        name,
-        currency,
-        lot,
-        instrumentType,
-        exchange,
-        tradingStatus,
-        apiTradeAvailableFlag,
-        buyAvailableFlag,
-        sellAvailableFlag,
-        shortEnabledFlag,
-        minPriceIncrement,
-        minPriceIncrementAmount,
-        klong,
-        kshort,
-        dlong,
-        dshort,
-        dlongMin,
-        dshortMin,
-        first1minCandleDate,
-        first1dayCandleDate,
-        forIisFlag,
-        forQualInvestorFlag,
-        weekendFlag,
-        blockedTcaFlag,
-        countryOfRisk,
-        countryOfRiskName,
-        sector,
-        brand,
-        requiredTests,
-        ipoDate,
-        issueSize,
-        issueSizePlan,
-        nominal,
-        divYieldFlag,
-        shareType,
-        liquidityFlag,
-        assetUid,
-        instrumentExchange,
-        // фьючерсные поля – null
-        expirationDate = null,
-        firstTradeDate = null,
-        lastTradeDate = null,
-        futuresType = null,
-        assetType = null,
-        basicAsset = null,
-        basicAssetSize = null,
-        positionUid = null,
-        basicAssetPositionUid = null,
-        initialMarginOnBuy = null,
-        initialMarginOnSell = null,
-        dlongClient = null,
-        dshortClient = null,
-    )
+    override val instrumentType: InstrumentType = InstrumentType.SHARE,
+    val ipoDate: Instant? = null,
+    val issueSize: Long? = null,
+    val issueSizePlan: Long? = null,
+    val nominal: Double? = null,
+    val divYieldFlag: Boolean? = null,
+    val shareType: String? = null,
+    val liquidityFlag: Boolean? = null,
+) : Instrument
+
+/**
+ * Облигация (proto T-Invest `Bond` + BCS `bond_details`).
+ *
+ * @property faceValue номинал.
+ * @property couponRate ставка купона.
+ * @property nextCoupon дата следующего купона.
+ * @property couponsPerYear число купонов в год.
+ * @property accruedInt накопленный купонный доход.
+ * @property creditRating кредитный рейтинг.
+ */
+data class Bond(
+    override val tscalpInstrumentId: String,
+    override val ticker: String,
+    override val name: String,
+    override val isin: String,
+    override val classCode: String? = null,
+    override val figi: String? = null,
+    override val exchange: String? = null,
+    override val lot: Long? = null,
+    override val currency: String? = null,
+    override val settlementCurrency: String? = null,
+    override val priceStepCost: Double? = null,
+    override val minPriceIncrement: Double? = null,
+    override val expirationDate: Instant? = null,
+    override val apiTradeAvailableFlag: Boolean? = null,
+    override val buyAvailableFlag: Boolean? = null,
+    override val sellAvailableFlag: Boolean? = null,
+    override val shortEnabledFlag: Boolean? = null,
+    override val forIisFlag: Boolean? = null,
+    override val forQualInvestorFlag: Boolean? = null,
+    override val weekendFlag: Boolean? = null,
+    override val blockedTcaFlag: Boolean? = null,
+    override val instrumentType: InstrumentType = InstrumentType.BOND,
+    val faceValue: Double? = null,
+    val couponRate: Double? = null,
+    val nextCoupon: Instant? = null,
+    val couponsPerYear: Long? = null,
+    val accruedInt: Double? = null,
+    val creditRating: String? = null,
+) : Instrument
+
+/**
+ * Опцион (proto T-Invest `Option`; не реализуется сейчас, но модель
+ * есть — иначе `when (instrument)` не exhaustive при появлении опционов).
+ *
+ * `expirationDate` — наследуется из интерфейса (nullable). По контракту
+ * для опциона всегда non-null; Kotlin не позволяет сузить тип при
+ * override — при необходимости отдельный контракт в Phase 3.
+ *
+ * @property direction PUT / CALL.
+ * @property paymentType PREMIUM / MARGINAL.
+ * @property style AMERICAN / EUROPEAN.
+ * @property settlementType PHYSICAL_DELIVERY / CASH_SETTLEMENT.
+ * @property strikePrice страйк.
+ * @property firstTradeDate дата начала торгов.
+ * @property lastTradeDate дата окончания торгов.
+ */
+data class Option(
+    override val tscalpInstrumentId: String,
+    override val ticker: String,
+    override val name: String,
+    override val isin: String,
+    override val classCode: String? = null,
+    override val figi: String? = null,
+    override val exchange: String? = null,
+    override val lot: Long? = null,
+    override val currency: String? = null,
+    override val settlementCurrency: String? = null,
+    override val priceStepCost: Double? = null,
+    override val minPriceIncrement: Double? = null,
+    override val expirationDate: Instant? = null,
+    override val apiTradeAvailableFlag: Boolean? = null,
+    override val buyAvailableFlag: Boolean? = null,
+    override val sellAvailableFlag: Boolean? = null,
+    override val shortEnabledFlag: Boolean? = null,
+    override val forIisFlag: Boolean? = null,
+    override val forQualInvestorFlag: Boolean? = null,
+    override val weekendFlag: Boolean? = null,
+    override val blockedTcaFlag: Boolean? = null,
+    override val instrumentType: InstrumentType = InstrumentType.OPTION,
+    val direction: String? = null,
+    val paymentType: String? = null,
+    val style: String? = null,
+    val settlementType: String? = null,
+    val strikePrice: Double? = null,
+    val firstTradeDate: Instant? = null,
+    val lastTradeDate: Instant? = null,
+) : Instrument
+
+/** ETF. Только core + common (subtype-specific нет). */
+data class Etf(
+    override val tscalpInstrumentId: String,
+    override val ticker: String,
+    override val name: String,
+    override val isin: String,
+    override val classCode: String? = null,
+    override val figi: String? = null,
+    override val exchange: String? = null,
+    override val lot: Long? = null,
+    override val currency: String? = null,
+    override val settlementCurrency: String? = null,
+    override val priceStepCost: Double? = null,
+    override val minPriceIncrement: Double? = null,
+    override val expirationDate: Instant? = null,
+    override val apiTradeAvailableFlag: Boolean? = null,
+    override val buyAvailableFlag: Boolean? = null,
+    override val sellAvailableFlag: Boolean? = null,
+    override val shortEnabledFlag: Boolean? = null,
+    override val forIisFlag: Boolean? = null,
+    override val forQualInvestorFlag: Boolean? = null,
+    override val weekendFlag: Boolean? = null,
+    override val blockedTcaFlag: Boolean? = null,
+    override val instrumentType: InstrumentType = InstrumentType.ETF,
+) : Instrument
+
+/** Валюта. Только core + common. */
+data class Currency(
+    override val tscalpInstrumentId: String,
+    override val ticker: String,
+    override val name: String,
+    override val isin: String,
+    override val classCode: String? = null,
+    override val figi: String? = null,
+    override val exchange: String? = null,
+    override val lot: Long? = null,
+    override val currency: String? = null,
+    override val settlementCurrency: String? = null,
+    override val priceStepCost: Double? = null,
+    override val minPriceIncrement: Double? = null,
+    override val expirationDate: Instant? = null,
+    override val apiTradeAvailableFlag: Boolean? = null,
+    override val buyAvailableFlag: Boolean? = null,
+    override val sellAvailableFlag: Boolean? = null,
+    override val shortEnabledFlag: Boolean? = null,
+    override val forIisFlag: Boolean? = null,
+    override val forQualInvestorFlag: Boolean? = null,
+    override val weekendFlag: Boolean? = null,
+    override val blockedTcaFlag: Boolean? = null,
+    override val instrumentType: InstrumentType = InstrumentType.CURRENCY,
+) : Instrument
+
+/** Прочее. Только core + common. */
+data class Other(
+    override val tscalpInstrumentId: String,
+    override val ticker: String,
+    override val name: String,
+    override val isin: String,
+    override val classCode: String? = null,
+    override val figi: String? = null,
+    override val exchange: String? = null,
+    override val lot: Long? = null,
+    override val currency: String? = null,
+    override val settlementCurrency: String? = null,
+    override val priceStepCost: Double? = null,
+    override val minPriceIncrement: Double? = null,
+    override val expirationDate: Instant? = null,
+    override val apiTradeAvailableFlag: Boolean? = null,
+    override val buyAvailableFlag: Boolean? = null,
+    override val sellAvailableFlag: Boolean? = null,
+    override val shortEnabledFlag: Boolean? = null,
+    override val forIisFlag: Boolean? = null,
+    override val forQualInvestorFlag: Boolean? = null,
+    override val weekendFlag: Boolean? = null,
+    override val blockedTcaFlag: Boolean? = null,
+    override val instrumentType: InstrumentType = InstrumentType.OTHER,
+) : Instrument
 
 /**
  * Стоимость одного пункта цены в рублях.
  *
- * Единая формула для всех типов инструментов:
- * `minPriceIncrementAmount / minPriceIncrement`.
- * Для акций / облигаций / ETF — `1.0` (`minPriceIncrementAmount = null`).
- * Для фьючерсов — реальный множитель (`pointValue`).
- *
- * Заменяет `Future.pointValue` (C-min шаг 7): extension работает
- * на любом `Instrument`, включая будущие подтипы.
+ * Единая формула: `priceStepCost / minPriceIncrement`.
+ * Для акций / облигаций / ETF — `1.0` (`priceStepCost = null`).
+ * Для фьючерсов — реальный множитель.
  */
 val Instrument.moneyPerPointOfPrice: Double
     get() {
         val inc = minPriceIncrement ?: 0.0
-        val amount = minPriceIncrementAmount ?: 0.0
+        val amount = priceStepCost ?: 0.0
         return if (inc > 0.0) amount / inc else 1.0
     }
 
 /**
  * Тип инструмента (универсальный для всех брокеров).
  *
- * Заполняется маппером по контексту (T-Invest: `Shares()` → SHARE,
- * `Futures()` → FUTURES) или `fromBrokerString` (REST/WS-строки).
- * C-min шаг 10 (§7 `docs/domain_models.md`).
+ * Заполняется маппером по контексту (T-Invest: `Shares()` -> SHARE,
+ * `Futures()` -> FUTURES) или `fromBrokerString` (REST/WS-строки).
  */
 enum class InstrumentType {
     SHARE,
@@ -360,14 +376,14 @@ enum class InstrumentType {
 
     companion object {
         /**
-         * Broker string → [InstrumentType]. Case-insensitive.
+         * Broker string -> [InstrumentType]. Case-insensitive.
          *
          * T-Invest (lower): share, bond, etf, currency, futures, option, fond.
          * BCS (UPPER): STOCK, FOREIGN_STOCK, BONDS, NOTES, ...
          * Finam (UPPER): STOCK, BOND, FUTURES, ...
          *
-         * Map-based dispatch вместо `when` — 24 ключа на 14 типов,
-         * `when` даёт cyclomatic complexity 15 (detekt max 14).
+         * Map-based dispatch (24 keys / 14 types): `when` gives
+         * cyclomatic complexity 15 (detekt max 14).
          */
         private val BROKER_TYPE_MAP: Map<String, InstrumentType> =
             mapOf(
@@ -396,7 +412,7 @@ enum class InstrumentType {
                 "indices" to INDEX,
             )
 
-        /** Broker string → [InstrumentType]; unknown → [OTHER]. */
+        /** Broker string -> [InstrumentType]; unknown -> [OTHER]. */
         fun fromBrokerString(value: String): InstrumentType = BROKER_TYPE_MAP[value.lowercase()] ?: OTHER
     }
 }
