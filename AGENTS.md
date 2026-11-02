@@ -1314,55 +1314,75 @@ git-дефолты (адресат, файлы, ветка).
 инциденты 41 (`mv` без `-f`), 42 (`.tmp` в коммите), 43
 (потеря `MSGEOF`), 44 (продолжение после падения).
 
-**Шаблон 1 — правка файла** (4c + 4d):
+**Шаблон 1 — единый интерактивный блок** (4c + 4d + 4f + 4g):
+правка файла, git-операция, read-only диагностика.
 
-    bash << 'EOF'
-    set -euo pipefail
-    python3 <<'PYEOF'
-    from pathlib import Path
-    p = Path("<path>")
-    text = p.read_text(encoding="utf-8")
-    old = """<old>"""
-    new = """<new>"""
-    assert old in text, "pre: old not found"
-    assert new not in text, "pre: already applied"
-    text = text.replace(old, new, 1)
-    p.write_text(text, encoding="utf-8")
-    check = p.read_text(encoding="utf-8")
-    assert "<unique marker>" in check, "post: not applied"
-    print("applied OK")
-    PYEOF
-    echo
-    echo "--- verify ---"
-    grep -c "<marker>" "<path>"
-    git diff --stat "<path>"
-    EOF
+    bash << 'BASH_END'
+    set -uo pipefail
+    {
+      set -euo pipefail
+      echo&&echo "---"
+      <commands>
+    } 2>&1 | tee "$HOME/deepseek-chat.txt"
+    RC=${PIPESTATUS[0]}
+    echo&&echo "---"
+    wc -l "$HOME/deepseek-chat.txt"
+    exit $RC
+    BASH_END
 
-**Шаблон 2 — git-операция** (4f + 4g):
+- `-e` в шапке — нет (см. «Форматирование блоков»).
+- `-e` внутри группы — падение команды останавливает группу
+  немедленно (инцидент 44).
+- `RC=${PIPESTATUS[0]}` — exit-код группы, не `tee`.
+- `exit $RC` — после `echo&&echo` и `wc`.
+- `tee` — в `$HOME/deepseek-chat.txt` (перезапись, фиксированный
+  файл): одновременно в терминал и в файл.
 
-    bash << 'EOF'
-    set -euo pipefail
-    git branch --show-current
-    git status --short
-    git add <files>
-    git commit -F "$HOME/.msg.txt"
-    git log --oneline -1
-    EOF
+Для правки через `python3` — та же структура: `python3 <<'PYEOF'`
+с pre-assert + post-assert (4d) внутри группы.
+
+**Шаблон 2 — гейт** (4f, блок 2):
+
+    bash << 'BASH_END'
+    set -uo pipefail
+    ./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug :app:ktlintCheck :app:detekt --rerun-tasks > /tmp/gate.log 2>&1
+    GATE=$?
+    {
+      set -euo pipefail
+      echo&&echo "---"
+      echo "gate exit=$GATE"
+      grep -E '\[warn\]|\[error\]|^w:|^e:|FAILED|BUILD|\.kt:[0-9]+:[0-9]+' /tmp/gate.log || true
+      echo "---"
+      tail -3 /tmp/gate.log
+      if [ "$GATE" -eq 0 ]; then
+        git add <files>
+        git commit -F "$HOME/.msg.txt"
+        git push origin <branch>
+        echo "PUSHED to origin <branch>"
+      else
+        echo "GATE RED — commit/push skipped"
+        exit 1
+      fi
+    } 2>&1 | tee "$HOME/deepseek-chat.txt"
+    RC=${PIPESTATUS[0]}
+    echo&&echo "---"
+    wc -l "$HOME/deepseek-chat.txt"
+    exit $RC
+    BASH_END
+
+- `./gradlew` — **до** группы (иначе pipe с `tee` — 4e).
+- `GATE=$?` — сразу после gradlew.
+- `grep ... || true` — `set -e` иначе убьёт группу на пустом grep.
+- `exit 1` в `else` — GATE RED сигнализируется и на shell-уровне.
+- Для `git-операции` без гейта — «Шаблон 1» (единый блок).
 
 На телефоне (proot) — `printf` для commit message (урок 43),
 не `<<'MSGEOF'`.
 
-**Шаблон 3 — диагностика** (read-only):
-
-    bash << 'EOF'
-    {
-      echo "=== 1. <что> ==="
-      <read-only команда>
-    } 2>&1 | tee "${HOME}/deepseek-chat.txt"
-    echo
-    echo "---"
-    wc -l "${HOME}/deepseek-chat.txt"
-    EOF
+**Шаблон 3 — диагностика** — покрыт «Шаблон 1» (единый
+интерактивный блок): read-only команды (`grep`, `wc`,
+`git diff`, `git log`) идут в группу как `<commands>`, вывод —
+в `tee "$HOME/deepseek-chat.txt"`. Отдельный шаблон не нужен.
 
 **Шаблон 4 — workflow: правки → пауза → сохранение** (4f):
 
@@ -1371,26 +1391,56 @@ git-дефолты (адресат, файлы, ветка).
 
 Два блока — две паузы. Склеивать в один — запрещено. Для docs-only
 блок 1: правка + verify, пауза (пользователь проверяет); блок 2
-без гейта: `git add` → `git commit` → `git push origin <branch>`.
+без гейта: `git add` → `git commit` → `git push origin <branch>`
+(«Шаблон 1», единый).
+
+Реализация блока 2 (когда гейт нужен) — «Шаблон 2» (гейт).
+Реализация блока 1 (правки/verify) — «Шаблон 1» (единый).
 
 **Форматирование блоков.**
 
 - Каждый `&&` — на отдельной строке (вертикальное чтение).
   Не в конце предыдущей строки.
-- Интерактивные блоки с `set -euo pipefail` оборачивать в
-  `bash << 'EOF' ... EOF`, чтобы ошибка скрипта не завершала
-  текущую сессию терминала. Альтернатива — `bash -c "..."`, но
-  только если внутри нет `$`-интерполяции (`$HOME`, `$(...)`,
-  `${VAR}`): в двойных кавычках родительский shell подставит
-  значения до передачи в bash -c. `bash -c '...'` — запрещён
-  при наличии одинарных кавычек в теле (AGENTS-LESSONS урок 51).
+- Единый шаблон (см. «Шаблон 1» в 4i): `bash << 'BASH_END'` +
+  `set -uo pipefail` (без `-e`) + `{ set -euo pipefail; ... }`
+  (с `-e` внутри группы) + `2>&1 | tee "$HOME/deepseek-chat.txt"`
+  + `RC=${PIPESTATUS[0]}` + `echo&&echo "---"` + `wc -l` +
+  `exit $RC` в конце.
+  - `-e` **в шапке запрещён**: `set -e` + `pipefail` убьют
+    скрипт до `RC=${PIPESTATUS[0]}` — exit-код группы
+    потеряется.
+  - `-e` **внутри группы обязателен**: падение команды
+    останавливает группу (инцидент 44).
+  - `RC=${PIPESTATUS[0]}` — exit-код группы, не `tee`.
+  - `exit $RC` — **после** `echo&&echo` и `wc`: `exit` в
+    начале съест вывод и счётчик.
+  - `bash -c "..."` — альтернатива, только если внутри нет
+    `$`-интерполяции (`$HOME`, `$(...)`, `${VAR}`): в двойных
+    кавычках родительский shell подставит значения до передачи
+    в `bash -c`. `bash -c '...'` — запрещён при наличии
+    одинарных кавычек в теле (AGENTS-LESSONS урок 51).
+- Перед закрывающим якорем heredoc — `echo&&echo "---"`
+  (две пустые строки, затем `---`): визуальная граница между
+  выводом скрипта и shell-промптом. Одна такая же строка —
+  в начале группы (до первого `echo`).
+- Вывод скрипта — в `$HOME/deepseek-chat.txt` через `tee`
+  (фиксированный файл, перезапись): одновременно в терминал
+  и в файл. `wc -l` после `echo&&echo` — метаданные. Для
+  read-only диагностики — то же самое (отдельного шаблона нет).
+- **Гейт-блок (4f, блок 2) — особенность:** `./gradlew` идёт
+  **до** группы (иначе pipe с `tee` — 4e); `GATE=$?` сразу
+  после; `grep ... || true` (иначе `set -e` убьёт группу на
+  пустом grep); `exit 1` в `else` — GATE RED на shell-уровне.
+  Пример — «Шаблон 2» в 4i.
 - Перед строкой `--- verify ---` — пустая строка (в bash
   и python-блоках). В bash-выводе задаётся пустым `echo` перед `echo "--- verify ---"`. Визуальная граница «правки / проверка».
 
 **Чек-лист перед отправкой скрипта:**
 
 - разделён на блок 1 (правки) и блок 2 (сохранение) — 4f;
-- `set -euo pipefail` — есть;
+- `set -uo pipefail` в шапке, `set -euo pipefail` внутри группы — есть;
+- `2>&1 | tee "$HOME/deepseek-chat.txt"` + `RC=${PIPESTATUS[0]}` +
+  `exit $RC` после `echo&&echo` и `wc` — есть;
 - пути и файлы — явные (4g);
 - pre-assert + post-assert — оба с сообщением (4d, урок 27);
 - маркер post-assert уникален (4d);
