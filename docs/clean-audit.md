@@ -721,26 +721,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** — (не заведена).
 
-### Н6. InstrumentUi — god-класс
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `domain/models/Instruments.kt` — `InstrumentUi` открытый класс с ~50 полями; `FutureUi` и `ShareUi` дублируют **все** общие поля через `override` + добавляют свои. Неприменимые поля явно `null` (например `ShareUi.initialMarginOnBuy = null`).
-
-**Нарушенное правило:** Формально dependency rule не нарушен (всё в domain). Нарушает Interface Segregation на уровне моделей: `ShareUi` «знает» про `initialMarginOnBuy`.
-
-**Clean-альтернатива:** `sealed interface Instrument` (минимальный контракт: `tscalpInstrumentId`, `ticker`, `name`, `currency`, `lot`) + `data class Share(...)` + `data class Future(...)` со своими полями. `when (instrument) { is Share -> ..., is Future -> ... }` — компилятор exhaustive. Плюсы: ISP, компилятор-проверка. Минусы: переписать `TInvestInstrumentMapper.mapProtoToDomain` (118 строк, `@Suppress` в detekt-baseline), `BcsBrokerApi` маппинг, все места `InstrumentUi` (карточки, поиск, окна, `InstrumentRepository`).
-
-**Выгоды:** один тип — простая передача через UI, `instrumentType: String` уже есть. Работает.
-
-**Уточнение (C-min, 2026-11-02):** `Instrument` / `Future` / `Share` (C-min шаги 12-14, коммит `6f75478`) убрали суффикс `Ui`, но god-класс остаётся: `Instrument` — open class с ~50 полями, `Future` / `Share` дублируют через `override`. Phase 2 (sealed interface) — `### Instrument: Phase 2 (sealed interface)` в ROADMAP (триггер: начало BCS/Finam API). До Phase 2 Н6 остаётся открытой.
-
-**Ссылка на задачу:** — (не заведена). Концептуально связано с `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (`mapProtoToDomain` декомпозиция).
-
 ### Н13. KDoc StreamState — устаревший пакет
 
 **Статус:** открыто.
@@ -822,6 +802,28 @@ L4–L8 — не проверены, заполняются по мере инс
 **Ссылка на задачу:** PR #72 (`feature/sealed-interface-sumtypes`), коммит `1b7a944`.
 
 ---
+
+### ✅ Н6. InstrumentUi — god-класс
+
+**Статус:** исправлено (2026-11-02, Phase 2, коммит `bf34061`).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `domain/models/Instruments.kt` — `InstrumentUi` открытый класс с ~50 полями; `FutureUi` и `ShareUi` дублируют **все** общие поля через `override` + добавляют свои. Неприменимые поля явно `null` (например `ShareUi.initialMarginOnBuy = null`).
+
+**Нарушенное правило:** Формально dependency rule не нарушен (всё в domain). Нарушает Interface Segregation на уровне моделей: `ShareUi` «знает» про `initialMarginOnBuy`.
+
+**Clean-альтернатива:** `sealed interface Instrument` (минимальный контракт: `tscalpInstrumentId`, `ticker`, `name`, `currency`, `lot`) + `data class Share(...)` + `data class Future(...)` со своими полями. `when (instrument) { is Share -> ..., is Future -> ... }` — компилятор exhaustive. Плюсы: ISP, компилятор-проверка. Минусы: переписать `TInvestInstrumentMapper.mapProtoToDomain` (118 строк, `@Suppress` в detekt-baseline), `BcsBrokerApi` маппинг, все места `InstrumentUi` (карточки, поиск, окна, `InstrumentRepository`).
+
+**Выгоды:** один тип — простая передача через UI, `instrumentType: String` уже есть. Работает.
+
+**Уточнение (C-min, 2026-11-02):** `Instrument` / `Future` / `Share` (C-min шаги 12-14, коммит `6f75478`) убрали суффикс `Ui`, но god-класс остаётся: `Instrument` — open class с ~50 полями, `Future` / `Share` дублируют через `override`. Phase 2 (sealed interface) — `### Instrument: Phase 2 (sealed interface)` в ROADMAP (триггер: начало BCS/Finam API). До Phase 2 Н6 остаётся открытой.
+
+**Что сделано:** `open class Instrument` (39 полей) → `sealed interface Instrument` (22: core 4 + common 10 + флаги 8) + 7 `data class` (`Share`, `Future`, `Bond`, `Option`, `Etf`, `Currency`, `Other`). Subtype-specific поля — только в своих data class; `when (instrument)` — exhaustive по 7 подтипам. God-класс устранён. `mapProtoToDomain` split на 7 мапперов (`TInvestInstrumentMapper`, коммит `53810b9`); `toInstrument` split на 2 файла (`TInvestRestMappers.kt` + `TInvestRestInstrumentMappers.kt`, коммит `f9d53b9`, detekt `TooManyFunctions`).
+
+**Ссылка на задачу:** `### ✅ Instrument: Phase 2 (sealed interface)` (ROADMAP).
 
 ## L4 — domain/api
 

@@ -213,7 +213,7 @@
 
 **Оценка:** ~5 ч (step 0 + 7 шагов + 3 гейта). После C-min rename — экономия ~30 мин на переименовании: `Instrument`/`Future`/`Share` уже названы правильно, остаётся только сменить relation.
 
-**Триггер:** начало реализации BCS Broker API или Finam Broker API. Сейчас `userInstruments = null` у обоих — модель не нагружена.
+**Триггер:** снят явно (2026-11-02, руководитель). Phase 2 выполнена без BCS/Finam — модель готова; шаги 0.2/0.3 (BCS/Finam mapping) отложены до `### Реализация BCS Broker API` / `### Реализация Finam Broker API`.
 
 **Ветка:** `feature/instrument-sealed-interface`, один PR, 3 коммита внутри.
 
@@ -231,28 +231,28 @@
 
 #### Коммит 1 — sealed interface + data classes (шаги 1–2)
 
-- [ ] **1.** `sealed interface Instrument` (core 4 + common 9 + флаги). Общие члены — на интерфейсе: core non-null, common nullable, флаги nullable.
-- [ ] **2.** 7 `data class`: `Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other` — с subtype-specific полями из §5.
+- [x] **1.** `sealed interface Instrument` (core 4 + common 9 + флаги). Общие члены — на интерфейсе: core non-null, common nullable, флаги nullable.
+- [x] **2.** 7 `data class`: `Share`, `Future`, `Bond`, `Etf`, `Currency`, `Option`, `Other` — с subtype-specific полями из §5.
   - `Etf`, `Currency`, `Other` — только core + common (нет subtype-specific по §5). Различаются **самим типом**, не полем — в этом смысл sealed.
   - `Option` — с полями из §5 (`direction`, `paymentType`, `style`, `settlementType`, `strikePrice`, `firstTradeDate`, `lastTradeDate`). Не реализуется в мапперах и операциях, но **в модели есть** — иначе `when` не exhaustive при появлении опционов.
 - **Оценка:** 1 ч.
 
 #### Коммит 2 — `mapProtoToDomain` split (шаги 3–4)
 
-- [ ] **3.** Сменить relation (после C-min `InstrumentUi` → `Instrument`, `FutureUi` → `Future`, `ShareUi` → `Share`):
+- [x] **3.** Сменить relation (после C-min `InstrumentUi` → `Instrument`, `FutureUi` → `Future`, `ShareUi` → `Share`):
   - `open class Instrument` → `sealed interface Instrument`.
   - `data class Future`/`Share` — `: InstrumentUi(...)` → `: Instrument`.
   - Позиционное делегирование (48 аргументов в `FutureUi`/`ShareUi`) **удаляется**: `override` в декларации, не в вызове.
-- [ ] **4.** `mapProtoToDomain` (146 строк) → 6 мапперов + диспетчер:
+- [x] **4.** `mapProtoToDomain` (146 строк) → 6 мапперов + диспетчер:
   - `mapShare(proto: Share): Share`, `mapFuture(proto: Future): Future`, `mapBond(proto: Bond): Bond`, `mapOption(proto: Option): Option`, `mapEtf(...): Etf`, `mapCurrency(...): Currency`.
   - Диспетчер: `when (proto) { is Share -> mapShare(...); is Future -> mapFuture(...); ... }` — exhaustive по proto-типам.
 - **Оценка:** 1.5 ч.
 
 #### Коммит 3 — `toInstrumentUi` split + SearchCache + exhaustive `when` (шаги 5–7)
 
-- [ ] **5.** `toInstrumentUi` (4 функции в `TInvestRestMappers`) → 6 функций по аналогии с шагом 4.
-- [ ] **6.** `SearchCacheImpl:52` — сортировка: `when (instrument) { is Future -> instrument.expirationDate; ... }` вместо `as? FutureUi`.
-- [ ] **7.** Все `when (instrumentType)` → `when (instrument)`:
+- [x] **5.** `toInstrumentUi` (4 функции в `TInvestRestMappers`) → 6 функций по аналогии с шагом 4.
+- [x] **6.** `SearchCacheImpl:52` — сортировка: `when (instrument) { is Future -> instrument.expirationDate; ... }` вместо `as? FutureUi`.
+- [x] **7.** Все `when (instrumentType)` → `when (instrument)`:
   - `OrdersScreen.getInstrumentTypeColor` — `when (instrument) { is Share -> ...; is Future -> ...; ... }`.
   - `TInvestPositionsWsMapper`, `TInvestPortfolioService` — проверка типа через `is`.
   - `PositionFlowManager:234,237` — склейка currency через `is Currency`.
@@ -280,6 +280,9 @@
 
 **Что sealed НЕ даёт.** Заменяет `as? Future` на `is Future` + smart cast (форма exhaustive, но проверка типа никуда не уходит). Не ускоряет JVM-`instanceof`. Не решает «сколько типов» — если брокеры дадут 50 `type`, sealed превратится в 50 `data class` (поэтому `InstrumentType` enum — 14 значений — компромисс, а sealed — на 7 конкретных типах).
 
+
+
+**Phase 2 закрыта (2026-11-02).** 9/11 шагов; шаги 0.2/0.3 (BCS/Finam mapping subtype-полей) отложены до `### Реализация BCS Broker API` / `### Реализация Finam Broker API`. 9 коммитов (`bf34061`..`f9d53b9` + fix'ы), CI зелёный.
 
 ### 9. Сравнительные таблицы
 
