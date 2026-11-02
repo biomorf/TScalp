@@ -1,8 +1,8 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
-import com.gitlab.biomorf.tscalp.domain.models.FutureUi
+import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
@@ -35,8 +35,8 @@ class CalculateTradeDetailsUseCaseTest {
 
     // ---------- Хелперы ----------
 
-    private fun share(ticker: String = "SBER"): InstrumentUi =
-        InstrumentUi(
+    private fun share(ticker: String = "SBER"): Instrument =
+        Instrument(
             tscalpInstrumentId = "uid_$ticker",
             ticker = ticker,
             classCode = "TQBR",
@@ -51,8 +51,8 @@ class CalculateTradeDetailsUseCaseTest {
         ticker: String = "SBRF",
         minPriceIncrement: Double = 1.0,
         minPriceIncrementAmount: Double = 1.0,
-    ): FutureUi =
-        FutureUi(
+    ): Future =
+        Future(
             tscalpInstrumentId = "uid_$ticker",
             ticker = ticker,
             classCode = "SPBFUT",
@@ -269,7 +269,7 @@ class CalculateTradeDetailsUseCaseTest {
     @Test
     fun `cost for futures without pointValue uses multiplier 1_0`() {
         val futureWithoutPoint =
-            FutureUi(
+            Future(
                 tscalpInstrumentId = "uid_f",
                 ticker = "F",
                 classCode = "SPBFUT",

@@ -1,17 +1,17 @@
 package com.gitlab.biomorf.tscalp.domain.api.roles
 
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 
 /**
  * Опциональный контракт: полный доменный инструмент по uid.
  *
  * Реализуется брокером, если он умеет отдавать **полный**
- * [InstrumentUi] — со всеми полями, включая `pointValue` для
+ * [Instrument] — со всеми полями, включая `pointValue` для
  * фьючерсов (через margin-запрос к брокеру). Доступ через
  * `BrokerApi.instrument` (`null` = не поддерживает).
  *
  * **Не путать** с [UserInstrumentsApi.findInstruments][UserInstrumentsApi]
- * — тот возвращает **неполный** [InstrumentUi] для фьючерсов
+ * — тот возвращает **неполный** [Instrument] для фьючерсов
  * (без margin, `pointValue` вычисляется из minPriceIncrement),
  * в bulk-форме для поиска. Семантика:
  * - [BrokerInstrumentApi] — внутренняя инфраструктура (кэш,
@@ -35,5 +35,5 @@ interface BrokerInstrumentApi {
      *
      * `null` — инструмент не найден.
      */
-    suspend fun fetchFullInstrument(uid: String): InstrumentUi?
+    suspend fun fetchFullInstrument(uid: String): Instrument?
 }

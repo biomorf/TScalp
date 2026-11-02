@@ -9,7 +9,7 @@ import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestPricesService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestTradingService
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import io.grpc.Status
@@ -175,7 +175,7 @@ class TInvestOrchestratorFallbackTest {
     @Test
     fun `findInstrumentsWithFallback falls back to REST on UNAVAILABLE`() =
         runBlocking {
-            val restData = listOf<InstrumentUi>(mockk())
+            val restData = listOf<Instrument>(mockk())
             coEvery { instruments.findInstruments(any()) } throws StatusException(Status.UNAVAILABLE)
 
             val orchestrator =

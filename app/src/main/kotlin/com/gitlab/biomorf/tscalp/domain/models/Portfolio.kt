@@ -128,7 +128,7 @@ data class PortfolioPosition(
     val priceChangePercent: Double? = null,
     val moneyPerPointOfPrice: Double? = null,
     // Код валюты (ISO-4217) для валютных позиций.
-    // Источник — InstrumentUi.currency в fetchPortfolioPositions.
+    // Источник — Instrument.currency в fetchPortfolioPositions.
     // Используется для склейки с WS-стримом (money/blocked).
     val currency: String? = null,
 )
@@ -173,7 +173,7 @@ fun calculateProfitPercent(
  * domain-модели принадлежат domain (clean-audit Н1).
  */
 fun emptyPortfolioPosition(
-    instrument: InstrumentUi,
+    instrument: Instrument,
     currentPrice: Double,
     moneyPerPointOfPrice: Double?,
     instrumentType: InstrumentType,

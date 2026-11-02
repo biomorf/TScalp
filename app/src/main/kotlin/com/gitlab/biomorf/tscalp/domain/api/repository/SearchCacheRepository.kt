@@ -2,7 +2,7 @@ package com.gitlab.biomorf.tscalp.domain.api.repository
 
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 
 /**
  * Domain-контракт кеша результатов поиска инструментов.
@@ -24,7 +24,7 @@ interface SearchCacheRepository {
     suspend fun search(
         brokerName: BrokerName,
         query: String,
-    ): AppResult<List<InstrumentUi>>
+    ): AppResult<List<Instrument>>
 
     /** Инвалидирует кеш для конкретного запроса и брокера. */
     fun invalidate(

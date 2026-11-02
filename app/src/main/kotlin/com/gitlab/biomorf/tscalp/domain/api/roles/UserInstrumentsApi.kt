@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.roles
 
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 
 /**
@@ -13,10 +13,10 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
  *
  * **Не путать с `BrokerInstrumentApi` (#3).** Тот —
  * внутренняя инфраструктура: один uid → один **полный**
- * `InstrumentUi` (с margin для фьючерсов, `pointValue`).
+ * `Instrument` (с margin для фьючерсов, `pointValue`).
  * `UserInstrumentsApi` — пользовательский путь:
  * - `findInstruments` — bulk-поиск, для фьючерсов возвращает
- *   **неполный** `InstrumentUi` (без margin, `pointValue` из
+ *   **неполный** `Instrument` (без margin, `pointValue` из
  *   minPriceIncrement). Полный инструмент — через
  *   `BrokerInstrumentApi.fetchFullInstrument`, когда нужно;
  * - `getTradingStatuses` — статусы доступности торговли для
@@ -40,13 +40,13 @@ interface UserInstrumentsApi {
     /**
      * Bulk-поиск инструментов по запросу.
      *
-     * Для фьючерсов возвращает **неполный** `InstrumentUi`
+     * Для фьючерсов возвращает **неполный** `Instrument`
      * (без margin). Если нужен полный инструмент
      * (`pointValue` для расчётов) — использовать
      * `BrokerInstrumentApi.fetchFullInstrument(uid)` по
      * найденному `tscalpInstrumentId`.
      */
-    suspend fun findInstruments(query: String): List<InstrumentUi>
+    suspend fun findInstruments(query: String): List<Instrument>
 
     /**
      * Статусы доступности торговли для списка

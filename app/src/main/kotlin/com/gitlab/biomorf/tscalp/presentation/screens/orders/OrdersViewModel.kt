@@ -23,7 +23,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
@@ -338,7 +338,7 @@ class OrdersViewModel
             }
         }
 
-        fun onInstrumentSelected(instrument: InstrumentUi) {
+        fun onInstrumentSelected(instrument: Instrument) {
             // Обновляем выбранный инструмент и поисковую строку
             _uiState.update {
                 it.copy(
@@ -352,7 +352,7 @@ class OrdersViewModel
             viewModelScope.launch {
                 _uiState.update { it.copy(isPriceLoading = true) }
 
-                // Загружаем актуальный InstrumentUi с pointValue
+                // Загружаем актуальный Instrument с pointValue
                 val actualInstrument = instrumentRepo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
 
                 // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
@@ -894,7 +894,7 @@ class OrdersViewModel
             }
         }
 
-        fun onPairedInstrumentSelected(instrument: InstrumentUi) {
+        fun onPairedInstrumentSelected(instrument: Instrument) {
             _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
             syncPriceInterest() // обновляем интерес к ценам обоих инструментов
             viewModelScope.launch {

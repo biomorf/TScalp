@@ -136,7 +136,7 @@ fun OrdersScreen() {
                                     onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
                                     isSearching = uiState.isSearching,
                                     searchResults = uiState.searchResults,
-                                    onInstrumentSelected = { instrument: InstrumentUi ->
+                                    onInstrumentSelected = { instrument: Instrument ->
                                         viewModel.onInstrumentSelected(instrument)
                                         focusManager.clearFocus()
                                     },
@@ -158,7 +158,7 @@ fun OrdersScreen() {
                             }
                         }
                     } else {
-                        uiState.selectedInstrument?.let { instrument: InstrumentUi ->
+                        uiState.selectedInstrument?.let { instrument: Instrument ->
                             val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
 
                             // Цену берём из PriceFlowManager (uiState.currentPrice) —
@@ -438,7 +438,7 @@ fun OrdersScreen() {
                                         onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
                                         isSearching = uiState.isPairSearching,
                                         searchResults = uiState.pairSearchResults,
-                                        onInstrumentSelected = { instrument: InstrumentUi ->
+                                        onInstrumentSelected = { instrument: Instrument ->
                                             viewModel.onPairedInstrumentSelected(instrument)
                                             focusManager.clearFocus()
                                         },
@@ -461,7 +461,7 @@ fun OrdersScreen() {
                             }
                         } else {
                             // Карточка парного инструмента и множитель
-                            uiState.pairedInstrument?.let { instrument: InstrumentUi ->
+                            uiState.pairedInstrument?.let { instrument: Instrument ->
                                 val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
                                 val pairedPointValue = uiState.pairedPointValue
                                 // Цену берём из PriceFlowManager (uiState.pairCurrentPrice).
@@ -767,11 +767,11 @@ fun InstrumentSearchField(
     query: String,
     onQueryChanged: (String) -> Unit,
     isSearching: Boolean,
-    searchResults: List<InstrumentUi>,
-    onInstrumentSelected: (InstrumentUi) -> Unit,
+    searchResults: List<Instrument>,
+    onInstrumentSelected: (Instrument) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
-    recentInstruments: List<InstrumentUi> = emptyList(),
+    recentInstruments: List<Instrument> = emptyList(),
     tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
 ) {
     var inputText by remember { mutableStateOf(query) }

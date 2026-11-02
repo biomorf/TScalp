@@ -88,7 +88,7 @@ interface BrokerApi {
      * (поиск, статусы торговли).
      *
      * **Не путать** с [instrument] — тот возвращает один полный
-     * `InstrumentUi` по uid (внутренняя инфраструктура).
+     * `Instrument` по uid (внутренняя инфраструктура).
      */
     val userInstruments: UserInstrumentsApi?
 

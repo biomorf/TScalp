@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.repository
 
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 
 /**
  * Domain-контракт доступа к доменным моделям инструментов.
@@ -11,8 +11,8 @@ import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
  */
 interface InstrumentRepository {
     /**
-     * Возвращает актуальный `InstrumentUi` по `tscalpInstrumentId`.
+     * Возвращает актуальный `Instrument` по `tscalpInstrumentId`.
      * Если в кэше нет — загружает через брокера и кэширует.
      */
-    suspend fun getInstrument(tscalpInstrumentId: String): InstrumentUi?
+    suspend fun getInstrument(tscalpInstrumentId: String): Instrument?
 }

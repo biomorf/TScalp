@@ -1,15 +1,15 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
-import com.gitlab.biomorf.tscalp.domain.models.FutureUi
+import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentUi
-import com.gitlab.biomorf.tscalp.domain.models.ShareUi
-import ru.tinkoff.piapi.contract.v1.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.Share
+import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument
 
 /**
- * Преобразует protobuf‑объект Instrument в доменный универсальный InstrumentUi.
+ * Преобразует protobuf‑объект Instrument в доменный универсальный Instrument.
  * tscalpInstrumentId заполняется из uid (рекомендованный идентификатор Т‑Инвестиций).
- * Для фьючерсов возвращает FutureUi, для акций – ShareUi, для остальных – базовый InstrumentUi.
+ * Для фьючерсов возвращает Future, для акций – Share, для остальных – базовый Instrument.
  */
 object TInvestInstrumentMapper {
     /**
@@ -22,9 +22,9 @@ object TInvestInstrumentMapper {
      */
     @Suppress("LongMethod")
     fun mapProtoToDomain(
-        instrument: Instrument,
+        instrument: ProtoInstrument,
         minPriceIncrementAmountOverride: Double? = null,
-    ): InstrumentUi {
+    ): Instrument {
         val brokerUid = instrument.uid
         val figi = instrument.figi?.takeIf { it.isNotBlank() }
         val type = InstrumentType.fromBrokerString(instrument.instrumentType ?: "")
@@ -33,7 +33,7 @@ object TInvestInstrumentMapper {
 
         return when (type) {
             InstrumentType.FUTURES ->
-                FutureUi(
+                Future(
                     tscalpInstrumentId = brokerUid,
                     ticker = instrument.ticker,
                     classCode = instrument.classCode?.takeIf { it.isNotBlank() },
@@ -83,7 +83,7 @@ object TInvestInstrumentMapper {
                 )
 
             InstrumentType.SHARE ->
-                ShareUi(
+                Share(
                     tscalpInstrumentId = brokerUid,
                     ticker = instrument.ticker,
                     classCode = instrument.classCode?.takeIf { it.isNotBlank() },
@@ -129,7 +129,7 @@ object TInvestInstrumentMapper {
                 )
 
             else ->
-                InstrumentUi(
+                Instrument(
                     tscalpInstrumentId = brokerUid,
                     ticker = instrument.ticker,
                     classCode = instrument.classCode?.takeIf { it.isNotBlank() },

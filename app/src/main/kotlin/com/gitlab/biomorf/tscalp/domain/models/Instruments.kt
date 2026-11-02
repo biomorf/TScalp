@@ -11,7 +11,7 @@ import kotlin.time.Instant
  *
  * Содержит поля, общие для всех типов, а также поля,
  * специфичные для отдельных типов (акции, фьючерсы, опционы и т.д.).
- * Остаётся открытым для наследования: [FutureUi], [ShareUi] —
+ * Остаётся открытым для наследования: [Future], [Share] —
  * подтипы с переопределёнными полями. Поля, не применимые к
  * конкретному типу, остаются `null`.
  *
@@ -26,7 +26,7 @@ import kotlin.time.Instant
  *   потому что часть моделей использует один общий класс.
  */
 
-open class InstrumentUi(
+open class Instrument(
     open val tscalpInstrumentId: String, // универсальный идентификатор TScalp
     open val ticker: String,
     open val classCode: String? = null, // код класса (например, SPBFUT)
@@ -94,7 +94,7 @@ open class InstrumentUi(
  * Содержит все поля базового класса, а также дополнительные поля,
  * специфичные для фьючерсов, и вычисляемое свойство pointValue.
  */
-data class FutureUi(
+data class Future(
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val classCode: String? = null,
@@ -144,7 +144,7 @@ data class FutureUi(
     override val initialMarginOnSell: Double? = null,
     override val dlongClient: Double? = null,
     override val dshortClient: Double? = null,
-) : InstrumentUi(
+) : Instrument(
         tscalpInstrumentId,
         ticker,
         classCode,
@@ -208,7 +208,7 @@ data class FutureUi(
  * Содержит все поля базового класса, а также дополнительные поля,
  * специфичные для акций.
  */
-data class ShareUi(
+data class Share(
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val classCode: String? = null,
@@ -256,7 +256,7 @@ data class ShareUi(
     override val instrumentExchange: String? = null,
     // Поля фьючерсов скрыты (оставлены null)
     // ...
-) : InstrumentUi(
+) : Instrument(
         tscalpInstrumentId,
         ticker,
         classCode,
@@ -324,10 +324,10 @@ data class ShareUi(
  * Для акций / облигаций / ETF — `1.0` (`minPriceIncrementAmount = null`).
  * Для фьючерсов — реальный множитель (`pointValue`).
  *
- * Заменяет `FutureUi.pointValue` (C-min шаг 7): extension работает
- * на любом `InstrumentUi`, включая будущие подтипы.
+ * Заменяет `Future.pointValue` (C-min шаг 7): extension работает
+ * на любом `Instrument`, включая будущие подтипы.
  */
-val InstrumentUi.moneyPerPointOfPrice: Double
+val Instrument.moneyPerPointOfPrice: Double
     get() {
         val inc = minPriceIncrement ?: 0.0
         val amount = minPriceIncrementAmount ?: 0.0
