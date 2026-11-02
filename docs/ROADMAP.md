@@ -72,7 +72,9 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/instrument-sealed-interface.
 
 **Контекст:** C-min (Phase 1) закрыт — `Instrument` / `Future` / `Share` / `InstrumentType` работают в `domain` + `data` + `presentation`. Phase 2 — `sealed interface Instrument` (ISP/LSP, exhaustive `when`, subtype-specific поля в своих типах). Разблокирует реализацию BCS/Finam API: сейчас `userInstruments = null` у обоих, модель не нагружена. Подробности — `docs/domain_models.md` §8 (11 шагов, 3 коммита).
 
