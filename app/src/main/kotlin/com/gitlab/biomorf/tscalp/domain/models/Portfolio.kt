@@ -72,6 +72,9 @@ data class PositionStreamItem(
     // currency, без uid и ticker) с валютной позицией,
     // пришедшей из polling.
     val currency: String? = null,
+    // Идентификатор счёта-источника события. Заполняется с момента
+    // multi-account; null — для обратной совместимости в тестах.
+    val accountId: String? = null,
 )
 
 /**
@@ -266,3 +269,213 @@ fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
         classCode = classCode,
     )
 }
+
+// =============================================================================
+// Portfolio model (multi-account). See docs/domain_models.md §Portfolio.
+// =============================================================================
+
+/**
+ * Позиция по инструменту в конкретном счёте. Один счёт — одна позиция
+ * на инструмент. Мультиброкерность и мультисчётность — обязательны.
+ *
+ * Тип инструмента — композиция: `position.instrument: Instrument`.
+ * Subtype `Position` соответствует subtype `Instrument` — компилятор
+ * проверяет соответствие (`when (position)` exhaustive по 7 подтипам).
+ *
+ * `moneyPerPointOfPrice` — extension из `Instrument` (см. `Instruments.kt`).
+ * Для акций/облигаций/ETF — 1.0; для фьючерсов — реальный множитель.
+ *
+ * @property instrument инструмент позиции.
+ * @property brokerName брокер-источник.
+ * @property accountId идентификатор счёта.
+ * @property quantity количество (баланс, лоты/единицы). `Double`:
+ *   Finam поддерживает дробное, T-Invest/BCS — целое.
+ * @property currentPrice текущая цена.
+ * @property averagePrice средняя цена позиции. `null` — нет данных.
+ * @property profit P&L в рублях от брокера. `null` — брокер не прислал.
+ * @property lockedQuantity заблокированное количество бумаг.
+ *   T-Invest `blocked`, BCS `locked`.
+ * @property priceChangePercent изменение цены за торговый день в процентах
+ *   (от цены открытия дня). Источник: DTO брокера (`dailyYieldRelative`
+ *   у T-Invest, `dailyPercentPL` у BCS, `daily_pnl` у Finam). `null` — нет данных.
+ */
+sealed interface Position {
+    val instrument: Instrument
+    val brokerName: BrokerName
+    val accountId: String
+    val quantity: Double
+    val currentPrice: Double
+    val averagePrice: Double?
+    val profit: Double?
+    val lockedQuantity: Double?
+    val priceChangePercent: Double?
+
+    /** Стоимость позиции в рублях. */
+    val totalValue: Double
+        get() = currentPrice * quantity * instrument.moneyPerPointOfPrice
+
+    /** P&L в процентах от вложенных средств (от средней цены). */
+    val profitPercent: Double?
+        get() {
+            val p = profit ?: return null
+            val avg = averagePrice?.takeIf { it > 0.0 } ?: return null
+            if (quantity <= 0.0) return null
+            val invested = avg * quantity * instrument.moneyPerPointOfPrice
+            if (invested <= 0.0) return null
+            return p / invested * 100.0
+        }
+}
+
+/** Позиция по акции. */
+data class SharePosition(
+    override val instrument: Share,
+    override val brokerName: BrokerName,
+    override val accountId: String,
+    override val quantity: Double,
+    override val currentPrice: Double,
+    override val averagePrice: Double? = null,
+    override val profit: Double? = null,
+    override val lockedQuantity: Double? = null,
+    override val priceChangePercent: Double? = null,
+) : Position
+
+/** Позиция по фьючерсу. */
+data class FuturePosition(
+    override val instrument: Future,
+    override val brokerName: BrokerName,
+    override val accountId: String,
+    override val quantity: Double,
+    override val currentPrice: Double,
+    override val averagePrice: Double? = null,
+    override val profit: Double? = null,
+    override val lockedQuantity: Double? = null,
+    override val priceChangePercent: Double? = null,
+) : Position
+
+/** Позиция по облигации. */
+data class BondPosition(
+    override val instrument: Bond,
+    override val brokerName: BrokerName,
+    override val accountId: String,
+    override val quantity: Double,
+    override val currentPrice: Double,
+    override val averagePrice: Double? = null,
+    override val profit: Double? = null,
+    override val lockedQuantity: Double? = null,
+    override val priceChangePercent: Double? = null,
+) : Position
+
+/** Позиция по опциону. */
+data class OptionPosition(
+    override val instrument: Option,
+    override val brokerName: BrokerName,
+    override val accountId: String,
+    override val quantity: Double,
+    override val currentPrice: Double,
+    override val averagePrice: Double? = null,
+    override val profit: Double? = null,
+    override val lockedQuantity: Double? = null,
+    override val priceChangePercent: Double? = null,
+) : Position
+
+/** Позиция по ETF. */
+data class EtfPosition(
+    override val instrument: Etf,
+    override val brokerName: BrokerName,
+    override val accountId: String,
+    override val quantity: Double,
+    override val currentPrice: Double,
+    override val averagePrice: Double? = null,
+    override val profit: Double? = null,
+    override val lockedQuantity: Double? = null,
+    override val priceChangePercent: Double? = null,
+) : Position
+
+/** Позиция по валюте иностранного государства. Деньги RUB — в `AccountBalance`, не здесь. */
+data class CurrencyPosition(
+    override val instrument: Currency,
+    override val brokerName: BrokerName,
+    override val accountId: String,
+    override val quantity: Double,
+    override val currentPrice: Double,
+    override val averagePrice: Double? = null,
+    override val profit: Double? = null,
+    override val lockedQuantity: Double? = null,
+    override val priceChangePercent: Double? = null,
+) : Position
+
+/** Позиция по прочему инструменту. */
+data class OtherPosition(
+    override val instrument: Other,
+    override val brokerName: BrokerName,
+    override val accountId: String,
+    override val quantity: Double,
+    override val currentPrice: Double,
+    override val averagePrice: Double? = null,
+    override val profit: Double? = null,
+    override val lockedQuantity: Double? = null,
+    override val priceChangePercent: Double? = null,
+) : Position
+
+/**
+ * Денежный остаток по валюте в конкретном счёте.
+ * Не позиция (валюта — не ценная бумага).
+ *
+ * @property currency ISO-4217 код валюты (`"rub"`).
+ * @property money свободный остаток.
+ * @property blocked заблокированный остаток.
+ */
+data class AccountBalance(
+    val currency: String,
+    val money: Double,
+    val blocked: Double,
+) {
+    /** Суммарный остаток по валюте. */
+    val total: Double get() = money + blocked
+}
+
+/**
+ * Агрегат одного счёта: позиции + денежные остатки по валютам.
+ *
+ * @property accountId идентификатор счёта.
+ * @property brokerName брокер счёта.
+ * @property positions позиции счёта.
+ * @property balances денежные остатки по валютам.
+ */
+data class AccountPortfolio(
+    val accountId: String,
+    val brokerName: BrokerName,
+    val positions: List<Position>,
+    val balances: List<AccountBalance>,
+) {
+    /** Суммарный P&L по всем позициям. `null` — если ни у одной нет profit. */
+    val totalProfit: Double?
+        get() {
+            val withProfit = positions.mapNotNull { it.profit }
+            if (withProfit.isEmpty()) return null
+            return withProfit.sum()
+        }
+}
+
+/**
+ * Мультисчётный агрегат: `Map<AccountKey, AccountPortfolio>`.
+ *
+ * Единственный публичный эмитируемый тип `PositionFlowManager`.
+ * Порядок: `BrokerName.entries` (TINVEST, BCS, FINAM), внутри — `accountId`
+ * лексикографически. Детерминированно.
+ *
+ * См. `docs/domain_models.md` §4.x.
+ */
+data class PortfolioSheet(
+    val accounts: Map<AccountKey, AccountPortfolio>,
+)
+
+/**
+ * Составной ключ счёта: `(brokerName, accountId)`.
+ *
+ * Единственный идентификатор счёта в `PortfolioSheet`.
+ */
+data class AccountKey(
+    val brokerName: BrokerName,
+    val accountId: String,
+)
