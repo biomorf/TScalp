@@ -616,64 +616,61 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** частично (Position создан в feature/portfolio-model, PR #89). Остаток — удаление legacy `PortfolioPosition`. Детальный план для исполнителя — `docs/H5-plan.md`.
 
-**Контекст (clean-audit Н5, пересматривается):** `PortfolioPosition` содержит presentation-поля `totalValue` (= `currentPrice * quantity`), `profitPercent` (вычисляется через `calculateProfitPercent`), `priceChangePercent`. По Clean domain-модель не должна содержать presentation-атрибуты. Отклонение осознанно принято в задаче #9 (портфельный снимок), зафиксировано в KDoc `PortfolioPosition` + `### Обогащение name в PortfolioPosition (вариант C)`. **Концептуальный пересмотр:** разделить на domain-модель `Position` и presentation-модель `PortfolioPositionUi`.
+**Контекст:** `PortfolioPosition` содержит presentation-поля (`totalValue`, `profitPercent`, `priceChangePercent`) и физически лежит в `domain/models/Portfolio.kt`; возвращается из domain-интерфейса `PortfolioRepository.fetchPositionsResult → AppResult<List<PortfolioPosition>>` (dependency rule наружу). Отклонение осознанно принято в #9.
 
-**Соответствие Clean:** отклонение по 2c (принято). **Пересматривается** — концептуальное разделение модели.
+**Что уже сделано (feature/portfolio-model, PR #89):** создана domain-модель `Position` (sealed interface, 7 subtypes) с computed getters `totalValue` / `profitPercent`; `toPortfolioPosition` / `PortfolioPosition.mergeWith` удалены (`a859185`); оба адаптера (`toLegacyPortfolioPosition`, `toUiPosition`) заполняют `name = instrument.name`.
 
-**Нарушенное правило Clean:** domain не должен содержать presentation-атрибуты (dependency rule в обратную сторону).
+**Соответствие Clean:** отклонение (осталось). Остаток — устранение `PortfolioPosition` полностью.
 
-**Clean-альтернатива:** разделить на два типа: `Position` (domain: `tscalpInstrumentId`, `brokerName`, `name`, `ticker`, `quantity`, `currentPrice`, `averagePrice`, `profit`, `pointValue`, `instrumentType`, `classCode`, `isin`, `currency`) и `PortfolioPositionUi` (presentation: `totalValue`, `profitPercent`, `priceChangePercent` + domain-часть). Плюсы: полная Clean-дисциплина. Минусы: переписать `AssetPositionCard`, `PortfolioScreen`, `OrdersScreen`, `PortfolioViewModel`, `OrdersViewModel` + маппер `Position -> PortfolioPositionUi`.
+**Нарушенное правило Clean:** dependency rule — presentation-модель в domain-пакете + возвращается из domain-интерфейса.
 
-**Выгоды (для «отклонение по 2c»):** `toPortfolioPosition()` — одна точка конвертации в `InvestRepository`; UI работает с одной моделью, без дублирования `profitPercent`/`totalValue` в presentation. Экономия на маппинге ~1 ч. **Пересмотр:** при накоплении presentation-полей (сейчас 3) выгода уменьшается; при появлении 4-го (например, `money`/`blocked` из Н-UI-blocked) — пересмотр в пользу разделения.
+**Clean-альтернатива:** полностью избавиться от `PortfolioPosition`, использовать `Position` (domain) в UI напрямую. `PortfolioPositionUi` **не создавать** (лишняя сущность; `Position` уже даёт всё через `instrument.*` + computed getters). Плюсы: dependency rule чистая, presentation-модели нет вовсе, меньше сущностей. Минусы: `PositionFormatter` переписать на чистые функции; `AssetPositionCard` принимает `Position` + overlay-параметры.
 
-**Предусловия:** H22, H1, H24, `### Рефакторинг расчёта P&L для PortfolioPosition` (P&L-формула зафиксирована), `### UI: отображение blocked на валютной карточке` (или отменена — решить).
+**Выгоды:** —.
 
-**Файлы:**
-- `domain/models/Portfolio.kt` — новая `Position` (без presentation-полей); `PortfolioPosition` → `PortfolioPositionUi` (переезд в `presentation/models/`).
-- `presentation/models/PortfolioPositionUi.kt` (новый) — presentation-модель.
-- `presentation/mappers/PositionToUi.kt` (новый) — маппер `Position -> PortfolioPositionUi`.
-- `data/repository/InvestRepository.kt` / `PortfolioRepository` — `fetchPositionsResult` возвращает `List<Position>` (domain).
-- `presentation/screens/portfolio/PortfolioViewModel.kt` — маппинг `Position -> Ui` в VM или в presentation-слое.
-- `presentation/screens/portfolio/PortfolioScreen.kt`, `presentation/screens/orders/OrdersScreen.kt`, `ui/components/AssetPositionCard.kt` — принимают `PortfolioPositionUi`.
-- `presentation/screens/orders/OrdersUiState.kt` — `portfolioPositions: List<PortfolioPositionUi>`.
-- `presentation/screens/portfolio/PortfolioUiState.kt` — `positions: List<PortfolioPositionUi>`.
-- `util/PositionFormatter.kt` — принимает `PortfolioPositionUi` (или поля, не модель).
-- KDoc `PortfolioPosition` / `Position` — обновить 2c-фиксацию (перенести в `Position`, если отклонение остаётся; или снять, если разделение устраняет нарушение).
+**Предусловия:** нет (все блокеры — H1, H22, H24, `Рефакторинг расчёта P&L` — закрыты).
 
-**Шаги:**
-1. Создать `Position` (domain, без presentation-полей).
-2. Создать `PortfolioPositionUi` (presentation) — `totalValue`, `profitPercent`, `priceChangePercent` + composition с `Position` (или дублирующие поля).
-3. Маппер `Position -> PortfolioPositionUi`.
-4. `PortfolioRepository.fetchPositionsResult` → `List<Position>`.
-5. VM: маппинг в presentation-слое (или в `PortfolioPositionUi`-фабрике во VM).
-6. Обновить 4 экрана и `AssetPositionCard`.
-7. Обновить `PositionFormatter`.
-8. Удалить `PortfolioPosition` (или переименовать в `PortfolioPositionUi` с переездом в `presentation/models/`).
-9. Обновить KDoc: `Position` без 2c-фиксации (нарушение устранено), `PortfolioPositionUi` — presentation.
-10. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+**Файлы:** см. `docs/H5-plan.md` (исчерпывающий список). Ключевые:
+- `domain/models/Portfolio.kt` — удалить `PortfolioPosition`, `toLegacyPortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`; добавить `emptyPosition(...)`.
+- `domain/api/repository/PortfolioRepository.kt` — `fetchPositionsResult → AppResult<List<Position>>`.
+- `data/repository/PortfolioRepositoryImpl.kt` — без adapter.
+- `presentation/screens/portfolio/PortfolioUiState.kt` — удалить `positions` (UI читает `sheet.accounts`).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — удалить `toUiPosition` / `recomputePositions`.
+- `presentation/screens/portfolio/PortfolioScreen.kt` — из `sheet.accounts` напрямую.
+- `presentation/screens/orders/OrdersUiState.kt` — `portfolioPositions: List<Position>`.
+- `presentation/screens/orders/OrdersViewModel.kt` — без adapter.
+- `presentation/screens/orders/OrdersScreen.kt` — `emptyPosition` вместо `emptyPortfolioPosition`.
+- `presentation/components/AssetPositionCard.kt` — `position: Position` + `displayCurrentPrice: Double?` + `priceChangePercent: Double?`.
+- `presentation/util/PositionFormatter.kt` — чистые функции.
+- `presentation/util/PositionFormatterTest.kt` — переписать.
+- `domain/models/CalculateProfitPercentTest.kt` — удалить.
 
-**Тесты:** `calculateProfitPercent` остаётся (domain-функция, используется маппером или `Position`); unit-тесты не меняются. Маппер `Position -> PortfolioPositionUi` — +2–3 теста (P&L-формула, `totalValue`, `priceChangePercent`). `AssetPositionCard` Preview — обновить (2 модели).
+**Шаги:** подробно в `docs/H5-plan.md`. Кратко:
+1. Domain: `PortfolioRepository → List<Position>`, `emptyPosition`, удаление legacy.
+2. Presentation: `PortfolioUiState` без `positions`, `PortfolioViewModel` на `sheet`, `PortfolioScreen` на `sheet.accounts`.
+3. `OrdersUiState` / `OrdersViewModel` на `Position`.
+4. `AssetPositionCard(position: Position, displayCurrentPrice, priceChangePercent)`.
+5. `PositionFormatter` — чистые функции.
+6. Тесты + Preview.
+7. Гейт.
 
-**Референсы:** `docs/clean-audit.md` → Н5. `### Рефакторинг расчёта P&L для PortfolioPosition` — P&L-формула должна быть зафиксирована до разделения. `### Обогащение name в PortfolioPosition (вариант C)` — name = ticker, временно; после разделения — в `Position` (domain).
+**Тесты:** `PositionFormatterTest` (22 теста → переписать на чистые функции); `PortfolioConvertersTest` — дополнить `emptyPosition`; `CalculateProfitPercentTest` — удалить.
 
-**Ограничения:** не менять `positionFlowManager.flow: SharedFlow<PositionStreamItem>` — `PositionStreamItem` — domain, остаётся. Не трогать `PortfolioRepository` (фасад) — только возвращаемый тип. Не смешивать с `### Рефакторинг расчёта P&L` (формула) и `### Обогащение name` (name-логика) — они до H5.
+**Референсы:** `docs/clean-audit.md` → Н5; `docs/H5-plan.md` — исчерпывающий план; `### ✅ Portfolio: модель портфеля`.
 
-**Критерий готовности:** `Position` — domain без presentation-полей; `PortfolioPositionUi` — presentation; `PortfolioPosition` удалён (или переименован + переехал); UI принимает `PortfolioPositionUi`; KDoc `Position` без 2c-фиксации (нарушение устранено); гейт зелёный.
+**Ограничения:** UI-правки (`OrdersScreen`, `PortfolioScreen`, `AssetPositionCard`) — санкция по правилу 1. Не смешивать с другими задачами. `Position` (domain) не менять — только потребители.
 
-**Оценка:** ~4–6 ч (Position 30 мин, UI-модель + маппер 1 ч, VM 1 ч, 4 экрана + карточка 1.5 ч, PositionFormatter 30 мин, тесты 1 ч, гейт 15 мин, резерв 15 мин).
+**Критерий готовности:** `grep -rn "PortfolioPosition" app/src` — пусто; `PortfolioRepository → List<Position>`; UI на `Position`; гейт зелёный.
 
-**Зависимости:** H22, H1, H24, `### Рефакторинг расчёта P&L для PortfolioPosition`, `### UI: отображение blocked на валютной карточке` (или отменена).
+**Оценка:** ~5.5–6 ч. Детали — `docs/H5-plan.md`.
 
-**Связано:** `docs/clean-audit.md` → Н5; `### Обогащение name в PortfolioPosition (вариант C)`; `### Рефакторинг расчёта P&L для PortfolioPosition`; `### UI: отображение blocked на валютной карточке`.
+**Зависимости:** нет.
 
-**Открытые вопросы:**
-- **`PortfolioPositionUi` — composition или дублирование полей.** Composition (`Position` + presentation-поля) — меньше дублей, но UI-код через `ui.position.ticker`. Дублирование — проще для UI, но 13 полей дублируются. Рекомендация — composition, если UI готов через `.position.`.
-- **`money`/`blocked` (Н-UI-blocked):** в `Position` (domain, если станут domain-полями) или в `PortfolioPositionUi` (presentation). Зависит от решения по `### UI: отображение blocked`.
-- **Переезд `PortfolioPosition` → `PortfolioPositionUi`:** переименовать существующий класс или создать новый + удалить старый? Рекомендация — переименовать + переехать, чтобы `git log --follow` сохранил историю.
+**Связано:** `docs/clean-audit.md` → Н5; `### ✅ Portfolio: модель портфеля` (PR #89); `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR #89).
 
-
+**Открытые вопросы:** нет. Все решения — в `docs/H5-plan.md`.
 
 ---
 
@@ -8729,7 +8726,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `PortfolioPosition` расширен `accountId` / `lockedQuantity` (legacy), удаление — задача `### OrdersViewModel: миграция на PortfolioSheet`.
 **Связано:**
 - `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 — источник модели.
-- `### H5. PortfolioPosition: разделение domain/presentation` — **скорее всего решает Н5** (одна модель `Position` — domain, presentation-поля — getters/extension; разделение на `Position` + `PortfolioPositionUi` не потребуется). Если не решает — увидим при ревизии H5 **после** закрытия этой задачи. H5 не закрывать автоматически.
+- `### H5. PortfolioPosition: разделение domain/presentation` — **частично решает Н5**: `Position` (domain) создан, `toPortfolioPosition` / `mergeWith` удалены. Остаток — удаление legacy `PortfolioPosition` (presentation-модель в domain + возврат из `PortfolioRepository`). План — `docs/H5-plan.md`. H5 не закрывать автоматически.
 - `### Обогащение name в PortfolioPosition (вариант C)` — **отменяется** (`name` — через `instrument.name`).
 - `### UI: отображение blocked на валютной карточке` — **пересматривается** после этой задачи (шапка счёта вместо поля карточки).
 - `### Instrument: C-min → sealed interface (две фазы)` — предусловие.
