@@ -713,10 +713,10 @@ fun OrdersScreen() {
         )
     }
     // Диалог выбора брокера для основного поиска
-    if (viewModel.showSearchBrokerDialog.value) {
+    if (uiState.showSearchBrokerDialog) {
         BrokerAccountDialog(
             availableBrokers = viewModel.getAvailableBrokerNames(),
-            selectedBroker = viewModel.selectedSearchBroker.value,
+            selectedBroker = uiState.selectedSearchBroker,
             onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
             accounts = emptyList(),
             selectedAccountId = null,
@@ -728,16 +728,16 @@ fun OrdersScreen() {
     }
 
 // Диалог выбора брокера для парного поиска
-    if (viewModel.showPairSearchBrokerDialog.value) {
+    if (uiState.showPairSearchBrokerDialog) {
         BrokerAccountDialog(
             availableBrokers = viewModel.getAvailableBrokerNames(),
-            selectedBroker = viewModel.selectedPairSearchBroker.value,
+            selectedBroker = uiState.selectedPairSearchBroker,
             onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
             accounts = emptyList(),
             selectedAccountId = null,
             onAccountSelected = {},
-            onDismiss = { viewModel.showPairSearchBrokerDialog.value = false },
-            onSave = { viewModel.showPairSearchBrokerDialog.value = false },
+            onDismiss = { viewModel.dismissPairSearchBrokerDialog() },
+            onSave = { viewModel.dismissPairSearchBrokerDialog() },
             showAccountSelector = false,
         )
     }

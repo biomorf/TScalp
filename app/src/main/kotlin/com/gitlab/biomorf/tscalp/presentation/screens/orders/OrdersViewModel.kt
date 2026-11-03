@@ -1,6 +1,5 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
@@ -83,14 +82,6 @@ class OrdersViewModel
         private var searchJob: Job? = null
         private var pairSearchJob: Job? = null
         private var positionStreamJob: Job? = null
-
-        // Флаги для отображения диалога выбора брокера для основного и парного поиска
-        val showSearchBrokerDialog = mutableStateOf(false)
-        val showPairSearchBrokerDialog = mutableStateOf(false)
-
-        // Текущий выбранный брокер для основного и парного поиска
-        val selectedSearchBroker = mutableStateOf(BrokerName.TINVEST)
-        val selectedPairSearchBroker = mutableStateOf(BrokerName.TINVEST)
 
         companion object {
             private const val TAG = "OrdersViewModel"
@@ -1030,29 +1021,27 @@ class OrdersViewModel
         }
 
         fun openSearchBrokerSettings() {
-            showSearchBrokerDialog.value = true
+            _uiState.update { it.copy(showSearchBrokerDialog = true) }
         }
 
         fun openPairSearchBrokerSettings() {
-            showPairSearchBrokerDialog.value = true
+            _uiState.update { it.copy(showPairSearchBrokerDialog = true) }
         }
 
         fun saveSearchBrokerSettings(broker: BrokerName) {
-            selectedSearchBroker.value = broker
-            showSearchBrokerDialog.value = false
+            _uiState.update { it.copy(selectedSearchBroker = broker, showSearchBrokerDialog = false) }
         }
 
         fun savePairSearchBrokerSettings(broker: BrokerName) {
-            selectedPairSearchBroker.value = broker
-            showPairSearchBrokerDialog.value = false
+            _uiState.update { it.copy(selectedPairSearchBroker = broker, showPairSearchBrokerDialog = false) }
         }
 
         fun dismissSearchBrokerDialog() {
-            showSearchBrokerDialog.value = false
+            _uiState.update { it.copy(showSearchBrokerDialog = false) }
         }
 
         fun dismissPairSearchBrokerDialog() {
-            showPairSearchBrokerDialog.value = false
+            _uiState.update { it.copy(showPairSearchBrokerDialog = false) }
         }
 
         fun refreshSearch() {
