@@ -438,9 +438,34 @@ class OrdersViewModel
             _uiState.update { it.copy(selectedAccountId = accountId) }
         }
 
-        fun onBuyClick() = viewModelScope.launch { postOrder(OrderDirection.BUY) }
+        fun onBuyClick() =
+            viewModelScope.launch {
+                if (_uiState.value.confirmOrdersEnabled) {
+                    _uiState.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.BUY) }
+                } else {
+                    postOrder(OrderDirection.BUY)
+                }
+            }
 
-        fun onSellClick() = viewModelScope.launch { postOrder(OrderDirection.SELL) }
+        fun onSellClick() =
+            viewModelScope.launch {
+                if (_uiState.value.confirmOrdersEnabled) {
+                    _uiState.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.SELL) }
+                } else {
+                    postOrder(OrderDirection.SELL)
+                }
+            }
+
+        fun onConfirmOrder() =
+            viewModelScope.launch {
+                val direction = _uiState.value.pendingDirection ?: return@launch
+                _uiState.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
+                postOrder(direction)
+            }
+
+        fun onDismissConfirmDialog() {
+            _uiState.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
+        }
 
         private suspend fun postOrder(direction: OrderDirection) {
             val state = _uiState.value
@@ -605,8 +630,6 @@ class OrdersViewModel
         fun clearStatus() {
             _uiState.update { it.clearStatus() }
         }
-
-        fun isConfirmOrdersEnabled(): Boolean = _uiState.value.confirmOrdersEnabled
 
         fun getAvailableBrokerNames(): List<BrokerName> = brokerManager.getAvailableBrokerNames()
 

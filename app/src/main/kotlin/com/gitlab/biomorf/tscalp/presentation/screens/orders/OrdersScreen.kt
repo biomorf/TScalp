@@ -53,8 +53,6 @@ import kotlinx.coroutines.launch
 fun OrdersScreen() {
     val viewModel: OrdersViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
-    var showConfirmDialog by remember { mutableStateOf(false) }
-    var pendingDirection by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -211,8 +209,8 @@ fun OrdersScreen() {
                                 OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
                                 else -> null
                             }
-                        val direction = if (pendingDirection == "Покупка") "BUY" else "SELL"
-                        val pairedSpec = PairOrderMapper.map(uiState.orderType, OrderDirection.valueOf(direction), primaryPrice)
+                        val direction = uiState.pendingDirection ?: OrderDirection.BUY
+                        val pairedSpec = PairOrderMapper.map(uiState.orderType, direction, primaryPrice)
                         pairedOrderType = pairedSpec.orderType
                         pairExecPrice =
                             when (uiState.orderType) {
@@ -224,10 +222,10 @@ fun OrdersScreen() {
                         pairedOrderType = null
                     }
                     ConfirmOrderDialog(
-                        show = showConfirmDialog,
+                        show = uiState.showConfirmDialog,
                         ticker = uiState.selectedInstrument?.ticker ?: "",
                         quantity = uiState.quantityAsLong ?: 0L,
-                        pendingDirection = pendingDirection,
+                        pendingDirection = uiState.pendingDirection,
                         orderType = uiState.orderType,
                         instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
                         executionPrice = uiState.executionPrice,
@@ -237,11 +235,8 @@ fun OrdersScreen() {
                         pairedMultiplier = uiState.pairedMultiplier,
                         pairExecPrice = pairExecPrice,
                         pairedOrderType = pairedOrderType,
-                        onDismiss = { showConfirmDialog = false },
-                        onConfirm = {
-                            if (pendingDirection == "Покупка") viewModel.onBuyClick() else viewModel.onSellClick()
-                            showConfirmDialog = false
-                        },
+                        onDismiss = { viewModel.onDismissConfirmDialog() },
+                        onConfirm = { viewModel.onConfirmOrder() },
                     )
 
                     val costOverlay = uiState.costOverlay
@@ -610,28 +605,14 @@ fun OrdersScreen() {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Button(
-                        onClick = {
-                            if (viewModel.isConfirmOrdersEnabled()) {
-                                pendingDirection = "Покупка"
-                                showConfirmDialog = true
-                            } else {
-                                viewModel.onBuyClick()
-                            }
-                        },
+                        onClick = { viewModel.onBuyClick() },
                         modifier = Modifier.weight(1f),
                         enabled = uiState.isFormValid && !uiState.isLoading,
                     ) {
                         Text("КУПИТЬ")
                     }
                     Button(
-                        onClick = {
-                            if (viewModel.isConfirmOrdersEnabled()) {
-                                pendingDirection = "Продажа"
-                                showConfirmDialog = true
-                            } else {
-                                viewModel.onSellClick()
-                            }
-                        },
+                        onClick = { viewModel.onSellClick() },
                         modifier = Modifier.weight(1f),
                         enabled = uiState.isFormValid && !uiState.isLoading,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
