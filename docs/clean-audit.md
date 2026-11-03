@@ -673,31 +673,12 @@ L4–L8 — не проверены, заполняются по мере инс
 
 | ID | Серьёзность | Затрагиваемые уровни | Локализация | live тест |
 |---|---|---|---|---|
-| Н5. PortfolioPosition — presentation-поля (пересматривается) | высоко | L3, L1 | `domain/models/Portfolio.kt` | - |
 | Н15. TradingStateSnapshot — presentation в domain | средне | L3, L1 | `domain/models/TradingState.kt` | - |
 | Н6. InstrumentUi — god-класс | средне | L3 | `domain/models/Instruments.kt` | - |
 | Н7. ttech_figi — временное, без задачи | низко | L3, L6 | `domain/models/Instruments.kt` | - |
 | Н8. OrderTypeSelection — sealed class для sum-type | низко | L3 | `domain/models/OrderModels.kt` | - |
 | Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` | - |
 | Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` | - |
-
-### Н5. PortfolioPosition — presentation-поля (пересматривается)
-
-**Статус:** частично исправлено (2026-11-03, feature/portfolio-model, PR #89). Остаток — удаление legacy `PortfolioPosition` (задача `### H5. PortfolioPosition: разделение domain/presentation` в `docs/ROADMAP.md`; детальный план — `docs/H5-plan.md`).
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `PortfolioPosition` (presentation-модель, `domain/models/Portfolio.kt`) содержит presentation-поля `totalValue`, `profitPercent`, `priceChangePercent`. По Clean domain-модель не должна содержать presentation-атрибуты. **Исправлено (feature/portfolio-model):** создана domain-модель `Position` (sealed interface, 7 subtypes) с computed getters `totalValue` / `profitPercent` (не хранятся); `toPortfolioPosition` и `PortfolioPosition.mergeWith` удалены (коммит `a859185`). **Остаток:** `PortfolioPosition` физически лежит в `domain/models/` и возвращается из domain-интерфейса `PortfolioRepository.fetchPositionsResult → AppResult<List<PortfolioPosition>>` (dependency rule наружу); presentation-модель должна исчезнуть, UI должен работать с `Position` напрямую. План: `docs/H5-plan.md`.
-
-**Нарушенное правило:** Domain не должен содержать presentation-атрибуты (dependency rule в обратную сторону).
-
-**Clean-альтернатива:** `Position` (domain) — создана; полностью избавиться от `PortfolioPosition`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`; `PortfolioUiState.positions` — удалить (UI читает `sheet.accounts`); `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`; `PositionFormatter` на чистых функциях (без модели); `emptyPosition(...)` вместо `emptyPortfolioPosition`; `PortfolioPositionUi` отдельно **не создавать** (лишняя сущность). Плюсы: dependency rule чистая, presentation-модели нет вовсе. Минусы: ~5.5–6 ч, переписать `PositionFormatter` + `PositionFormatterTest` (22 теста). Детали — `docs/H5-plan.md`.
-
-**Выгоды (по 2c):** `toPortfolioPosition()` — одна точка конвертации в `InvestRepository`; UI работает с одной моделью, без дублирования `profitPercent`/`totalValue` в presentation. Экономия на маппинге ~1 ч.
-
-**Ссылка на задачу:** `### H5. PortfolioPosition: разделение domain/presentation` (`docs/ROADMAP.md`); детальный план для исполнителя — `docs/H5-plan.md`. Закрыта `### Рефакторинг расчёта P&L для PortfolioPosition` (PR #81, `dev`).
 
 ### Н15. TradingStateSnapshot — presentation в domain
 
@@ -736,6 +717,28 @@ L4–L8 — не проверены, заполняются по мере инс
 **Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `StreamState.kt`.
 
 ### Исправленные (L3)
+
+### ✅ Н5. PortfolioPosition — presentation-поля
+
+**Статус:** исправлено (merge pending H5 — ветка `feature/h5-clean-final`, коммит `4a0e785`; после merge — обновить до `исправлено`).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -.
+
+**Описание:** `PortfolioPosition` (presentation-модель, `domain/models/Portfolio.kt`) содержит presentation-поля `totalValue`, `profitPercent`, `priceChangePercent`. По Clean domain-модель не должна содержать presentation-атрибуты. **Исправлено (feature/portfolio-model):** создана domain-модель `Position` (sealed interface, 7 subtypes) с computed getters `totalValue` / `profitPercent` (не хранятся); `toPortfolioPosition` и `PortfolioPosition.mergeWith` удалены (коммит `a859185`). **Остаток:** `PortfolioPosition` физически лежит в `domain/models/` и возвращается из domain-интерфейса `PortfolioRepository.fetchPositionsResult → AppResult<List<PortfolioPosition>>` (dependency rule наружу); presentation-модель должна исчезнуть, UI должен работать с `Position` напрямую. План: `docs/H5-plan.md`.
+
+**Нарушенное правило:** Domain не должен содержать presentation-атрибуты (dependency rule в обратную сторону).
+
+**Clean-альтернатива:** `Position` (domain) — создана; полностью избавиться от `PortfolioPosition`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`; `PortfolioUiState.positions` — удалить (UI читает `sheet.accounts`); `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`; `PositionFormatter` на чистых функциях (без модели); `emptyPosition(...)` вместо `emptyPortfolioPosition`; `PortfolioPositionUi` отдельно **не создавать** (лишняя сущность). Плюсы: dependency rule чистая, presentation-модели нет вовсе. Минусы: ~5.5–6 ч, переписать `PositionFormatter` + `PositionFormatterTest` (22 теста). Детали — `docs/H5-plan.md`.
+
+**Выгоды (по 2c):** `toPortfolioPosition()` — одна точка конвертации в `InvestRepository`; UI работает с одной моделью, без дублирования `profitPercent`/`totalValue` в presentation. Экономия на маппинге ~1 ч.
+
+**Что сделано:** `PortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`, `toLegacyPortfolioPosition` удалены из `domain/models/Portfolio.kt`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`. `emptyPosition(instrument, currentPrice, accountId, brokerName, lockedQuantity)` — dispatcher по `Instrument` (7 subtypes). `PortfolioUiState.positions` удалён; `PortfolioViewModel` на `sheet` + `prices`/`priceChangePercents` overlay; `sheetState`/`pricesMap`/`priceChangePercentsMap` удалены. `OrdersUiState.portfolioPositions → List<Position>`; `toLegacyPortfolioPosition` adapter убран. `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`. `PositionFormatter` — чистые функции с примитивами. `PositionFormatterTest` переписан (26 тестов); `PortfolioConvertersTest` +7 кейсов `emptyPosition`; `CalculateProfitPercentTest` удалён. Коммит `4a0e785` (PR pending merge).
+
+**Ссылка на задачу:** `### ✅ H5. PortfolioPosition removed` (`docs/ROADMAP.md`, merge pending). Связано с закрытой `### Рефакторинг расчёта P&L для PortfolioPosition` (PR #81, `dev`).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
 ### ✅ Н7. ttech_figi — временное, без задачи
 
