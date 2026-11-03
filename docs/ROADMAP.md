@@ -659,7 +659,7 @@ clean-audit.
 
 **Референсы:**
 - `### H5. PortfolioPosition: разделение domain/presentation` — источник.
-- `docs/H5-plan.md` — handoff план H5 (в конце — секция «После закрытия»).
+- История H5: merge `d04ecc4`, PR #90.
 - `docs/clean-audit.md` → Н5.
 
 **Ограничения:**
@@ -677,7 +677,7 @@ clean-audit.
 
 **Зависимости:** `### H5. PortfolioPosition: разделение domain/presentation` (blocker).
 
-**Связано:** `### H5. PortfolioPosition...`, `### ✅ Portfolio: модель портфеля`, `### UI: отображение blocked...`, `### P&L: client-side fallback...`, `docs/H5-plan.md`.
+**Связано:** `### H5. PortfolioPosition...`, `### ✅ Portfolio: модель портфеля`, `### UI: отображение blocked...`, `### P&L: client-side fallback...`. История: merge `d04ecc4`, PR #90.
 
 **Открытые вопросы:**
 - `### UI: отображение blocked...` — закрыть как выполненную в Portfolio (шапка счёта) или переформулировать под остаток (например, детализация по валютам)? Решить при ревизии, по факту UI.
@@ -8800,7 +8800,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `PortfolioPosition` расширен `accountId` / `lockedQuantity` (legacy), удаление — задача `### OrdersViewModel: миграция на PortfolioSheet`.
 **Связано:**
 - `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 — источник модели.
-- `### H5. PortfolioPosition: разделение domain/presentation` — **частично решает Н5**: `Position` (domain) создан, `toPortfolioPosition` / `mergeWith` удалены. Остаток — удаление legacy `PortfolioPosition` (presentation-модель в domain + возврат из `PortfolioRepository`). План — `docs/H5-plan.md`. H5 не закрывать автоматически.
+- `### ✅ H5. PortfolioPosition removed` — **закрывает Н5**: `Position` (domain) создан, `toPortfolioPosition` / `mergeWith` удалены, legacy `PortfolioPosition` удалён, `PortfolioRepository → List<Position>`. Закрыто в merge `d04ecc4`, PR #90.
 - `### Обогащение name в PortfolioPosition (вариант C)` — **отменяется** (`name` — через `instrument.name`).
 - `### UI: отображение blocked на валютной карточке` — **пересматривается** после этой задачи (шапка счёта вместо поля карточки).
 - `### Instrument: C-min → sealed interface (две фазы)` — предусловие.
@@ -9040,7 +9040,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Предусловия:** нет (все блокеры — H1, H22, H24, `Рефакторинг расчёта P&L` — закрыты).
 
-**Файлы:** см. `docs/H5-plan.md` (исчерпывающий список). Ключевые:
+**Файлы:** ключевые:
 - `domain/models/Portfolio.kt` — удалить `PortfolioPosition`, `toLegacyPortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`; добавить `emptyPosition(...)`.
 - `domain/api/repository/PortfolioRepository.kt` — `fetchPositionsResult → AppResult<List<Position>>`.
 - `data/repository/PortfolioRepositoryImpl.kt` — без adapter.
@@ -9055,7 +9055,7 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `presentation/util/PositionFormatterTest.kt` — переписать.
 - `domain/models/CalculateProfitPercentTest.kt` — удалить.
 
-**Шаги:** подробно в `docs/H5-plan.md`. Кратко:
+**Шаги:** кратко:
 1. Domain: `PortfolioRepository → List<Position>`, `emptyPosition`, удаление legacy.
 2. Presentation: `PortfolioUiState` без `positions`, `PortfolioViewModel` на `sheet`, `PortfolioScreen` на `sheet.accounts`.
 3. `OrdersUiState` / `OrdersViewModel` на `Position`.
@@ -9066,13 +9066,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Тесты:** `PositionFormatterTest` (22 теста → переписать на чистые функции); `PortfolioConvertersTest` — дополнить `emptyPosition`; `CalculateProfitPercentTest` — удалить.
 
-**Референсы:** `docs/clean-audit.md` → Н5; `docs/H5-plan.md` — исчерпывающий план; `### ✅ Portfolio: модель портфеля`.
+**Референсы:** `docs/clean-audit.md` → Н5; `### ✅ Portfolio: модель портфеля`; merge `d04ecc4`, PR #90.
 
 **Ограничения:** UI-правки (`OrdersScreen`, `PortfolioScreen`, `AssetPositionCard`) — санкция по правилу 1. Не смешивать с другими задачами. `Position` (domain) не менять — только потребители.
 
 **Критерий готовности:** `grep -rn "PortfolioPosition" app/src` — пусто; `PortfolioRepository → List<Position>`; UI на `Position`; гейт зелёный.
 
-**Оценка:** ~5.5–6 ч. Детали — `docs/H5-plan.md`.
+**Оценка:** ~5.5–6 ч.
 
 **Зависимости:** нет.
 
@@ -9080,6 +9080,6 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Что сделано:** `PortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`, `toLegacyPortfolioPosition` удалены из `domain/models/Portfolio.kt`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`. `emptyPosition(instrument, currentPrice, accountId, brokerName, lockedQuantity)` — dispatcher по `Instrument` (7 subtypes). `PortfolioUiState.positions` удалён; `PortfolioViewModel` на `sheet` + `prices`/`priceChangePercents` overlay; `sheetState`/`pricesMap`/`priceChangePercentsMap` удалены. `OrdersUiState.portfolioPositions → List<Position>`; `toLegacyPortfolioPosition` adapter убран. `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`. `PositionFormatter` — чистые функции с примитивами. `PositionFormatterTest` переписан (26 тестов); `PortfolioConvertersTest` +7 кейсов `emptyPosition`; `CalculateProfitPercentTest` удалён.
 
-**Открытые вопросы:** нет. Все решения — в `docs/H5-plan.md`.
+**Открытые вопросы:** нет. Решения — в истории merge `d04ecc4`, PR #90.
 
 ---
