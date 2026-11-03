@@ -20,7 +20,6 @@ import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -73,7 +72,8 @@ class PortfolioViewModel
                 while (isActive) {
                     delay(5 * 60 * 1000L)
                     val currentPositions =
-                        _uiState.value.sheet.accounts.values.flatMap { it.positions }
+                        _uiState.value.sheet.accounts.values
+                            .flatMap { it.positions }
                     if (currentPositions.isNotEmpty()) {
                         updateTradingStatuses(currentPositions)
                     }
