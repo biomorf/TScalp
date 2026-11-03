@@ -126,6 +126,69 @@ clean-audit.
 
 ---
 
+### Orders: счёт из свойств карточки не применяется к акциям
+
+**Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с одной бумагой).
+
+**Статус:** запланировано.
+
+**Контекст:** Pre-existing bug (воспроизведён на `dev` при live-тесте 2026-11-03 после PR #89). При покупке **акции** из карточки «Последние просмотренные» после выбора счёта в диалоге свойств карточки (`AssetPositionCard.onSettings` → `openBrokerDialog` → `saveBrokerSettings`) заявка уходит на **глобальный** счёт (`OrdersUiState.selectedAccountId` — из Настроек), а не на выбранный в карточке. Для **фьючерсов** работает корректно. Если выбрать активный счёт в Настройках **и** в свойствах карточки — покупается правильно (потому что оба совпадают).
+
+**Соответствие Clean:** соответствует (баг-фикс, не рефакторинг).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**Предусловия:** нет. (PR #89 не виноват — идентично `dev` до миграции.)
+
+**Файлы (ожидаемые):**
+- `presentation/screens/orders/OrdersViewModel.kt` — `openBrokerDialog`, `saveBrokerSettings`, `buildOrderInput`, `refreshLastSelectedInstruments`, `updatePositionsFromSheet`.
+- `presentation/screens/orders/OrdersScreen.kt` — `onSettings = { viewModel.openBrokerDialog(instrument.ticker) }`, `onClick` карточки.
+- `presentation/screens/orders/OrdersUiState.kt` — `lastSelectedInstruments: List<SelectedInstrumentInfo>` (поле `accountId`).
+- `presentation/components/BrokerAccountDialog.kt` — кнопка «Сохранить» / `onSave` callback.
+
+**Шаги:**
+
+0. **Диагностика (обязательно до фикса).** Воспроизвести: 2 счёта с SBER, выбрать в карточке SBER счёт `B`, купить — проверить, на какой счёт ушло. Добавить `logger.d` в `buildOrderInput` перед `PostOrderInput`: `activeCard`, `activeCard?.accountId`, `state.selectedAccountId`, `state.selectedInstrument?.ticker`, `state.ticker`, `state.lastSelectedInstruments.map { it.instrument.ticker to it.accountId }`. Собрать лог.
+1. **По результатам шага 0 — выбрать гипотезу и фикс.** Известные гипотезы:
+   1. `activeCard` = `null` (`ticker` mismatch: `state.ticker` ≠ `state.selectedInstrument.ticker` ≠ `card.instrument.ticker`). Фикс: нормализовать выбор — искать `activeCard` по `selectedInstrument.tscalpInstrumentId`, а не по `ticker`.
+   2. `activeCard.accountId` = `null` (не сохранился в `saveBrokerSettings`). Фикс: проверить `selectedAccountIdDialog` перед `saveBrokerSettings`; при `null` — fallback.
+   3. `saveBrokerSettings` не вызывается для акций (кнопка «Сохранить» / `onSave` не срабатывает). Фикс: проверить `BrokerAccountDialog` UI.
+   4. Гонка `loadOrders` (записывает `selectedAccountId` из настроек) с `saveBrokerSettings` — возможно, `lastSelectedInstruments` сбрасывается при `loadOrders`/`refresh`.
+   5. Разница акции/фьючерсы — в `updatePositionsFromSheet`: `portfolioPositions` фильтруются по `selectedAccountId` (глобальный), а карточка в UI показывает P&L этого счёта — визуально «на одном счёте». Тогда баг только в отображении, покупка на самом деле уходит правильно; проверить в брокере.
+2. **Расширить выбор счёта на карточку.** После выбора `accountId` в диалоге — `OrdersScreen` должен чётко показывать, какой счёт выбран для карточки (сейчас, вероятно, не визуализируется). UI-санкция (правило 1).
+3. Тесты: `OrdersViewModelTest` (если появится mock-инфра) — `buildOrderInput` берёт `activeCard.accountId` при `activeCard != null`, иначе `state.selectedAccountId`. Live-тест: 2 счёта × покупка акции из карточки с выбранным `B` — заявка уходит на `B`, P&L карточки — счёта `B`.
+4. Гейт.
+
+**Тесты:** unit — `buildOrderInput` (2 кейса); live — 2 счёта, покупка из карточки.
+
+**Референсы:** `docs/architecture.md` (Data flow: позиции); `### OrdersViewModel: миграция на PortfolioSheet` (закрыто, PR #89 — не виноват); PR #88 (Portfolio model).
+
+**Ограничения:**
+- Не менять поведение фьючерсов (работает).
+- UI-санкция (правило 1): если добавляем визуализацию выбранного счёта в карточке — согласовать.
+- Не менять `PostOrderUseCase` (orchestration корректна; проблема в резолве `accountId` выше).
+
+**Критерий готовности:**
+- Покупка акции из карточки с выбранным в свойствах счётом `B` уходит на `B` (при любом `selectedAccountId` в Настройках).
+- Фьючерсы — поведение не изменилось.
+- P&L карточки — с выбранного в карточке счёта (не с глобального).
+- Гейт зелёный; live-тест PASS.
+
+**Оценка:** ~2–3 ч (диагностика 30 мин, фикс 30 мин, live-тест 30 мин, гейт 15 мин, резерв 30 мин).
+
+**Зависимости:** нет.
+
+**Связано:** `### OrdersViewModel: миграция на PortfolioSheet` (закрыто, PR #89); `### Portfolio: модель портфеля` (закрыто, PR #88).
+
+**Открытые вопросы:** гипотезы 1–5 (см. шаг 1) — фикс определяется после диагностики шага 0.
+
+---
+
+
 ### Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
