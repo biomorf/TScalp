@@ -606,3 +606,36 @@ internal fun Position.toStreamItem(): PositionStreamItem =
         accountId = accountId,
         isDomesticCurrency = false,
     )
+
+/**
+ * Обратный адаптер [Position] -> [PortfolioPosition] (legacy).
+ *
+ * `PortfolioPosition` ещё используется `OrdersViewModel` /
+ * `PortfolioRepositoryImpl`; миграция на `Position` — задача
+ * `### OrdersViewModel: миграция на PortfolioSheet`.
+ *
+ * `quantity` → `Long` (lossy — Finam дробное; до миграции Finam не работает).
+ * `priceChangePercent` = `null` (источник — задача `### Position: источники
+ * priceChangePercent и lockedQuantity`); в `PortfolioViewModel` для UI
+ * подставляется tick-to-tick overlay из `PriceFlowManager`.
+ */
+internal fun Position.toLegacyPortfolioPosition(): PortfolioPosition =
+    PortfolioPosition(
+        tscalpInstrumentId = instrument.tscalpInstrumentId,
+        brokerName = brokerName,
+        name = instrument.name,
+        ticker = instrument.ticker,
+        quantity = quantity.toLong(),
+        currentPrice = currentPrice,
+        averagePrice = averagePrice,
+        totalValue = totalValue,
+        profit = profit,
+        profitPercent = profitPercent,
+        moneyPerPointOfPrice = instrument.moneyPerPointOfPrice,
+        instrumentType = instrument.instrumentType,
+        isin = instrument.isin,
+        classCode = instrument.classCode ?: "",
+        currency = instrument.currency,
+        accountId = accountId,
+        lockedQuantity = lockedQuantity,
+    )

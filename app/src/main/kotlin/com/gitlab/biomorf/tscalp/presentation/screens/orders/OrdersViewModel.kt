@@ -23,13 +23,12 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
-import com.gitlab.biomorf.tscalp.domain.models.mergeWith
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
-import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.toLegacyPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
@@ -936,8 +935,8 @@ class OrdersViewModel
                     // через свой CoroutineExceptionHandler — сюда они не доходят.
                     // .catch на SharedFlow смысла не имеет: поток не завершается
                     // и не бросает исключения подписчику.
-                    positionFlowManager.flow.collect { item ->
-                        updatePositionPnl(item)
+                    positionFlowManager.sheet.collect { sheet ->
+                        updatePositionsFromSheet(sheet)
                     }
                 }
             // Если позиции ещё не загружены (например, после восстановления состояния),
@@ -1019,26 +1018,19 @@ class OrdersViewModel
             priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
-        private fun updatePositionPnl(item: PositionStreamItem) {
-            // Multi-account: PositionFlowManager эмитит события со всех счетов.
-            // Обновляем карточку только по активному счёту (null = backward-compat).
-            val activeAccount = _uiState.value.selectedAccountId
-            if (item.accountId != null && item.accountId != activeAccount) return
-            val avgPrice = item.averagePositionPrice ?: return
-            val yield = item.expectedYield ?: return
-            val quantity = item.quantity
-            if (quantity == 0L) return
-
-            logger.d(TAG, "updatePositionPnl: id=${item.tscalpInstrumentId}, avgPrice=$avgPrice, yield=$yield, quantity=$quantity")
-
+        /**
+         * Multi-account: `PositionFlowManager` эмитит `PortfolioSheet` со всех
+         * счетов. Обновляем карточки только по активному счёту
+         * ([OrdersUiState.selectedAccountId]). Adapter `Position -> PortfolioPosition` —
+         * domain-extension `toLegacyPortfolioPosition`.
+         */
+        private fun updatePositionsFromSheet(sheet: PortfolioSheet) {
+            val activeAccount = _uiState.value.selectedAccountId ?: return
+            val key = AccountKey(BrokerName.TINVEST, activeAccount)
+            val accountPortfolio = sheet.accounts[key] ?: return
+            val positions = accountPortfolio.positions.map { it.toLegacyPortfolioPosition() }
+            logger.d(TAG, "updatePositionsFromSheet: account=$activeAccount, positions=${positions.size}")
             _uiState.update { state ->
-                val positions = state.portfolioPositions.toMutableList()
-                val index = positions.indexOfFirst { it.tscalpInstrumentId == item.tscalpInstrumentId }
-                if (index == -1) {
-                    positions.add(item.toPortfolioPosition())
-                } else {
-                    positions[index] = positions[index].mergeWith(item)
-                }
                 state.copy(portfolioPositions = positions)
             }
         }
