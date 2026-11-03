@@ -57,8 +57,6 @@ import javax.inject.Singleton
  *    не даёт — GetPortfolio money/blocked не отдаёт).
  *
  * `_sheet` — единственный публичный эмитируемый тип (`sheet: StateFlow<PortfolioSheet>`).
- * `flow: SharedFlow<PositionStreamItem>` — legacy для `OrdersViewModel`
- * (миграция — задача «OrdersViewModel: миграция на PortfolioSheet»).
  * [connectionState] — агрегат по всем счетам (один tracker).
  *
  * Polling идёт через `BrokerApi.portfolio` ([PortfolioApi], опциональный
