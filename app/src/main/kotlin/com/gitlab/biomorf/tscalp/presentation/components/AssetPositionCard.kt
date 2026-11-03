@@ -372,11 +372,12 @@ private fun AssetCardContent(
                             } else {
                                 Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            val pct = position.profitPercent
                             if (percentStr != null) {
                                 Text(
                                     text = percentStr,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (position.profitPercent != null && position.profitPercent >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
+                                    color = if (pct != null && pct >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
                                 )
                             } else {
                                 Text("—", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -463,6 +464,7 @@ private fun AssetPositionCardFuturesPreview() {
                             tscalpInstrumentId = "uid-3",
                             ticker = "SiU4",
                             name = "Фьючерс Si",
+                            isin = "FUT-SI-2024",
                             classCode = "SPBFUT",
                         ),
                     brokerName = BrokerName.TINVEST,

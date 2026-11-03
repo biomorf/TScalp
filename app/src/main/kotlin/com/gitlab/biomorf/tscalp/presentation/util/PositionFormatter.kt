@@ -81,9 +81,10 @@ object PositionFormatter {
         price: Double,
         instrumentType: InstrumentType,
         pointValue: Double?,
+        currency: String? = null,
     ): Pair<String?, String?> {
         if (price <= 0) return null to null
-        val priceStr = formatPrice(price, instrumentType, DOMESTIC_CURRENCY)
+        val priceStr = formatPrice(price, instrumentType, currency ?: DOMESTIC_CURRENCY)
         val rubStr =
             if (instrumentType == InstrumentType.FUTURES && pointValue != null && pointValue > 0) {
                 formatDomesticCurrency(price * pointValue)
