@@ -612,68 +612,6 @@ clean-audit.
 
 
 
-### H5. PortfolioPosition: разделение domain/presentation
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** частично (Position создан в feature/portfolio-model, PR #89). Остаток — удаление legacy `PortfolioPosition`. Детальный план для исполнителя — `docs/H5-plan.md`.
-
-**Контекст:** `PortfolioPosition` содержит presentation-поля (`totalValue`, `profitPercent`, `priceChangePercent`) и физически лежит в `domain/models/Portfolio.kt`; возвращается из domain-интерфейса `PortfolioRepository.fetchPositionsResult → AppResult<List<PortfolioPosition>>` (dependency rule наружу). Отклонение осознанно принято в #9.
-
-**Что уже сделано (feature/portfolio-model, PR #89):** создана domain-модель `Position` (sealed interface, 7 subtypes) с computed getters `totalValue` / `profitPercent`; `toPortfolioPosition` / `PortfolioPosition.mergeWith` удалены (`a859185`); оба адаптера (`toLegacyPortfolioPosition`, `toUiPosition`) заполняют `name = instrument.name`.
-
-**Соответствие Clean:** отклонение (осталось). Остаток — устранение `PortfolioPosition` полностью.
-
-**Нарушенное правило Clean:** dependency rule — presentation-модель в domain-пакете + возвращается из domain-интерфейса.
-
-**Clean-альтернатива:** полностью избавиться от `PortfolioPosition`, использовать `Position` (domain) в UI напрямую. `PortfolioPositionUi` **не создавать** (лишняя сущность; `Position` уже даёт всё через `instrument.*` + computed getters). Плюсы: dependency rule чистая, presentation-модели нет вовсе, меньше сущностей. Минусы: `PositionFormatter` переписать на чистые функции; `AssetPositionCard` принимает `Position` + overlay-параметры.
-
-**Выгоды:** —.
-
-**Предусловия:** нет (все блокеры — H1, H22, H24, `Рефакторинг расчёта P&L` — закрыты).
-
-**Файлы:** см. `docs/H5-plan.md` (исчерпывающий список). Ключевые:
-- `domain/models/Portfolio.kt` — удалить `PortfolioPosition`, `toLegacyPortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`; добавить `emptyPosition(...)`.
-- `domain/api/repository/PortfolioRepository.kt` — `fetchPositionsResult → AppResult<List<Position>>`.
-- `data/repository/PortfolioRepositoryImpl.kt` — без adapter.
-- `presentation/screens/portfolio/PortfolioUiState.kt` — удалить `positions` (UI читает `sheet.accounts`).
-- `presentation/screens/portfolio/PortfolioViewModel.kt` — удалить `toUiPosition` / `recomputePositions`.
-- `presentation/screens/portfolio/PortfolioScreen.kt` — из `sheet.accounts` напрямую.
-- `presentation/screens/orders/OrdersUiState.kt` — `portfolioPositions: List<Position>`.
-- `presentation/screens/orders/OrdersViewModel.kt` — без adapter.
-- `presentation/screens/orders/OrdersScreen.kt` — `emptyPosition` вместо `emptyPortfolioPosition`.
-- `presentation/components/AssetPositionCard.kt` — `position: Position` + `displayCurrentPrice: Double?` + `priceChangePercent: Double?`.
-- `presentation/util/PositionFormatter.kt` — чистые функции.
-- `presentation/util/PositionFormatterTest.kt` — переписать.
-- `domain/models/CalculateProfitPercentTest.kt` — удалить.
-
-**Шаги:** подробно в `docs/H5-plan.md`. Кратко:
-1. Domain: `PortfolioRepository → List<Position>`, `emptyPosition`, удаление legacy.
-2. Presentation: `PortfolioUiState` без `positions`, `PortfolioViewModel` на `sheet`, `PortfolioScreen` на `sheet.accounts`.
-3. `OrdersUiState` / `OrdersViewModel` на `Position`.
-4. `AssetPositionCard(position: Position, displayCurrentPrice, priceChangePercent)`.
-5. `PositionFormatter` — чистые функции.
-6. Тесты + Preview.
-7. Гейт.
-
-**Тесты:** `PositionFormatterTest` (22 теста → переписать на чистые функции); `PortfolioConvertersTest` — дополнить `emptyPosition`; `CalculateProfitPercentTest` — удалить.
-
-**Референсы:** `docs/clean-audit.md` → Н5; `docs/H5-plan.md` — исчерпывающий план; `### ✅ Portfolio: модель портфеля`.
-
-**Ограничения:** UI-правки (`OrdersScreen`, `PortfolioScreen`, `AssetPositionCard`) — санкция по правилу 1. Не смешивать с другими задачами. `Position` (domain) не менять — только потребители.
-
-**Критерий готовности:** `grep -rn "PortfolioPosition" app/src` — пусто; `PortfolioRepository → List<Position>`; UI на `Position`; гейт зелёный.
-
-**Оценка:** ~5.5–6 ч. Детали — `docs/H5-plan.md`.
-
-**Зависимости:** нет.
-
-**Связано:** `docs/clean-audit.md` → Н5; `### ✅ Portfolio: модель портфеля` (PR #89); `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR #89).
-
-**Открытые вопросы:** нет. Все решения — в `docs/H5-plan.md`.
-
----
-
 ### Ревизия ссылок на PortfolioPosition после H5
 
 **Мобильная работа:** полное закрытие (docs-only, proot).
@@ -9020,5 +8958,67 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `PositionStreamItem` **не** содержит поля `name` (критерий готовности выполнен).
 - Для `OrdersScreen` (карточка заявки) `name` также приходит из `Instrument` через `toLegacyPortfolioPosition` (fix в PR #89).
 **Открытые вопросы:** нет.
+
+---
+
+### ✅ H5. PortfolioPosition removed
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** `PortfolioPosition` содержит presentation-поля (`totalValue`, `profitPercent`, `priceChangePercent`) и физически лежит в `domain/models/Portfolio.kt`; возвращается из domain-интерфейса `PortfolioRepository.fetchPositionsResult → AppResult<List<PortfolioPosition>>` (dependency rule наружу). Отклонение осознанно принято в #9.
+
+**Что уже сделано (feature/portfolio-model, PR #89):** создана domain-модель `Position` (sealed interface, 7 subtypes) с computed getters `totalValue` / `profitPercent`; `toPortfolioPosition` / `PortfolioPosition.mergeWith` удалены (`a859185`); оба адаптера (`toLegacyPortfolioPosition`, `toUiPosition`) заполняют `name = instrument.name`.
+
+**Соответствие Clean:** отклонение (устранено в **Что сделано:**).
+
+**Нарушенное правило Clean:** dependency rule — presentation-модель в domain-пакете + возвращается из domain-интерфейса.
+
+**Clean-альтернатива:** полностью избавиться от `PortfolioPosition`, использовать `Position` (domain) в UI напрямую. `PortfolioPositionUi` **не создавать** (лишняя сущность; `Position` уже даёт всё через `instrument.*` + computed getters). Плюсы: dependency rule чистая, presentation-модели нет вовсе, меньше сущностей. Минусы: `PositionFormatter` переписать на чистые функции; `AssetPositionCard` принимает `Position` + overlay-параметры.
+
+**Выгоды:** —.
+
+**Предусловия:** нет (все блокеры — H1, H22, H24, `Рефакторинг расчёта P&L` — закрыты).
+
+**Файлы:** см. `docs/H5-plan.md` (исчерпывающий список). Ключевые:
+- `domain/models/Portfolio.kt` — удалить `PortfolioPosition`, `toLegacyPortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`; добавить `emptyPosition(...)`.
+- `domain/api/repository/PortfolioRepository.kt` — `fetchPositionsResult → AppResult<List<Position>>`.
+- `data/repository/PortfolioRepositoryImpl.kt` — без adapter.
+- `presentation/screens/portfolio/PortfolioUiState.kt` — удалить `positions` (UI читает `sheet.accounts`).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — удалить `toUiPosition` / `recomputePositions`.
+- `presentation/screens/portfolio/PortfolioScreen.kt` — из `sheet.accounts` напрямую.
+- `presentation/screens/orders/OrdersUiState.kt` — `portfolioPositions: List<Position>`.
+- `presentation/screens/orders/OrdersViewModel.kt` — без adapter.
+- `presentation/screens/orders/OrdersScreen.kt` — `emptyPosition` вместо `emptyPortfolioPosition`.
+- `presentation/components/AssetPositionCard.kt` — `position: Position` + `displayCurrentPrice: Double?` + `priceChangePercent: Double?`.
+- `presentation/util/PositionFormatter.kt` — чистые функции.
+- `presentation/util/PositionFormatterTest.kt` — переписать.
+- `domain/models/CalculateProfitPercentTest.kt` — удалить.
+
+**Шаги:** подробно в `docs/H5-plan.md`. Кратко:
+1. Domain: `PortfolioRepository → List<Position>`, `emptyPosition`, удаление legacy.
+2. Presentation: `PortfolioUiState` без `positions`, `PortfolioViewModel` на `sheet`, `PortfolioScreen` на `sheet.accounts`.
+3. `OrdersUiState` / `OrdersViewModel` на `Position`.
+4. `AssetPositionCard(position: Position, displayCurrentPrice, priceChangePercent)`.
+5. `PositionFormatter` — чистые функции.
+6. Тесты + Preview.
+7. Гейт.
+
+**Тесты:** `PositionFormatterTest` (22 теста → переписать на чистые функции); `PortfolioConvertersTest` — дополнить `emptyPosition`; `CalculateProfitPercentTest` — удалить.
+
+**Референсы:** `docs/clean-audit.md` → Н5; `docs/H5-plan.md` — исчерпывающий план; `### ✅ Portfolio: модель портфеля`.
+
+**Ограничения:** UI-правки (`OrdersScreen`, `PortfolioScreen`, `AssetPositionCard`) — санкция по правилу 1. Не смешивать с другими задачами. `Position` (domain) не менять — только потребители.
+
+**Критерий готовности:** `grep -rn "PortfolioPosition" app/src` — пусто; `PortfolioRepository → List<Position>`; UI на `Position`; гейт зелёный.
+
+**Оценка:** ~5.5–6 ч. Детали — `docs/H5-plan.md`.
+
+**Зависимости:** нет.
+
+**Связано:** `docs/clean-audit.md` → Н5; `### ✅ Portfolio: модель портфеля` (PR #89); `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR #89); `### Ревизия ссылок на PortfolioPosition после H5` — следующая задача (docs-only, 30–45 мин).
+
+**Что сделано:** `PortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`, `toLegacyPortfolioPosition` удалены из `domain/models/Portfolio.kt`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`. `emptyPosition(instrument, currentPrice, accountId, brokerName, lockedQuantity)` — dispatcher по `Instrument` (7 subtypes). `PortfolioUiState.positions` удалён; `PortfolioViewModel` на `sheet` + `prices`/`priceChangePercents` overlay; `sheetState`/`pricesMap`/`priceChangePercentsMap` удалены. `OrdersUiState.portfolioPositions → List<Position>`; `toLegacyPortfolioPosition` adapter убран. `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`. `PositionFormatter` — чистые функции с примитивами. `PositionFormatterTest` переписан (26 тестов); `PortfolioConvertersTest` +7 кейсов `emptyPosition`; `CalculateProfitPercentTest` удалён.
+
+**Открытые вопросы:** нет. Все решения — в `docs/H5-plan.md`.
 
 ---
