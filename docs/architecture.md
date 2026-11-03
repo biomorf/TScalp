@@ -31,12 +31,6 @@
   Наружу не эмитится; конверсия в `Position` / `AccountBalance` — через
   `toPosition(instrument)` / `toAccountBalance()`.
 
-**Presentation (legacy, там же):**
-
-- `PortfolioPosition` — legacy-модель для `OrdersViewModel`
-  (`uiState.portfolioPositions`). Удаление — задача
-  `### OrdersViewModel: миграция на PortfolioSheet`.
-
 **Почему (Clean):**
 
 - `Position` — domain-факт; subtype соответствует subtype `Instrument`.
@@ -44,10 +38,10 @@
   нечего «забыть обновить».
 - Presentation-формат (Locale / Compose / цвета) — вне domain.
 
-**Решение по clean-audit Н5:** `PortfolioPosition` — legacy, удаляется.
-Целевая domain-модель — `Position` (sealed) без presentation-полей;
-presentation-поля (`priceChangePercent` day-change, цвета) — в
-`PositionFormatter` и presentation-util.
+**Решение по clean-audit Н5 (исправлено, PR #90):** `PortfolioPosition`
+удалён; `Position` (sealed) — единственная модель. Presentation-поля
+(`priceChangePercent` day-change, цвета) — в `PositionFormatter` и
+presentation-util.
 
 ### Обогащение (SSoT)
 
@@ -80,26 +74,17 @@ partial-событий — в manager.
 **Окно отката:** polling раз в 10 сек может «откатить» свежее WS-обновление
 (≤10 сек). Приемлемо.
 
-### Legacy `flow`
-
-`flow: SharedFlow<PositionStreamItem>` — retained для `OrdersViewModel`
-(`updatePositionPnl`). Эмитится из обоих источников (polling — через
-`position.toStreamItem()`, stream — как пришло). Миграция — задача
-`### OrdersViewModel: миграция на PortfolioSheet`.
-
 ### ViewModel
 
 `PortfolioViewModel`:
 
 - Подписывается на `positionFlowManager.sheet` (`StateFlow<PortfolioSheet>`).
-- Adapter `Position → PortfolioPosition` в private `toUiPosition()`:
-  структурные поля из `Position`, overlay `currentPrice` /
-  `priceChangePercent` из `PriceFlowManager` (tick-to-tick,
-  presentation-логика; day-change — задача
-  `### Position: источники priceChangePercent и lockedQuantity`).
-- `uiState.positions: List<PortfolioPosition>` — legacy, для
-  `PortfolioScreen` до миграции на `sheet`. Группировка per-account —
-  по `AccountKey(brokerName, accountId)`.
+- Читает `uiState.sheet.accounts` напрямую (per-account группировка —
+  по `AccountKey(brokerName, accountId)` в `PortfolioScreen`).
+- Overlay `currentPrice` / `priceChangePercent` из `PriceFlowManager`
+  (tick-to-tick, presentation-логика) — `uiState.prices` /
+  `uiState.priceChangePercents`; day-change — задача
+  `### Position: источники priceChangePercent и lockedQuantity`.
 
 ### Границы (dependency rule)
 
@@ -117,13 +102,14 @@ presentation → domain ← data
 
 - `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 —
   проектный мастер-план.
-- `docs/clean-audit.md` → Н5 (пересматривается: legacy `PortfolioPosition`
-  → `Position`), Н24 (mergeWith SSoT).
+- `docs/clean-audit.md` → Н5 (исправлено, PR #90: legacy `PortfolioPosition`
+  удалён), Н24 (mergeWith SSoT).
 - `AGENTS.md` → 2c (отклонения), 2d (временные решения).
-- `docs/ROADMAP.md` → `### OrdersViewModel: миграция на PortfolioSheet`
-  (удаление legacy), `### Position: источники priceChangePercent и
-  lockedQuantity` (day-change, lockedQuantity, balances), `### P&L:
-  client-side fallback` (отдельная задача).
+- `docs/ROADMAP.md` → `### ✅ OrdersViewModel: миграция на PortfolioSheet`,
+  `### ✅ H5. PortfolioPosition removed` (legacy `PortfolioPosition`),
+  `### Position: источники priceChangePercent и lockedQuantity`
+  (day-change, lockedQuantity, balances), `### P&L: client-side fallback`
+  (отдельная задача).
 
 ## KMP readiness
 
