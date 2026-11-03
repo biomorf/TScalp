@@ -11,7 +11,6 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesReposit
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
@@ -19,25 +18,26 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesReposit
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
-import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
-import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
-import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.mergeWith
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.models.toPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
+import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderInput
+import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
@@ -62,7 +62,6 @@ import javax.inject.Inject
 class OrdersViewModel
     @Inject
     constructor(
-        private val ordersRepository: OrdersRepository,
         private val marketDataRepository: MarketDataRepository,
         private val portfolioRepository: PortfolioRepository,
         private val accountsRepository: AccountsRepository,
@@ -75,7 +74,7 @@ class OrdersViewModel
         private val brokerManager: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
-        private val prepareOrderRequest: PrepareOrderRequestUseCase,
+        private val postOrderUseCase: PostOrderUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val logger: Logger,
     ) : ViewModel() {
@@ -452,177 +451,75 @@ class OrdersViewModel
 
         fun onSellClick() = viewModelScope.launch { postOrder(OrderDirection.SELL) }
 
-        // Архитектурный долг: функция требует декомпозиции.
-        // См. ROADMAP → «Рефакторинг ViewModel-слоя».
-        @Suppress("LongMethod", "CyclomaticComplexMethod")
         private suspend fun postOrder(direction: OrderDirection) {
             val state = _uiState.value
             val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return
-            val quantity = state.quantityAsLong ?: return
             logger.d(
                 TAG,
-                "postOrder: direction=$direction, ticker=$ticker, qty=$quantity, orderType=${state.orderType}",
+                "postOrder: direction=$direction, ticker=$ticker, qty=${state.quantityAsLong}, orderType=${state.orderType}",
             )
 
             val activeCard = state.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-            val brokerName = activeCard?.brokerName ?: BrokerName.TINVEST
-            val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return
-
-            val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return
-
-            // Проверка доступности. Ошибки сети/API → понятное сообщение вместо краша.
-            val checkResult =
-                when (
-                    val result =
-                        ordersRepository.checkTradeAvailabilityResult(
-                            brokerName = brokerName,
-                            accountId = accountId,
-                            tscalpInstrumentId = tscalpId,
-                            direction = direction,
-                            quantity = quantity,
-                        )
-                ) {
-                    is AppResult.Success -> result.data
-                    is AppResult.Failure -> {
-                        logger.e(TAG, "checkTradeAvailability failed: ${result.error.message}", result.error.cause)
-                        _uiState.update {
-                            it.copy(statusMessage = "❌ ${result.error.message}", isError = true)
-                        }
-                        return
-                    }
-                }
-
-            when (checkResult) {
-                is TradeCheckResult.Success -> { /* продолжаем */ }
-                is TradeCheckResult.InsufficientFunds -> {
-                    _uiState.update {
-                        it.copy(statusMessage = "❌ Недостаточно средств. Свободно: ${formatDomesticCurrency(checkResult.balance)}, требуется: ~${formatDomesticCurrency(checkResult.required)}", isError = true)
-                    }
-                    return
-                }
-                is TradeCheckResult.Error -> {
-                    _uiState.update {
-                        it.copy(statusMessage = "❌ ${checkResult.message}", isError = true)
-                    }
-                    return
-                }
-            }
-
-            // Готовим основную и контрсделку
-            val prepared =
-                prepareOrderRequest.prepare(
-                    brokerName = brokerName,
-                    ticker = ticker,
-                    tscalpInstrumentId = tscalpId,
-                    quantity = quantity,
-                    direction = direction,
-                    accountId = accountId,
-                    sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
-                    orderType = state.orderType,
-                    limitPrice = state.limitPrice,
-                    stopPrice = state.stopPrice,
-                    expirationType = state.expirationType,
-                    pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
-                    pairedTicker = state.pairedInstrument?.ticker,
-                    pairedBrokerName =
-                        state.lastSelectedInstruments
-                            .find { it.instrument.ticker == state.pairedInstrument?.ticker }
-                            ?.brokerName,
-                    pairedAccountId =
-                        state.lastSelectedInstruments
-                            .find { it.instrument.ticker == state.pairedInstrument?.ticker }
-                            ?.accountId,
-                    pairedMultiplier = state.pairedMultiplier,
-                )
+            val input = buildOrderInput(state, direction, activeCard) ?: return
 
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-
-            // --- Основная заявка ---
-            val primaryOutcome: AppResult<String> =
-                try {
-                    if (prepared.isPrimaryStop) {
-                        ordersRepository
-                            .postStopOrderResult(prepared.primaryRequest as StopOrderRequest)
-                            .map { id -> "✅ Стоп‑заявка выставлена, ID: ${id.take(8)}…" }
-                    } else {
-                        ordersRepository
-                            .postOrderResult(prepared.primaryRequest as BrokerOrderRequest)
-                            .map { r ->
-                                "✅ Заявка выполнена!\nID: ${r.orderId}\n" +
-                                    "Исполнено: ${r.executedLots}/${r.totalLots} лотов"
-                            }
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    AppResult.Failure(AppError.Unknown(e.message ?: "Ошибка подготовки заявки", e))
+            when (val outcome = postOrderUseCase.execute(input)) {
+                is PostOrderOutcome.Success -> handlePostOrderSuccess(outcome, input.accountId)
+                is PostOrderOutcome.InsufficientFunds -> handlePostOrderInsufficient(outcome)
+                is PostOrderOutcome.Error -> handlePostOrderError(outcome)
+                is PostOrderOutcome.InvalidRequest -> {
+                    logger.w(TAG, "postOrder: invalid request — ${outcome.reason}")
+                    _uiState.update { it.copy(isLoading = false) }
                 }
-
-            val primaryMessage =
-                when (primaryOutcome) {
-                    is AppResult.Success -> primaryOutcome.data
-                    is AppResult.Failure -> {
-                        logger.e(
-                            TAG,
-                            "primary order failed: ${primaryOutcome.error.message}",
-                            primaryOutcome.error.cause,
-                        )
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                statusMessage = "❌ ${primaryOutcome.error.message}",
-                                isError = true,
-                            )
-                        }
-                        return
-                    }
-                }
-
-            // --- Контрсделка (опционально) ---
-            var finalMessage = primaryMessage
-            if (prepared.pairedRequest != null) {
-                finalMessage +=
-                    try {
-                        if (prepared.isPairedStop == true) {
-                            val pairedStop = prepared.pairedRequest as StopOrderRequest
-                            when (val r = ordersRepository.postStopOrderResult(pairedStop)) {
-                                is AppResult.Success ->
-                                    "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
-                                        "${pairedStop.quantity} лотов, ID: ${r.data.take(8)}…"
-                                is AppResult.Failure -> {
-                                    logger.e(
-                                        TAG,
-                                        "paired stop order failed: ${r.error.message}",
-                                        r.error.cause,
-                                    )
-                                    "\n❌ Ошибка контрсделки: ${r.error.message}"
-                                }
-                            }
-                        } else {
-                            val pairedRegular = prepared.pairedRequest as BrokerOrderRequest
-                            when (val r = ordersRepository.postOrderResult(pairedRegular)) {
-                                is AppResult.Success ->
-                                    "\n✅ Контрсделка: ${state.pairedInstrument?.ticker} " +
-                                        "${pairedRegular.quantity} лотов, ID: ${r.data.orderId}"
-                                is AppResult.Failure -> {
-                                    logger.e(
-                                        TAG,
-                                        "paired order failed: ${r.error.message}",
-                                        r.error.cause,
-                                    )
-                                    "\n❌ Ошибка контрсделки: ${r.error.message}"
-                                }
-                            }
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        logger.e(TAG, "paired order unexpected error: ${e.message}", e)
-                        "\n❌ Ошибка контрсделки: ${e.message ?: "неизвестная ошибка"}"
-                    }
             }
+        }
 
-            // --- Пост-обработка: обновляем карточки и баланс ---
+        private suspend fun buildOrderInput(
+            state: OrdersUiState,
+            direction: OrderDirection,
+            activeCard: SelectedInstrumentInfo?,
+        ): PostOrderInput? {
+            val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return null
+            val quantity = state.quantityAsLong ?: return null
+            val brokerName = activeCard?.brokerName ?: BrokerName.TINVEST
+            val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return null
+            val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return null
+
+            val pairedCard =
+                state.pairedInstrument?.let { pi ->
+                    state.lastSelectedInstruments.find { it.instrument.ticker == pi.ticker }
+                }
+            val pairedInput =
+                state.pairedInstrument?.let { pi ->
+                    PairedOrderInput(
+                        tscalpInstrumentId = pi.tscalpInstrumentId,
+                        ticker = pi.ticker,
+                        brokerName = pairedCard?.brokerName ?: BrokerName.TINVEST,
+                        accountId = pairedCard?.accountId ?: accountId,
+                        multiplier = state.pairedMultiplier,
+                    )
+                }
+
+            return PostOrderInput(
+                brokerName = brokerName,
+                ticker = ticker,
+                tscalpInstrumentId = tscalpId,
+                quantity = quantity,
+                direction = direction,
+                accountId = accountId,
+                sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+                orderType = state.orderType,
+                limitPrice = state.limitPrice,
+                stopPrice = state.stopPrice,
+                expirationType = state.expirationType,
+                paired = pairedInput,
+            )
+        }
+
+        private suspend fun handlePostOrderSuccess(
+            outcome: PostOrderOutcome.Success,
+            accountId: String,
+        ) {
             refreshLastSelectedInstruments()
             val currentBalance =
                 when (val balanceResult = portfolioRepository.getBalanceResult(accountId)) {
@@ -636,15 +533,14 @@ class OrdersViewModel
                         null
                     }
                 }
-
+            var message = formatPostOrderSuccess(outcome)
             if (currentBalance != null && currentBalance < 1000.0) {
-                finalMessage += "\n⚠️ Низкий свободный остаток: ${formatDomesticCurrency(currentBalance)}"
+                message += "\n⚠️ Низкий свободный остаток: ${formatDomesticCurrency(currentBalance)}"
             }
-
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    statusMessage = finalMessage,
+                    statusMessage = message,
                     isError = false,
                     quantity = "",
                     limitPrice = "",
@@ -652,6 +548,46 @@ class OrdersViewModel
                     freeBalance = currentBalance,
                 )
             }
+        }
+
+        private fun handlePostOrderInsufficient(outcome: PostOrderOutcome.InsufficientFunds) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    statusMessage =
+                        "❌ Недостаточно средств. Свободно: ${formatDomesticCurrency(outcome.balance)}, требуется: ~${formatDomesticCurrency(outcome.required)}",
+                    isError = true,
+                )
+            }
+        }
+
+        private fun handlePostOrderError(outcome: PostOrderOutcome.Error) {
+            logger.e(TAG, "postOrder failed: ${outcome.message}", outcome.cause)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    statusMessage = "❌ ${outcome.message}",
+                    isError = true,
+                )
+            }
+        }
+
+        private fun formatPostOrderSuccess(outcome: PostOrderOutcome.Success): String {
+            val primary =
+                when (val p = outcome.primary) {
+                    is PrimaryOutcome.Regular ->
+                        "✅ Заявка выполнена!\nID: ${p.orderId}\nИсполнено: ${p.executedLots}/${p.totalLots} лотов"
+                    is PrimaryOutcome.Stop -> "✅ Стоп‑заявка выставлена, ID: ${p.orderId.take(8)}…"
+                }
+            val paired =
+                outcome.paired?.let { p ->
+                    when (p) {
+                        is PairedOutcome.Regular -> "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId}"
+                        is PairedOutcome.Stop -> "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId.take(8)}…"
+                        is PairedOutcome.Failed -> "\n❌ Ошибка контрсделки: ${p.message}"
+                    }
+                } ?: ""
+            return primary + paired
         }
 
         /**
