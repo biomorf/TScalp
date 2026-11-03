@@ -255,6 +255,403 @@ clean-audit.
 
 
 
+### UI: extract composables — пакет A
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н94) `InstrumentSearchField` (153 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) содержит дублирующийся блок `SearchResultItem` (recent + results, 2× одинаковый `ListItem`). `OrderCard` (81 строка) — header + details + статус в одной функции. Extract без изменения визуала: `SearchResultItem` + 2 подкомпонента `OrderCard`.
+
+**Соответствие Clean:** соответствует (extract без изменения поведения).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — extract `SearchResultItem`, снять `@Suppress` на `InstrumentSearchField`.
+- `presentation/components/OrderCard.kt` — extract `OrderCardHeader` + `OrderCardDetails`.
+
+**Шаги:**
+1. `OrdersScreen.kt` — private `@Composable fun SearchResultItem(instrument, tradingStatuses, onClick)`, заменить 2 callsites.
+2. `InstrumentSearchField` — снять `@Suppress("LongMethod", "CyclomaticComplexMethod")`.
+3. `OrderCard.kt` — extract `OrderCardHeader` + `OrderCardDetails`.
+4. Preview — визуал 1:1 (OrderCard уже имеет 3 Preview).
+5. Гейт.
+
+**Тесты:** не меняются. Preview + гейт.
+
+**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты`.
+
+**Ограничения:** не менять UI. Preview — обязательна. `@Suppress` снимать только если detekt зелёный.
+
+**Критерий готовности:** `@Suppress` на `InstrumentSearchField` снят; `SearchResultItem` — 1 функция, 2 callsites; `OrderCard` — 3 функции; гейт зелёный; Preview 1:1.
+
+**Оценка:** ~30–40 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `### UI: extract composables — пакет B`, `### UI: OrdersScreen decompose (пакет C)`; Н94.
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
+### UI: extract composables — пакет B
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н94) 4 Compose-функции под `@Suppress("LongMethod", "CyclomaticComplexMethod")`, каждая >120 строк: `AssetCardContent` (193), `AssetPositionCard` (144), `PortfolioScreen` (161), `BrokerAccountDialog` (125). Extract без изменения визуала: `AssetCardHeader` + `AssetCardLowerSection`; `SwipeActionButtons` + `DraggableCardContent`; `PortfolioAccountBlock`; `BrokerList` + `AccountList` + `DialogActions`.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** пакет A закрыт (паттерн extract установлен).
+
+**Файлы:**
+- `presentation/components/AssetPositionCard.kt` — `AssetCardContent` → 2 подкомпонента; `AssetPositionCard` → 2 подкомпонента.
+- `presentation/screens/portfolio/PortfolioScreen.kt` — `PortfolioAccountBlock`.
+- `presentation/components/BrokerAccountDialog.kt` — `BrokerList` + `AccountList` + `DialogActions`.
+
+**Шаги:**
+1. `AssetCardContent` — extract `AssetCardHeader` + `AssetCardLowerSection`.
+2. `AssetPositionCard` (внешняя) — extract `SwipeActionButtons` + `DraggableCardContent`.
+3. `PortfolioScreen` — extract `PortfolioAccountBlock(accountKey, accountPortfolio, prices, priceChangePercents, tradingStatuses, onPayIn)`.
+4. `BrokerAccountDialog` — extract `BrokerList`, `AccountList`, `DialogActions`.
+5. Preview — все существующие Preview проходят.
+6. Гейт.
+
+**Тесты:** не меняются. Preview + гейт.
+
+**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга` → `#### Compose-компоненты`.
+
+**Ограничения:** не менять UI. Каждый `@Suppress` снимать только если detekt зелёный. Не смешивать с BCS/Finam панелями.
+
+**Критерий готовности:** 4 `@Suppress` сняты; 4 функции разбиты; Preview 1:1; гейт зелёный.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** пакет A.
+
+**Связано:** пакет A, пакет C; Н94.
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
+### UI: OrdersScreen decompose (пакет C)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано. **UI — требует санкции** (только на случай визуальных изменений; не должно быть).
+
+**Контекст:** (clean-audit Н94, M008) `OrdersScreen` (662 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) — самый большой экран. 6–7 логических блоков в одной функции: header, поиск/карточка, quantity row, order type chips, price fields (`AnimatedContent`), pair section, bottom buttons. Extract без визуальных изменений. `M008` (расчёт `pairExecPrice` / `pairedOrderType` в Composable) — **вне scope** (это не extract, а перенос логики в VM, отдельная задача).
+
+**Соответствие Clean:** соответствует (extract без изменения поведения; M008 — отдельно).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** пакеты A и B закрыты.
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — extract 6–7 подкомпонентов.
+
+**Шаги:**
+1. `OrdersScreenHeader`.
+2. `OrdersInstrumentCard`.
+3. `OrdersQuantityRow`.
+4. `OrdersTypeChips`.
+5. `OrdersPriceFields`.
+6. `OrdersPairSection`.
+7. `OrdersBottomButtons`.
+8. Снять `@Suppress("LongMethod", "CyclomaticComplexMethod")` — если detekt зелёный.
+9. Гейт.
+
+**Тесты:** не меняются. Preview — опционально.
+
+**Референсы:** `docs/clean-audit.md` → Н94, M008. `### Рефакторинг архитектурного долга` → `#### Compose-экраны`.
+
+**Ограничения:** не менять UI. M008 — вне scope. `@Suppress` снимать только если detekt зелёный.
+
+**Критерий готовности:** `OrdersScreen` < 200 строк; 6–7 подкомпонентов; `@Suppress` снят; гейт зелёный; Preview / live-проверка 1:1.
+
+**Оценка:** ~2–3 ч.
+
+**Зависимости:** пакеты A, B.
+
+**Связано:** `### UI: extract composables — пакет A`, `### UI: extract composables — пакет B`; Н94; M008 (вне scope, завести отдельно при взятии C).
+
+**Открытые вопросы:** M008 — отдельной задачей? **Дефолт:** да.
+
+
+
+---
+
+### TInvestBrokerApi: снять @Suppress("TooManyFunctions")
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `TInvestBrokerApi` (262 строки) несёт `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")`. После nullable-val рефакторинга (`### BrokerApi: ревизия fat-части`, PR #61) все 41 методы стали `override`; `ignoreOverridden = true` (detekt default) их игнорирует. Non-override `fun` — 1 (`initialize`). `1 < 11` → `TooManyFunctions` формально мёртв. `PARAMETER_NAME_CHANGED_ON_OVERRIDE` — осознанно (KDoc), **оставить**.
+
+**Соответствие Clean:** соответствует (чистка мёртвого `@Suppress`).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `data/api/tinvest/TInvestBrokerApi.kt` — строка 52.
+
+**Шаги:**
+1. `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")` → `@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")`.
+2. Гейт: `detekt`. Если зелёный — done. Если красный — вернуть + 2c-фиксация в KDoc (в этом же PR).
+3. PR + CI `gate`.
+
+**Тесты:** не меняются.
+
+**Референсы:** `docs/clean-audit.md` → Н70. `### ✅ Пакет C: TInvestMarketDataService split` (PR #84).
+
+**Ограничения:** только `TInvestBrokerApi:52`. Не трогать BCS/Finam (заглушки, отдельные задачи).
+
+**Критерий готовности:** `@Suppress` снят; `detekt` зелёный (или возвращён с 2c-фиксацией); гейт зелёный.
+
+**Оценка:** ~5–10 мин.
+
+**Зависимости:** нет.
+
+**Связано:** Н70; PR #61, PR #84.
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
+### Рефакторинг data-слоя T-Invest (Н64)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н64) `TInvestPortfolioService.fetchPortfolioPositions` (59 строк, `@Suppress("CyclomaticComplexMethod")`) — декомпозиция не сделана при Пакете C (перенесена 1:1). KDoc ссылается на «ROADMAP → Рефакторинг data-слоя T-Invest» — задача не заведена до сейчас. Декомпозиция: извлечь `enrichWithInstrumentData` + `enrichWithMarginData`, оставить `fetchPortfolioPositions` = `getPortfolio` + map + enrich. Снять `@Suppress`.
+
+**Соответствие Clean:** соответствует (декомпозиция, SRP).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### TInvestBrokerApi: снять @Suppress("TooManyFunctions")` — закрыт.
+
+**Файлы:**
+- `data/api/tinvest/TInvestPortfolioService.kt` — extract 2 private функций, снять `@Suppress("CyclomaticComplexMethod")`.
+
+**Шаги:**
+1. Прочитать `fetchPortfolioPositions` (строки 47–105): выделить 2 фазы (instrument + margin).
+2. Extract `enrichWithInstrumentData(position, proto)`.
+3. Extract `enrichWithMarginData(position, proto)`.
+4. `fetchPortfolioPositions` — `getPortfolio` + `.map { enrichWithInstrumentData(enrichWithMarginData(it)) }`.
+5. Снять `@Suppress("CyclomaticComplexMethod")` — если detekt зелёный.
+6. Гейт.
+
+**Тесты:** существующие — не меняются. Если `fetchPortfolioPositions` покрыт unit-тестом — проверить 1:1. Обычно тестов нет (data-слой).
+
+**Референсы:** `docs/clean-audit.md` → Н64. `### ✅ Пакет C: TInvestMarketDataService split` (PR #84). `### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest`.
+
+**Ограничения:** не менять поведение `fetchPortfolioPositions`. Не трогать `getPortfolio`. Не смешивать с `### T-Invest: subtype-specific поля` (отдельная).
+
+**Критерий готовности:** `@Suppress("CyclomaticComplexMethod")` снят; `fetchPortfolioPositions` 20–25 строк; 2 helper'а; гейт зелёный.
+
+**Оценка:** ~40–50 мин.
+
+**Зависимости:** `### TInvestBrokerApi: снять @Suppress("TooManyFunctions")`.
+
+**Связано:** Н64; PR #84.
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
+### Н65: закрыть в clean-audit (mapProtoToDomain уже разбит)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н65) `TInvestInstrumentMapper.mapProtoToDomain` — `@Suppress("LongMethod")` (118 строк). **Фактически уже разбит**: `mapFuture` / `mapShare` / `mapProtoToDomain`-dispatcher (Phase 2, `### ✅ Instrument: Phase 2 (sealed interface)`, PR #83). `grep "LongMethod" TInvestInstrumentMapper.kt` — пусто. Clean-audit отстал. Задача — docs-only.
+
+**Соответствие Clean:** не применимо (docs-only).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `docs/clean-audit.md` — Н65 → `исправлено`, перенос в `### Исправленные (L6)`, `### ✅`, `**Что сделано:**` (PR #83); удалить строку таблицы L6.
+
+**Шаги:**
+1. `grep -nE "mapProtoToDomain|mapFuture|mapShare|LongMethod" app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestInstrumentMapper.kt` — подтвердить, что разбито.
+2. `docs/clean-audit.md`: Н65 → `### ✅ Н65`, `**Статус:** исправлено (PR #83)`, `**Что сделано:**`, перенос в `### Исправленные (L6)`.
+3. Удалить строку `| Н65. ...` из таблицы L6.
+4. `git diff --check`.
+5. Коммит `docs(clean-audit): Н65 исправлено (PR #83)` — прямой push в `dev` (docs-only, 5g кат. 2).
+
+**Тесты:** не требуются.
+
+**Референсы:** `docs/clean-audit.md` → Н65. `### ✅ Instrument: Phase 2 (sealed interface)` (PR #83).
+
+**Ограничения:** не трогать код (`TInvestInstrumentMapper` — не менять).
+
+**Критерий готовности:** Н65 в `### Исправленные (L6)` с `### ✅`; таблица L6 без Н65; `git diff --check` чистый.
+
+**Оценка:** ~5 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `### ✅ Instrument: Phase 2 (sealed interface)`.
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
+### CustomTrustManager: fail-fast + 5 CA (Н79+Н80)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI). **Live-тест не требуется** (fail-fast виден в логах; unit-тест покрывает).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н79 + Н80) `CustomTrustManager.loadCertificateToKeyStore` — `catch (e: Exception) { logger.w(...) }`. Если сертификат не загрузился — тихо пропускаем, TLS работает с усечённым набором, диагностика потеряна. Нет проверки `customTrustManager.acceptedIssuers.size == 5`. Риск: молчаливая деградация. **Security, латентный.**
+
+**Соответствие Clean:** соответствует (resilience, fail-fast).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `data/api/common/CustomTrustManager.kt` — `catch` → `throw`, проверка `acceptedIssuers.size`.
+- `data/api/common/CustomTrustManagerTest.kt` (новый) — unit-тест.
+
+**Шаги:**
+1. `loadCertificateToKeyStore`: `catch (e: CertificateException | IOException)` → `throw IllegalStateException("CA load failed: res=$resId", e)`. Fail-fast.
+2. После init `customTrustManager` — `check(customTrustManager.acceptedIssuers.size >= 5) { "Expected 5 Russian CAs, got ${...}" }`.
+3. Unit-тест `CustomTrustManagerTest`: mock `Context` → `IllegalStateException`; happy path — 5 CA.
+4. Гейт.
+
+**Тесты:** `CustomTrustManagerTest` — 2 теста. Если mock-инфраструктуры нет — fail-fast тест с `mockk<Context>` (у `Context.resources` mock возвращает `null`/пусто → `IllegalStateException`). Решить при старте.
+
+**Референсы:** `docs/clean-audit.md` → Н79, Н80. `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager».
+
+**Ограничения:** не менять `checkServerTrusted`; не менять 5 raw-ресурсов; не смешивать с BCS-okhttp-без-CA (Н78, отдельно).
+
+**Критерий готовности:** `catch` → `throw`; `check(acceptedIssuers.size >= 5)`; unit-тест 2 кейса; гейт зелёный.
+
+**Оценка:** ~40–50 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `docs/clean-audit.md` → Н79, Н80; `docs/ISSUES.md` → BCS OkHttp.
+
+**Открытые вопросы:** mock-инфраструктура для `Context` — Robolectric или mockk? **Дефолт:** fail-fast тест с `mockk<Context>`. Решить при старте.
+
+
+
+---
+
+### 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н28 + Н15) два отклонения от Clean, оба **приняты по 2c** (сознательное решение «не переделывать») без формальной фиксации.
+
+- **Н28:** `AccountsApi.getAccounts(sandboxMode)` — domain-контракт несёт T-Invest-специфику. BCS/Finam игнорируют. 1 callsite (`AccountsRepositoryImpl:49`), 2 impl. Refactor (`TInvestAccountsApi : AccountsApi`) не окупается.
+- **Н15:** `TradingStateSnapshot` (`quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`) — presentation-снимок в domain. Simple DTO для DataStore, 4 поля. Refactor — ~1–1.5 ч + миграция формата. Не окупается.
+
+**Соответствие Clean:** отклонение по 2c (принято).
+
+**Нарушенное правило Clean:** — (фиксация уже принятых отклонений).
+
+**Clean-альтернатива (Н28):** `TInvestAccountsApi : AccountsApi` с `getAccounts(sandboxMode)`, `AccountsApi.getAccounts()` без параметра. Плюсы: чистый domain. Минусы: +1 интерфейс, правка 2 impl, 1 callsite — overhead > выгоды.
+
+**Clean-альтернатива (Н15):** `TradingStateSnapshot` — domain-валидированный (`quantity: Long?`, `orderType` в presentation). Плюсы: domain чист. Минусы: ~1–1.5 ч + миграция DataStore-формата (бэкап-совместимость), 4 поля.
+
+**Выгоды (для «отклонение по 2c»):**
+- **Н28:** 1 callsite, 2 impl, готово. Refactor — overhead без текущей выгоды.
+- **Н15:** 4 поля, простой DTO, DataStore-ключи 1:1. Refactor — миграция ради 4 полей.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `docs/clean-audit.md` — Н28 и Н15 → `принято (2c)` + `**Выгоды (по 2c):**` (конкретно) + перенос в `### Принятые (2c)`.
+
+**Шаги:**
+1. `docs/clean-audit.md`: Н28 → `**Статус:** принято (2c).` + `**Выгоды (по 2c):** <текст>`. Перенос в `### Принятые (2c)` в L4 (если нет — создать).
+2. То же для Н15, L3.
+3. `git diff --check`.
+4. Коммит `docs(clean-audit): accept 2c for Н28 + Н15`.
+
+**Тесты:** не требуются.
+
+**Референсы:** `docs/clean-audit.md` → Н28, Н15. `AGENTS.md` → 2c.
+
+**Ограничения:** не менять код. Не создавать задачи в ROADMAP (эти два — окончательно приняты). Каждый — отдельным блоком в clean-audit.
+
+**Критерий готовности:** Н28 и Н15 в `### Принятые (2c)` с тремя элементами 2c; `git diff --check` чистый.
+
+**Оценка:** ~10–15 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `AGENTS.md` → 2c.
+
+**Открытые вопросы:** раздел `### Принятые (2c)` — общий или в каждом уровне? **Дефолт:** в каждом уровне (L3 / L4), по образцу `### Исправленные (Lx)`.
+
+
+
+---
+
 ### Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
