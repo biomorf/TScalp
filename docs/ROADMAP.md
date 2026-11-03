@@ -279,15 +279,30 @@ clean-audit.
 - `domain/api/managers/PositionFlowManager.kt` — удалить `flow: SharedFlow<PositionStreamItem>` и `_flow` / `_flow.resetReplayCache`.
 - `domain/models/Portfolio.kt` — `PositionStreamItem` остаётся internal, но `toPosition()` уже есть; удалить `toPortfolioPosition` / `mergeWith` / `emptyPortfolioPosition`, если не используются после `Portfolio: модель портфеля`.
 
-**Шаги:**
-1. `OrdersViewModel` — `flow.collect { updatePositionPnl }` → `sheet.collect { updatePositions }` (полный снимок с фильтром по `currentAccountId`).
-2. Удалить `updatePositionPnl` (per-event merge).
-3. `PostOrderUseCase` — вынести `postOrder` (200 строк orchestration) из VM. VM — `onConfirm()` → `useCase.execute()` → `_uiState.update`.
-4. `OrdersUiState` — 6 полей из `MutableStateFlow` + `showConfirmDialog` / `pendingDirection` из `remember`-полей `OrdersScreen`.
-5. `OrdersScreen` — `when (order) { is Regular, is Stop }` для карточки и кнопки отмены (уже подготовлено в `Split order domain`).
-6. `PositionFlowManager` — удалить `flow` и `_flow`.
-7. `docs/clean-audit.md` — M002, M009, M010, M012 → `исправлено`.
-8. Гейт.
+**Шаги (утверждено 2026-11-03, 9 коммитов):**
+
+1. `feat(domain): PostOrderUseCase` — orchestration торговой операции в domain (`ordersRepository`, `prepareOrderRequest`, `sandboxPreferencesRepository`). Возвращает структурированный `PostOrderOutcome` (Q-OM.1=A). Unit-тесты. VM пока не трогаем — старый `postOrder` живёт.
+2. `refactor(presentation): OrdersViewModel.postOrder → PostOrderUseCase` — тело `postOrder` в VM сокращается до `useCase.execute(...)` + `_uiState.update` + `refreshLastSelectedInstruments`. Удалено ~180 строк из VM.
+3. `refactor(presentation): OrdersUiState +M009/M012-поля` — `showConfirmDialog: Boolean`, `pendingDirection: OrderDirection?`, `selectedSearchBroker`, `showSearchBrokerDialog`, `selectedPairSearchBroker`, `showPairSearchBrokerDialog`.
+4. `refactor(presentation): OrdersViewModel M012 — mutableStateOf → _uiState.update` — 4 поля `mutableStateOf` в VM заменены на state-поля; публичные сеттеры (`openSearchBrokerDialog()`, `selectSearchBroker(...)`, `dismissSearchBrokerDialog()` и аналоги для pair).
+5. `refactor(presentation): OrdersScreen M009 + M010 + M012` — `remember { mutableStateOf }` → `uiState.showConfirmDialog` / `uiState.pendingDirection`; `viewModel.X.value` → `uiState.X`; `isConfirmOrdersEnabled()` → `uiState.confirmOrdersEnabled`; `pendingDirection` — `OrderDirection` enum (не строки «Покупка»/«Продажа»).
+6. `refactor(presentation): OrdersViewModel на sheet` — `positionFlowManager.flow.collect { updatePositionPnl }` → `sheet.collect` с adapter (по `currentAccountId` + `Position → PortfolioPosition`); `updatePositionPnl` удалён; `getBalanceResult` / `refreshLastSelectedInstruments` — из `sheet.accounts[currentKey].balances` / `.positions`.
+7. `cleanup: PositionFlowManager -flow -_flow` — удалить `flow: SharedFlow<PositionStreamItem>` + `_flow`; `toPortfolioPosition` / `mergeWith` / `emptyPortfolioPosition` — если после шага 6 не используются.
+8. `docs(clean-audit): M002, M009, M010, M012 → исправлено` — перенос в «Исправленные (L1)».
+9. `docs(roadmap): mark done` — перенос секции в «Закрытые» с `**Что сделано:**` (5g.4).
+
+**Решения (утверждено 2026-11-03):**
+
+- **Q-OM.1 = A.** `PostOrderUseCase` возвращает `PostOrderOutcome` (sealed):
+  `Success(primary: PrimaryOutcome, paired: PairedOutcome?)` |
+  `InsufficientFunds(balance, required)` | `Error(message)`.
+  `PrimaryOutcome` = `Regular(orderId, executedLots, totalLots)` | `Stop(orderId)`.
+  `PairedOutcome` = `Regular(ticker, orderId, quantity)` | `Stop(ticker, orderId, quantity)` | `Failed(message)`.
+  VM форматирует presentation-сообщения (✅/❌ и т.д.) — domain без presentation.
+- **Q-OM.2 = A.** `pendingDirection: OrderDirection?` (enum `BUY`/`SELL`), не строка «Покупка»/«Продажа».
+  VM-методы `onBuyClick`/`onSellClick` ставят `pendingDirection = BUY`/`SELL`;
+  `onConfirm` вызывает `viewModel.postOrder(direction)`. Screen-условие `if (pendingDirection == "Покупка")` уходит.
+- **Q-OM.3 = A.** 9 коммитов (см. «Шаги»).
 
 **Тесты:** `OrdersViewModelTest` (новый, если нет) — 3–4 теста: `onBuyClick` ставит `showConfirmDialog = true` + `pendingDirection`; `onConfirm` вызывает `PostOrderUseCase`; `sheet.collect` обновляет позиции по `currentAccountId`. Live-тест: 2 счёта с SBER — обновление карточки заявки идёт на правильный счёт.
 
@@ -308,6 +323,9 @@ clean-audit.
 - Гейт зелёный.
 - clean-audit M002, M009, M010, M012 — `исправлено`.
 
+- `PostOrderOutcome` (sealed) в domain; `PostOrderUseCase.execute()` возвращает `PostOrderOutcome`.
+- `pendingDirection: OrderDirection?` в `OrdersUiState`; строк «Покупка»/«Продажа» в state нет.
+- `grep "flow: SharedFlow<PositionStreamItem>" app/src/main` — пусто (удалён в коммите 7).
 **Оценка:** ~6–8 ч (миграция `sheet` 1 ч, `PostOrderUseCase` 2 ч, `OrdersUiState`-поля 1 ч, `OrdersScreen` 1 ч, удаление `flow` 30 мин, тесты 1 ч, live-тест 1 ч, гейт 30 мин).
 
 **Зависимости:** `### Portfolio: модель портфеля` (blocker).
@@ -315,9 +333,9 @@ clean-audit.
 **Связано:** clean-audit M002, M009, M010, M012; `### Рефакторинг ViewModel-слоя` (эта задача — часть); `### Portfolio: модель портфеля`.
 
 **Открытые вопросы:**
-- `PostOrderUseCase` — выносить в этом PR или отдельной задачей? **Рекомендация:** в этом PR (архитектурный долг закрываем разом).
-- `Portfolio: модель портфеля` оставляет `flow` с `accountId`. После этой задачи — `accountId` в `PositionStreamItem` остаётся? **Рекомендация:** остаётся (internal-поле для диагностики, без публичных потребителей).
-- UI-санкция на `OrdersScreen` — потребуется (правило 1).
+- `accountId` в `PositionStreamItem` — остаётся после удаления `flow` (internal-поле для диагностики, без публичных потребителей). Закрыто решением 2026-11-03.
+- UI-санкция на `OrdersScreen` — **получена** (2026-11-03): M009 — багфикс (диалог подтверждения переживает поворот); M010/M012 — структурный рефакторинг без видимых изменений. Закрыто.
+- `PostOrderUseCase` — в этом PR (не отдельной задачей). Закрыто решением 2026-11-03.
 
 
 
