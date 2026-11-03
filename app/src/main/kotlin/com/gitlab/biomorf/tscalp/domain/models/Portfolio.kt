@@ -85,8 +85,8 @@ data class PositionStreamItem(
 /**
  * Доменная модель портфельной позиции для UI.
  *
- * Получается из [PositionStreamItem] через
- * [toPortfolioPosition] после обогащения в
+ * Legacy-модель для OrdersViewModel. Заменяется [Position]
+ * (задача «OrdersViewModel: миграция на PortfolioSheet»).
  * `PositionFlowManager`. В отличие от [PositionStreamItem] —
  * всегда полная (все поля, которые нужны карточке).
  *
@@ -179,7 +179,7 @@ fun calculateProfitPercent(
  *
  * Все производные presentation-поля (`profit`, `profitPercent`,
  * `totalValue`) вычисляются по тем же правилам, что и в
- * [toPortfolioPosition]: `totalValue = currentPrice * quantity`
+ * [toPosition]: `totalValue = currentPrice * quantity`
  * (при `quantity = 0` → `0.0`), `profit`/`profitPercent` — `null`
  * (нет позиции — нет P&L).
  *
@@ -207,79 +207,6 @@ fun emptyPortfolioPosition(
         instrumentType = instrumentType,
         moneyPerPointOfPrice = moneyPerPointOfPrice,
     )
-
-/**
- * SSoT-merge: применяет новое событие [PositionStreamItem] к существующей
- * [PortfolioPosition]. Канон (по образцу `PortfolioViewModel.updatePortfolioItem`):
- *
- * - `quantity` — из события (не объединяется).
- * - `currentPrice`, `averagePrice`, `pointValue` — non-null из события,
- *   иначе старое значение (partial-событие не обнуляет).
- * - `totalValue` = `currentPrice * quantity`.
- * - `profit` — `expectedYield` события (может быть `null`, если не пришло).
- * - `profitPercent` — через [calculateProfitPercent] с `newAvgPrice` и
- *   `newPointValue`.
- * - `instrumentType` — из события.
- * - `isin`, `classCode` — `ifBlank { old }` (пустое событие не обнуляет).
- *
- * Политика фильтрации partial-событий — в presentation-слое (VM).
- * Domain предоставляет механизм, presentation решает, применять ли.
- *
- * Clean-audit Н24.
- */
-fun PortfolioPosition.mergeWith(item: PositionStreamItem): PortfolioPosition {
-    val newPrice = item.currentPrice ?: currentPrice
-    val newAvgPrice = item.averagePositionPrice ?: averagePrice
-    val newMoneyPerPointOfPrice = item.moneyPerPointOfPrice ?: moneyPerPointOfPrice
-    return copy(
-        quantity = item.quantity,
-        currentPrice = newPrice,
-        averagePrice = newAvgPrice,
-        totalValue = newPrice * item.quantity,
-        profit = item.expectedYield,
-        profitPercent =
-            calculateProfitPercent(
-                yield = item.expectedYield,
-                avgPrice = newAvgPrice,
-                quantity = item.quantity,
-                pointValue = newMoneyPerPointOfPrice,
-            ),
-        moneyPerPointOfPrice = newMoneyPerPointOfPrice,
-        instrumentType = item.instrumentType,
-        isin = item.isin.ifBlank { isin },
-        classCode = item.classCode.ifBlank { classCode },
-    )
-}
-
-/**
- * Преобразует элемент потока позиций в доменную модель портфельной позиции.
- * profitPercent считается универсально — см. calculateProfitPercent.
- */
-fun PositionStreamItem.toPortfolioPosition(): PortfolioPosition {
-    val price = currentPrice ?: 0.0
-    return PortfolioPosition(
-        tscalpInstrumentId = this.tscalpInstrumentId,
-        brokerName = brokerName,
-        name = ticker,
-        ticker = ticker,
-        quantity = quantity,
-        currentPrice = price,
-        averagePrice = averagePositionPrice,
-        totalValue = price * quantity,
-        profit = expectedYield,
-        profitPercent =
-            calculateProfitPercent(
-                yield = expectedYield,
-                avgPrice = averagePositionPrice,
-                quantity = quantity,
-                pointValue = moneyPerPointOfPrice,
-            ),
-        moneyPerPointOfPrice = moneyPerPointOfPrice,
-        instrumentType = instrumentType,
-        isin = isin,
-        classCode = classCode,
-    )
-}
 
 // =============================================================================
 // Portfolio model (multi-account). See docs/domain_models.md §Portfolio.
@@ -605,4 +532,37 @@ internal fun Position.toStreamItem(): PositionStreamItem =
         instrumentType = instrument.instrumentType,
         accountId = accountId,
         isDomesticCurrency = false,
+    )
+
+/**
+ * Обратный адаптер [Position] -> [PortfolioPosition] (legacy).
+ *
+ * `PortfolioPosition` ещё используется `OrdersViewModel` /
+ * `PortfolioRepositoryImpl`; миграция на `Position` — задача
+ * `### OrdersViewModel: миграция на PortfolioSheet`.
+ *
+ * `quantity` → `Long` (lossy — Finam дробное; до миграции Finam не работает).
+ * `priceChangePercent` = `null` (источник — задача `### Position: источники
+ * priceChangePercent и lockedQuantity`); в `PortfolioViewModel` для UI
+ * подставляется tick-to-tick overlay из `PriceFlowManager`.
+ */
+internal fun Position.toLegacyPortfolioPosition(): PortfolioPosition =
+    PortfolioPosition(
+        tscalpInstrumentId = instrument.tscalpInstrumentId,
+        brokerName = brokerName,
+        name = instrument.name,
+        ticker = instrument.ticker,
+        quantity = quantity.toLong(),
+        currentPrice = currentPrice,
+        averagePrice = averagePrice,
+        totalValue = totalValue,
+        profit = profit,
+        profitPercent = profitPercent,
+        moneyPerPointOfPrice = instrument.moneyPerPointOfPrice,
+        instrumentType = instrument.instrumentType,
+        isin = instrument.isin,
+        classCode = instrument.classCode ?: "",
+        currency = instrument.currency,
+        accountId = accountId,
+        lockedQuantity = lockedQuantity,
     )

@@ -96,17 +96,13 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
 | M001. OrdersViewModel форматирует overlay | средне | L1 | `OrdersViewModel.formatCostOverlay` (1148), `formatMultiplierOverlay` (1162) | - |
-| M002. OrdersViewModel.postOrder — orchestration в VM | высоко | L1 | `OrdersViewModel.postOrder` (456–657) | ✓ |
 | M003. PortfolioViewModel.payInSandbox — orchestration в VM | средне | L1 | `PortfolioViewModel.payInSandbox` (275–343) | ✓ |
 | M004. SettingsViewModel.initialize* — login-orchestration в VM | средне | L1 | `SettingsViewModel.initializeTInvest/Bcs/Finam` (237–349) | ✓ |
 | M005. SettingsViewModel — Dispatchers.IO в VM | средне | L1 | `SettingsViewModel.kt:246, 282, 317` | - |
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
 | M007. SettingsScreen — login-orchestration в UI | средне | L1 | `SettingsScreen.kt` (TInvest 238, Bcs 600, Finam 770) | ✓ |
 | M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable | средне | L1 | `OrdersScreen.kt` (~330–350) | - |
-| M009. OrdersScreen — состояние торговой операции в UI | высоко | L1 | `OrdersScreen.kt` `showConfirmDialog`, `pendingDirection` (56–57) | - |
-| M010. OrdersScreen — UI читает VM через метод, не через state | низко | L1 | `OrdersScreen.kt` `viewModel.isConfirmOrdersEnabled()` (~845) | - |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
-| M012. OrdersViewModel — `MutableStateFlow`-поля вместо `UiState` | высоко | L1 | `OrdersViewModel.kt` (`selectedSearchBroker`, `showSearchBrokerDialog`, `selectedPairSearchBroker`, `showPairSearchBrokerDialog`) | - |
 | Н94. God-функции Compose под `@Suppress` (10 функций, 5 файлов) | средне | L1 | `SettingsScreen` (4), `OrdersScreen` (2), `PortfolioScreen` (1), `AssetPositionCard` (2), `BrokerAccountDialog` (1) | - |
 
 ### M001. OrdersViewModel форматирует overlay (формулы в VM)
@@ -128,28 +124,6 @@ L4–L8 — не проверены, заполняются по мере инс
 **Выгоды:** —.
 
 **Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
-### M002. OrdersViewModel.postOrder — orchestration в VM
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** ✓
-
-**Описание:** `OrdersViewModel.postOrder` (456–657, 200 строк) выполняет полный сценарий: выбор брокера/счёта/инструмента из `_uiState`, `checkTradeAvailability`, разбор `TradeCheckResult` (Success/InsufficientFunds/Error), `prepareOrderRequest.prepare`, `postOrder`, обновление статусов. Это orchestration торговой операции — business-логика, а не presentation.
-
-**Нарушенное правило:** M2 — business-logic (orchestration торгового сценария) в VM вместо UseCase.
-
-**Clean-альтернатива:** `PostOrderUseCase` (domain.usecases): принимает `BrokerOrderRequest` + `accountId` + `brokerName`, возвращает `AppResult<PostOrderResult>`. VM — вызов use case + `_uiState.update`. Плюсы: VM тонкий, логика тестируется без mock-инфраструктуры. Минусы: новый use case + тесты (~2–3 ч).
-
-**MVVM-альтернатива:** тоже `PostOrderUseCase`; VM — «нажатие → use case → обновление UI». Плюсы: тестируемость, переиспользование для BCS/Finam. Минусы: миграция `OrdersScreen` callsites.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой` (в ROADMAP — `postOrder` 172 строки; фактически 200 — оценка устарела).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
@@ -285,50 +259,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### M009. OrdersScreen — состояние торговой операции в UI
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `OrdersScreen.kt:56–57` — `var showConfirmDialog by remember { mutableStateOf(false) }` и `var pendingDirection by remember { mutableStateOf("") }`. Флаг «диалог подтверждения открыт» + направление pending-заявки — состояние торговой операции, а не UI. При recomposition/конфигурационном изменении теряется (не `rememberSaveable`, не VM).
-
-**Нарушенное правило:** M5 — состояние в UI вместо `UiState` VM.
-
-**Clean-альтернатива:** `showConfirmDialog` + `pendingDirection` — в `OrdersUiState`, VM-методы `onBuyClick()`/`onSellClick()` сразу выставляют `showConfirmDialog = true` + `pendingDirection`, `onConfirm()` — отправляет + сбрасывает. Composable — рендер по state. Плюсы: переживает config change, тестируемо. Минусы: —.
-
-**MVVM-альтернатива:** то же — состояние в VM. Плюсы: standard MVVM.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`; связана с M002 (`postOrder`).
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
-### M010. OrdersScreen — UI читает VM через метод, не через state
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `OrdersScreen.kt` — `if (viewModel.isConfirmOrdersEnabled()) { pendingDirection = "..."; showConfirmDialog = true } else { viewModel.onBuyClick() }`. Метод `isConfirmOrdersEnabled(): Boolean = _uiState.value.confirmOrdersEnabled` — прокси к `uiState.confirmOrdersEnabled`. UI читает поле через метод, а не через `uiState`, из-за чего при recomposition используется снимок `_uiState.value`, а не наблюдаемое значение.
-
-**Нарушенное правило:** M1 — UI работает с VM-методом вместо state (нарушение data flow).
-
-**Clean-альтернатива:** UI читает `uiState.confirmOrdersEnabled`. Метод `isConfirmOrdersEnabled()` удаляется. Плюсы: однонаправленный data flow. Минусы: — (~5 мин).
-
-**MVVM-альтернатива:** то же — `state → UI`.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
 ### M011. OrdersListDialog — `as?` и расчёт в UI
 
 **Статус:** открыто.
@@ -348,28 +278,6 @@ L4–L8 — не проверены, заполняются по мере инс
 **Выгоды:** —.
 
 **Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
-### M012. OrdersViewModel — MutableStateFlow-поля вместо UiState
-
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** -
-
-**Описание:** `OrdersViewModel.kt:1088–1110` + `OrdersScreen.kt:718–742` — 4 поля (`selectedSearchBroker`, `showSearchBrokerDialog`, `selectedPairSearchBroker`, `showPairSearchBrokerDialog`) живут как отдельные `MutableStateFlow` в VM, а UI читает их через `viewModel.X.value` (`.value` в Composable — bypass `collectAsState`). Это раздвоение состояния: часть в `_uiState`, часть — в отдельных flow.
-
-**Нарушенное правило:** M5 — несколько `StateFlow` / дублирование состояния; плюс UI читает `.value` в обход observable.
-
-**Clean-альтернатива:** 4 поля → в `OrdersUiState`; VM-методы обновляют через `_uiState.update { it.copy(...) }`. UI — `uiState.showSearchBrokerDialog` из `collectAsState`. Плюсы: единый `UiState`, observable. Минусы: — (~30 мин).
-
-**MVVM-альтернатива:** то же — один `StateFlow<OrdersUiState>`.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
@@ -563,6 +471,94 @@ L4–L8 — не проверены, заполняются по мере инс
 **Выгоды:** —
 
 **Ссылка на задачу:** `### H3. Move OrdersListViewModel to presentation/screens/orders/` (PR #58, `dev`).
+### ✅ M002. OrdersViewModel.postOrder — orchestration в VM
+
+**Статус:** исправлено (2026-11-03, PR pending).
+
+**Серьёзность:** высоко.
+
+**Live тест:** ✓
+
+**Описание:** `OrdersViewModel.postOrder` (456–657, 200 строк) выполняет полный сценарий: выбор брокера/счёта/инструмента из `_uiState`, `checkTradeAvailability`, разбор `TradeCheckResult` (Success/InsufficientFunds/Error), `prepareOrderRequest.prepare`, `postOrder`, обновление статусов. Это orchestration торговой операции — business-логика, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic (orchestration торгового сценария) в VM вместо UseCase.
+
+**Clean-альтернатива:** `PostOrderUseCase` (domain.usecases): принимает `BrokerOrderRequest` + `accountId` + `brokerName`, возвращает `AppResult<PostOrderResult>`. VM — вызов use case + `_uiState.update`. Плюсы: VM тонкий, логика тестируется без mock-инфраструктуры. Минусы: новый use case + тесты (~2–3 ч).
+
+**MVVM-альтернатива:** тоже `PostOrderUseCase`; VM — «нажатие → use case → обновление UI». Плюсы: тестируемость, переиспользование для BCS/Finam. Минусы: миграция `OrdersScreen` callsites.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR pending).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
+
+### ✅ M009. OrdersScreen — состояние торговой операции в UI
+
+**Статус:** исправлено (2026-11-03, PR pending).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `OrdersScreen.kt:56–57` — `var showConfirmDialog by remember { mutableStateOf(false) }` и `var pendingDirection by remember { mutableStateOf("") }`. Флаг «диалог подтверждения открыт» + направление pending-заявки — состояние торговой операции, а не UI. При recomposition/конфигурационном изменении теряется (не `rememberSaveable`, не VM).
+
+**Нарушенное правило:** M5 — состояние в UI вместо `UiState` VM.
+
+**Clean-альтернатива:** `showConfirmDialog` + `pendingDirection` — в `OrdersUiState`, VM-методы `onBuyClick()`/`onSellClick()` сразу выставляют `showConfirmDialog = true` + `pendingDirection`, `onConfirm()` — отправляет + сбрасывает. Composable — рендер по state. Плюсы: переживает config change, тестируемо. Минусы: —.
+
+**MVVM-альтернатива:** то же — состояние в VM. Плюсы: standard MVVM.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR pending).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
+
+### ✅ M010. OrdersScreen — UI читает VM через метод, не через state
+
+**Статус:** исправлено (2026-11-03, PR pending).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `OrdersScreen.kt` — `if (viewModel.isConfirmOrdersEnabled()) { pendingDirection = "..."; showConfirmDialog = true } else { viewModel.onBuyClick() }`. Метод `isConfirmOrdersEnabled(): Boolean = _uiState.value.confirmOrdersEnabled` — прокси к `uiState.confirmOrdersEnabled`. UI читает поле через метод, а не через `uiState`, из-за чего при recomposition используется снимок `_uiState.value`, а не наблюдаемое значение.
+
+**Нарушенное правило:** M1 — UI работает с VM-методом вместо state (нарушение data flow).
+
+**Clean-альтернатива:** UI читает `uiState.confirmOrdersEnabled`. Метод `isConfirmOrdersEnabled()` удаляется. Плюсы: однонаправленный data flow. Минусы: — (~5 мин).
+
+**MVVM-альтернатива:** то же — `state → UI`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR pending).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
+
+### ✅ M012. OrdersViewModel — MutableStateFlow-поля вместо UiState
+
+**Статус:** исправлено (2026-11-03, PR pending).
+
+**Серьёзность:** высоко.
+
+**Live тест:** -
+
+**Описание:** `OrdersViewModel.kt:1088–1110` + `OrdersScreen.kt:718–742` — 4 поля (`selectedSearchBroker`, `showSearchBrokerDialog`, `selectedPairSearchBroker`, `showPairSearchBrokerDialog`) живут как отдельные `MutableStateFlow` в VM, а UI читает их через `viewModel.X.value` (`.value` в Composable — bypass `collectAsState`). Это раздвоение состояния: часть в `_uiState`, часть — в отдельных flow.
+
+**Нарушенное правило:** M5 — несколько `StateFlow` / дублирование состояния; плюс UI читает `.value` в обход observable.
+
+**Clean-альтернатива:** 4 поля → в `OrdersUiState`; VM-методы обновляют через `_uiState.update { it.copy(...) }`. UI — `uiState.showSearchBrokerDialog` из `collectAsState`. Плюсы: единый `UiState`, observable. Минусы: — (~30 мин).
+
+**MVVM-альтернатива:** то же — один `StateFlow<OrdersUiState>`.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR pending).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
+
 ---
 
 ## L2 — util

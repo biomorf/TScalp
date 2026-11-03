@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
@@ -70,6 +71,16 @@ data class OrdersUiState(
     val stopPrice: String = "",
     val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
     val expireDate: String? = null,
+    // M012: диалоги выбора брокера для поиска (не путать с showBrokerDialog
+    // — тот для выбора счёта при торговле).
+    val showSearchBrokerDialog: Boolean = false,
+    val selectedSearchBroker: BrokerName = BrokerName.TINVEST,
+    val showPairSearchBrokerDialog: Boolean = false,
+    val selectedPairSearchBroker: BrokerName = BrokerName.TINVEST,
+    // M009: диалог подтверждения заявки + направление pending-заявки.
+    // Переживает config change (в отличие от remember { mutableStateOf } в Screen).
+    val showConfirmDialog: Boolean = false,
+    val pendingDirection: OrderDirection? = null,
     val tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
     // поле stopOrderType удалено, теперь берём из orderType.stopOrderType
     val freeBalance: Double? = null,
