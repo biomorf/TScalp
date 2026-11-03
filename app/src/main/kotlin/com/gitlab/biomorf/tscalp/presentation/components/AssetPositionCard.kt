@@ -53,7 +53,7 @@ import kotlin.math.roundToInt
  * Архитектурный долг: функция требует декомпозиции.
  * См. ROADMAP → «Рефакторинг Compose-компонентов».
  */
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun AssetPositionCard(
     position: Position,
