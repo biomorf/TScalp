@@ -2,7 +2,7 @@ package com.gitlab.biomorf.tscalp.domain.api.repository
 
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.Position
 
 /**
  * Domain-контракт портфеля и баланса.
@@ -14,12 +14,12 @@ import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
  * @see com.gitlab.biomorf.tscalp.domain.api.roles.BalanceApi
  */
 interface PortfolioRepository {
-    /** Позиции портфеля (full snapshot, конвертируется в `PortfolioPosition`). */
+    /** Позиции портфеля (full snapshot, domain-модель `Position`). */
     suspend fun fetchPositionsResult(
         brokerName: BrokerName,
         accountId: String,
         sandboxMode: Boolean,
-    ): AppResult<List<PortfolioPosition>>
+    ): AppResult<List<Position>>
 
     /** Свободный остаток по счёту. */
     suspend fun getBalanceResult(

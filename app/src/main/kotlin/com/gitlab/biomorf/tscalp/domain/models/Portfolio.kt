@@ -83,130 +83,35 @@ data class PositionStreamItem(
 )
 
 /**
- * Доменная модель портфельной позиции для UI.
- *
- * Legacy-модель для OrdersViewModel. Заменяется [Position]
- * (задача «OrdersViewModel: миграция на PortfolioSheet»).
- * `PositionFlowManager`. В отличие от [PositionStreamItem] —
- * всегда полная (все поля, которые нужны карточке).
- *
- * @property tscalpInstrumentId универсальный ключ инструмента.
- * @property brokerName брокер-источник.
- * @property name отображаемое имя (сейчас — `ticker`).
- * @property ticker биржевой тикер.
- * @property quantity количество (лоты/единицы).
- * @property currentPrice текущая цена (`0.0`, если от стрима
- *   пришло `null` до обогащения).
- * @property totalValue `currentPrice * quantity`.
- * @property instrumentType строковый тип: `"share"`,
- *   `"futures"`, `"currency"`, `"etf"`.
- * @property classCode код режима торгов.
- * @property isin ISIN инструмента.
- * @property averagePrice средняя цена позиции. `null` — нет
- *   данных (например, позиция только что открыта).
- * @property profit P&L в рублях. Источник: `expectedYield`
- *   от брокера (passthrough). `null` — сервер не прислал.
- *   Client-side fallback — отдельная задача
- *   `### P&L: client-side fallback для PortfolioPosition`.
- * @property profitPercent P&L в процентах от вложенных
- *   средств. Считается через [calculateProfitPercent] —
- *   учитывает `pointValue` для фьючерсов.
- * @property priceChangePercent изменение цены в процентах
- *   (может быть `null`).
- * @property moneyPerPointOfPrice стоимость шага цены (только фьючерсы).
- * @property currency ISO-4217 код валюты (для
- *   `instrumentType = "currency"`); нужен для склейки с WS.
- */
-data class PortfolioPosition(
-    // Обязательные: без них позицию нельзя корректно отрисовать
-    val tscalpInstrumentId: String,
-    val brokerName: BrokerName,
-    val name: String,
-    val ticker: String,
-    val quantity: Long,
-    val currentPrice: Double,
-    val totalValue: Double,
-    // Опциональные: с разумными дефолтами
-    val instrumentType: InstrumentType = InstrumentType.OTHER,
-    val classCode: String = "",
-    val isin: String = "",
-    val averagePrice: Double? = null,
-    val profit: Double? = null,
-    val profitPercent: Double? = null,
-    val priceChangePercent: Double? = null,
-    val moneyPerPointOfPrice: Double? = null,
-    // Код валюты (ISO-4217) для валютных позиций.
-    // Источник — Instrument.currency в fetchPortfolioPositions.
-    // Используется для склейки с WS-стримом (money/blocked).
-    val currency: String? = null,
-    // Идентификатор счёта. Заполняется из Position.accountId в toUiPosition.
-    // Нужен для группировки UI по AccountKey (мультисчёт).
-    val accountId: String? = null,
-    // Заблокированное количество бумаг. Заполняется из Position.lockedQuantity.
-    // T-Invest blocked, BCS locked. `null` — нет данных.
-    val lockedQuantity: Double? = null,
-)
-
-/**
- * Прибыль/убыток в процентах от вложенных средств.
- *
- * Формула: yield / (avgPrice × quantity × pointValue) × 100.
- *  - Для акций pointValue = 1 (или null → считаем 1.0),
- *    знаменатель — avgPrice × quantity в рублях.
- *  - Для фьючерсов avgPrice в пунктах, pointValue переводит
- *    вложение в рубли; серверный yield уже в рублях.
- *
- * Возвращает null, если данных недостаточно для расчёта.
- */
-fun calculateProfitPercent(
-    yield: Double?,
-    avgPrice: Double?,
-    quantity: Long,
-    pointValue: Double?,
-): Double? {
-    if (yield == null) return null
-    if (avgPrice == null || avgPrice <= 0.0) return null
-    if (quantity <= 0L) return null
-    val point = pointValue?.takeIf { it > 0.0 } ?: 1.0
-    val invested = avgPrice * quantity * point
-    if (invested <= 0.0) return null
-    return yield / invested * 100.0
-}
-
-/**
- * Пустая [PortfolioPosition] для инструмента, которого нет в портфеле
+ * Пустая [Position] для инструмента, которого нет в портфеле
  * (например, в карточке заявки, когда позиция ещё не открыта).
  *
- * Все производные presentation-поля (`profit`, `profitPercent`,
- * `totalValue`) вычисляются по тем же правилам, что и в
- * [toPosition]: `totalValue = currentPrice * quantity`
- * (при `quantity = 0` → `0.0`), `profit`/`profitPercent` — `null`
- * (нет позиции — нет P&L).
+ * Диспетчеризация по [Instrument]: `Share` -> [SharePosition] и т.д.
+ * `quantity = 0.0`, `averagePrice = null`, `profit = null`,
+ * `priceChangePercent = null`, `lockedQuantity` — из параметра.
  *
- * Фабрика в domain, а не в presentation: правила конструирования
- * domain-модели принадлежат domain (clean-audit Н1).
+ * @param instrument инструмент.
+ * @param currentPrice текущая цена (`0.0` если неизвестна).
+ * @param accountId id счёта (может быть `""` для карточки заявки до выбора счёта).
+ * @param brokerName брокер.
+ * @param lockedQuantity заблокированное количество (nullable).
  */
-fun emptyPortfolioPosition(
+fun emptyPosition(
     instrument: Instrument,
     currentPrice: Double,
-    moneyPerPointOfPrice: Double?,
-    instrumentType: InstrumentType,
-): PortfolioPosition =
-    PortfolioPosition(
-        brokerName = BrokerName.TINVEST,
-        tscalpInstrumentId = instrument.tscalpInstrumentId,
-        name = instrument.name,
-        isin = instrument.isin,
-        ticker = instrument.ticker,
-        classCode = instrument.classCode ?: "",
-        quantity = 0L,
-        currentPrice = currentPrice,
-        totalValue = currentPrice * 0L,
-        profit = null,
-        profitPercent = null,
-        instrumentType = instrumentType,
-        moneyPerPointOfPrice = moneyPerPointOfPrice,
-    )
+    accountId: String,
+    brokerName: BrokerName,
+    lockedQuantity: Double? = null,
+): Position =
+    when (instrument) {
+        is Share -> SharePosition(instrument, brokerName, accountId, 0.0, currentPrice, null, null, lockedQuantity, null)
+        is Future -> FuturePosition(instrument, brokerName, accountId, 0.0, currentPrice, null, null, lockedQuantity, null)
+        is Bond -> BondPosition(instrument, brokerName, accountId, 0.0, currentPrice, null, null, lockedQuantity, null)
+        is Option -> OptionPosition(instrument, brokerName, accountId, 0.0, currentPrice, null, null, lockedQuantity, null)
+        is Etf -> EtfPosition(instrument, brokerName, accountId, 0.0, currentPrice, null, null, lockedQuantity, null)
+        is Currency -> CurrencyPosition(instrument, brokerName, accountId, 0.0, currentPrice, null, null, lockedQuantity, null)
+        is Other -> OtherPosition(instrument, brokerName, accountId, 0.0, currentPrice, null, null, lockedQuantity, null)
+    }
 
 // =============================================================================
 // Portfolio model (multi-account). See docs/domain_models.md §Portfolio.
@@ -532,37 +437,4 @@ internal fun Position.toStreamItem(): PositionStreamItem =
         instrumentType = instrument.instrumentType,
         accountId = accountId,
         isDomesticCurrency = false,
-    )
-
-/**
- * Обратный адаптер [Position] -> [PortfolioPosition] (legacy).
- *
- * `PortfolioPosition` ещё используется `OrdersViewModel` /
- * `PortfolioRepositoryImpl`; миграция на `Position` — задача
- * `### OrdersViewModel: миграция на PortfolioSheet`.
- *
- * `quantity` → `Long` (lossy — Finam дробное; до миграции Finam не работает).
- * `priceChangePercent` = `null` (источник — задача `### Position: источники
- * priceChangePercent и lockedQuantity`); в `PortfolioViewModel` для UI
- * подставляется tick-to-tick overlay из `PriceFlowManager`.
- */
-internal fun Position.toLegacyPortfolioPosition(): PortfolioPosition =
-    PortfolioPosition(
-        tscalpInstrumentId = instrument.tscalpInstrumentId,
-        brokerName = brokerName,
-        name = instrument.name,
-        ticker = instrument.ticker,
-        quantity = quantity.toLong(),
-        currentPrice = currentPrice,
-        averagePrice = averagePrice,
-        totalValue = totalValue,
-        profit = profit,
-        profitPercent = profitPercent,
-        moneyPerPointOfPrice = instrument.moneyPerPointOfPrice,
-        instrumentType = instrument.instrumentType,
-        isin = instrument.isin,
-        classCode = instrument.classCode ?: "",
-        currency = instrument.currency,
-        accountId = accountId,
-        lockedQuantity = lockedQuantity,
     )

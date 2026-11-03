@@ -28,9 +28,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Future
+import com.gitlab.biomorf.tscalp.domain.models.FuturePosition
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.Position
+import com.gitlab.biomorf.tscalp.domain.models.Share
+import com.gitlab.biomorf.tscalp.domain.models.SharePosition
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import com.gitlab.biomorf.tscalp.presentation.util.PositionFormatter
 import kotlinx.coroutines.delay
@@ -51,26 +56,26 @@ import kotlin.math.roundToInt
 @Suppress("LongMethod")
 @Composable
 fun AssetPositionCard(
-    position: PortfolioPosition,
+    position: Position,
     modifier: Modifier = Modifier,
-    instrumentType: InstrumentType = InstrumentType.OTHER,
+    displayCurrentPrice: Double? = null,
     priceChangePercent: Double? = null,
     onDelete: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
     resetSwipe: Boolean = false,
-    tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
-    pointValue: Double? = null,
-    lockedQuantity: Double? = null,
 ) {
+    // --- Эффективная цена: свежий tick-to-tick overlay или структурная ---
+    val effectivePrice = displayCurrentPrice ?: position.currentPrice
+
     // --- Цветовая индикация изменения цены (состояния) ---
-    var previousPrice by remember { mutableDoubleStateOf(position.currentPrice) }
+    var previousPrice by remember { mutableDoubleStateOf(effectivePrice) }
     var priceDelta by remember { mutableDoubleStateOf(0.0) }
 
-    val isPriceUp = position.currentPrice > previousPrice
-    val isPriceDown = position.currentPrice < previousPrice
+    val isPriceUp = effectivePrice > previousPrice
+    val isPriceDown = effectivePrice < previousPrice
 
     // Фон карточки подсвечивается при изменении
     val backgroundColor by animateColorAsState(
@@ -84,11 +89,11 @@ fun AssetPositionCard(
     )
 
     // Единый LaunchedEffect: и запоминание цены, и показ popup
-    LaunchedEffect(position.currentPrice) {
-        if (previousPrice != 0.0 && position.currentPrice != previousPrice) {
-            priceDelta = position.currentPrice - previousPrice
+    LaunchedEffect(effectivePrice) {
+        if (previousPrice != 0.0 && effectivePrice != previousPrice) {
+            priceDelta = effectivePrice - previousPrice
         }
-        previousPrice = position.currentPrice
+        previousPrice = effectivePrice
     }
 
     // Содержимое карточки (общее для всех случаев)
@@ -101,14 +106,11 @@ fun AssetPositionCard(
         ) {
             AssetCardContent(
                 position = position,
-                instrumentType = instrumentType,
+                displayCurrentPrice = displayCurrentPrice,
                 priceChangePercent = priceChangePercent,
                 onClick = onClick,
                 isSelected = isSelected,
-                tscalpInstrumentId = tscalpInstrumentId,
                 tradingAvailability = tradingAvailability,
-                pointValue = pointValue,
-                lockedQuantity = lockedQuantity,
             )
         }
     }
@@ -198,24 +200,26 @@ fun AssetPositionCard(
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun AssetCardContent(
-    position: PortfolioPosition,
-    instrumentType: InstrumentType,
+    position: Position,
+    displayCurrentPrice: Double?,
     priceChangePercent: Double?,
     onClick: (() -> Unit)?,
     isSelected: Boolean,
     modifier: Modifier = Modifier,
-    tscalpInstrumentId: String? = null,
     tradingAvailability: TradingAvailability? = null,
-    pointValue: Double? = null,
-    lockedQuantity: Double? = null,
 ) {
+    val effectivePrice = displayCurrentPrice ?: position.currentPrice
+    val instrument = position.instrument
+    val instrumentType = instrument.instrumentType
+    val pointValue = instrument.moneyPerPointOfPrice
+    val currency = instrument.currency
     // --- Анимация цвета цены ---
     val targetPriceColor = PositionFormatter.priceChangeColor(priceChangePercent)
     val priceColor by animateColorAsState(targetPriceColor, animationSpec = tween(600))
 
     // --- Анимация масштаба при изменении цены ---
     var priceChanged by remember { mutableStateOf(false) }
-    LaunchedEffect(position.currentPrice) {
+    LaunchedEffect(effectivePrice) {
         priceChanged = true
         delay(500)
         priceChanged = false
@@ -264,22 +268,29 @@ private fun AssetCardContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(position.ticker, fontWeight = FontWeight.Bold)
+                        Text(instrument.ticker, fontWeight = FontWeight.Bold)
                         Text(
-                            position.name,
+                            instrument.name,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         // Упрощённое нейтральное отображение идентификатора
-                        val displayId = if (tscalpInstrumentId.isNullOrBlank()) "000000" else tscalpInstrumentId
+                        val displayId =
+                            if (instrument.tscalpInstrumentId.isBlank()) "000000" else instrument.tscalpInstrumentId
                         Text(
                             text = displayId,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    val (priceStr, rubStr) = PositionFormatter.formatCurrentPrice(position, instrumentType, pointValue)
+                    val (priceStr, rubStr) =
+                        PositionFormatter.formatCurrentPrice(
+                            price = effectivePrice,
+                            instrumentType = instrumentType,
+                            pointValue = pointValue,
+                            currency = currency,
+                        )
                     if (priceStr != null) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
@@ -302,7 +313,7 @@ private fun AssetCardContent(
                     }
                 }
 
-                if (position.quantity != 0L || priceChangePercent != null) {
+                if (position.quantity != 0.0 || priceChangePercent != null) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
                         color = MaterialTheme.colorScheme.outline,
@@ -315,20 +326,27 @@ private fun AssetCardContent(
                     ) {
                         // Левая часть: средняя стоимость + детали
                         Column {
-                            val (totalStr, detailStr) = PositionFormatter.formatAverage(position, instrumentType)
+                            val (totalStr, detailStr) =
+                                PositionFormatter.formatAverage(
+                                    quantity = position.quantity,
+                                    averagePrice = position.averagePrice,
+                                    currency = currency,
+                                    instrumentType = instrumentType,
+                                )
                             Text(
                                 text = totalStr ?: "-",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
-                                text = detailStr ?: "${position.quantity} лот  ·  -",
+                                text = detailStr ?: "${PositionFormatter.formatQuantity(position.quantity)} лот  ·  -",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                             )
-                            if (lockedQuantity != null && lockedQuantity > 0.0) {
+                            val locked = position.lockedQuantity
+                            if (locked != null && locked > 0.0) {
                                 Text(
-                                    text = "В блоке: ${lockedQuantity.toInt()}",
+                                    text = "В блоке: ${locked.toInt()}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -337,7 +355,13 @@ private fun AssetCardContent(
 
                         // Правая часть: прибыль / убыток
                         Column(horizontalAlignment = Alignment.End) {
-                            val (profitStr, profitColor, percentStr) = PositionFormatter.formatProfit(position, instrumentType, pointValue)
+                            val (profitStr, profitColor, percentStr) =
+                                PositionFormatter.formatProfit(
+                                    profit = position.profit,
+                                    profitPercent = position.profitPercent,
+                                    instrumentType = instrumentType,
+                                    pointValue = pointValue,
+                                )
                             if (profitStr != null) {
                                 Text(
                                     text = profitStr,
@@ -371,22 +395,22 @@ private fun AssetPositionCardShareProfitPreview() {
     TScalpTheme {
         AssetPositionCard(
             position =
-                PortfolioPosition(
-                    tscalpInstrumentId = "uid-1",
+                SharePosition(
+                    instrument =
+                        Share(
+                            tscalpInstrumentId = "uid-1",
+                            ticker = "SBER",
+                            name = "Сбербанк",
+                            isin = "RU0009029540",
+                            classCode = "TQBR",
+                        ),
                     brokerName = BrokerName.TINVEST,
-                    name = "Сбербанк",
-                    ticker = "SBER",
-                    quantity = 10,
+                    accountId = "acc-preview",
+                    quantity = 10.0,
                     currentPrice = 250.5,
-                    totalValue = 2505.0,
                     averagePrice = 200.0,
                     profit = 505.0,
-                    profitPercent = 25.25,
-                    instrumentType = InstrumentType.SHARE,
-                    isin = "RU0009029540",
-                    classCode = "TQBR",
                 ),
-            instrumentType = InstrumentType.SHARE,
             priceChangePercent = 1.5,
             onClick = {},
             onDelete = {},
@@ -402,22 +426,22 @@ private fun AssetPositionCardShareLossPreview() {
     TScalpTheme {
         AssetPositionCard(
             position =
-                PortfolioPosition(
-                    tscalpInstrumentId = "uid-2",
+                SharePosition(
+                    instrument =
+                        Share(
+                            tscalpInstrumentId = "uid-2",
+                            ticker = "GAZP",
+                            name = "Газпром",
+                            isin = "RU0007661625",
+                            classCode = "TQBR",
+                        ),
                     brokerName = BrokerName.TINVEST,
-                    name = "Газпром",
-                    ticker = "GAZP",
-                    quantity = 10,
+                    accountId = "acc-preview",
+                    quantity = 10.0,
                     currentPrice = 150.0,
-                    totalValue = 1500.0,
                     averagePrice = 200.0,
                     profit = -500.0,
-                    profitPercent = -25.0,
-                    instrumentType = InstrumentType.SHARE,
-                    isin = "RU0007661625",
-                    classCode = "TQBR",
                 ),
-            instrumentType = InstrumentType.SHARE,
             priceChangePercent = -2.0,
             onClick = {},
             onDelete = {},
@@ -433,24 +457,22 @@ private fun AssetPositionCardFuturesPreview() {
     TScalpTheme {
         AssetPositionCard(
             position =
-                PortfolioPosition(
-                    tscalpInstrumentId = "uid-3",
+                FuturePosition(
+                    instrument =
+                        Future(
+                            tscalpInstrumentId = "uid-3",
+                            ticker = "SiU4",
+                            name = "Фьючерс Si",
+                            classCode = "SPBFUT",
+                        ),
                     brokerName = BrokerName.TINVEST,
-                    name = "Фьючерс Si",
-                    ticker = "SiU4",
-                    quantity = 2,
+                    accountId = "acc-preview",
+                    quantity = 2.0,
                     currentPrice = 85000.0,
-                    totalValue = 170000.0,
                     averagePrice = 84000.0,
                     profit = 2000.0,
-                    profitPercent = 2.38,
-                    instrumentType = InstrumentType.FUTURES,
-                    classCode = "SPBFUT",
-                    moneyPerPointOfPrice = 1.0,
                 ),
-            instrumentType = InstrumentType.FUTURES,
             priceChangePercent = 0.5,
-            pointValue = 1.0,
             onClick = {},
             onDelete = {},
             onSettings = {},

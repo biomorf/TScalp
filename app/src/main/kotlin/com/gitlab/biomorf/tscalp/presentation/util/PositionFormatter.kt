@@ -2,7 +2,6 @@ package com.gitlab.biomorf.tscalp.presentation.util
 
 import androidx.compose.ui.graphics.Color
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 
 object PositionFormatter {
     /**
@@ -10,16 +9,17 @@ object PositionFormatter {
      * Возвращает пару: (строка для общей стоимости, строка для "quantity · averagePrice").
      */
     fun formatAverage(
-        position: PortfolioPosition,
+        quantity: Double,
+        averagePrice: Double?,
+        currency: String?,
         instrumentType: InstrumentType,
     ): Pair<String?, String?> {
-        val avgPrice = position.averagePrice
-        if (avgPrice == null || avgPrice <= 0) {
+        if (averagePrice == null || averagePrice <= 0) {
             return null to null
         }
-        val avgTotal = position.quantity.toDouble() * avgPrice
-        val totalStr = formatPrice(avgTotal, instrumentType, position.currency ?: DOMESTIC_CURRENCY)
-        val detailStr = "${position.quantity} лот  ·  ${formatPrice(avgPrice, instrumentType, position.currency ?: DOMESTIC_CURRENCY)}"
+        val avgTotal = quantity * averagePrice
+        val totalStr = formatPrice(avgTotal, instrumentType, currency ?: DOMESTIC_CURRENCY)
+        val detailStr = "${formatQuantity(quantity)} лот  ·  ${formatPrice(averagePrice, instrumentType, currency ?: DOMESTIC_CURRENCY)}"
         return totalStr to detailStr
     }
 
@@ -28,13 +28,11 @@ object PositionFormatter {
      * Возвращает тройку: (строка прибыли, цвет, строка процента).
      */
     fun formatProfit(
-        position: PortfolioPosition,
+        profit: Double?,
+        profitPercent: Double?,
         instrumentType: InstrumentType,
         pointValue: Double?,
     ): Triple<String?, Color, String?> {
-        val profit = position.profit
-        val profitPercent = position.profitPercent
-
         if (profit == null) {
             return Triple(null, Color.Unspecified, null)
         }
@@ -80,20 +78,28 @@ object PositionFormatter {
      * Возвращает пару: (строка цены, строка рублёвого эквивалента для фьючерсов).
      */
     fun formatCurrentPrice(
-        position: PortfolioPosition,
+        price: Double,
         instrumentType: InstrumentType,
         pointValue: Double?,
     ): Pair<String?, String?> {
-        if (position.currentPrice <= 0) return null to null
-        val priceStr = formatPrice(position.currentPrice, instrumentType, position.currency ?: DOMESTIC_CURRENCY)
+        if (price <= 0) return null to null
+        val priceStr = formatPrice(price, instrumentType, DOMESTIC_CURRENCY)
         val rubStr =
             if (instrumentType == InstrumentType.FUTURES && pointValue != null && pointValue > 0) {
-                formatDomesticCurrency(position.currentPrice * pointValue)
+                formatDomesticCurrency(price * pointValue)
             } else {
                 null
             }
         return priceStr to rubStr
     }
+
+    /**
+     * Форматирует количество: `10.0` → `"10"`, `10.5` → `"10.5"`.
+     * `Position.quantity: Double` (Finam дробное); для T-Invest/BCS
+     * целые значения отображаются без `.0`.
+     */
+    fun formatQuantity(quantity: Double): String =
+        if (quantity == quantity.toLong().toDouble()) quantity.toLong().toString() else "%.1f".format(quantity)
 
     /**
      * Возвращает цвет для изменения цены (процент изменения).

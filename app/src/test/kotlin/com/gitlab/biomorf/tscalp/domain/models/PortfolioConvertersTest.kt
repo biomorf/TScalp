@@ -224,4 +224,69 @@ class PortfolioConvertersTest {
     fun `toAccountBalance non-currency returns null`() {
         assertNull(item(instrumentType = InstrumentType.SHARE).toAccountBalance())
     }
+
+    // ----- emptyPosition: 7 subtypes -----
+
+    @Test
+    fun `emptyPosition share produces SharePosition with zero quantity and null optional`() {
+        val pos = emptyPosition(share, currentPrice = 250.0, accountId = "acc-1", brokerName = BrokerName.TINVEST)
+        assertTrue(pos is SharePosition)
+        assertEquals(0.0, pos.quantity, 0.0)
+        assertEquals(250.0, pos.currentPrice, 0.0)
+        assertNull(pos.averagePrice)
+        assertNull(pos.profit)
+        assertNull(pos.priceChangePercent)
+        assertEquals("acc-1", pos.accountId)
+        assertEquals(BrokerName.TINVEST, pos.brokerName)
+    }
+
+    @Test
+    fun `emptyPosition future produces FuturePosition with lockedQuantity forwarded`() {
+        val pos = emptyPosition(future, currentPrice = 85000.0, accountId = "acc-2", brokerName = BrokerName.BCS, lockedQuantity = 5.0)
+        assertTrue(pos is FuturePosition)
+        assertEquals(0.0, pos.quantity, 0.0)
+        assertEquals(85000.0, pos.currentPrice, 0.0)
+        assertEquals(5.0, pos.lockedQuantity!!, 0.0)
+        assertEquals("acc-2", pos.accountId)
+        assertEquals(BrokerName.BCS, pos.brokerName)
+    }
+
+    @Test
+    fun `emptyPosition bond produces BondPosition`() {
+        val pos = emptyPosition(bond, currentPrice = 100.0, accountId = "acc-3", brokerName = BrokerName.FINAM)
+        assertTrue(pos is BondPosition)
+        assertEquals(0.0, pos.quantity, 0.0)
+        assertEquals("acc-3", pos.accountId)
+        assertEquals(BrokerName.FINAM, pos.brokerName)
+    }
+
+    @Test
+    fun `emptyPosition option produces OptionPosition`() {
+        val pos = emptyPosition(option, currentPrice = 50.0, accountId = "acc-4", brokerName = BrokerName.TINVEST)
+        assertTrue(pos is OptionPosition)
+        assertEquals(0.0, pos.quantity, 0.0)
+    }
+
+    @Test
+    fun `emptyPosition etf produces EtfPosition`() {
+        val pos = emptyPosition(etf, currentPrice = 12.5, accountId = "acc-5", brokerName = BrokerName.TINVEST)
+        assertTrue(pos is EtfPosition)
+        assertEquals(0.0, pos.quantity, 0.0)
+        assertNull(pos.lockedQuantity)
+    }
+
+    @Test
+    fun `emptyPosition currency produces CurrencyPosition`() {
+        val pos = emptyPosition(currency, currentPrice = 95.0, accountId = "acc-6", brokerName = BrokerName.TINVEST)
+        assertTrue(pos is CurrencyPosition)
+        assertEquals(0.0, pos.quantity, 0.0)
+    }
+
+    @Test
+    fun `emptyPosition other produces OtherPosition`() {
+        val pos = emptyPosition(other, currentPrice = 1.0, accountId = "acc-7", brokerName = BrokerName.TINVEST)
+        assertTrue(pos is OtherPosition)
+        assertEquals(0.0, pos.quantity, 0.0)
+        assertEquals("acc-7", pos.accountId)
+    }
 }

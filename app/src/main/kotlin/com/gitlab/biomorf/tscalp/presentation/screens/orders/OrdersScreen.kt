@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-import com.gitlab.biomorf.tscalp.domain.models.emptyPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
@@ -157,40 +156,33 @@ fun OrdersScreen() {
                         }
                     } else {
                         uiState.selectedInstrument?.let { instrument: Instrument ->
-                            val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
+                            val portfolioPos =
+                                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
 
                             // Цену берём из PriceFlowManager (uiState.currentPrice) —
                             // это быстрый источник (gRPC + REST раз в 5 сек).
                             // portfolioPositions обновляется реже (10 сек), поэтому
-                            // его currentPrice перезаписываем свежим значением.
+                            // его currentPrice передаётся как overlay через displayCurrentPrice.
                             val currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0
 
                             val position =
-                                if (portfolioPos != null) {
-                                    portfolioPos.copy(
-                                        currentPrice = currentPrice,
-                                        totalValue = currentPrice * portfolioPos.quantity,
-                                    )
-                                } else {
-                                    emptyPortfolioPosition(
+                                portfolioPos
+                                    ?: emptyPosition(
                                         instrument = instrument,
                                         currentPrice = currentPrice,
-                                        moneyPerPointOfPrice = uiState.currentPointValue,
-                                        instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
+                                        accountId = uiState.selectedAccountId ?: "",
+                                        brokerName = BrokerName.TINVEST,
                                     )
-                                }
 
                             AssetPositionCard(
                                 position = position,
-                                instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
-                                pointValue = position.moneyPerPointOfPrice, // теперь всегда валидный
+                                displayCurrentPrice = currentPrice,
                                 priceChangePercent = uiState.selectedPriceChangePercent,
                                 onDelete = { viewModel.clearSelectedInstrument() },
                                 onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                                 onClick = { },
                                 isSelected = false,
                                 resetSwipe = uiState.swipeResetTrigger,
-                                tscalpInstrumentId = instrument.tscalpInstrumentId,
                                 tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
                             )
                         }
@@ -457,8 +449,8 @@ fun OrdersScreen() {
                         } else {
                             // Карточка парного инструмента и множитель
                             uiState.pairedInstrument?.let { instrument: Instrument ->
-                                val portfolioPos = uiState.portfolioPositions.find { it.ticker == instrument.ticker }
-                                val pairedPointValue = uiState.pairedPointValue
+                                val portfolioPos =
+                                    uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
                                 // Цену берём из PriceFlowManager (uiState.pairCurrentPrice).
                                 val pairPrice =
                                     uiState.pairCurrentPrice
@@ -466,31 +458,23 @@ fun OrdersScreen() {
                                         ?: 0.0
 
                                 val position =
-                                    if (portfolioPos != null) {
-                                        portfolioPos.copy(
-                                            currentPrice = pairPrice,
-                                            totalValue = pairPrice * portfolioPos.quantity,
-                                        )
-                                    } else {
-                                        emptyPortfolioPosition(
+                                    portfolioPos
+                                        ?: emptyPosition(
                                             instrument = instrument,
                                             currentPrice = pairPrice,
-                                            moneyPerPointOfPrice = pairedPointValue,
-                                            instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
+                                            accountId = uiState.selectedAccountId ?: "",
+                                            brokerName = BrokerName.TINVEST,
                                         )
-                                    }
 
                                 AssetPositionCard(
                                     position = position,
-                                    instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
-                                    pointValue = position.moneyPerPointOfPrice, // теперь всегда валидный
+                                    displayCurrentPrice = pairPrice,
                                     priceChangePercent = uiState.selectedPriceChangePercent,
                                     onDelete = { viewModel.clearPairSearch() },
                                     onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
                                     onClick = { },
                                     isSelected = false,
                                     resetSwipe = uiState.swipeResetTrigger,
-                                    tscalpInstrumentId = instrument.tscalpInstrumentId,
                                     tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
                                 )
 

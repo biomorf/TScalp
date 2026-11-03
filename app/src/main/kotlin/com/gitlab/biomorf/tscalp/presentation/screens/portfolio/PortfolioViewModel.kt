@@ -14,7 +14,6 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
@@ -50,9 +49,6 @@ class PortfolioViewModel
         private val _uiState = MutableStateFlow(PortfolioUiState())
         val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
 
-        private val sheetState = MutableStateFlow(PortfolioSheet(emptyMap()))
-        private val pricesMap = mutableMapOf<String, Double>()
-        private val priceChangePercentsMap = mutableMapOf<String, Double>()
         private var positionStreamJob: Job? = null
 
         companion object {
@@ -75,7 +71,8 @@ class PortfolioViewModel
             viewModelScope.launch {
                 while (isActive) {
                     delay(5 * 60 * 1000L)
-                    val currentPositions = _uiState.value.positions
+                    val currentPositions =
+                        _uiState.value.sheet.accounts.values.flatMap { it.positions }
                     if (currentPositions.isNotEmpty()) {
                         updateTradingStatuses(currentPositions)
                     }
@@ -95,15 +92,12 @@ class PortfolioViewModel
                 stopPositionUpdates()
                 priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
                 positionFlowManager.stop()
-                sheetState.value = PortfolioSheet(emptyMap())
-                pricesMap.clear()
-                priceChangePercentsMap.clear()
                 _uiState.update {
                     it.copy(
-                        positions = emptyList(),
-                        totalValue = 0.0,
-                        tradingStatuses = emptyMap(),
                         sheet = PortfolioSheet(emptyMap()),
+                        prices = emptyMap(),
+                        priceChangePercents = emptyMap(),
+                        tradingStatuses = emptyMap(),
                     )
                 }
             }
@@ -131,26 +125,32 @@ class PortfolioViewModel
                     }
                 if (accounts.isEmpty()) {
                     logger.d(TAG, "loadPortfolio: no accounts")
-                    _uiState.update { it.copy(isLoading = false, positions = emptyList(), totalValue = 0.0) }
+                    _uiState.update { it.copy(isLoading = false, sheet = PortfolioSheet(emptyMap())) }
                     return@launch
                 }
                 logger.d(TAG, "loadPortfolio: ${accounts.size} accounts, sandbox=$sandbox")
 
-                // Первичный fetch по каждому счёту (сразу заполнить UI)
-                val allPositions = mutableListOf<PortfolioPosition>()
+                // Первичный fetch по каждому счёту — seed sheet'а (до первого polling emit).
+                // SSoT-источник — PositionFlowManager (заместит первым sheet).
+                val seeded = mutableMapOf<AccountKey, AccountPortfolio>()
                 for (account in accounts) {
                     when (val r = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, account.id, sandbox)) {
-                        is AppResult.Success -> allPositions.addAll(r.data)
+                        is AppResult.Success -> {
+                            val key = AccountKey(BrokerName.TINVEST, account.id)
+                            seeded[key] =
+                                AccountPortfolio(
+                                    accountId = account.id,
+                                    brokerName = BrokerName.TINVEST,
+                                    positions = r.data,
+                                    balances = emptyList(),
+                                )
+                        }
                         is AppResult.Failure ->
                             logger.e(TAG, "loadPortfolio[${account.id}] failed: ${r.error.message}", r.error.cause)
                     }
                 }
                 _uiState.update {
-                    it.copy(
-                        positions = allPositions,
-                        totalValue = allPositions.sumOf { p -> p.totalValue },
-                        isLoading = false,
-                    )
+                    it.copy(sheet = PortfolioSheet(seeded), isLoading = false)
                 }
 
                 val keys = accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
@@ -168,9 +168,8 @@ class PortfolioViewModel
             positionStreamJob =
                 viewModelScope.launch {
                     positionFlowManager.sheet.collect { sheet ->
-                        sheetState.value = sheet
                         _uiState.update { it.copy(sheet = sheet) }
-                        recomputePositions()
+                        syncPriceInterest()
                     }
                 }
         }
@@ -182,8 +181,9 @@ class PortfolioViewModel
 
         private fun syncPriceInterest() {
             val ids =
-                _uiState.value.positions
-                    .map { it.tscalpInstrumentId }
+                _uiState.value.sheet.accounts.values
+                    .flatMap { it.positions }
+                    .map { it.instrument.tscalpInstrumentId }
                     .filter { it.isNotBlank() && it != "RUB000UTSTOM" }
                     .toSet()
             priceFlowManager.setInterest(PriceConsumer.PORTFOLIO, ids)
@@ -192,12 +192,17 @@ class PortfolioViewModel
         private fun updatePriceFromStream(update: PriceUpdate) {
             if (update.price <= 0.0) return
             val id = update.tscalpInstrumentId
-            val prev = pricesMap[id]
-            pricesMap[id] = update.price
-            if (prev != null && prev != 0.0 && prev != update.price) {
-                priceChangePercentsMap[id] = ((update.price - prev) / prev) * 100.0
+            _uiState.update { state ->
+                val prev = state.prices[id]
+                val newPrices = state.prices + (id to update.price)
+                val newPcts =
+                    if (prev != null && prev != 0.0 && prev != update.price) {
+                        state.priceChangePercents + (id to ((update.price - prev) / prev) * 100.0)
+                    } else {
+                        state.priceChangePercents
+                    }
+                state.copy(prices = newPrices, priceChangePercents = newPcts)
             }
-            recomputePositions()
         }
 
         override fun onCleared() {
@@ -205,53 +210,11 @@ class PortfolioViewModel
             priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
         }
 
-        /**
-         * Пересобирает `uiState.positions` из `sheetState` (структурные данные) +
-         * overlay `pricesMap` / `priceChangePercentsMap` (tick-to-tick из PriceFlowManager).
-         *
-         * `PortfolioPosition` — legacy-модель для `PortfolioScreen` (до миграции
-         * на `sheet`). `Position.priceChangePercent` = null (источник — задача
-         * «Position: источники priceChangePercent...»), здесь подставляется
-         * tick-to-tick из overlay.
-         */
-        private fun recomputePositions() {
-            val sheet = sheetState.value
-            val positions = sheet.accounts.values.flatMap { acc -> acc.positions.map { it.toUiPosition() } }
-            _uiState.update { it.copy(positions = positions, totalValue = positions.sumOf { p -> p.totalValue }) }
-            syncPriceInterest()
-        }
-
-        private fun Position.toUiPosition(): PortfolioPosition {
-            val id = instrument.tscalpInstrumentId
-            val price = pricesMap[id] ?: currentPrice
-            val pct = priceChangePercentsMap[id]
-            return PortfolioPosition(
-                tscalpInstrumentId = id,
-                brokerName = brokerName,
-                name = instrument.name,
-                ticker = instrument.ticker,
-                quantity = quantity.toLong(),
-                currentPrice = price,
-                averagePrice = averagePrice,
-                totalValue = price * quantity.toLong() * instrument.moneyPerPointOfPrice,
-                profit = profit,
-                profitPercent = profitPercent,
-                moneyPerPointOfPrice = instrument.moneyPerPointOfPrice,
-                instrumentType = instrument.instrumentType,
-                isin = instrument.isin,
-                classCode = instrument.classCode ?: "",
-                currency = instrument.currency,
-                priceChangePercent = pct,
-                accountId = accountId,
-                lockedQuantity = lockedQuantity,
-            )
-        }
-
-        private suspend fun updateTradingStatuses(positions: List<PortfolioPosition>) {
+        private suspend fun updateTradingStatuses(positions: List<Position>) {
             val byBroker = positions.groupBy { it.brokerName }
             val allStatuses = mutableMapOf<String, TradingAvailability>()
             for ((brokerName, posList) in byBroker) {
-                val ids = posList.map { it.tscalpInstrumentId }.filter { it.isNotBlank() }
+                val ids = posList.map { it.instrument.tscalpInstrumentId }.filter { it.isNotBlank() }
                 if (ids.isEmpty()) continue
                 when (val result = marketDataRepository.getTradingStatusesResult(brokerName, ids)) {
                     is AppResult.Success -> allStatuses.putAll(result.data)

@@ -1,9 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.util
 
 import androidx.compose.ui.graphics.Color
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -32,37 +30,15 @@ class PositionFormatterTest {
         }
     }
 
-    // ---------- Хелперы ----------
-
-    private fun position(
-        ticker: String = "SBER",
-        quantity: Long = 10L,
-        currentPrice: Double = 250.0,
-        averagePrice: Double? = 240.0,
-        totalValue: Double = currentPrice * quantity,
-        profit: Double? = null,
-        profitPercent: Double? = null,
-    ): PortfolioPosition =
-        PortfolioPosition(
-            tscalpInstrumentId = "uid_$ticker",
-            brokerName = BrokerName.TINVEST,
-            ticker = ticker,
-            name = "$ticker Inc.",
-            quantity = quantity,
-            currentPrice = currentPrice,
-            averagePrice = averagePrice,
-            totalValue = totalValue,
-            profit = profit,
-            profitPercent = profitPercent,
-        )
-
     // ---------- formatAverage ----------
 
     @Test
     fun `formatAverage returns null pair when averagePrice is null`() {
         val (total, detail) =
             PositionFormatter.formatAverage(
-                position(averagePrice = null),
+                quantity = 10.0,
+                averagePrice = null,
+                currency = null,
                 instrumentType = InstrumentType.SHARE,
             )
         assertNull(total)
@@ -73,7 +49,9 @@ class PositionFormatterTest {
     fun `formatAverage returns null pair when averagePrice is zero`() {
         val (total, detail) =
             PositionFormatter.formatAverage(
-                position(averagePrice = 0.0),
+                quantity = 10.0,
+                averagePrice = 0.0,
+                currency = null,
                 instrumentType = InstrumentType.SHARE,
             )
         assertNull(total)
@@ -84,7 +62,9 @@ class PositionFormatterTest {
     fun `formatAverage returns null pair when averagePrice is negative`() {
         val (total, detail) =
             PositionFormatter.formatAverage(
-                position(averagePrice = -1.0),
+                quantity = 10.0,
+                averagePrice = -1.0,
+                currency = null,
                 instrumentType = InstrumentType.SHARE,
             )
         assertNull(total)
@@ -95,7 +75,9 @@ class PositionFormatterTest {
     fun `formatAverage for share contains currency and quantity`() {
         val (total, detail) =
             PositionFormatter.formatAverage(
-                position(quantity = 5L, averagePrice = 100.0),
+                quantity = 5.0,
+                averagePrice = 100.0,
+                currency = "rub",
                 instrumentType = InstrumentType.SHARE,
             )
         assertNotNull(total)
@@ -109,7 +91,9 @@ class PositionFormatterTest {
     fun `formatAverage for futures contains points and currency`() {
         val (total, detail) =
             PositionFormatter.formatAverage(
-                position(quantity = 2L, averagePrice = 100.0),
+                quantity = 2.0,
+                averagePrice = 100.0,
+                currency = "rub",
                 instrumentType = InstrumentType.FUTURES,
             )
         assertNotNull(total)
@@ -124,7 +108,8 @@ class PositionFormatterTest {
     fun `formatProfit returns null string when profit is null`() {
         val (profitStr, _, percentStr) =
             PositionFormatter.formatProfit(
-                position(profit = null, profitPercent = null),
+                profit = null,
+                profitPercent = null,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -138,7 +123,8 @@ class PositionFormatterTest {
     fun `formatProfit for positive share contains plus and currency`() {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
-                position(profit = 100.0),
+                profit = 100.0,
+                profitPercent = null,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -152,7 +138,8 @@ class PositionFormatterTest {
     fun `formatProfit for negative share contains minus and currency`() {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
-                position(profit = -50.0),
+                profit = -50.0,
+                profitPercent = null,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -166,12 +153,12 @@ class PositionFormatterTest {
     fun `formatProfit for zero share produces plus sign`() {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
-                position(profit = 0.0),
+                profit = 0.0,
+                profitPercent = null,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
         assertNotNull(profitStr)
-        // profit >= 0 → знак "+"
         assertTrue("Ожидался '+' в: $profitStr", profitStr!!.startsWith("+"))
         assertEquals(Color(0xFF2E7D32), color)
     }
@@ -182,7 +169,8 @@ class PositionFormatterTest {
     fun `formatProfit for futures with pointValue contains points and currency`() {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
-                position(profit = 10.0),
+                profit = 10.0,
+                profitPercent = null,
                 instrumentType = InstrumentType.FUTURES,
                 pointValue = 5.0,
             )
@@ -198,7 +186,8 @@ class PositionFormatterTest {
     fun `formatProfit for futures without pointValue contains only points`() {
         val (profitStr, _, _) =
             PositionFormatter.formatProfit(
-                position(profit = 10.0),
+                profit = 10.0,
+                profitPercent = null,
                 instrumentType = InstrumentType.FUTURES,
                 pointValue = null,
             )
@@ -212,7 +201,8 @@ class PositionFormatterTest {
     fun `formatProfit for futures with zero pointValue contains only points`() {
         val (profitStr, _, _) =
             PositionFormatter.formatProfit(
-                position(profit = 10.0),
+                profit = 10.0,
+                profitPercent = null,
                 instrumentType = InstrumentType.FUTURES,
                 pointValue = 0.0,
             )
@@ -225,12 +215,12 @@ class PositionFormatterTest {
     fun `formatProfit for negative futures contains minus sign`() {
         val (profitStr, color, _) =
             PositionFormatter.formatProfit(
-                position(profit = -25.5),
+                profit = -25.5,
+                profitPercent = null,
                 instrumentType = InstrumentType.FUTURES,
                 pointValue = 5.0,
             )
         assertNotNull(profitStr)
-        // pointsStr = "-25.50", знак не добавляем (минус уже есть)
         assertTrue("Ожидался '-' в: $profitStr", profitStr!!.startsWith("-"))
         assertEquals(Color(0xFFC62828), color)
     }
@@ -241,7 +231,8 @@ class PositionFormatterTest {
     fun `formatProfit percentage for positive uses plus`() {
         val (_, _, percentStr) =
             PositionFormatter.formatProfit(
-                position(profit = 10.0, profitPercent = 5.25),
+                profit = 10.0,
+                profitPercent = 5.25,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -254,7 +245,8 @@ class PositionFormatterTest {
     fun `formatProfit percentage for negative uses minus`() {
         val (_, _, percentStr) =
             PositionFormatter.formatProfit(
-                position(profit = -10.0, profitPercent = -3.5),
+                profit = -10.0,
+                profitPercent = -3.5,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -266,7 +258,8 @@ class PositionFormatterTest {
     fun `formatProfit percentage is null when profitPercent is null`() {
         val (_, _, percentStr) =
             PositionFormatter.formatProfit(
-                position(profit = 10.0, profitPercent = null),
+                profit = 10.0,
+                profitPercent = null,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -279,7 +272,7 @@ class PositionFormatterTest {
     fun `formatCurrentPrice returns null pair when price is zero`() {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
-                position(currentPrice = 0.0),
+                price = 0.0,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -291,7 +284,7 @@ class PositionFormatterTest {
     fun `formatCurrentPrice for share has no rub extra`() {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
-                position(currentPrice = 250.0),
+                price = 250.0,
                 instrumentType = InstrumentType.SHARE,
                 pointValue = null,
             )
@@ -304,7 +297,7 @@ class PositionFormatterTest {
     fun `formatCurrentPrice for futures contains points and rub extra`() {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
-                position(currentPrice = 100.0),
+                price = 100.0,
                 instrumentType = InstrumentType.FUTURES,
                 pointValue = 5.0,
             )
@@ -318,12 +311,24 @@ class PositionFormatterTest {
     fun `formatCurrentPrice for futures without pointValue has no rub extra`() {
         val (price, rub) =
             PositionFormatter.formatCurrentPrice(
-                position(currentPrice = 100.0),
+                price = 100.0,
                 instrumentType = InstrumentType.FUTURES,
                 pointValue = null,
             )
         assertNotNull(price)
         assertNull(rub)
+    }
+
+    // ---------- formatQuantity ----------
+
+    @Test
+    fun `formatQuantity rounds whole double to long string`() {
+        assertEquals("10", PositionFormatter.formatQuantity(10.0))
+    }
+
+    @Test
+    fun `formatQuantity keeps one decimal for fractional`() {
+        assertEquals("10.5", PositionFormatter.formatQuantity(10.5))
     }
 
     // ---------- priceChangeColor ----------
