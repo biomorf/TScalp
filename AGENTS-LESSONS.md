@@ -22,7 +22,8 @@
 ## Структура файла
 
 Уроки сгруппированы по темам: «Скрипты и правки», «CI»,
-«Оценки», «Диагностика», «Clean-audit», «UI и дизайн», «Процессные».
+«Kotlin / Compose», «Оценки», «Диагностика», «Clean-audit»,
+«UI и дизайн», «Процессные».
 
 **Правило:** новая запись идёт в **соответствующий
 тематический раздел**, не плоско в конец файла и не в
@@ -472,6 +473,77 @@ actual). Не доверять фильтру.
 
 **Проверка:** в скрипте правки: если `old_fragment in new_fragment` — pre-check через `assert text.count(old) == 1`, **не** `assert new not in text`; пост-проверка — `assert old not in check` (старой формы нет) или `assert check.count(new) == 1`.
 
+### 67. `assert "### X" not in text` — line-anchored regex, не подстрока
+
+**Правило:** проверку «заголовка `### X` больше нет в файле» писать как `re.findall(r"^### X$", text, re.MULTILINE)` (длина 0) или `grep -cE "^### X$"` в shell. Не `assert "### X" not in text` — тот падает на inline-ссылках в `**Связано:**` / `**Предусловия:**` / `**Зависимости:**` / цитатах.
+
+**Инцидент:** 2026-11-04, три раза подряд за одну сессию:
+- clean-audit (`### Н5` — 4 вхождения `### Н5` как inline-ссылка);
+- ROADMAP (`### H5.` — 6 вхождений в `### Ревизия`, `### ✅ Portfolio`, `### Обогащение name` и т.д.);
+- ROADMAP (`### Currency format` — 2 вхождения в `**Связано:**` + `**Когда вернуться:**` моего же блока).
+
+Каждый раз `assert not in text` ложно-падал, файл не изменялся (assert до `write_text`). Родственно урокам 23 и 65, но обратное направление (не «находит лишнее», а «не находит лишнее»).
+
+**Проверка:** перед `assert not in text` для `### ...` — `re.findall(r"^### X$", text, re.MULTILINE)`; `assert len(...) == 0`.
+
+### 68. `Path.read_text()` возвращает trailing `\n`
+
+**Правило:** `Path.read_text()` сохраняет финальный `\n`. При сравнении полного файла (`actual == old_fragment`) — `old_fragment` должен содержать `\n` в конце. Иначе `assert` падает на разнице в один символ.
+
+**Инцидент:** 2026-11-04, A1.2a (`PortfolioUiState.kt`). `old_ui` заканчивался на `)`, файл — на `)\n`. `assert actual_ui == old_ui` упал с `PortfolioUiState mismatch` — без указания, что расхождение в trailing `\n`.
+
+**Проверка:** `assert text.endswith("\n")` перед сравнением полного файла; `old_fragment` — `... + "\n"`. Либо сравнение через `.rstrip()` с обеих сторон.
+
+### 69. Вставка в конец файла — `rstrip()` + `\n`
+
+**Правило:** вставка `text = text + new_entry` в конец файла даёт blank line at EOF, если `new_entry` оканчивается `\n\n`. Финал: `text = (text + new_entry).rstrip() + "\n"` (или `new_entry.rstrip("\n") + "\n"`).
+
+**Инцидент:** 2026-11-04, шаг 4 (`docs/ISSUES.md`). `git diff --check` дал `docs/ISSUES.md:1229: new blank line at EOF`. Фикс — `text.rstrip() + "\n"`. Потеряно `1` байт.
+
+**Проверка:** `git diff --check` в том же shell-блоке, что и правка; `assert not text.endswith("\n\n")` после `write_text`.
+
+### 76. `unused import` после удаления кода
+
+**Правило:** после удаления функции — `grep -c "\bSymbol\b" file` vs `grep -c "^import.*\.Symbol$" file`. Равенство (1 == 1) = символ используется только в импорте → unused. После удаления кода — прогонять этот pre-check на все импорты удалённого файла.
+
+**Инцидент:** 2026-11-04, CI `fast-check`: `PortfolioViewModel.kt:23:1 Unused import` — `import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice`, символ использовался только в удалённом `toUiPosition` (A1.2b-3).
+
+**Проверка:** `grep -c "\bSymbol\b" file` == `grep -c "^import.*\.Symbol$" file` → unused; удалить. Или `./gradlew :app:ktlintFormat` (desktop, урок 55).
+
+## Kotlin / Compose
+
+### 72. Smart cast невозможен для computed getter
+
+**Правило:** если `val prop: T` объявлен как `get() = ...` (computed getter) — `if (obj.prop != null && obj.prop.someMethod())` даёт `Smart cast to 'T' is impossible`. Сохранять в локальную: `val local = obj.prop; if (local != null && local.someMethod())`.
+
+**Инцидент:** 2026-11-04, CI `compileDebugKotlin`: `AssetPositionCard.kt:379:83 Smart cast to 'Double' is impossible, because 'profitPercent' is a property that has an open or custom getter`. В `Position` (sealed interface) `profitPercent` — computed getter (`get() { ... }`), не поле.
+
+**Проверка:** `grep -n "get() =\|get() {" file.kt` — найти computed getters; в местах `obj.prop != null && obj.prop...` — заменить на локальную `val`.
+
+### 73. `data class` non-null common param без default — обязателен
+
+**Правило:** при создании экземпляра `sealed interface` / `data class` в Preview или тесте — все non-null поля без default обязательны. Перед правкой — `grep` всех полей интерфейса / data class; `String` без `= ""` / `?` — обязателен.
+
+**Инцидент:** 2026-11-04, CI `compileDebugKotlin`: `AssetPositionCard.kt:462:25 No value passed for parameter 'isin'`. В Preview «Futures» — `Future(tscalpInstrumentId = "uid-3", ticker = "SiU4", name = "Фьючерс Si", classCode = "SPBFUT")` без `isin`. `isin: String` в `Instrument` — non-null `String`, не `String?` и без default.
+
+**Проверка:** перед `data class(...)` в Preview / тесте — `grep -nE "^\s+val \w+: \w+" Instrument.kt` (тип без `?`, без `=`) — все обязательные поля.
+
+### 74. Locale-dependent `format` — `Locale.US` в продакшене
+
+**Правило:** `"%.1f".format(x)` в продакшене зависит от `Locale.getDefault()` — на CI (ru-RU) даёт `"10,5"`, тест ждёт `"10.5"`. Формат — часть контракта → `String.format(Locale.US, "%.1f", x)`.
+
+**Инцидент:** 2026-11-04, CI `testDebugUnitTest`: `PositionFormatterTest > formatQuantity keeps one decimal FAILED` (`ComparisonFailure`, `expected "10.5"`). `formatQuantity` использовала `"%.1f".format(quantity)`, на CI (ru-RU locale) → `"10,5"`. Локально (desktop, ru-RU) тоже бы упало — но там тест не запускался.
+
+**Проверка:** `grep -n '"%[0-9.]*[df]".format' file.kt` — все такие места → `String.format(Locale.US, ...)`. Или `Locale.setDefault(Locale.US)` в тесте (`@BeforeClass`).
+
+### 75. `Currency.getInstance` — ISO 4217 uppercase
+
+**Правило:** `java.util.Currency.getInstance(code)` требует ISO 4217 uppercase (`"RUB"`, `"USD"`). Lowercase / mixed case — `IllegalArgumentException`. Нормализовать: `code.uppercase(Locale.ROOT)` перед `getInstance`.
+
+**Инцидент:** 2026-11-04, CI `testDebugUnitTest`: `PositionFormatterTest > formatAverage for share FAILED` (`IllegalArgumentException`). Тест передавал `currency = "rub"`, `Currency.getInstance("rub")` бросал. Латентный баг в продакшене: `Instrument.currency` от брокеров может приходить lowercase. Pre-existing (до PR #90 тоже передавалось как есть).
+
+**Проверка:** `grep -n "Currency.getInstance" file.kt` — перед `getInstance` стоит `uppercase(Locale.ROOT)`; тест с lowercase не падает. В ROADMAP — задача `### Currency format: normalize ISO 4217 case`.
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
@@ -631,6 +703,22 @@ compile → ktlint → detekt, не смешивать. Сначала «что�
 **Инцидент:** 2026-10-28. AGP 9.0.0 + Gradle 9.1.1 — `Not Found` по URL `gradle-9.1.1-bin.zip`. AGP 8.13.2 + Hilt 2.59.2 — `Hilt plugin requires AGP 9.0.0`. Пришлось перебирать версии. Дополнительно: с AGP 9.0 `kapt` несовместим со встроенным Kotlin (`android.builtInKotlin`), миграция на KSP обязательна.
 
 **Проверка:** `grep -n "distributionUrl" gradle/wrapper/gradle-wrapper.properties`; `grep -n "hilt-android" build.gradle.kts app/build.gradle.kts`. URL дистрибутива — сверять с https://services.gradle.org/distributions/.
+
+### 70. ktlint multiline chain — `.` с новой строки
+
+**Правило:** если `val x =` на отдельной строке, все `.` в правой части — на новых строках с +4 indent от `val` (continuation indent). `ktlint` ловит `Expected newline before '.'`.
+
+**Инцидент:** 2026-11-04, CI `ktlintMainSourceSetCheck FAILED`: `PortfolioViewModel.kt:76:61 Expected newline before '.'` — `_uiState.value.sheet.accounts.values.flatMap { it.positions }` на одной строке (82 символа).
+
+**Проверка:** `grep -nE "\)\.[a-z]" file.kt` — multiline-выражения с `.` на одной строке. `ktlintFormat` (desktop, урок 55) или ручная разбивка.
+
+### 71. detekt `CyclomaticComplexMethod` на Compose — расширять `@Suppress`
+
+**Правило:** при правке Compose-функции (`?:`, `if`, `when` — каждое даёт ветвление) — `grep -n "@Suppress" file` и сравнить с существующим. Если в файле `AssetCardContent` уже нёс `@Suppress("LongMethod", "CyclomaticComplexMethod")`, консолидировать `AssetPositionCard` до того же. Декомпозиция — отдельная задача (Н94, ROADMAP → `#### Compose-компоненты`).
+
+**Инцидент:** 2026-11-04, CI `detekt FAILED`: `AssetPositionCard.kt:58:5 The function AssetPositionCard appears to be too complex ... (complexity: 15). The maximum allowed complexity for methods is set to '14'`. Миграция на `Position` добавила `displayCurrentPrice ?: ...` и `position.instrument.*`.
+
+**Проверка:** `grep -nE "^@Suppress" file.kt` — все Compose-функции в файле; расширять `@Suppress` консистентно. `cyclomatic` (complexity) не входит в 4h pre-commit — ловится только detekt.
 
 ---
 
