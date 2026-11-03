@@ -423,3 +423,34 @@ object PositionFormatter {
 2. **`PortfolioUiState.totalValue`** — сумма `Position.totalValue` по всем счетам. Используется в UI? Проверить grep. Если не используется — удалить.
 3. **`OrdersScreen`: `uiState.currentPointValue` / `pairedPointValue`** — после удаления параметра `pointValue` в `AssetPositionCard` эти поля могут стать ненужными. Но они могут использоваться в `OrdersViewModel` для расчётов (`updateTradeDetails`, оверлеи). Проверить, **не удалять в этой задаче** (out of scope), только убрать передачу в `AssetPositionCard`.
 4. **`emptyPosition` при `accountId == ""`** — `OrdersScreen` до выбора счёта. `Position.accountId` — non-null `String`. `""` — допустимый fallback. Если `Position`-модель когда-нибудь получит non-empty invariant — отдельная задача.
+
+
+---
+
+## 9. После закрытия H5
+
+H5 — не последний шаг. После merge PR с удалением `PortfolioPosition` **обязательно** закрыть задачу:
+
+**`### Ревизия ссылок на PortfolioPosition после H5`** (`docs/ROADMAP.md`, сразу после H5).
+
+Это формальное предупреждение следующей сессии: после H5 в `docs/` останутся устаревшие ссылки и формулировки. Задача — 30–45 мин, docs-only.
+
+**Что нужно отревизовать (кратко; подробности — в самой задаче):**
+
+1. **`### UI: отображение blocked на валютной карточке`** (ROADMAP) — после `Portfolio: модель портфеля` деньги (`money`/`blocked`) переехали в `AccountBalance`, валютная карточка `RUB000UTSTOM` удалена с `PortfolioScreen`, баланс — в `AccountHeaderCard`. Задача либо **закрывается как выполненная**, либо переформулируется под остаток.
+
+2. **`### P&L: client-side fallback для PortfolioPosition`** (ROADMAP) — все ссылки на `PortfolioPosition` устареют. Fallback теперь применяется к `Position` / `PositionStreamItem`. Требуется переименовать задачу (`... для Position`) и обновить тело.
+
+3. **`docs/architecture.md` → «Data flow: позиции»** — упоминает `PortfolioPosition` как legacy. После H5 — устареет; `Position` — единственная модель. Обновить «Модели» / «Legacy `flow`» / «ViewModel».
+
+4. **`docs/clean-audit.md` → Н5** — статус → `исправлено`, запись переносится в `### Исправленные (L3)`. Проверить связанные упоминания.
+
+5. **KDoc в коде** — после H5 `grep -rn "PortfolioPosition" app/src` = 0 (это критерий H5), но KDoc-ссылки на удалённые функции (`toPortfolioPosition`, `mergeWith`) в других файлах могут остаться. Проверить `grep -rn "toPortfolioPosition\|mergeWith\|PortfolioPosition" app/src` и почистить.
+
+**Критерий завершения ревизии:**
+
+- `grep -rn "PortfolioPosition" docs/ROADMAP.md docs/architecture.md` — пусто (кроме записей в `### Исправленные` / исторических).
+- `grep -rn "PortfolioPosition" app/src` — пусто.
+- `docs/clean-audit.md` Н5 → `исправлено`.
+
+**Не забыть:** без этой ревизии следующая сессия будет введена в заблуждение устаревшими ссылками — потенциальный источник ошибок в задачах `P&L: client-side fallback` и `UI: отображение blocked`.
