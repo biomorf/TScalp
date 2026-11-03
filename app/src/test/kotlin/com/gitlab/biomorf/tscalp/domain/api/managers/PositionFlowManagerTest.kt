@@ -202,7 +202,7 @@ class PositionFlowManagerTest {
         }
 
     @Test
-    fun `flow emits both polling and stream items`() =
+    fun `sheet reflects both polling and stream updates`() =
         runBlocking {
             val wsItem =
                 PositionStreamItem(
@@ -225,15 +225,24 @@ class PositionFlowManagerTest {
                 accountPortfolio(positions = listOf(sharePosition("uid-sber", qty = 2.0, price = 292.6)))
 
             val manager = PositionFlowManager(BrokerRegistryImpl(setOf(mockBroker)), logger = TestLogger, managerDispatcher = Dispatchers.Default)
-            val collected = mutableListOf<PositionStreamItem>()
-            val collectorJob = launch { manager.flow.collect { collected.add(it) } }
+            val collectedQuantities = mutableListOf<Double>()
+            val collectorJob =
+                launch {
+                    manager.sheet.collect { sheet ->
+                        sheet.accounts[acc1]
+                            ?.positions
+                            ?.find { it.instrument.tscalpInstrumentId == "uid-sber" }
+                            ?.quantity
+                            ?.let { collectedQuantities.add(it) }
+                    }
+                }
 
             manager.start(setOf(acc1), sandboxMode = false)
             delay(500)
 
-            assertTrue(collected.isNotEmpty())
-            assertTrue(collected.any { it.quantity == 2L })
-            assertTrue(collected.any { it.quantity == 3L })
+            assertTrue(collectedQuantities.isNotEmpty())
+            assertTrue(collectedQuantities.contains(2.0))
+            assertTrue(collectedQuantities.contains(3.0))
 
             collectorJob.cancel()
             manager.stop()

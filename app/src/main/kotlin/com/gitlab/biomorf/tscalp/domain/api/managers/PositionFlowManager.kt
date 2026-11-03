@@ -22,7 +22,6 @@ import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.SharePosition
 import com.gitlab.biomorf.tscalp.domain.models.StreamState
 import com.gitlab.biomorf.tscalp.domain.models.toPosition
-import com.gitlab.biomorf.tscalp.domain.models.toStreamItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -33,11 +32,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -87,16 +83,6 @@ class PositionFlowManager
 
         /** Полный снимок всех запрошенных счетов. */
         val sheet: StateFlow<PortfolioSheet> = _sheet.asStateFlow()
-
-        private val _flow = MutableSharedFlow<PositionStreamItem>(replay = 1)
-
-        /**
-         * Legacy: per-event проекция для `OrdersViewModel` (карточки позиций
-         * в заявках). Содержит только позиции (без `AccountBalance`); источник —
-         * merged [Position] (stream + polling). Для UI портфеля — [sheet].
-         * Миграция `OrdersViewModel` — задача «OrdersViewModel: миграция на PortfolioSheet».
-         */
-        val flow: SharedFlow<PositionStreamItem> = _flow.asSharedFlow()
 
         private val stateTracker = StreamStateTracker(logger = logger, tag = TAG)
 
@@ -151,7 +137,6 @@ class PositionFlowManager
                 logger.d(TAG, "Перезапуск потока позиций: $currentKeys → $accountKeys, sandbox=$sandboxMode")
                 instrumentCache.clear()
                 _sheet.value = PortfolioSheet(emptyMap())
-                _flow.resetReplayCache()
             }
             job?.cancel()
             currentKeys = accountKeys
@@ -236,9 +221,6 @@ class PositionFlowManager
             _sheet.update { current ->
                 current.copy(accounts = current.accounts + (accountKey to merged))
             }
-            for (position in accountPortfolio.positions) {
-                _flow.emit(position.toStreamItem())
-            }
         }
 
         private suspend fun handleStreamItem(
@@ -271,7 +253,6 @@ class PositionFlowManager
             _sheet.update { current ->
                 current.copy(accounts = current.accounts + (accountKey to currentAccount.copy(positions = newPositions)))
             }
-            _flow.emit(item)
         }
 
         private fun mergePartial(
@@ -343,7 +324,6 @@ class PositionFlowManager
                 currentSandboxMode = false
                 instrumentCache.clear()
                 _sheet.value = PortfolioSheet(emptyMap())
-                _flow.resetReplayCache()
                 stateTracker.onStop()
             }
     }
