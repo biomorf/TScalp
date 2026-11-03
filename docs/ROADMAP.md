@@ -2095,6 +2095,67 @@ Finam в UI.
 - Если `expectedYield != null`, но клиентский расчёт расходится > 5% — логировать для аналитики? Отложено.
 - Если `averagePrice` устарел — проверка «свежести» отдельная задача.
 
+
+### Currency format: normalize ISO 4217 case
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `formatCurrency(value, currency)` в `presentation/util/CurrencyFormat.kt` использует `Currency.getInstance(currency)` без нормализации регистра. ISO 4217 требует uppercase (`"RUB"`, `"USD"`), `Currency.getInstance("rub")` бросает `IllegalArgumentException`. `DOMESTIC_CURRENCY = "RUB"` — uppercase, поэтому fallback работает; но `Instrument.currency` приходит от брокера «как есть» (T-Invest/BCS/Finam могут отдавать lowercase — не проверено live). Три callsite в presentation передают `Instrument.currency` напрямую: `OrdersViewModel:1101` (`selectedInstrument.currency`), `OrdersViewModel:1115` (`pairedInstrument.currency`), `AssetPositionCard:215` (`position.instrument.currency`). Дефект латентный: на T-Invest RUB — uppercase, но для USD/EUR и для BCS/Finam может проявиться. Pre-existing (старый код тоже передавал `position.currency` как есть).
+
+**Соответствие Clean:** соответствует (правка в presentation-слое, dependency rule не затронута).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `presentation/util/CurrencyFormat.kt` — нормализация в `formatCurrency` (или приватный helper).
+- `presentation/util/CurrencyFormatTest.kt` (новый) — unit-тесты.
+
+**Шаги:**
+1. `formatCurrency` — нормализовать `currency` перед `Currency.getInstance(...)`: `currency.uppercase(Locale.ROOT)` (или `takeIf { it.isNotBlank() }?.uppercase(...) ?: DOMESTIC_CURRENCY` при `null`/пусто — сейчас `formatCurrency` принимает non-null `String`, так что fallback не нужен, только uppercase).
+2. `formatPrice` — проброс `currency` в `formatCurrency` без изменений (uppercase делается внутри `formatCurrency`).
+3. Тест `CurrencyFormatTest`: `formatCurrency(1234.5, "rub")` не падает; результат совпадает с `formatCurrency(1234.5, "RUB")`; `formatCurrency(1234.5, "usd")` — совпадает с `"USD"`.
+4. Гейт.
+
+**Тесты:**
+- `CurrencyFormatTest` (новый, ~4 теста): lowercase → не падает; mixed case → не падает; uppercase → как раньше; сравнение результатов `"rub"` vs `"RUB"`.
+- Существующие `PositionFormatterTest` — не меняются (`formatAverage` / `formatProfit` / `formatCurrentPrice` передают `currency` дальше).
+- Live — не требуется (unit-тест достаточен, поведение детерминировано).
+
+**Референсы:**
+- `java.util.Currency.getInstance(String)` — ISO 4217, uppercase.
+- `java.util.Locale.ROOT` — для `uppercase` без locale-зависимости (турецкая `i` → `İ` — не наш кейс, но `Locale.ROOT` — правило).
+- Pre-existing контекст: PR #90 (H5) — при миграции `AssetPositionCard` / `PositionFormatter` на `Position` callsite не изменился.
+
+**Ограничения:**
+- Не менять сигнатуру `formatCurrency(value, currency)` — это публичный API presentation-util, используется в `OrdersViewModel`, `AssetPositionCard`, `PositionFormatter`.
+- Не менять `DOMESTIC_CURRENCY`.
+- Не нормализовать `Instrument.currency` в domain — там значение от брокера (честно отражает формат), нормализация — presentation-забота.
+- UI-изменение: результаты форматирования не меняются для uppercase (`"RUB"` / `"USD"`), меняются только для lowercase-входа (раньше — crash, теперь — корректный формат). UI-санкция не нужна (это баг-фикс, не изменение внешнего вида).
+
+**Критерий готовности:**
+- `formatCurrency(1234.5, "rub")` — не бросает `IllegalArgumentException`.
+- `formatCurrency(1234.5, "rub") == formatCurrency(1234.5, "RUB")`.
+- `formatCurrency(1234.5, "usd") == formatCurrency(1234.5, "USD")`.
+- Гейт зелёный (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`).
+
+**Оценка:** ~30–45 мин (правка 5 мин, тесты 15 мин, гейт 10 мин).
+
+**Зависимости:** нет.
+
+**Связано:** `docs/ISSUES.md` → «Currency format: lowercase iso-code в `Currency.getInstance`»; `docs/clean-audit.md` → Н5 (не пересекается, контекст PR #90, где вскрылось).
+
+**Открытые вопросы:**
+- Какие регистры `Instrument.currency` реально приходят от T-Invest / BCS / Finam — не проверено live. Unit-тест покрывает оба варианта; live — при следующей сессии с реальным USD-инструментом.
+- Если `currency` придёт пустой `""` — `Currency.getInstance("")` тоже бросает IAE. Стоит ли fallback на `DOMESTIC_CURRENCY` при `isBlank()`? **Дефолт:** нет (пустая строка — невалидный вход, лучше упасть громко). Пересмотреть при появлении реального кейса.
+
 ---
 
 ## Закрытые задачи
