@@ -894,104 +894,7 @@ success, стримы не идут» — не проверка, а конста
 
 ---
 
-### Обогащение name в PortfolioPosition (вариант C)
 
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст.** В задаче `### Портфельный снимок: fetchPortfolioPositions
-+ унификация на PositionStreamItem` (#9) выбран вариант A по
-полю `name`: после унификации на `PositionStreamItem`
-`toPortfolioPosition()` заполняет `name = ticker` («SBER»
-вместо «Сбербанк»). Это **временное** решение (по 2d):
-`PositionStreamItem` — domain-модель, у неё нет поля `name`
-(presentation-атрибут). Полное закрытие — эта задача.
-
-**Отклонение от 5g (осознанное).** Задача стоит не в начале
-«Планируемых», а сразу после #9 (источник). Правило «свежее
-сверху» отклонено здесь осознанно: связь с #9 важнее порядка,
-рядом видно, что `name = ticker` — временное решение.
-При следующей ревизии ROADMAP (если #9 уйдёт в «Закрытые»)
-пересмотреть позицию.
-
-**Clean-отклонение (2c).** `name = ticker` в #9 — принятое
-отклонение от Clean: presentation-атрибут в domain-модели
-отсутствует, но UI без него показывает тикер вместо имени.
-
-**Цель.** Вернуть в карточке портфеля display name
-(«Сбербанк», «Газпром») вместо тикера, чисто по Clean —
-без добавления presentation-поля в domain-модель.
-
-**Варианты.**
-- **A. Принять `name = ticker` навсегда.** Отклонено в #9.
-- **B. Добавить `name: String = ""` в `PositionStreamItem`.**
-  Отклонено в #9 по 2c: presentation-поле в domain.
-- **C. Presentation-обогащение.** Обогащать `name` в
-  presentation-слое (ViewModel) или в `InvestRepository`, где
-  доступен `InstrumentRepository`. Чисто по Clean.
-  - **+** Domain-модель не знает про presentation-атрибуты.
-  - **−** Требует инъекции `InstrumentRepository` в выбранную
-    точку (правка DI).
-
-**Рекомендация: C.**
-
-**Файлы (вариант C, минимум):**
-- `data/repository/InvestRepository.kt` — обогащение в
-  `fetchPositionsResult` (точка доступа к `PortfolioPosition`,
-  одна правка, не задевает ViewModel'и).
-- `di/RepositoryModule.kt` — если DI `InvestRepository`
-  меняется (`InstrumentRepository` в конструктор).
-- `presentation/screens/portfolio/PortfolioViewModel.kt` —
-  проверить, что ViewModel не обогащает `name` сама
-  (иначе двойная работа).
-- `presentation/screens/orders/OrdersViewModel.kt` — аналогично.
-
-**Шаги (вариант C):**
-1. Решить точку обогащения: `InvestRepository.fetchPositionsResult`
-   (рекомендуется) или ViewModel.
-2. Внедрить `InstrumentRepository` в выбранную точку (constructor
-   injection, правка DI).
-3. На каждую позицию: `name = instrumentRepository
-   .getInstrument(tscalpInstrumentId)?.name ?: ticker`.
-4. Тесты: обогащение работает, при отсутствии в кэше — fallback
-   на ticker. Один тест в новом `InvestRepositoryTest` (или
-   `InstrumentRepositoryTest` — если существует).
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Ограничения.**
-- **UI-изменение** (правило 1): карточка снова показывает name
-  вместо ticker — согласовано в #9 (вариант C как целевой).
-- Не смешивать с #9 — отдельная задача.
-- Не менять `PortfolioPosition` (UI-модель) без санкции.
-- Не добавлять `name` в `PositionStreamItem` — это вариант B,
-  отклонён по 2c.
-- Не смешивать с `### Рефакторинг расчёта P&L для
-  PortfolioPosition` — там profit/profitPercent, здесь name.
-
-**Критерий готовности.**
-- Карточка портфеля показывает display name («Сбербанк»),
-  fallback на ticker («SBER»), если name недоступен.
-- `PositionStreamItem` **не** содержит поля `name` (нет
-  presentation-полей в domain).
-- Гейт зелёный.
-
-**Оценка:** ~1.5 ч (DI + правка 40 мин, тесты 30 мин,
-гейт 20 мин).
-
-**Зависимости:** после #9 (закрыт в той же feature-ветке).
-
-**Связано:**
-- `### Портфельный снимок: fetchPortfolioPositions + унификация
-  на PositionStreamItem` (#9) — источник (Q-name-field,
-  вариант C).
-- `### Рефакторинг расчёта P&L для PortfolioPosition` —
-  тоже presentation-обогащение в domain (profit, profitPercent),
-  концептуально смежная задача.
-
-**Открытые вопросы:** нет.
-
----
 
 
 
@@ -8940,5 +8843,110 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `accountId` в `PositionStreamItem` — остаётся после удаления `flow` (internal-поле для диагностики, без публичных потребителей). Закрыто решением 2026-11-03.
 - UI-санкция на `OrdersScreen` — **получена** (2026-11-03): M009 — багфикс (диалог подтверждения переживает поворот); M010/M012 — структурный рефакторинг без видимых изменений. Закрыто.
 - `PostOrderUseCase` — в этом PR (не отдельной задачей). Закрыто решением 2026-11-03.
+
+---
+
+### ✅ Обогащение name в PortfolioPosition (вариант C)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст.** В задаче `### Портфельный снимок: fetchPortfolioPositions
++ унификация на PositionStreamItem` (#9) выбран вариант A по
+полю `name`: после унификации на `PositionStreamItem`
+`toPortfolioPosition()` заполняет `name = ticker` («SBER»
+вместо «Сбербанк»). Это **временное** решение (по 2d):
+`PositionStreamItem` — domain-модель, у неё нет поля `name`
+(presentation-атрибут). Полное закрытие — эта задача.
+
+**Отклонение от 5g (осознанное).** Задача стоит не в начале
+«Планируемых», а сразу после #9 (источник). Правило «свежее
+сверху» отклонено здесь осознанно: связь с #9 важнее порядка,
+рядом видно, что `name = ticker` — временное решение.
+При следующей ревизии ROADMAP (если #9 уйдёт в «Закрытые»)
+пересмотреть позицию.
+
+**Clean-отклонение (2c).** `name = ticker` в #9 — принятое
+отклонение от Clean: presentation-атрибут в domain-модели
+отсутствует, но UI без него показывает тикер вместо имени.
+
+**Цель.** Вернуть в карточке портфеля display name
+(«Сбербанк», «Газпром») вместо тикера, чисто по Clean —
+без добавления presentation-поля в domain-модель.
+
+**Варианты.**
+- **A. Принять `name = ticker` навсегда.** Отклонено в #9.
+- **B. Добавить `name: String = ""` в `PositionStreamItem`.**
+  Отклонено в #9 по 2c: presentation-поле в domain.
+- **C. Presentation-обогащение.** Обогащать `name` в
+  presentation-слое (ViewModel) или в `InvestRepository`, где
+  доступен `InstrumentRepository`. Чисто по Clean.
+  - **+** Domain-модель не знает про presentation-атрибуты.
+  - **−** Требует инъекции `InstrumentRepository` в выбранную
+    точку (правка DI).
+
+**Рекомендация: C.**
+
+**Файлы (вариант C, минимум):**
+- `data/repository/InvestRepository.kt` — обогащение в
+  `fetchPositionsResult` (точка доступа к `PortfolioPosition`,
+  одна правка, не задевает ViewModel'и).
+- `di/RepositoryModule.kt` — если DI `InvestRepository`
+  меняется (`InstrumentRepository` в конструктор).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` —
+  проверить, что ViewModel не обогащает `name` сама
+  (иначе двойная работа).
+- `presentation/screens/orders/OrdersViewModel.kt` — аналогично.
+
+**Шаги (вариант C):**
+1. Решить точку обогащения: `InvestRepository.fetchPositionsResult`
+   (рекомендуется) или ViewModel.
+2. Внедрить `InstrumentRepository` в выбранную точку (constructor
+   injection, правка DI).
+3. На каждую позицию: `name = instrumentRepository
+   .getInstrument(tscalpInstrumentId)?.name ?: ticker`.
+4. Тесты: обогащение работает, при отсутствии в кэше — fallback
+   на ticker. Один тест в новом `InvestRepositoryTest` (или
+   `InstrumentRepositoryTest` — если существует).
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Ограничения.**
+- **UI-изменение** (правило 1): карточка снова показывает name
+  вместо ticker — согласовано в #9 (вариант C как целевой).
+- Не смешивать с #9 — отдельная задача.
+- Не менять `PortfolioPosition` (UI-модель) без санкции.
+- Не добавлять `name` в `PositionStreamItem` — это вариант B,
+  отклонён по 2c.
+- Не смешивать с `### Рефакторинг расчёта P&L для
+  PortfolioPosition` — там profit/profitPercent, здесь name.
+
+**Критерий готовности.**
+- Карточка портфеля показывает display name («Сбербанк»),
+  fallback на ticker («SBER»), если name недоступен.
+- `PositionStreamItem` **не** содержит поля `name` (нет
+  presentation-полей в domain).
+- Гейт зелёный.
+
+**Оценка:** ~1.5 ч (DI + правка 40 мин, тесты 30 мин,
+гейт 20 мин).
+
+**Зависимости:** после #9 (закрыт в той же feature-ветке).
+
+**Связано:**
+- `### Портфельный снимок: fetchPortfolioPositions + унификация
+  на PositionStreamItem` (#9) — источник (Q-name-field,
+  вариант C).
+- `### Рефакторинг расчёта P&L для PortfolioPosition` —
+  тоже presentation-обогащение в domain (profit, profitPercent),
+  концептуально смежная задача.
+
+**Что сделано:**
+
+- Реализовано как побочный эффект `### Portfolio: модель портфеля` (feature/portfolio-model).
+- `toPortfolioPosition()` (с `name = ticker`) удалён в `a859185 cleanup: remove legacy flow + dead position converters`.
+- `PortfolioPosition` получает `name` из `Instrument.name` в двух адаптерах: `PortfolioRepositoryImpl.toLegacyPortfolioPosition` и `PortfolioViewModel.toUiPosition`.
+- `emptyPortfolioPosition(instrument, ...)` — `name = instrument.name`.
+- `PositionStreamItem` **не** содержит поля `name` (критерий готовности выполнен).
+- Для `OrdersScreen` (карточка заявки) `name` также приходит из `Instrument` через `toLegacyPortfolioPosition` (fix в PR #89).
+**Открытые вопросы:** нет.
 
 ---
