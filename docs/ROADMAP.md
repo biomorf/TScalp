@@ -251,7 +251,9 @@ clean-audit.
 
 **Мобильная работа:** частичное (live-тест карточки заявки при 2 счетах с одной бумагой).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/ordersvm-on-sheet
 
 **Контекст:** `Portfolio: модель портфеля` вводит `PortfolioSheet` (`StateFlow`) — единственный публичный эмитируемый тип `PositionFlowManager`. `OrdersViewModel` пока потребляет legacy `flow: SharedFlow<PositionStreamItem>` (KDoc-пометка «временно»). Задача — мигрировать `OrdersViewModel` на `sheet`, удалить `flow`. **Сразу за этим** закрывается архитектурный долг `OrdersViewModel`:
 - clean-audit M002 — `postOrder` (200 строк) orchestration в VM;
