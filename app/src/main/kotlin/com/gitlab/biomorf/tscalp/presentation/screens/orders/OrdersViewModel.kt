@@ -28,7 +28,6 @@ import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
-import com.gitlab.biomorf.tscalp.domain.models.toLegacyPortfolioPosition
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
@@ -360,7 +359,8 @@ class OrdersViewModel
                     }
 
                 // 2. Ищем позицию в портфеле
-                val portfolioPos = _uiState.value.portfolioPositions.find { it.ticker == instrument.ticker }
+                val portfolioPos =
+                    _uiState.value.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
 
                 // 3. Берём существующую карточку (если была), чтобы сохранить настройки брокера/счёта
                 val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == instrument.ticker }
@@ -370,7 +370,7 @@ class OrdersViewModel
                         instrument = instrument,
                         currentPrice = price,
                         priceChangePercent = null,
-                        quantity = portfolioPos?.quantity ?: 0L,
+                        quantity = portfolioPos?.quantity?.toLong() ?: 0L,
                         averagePrice = portfolioPos?.currentPrice,
                         profit = portfolioPos?.profit,
                         profitPercent = portfolioPos?.profitPercent,
@@ -615,9 +615,9 @@ class OrdersViewModel
             val positions = _uiState.value.portfolioPositions
             val updatedList =
                 currentList.map { card ->
-                    val pos = positions.find { it.ticker == card.instrument.ticker }
+                    val pos = positions.find { it.instrument.ticker == card.instrument.ticker }
                     card.copy(
-                        quantity = pos?.quantity ?: 0L,
+                        quantity = pos?.quantity?.toLong() ?: 0L,
                         averagePrice = pos?.currentPrice ?: card.averagePrice,
                         profit = pos?.profit ?: 0.0,
                         profitPercent = pos?.profitPercent ?: 0.0,
@@ -1021,14 +1021,13 @@ class OrdersViewModel
         /**
          * Multi-account: `PositionFlowManager` эмитит `PortfolioSheet` со всех
          * счетов. Обновляем карточки только по активному счёту
-         * ([OrdersUiState.selectedAccountId]). Adapter `Position -> PortfolioPosition` —
-         * domain-extension `toLegacyPortfolioPosition`.
+         * ([OrdersUiState.selectedAccountId]).
          */
         private fun updatePositionsFromSheet(sheet: PortfolioSheet) {
             val activeAccount = _uiState.value.selectedAccountId ?: return
             val key = AccountKey(BrokerName.TINVEST, activeAccount)
             val accountPortfolio = sheet.accounts[key] ?: return
-            val positions = accountPortfolio.positions.map { it.toLegacyPortfolioPosition() }
+            val positions = accountPortfolio.positions
             logger.d(TAG, "updatePositionsFromSheet: account=$activeAccount, positions=${positions.size}")
             _uiState.update { state ->
                 state.copy(portfolioPositions = positions)

@@ -5,7 +5,7 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import com.gitlab.biomorf.tscalp.domain.models.PortfolioPosition
+import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 
@@ -42,7 +42,7 @@ data class OrdersUiState(
     val currentPrice: Double? = null,
     val pairCurrentPrice: Double? = null,
     val isPriceLoading: Boolean = false,
-    val portfolioPositions: List<PortfolioPosition> = emptyList(),
+    val portfolioPositions: List<Position> = emptyList(),
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),
     val isSearchActive: Boolean = false, // <-- для управления SearchBar
     // val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)

@@ -118,12 +118,8 @@ fun PortfolioScreen(
                     }
                 }
 
-                val positionsByAccount =
-                    uiState.positions.groupBy { p ->
-                        AccountKey(p.brokerName, p.accountId ?: "")
-                    }
                 val allKeys =
-                    (uiState.sheet.accounts.keys + positionsByAccount.keys).sortedWith(
+                    uiState.sheet.accounts.keys.sortedWith(
                         compareBy({ it.brokerName.ordinal }, { it.accountId }),
                     )
 
@@ -131,13 +127,14 @@ fun PortfolioScreen(
                     EmptyPortfolioCard()
                 } else {
                     for (key in allKeys) {
+                        val account = uiState.sheet.accounts[key] ?: continue
                         AccountHeaderCard(
                             accountKey = key,
-                            accountPortfolio = uiState.sheet.accounts[key],
+                            accountPortfolio = account,
                             sandboxMode = uiState.sandboxMode,
                             onPayIn = { viewModel.payInSandbox(key.accountId) },
                         )
-                        val positions = positionsByAccount[key].orEmpty()
+                        val positions = account.positions
                         if (positions.isEmpty()) {
                             Text(
                                 "Нет позиций",
@@ -147,16 +144,14 @@ fun PortfolioScreen(
                             )
                         } else {
                             positions.forEach { position ->
+                                val id = position.instrument.tscalpInstrumentId
                                 AssetPositionCard(
                                     position = position,
-                                    instrumentType = position.instrumentType,
-                                    pointValue = position.moneyPerPointOfPrice,
-                                    priceChangePercent = position.priceChangePercent,
-                                    tscalpInstrumentId = position.tscalpInstrumentId,
+                                    displayCurrentPrice = uiState.prices[id],
+                                    priceChangePercent = uiState.priceChangePercents[id],
                                     tradingAvailability =
-                                        uiState.tradingStatuses[position.tscalpInstrumentId]
+                                        uiState.tradingStatuses[id]
                                             ?: TradingAvailability.UNKNOWN,
-                                    lockedQuantity = position.lockedQuantity,
                                 )
                             }
                         }
