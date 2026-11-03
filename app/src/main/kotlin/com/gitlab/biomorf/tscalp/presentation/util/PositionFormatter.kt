@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.util
 
 import androidx.compose.ui.graphics.Color
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import java.util.Locale
 
 object PositionFormatter {
     /**
@@ -100,7 +101,11 @@ object PositionFormatter {
      * целые значения отображаются без `.0`.
      */
     fun formatQuantity(quantity: Double): String =
-        if (quantity == quantity.toLong().toDouble()) quantity.toLong().toString() else "%.1f".format(quantity)
+        if (quantity == quantity.toLong().toDouble()) {
+            quantity.toLong().toString()
+        } else {
+            String.format(Locale.US, "%.1f", quantity)
+        }
 
     /**
      * Возвращает цвет для изменения цены (процент изменения).

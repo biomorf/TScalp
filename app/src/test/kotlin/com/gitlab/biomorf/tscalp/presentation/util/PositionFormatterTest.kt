@@ -77,7 +77,7 @@ class PositionFormatterTest {
             PositionFormatter.formatAverage(
                 quantity = 5.0,
                 averagePrice = 100.0,
-                currency = "rub",
+                currency = "RUB",
                 instrumentType = InstrumentType.SHARE,
             )
         assertNotNull(total)
@@ -93,7 +93,7 @@ class PositionFormatterTest {
             PositionFormatter.formatAverage(
                 quantity = 2.0,
                 averagePrice = 100.0,
-                currency = "rub",
+                currency = "RUB",
                 instrumentType = InstrumentType.FUTURES,
             )
         assertNotNull(total)
