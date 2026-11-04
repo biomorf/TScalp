@@ -1,3 +1,8 @@
+// File-level: 18 функций после extract (было 3). Декомпозиция —
+// Н94 / ROADMAP → «Compose-экраны». Разнесение helper-composable
+// по отдельным файлам — отдельная задача.
+@file:Suppress("TooManyFunctions")
+
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.compose.animation.AnimatedContent
@@ -5,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,11 +48,612 @@ import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
 import com.gitlab.biomorf.tscalp.presentation.components.ConfirmOrderDialog
 import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг OrdersScreen».
+private fun calculatePairExec(uiState: OrdersUiState): Pair<Double, OrderTypeSelection?> {
+    if (!uiState.pairTradingEnabled || uiState.pairedInstrument == null) {
+        return 0.0 to null
+    }
+    val primaryPrice =
+        when (uiState.orderType) {
+            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull()
+            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
+            else -> null
+        }
+    val direction = uiState.pendingDirection ?: OrderDirection.BUY
+    val pairedSpec = PairOrderMapper.map(uiState.orderType, direction, primaryPrice)
+    val pairExecPrice =
+        when (uiState.orderType) {
+            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.executionPrice
+            else -> uiState.pairCurrentPrice ?: 0.0
+        }
+    return pairExecPrice to pairedSpec.orderType
+}
+
+@Composable
+private fun OrdersConfirmDialogSection(
+    uiState: OrdersUiState,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val (pairExecPrice, pairedOrderType) = calculatePairExec(uiState)
+    ConfirmOrderDialog(
+        show = uiState.showConfirmDialog,
+        ticker = uiState.selectedInstrument?.ticker ?: "",
+        quantity = uiState.quantityAsLong ?: 0L,
+        pendingDirection = uiState.pendingDirection,
+        orderType = uiState.orderType,
+        instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
+        executionPrice = uiState.executionPrice,
+        pairTradingEnabled = uiState.pairTradingEnabled,
+        pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
+        pairedInstrumentType = uiState.pairedInstrument?.instrumentType,
+        pairedMultiplier = uiState.pairedMultiplier,
+        pairExecPrice = pairExecPrice,
+        pairedOrderType = pairedOrderType,
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+    )
+}
+
+@Composable
+private fun TradingBrokerDialog(
+    availableBrokers: List<BrokerName>,
+    uiState: OrdersUiState,
+    onBrokerSelected: (BrokerName) -> Unit,
+    onAccountSelected: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    if (!uiState.showBrokerDialog) return
+    BrokerAccountDialog(
+        availableBrokers = availableBrokers,
+        selectedBroker = uiState.selectedBroker,
+        onBrokerSelected = onBrokerSelected,
+        accounts = uiState.dialogAccounts,
+        selectedAccountId = uiState.selectedAccountIdDialog,
+        onAccountSelected = onAccountSelected,
+        onDismiss = onDismiss,
+        onSave = onSave,
+    )
+}
+
+@Composable
+private fun SearchBrokerDialog(
+    availableBrokers: List<BrokerName>,
+    uiState: OrdersUiState,
+    onBrokerSelected: (BrokerName) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (!uiState.showSearchBrokerDialog) return
+    BrokerAccountDialog(
+        availableBrokers = availableBrokers,
+        selectedBroker = uiState.selectedSearchBroker,
+        onBrokerSelected = onBrokerSelected,
+        accounts = emptyList(),
+        selectedAccountId = null,
+        onAccountSelected = {},
+        onDismiss = onDismiss,
+        onSave = onDismiss,
+        showAccountSelector = false,
+    )
+}
+
+@Composable
+private fun PairSearchBrokerDialog(
+    availableBrokers: List<BrokerName>,
+    uiState: OrdersUiState,
+    onBrokerSelected: (BrokerName) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (!uiState.showPairSearchBrokerDialog) return
+    BrokerAccountDialog(
+        availableBrokers = availableBrokers,
+        selectedBroker = uiState.selectedPairSearchBroker,
+        onBrokerSelected = onBrokerSelected,
+        accounts = emptyList(),
+        selectedAccountId = null,
+        onAccountSelected = {},
+        onDismiss = onDismiss,
+        onSave = onDismiss,
+        showAccountSelector = false,
+    )
+}
+
+@Composable
+private fun BoxScope.OrdersScreenShadows(
+    showTopShadow: Boolean,
+    showBottomShadow: Boolean,
+) {
+    if (showTopShadow) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .background(
+                        brush =
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Black.copy(alpha = 0.08f), Color.Transparent),
+                            ),
+                    ).align(Alignment.TopCenter),
+        )
+    }
+    if (showBottomShadow) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .background(
+                        brush =
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.08f)),
+                            ),
+                    ).align(Alignment.BottomCenter),
+        )
+    }
+}
+
+@Composable
+private fun OrdersBottomButtons(
+    freeBalance: Double?,
+    isFormValid: Boolean,
+    isLoading: Boolean,
+    onBuyClick: () -> Unit,
+    onSellClick: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (freeBalance != null) {
+            Text(
+                text = "Свободно: ${formatDomesticCurrency(freeBalance)}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Button(
+                onClick = onBuyClick,
+                modifier = Modifier.weight(1f),
+                enabled = isFormValid && !isLoading,
+            ) {
+                Text("КУПИТЬ")
+            }
+            Button(
+                onClick = onSellClick,
+                modifier = Modifier.weight(1f),
+                enabled = isFormValid && !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text("ПРОДАТЬ")
+            }
+        }
+    }
+}
+
 @Suppress("LongMethod", "CyclomaticComplexMethod")
+@Composable
+private fun OrdersPairSection(
+    uiState: OrdersUiState,
+    scrollState: ScrollState,
+    scope: CoroutineScope,
+    onPairSearchQueryChanged: (String) -> Unit,
+    onPairedInstrumentSelected: (Instrument) -> Unit,
+    onClearPairSearch: () -> Unit,
+    onRefreshPairSearch: () -> Unit,
+    onOpenPairSearchBrokerSettings: () -> Unit,
+    onPairTradingEnabledChanged: (Boolean) -> Unit,
+    onClearPairedInstrument: () -> Unit,
+    onOpenBrokerDialog: (String) -> Unit,
+    onPairedMultiplierChanged: (String) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 0.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
+        Switch(
+            checked = uiState.pairTradingEnabled,
+            onCheckedChange = onPairTradingEnabledChanged,
+        )
+    }
+    if (!uiState.pairTradingEnabled) return
+    if (uiState.pairedInstrument == null) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                InstrumentSearchField(
+                    query = uiState.pairSearchQuery,
+                    onQueryChanged = onPairSearchQueryChanged,
+                    isSearching = uiState.isPairSearching,
+                    searchResults = uiState.pairSearchResults,
+                    onInstrumentSelected = onPairedInstrumentSelected,
+                    onClear = onClearPairSearch,
+                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = uiState.tradingStatuses,
+                    modifier = Modifier.weight(1f),
+                )
+                if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
+                    IconButton(onClick = onRefreshPairSearch) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                    }
+                }
+                IconButton(onClick = onOpenPairSearchBrokerSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                }
+            }
+        }
+    } else {
+        uiState.pairedInstrument?.let { instrument: Instrument ->
+            val portfolioPos =
+                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
+            val pairPrice =
+                uiState.pairCurrentPrice
+                    ?: portfolioPos?.currentPrice
+                    ?: 0.0
+            val position =
+                portfolioPos
+                    ?: emptyPosition(
+                        instrument = instrument,
+                        currentPrice = pairPrice,
+                        accountId = uiState.selectedAccountId ?: "",
+                        brokerName = BrokerName.TINVEST,
+                    )
+            AssetPositionCard(
+                position = position,
+                displayCurrentPrice = pairPrice,
+                priceChangePercent = uiState.selectedPriceChangePercent,
+                onDelete = onClearPairedInstrument,
+                onSettings = { onOpenBrokerDialog(instrument.ticker) },
+                onClick = { },
+                isSelected = false,
+                resetSwipe = uiState.swipeResetTrigger,
+                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
+            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = uiState.pairedMultiplier,
+                    onValueChange = onPairedMultiplierChanged,
+                    label = { Text("Множитель") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    scope.launch {
+                                        scrollState.animateScrollTo(scrollState.maxValue)
+                                    }
+                                }
+                            },
+                )
+                val multiplierOverlay = uiState.multiplierOverlay
+                if (multiplierOverlay != null) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .matchParentSize()
+                                .padding(end = 12.dp, top = 8.dp),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        Text(
+                            text = multiplierOverlay,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier =
+                                Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                        RoundedCornerShape(4.dp),
+                                    ).padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Архитектурный долг: 63 строки > 60 (4 ветки AnimatedContent).
+// См. ROADMAP → «Compose-экраны» (Н94).
+@Suppress("LongMethod")
+@Composable
+private fun OrdersPriceFields(
+    orderType: OrderTypeSelection,
+    limitPrice: String,
+    stopPrice: String,
+    onLimitPriceChanged: (String) -> Unit,
+    onStopPriceChanged: (String) -> Unit,
+) {
+    AnimatedContent(
+        targetState = orderType,
+        transitionSpec = {
+            fadeIn(animationSpec = tween(200)) togetherWith
+                fadeOut(animationSpec = tween(200))
+        },
+        label = "price_fields",
+    ) { type: OrderTypeSelection ->
+        when (type) {
+            OrderTypeSelection.Limit -> {
+                OutlinedTextField(
+                    value = limitPrice,
+                    onValueChange = onLimitPriceChanged,
+                    label = { Text("Цена за лот") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            OrderTypeSelection.StopLoss,
+            OrderTypeSelection.TakeProfit,
+            -> {
+                Column {
+                    OutlinedTextField(
+                        value = stopPrice,
+                        onValueChange = onStopPriceChanged,
+                        label = { Text("Триггер стоп-цена") },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            OrderTypeSelection.StopLimit -> {
+                Column {
+                    OutlinedTextField(
+                        value = stopPrice,
+                        onValueChange = onStopPriceChanged,
+                        label = { Text("Триггер стоп-цена") },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = limitPrice,
+                        onValueChange = onLimitPriceChanged,
+                        label = { Text("Лимитная цена") },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            else -> { /* Market – ничего не показываем */ }
+        }
+    }
+}
+
+@Composable
+private fun OrdersTypeChips(
+    orderType: OrderTypeSelection,
+    onOrderTypeChanged: (OrderTypeSelection) -> Unit,
+) {
+    Column(
+        modifier = Modifier.wrapContentWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = orderType == OrderTypeSelection.Market,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.Market) },
+                label = { Text("Рын.") },
+            )
+            FilterChip(
+                selected = orderType == OrderTypeSelection.Limit,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.Limit) },
+                label = { Text("Лим.") },
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = orderType == OrderTypeSelection.StopLoss,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.StopLoss) },
+                label = { Text("Stop‑Loss") },
+            )
+            FilterChip(
+                selected = orderType == OrderTypeSelection.TakeProfit,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.TakeProfit) },
+                label = { Text("Take‑Profit") },
+            )
+            FilterChip(
+                selected = orderType == OrderTypeSelection.StopLimit,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.StopLimit) },
+                label = { Text("Stop‑Limit") },
+            )
+        }
+    }
+}
+
+// Архитектурный долг: 62 строки > 60 (input + cost overlay + / +).
+// См. ROADMAP → «Compose-экраны» (Н94).
+@Suppress("LongMethod")
+@Composable
+private fun OrdersQuantityRow(
+    quantity: String,
+    costOverlay: String?,
+    canDecrement: Boolean,
+    canIncrement: Boolean,
+    onQuantityChanged: (String) -> Unit,
+) {
+    val quantityAsLong = quantity.toLongOrNull() ?: 0L
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        IconButton(
+            onClick = {
+                if (quantityAsLong > 0) onQuantityChanged((quantityAsLong - 1).toString())
+            },
+            enabled = canDecrement,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Default.Remove, "Уменьшить", modifier = Modifier.size(24.dp))
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedTextField(
+                value = quantity,
+                onValueChange = onQuantityChanged,
+                label = { Text("Кол-во лотов") },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (costOverlay != null) {
+                Box(
+                    modifier =
+                        Modifier
+                            .matchParentSize()
+                            .padding(end = 12.dp, top = 8.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Text(
+                        text = costOverlay,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier =
+                            Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                    RoundedCornerShape(4.dp),
+                                ).padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        IconButton(
+            onClick = {
+                onQuantityChanged((quantityAsLong + 1).toString())
+            },
+            enabled = canIncrement,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Default.Add, "Увеличить", modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun OrdersInstrumentSection(
+    uiState: OrdersUiState,
+    onSearchQueryChanged: (String) -> Unit,
+    onInstrumentSelected: (Instrument) -> Unit,
+    onClearSearch: () -> Unit,
+    onRefreshSearch: () -> Unit,
+    onOpenSearchSettings: () -> Unit,
+    onClearSelected: () -> Unit,
+    onOpenBrokerDialog: (String) -> Unit,
+) {
+    if (uiState.selectedInstrument == null) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                InstrumentSearchField(
+                    query = uiState.searchQuery,
+                    onQueryChanged = onSearchQueryChanged,
+                    isSearching = uiState.isSearching,
+                    searchResults = uiState.searchResults,
+                    onInstrumentSelected = onInstrumentSelected,
+                    onClear = onClearSearch,
+                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = uiState.tradingStatuses,
+                    modifier = Modifier.weight(1f),
+                )
+                if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
+                    IconButton(onClick = onRefreshSearch) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                    }
+                }
+                IconButton(onClick = onOpenSearchSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                }
+            }
+        }
+    } else {
+        uiState.selectedInstrument?.let { instrument: Instrument ->
+            val portfolioPos =
+                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
+            val currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0
+            val position =
+                portfolioPos
+                    ?: emptyPosition(
+                        instrument = instrument,
+                        currentPrice = currentPrice,
+                        accountId = uiState.selectedAccountId ?: "",
+                        brokerName = BrokerName.TINVEST,
+                    )
+            AssetPositionCard(
+                position = position,
+                displayCurrentPrice = currentPrice,
+                priceChangePercent = uiState.selectedPriceChangePercent,
+                onDelete = onClearSelected,
+                onSettings = { onOpenBrokerDialog(instrument.ticker) },
+                onClick = { },
+                isSelected = false,
+                resetSwipe = uiState.swipeResetTrigger,
+                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
+            )
+        }
+    }
+}
+
+@Composable
+private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Выставление заявки",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onShowOrdersList) {
+            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Список заявок")
+        }
+    }
+}
+
+// Архитектурный долг: 221 строка > 60. Extract сделан (10 подкомпонентов),
+// CyclomaticComplexMethod снят (complexity < 14). Дальнейшая декомпозиция
+// (вынести sidebar-навигацию, статусы) — Н94 / #### Compose-экраны.
+@Suppress("LongMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen() {
@@ -77,25 +684,7 @@ fun OrdersScreen() {
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ========== ЗАГОЛОВОК ==========
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Выставление заявки",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = { showOrdersListDialog = true }) {
-                    Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Список заявок")
-                }
-            }
+            OrdersScreenHeader(onShowOrdersList = { showOrdersListDialog = true })
 
             if (!uiState.isApiInitialized) {
                 ApiNotInitializedCard()
@@ -122,489 +711,88 @@ fun OrdersScreen() {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
-                    // Основной поиск
-                    if (uiState.selectedInstrument == null) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                InstrumentSearchField(
-                                    query = uiState.searchQuery,
-                                    onQueryChanged = { query: String -> viewModel.onSearchQueryChanged(query) },
-                                    isSearching = uiState.isSearching,
-                                    searchResults = uiState.searchResults,
-                                    onInstrumentSelected = { instrument: Instrument ->
-                                        viewModel.onInstrumentSelected(instrument)
-                                        focusManager.clearFocus()
-                                    },
-                                    onClear = { viewModel.clearSearch() },
-                                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                                    tradingStatuses = uiState.tradingStatuses,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                // Кнопка «Обновить» (показывается, когда есть запрос)
-                                if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
-                                    IconButton(onClick = { viewModel.refreshSearch() }) {
-                                        Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
-                                    }
-                                }
-                                // Кнопка настроек поиска
-                                IconButton(onClick = { viewModel.openSearchBrokerSettings() }) {
-                                    Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
-                                }
-                            }
-                        }
-                    } else {
-                        uiState.selectedInstrument?.let { instrument: Instrument ->
-                            val portfolioPos =
-                                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
-
-                            // Цену берём из PriceFlowManager (uiState.currentPrice) —
-                            // это быстрый источник (gRPC + REST раз в 5 сек).
-                            // portfolioPositions обновляется реже (10 сек), поэтому
-                            // его currentPrice передаётся как overlay через displayCurrentPrice.
-                            val currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0
-
-                            val position =
-                                portfolioPos
-                                    ?: emptyPosition(
-                                        instrument = instrument,
-                                        currentPrice = currentPrice,
-                                        accountId = uiState.selectedAccountId ?: "",
-                                        brokerName = BrokerName.TINVEST,
-                                    )
-
-                            AssetPositionCard(
-                                position = position,
-                                displayCurrentPrice = currentPrice,
-                                priceChangePercent = uiState.selectedPriceChangePercent,
-                                onDelete = { viewModel.clearSelectedInstrument() },
-                                onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                                onClick = { },
-                                isSelected = false,
-                                resetSwipe = uiState.swipeResetTrigger,
-                                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
-                            )
-                        }
-                    }
+                    OrdersInstrumentSection(
+                        uiState = uiState,
+                        onSearchQueryChanged = { viewModel.onSearchQueryChanged(it) },
+                        onInstrumentSelected = {
+                            viewModel.onInstrumentSelected(it)
+                            focusManager.clearFocus()
+                        },
+                        onClearSearch = { viewModel.clearSearch() },
+                        onRefreshSearch = { viewModel.refreshSearch() },
+                        onOpenSearchSettings = { viewModel.openSearchBrokerSettings() },
+                        onClearSelected = { viewModel.clearSelectedInstrument() },
+                        onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
+                    )
 
                     // Spacer(modifier = Modifier.height(1.dp))
 
                     // ========== Поле количества ==========
                     // Определяем цену исполнения в зависимости от типа заявки
-                    val pairExecPrice: Double
-                    val pairedOrderType: OrderTypeSelection?
-                    if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) {
-                        val primaryPrice =
-                            when (uiState.orderType) {
-                                OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull()
-                                OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
-                                else -> null
-                            }
-                        val direction = uiState.pendingDirection ?: OrderDirection.BUY
-                        val pairedSpec = PairOrderMapper.map(uiState.orderType, direction, primaryPrice)
-                        pairedOrderType = pairedSpec.orderType
-                        pairExecPrice =
-                            when (uiState.orderType) {
-                                OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.executionPrice
-                                else -> uiState.pairCurrentPrice ?: 0.0
-                            }
-                    } else {
-                        pairExecPrice = 0.0
-                        pairedOrderType = null
-                    }
-                    ConfirmOrderDialog(
-                        show = uiState.showConfirmDialog,
-                        ticker = uiState.selectedInstrument?.ticker ?: "",
-                        quantity = uiState.quantityAsLong ?: 0L,
-                        pendingDirection = uiState.pendingDirection,
-                        orderType = uiState.orderType,
-                        instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
-                        executionPrice = uiState.executionPrice,
-                        pairTradingEnabled = uiState.pairTradingEnabled,
-                        pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
-                        pairedInstrumentType = uiState.pairedInstrument?.instrumentType,
-                        pairedMultiplier = uiState.pairedMultiplier,
-                        pairExecPrice = pairExecPrice,
-                        pairedOrderType = pairedOrderType,
+                    OrdersConfirmDialogSection(
+                        uiState = uiState,
                         onDismiss = { viewModel.onDismissConfirmDialog() },
                         onConfirm = { viewModel.onConfirmOrder() },
                     )
 
-                    val costOverlay = uiState.costOverlay
-
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        IconButton(
-                            onClick = {
-                                val currentQty = uiState.quantityAsLong ?: 0L
-                                if (currentQty > 0) viewModel.onQuantityChanged((currentQty - 1).toString())
-                            },
-                            enabled = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null,
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(Icons.Default.Remove, "Уменьшить", modifier = Modifier.size(24.dp))
-                        }
-
-                        Box(modifier = Modifier.weight(1f)) {
-                            OutlinedTextField(
-                                value = uiState.quantity,
-                                onValueChange = { viewModel.onQuantityChanged(it) },
-                                label = { Text("Кол-во лотов") },
-                                textStyle = MaterialTheme.typography.bodyLarge,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            if (costOverlay != null) {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .matchParentSize()
-                                            .padding(end = 12.dp, top = 8.dp),
-                                    contentAlignment = Alignment.CenterEnd,
-                                ) {
-                                    Text(
-                                        text = costOverlay,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.outline,
-                                        modifier =
-                                            Modifier
-                                                .background(
-                                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                                    RoundedCornerShape(4.dp),
-                                                ).padding(horizontal = 6.dp, vertical = 2.dp),
-                                    )
-                                }
-                            }
-                        }
-
-                        IconButton(
-                            onClick = {
-                                val currentQty = uiState.quantityAsLong ?: 0L
-                                viewModel.onQuantityChanged((currentQty + 1).toString())
-                            },
-                            enabled = uiState.selectedInstrument != null,
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(Icons.Default.Add, "Увеличить", modifier = Modifier.size(24.dp))
-                        }
-                    }
+                    OrdersQuantityRow(
+                        quantity = uiState.quantity,
+                        costOverlay = uiState.costOverlay,
+                        canDecrement = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null,
+                        canIncrement = uiState.selectedInstrument != null,
+                        onQuantityChanged = { viewModel.onQuantityChanged(it) },
+                    )
 
                     // ========== Выбор типа заявки ==========
-                    Column(
-                        modifier = Modifier.wrapContentWidth(),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = uiState.orderType == OrderTypeSelection.Market,
-                                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Market) },
-                                label = { Text("Рын.") },
-                            )
-                            FilterChip(
-                                selected = uiState.orderType == OrderTypeSelection.Limit,
-                                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.Limit) },
-                                label = { Text("Лим.") },
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = uiState.orderType == OrderTypeSelection.StopLoss,
-                                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLoss) },
-                                label = { Text("Stop‑Loss") },
-                            )
-                            FilterChip(
-                                selected = uiState.orderType == OrderTypeSelection.TakeProfit,
-                                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.TakeProfit) },
-                                label = { Text("Take‑Profit") },
-                            )
-                            FilterChip(
-                                selected = uiState.orderType == OrderTypeSelection.StopLimit,
-                                onClick = { viewModel.onOrderTypeChanged(OrderTypeSelection.StopLimit) },
-                                label = { Text("Stop‑Limit") },
-                            )
-                        }
-                    }
+                    OrdersTypeChips(
+                        orderType = uiState.orderType,
+                        onOrderTypeChanged = { viewModel.onOrderTypeChanged(it) },
+                    )
 
                     // ========== Ценовые поля (статическая высота) ==========
-                    // Ценовые поля – с плавной заменой без наложения
-                    AnimatedContent(
-                        targetState = uiState.orderType,
-                        transitionSpec = {
-                            fadeIn(animationSpec = tween(200)) togetherWith
-                                fadeOut(animationSpec = tween(200))
-                        },
-                        label = "price_fields",
-                    ) { orderType: OrderTypeSelection ->
-                        when (orderType) {
-                            OrderTypeSelection.Limit -> {
-                                OutlinedTextField(
-                                    value = uiState.limitPrice,
-                                    onValueChange = { viewModel.onLimitPriceChanged(it) },
-                                    label = { Text("Цена за лот") },
-                                    textStyle = MaterialTheme.typography.bodyLarge,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                            OrderTypeSelection.StopLoss,
-                            OrderTypeSelection.TakeProfit,
-                            -> {
-                                Column {
-                                    OutlinedTextField(
-                                        value = uiState.stopPrice,
-                                        onValueChange = { viewModel.onStopPriceChanged(it) },
-                                        label = { Text("Триггер стоп-цена") },
-                                        textStyle = MaterialTheme.typography.bodyLarge,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                }
-                            }
-                            OrderTypeSelection.StopLimit -> {
-                                Column {
-                                    OutlinedTextField(
-                                        value = uiState.stopPrice,
-                                        onValueChange = { viewModel.onStopPriceChanged(it) },
-                                        label = { Text("Триггер стоп-цена") },
-                                        textStyle = MaterialTheme.typography.bodyLarge,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    OutlinedTextField(
-                                        value = uiState.limitPrice,
-                                        onValueChange = { viewModel.onLimitPriceChanged(it) },
-                                        label = { Text("Лимитная цена") },
-                                        textStyle = MaterialTheme.typography.bodyLarge,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                }
-                            }
-                            else -> { /* Market – ничего не показываем */ }
-                        }
-                    }
+                    OrdersPriceFields(
+                        orderType = uiState.orderType,
+                        limitPrice = uiState.limitPrice,
+                        stopPrice = uiState.stopPrice,
+                        onLimitPriceChanged = { viewModel.onLimitPriceChanged(it) },
+                        onStopPriceChanged = { viewModel.onStopPriceChanged(it) },
+                    )
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 0.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
-                        Switch(
-                            checked = uiState.pairTradingEnabled,
-                            onCheckedChange = { viewModel.setPairTradingEnabled(it) },
-                        )
-                    }
-
-                    // Парный поиск
-                    if (uiState.pairTradingEnabled) {
-                        if (uiState.pairedInstrument == null) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    InstrumentSearchField(
-                                        query = uiState.pairSearchQuery,
-                                        onQueryChanged = { query: String -> viewModel.onPairSearchQueryChanged(query) },
-                                        isSearching = uiState.isPairSearching,
-                                        searchResults = uiState.pairSearchResults,
-                                        onInstrumentSelected = { instrument: Instrument ->
-                                            viewModel.onPairedInstrumentSelected(instrument)
-                                            focusManager.clearFocus()
-                                        },
-                                        onClear = { viewModel.clearPairSearch() },
-                                        recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                                        tradingStatuses = uiState.tradingStatuses,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    // Кнопка «Обновить»
-                                    if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
-                                        IconButton(onClick = { viewModel.refreshPairSearch() }) {
-                                            Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
-                                        }
-                                    }
-                                    // Кнопка настроек поиска
-                                    IconButton(onClick = { viewModel.openPairSearchBrokerSettings() }) {
-                                        Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
-                                    }
-                                }
-                            }
-                        } else {
-                            // Карточка парного инструмента и множитель
-                            uiState.pairedInstrument?.let { instrument: Instrument ->
-                                val portfolioPos =
-                                    uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
-                                // Цену берём из PriceFlowManager (uiState.pairCurrentPrice).
-                                val pairPrice =
-                                    uiState.pairCurrentPrice
-                                        ?: portfolioPos?.currentPrice
-                                        ?: 0.0
-
-                                val position =
-                                    portfolioPos
-                                        ?: emptyPosition(
-                                            instrument = instrument,
-                                            currentPrice = pairPrice,
-                                            accountId = uiState.selectedAccountId ?: "",
-                                            brokerName = BrokerName.TINVEST,
-                                        )
-
-                                AssetPositionCard(
-                                    position = position,
-                                    displayCurrentPrice = pairPrice,
-                                    priceChangePercent = uiState.selectedPriceChangePercent,
-                                    onDelete = { viewModel.clearPairSearch() },
-                                    onSettings = { viewModel.openBrokerDialog(instrument.ticker) },
-                                    onClick = { },
-                                    isSelected = false,
-                                    resetSwipe = uiState.swipeResetTrigger,
-                                    tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
-                                )
-
-                                // Оверлей стоимости для множителя
-                                val currentQty = uiState.quantityAsLong ?: 0L
-                                val totalQty = currentQty * (uiState.pairedMultiplier.toDoubleOrNull() ?: 1.0)
-
-                                // Определяем цену исполнения для парного инструмента по тому же принципу
-                                val multiplierOverlay = uiState.multiplierOverlay
-
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    OutlinedTextField(
-                                        value = uiState.pairedMultiplier,
-                                        onValueChange = { viewModel.onPairedMultiplierChanged(it) },
-                                        label = { Text("Множитель") },
-                                        textStyle = MaterialTheme.typography.bodyLarge,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        singleLine = true,
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .onFocusChanged { focusState ->
-                                                    if (focusState.isFocused) {
-                                                        scope.launch {
-                                                            scrollState.animateScrollTo(scrollState.maxValue)
-                                                        }
-                                                    }
-                                                },
-                                    )
-                                    if (multiplierOverlay != null) {
-                                        Box(
-                                            modifier =
-                                                Modifier
-                                                    .matchParentSize()
-                                                    .padding(end = 12.dp, top = 8.dp),
-                                            contentAlignment = Alignment.CenterEnd,
-                                        ) {
-                                            Text(
-                                                text = multiplierOverlay,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                modifier =
-                                                    Modifier
-                                                        .background(
-                                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                                            RoundedCornerShape(4.dp),
-                                                        ).padding(horizontal = 6.dp, vertical = 2.dp),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    OrdersPairSection(
+                        uiState = uiState,
+                        scrollState = scrollState,
+                        scope = scope,
+                        onPairSearchQueryChanged = { viewModel.onPairSearchQueryChanged(it) },
+                        onPairedInstrumentSelected = {
+                            viewModel.onPairedInstrumentSelected(it)
+                            focusManager.clearFocus()
+                        },
+                        onClearPairSearch = { viewModel.clearPairSearch() },
+                        onRefreshPairSearch = { viewModel.refreshPairSearch() },
+                        onOpenPairSearchBrokerSettings = { viewModel.openPairSearchBrokerSettings() },
+                        onPairTradingEnabledChanged = { viewModel.setPairTradingEnabled(it) },
+                        onClearPairedInstrument = { viewModel.clearPairSearch() },
+                        onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
+                        onPairedMultiplierChanged = { viewModel.onPairedMultiplierChanged(it) },
+                    )
                 } // конец скроллируемой колонки
 
                 // === ИНДИКАТОРЫ ПРОКРУТКИ ===
-                if (showTopShadow) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(12.dp)
-                                .background(
-                                    brush =
-                                        Brush.verticalGradient(
-                                            colors = listOf(Color.Black.copy(alpha = 0.08f), Color.Transparent),
-                                        ),
-                                ).align(Alignment.TopCenter),
-                    )
-                }
-                if (showBottomShadow) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(12.dp)
-                                .background(
-                                    brush =
-                                        Brush.verticalGradient(
-                                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.08f)),
-                                        ),
-                                ).align(Alignment.BottomCenter),
-                    )
-                }
+                OrdersScreenShadows(
+                    showTopShadow = showTopShadow,
+                    showBottomShadow = showBottomShadow,
+                )
             }
 
             // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.background)
-                        .padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // Кнопки КУПИТЬ / ПРОДАТЬ
-                val balance = uiState.freeBalance
-                if (balance != null) {
-                    Text(
-                        text = "Свободно: ${formatDomesticCurrency(balance)}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Button(
-                        onClick = { viewModel.onBuyClick() },
-                        modifier = Modifier.weight(1f),
-                        enabled = uiState.isFormValid && !uiState.isLoading,
-                    ) {
-                        Text("КУПИТЬ")
-                    }
-                    Button(
-                        onClick = { viewModel.onSellClick() },
-                        modifier = Modifier.weight(1f),
-                        enabled = uiState.isFormValid && !uiState.isLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    ) {
-                        Text("ПРОДАТЬ")
-                    }
-                }
-            }
+            OrdersBottomButtons(
+                freeBalance = uiState.freeBalance,
+                isFormValid = uiState.isFormValid,
+                isLoading = uiState.isLoading,
+                onBuyClick = { viewModel.onBuyClick() },
+                onSellClick = { viewModel.onSellClick() },
+            )
         }
 
         // Снекбар поверх всего
@@ -659,18 +847,14 @@ fun OrdersScreen() {
         }
     }
 
-    if (uiState.showBrokerDialog) {
-        BrokerAccountDialog(
-            availableBrokers = viewModel.getAvailableBrokerNames(),
-            selectedBroker = uiState.selectedBroker,
-            onBrokerSelected = { viewModel.onBrokerSelected(it) },
-            accounts = uiState.dialogAccounts,
-            selectedAccountId = uiState.selectedAccountIdDialog,
-            onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
-            onDismiss = { viewModel.closeBrokerDialog() },
-            onSave = { viewModel.saveBrokerSettings() },
-        )
-    }
+    TradingBrokerDialog(
+        availableBrokers = viewModel.getAvailableBrokerNames(),
+        uiState = uiState,
+        onBrokerSelected = { viewModel.onBrokerSelected(it) },
+        onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
+        onDismiss = { viewModel.closeBrokerDialog() },
+        onSave = { viewModel.saveBrokerSettings() },
+    )
 
     if (showOrdersListDialog) {
         OrdersListDialog(
@@ -678,34 +862,20 @@ fun OrdersScreen() {
         )
     }
     // Диалог выбора брокера для основного поиска
-    if (uiState.showSearchBrokerDialog) {
-        BrokerAccountDialog(
-            availableBrokers = viewModel.getAvailableBrokerNames(),
-            selectedBroker = uiState.selectedSearchBroker,
-            onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
-            accounts = emptyList(),
-            selectedAccountId = null,
-            onAccountSelected = {},
-            onDismiss = { viewModel.dismissSearchBrokerDialog() },
-            onSave = { viewModel.dismissSearchBrokerDialog() },
-            showAccountSelector = false,
-        )
-    }
+    SearchBrokerDialog(
+        availableBrokers = viewModel.getAvailableBrokerNames(),
+        uiState = uiState,
+        onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
+        onDismiss = { viewModel.dismissSearchBrokerDialog() },
+    )
 
 // Диалог выбора брокера для парного поиска
-    if (uiState.showPairSearchBrokerDialog) {
-        BrokerAccountDialog(
-            availableBrokers = viewModel.getAvailableBrokerNames(),
-            selectedBroker = uiState.selectedPairSearchBroker,
-            onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
-            accounts = emptyList(),
-            selectedAccountId = null,
-            onAccountSelected = {},
-            onDismiss = { viewModel.dismissPairSearchBrokerDialog() },
-            onSave = { viewModel.dismissPairSearchBrokerDialog() },
-            showAccountSelector = false,
-        )
-    }
+    PairSearchBrokerDialog(
+        availableBrokers = viewModel.getAvailableBrokerNames(),
+        uiState = uiState,
+        onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
+        onDismiss = { viewModel.dismissPairSearchBrokerDialog() },
+    )
 }
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
