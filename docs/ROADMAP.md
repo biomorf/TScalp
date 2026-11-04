@@ -255,57 +255,6 @@ clean-audit.
 
 
 
-### UI: extract composables — пакет B
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** (clean-audit Н94) 4 Compose-функции под `@Suppress("LongMethod", "CyclomaticComplexMethod")`, каждая >120 строк: `AssetCardContent` (193), `AssetPositionCard` (144), `PortfolioScreen` (161), `BrokerAccountDialog` (125). Extract без изменения визуала: `AssetCardHeader` + `AssetCardLowerSection`; `SwipeActionButtons` + `DraggableCardContent`; `PortfolioAccountBlock`; `BrokerList` + `AccountList` + `DialogActions`.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** пакет A закрыт (паттерн extract установлен).
-
-**Файлы:**
-- `presentation/components/AssetPositionCard.kt` — `AssetCardContent` → 2 подкомпонента; `AssetPositionCard` → 2 подкомпонента.
-- `presentation/screens/portfolio/PortfolioScreen.kt` — `PortfolioAccountBlock`.
-- `presentation/components/BrokerAccountDialog.kt` — `BrokerList` + `AccountList` + `DialogActions`.
-
-**Шаги:**
-1. `AssetCardContent` — extract `AssetCardHeader` + `AssetCardLowerSection`.
-2. `AssetPositionCard` (внешняя) — extract `SwipeActionButtons` + `DraggableCardContent`.
-3. `PortfolioScreen` — extract `PortfolioAccountBlock(accountKey, accountPortfolio, prices, priceChangePercents, tradingStatuses, onPayIn)`.
-4. `BrokerAccountDialog` — extract `BrokerList`, `AccountList`, `DialogActions`.
-5. Preview — все существующие Preview проходят.
-6. Гейт.
-
-**Тесты:** не меняются. Preview + гейт.
-
-**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга` → `#### Compose-компоненты`.
-
-**Ограничения:** не менять UI. Каждый `@Suppress` снимать только если detekt зелёный. Не смешивать с BCS/Finam панелями.
-
-**Критерий готовности:** 4 `@Suppress` сняты; 4 функции разбиты; Preview 1:1; гейт зелёный.
-
-**Оценка:** ~1.5–2 ч.
-
-**Зависимости:** пакет A.
-
-**Связано:** пакет A, пакет C; Н94.
-
-**Открытые вопросы:** нет.
-
-
-
----
-
 ### UI: OrdersScreen decompose (пакет C)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -9473,6 +9422,56 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** `### ✅ UI: extract composables — пакет B (частично)`; Н94.
 
 **Что сделано:** `SearchResultItem` — extract (убрано дублирование 40 строк). `InstrumentSearchField`: 153 → ~113 строк. **Не сделано (отклонение от плана A):** `@Suppress("LongMethod", "CyclomaticComplexMethod")` на `InstrumentSearchField` — **остаётся** (функция > 60, complexity > 14); `OrderCard` — **не трогали** (без `@Suppress`, extract без detekt-выгоды). Merge `aa06690`, PR #91.
+
+**Открытые вопросы:** нет. Решения — в истории merge `aa06690`, PR #91.
+
+---
+
+### ✅ UI: extract composables — пакет B (частично)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** (clean-audit Н94) 4 Compose-функции под `@Suppress`, каждая >120 строк: `AssetCardContent` (193), `AssetPositionCard` (144), `PortfolioScreen` (161), `BrokerAccountDialog` (125). Extract без изменения визуала.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** пакет A закрыт (паттерн extract установлен).
+
+**Файлы:**
+- `presentation/components/AssetPositionCard.kt` — `AssetCardContent` → 2 подкомпонента; `AssetPositionCard` → 2 подкомпонента.
+- `presentation/screens/portfolio/PortfolioScreen.kt` — `PortfolioAccountBlock`.
+- `presentation/components/BrokerAccountDialog.kt` — `BrokerSelector` + `AccountSelector`.
+
+**Шаги:**
+1. `AssetCardContent` — extract `AssetCardHeader` + `AssetCardLowerSection`.
+2. `AssetPositionCard` (внешняя) — extract `SwipeActionButtons` + `DraggableCardContent`.
+3. `PortfolioScreen` — extract `PortfolioAccountBlock`.
+4. `BrokerAccountDialog` — extract `BrokerSelector` + `AccountSelector` (вместо `BrokerList` + `AccountList` + `DialogActions` из плана; `DialogActions` отменён — кнопки `AlertDialog` не extract'ятся).
+5. `SwipeActionButtons` — `BoxScope.SwipeActionButtons` (CI: `Unresolved reference 'matchParentSize'`).
+6. `@Suppress` — снят только на `BrokerAccountDialog`; на `AssetPositionCard` / `AssetCardHeader` / `AssetCardLowerSection` (`LongMethod` 68–72 > 60) и `PortfolioScreen` (`LongMethod` + `CyclomaticComplexMethod` 16 > 14) возвращён с KDoc-пометкой после CI detekt.
+7. Гейт (CI `gate`, PR #91).
+
+**Тесты:** не меняются. Preview + гейт.
+
+**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга` → `#### Compose-компоненты`.
+
+**Ограничения:** не менять UI. Каждый `@Suppress` снимать только если detekt зелёный.
+
+**Критерий готовности:** extract в 4 функциях; `@Suppress` **снят** только на `BrokerAccountDialog`; `@Suppress` на 3 функциях остаётся (функции объективно > 60 / > 14); Preview 1:1; гейт зелёный.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** пакет A.
+
+**Связано:** `### ✅ UI: SearchResultItem extract (пакет A, частично)`; `### UI: OrdersScreen decompose (пакет C)`; Н94.
+
+**Что сделано:** extract в 4 функциях — `AssetCardHeader` + `AssetCardLowerSection`, `SwipeActionButtons` (`BoxScope` extension) + `DraggableCardContent`, `PortfolioAccountBlock`, `BrokerSelector` + `AccountSelector`. `BrokerAccountDialog` — `@Suppress("LongMethod")` снят (функция после extract < 60). **Не сделано (отклонения от плана B):** `DialogActions` не выделен (кнопки `AlertDialog` нельзя извлечь — параметры компонента); `@Suppress` на `AssetPositionCard` (70) / `AssetCardHeader` (68) / `AssetCardLowerSection` (72) — возвращён (`LongMethod` > 60), с KDoc-пометкой «Н94»; `PortfolioScreen` — `@Suppress("LongMethod", "CyclomaticComplexMethod")` возвращён (139 строк, complexity 16). Дальнейшая декомпозиция до < 60 — `Н94` / `#### Compose-компоненты`. Merge `aa06690`, PR #91.
 
 **Открытые вопросы:** нет. Решения — в истории merge `aa06690`, PR #91.
 
