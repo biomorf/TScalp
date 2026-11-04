@@ -541,6 +541,44 @@ commit/PR — **латиницей** (`H5`, `H94`), в `.md` файлах — к
 с кириллицей — placeholder `[Cyrillic-range]` (иначе
 pre-check абортит сам себя).
 
+
+---
+
+### 79. post-assert: только новое + `old_frag not in text`
+
+**Правило:** post-assert проверяет **только** новые маркеры
+(line-anchored через `re.findall(r"^...$", text, re.MULTILINE)`)
+и `old_frag not in text`. Не проверять «старое не тронуто»
+через склейку двух строк пробелом или сквозь markdown-bold —
+ложные падения. `old_frag` заменён через `replace(..., 1)` —
+не тронут по определению; визуально — `git diff` в verify.
+
+**Инцидент:** 2026-11-05, AGENTS.md 4h mobile-ветка (97a61e1).
+Два падения post-assert (файл не изменён, оба до `write_text`):
+1. `assert "`./gradlew :app:ktlintFormat`, **не** ручной перенос"
+   in text` — в файле эти строки **на разных строках** (перенос
+   после `./gradlew`), подстрока не находится.
+2. `assert "не ручной перенос" in text` — в файле
+   **`**не** ручной перенос`** (bold), подстрока без `**` не
+   находится.
+
+Исправлено: post-assert только на новые маркеры +
+`old_frag not in text`. Desktop-ветка не тронута —
+доказательство: `old_frag` не содержит desktop-строк;
+replace по `old_frag` не мог её задеть; визуально — `git diff`
+в verify.
+
+**Проверка:** в скрипте post-assert — `assert old_frag not in
+text` + `assert new_frag in text` + `assert len(re.findall(
+r"^...", text, re.MULTILINE)) == N`. Не проверять
+не-тронутость через склейку/сквозь bold.
+
+**Связано:** урок 26 (`assert old not in text` — KDoc), 56а
+(`count == 1` для имени задачи — line-anchored), 65 (`assert
+new not in text` — new ⊂ old), 67 (`assert "### X" not in
+text` — inline-ссылки).
+
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
@@ -574,6 +612,40 @@ pre-check абортит сам себя).
 **Инцидент:** 2026-11-04, CI `testDebugUnitTest`: `PositionFormatterTest > formatAverage for share FAILED` (`IllegalArgumentException`). Тест передавал `currency = "rub"`, `Currency.getInstance("rub")` бросал. Латентный баг в продакшене: `Instrument.currency` от брокеров может приходить lowercase. Pre-existing (до PR #90 тоже передавалось как есть).
 
 **Проверка:** `grep -n "Currency.getInstance" file.kt` — перед `getInstance` стоит `uppercase(Locale.ROOT)`; тест с lowercase не падает. В ROADMAP — задача `### Currency format: normalize ISO 4217 case`.
+
+
+---
+
+### 78. Mobile/proot: ktlint-ошибки на `.kt` — только CI
+
+**Правило:** на mobile (proot) `ktlintFormat` недоступен. Каждая
+ktlint-ошибка = 4–5 минут CI-цикла (Actions-минуты, ожидание).
+Гейт здесь «золотой». Перед `git push` — self-check по 5
+правилам (AGENTS.md → 4h, mobile-ветка): import order,
+`@Inject` на отдельной строке, indent после split, multiline
+wrapping, имена тест-функций. Плюс `cat -A` затронутого
+региона — `git diff --check` ловит trailing ws, но **не**
+неверную индентацию.
+
+**Инцидент:** 2026-11-05, M008 `CalculatePairExecUseCase` + тест.
+8 CI-циклов, все — на форматировании:
+1. `fun disabledPairTrading returnsZeroAndNull()` — пробел в
+   имени теста → `NON_ABSTRACT_FUNCTION_WITH_NO_BODY`.
+2. `val result = useCase.execute(` (multiline, а `val result =`
+   на той же строке) → `multiline-expression-wrapping`.
+3. `class X @Inject constructor()` inline → `Expected newline
+   before annotation`.
+4. Тело класса на 4 после split `@Inject constructor()` →
+   `Unexpected indentation (4) (should be 8)`.
+5. `}` класса на 0 (а ktlint ожидает 4, т.к. `class X` +
+   `@Inject` на отдельной строке — как `PostOrderUseCase`).
+
+Ни одна из 5 не ловится `git diff --check`. Ловятся — `cat -A`
+или `ktlintCheck` (недоступен на mobile).
+
+**Проверка:** AGENTS.md → 4h, mobile-ветка. Перед `git push` —
+5 grep + `cat -A` затронутого региона.
+
 
 ## Диагностика
 
