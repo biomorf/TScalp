@@ -10,7 +10,7 @@ class CalculatePairExecUseCaseTest {
     private val useCase = CalculatePairExecUseCase()
 
     @Test
-    fun disabledPairTrading returnsZeroAndNull() {
+    fun disabledPairTrading_returnsZeroAndNull() {
         val result = useCase.execute(
             PairExecInput(
                 pairTradingEnabled = false,
@@ -28,7 +28,7 @@ class CalculatePairExecUseCaseTest {
     }
 
     @Test
-    fun noPairedInstrument returnsZeroAndNull() {
+    fun noPairedInstrument_returnsZeroAndNull() {
         val result = useCase.execute(
             PairExecInput(
                 pairTradingEnabled = true,
@@ -46,7 +46,7 @@ class CalculatePairExecUseCaseTest {
     }
 
     @Test
-    fun limitBuy usesExecutionPriceAndStopLoss() {
+    fun limitBuy_usesExecutionPriceAndStopLoss() {
         val result = useCase.execute(
             PairExecInput(
                 pairTradingEnabled = true,
@@ -64,7 +64,7 @@ class CalculatePairExecUseCaseTest {
     }
 
     @Test
-    fun limitSell usesExecutionPriceAndTakeProfit() {
+    fun limitSell_usesExecutionPriceAndTakeProfit() {
         val result = useCase.execute(
             PairExecInput(
                 pairTradingEnabled = true,
