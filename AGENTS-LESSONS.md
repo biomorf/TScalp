@@ -578,6 +578,63 @@ r"^...", text, re.MULTILINE)) == N`. Не проверять
 new not in text` — new ⊂ old), 67 (`assert "### X" not in
 text` — inline-ссылки).
 
+**Расширение (2026-11-05, M008):** ещё 4 ложных падения за одну
+сессию, новые корни:
+3. **Подстрока в другом блоке файла.** `assert 'OrdersViewModelTest'
+   not in text` — ловит упоминание в **другой** (закрытой) задаче
+   файла (ROADMAP: 9247, `### ✅ OrdersViewModel: миграция на
+   PortfolioSheet`). Правильно: `old_frag not in <extracted_block>`,
+   block — line-anchored extract M008-блока
+   (`re.search(r"^### M008:...", text, re.MULTILINE)` → срез до
+   `\n### `).
+4. **Регистр.** `assert 'Стоимость mobile-гейта' in text` — в тексте
+   `— стоимость` (строчная, после `—`). Правильно: `assert
+   text.count(fragment) == 1`, где `fragment` — **точная копия** из
+   `new_frag`, а не перепечатка.
+5. **Новый текст намеренно содержит старый идентификатор**
+   (инверсия урока 65). `assert 'OrdersViewModelTest' not in block` —
+   новый R3-текст намеренно упоминает `OrdersViewModelTest`
+   («VM-тест на триггеры не заводится»). Правильно: проверять
+   **точный старый фрагмент** (`'OrdersViewModelTest` (новый,
+   если нет)`), не голый идентификатор.
+
+
+### 80. `echo` с backtick — 2-й раз; проверяй факт, не форму
+
+**Правило:** (а) `echo` с backtick внутри двойных кавычек —
+command substitution (повтор урока 64, 2026-11-05, M008-диагностика:
+`echo "=== ... 'OrdersViewModelTest` ..."` → `syntax error near
+unexpected token '('`). Писать `echo '...'` (одинарные) или без
+backticks вообще. (б) **Общий корень** всех ложных post-assert за
+M008-сессию (6 штук): **проверял предполагаемую форму, а не
+фактическое состояние**. Правило: post-assert проверяет **факт**
+(`old_frag not in <block>`), не «как я думаю выглядит файл».
+
+**Инцидент:** 2026-11-05, M008-сессия. Шесть ложных assert'ов
+подряд:
+1. AGENTS.md: `assert "`./gradlew :app:ktlintFormat`, **не** ручной
+   перенос" in text` — склейка двух строк.
+2. AGENTS.md: `assert "не ручной перенос" in text` — `**не**`
+   (bold).
+3. ROADMAP: `assert 'Стоимость mobile-гейта' in text` — регистр
+   (`— стоимость`).
+4. ROADMAP: `assert 'OrdersViewModelTest' not in text` — подстрока
+   в другом блоке (9247).
+5. ROADMAP: `assert 'OrdersViewModelTest' not in m008_block` —
+   новый текст намеренно упоминает идентификатор (инверсия 65).
+6. Bash-диагностика: `echo "=== ... 'OrdersViewModelTest` ..."` —
+   backtick в двойных кавычках (повтор 64).
+
+**Проверка:** перед отправкой скрипта — (а) все `echo` без
+backticks внутри `"..."`; (б) каждый post-assert — `old_frag not in
+<block>` с `block` = line-anchored extract; (в) `fragment` —
+точная копия из `new_frag`, не перепечатка; (г) `git diff --check`
++ `cat -A` затронутого региона.
+
+**Связано:** урок 64 (`echo` с backtick), 65 (`new` ⊂ `old`),
+67 (line-anchored), 79 (post-assert scope).
+
+
 
 ## Kotlin / Compose
 
