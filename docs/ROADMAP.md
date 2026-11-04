@@ -259,7 +259,9 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано. **UI — требует санкции** (только на случай визуальных изменений; не должно быть).
+**Статус:** в работе.
+**Ветка:** feature/ui-ordersscreen-decompose.
+**UI — санкция:** получена (2026-11-04, extract без визуальных изменений).
 
 **Контекст:** (clean-audit Н94, M008) `OrdersScreen` (662 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) — самый большой экран. 6–7 логических блоков в одной функции: header, поиск/карточка, quantity row, order type chips, price fields (`AnimatedContent`), pair section, bottom buttons. Extract без визуальных изменений. `M008` (расчёт `pairExecPrice` / `pairedOrderType` в Composable) — **вне scope** (это не extract, а перенос логики в VM, отдельная задача).
 
