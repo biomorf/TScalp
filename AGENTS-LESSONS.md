@@ -510,6 +510,37 @@ actual). Не доверять фильтру.
 
 **Проверка:** `grep -c "\bSymbol\b" file` == `grep -c "^import.*\.Symbol$" file` → unused; удалить. Или `./gradlew :app:ktlintFormat` (desktop, урок 55).
 
+### 77. Commit message / PR body / tag — English only, strict pre-check
+
+**Правило:** строго перед `git commit -F` (и `git tag -a -F`) — обязательный pre-check на кириллицу:
+
+    if grep -P '[Cyrillic-range]' "$HOME/.msg.txt"; then
+      echo "ERROR: Cyrillic in commit message — abort, rewrite"
+      exit 1
+    fi
+
+Match (`grep` exit 0) → abort, rewrite message in the script.
+No match (`grep` exit 1) → continue. Не «после коммита», не
+«глазами» — строго механический pre-check **перед** коммитом.
+PR body / tag message — та же проверка, но вручную (в скрипте
+нет автоматического pre-check, потому что PR/tag — отдельный шаг).
+
+**Инцидент:** сессия 2026-11-04, H5 + UI extract. Русский в
+commit message прошёл 5 раз: `c855ebe`, `7294c9b`, `aa7909f`,
+`55ca55d` (в `dev`), `1bfc359` (feature). Каждый — нарушение
+AGENTS 5 «Язык коммитов — только английский». Правило есть с
+самого начала, но **механического** pre-check в шаблоне не было.
+Исправлено в AGENTS 5b + 4i.
+
+**Проверка:** в шаблоне коммита — блок `if grep -P ...; then
+exit 1; fi` до `git commit -F`. Идентификаторы clean-audit в
+commit/PR — **латиницей** (`H5`, `H94`), в `.md` файлах — как
+в clean-audit (кириллическая «Н»). Иначе `grep -P` на
+кириллицу ложно-срабатывает на кириллическую «Н» в ID.
+В commit message нельзя цитировать буквальный regex
+с кириллицей — placeholder `[Cyrillic-range]` (иначе
+pre-check абортит сам себя).
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
