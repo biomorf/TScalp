@@ -510,6 +510,8 @@ actual). Не доверять фильтру.
 
 **Проверка:** `grep -c "\bSymbol\b" file` == `grep -c "^import.*\.Symbol$" file` → unused; удалить. Или `./gradlew :app:ktlintFormat` (desktop, урок 55).
 
+**Расширение (2026-11-05, InstrumentColors):** второй случай — `InstrumentType` в `AssetPositionCard.kt` после вырезания локального `when`-блока (PR #95). Pre-check в python (`re.findall(r'\bInstrumentType\b', ...)`) ошибочно посчитал `import ...InstrumentType` за использование → `inst_c = 1`, скрипт не удалил импорт, CI `ktlintMainSourceSetCheck`: `Unused import` (fix `30b82ad`). **Правило:** при подсчёте использований — **вычитать import-строку**: `len(re.findall(r'\bSymbol\b', text.replace(imp_line, '', 1))) == 0` до удаления импорта (или `grep -c "^import.*\.Symbol$"` vs `grep -c "\bSymbol\b"` — равенство = unused).
+
 ### 77. Commit message / PR body / tag — English only, strict pre-check
 
 **Правило:** строго перед `git commit -F` (и `git tag -a -F`) — обязательный pre-check на кириллицу:
