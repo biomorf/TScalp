@@ -103,7 +103,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | M007. SettingsScreen — login-orchestration в UI | средне | L1 | `SettingsScreen.kt` (TInvest 238, Bcs 600, Finam 770) | ✓ |
 | M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable | средне | L1 | `OrdersScreen.kt` (~330–350) | - |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
-| Н94. God-функции Compose под `@Suppress` (10 функций, 5 файлов) | средне | L1 | `SettingsScreen` (4), `OrdersScreen` (2), `PortfolioScreen` (1), `AssetPositionCard` (2), `BrokerAccountDialog` (1) | - |
 
 ### M001. OrdersViewModel форматирует overlay (формулы в VM)
 
@@ -281,38 +280,41 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### Н94. God-функции Compose под `@Suppress` (10 функций, 5 файлов)
+### Исправленные (L1)
 
-**Статус:** открыто.
+### ✅ Н94. God-функции Compose под `@Suppress` (частично)
+
+**Статус:** частично исправлено (2026-11-04, merge `aa06690`, PR #91; пакеты A+B).
 
 **Серьёзность:** средне.
 
-**Live тест:** -
+**Live тест:** -.
 
-**Описание:** 10 Composable-функций несут `@Suppress("LongMethod")` / `@Suppress("LongMethod", "CyclomaticComplexMethod")` как **постоянный** маркер долга (правило `LongMethod` активно по дефолту, `buildUponDefaultConfig = true`):
+**Описание:** 10 Composable-функций несли `@Suppress("LongMethod")` / `@Suppress("LongMethod", "CyclomaticComplexMethod")` как **постоянный** маркер долга. После A+B: `BrokerAccountDialog` — `@Suppress` снят (extract `BrokerSelector` + `AccountSelector`); `AssetCardContent` → `AssetCardHeader` + `AssetCardLowerSection` (функция разбита, но обе новые > 60). Осталось 9 `@Suppress`: `SettingsScreen` ×4, `OrdersScreen` ×2, `PortfolioScreen` ×1, `AssetPositionCard` ×3 (`AssetPositionCard` + `AssetCardHeader` + `AssetCardLowerSection`).
 
-- `SettingsScreen` (44, 172), `TInvestSettingsPanel` (172), `BcsSettingsPanel` (528), `FinamSettingsPanel` (729);
-- `OrdersScreen` (53), `InstrumentSearchField` (768);
-- `PortfolioScreen` (37);
-- `AssetPositionCard` (52), `AssetCardContent` (197);
-- `BrokerAccountDialog` (20).
+**Нарушенное правило:** SRP — Composable-функции делают слишком много. Формально — `LongMethod`/`CyclomaticComplexMethod`.
 
-Ни одна не имеет плановой задачи (только ссылки в KDoc на `detekt-группу 3` и `Compose-экраны`). Формулировки `// Архитектурный долг: см. ROADMAP → «Рефакторинг Compose-экранов»` — указатели есть, но **инвентарной записи в clean-audit не было** (нарушение 2c).
-
-**Нарушенное правило:** SRP — Composable-функции делают слишком много (форма, карточка, диалог в одной функции). Формально — `LongMethod`/`CyclomaticComplexMethod`.
-
-**Clean-альтернатива:** разбить по маркерам (форма/список/поиск/диалоги) — план в `### Рефакторинг архитектурного долга` → `#### Compose-экраны`. Плюсы: читаемость, снятие `@Suppress`. Минусы: ~6 ч.
+**Clean-альтернатива:** декомпозировать до < 60 строк / < 14 complexity. Плюсы: читаемость, снятие `@Suppress`. Минусы: ~6 ч.
 
 **MVVM-альтернатива:** UI-композиция (Extract composables + один UiState) — часть того же рефакторинга.
 
-**Выгоды:** функции работают, UI-итерации быстрее без разделения.
+**Выгоды (по 2c):** функции работают; `@Suppress` — осознанный маркер, не «молчаливый костыль» (KDoc-пометка «Н94» на каждой). Extract A+B дал выгоду (читаемость, дублирование 40 строк убрано), но `@Suppress` остаются — дальнейшая декомпозиция до < 60 — задача `### UI: OrdersScreen decompose (пакет C)` + `#### Compose-компоненты`.
 
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты`.
+**Что сделано:** пакет A — `SearchResultItem` (убрано 40 строк дублирования); пакет B — `AssetCardHeader` + `AssetCardLowerSection`, `SwipeActionButtons` (`BoxScope`) + `DraggableCardContent`, `PortfolioAccountBlock`, `BrokerSelector` + `AccountSelector`. `BrokerAccountDialog` — `@Suppress` снят. `@Suppress` возвращён на `AssetPositionCard` / `AssetCardHeader` / `AssetCardLowerSection` (`LongMethod` 68–72 > 60) и `PortfolioScreen` (`LongMethod` + `CyclomaticComplexMethod` 16 > 14) с KDoc-пометкой. Merge `aa06690`, PR #91.
+
+**Что осталось (вне A+B):**
+- `InstrumentSearchField` (113 строк, `LongMethod` + `CyclomaticComplexMethod`) — пакет A, `@Suppress` остаётся.
+- `PortfolioScreen` (139, `LongMethod` + `CyclomaticComplexMethod`) — пакет B, `@Suppress` остаётся.
+- `AssetPositionCard` (70) / `AssetCardHeader` (68) / `AssetCardLowerSection` (72) — пакет B, `LongMethod` остаётся.
+- `SettingsScreen` ×4 (`SettingsScreen` 65, `TInvestSettingsPanel` 356, `BcsSettingsPanel` 201, `FinamSettingsPanel` 164) — не трогали.
+- `OrdersScreen` ×2 (`OrdersScreen` 662, `InstrumentSearchField` уже выше) — пакет C (отдельный PR).
+- BCS/Finam/TInvest панели — заглушки, переписываются в `### Реализация BCS/Finam Broker API`.
+
+**Ссылка на задачу:** `### ✅ UI: SearchResultItem extract (пакет A, частично)`; `### ✅ UI: extract composables — пакет B (частично)`; `### UI: OrdersScreen decompose (пакет C)` (остаток); `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты`.
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
 
-### Исправленные (L1)
 
 ### ✅ Н24. Дублирование обогащения в двух VM
 
