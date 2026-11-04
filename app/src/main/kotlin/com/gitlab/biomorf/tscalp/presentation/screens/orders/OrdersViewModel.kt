@@ -28,7 +28,9 @@ import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
+import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderInput
@@ -71,6 +73,7 @@ class OrdersViewModel
         private val brokerManager: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
+        private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val postOrderUseCase: PostOrderUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val logger: Logger,
@@ -221,6 +224,7 @@ class OrdersViewModel
                 )
             }
             updateTradeDetails()
+            updatePairExecDetails()
         }
 
         fun loadAccounts() {
@@ -395,6 +399,7 @@ class OrdersViewModel
                 _uiState.update { it.copy(currentPointValue = pointVal) }
 
                 updateTradeDetails()
+                updatePairExecDetails()
 
                 // 5. Запускаем стрим для реактивного обновления цены
                 syncPriceInterest()
@@ -430,6 +435,7 @@ class OrdersViewModel
         fun onQuantityChanged(quantity: String) {
             _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) }
             updateTradeDetails()
+            updatePairExecDetails()
             viewModelScope.launch { saveState() }
         }
 
@@ -441,6 +447,7 @@ class OrdersViewModel
             viewModelScope.launch {
                 if (_uiState.value.confirmOrdersEnabled) {
                     _uiState.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.BUY) }
+                    updatePairExecDetails()
                 } else {
                     postOrder(OrderDirection.BUY)
                 }
@@ -450,6 +457,7 @@ class OrdersViewModel
             viewModelScope.launch {
                 if (_uiState.value.confirmOrdersEnabled) {
                     _uiState.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.SELL) }
+                    updatePairExecDetails()
                 } else {
                     postOrder(OrderDirection.SELL)
                 }
@@ -459,11 +467,13 @@ class OrdersViewModel
             viewModelScope.launch {
                 val direction = _uiState.value.pendingDirection ?: return@launch
                 _uiState.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
+                updatePairExecDetails()
                 postOrder(direction)
             }
 
         fun onDismissConfirmDialog() {
             _uiState.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
+            updatePairExecDetails()
         }
 
         private suspend fun postOrder(direction: OrderDirection) {
@@ -793,6 +803,7 @@ class OrdersViewModel
             }
             viewModelScope.launch { saveState() }
             syncPriceInterest()
+            updatePairExecDetails()
         }
 
         fun onPairSearchQueryChanged(query: String) {
@@ -867,6 +878,7 @@ class OrdersViewModel
                     _uiState.update { it.copy(pairedPointValue = pairedPointVal) }
                 }
                 updateTradeDetails()
+                updatePairExecDetails()
                 saveState()
             }
         }
@@ -874,6 +886,7 @@ class OrdersViewModel
         fun clearPairSearch() {
             _uiState.update { it.copy(pairSearchQuery = "", pairSearchResults = emptyList(), pairedInstrument = null) }
             syncPriceInterest()
+            updatePairExecDetails()
         }
 
         fun onPairedMultiplierChanged(value: String) {
@@ -888,6 +901,7 @@ class OrdersViewModel
                 _uiState.update { it.copy(limitPrice = "") }
             }
             updateTradeDetails()
+            updatePairExecDetails()
             viewModelScope.launch { saveState() }
         }
 
@@ -895,12 +909,14 @@ class OrdersViewModel
             val filtered = price.filter { it.isDigit() || it == '.' }
             _uiState.update { it.copy(limitPrice = filtered) }
             updateTradeDetails()
+            updatePairExecDetails()
             viewModelScope.launch { saveState() }
         }
 
         fun onStopPriceChanged(price: String) {
             _uiState.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
             updateTradeDetails()
+            updatePairExecDetails()
             viewModelScope.launch { saveState() }
         }
 
@@ -1091,6 +1107,26 @@ class OrdersViewModel
             val costOverlay = formatCostOverlay(details, state)
             val multiplierOverlay = formatMultiplierOverlay(details, state)
             _uiState.update { it.copy(executionPrice = details.executionPrice, costOverlay = costOverlay, multiplierOverlay = multiplierOverlay) }
+        }
+
+        private fun updatePairExecDetails() {
+            val state = _uiState.value
+            val result =
+                calculatePairExecUseCase.execute(
+                    PairExecInput(
+                        pairTradingEnabled = state.pairTradingEnabled,
+                        hasPairedInstrument = state.pairedInstrument != null,
+                        orderType = state.orderType,
+                        limitPrice = state.limitPrice,
+                        stopPrice = state.stopPrice,
+                        pendingDirection = state.pendingDirection,
+                        executionPrice = state.executionPrice,
+                        pairCurrentPrice = state.pairCurrentPrice,
+                    ),
+                )
+            _uiState.update {
+                it.copy(pairExecPrice = result.pairExecPrice, pairedOrderType = result.pairedOrderType)
+            }
         }
 
         private fun formatCostOverlay(
