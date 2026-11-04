@@ -57,4 +57,4 @@ class CalculatePairExecUseCase
                 }
             return PairExecResult(pairExecPrice = pairExecPrice, pairedOrderType = pairedSpec.orderType)
         }
-}
+    }
