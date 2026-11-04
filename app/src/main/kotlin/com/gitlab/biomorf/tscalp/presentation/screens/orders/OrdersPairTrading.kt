@@ -1,7 +1,5 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
-private const val PRICE_FIELDS_ANIMATION_MS = 200
-
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -30,6 +28,8 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+
+private const val PRICE_FIELDS_ANIMATION_MS = 200
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг OrdersScreen».
