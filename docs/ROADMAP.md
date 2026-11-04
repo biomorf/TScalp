@@ -558,7 +558,8 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/orders-screen-split-helpers.
 
 **Контекст:** (clean-audit Н94) после пакета C (PR #92) `OrdersScreen.kt` содержит 18 функций (было 3): `OrdersScreen` + 10 helper-composable + `SearchResultItem` / `InstrumentSearchField` / `getInstrumentTypeColor` / `ApiNotInitializedCard` / `calculatePairExec`. `@file:Suppress("TooManyFunctions")` — маркер долга (18 > 11). Файл ~1050 строк. Разнесение по файлам — устранение `@file:Suppress` без изменения поведения.
 
