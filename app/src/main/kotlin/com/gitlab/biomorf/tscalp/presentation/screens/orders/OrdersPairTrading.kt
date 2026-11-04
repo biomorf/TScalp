@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
+private const val PRICE_FIELDS_ANIMATION_MS = 200
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -193,8 +195,8 @@ internal fun OrdersPriceFields(
     AnimatedContent(
         targetState = orderType,
         transitionSpec = {
-            fadeIn(animationSpec = tween(200)) togetherWith
-                fadeOut(animationSpec = tween(200))
+            fadeIn(animationSpec = tween(PRICE_FIELDS_ANIMATION_MS)) togetherWith
+                fadeOut(animationSpec = tween(PRICE_FIELDS_ANIMATION_MS))
         },
         label = "price_fields",
     ) { type: OrderTypeSelection ->

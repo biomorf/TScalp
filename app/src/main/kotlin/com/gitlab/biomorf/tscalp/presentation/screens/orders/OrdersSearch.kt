@@ -223,6 +223,8 @@ internal fun InstrumentSearchField(
     }
 }
 
+@Suppress("MagicNumber") // 5 colors for InstrumentType — shared palette,
+// move to presentation/theme (task: InstrumentColors) — out of split scope.
 internal fun getInstrumentTypeColor(instrumentType: InstrumentType): Color =
     when (instrumentType) {
         InstrumentType.SHARE -> Color(0xFF1565C0)
