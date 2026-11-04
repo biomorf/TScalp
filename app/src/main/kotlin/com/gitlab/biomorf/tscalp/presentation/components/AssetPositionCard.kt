@@ -25,9 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.FuturePosition
@@ -414,7 +414,6 @@ private fun AssetCardContent(
         }
     }
 }
-
 
 @Preview(name = "Share — profit", showBackground = true, widthDp = 400)
 @Composable
