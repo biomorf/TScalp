@@ -261,7 +261,7 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ### ✅ M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable
 
-**Статус:** частично исправлено (2026-11-04, merge `5d4e867`, PR #92; пакет C).
+**Статус:** исправлено (2026-11-05, merge `34ffed5`, PR #94).
 
 **Серьёзность:** средне.
 
@@ -277,11 +277,9 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды (по 2c):** —.
 
-**Что сделано:** пакет C (PR #92) — `pairExecPrice`/`pairedOrderType` расчёт вынесен из Composable в pure `calculatePairExec(uiState)` (приватная функция в `OrdersScreen.kt`, но не в теле Composable). `OrdersConfirmDialogSection` вызывает `calculatePairExec` — логика вне UI-дерева. Полностью M008 не закрыт: расчёт всё ещё в presentation-слое.
+**Что сделано:** пакет C (PR #92) — `pairExecPrice`/`pairedOrderType` расчёт вынесен из Composable в pure `calculatePairExec(uiState)` (приватная функция в `OrdersScreen.kt`, но не в теле Composable). `OrdersConfirmDialogSection` вызывает `calculatePairExec` — логика вне UI-дерева. Полностью M008 не закрыт: расчёт всё ещё в presentation-слое. **Полностью закрыто (2026-11-05, merge `34ffed5`, PR #94):** `CalculatePairExecUseCase` в `domain/usecases` (`PairExecInput` / `PairExecResult` / `execute(input)`), `OrdersUiState` +`pairExecPrice` / `pairedOrderType`, `OrdersViewModel` +13 триггеров `updatePairExecDetails()`, `calculatePairExec` удалён из `OrdersPairTrading.kt`, `CalculatePairExecUseCaseTest` (5 тестов).
 
-**Что осталось:** перенос `calculatePairExec` в `OrdersViewModel` / UseCase, +2 поля в `OrdersUiState`. Задача — `### M008: перенос pairExec в OrdersViewModel` (ROADMAP).
-
-**Ссылка на задачу:** `### M008: перенос pairExec в OrdersViewModel` (ROADMAP, запланировано).
+**Ссылка на задачу:** `### ✅ M008: перенос pairExec в OrdersViewModel` (ROADMAP, PR #94).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
