@@ -554,6 +554,85 @@ clean-audit.
 
 ---
 
+### UI: InstrumentColors в presentation/theme
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н94, остаток) `getInstrumentTypeColor`
+(`presentation/screens/orders/OrdersSearch.kt:228`) и `when` в
+`presentation/components/AssetPositionCard.kt:387–391` —
+**один и тот же** маппинг 5 цветов `InstrumentType`
+(`SHARE 0xFF1565C0`, `BOND 0xFFE65100`, `ETF 0xFF2E7D32`,
+`CURRENCY 0xFF6A1B9A`, `else 0xFF757575`), дубликат. Палитра
+должна жить в `presentation/theme/` — общая для всего UI.
+`getInstrumentTypeColor` при этом несёт `@Suppress("MagicNumber")`
+с KDoc-ссылкой на эту задачу — после переезда `@Suppress`
+снимается. Также `@file:Suppress("TooManyFunctions")` с
+`OrdersScreen.kt` уже снят (split #93), `getInstrumentTypeColor`
+живёт в `OrdersSearch.kt`, но по смыслу — это `theme`-код, не
+`orders`-код.
+
+**Соответствие Clean:** соответствует (организация presentation
+без изменения поведения).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### ✅ OrdersScreen.kt: split helper-composable files`
+(закрыта, `022fe15`) — `getInstrumentTypeColor` уже в
+`OrdersSearch.kt`.
+
+**Файлы:**
+- `presentation/theme/InstrumentColors.kt` (новый) — 5 `val`:
+  `InstrumentShare`, `InstrumentBond`, `InstrumentEtf`,
+  `InstrumentCurrency`, `InstrumentOther`; функция
+  `fun getInstrumentTypeColor(instrumentType: InstrumentType): Color`
+  — `when` по 5 типам.
+- `presentation/screens/orders/OrdersSearch.kt` —
+  `getInstrumentTypeColor` удаляется (переехал в theme);
+  импорт `getInstrumentTypeColor` из `theme`;
+  `@Suppress("MagicNumber")` + KDoc-ссылка снимаются.
+- `presentation/components/AssetPositionCard.kt` — `when`
+  (стр. 387–391) заменяется на `getInstrumentTypeColor(instrumentType)`;
+  импорт из `theme`; свой `when` (5 цветов) удаляется.
+
+**Шаги:**
+1. `presentation/theme/InstrumentColors.kt` — 5 `val` + `getInstrumentTypeColor`, `when` по 5 типам (`SHARE`/`BOND`/`ETF`/`CURRENCY`/`else`), цвета — hex 1:1 как в `OrdersSearch.kt`.
+2. `OrdersSearch.kt` — удалить `@Suppress("MagicNumber")` + KDoc-ссылку + локальную `getInstrumentTypeColor`; импорт `presentation.theme.getInstrumentTypeColor`; callsite (`val typeColor = ...`) не меняется.
+3. `AssetPositionCard.kt` — удалить локальный `when` (стр. 387–391), заменить на `getInstrumentTypeColor(instrument.instrumentType)`; импорт из `theme`.
+4. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** не меняются (чистая замена констант, поведение 1:1). Визуальная проверка: карточки с типами `SHARE` / `BOND` / `ETF` / `CURRENCY` (и `else`) — те же цвета.
+
+**Референсы:** `docs/clean-audit.md` → Н94. `### ✅ OrdersScreen.kt: split helper-composable files` (закрыта, PR #93). `presentation/theme/Color.kt` — образец оформления `val`-палитры.
+
+**Ограничения:**
+- Не менять hex (`0xFF1565C0` и т.д.) — только перенос.
+- Не трогать цвета «действие» / «динамика цены» в `AssetPositionCard.kt` (`Color(0xFFC62828)` «удалить», `Color(0xFF2E7D32)` «вверх», `Color(0x2200C853)` / `Color(0x22FF1744)` полупрозрачные фоны) — отдельная семантика, отдельная задача. Здесь — **только 5 цветов `InstrumentType`**.
+- `getInstrumentTypeColor` — остаётся `fun` (не `val` + map): вызов один и тот же в двух местах, `when` exhaustive по `InstrumentType` (компилятор проверяет).
+
+**Критерий готовности:**
+- `presentation/theme/InstrumentColors.kt` создан, 5 `val` + `getInstrumentTypeColor`.
+- `grep "Color(0xFF1565C0)\|Color(0xFFE65100)\|Color(0xFF2E7D32)\|Color(0xFF6A1B9A)\|Color(0xFF757575)"` в `presentation/screens/orders/` и `presentation/components/AssetPositionCard.kt` — пусто (все hex — только в `theme/InstrumentColors.kt`).
+- `grep "@Suppress(\"MagicNumber\")"` над `getInstrumentTypeColor` в `OrdersSearch.kt` — пусто.
+- `AssetPositionCard.kt` не содержит локального `when` по `InstrumentType` (только вызов функции).
+- UI-рендер 1:1 (те же цвета на карточках).
+- Гейт зелёный.
+
+**Оценка:** ~30–40 мин (файл theme 10 мин, `OrdersSearch.kt` 10 мин, `AssetPositionCard.kt` 5 мин, гейт 10 мин).
+
+**Зависимости:** нет.
+
+**Связано:** `docs/clean-audit.md` → Н94 (остаток `@Suppress("MagicNumber")`); `### ✅ OrdersScreen.kt: split helper-composable files` (закрыта, PR #93); `### M008: перенос pairExec в OrdersViewModel` (следующая, не пересекается); `### UI: ActionColors в presentation/theme` (**не заведена** — потенциально: 5+ цветов «действие» / «динамика цены» в `AssetPositionCard.kt`, отдельная семантика, отдельная задача, если понадобится).
+
+**Открытые вопросы:** нет.
+
+
 ### Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
