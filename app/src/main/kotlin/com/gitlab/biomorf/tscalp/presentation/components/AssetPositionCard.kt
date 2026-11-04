@@ -52,7 +52,7 @@ import kotlin.math.roundToInt
  * инструмента в карточке позиции».
  */
 @Composable
-private fun SwipeActionButtons(
+private fun BoxScope.SwipeActionButtons(
     buttonWidth: Dp,
     onDelete: (() -> Unit)?,
     onSettings: (() -> Unit)?,
