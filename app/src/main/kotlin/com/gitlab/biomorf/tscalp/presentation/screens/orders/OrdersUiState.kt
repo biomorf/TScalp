@@ -66,6 +66,10 @@ data class OrdersUiState(
     val pairSearchBroker: BrokerName = BrokerName.TINVEST, // брокер для парного поиска
     val currentPointValue: Double? = null,
     val pairedPointValue: Double? = null,
+    // M008: pairExecPrice / pairedOrderType — вычисляются в VM
+    // (updatePairExecDetails), не в Composable.
+    val pairExecPrice: Double = 0.0,
+    val pairedOrderType: OrderTypeSelection? = null,
     // Стоп‑заявки
     val orderType: OrderTypeSelection = OrderTypeSelection.Market, // было BrokerOrderType.MARKET
     val stopPrice: String = "",
