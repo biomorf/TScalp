@@ -12,9 +12,93 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 
-// Архитектурный долг: функция требует декомпозиции.
-// См. ROADMAP → «Рефакторинг Compose-компонентов».
-@Suppress("LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BrokerSelector(
+    availableBrokers: List<BrokerName>,
+    selectedBroker: BrokerName,
+    onBrokerSelected: (BrokerName) -> Unit,
+) {
+    Text("Брокер", style = MaterialTheme.typography.titleSmall)
+    var brokerExpanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = brokerExpanded,
+        onExpandedChange = { brokerExpanded = it },
+    ) {
+        TextField(
+            value = selectedBroker.displayName,
+            onValueChange = {},
+            readOnly = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = brokerExpanded) },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(
+                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                        enabled = true,
+                    ),
+        )
+        ExposedDropdownMenu(
+            expanded = brokerExpanded,
+            onDismissRequest = { brokerExpanded = false },
+        ) {
+            availableBrokers.forEach { broker ->
+                DropdownMenuItem(
+                    text = { Text(broker.displayName) },
+                    onClick = {
+                        onBrokerSelected(broker)
+                        brokerExpanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountSelector(
+    accounts: List<BrokerAccount>,
+    selectedAccountName: String,
+    onAccountSelected: (String) -> Unit,
+) {
+    Spacer(modifier = Modifier.height(16.dp))
+    Text("Счёт", style = MaterialTheme.typography.titleSmall)
+    var accountExpanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = accountExpanded,
+        onExpandedChange = { accountExpanded = it },
+    ) {
+        TextField(
+            value = selectedAccountName,
+            onValueChange = {},
+            readOnly = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(
+                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                        enabled = true,
+                    ),
+        )
+        ExposedDropdownMenu(
+            expanded = accountExpanded,
+            onDismissRequest = { accountExpanded = false },
+        ) {
+            accounts.forEach { account ->
+                DropdownMenuItem(
+                    text = { Text(account.name.ifBlank { "Счёт ${account.id.take(8)}…" }) },
+                    onClick = {
+                        onAccountSelected(account.id)
+                        accountExpanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerAccountDialog(
@@ -51,79 +135,17 @@ fun BrokerAccountDialog(
         title = { Text("Настройки торговли") },
         text = {
             Column {
-                // Выбор брокера
-                Text("Брокер", style = MaterialTheme.typography.titleSmall)
-                var brokerExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = brokerExpanded,
-                    onExpandedChange = { brokerExpanded = it },
-                ) {
-                    TextField(
-                        value = selectedBroker.displayName,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = brokerExpanded) },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(
-                                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                    enabled = true,
-                                ),
-                    )
-                    ExposedDropdownMenu(
-                        expanded = brokerExpanded,
-                        onDismissRequest = { brokerExpanded = false },
-                    ) {
-                        availableBrokers.forEach { broker ->
-                            DropdownMenuItem(
-                                text = { Text(broker.displayName) },
-                                onClick = {
-                                    onBrokerSelected(broker)
-                                    brokerExpanded = false
-                                },
-                            )
-                        }
-                    }
-                }
-
-                // Выбор счёта – показываем только если showAccountSelector = true
+                BrokerSelector(
+                    availableBrokers = availableBrokers,
+                    selectedBroker = selectedBroker,
+                    onBrokerSelected = onBrokerSelected,
+                )
                 if (showAccountSelector) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Счёт", style = MaterialTheme.typography.titleSmall)
-                    var accountExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = accountExpanded,
-                        onExpandedChange = { accountExpanded = it },
-                    ) {
-                        TextField(
-                            value = selectedAccountName,
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(
-                                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                        enabled = true,
-                                    ),
-                        )
-                        ExposedDropdownMenu(
-                            expanded = accountExpanded,
-                            onDismissRequest = { accountExpanded = false },
-                        ) {
-                            accounts.forEach { account ->
-                                DropdownMenuItem(
-                                    text = { Text(account.name.ifBlank { "Счёт ${account.id.take(8)}…" }) },
-                                    onClick = {
-                                        onAccountSelected(account.id)
-                                        accountExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
+                    AccountSelector(
+                        accounts = accounts,
+                        selectedAccountName = selectedAccountName,
+                        onAccountSelected = onAccountSelected,
+                    )
                 }
             }
         },

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.FuturePosition
@@ -49,11 +50,69 @@ import kotlin.math.roundToInt
  * визуальный индикатор статуса доступности инструмента ещё
  * не реализован. См. ROADMAP → «Индикатор доступности
  * инструмента в карточке позиции».
- *
- * Архитектурный долг: функция требует декомпозиции.
- * См. ROADMAP → «Рефакторинг Compose-компонентов».
  */
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Composable
+private fun SwipeActionButtons(
+    buttonWidth: Dp,
+    onDelete: (() -> Unit)?,
+    onSettings: (() -> Unit)?,
+) {
+    Row(
+        modifier =
+            Modifier
+                .matchParentSize()
+                .wrapContentSize(Alignment.CenterEnd)
+                .width(buttonWidth * 2),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        if (onDelete != null) {
+            IconButton(
+                onClick = onDelete,
+                modifier =
+                    Modifier
+                        .size(buttonWidth)
+                        .background(Color(0xFFC62828), shape = CircleShape),
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
+            }
+        }
+        if (onSettings != null) {
+            IconButton(
+                onClick = onSettings,
+                modifier =
+                    Modifier
+                        .size(buttonWidth)
+                        .background(Color(0xFF757575), shape = CircleShape),
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DraggableCardContent(
+    offsetX: () -> Float,
+    onOffsetChange: (Float) -> Unit,
+    thresholdPx: Float,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .offset { IntOffset(offsetX().roundToInt(), 0) }
+                .draggable(
+                    state =
+                        rememberDraggableState { delta ->
+                            onOffsetChange((offsetX() + delta).coerceIn(-thresholdPx, 0f))
+                        },
+                    orientation = Orientation.Horizontal,
+                ),
+    ) {
+        content()
+    }
+}
+
 @Composable
 fun AssetPositionCard(
     position: Position,
@@ -140,84 +199,33 @@ fun AssetPositionCard(
     }
 
     Box(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
-        // Кнопки подложки
-        Row(
-            modifier =
-                Modifier
-                    .matchParentSize()
-                    .wrapContentSize(Alignment.CenterEnd)
-                    .width(buttonWidth * 2),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            if (onDelete != null) {
-                IconButton(
-                    onClick = onDelete,
-                    modifier =
-                        Modifier
-                            .size(buttonWidth)
-                            .background(Color(0xFFC62828), shape = CircleShape),
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
-                }
-            }
-            if (onSettings != null) {
-                IconButton(
-                    onClick = onSettings,
-                    modifier =
-                        Modifier
-                            .size(buttonWidth)
-                            .background(Color(0xFF757575), shape = CircleShape),
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = Color.White)
-                }
-            }
-        }
-
-        // Перетаскиваемая карточка (внутри неё анимации и popup)
-        Box(
-            modifier =
-                Modifier
-                    .offset { IntOffset(offsetX.roundToInt(), 0) }
-                    .draggable(
-                        state =
-                            rememberDraggableState { delta ->
-                                offsetX =
-                                    (offsetX + delta).coerceIn(
-                                        -with(density) { threshold.toPx() },
-                                        0f,
-                                    )
-                            },
-                        orientation = Orientation.Horizontal,
-                    ),
-        ) {
-            cardContent()
-        }
+        SwipeActionButtons(
+            buttonWidth = buttonWidth,
+            onDelete = onDelete,
+            onSettings = onSettings,
+        )
+        DraggableCardContent(
+            offsetX = { offsetX },
+            onOffsetChange = { offsetX = it },
+            thresholdPx = with(density) { threshold.toPx() },
+            content = { cardContent() },
+        )
     }
 }
 
-// Архитектурный долг: функция требует декомпозиции.
-// См. ROADMAP → «Рефакторинг Compose-компонентов».
-@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
-private fun AssetCardContent(
+private fun AssetCardHeader(
     position: Position,
     displayCurrentPrice: Double?,
     priceChangePercent: Double?,
-    onClick: (() -> Unit)?,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    tradingAvailability: TradingAvailability? = null,
 ) {
     val effectivePrice = displayCurrentPrice ?: position.currentPrice
     val instrument = position.instrument
     val instrumentType = instrument.instrumentType
     val pointValue = instrument.moneyPerPointOfPrice
     val currency = instrument.currency
-    // --- Анимация цвета цены ---
     val targetPriceColor = PositionFormatter.priceChangeColor(priceChangePercent)
     val priceColor by animateColorAsState(targetPriceColor, animationSpec = tween(600))
-
-    // --- Анимация масштаба при изменении цены ---
     var priceChanged by remember { mutableStateOf(false) }
     LaunchedEffect(effectivePrice) {
         priceChanged = true
@@ -228,23 +236,156 @@ private fun AssetCardContent(
         targetValue = if (priceChanged) 1.05f else 1f,
         animationSpec = spring(),
     )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(instrument.ticker, fontWeight = FontWeight.Bold)
+            Text(
+                instrument.name,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val displayId =
+                if (instrument.tscalpInstrumentId.isBlank()) "000000" else instrument.tscalpInstrumentId
+            Text(
+                text = displayId,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val (priceStr, rubStr) =
+            PositionFormatter.formatCurrentPrice(
+                price = effectivePrice,
+                instrumentType = instrumentType,
+                pointValue = pointValue,
+                currency = currency,
+            )
+        if (priceStr != null) {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    priceStr,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = priceColor,
+                    modifier = Modifier.scale(textScale),
+                )
+                if (rubStr != null) {
+                    Text(
+                        rubStr,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            Text("—", fontWeight = FontWeight.Bold)
+        }
+    }
+}
 
+@Composable
+private fun AssetCardLowerSection(position: Position) {
+    val instrument = position.instrument
+    val instrumentType = instrument.instrumentType
+    val pointValue = instrument.moneyPerPointOfPrice
+    val currency = instrument.currency
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 4.dp),
+        color = MaterialTheme.colorScheme.outline,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column {
+            val (totalStr, detailStr) =
+                PositionFormatter.formatAverage(
+                    quantity = position.quantity,
+                    averagePrice = position.averagePrice,
+                    currency = currency,
+                    instrumentType = instrumentType,
+                )
+            Text(
+                text = totalStr ?: "-",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = detailStr ?: "${PositionFormatter.formatQuantity(position.quantity)} лот  ·  -",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            val locked = position.lockedQuantity
+            if (locked != null && locked > 0.0) {
+                Text(
+                    text = "В блоке: ${locked.toInt()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            val (profitStr, profitColor, percentStr) =
+                PositionFormatter.formatProfit(
+                    profit = position.profit,
+                    profitPercent = position.profitPercent,
+                    instrumentType = instrumentType,
+                    pointValue = pointValue,
+                )
+            if (profitStr != null) {
+                Text(
+                    text = profitStr,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = profitColor,
+                    fontWeight = FontWeight.Medium,
+                )
+            } else {
+                Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val pct = position.profitPercent
+            if (percentStr != null) {
+                Text(
+                    text = percentStr,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (pct != null && pct >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
+                )
+            } else {
+                Text("—", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssetCardContent(
+    position: Position,
+    displayCurrentPrice: Double?,
+    priceChangePercent: Double?,
+    onClick: (() -> Unit)?,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    tradingAvailability: TradingAvailability? = null,
+) {
+    val instrument = position.instrument
     val typeColor =
-        when (instrumentType) {
+        when (instrument.instrumentType) {
             InstrumentType.SHARE -> Color(0xFF1565C0)
             InstrumentType.BOND -> Color(0xFFE65100)
             InstrumentType.ETF -> Color(0xFF2E7D32)
             InstrumentType.CURRENCY -> Color(0xFF6A1B9A)
             else -> Color(0xFF757575)
         }
-
     val backgroundColor =
         if (isSelected) {
             MaterialTheme.colorScheme.secondaryContainer
         } else {
             MaterialTheme.colorScheme.surfaceVariant
         }
-
     Card(
         modifier =
             modifier
@@ -260,135 +401,20 @@ private fun AssetCardContent(
                         .fillMaxHeight()
                         .background(typeColor),
             )
-
             Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(instrument.ticker, fontWeight = FontWeight.Bold)
-                        Text(
-                            instrument.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        // Упрощённое нейтральное отображение идентификатора
-                        val displayId =
-                            if (instrument.tscalpInstrumentId.isBlank()) "000000" else instrument.tscalpInstrumentId
-                        Text(
-                            text = displayId,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    val (priceStr, rubStr) =
-                        PositionFormatter.formatCurrentPrice(
-                            price = effectivePrice,
-                            instrumentType = instrumentType,
-                            pointValue = pointValue,
-                            currency = currency,
-                        )
-                    if (priceStr != null) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                priceStr,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = priceColor,
-                                modifier = Modifier.scale(textScale),
-                            )
-                            if (rubStr != null) {
-                                Text(
-                                    rubStr,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    } else {
-                        Text("—", fontWeight = FontWeight.Bold)
-                    }
-                }
-
+                AssetCardHeader(
+                    position = position,
+                    displayCurrentPrice = displayCurrentPrice,
+                    priceChangePercent = priceChangePercent,
+                )
                 if (position.quantity != 0.0 || priceChangePercent != null) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        // Левая часть: средняя стоимость + детали
-                        Column {
-                            val (totalStr, detailStr) =
-                                PositionFormatter.formatAverage(
-                                    quantity = position.quantity,
-                                    averagePrice = position.averagePrice,
-                                    currency = currency,
-                                    instrumentType = instrumentType,
-                                )
-                            Text(
-                                text = totalStr ?: "-",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = detailStr ?: "${PositionFormatter.formatQuantity(position.quantity)} лот  ·  -",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            val locked = position.lockedQuantity
-                            if (locked != null && locked > 0.0) {
-                                Text(
-                                    text = "В блоке: ${locked.toInt()}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-
-                        // Правая часть: прибыль / убыток
-                        Column(horizontalAlignment = Alignment.End) {
-                            val (profitStr, profitColor, percentStr) =
-                                PositionFormatter.formatProfit(
-                                    profit = position.profit,
-                                    profitPercent = position.profitPercent,
-                                    instrumentType = instrumentType,
-                                    pointValue = pointValue,
-                                )
-                            if (profitStr != null) {
-                                Text(
-                                    text = profitStr,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = profitColor,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            } else {
-                                Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            val pct = position.profitPercent
-                            if (percentStr != null) {
-                                Text(
-                                    text = percentStr,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (pct != null && pct >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
-                                )
-                            } else {
-                                Text("—", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
+                    AssetCardLowerSection(position = position)
                 }
             }
         }
     }
 }
+
 
 @Preview(name = "Share — profit", showBackground = true, widthDp = 400)
 @Composable

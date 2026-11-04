@@ -31,9 +31,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 
-// Архитектурный долг: функция требует декомпозиции.
-// См. ROADMAP → «Рефакторинг Compose-экранов».
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
@@ -128,34 +126,15 @@ fun PortfolioScreen(
                 } else {
                     for (key in allKeys) {
                         val account = uiState.sheet.accounts[key] ?: continue
-                        AccountHeaderCard(
+                        PortfolioAccountBlock(
                             accountKey = key,
                             accountPortfolio = account,
+                            prices = uiState.prices,
+                            priceChangePercents = uiState.priceChangePercents,
+                            tradingStatuses = uiState.tradingStatuses,
                             sandboxMode = uiState.sandboxMode,
                             onPayIn = { viewModel.payInSandbox(key.accountId) },
                         )
-                        val positions = account.positions
-                        if (positions.isEmpty()) {
-                            Text(
-                                "Нет позиций",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                            )
-                        } else {
-                            positions.forEach { position ->
-                                val id = position.instrument.tscalpInstrumentId
-                                AssetPositionCard(
-                                    position = position,
-                                    displayCurrentPrice = uiState.prices[id],
-                                    priceChangePercent = uiState.priceChangePercents[id],
-                                    tradingAvailability =
-                                        uiState.tradingStatuses[id]
-                                            ?: TradingAvailability.UNKNOWN,
-                                )
-                            }
-                        }
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -194,6 +173,46 @@ fun PortfolioScreen(
             }
         }
     }
+}
+
+@Composable
+private fun PortfolioAccountBlock(
+    accountKey: AccountKey,
+    accountPortfolio: AccountPortfolio,
+    prices: Map<String, Double>,
+    priceChangePercents: Map<String, Double>,
+    tradingStatuses: Map<String, TradingAvailability>,
+    sandboxMode: Boolean,
+    onPayIn: () -> Unit,
+) {
+    AccountHeaderCard(
+        accountKey = accountKey,
+        accountPortfolio = accountPortfolio,
+        sandboxMode = sandboxMode,
+        onPayIn = onPayIn,
+    )
+    val positions = accountPortfolio.positions
+    if (positions.isEmpty()) {
+        Text(
+            "Нет позиций",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 8.dp),
+        )
+    } else {
+        positions.forEach { position ->
+            val id = position.instrument.tscalpInstrumentId
+            AssetPositionCard(
+                position = position,
+                displayCurrentPrice = prices[id],
+                priceChangePercent = priceChangePercents[id],
+                tradingAvailability =
+                    tradingStatuses[id]
+                        ?: TradingAvailability.UNKNOWN,
+            )
+        }
+    }
+    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 }
 
 @Composable
