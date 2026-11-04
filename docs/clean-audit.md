@@ -289,13 +289,13 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ### ✅ Н94. God-функции Compose под `@Suppress` (частично)
 
-**Статус:** частично исправлено (2026-11-04, merge `5d4e867`, PR #92; пакеты A+B+C).
+**Статус:** частично исправлено (2026-11-04, merge `5d4e867`, PR #92; split `5bb9184`, PR #93; пакеты A+B+C).
 
 **Серьёзность:** средне.
 
 **Live тест:** -.
 
-**Описание:** 10 Composable-функций несли `@Suppress("LongMethod")` / `@Suppress("LongMethod", "CyclomaticComplexMethod")` как **постоянный** маркер долга. После A+B+C: `BrokerAccountDialog` — `@Suppress` снят (extract `BrokerSelector` + `AccountSelector`); `OrdersScreen` — `CyclomaticComplexMethod` снят (complexity 7 < 14), `LongMethod` остаётся (221 > 60); `OrdersScreen.kt` — добавлен `@file:Suppress("TooManyFunctions")` (18 функций, было 3); `OrdersPriceFields` (63) и `OrdersQuantityRow` (62) — новые `@Suppress("LongMethod")` после extract. Осталось 10 `@Suppress` + `@file:Suppress`: `SettingsScreen` ×4, `OrdersScreen` ×1 (`LongMethod`), `OrdersPriceFields` ×1 (`LongMethod`), `OrdersQuantityRow` ×1 (`LongMethod`), `OrdersPairSection` ×1 (`LongMethod` + `Cyclomatic`), `InstrumentSearchField` ×1 (`LongMethod` + `Cyclomatic`), `PortfolioScreen` ×1 (`LongMethod` + `Cyclomatic`), `AssetPositionCard` ×3 (`AssetPositionCard` + `AssetCardHeader` + `AssetCardLowerSection`), `@file:Suppress("TooManyFunctions")` — 1.
+**Описание:** 10 Composable-функций несли `@Suppress("LongMethod")` / `@Suppress("LongMethod", "CyclomaticComplexMethod")` как **постоянный** маркер долга. После A+B+C: `BrokerAccountDialog` — `@Suppress` снят (extract `BrokerSelector` + `AccountSelector`); `OrdersScreen` — `CyclomaticComplexMethod` снят (complexity 7 < 14), `LongMethod` остаётся (221 > 60); `OrdersScreen.kt` — `@file:Suppress("TooManyFunctions")` добавлен в PR #92 (18 функций, было 3), снят в PR #93 (split на 5 файлов, `OrdersScreen.kt` — 3 функции); `OrdersPriceFields` (63) и `OrdersQuantityRow` (62) — новые `@Suppress("LongMethod")` после extract. Осталось 10 `@Suppress` + `@file:Suppress`: `SettingsScreen` ×4, `OrdersScreen` ×1 (`LongMethod`), `OrdersPriceFields` ×1 (`LongMethod`), `OrdersQuantityRow` ×1 (`LongMethod`), `OrdersPairSection` ×1 (`LongMethod` + `Cyclomatic`), `InstrumentSearchField` ×1 (`LongMethod` + `Cyclomatic`), `PortfolioScreen` ×1 (`LongMethod` + `Cyclomatic`), `AssetPositionCard` ×3 (`AssetPositionCard` + `AssetCardHeader` + `AssetCardLowerSection`), `@file:Suppress("TooManyFunctions")` — 1.
 
 **Нарушенное правило:** SRP — Composable-функции делают слишком много. Формально — `LongMethod`/`CyclomaticComplexMethod`.
 
@@ -303,9 +303,9 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **MVVM-альтернатива:** UI-композиция (Extract composables + один UiState) — часть того же рефакторинга.
 
-**Выгоды (по 2c):** функции работают; `@Suppress` — осознанный маркер, не «молчаливый костыль» (KDoc-пометка «Н94» на каждой). Extract A+B+C дал выгоду (читаемость, дублирование 40 строк убрано; `OrdersScreen` 662→221), но `@Suppress` остаются — дальнейшая декомпозиция до < 60 — задача `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (сделано, 662→221) + `#### Compose-экраны` / `#### Compose-компоненты` (остаток).
+**Выгоды (по 2c):** функции работают; `@Suppress` — осознанный маркер, не «молчаливый костыль» (KDoc-пометка «Н94» на каждой). Extract A+B+C дал выгоду (читаемость, дублирование 40 строк убрано; `OrdersScreen` 662→221); split (PR #93) — `OrdersScreen.kt` 1043→289 строк, 3 функции, `@file:Suppress("TooManyFunctions")` снят. Но `@Suppress` остаются — дальнейшая декомпозиция до < 60 — задача `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (сделано, 662→221) + `#### Compose-экраны` / `#### Compose-компоненты` (остаток).
 
-**Что сделано:** пакет A — `SearchResultItem` (убрано 40 строк дублирования); пакет B — `AssetCardHeader` + `AssetCardLowerSection`, `SwipeActionButtons` (`BoxScope`) + `DraggableCardContent`, `PortfolioAccountBlock`, `BrokerSelector` + `AccountSelector`. `BrokerAccountDialog` — `@Suppress` снят. `@Suppress` возвращён на `AssetPositionCard` / `AssetCardHeader` / `AssetCardLowerSection` (`LongMethod` 68–72 > 60) и `PortfolioScreen` (`LongMethod` + `CyclomaticComplexMethod` 16 > 14) с KDoc-пометкой. Merge `aa06690`, PR #91. Пакет C — `OrdersScreen`: 662 → 221 строк, 10 подкомпонентов, `CyclomaticComplexMethod` снят (7 < 14), `LongMethod` остаётся (KDoc); `@file:Suppress("TooManyFunctions")` (18 функций, было 3); `calculatePairExec` — pure-функция (M008 частично); `OrdersPriceFields` (63) и `OrdersQuantityRow` (62) — новые `@Suppress("LongMethod")`. Merge `5d4e867`, PR #92.
+**Что сделано:** пакет A — `SearchResultItem` (убрано 40 строк дублирования); пакет B — `AssetCardHeader` + `AssetCardLowerSection`, `SwipeActionButtons` (`BoxScope`) + `DraggableCardContent`, `PortfolioAccountBlock`, `BrokerSelector` + `AccountSelector`. `BrokerAccountDialog` — `@Suppress` снят. `@Suppress` возвращён на `AssetPositionCard` / `AssetCardHeader` / `AssetCardLowerSection` (`LongMethod` 68–72 > 60) и `PortfolioScreen` (`LongMethod` + `CyclomaticComplexMethod` 16 > 14) с KDoc-пометкой. Merge `aa06690`, PR #91. Пакет C — `OrdersScreen`: 662 → 221 строк, 10 подкомпонентов, `CyclomaticComplexMethod` снят (7 < 14), `LongMethod` остаётся (KDoc); `@file:Suppress("TooManyFunctions")` (18 функций, было 3); `calculatePairExec` — pure-функция (M008 частично); `OrdersPriceFields` (63) и `OrdersQuantityRow` (62) — новые `@Suppress("LongMethod")`. Merge `5d4e867`, PR #92. Split (PR #93) — `OrdersScreen.kt` разнесён на 5 файлов (`OrdersBrokerDialogs`, `OrdersConfirmDialog`, `OrdersBottomButtons`, `OrdersPairTrading`, `OrdersSearch`), cross-file функции `internal`; `@file:Suppress("TooManyFunctions")` снят; `@Suppress("MagicNumber")` на `getInstrumentTypeColor` (5 цветов — вынос в `presentation/theme` отдельной задачей); `PRICE_FIELDS_ANIMATION_MS = 200` const. Merge `5bb9184`, PR #93.
 
 **Что осталось (вне A+B+C):**
 - `InstrumentSearchField` (113 строк, `LongMethod` + `CyclomaticComplexMethod`) — пакет A, `@Suppress` остаётся.
@@ -314,11 +314,10 @@ L4–L8 — не проверены, заполняются по мере инс
 - `OrdersScreen` (221, `LongMethod`) — пакет C, `@Suppress` остаётся (KDoc).
 - `OrdersPriceFields` (63) / `OrdersQuantityRow` (62) — пакет C, `LongMethod` остаётся.
 - `OrdersPairSection` (~130, `LongMethod` + `CyclomaticComplexMethod`) — пакет C, `@Suppress` остаётся.
-- `OrdersScreen.kt`: `@file:Suppress("TooManyFunctions")` (18 функций, было 3) — разнесение helper-composable по файлам — отдельная задача.
 - `SettingsScreen` ×4 (`SettingsScreen` 65, `TInvestSettingsPanel` 356, `BcsSettingsPanel` 201, `FinamSettingsPanel` 164) — не трогали.
 - BCS/Finam/TInvest панели — заглушки, переписываются в `### Реализация BCS/Finam Broker API`.
 
-**Ссылка на задачу:** `### ✅ UI: SearchResultItem extract (пакет A, частично)`; `### ✅ UI: extract composables — пакет B (частично)`; `### ✅ UI: OrdersScreen decompose (пакет C, частично)`; `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты` (остаток); `### OrdersScreen.kt: split helper-composable files` (запланировано — `@file:Suppress("TooManyFunctions")`).
+**Ссылка на задачу:** `### ✅ UI: SearchResultItem extract (пакет A, частично)`; `### ✅ UI: extract composables — пакет B (частично)`; `### ✅ UI: OrdersScreen decompose (пакет C, частично)`; `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты` (остаток); `### ✅ OrdersScreen.kt: split helper-composable files` (PR #93).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
