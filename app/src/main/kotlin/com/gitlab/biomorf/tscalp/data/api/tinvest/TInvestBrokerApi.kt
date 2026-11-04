@@ -49,7 +49,7 @@ import ru.ttech.piapi.core.InvestApi
  * отражает формат брокера»: T-Invest — `uids`, domain — `tscalpInstrumentIds`.
  * Все callsites позиционные — named-argument risk отсутствует.
  */
-@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")
+@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
     private val httpClient: HttpClient,
