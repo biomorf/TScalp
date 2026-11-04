@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.animateScrollTo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,6 +44,7 @@ import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
 import com.gitlab.biomorf.tscalp.presentation.components.ConfirmOrderDialog
 import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 // Архитектурный долг: функция требует декомпозиции.
