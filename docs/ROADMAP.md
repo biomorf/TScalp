@@ -554,59 +554,6 @@ clean-audit.
 
 ---
 
-### OrdersScreen.kt: split helper-composable files
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-**Ветка:** feature/orders-screen-split-helpers.
-
-**Контекст:** (clean-audit Н94) после пакета C (PR #92) `OrdersScreen.kt` содержит 18 функций (было 3): `OrdersScreen` + 10 helper-composable + `SearchResultItem` / `InstrumentSearchField` / `getInstrumentTypeColor` / `ApiNotInitializedCard` / `calculatePairExec`. `@file:Suppress("TooManyFunctions")` — маркер долга (18 > 11). Файл ~1050 строк. Разнесение по файлам — устранение `@file:Suppress` без изменения поведения.
-
-**Соответствие Clean:** соответствует (организация файлов, без изменения поведения).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` — закрыта (PR #92).
-
-**Файлы:**
-- `presentation/screens/orders/OrdersScreen.kt` — оставить: `OrdersScreen`, `OrdersScreenHeader`, `ApiNotInitializedCard`, `getInstrumentTypeColor`.
-- `presentation/screens/orders/OrdersBrokerDialogs.kt` (новый) — `TradingBrokerDialog`, `SearchBrokerDialog`, `PairSearchBrokerDialog`.
-- `presentation/screens/orders/OrdersPairTrading.kt` (новый) — `OrdersPairSection`, `OrdersPriceFields`, `OrdersTypeChips`, `OrdersQuantityRow`, `calculatePairExec`.
-- `presentation/screens/orders/OrdersSearch.kt` (новый) — `OrdersInstrumentSection`, `SearchResultItem`, `InstrumentSearchField`.
-- `presentation/screens/orders/OrdersConfirmDialog.kt` (новый) — `OrdersConfirmDialogSection`.
-- `presentation/screens/orders/OrdersBottomButtons.kt` (новый) — `OrdersBottomButtons`, `OrdersScreenShadows` (`BoxScope`).
-
-**Шаги:**
-1. Создать 5 новых файлов, `git mv` соответствующих функций.
-2. Обновить импорты в `OrdersScreen.kt` (использует всё из новых файлов).
-3. Удалить `@file:Suppress("TooManyFunctions")` из `OrdersScreen.kt` (в новых файлах ≤ 11 функций).
-4. Проверить `ktlint`-порядок импортов (лексикографически).
-5. Гейт (CI).
-
-**Тесты:** не меняются. CI `gate` + ручной запуск экрана (визуал 1:1).
-
-**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга` → `#### Compose-экраны`.
-
-**Ограничения:** не менять UI. Функции — `private` в новых файлах (доступ только из `OrdersScreen.kt` через same-package). `calculatePairExec` — `internal` или `private` в `OrdersPairTrading.kt` (если используется вне файла — `internal`).
-
-**Критерий готовности:** `@file:Suppress("TooManyFunctions")` снят; `OrdersScreen.kt` ≤ 11 функций; 5 новых файлов; импорты в порядке; гейт зелёный.
-
-**Оценка:** ~20–30 мин (создание 5 файлов + `git mv` + правка импортов + гейт).
-
-**Зависимости:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (PR #92).
-
-**Связано:** `docs/clean-audit.md` → Н94 (маркер `@file:Suppress`); `### M008: перенос pairExec в OrdersViewModel` (после split — `calculatePairExec` уезжает в `OrdersPairTrading.kt`).
-
-**Открытые вопросы:** `calculatePairExec` — `private` в `OrdersPairTrading.kt` или `internal` (используется `OrdersConfirmDialogSection` в `OrdersConfirmDialog.kt`)? **Дефолт:** `internal` (межфайловый доступ same-module).
-
-
----
-
 ### Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -9589,5 +9536,64 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `M008` — **частично**: расчёт `pairExecPrice`/`pairedOrderType` в pure-функции `calculatePairExec`, но не в VM. Полный перенос — отдельная задача.
 
 **Открытые вопросы:** нет. Решения — в истории merge `5d4e867`, PR #92.
+
+---
+
+### ✅ OrdersScreen.kt: split helper-composable files
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** (clean-audit Н94) после пакета C (PR #92) `OrdersScreen.kt` содержал 18 функций (было 3): `OrdersScreen` + 10 helper-composable + `SearchResultItem` / `InstrumentSearchField` / `getInstrumentTypeColor` / `ApiNotInitializedCard` / `calculatePairExec`. `@file:Suppress("TooManyFunctions")` — маркер долга (18 > 11). Файл ~1050 строк. Разнесение по файлам — устранение `@file:Suppress` без изменения поведения.
+
+**Соответствие Clean:** соответствует (организация файлов, без изменения поведения).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` — закрыта (PR #92).
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — оставлено 3 функции: `OrdersScreen`, `OrdersScreenHeader`, `ApiNotInitializedCard` (`getInstrumentTypeColor` переехал в `OrdersSearch.kt`).
+- `presentation/screens/orders/OrdersBrokerDialogs.kt` (новый) — `TradingBrokerDialog`, `SearchBrokerDialog`, `PairSearchBrokerDialog`.
+- `presentation/screens/orders/OrdersPairTrading.kt` (новый) — `OrdersPairSection`, `OrdersPriceFields`, `OrdersTypeChips`, `OrdersQuantityRow`, `calculatePairExec`.
+- `presentation/screens/orders/OrdersSearch.kt` (новый) — `OrdersInstrumentSection`, `SearchResultItem`, `InstrumentSearchField`, `getInstrumentTypeColor`.
+- `presentation/screens/orders/OrdersConfirmDialog.kt` (новый) — `OrdersConfirmDialogSection`.
+- `presentation/screens/orders/OrdersBottomButtons.kt` (новый) — `OrdersBottomButtons`, `OrdersScreenShadows` (`BoxScope`).
+
+**Шаги:**
+1. Создать 5 новых файлов, вырезать функции из `OrdersScreen.kt`.
+2. Обновить `private` -> `internal` для всех cross-file функций.
+3. Удалить `@file:Suppress("TooManyFunctions")` из `OrdersScreen.kt`.
+4. Fix unused imports (первый CI-цикл: 5 файлов + `OrdersScreen.kt`).
+5. Fix `Unnecessary safe call` (2 шт., pre-existing).
+6. Fix `MagicNumber` (2× `tween(200)` -> const; 5 colors -> `@Suppress`).
+7. Fix `const` position (after imports, not before).
+8. Гейт (CI, зелёный).
+
+**Тесты:** не меняются. CI `gate` + ручной запуск экрана (визуал 1:1).
+
+**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга` → `#### Compose-экраны`.
+
+**Ограничения:** не менять UI. `calculatePairExec` — `internal` (используется в `OrdersConfirmDialogSection`).
+
+**Критерий готовности:** `@file:Suppress("TooManyFunctions")` снят; `OrdersScreen.kt` = 3 функции; 5 новых файлов; импорты в порядке; гейт зелёный.
+
+**Оценка:** ~20–30 мин по плану; факт — 4 CI-цикла (unused imports ×2, MagicNumber, const position), ~1.5 ч.
+
+**Зависимости:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (PR #92).
+
+**Связано:** `docs/clean-audit.md` → Н94 (маркер `@file:Suppress`); `### UI: InstrumentColors в presentation/theme` (запланировано — 5 цветов `getInstrumentTypeColor` общие с `AssetPositionCard.kt`); `### M008: перенос pairExec в OrdersViewModel` (после split — `calculatePairExec` в `OrdersPairTrading.kt`).
+
+**Что сделано:** 5 новых файлов (`OrdersBrokerDialogs`, `OrdersConfirmDialog`, `OrdersBottomButtons`, `OrdersPairTrading`, `OrdersSearch`), все cross-file функции — `internal`. `OrdersScreen.kt`: 1043 -> 289 строк, 3 функции. `@file:Suppress("TooManyFunctions")` снят. Unused imports: 151 удалено в 5 файлах + 27 в `OrdersScreen.kt`. `Unnecessary safe call` — 2 фикса (`?.` -> `.`, non-null receiver). `MagicNumber`: `PRICE_FIELDS_ANIMATION_MS = 200` const (2× `tween(200)`), `@Suppress("MagicNumber")` на `getInstrumentTypeColor` (5 цветов). Merge `5bb9184`, PR #93.
+
+**Что не сделано (отклонения от плана):**
+- `getInstrumentTypeColor` остался в `OrdersSearch.kt` с `@Suppress("MagicNumber")` — вынос 5 цветов в `presentation/theme` — задача `### UI: InstrumentColors в presentation/theme` (планируется; трогает `AssetPositionCard.kt` — out of split scope).
+- `@Suppress("LongMethod")` на `OrdersScreen` (221 > 60) — остаётся с KDoc (Н94).
+- 4 CI-цикла на fix (unused imports, safe call, MagicNumber, const position) — плановая оценка «1 цикл» не учла, что `ktlint`-pравила применяются ко всем файлам сразу, а копипаст импортов — «с запасом».
+
+**Открытые вопросы:** нет. Решения — в истории merge `5bb9184`, PR #93.
 
 ---
