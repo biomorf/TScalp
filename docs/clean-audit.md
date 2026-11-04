@@ -101,7 +101,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | M005. SettingsViewModel — Dispatchers.IO в VM | средне | L1 | `SettingsViewModel.kt:246, 282, 317` | - |
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
 | M007. SettingsScreen — login-orchestration в UI | средне | L1 | `SettingsScreen.kt` (TInvest 238, Bcs 600, Finam 770) | ✓ |
-| M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable | средне | L1 | `OrdersScreen.kt` (~330–350) | - |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
 
 ### M001. OrdersViewModel форматирует overlay (формулы в VM)
@@ -236,28 +235,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `OrdersScreen.kt` (~330–350): `if (uiState.pairTradingEnabled && uiState.pairedInstrument != null) { ... PairOrderMapper.map(uiState.orderType, OrderDirection.valueOf(direction), primaryPrice) ... }`. Расчёт цены/типа контрсделки — business-логика в Composable.
-
-**Нарушенное правило:** M1 — Composable делает работу VM/UseCase (расчёт).
-
-**Clean-альтернатива:** `pairExecPrice`/`pairedOrderType` — в `OrdersUiState` (вычисляются в VM при `onOrderTypeChanged`/`onQuantityChanged`/`setPairTradingEnabled`). Composable читает готовые поля. Плюсы: UI — только рендер. Минусы: VM добавляет 2 поля.
-
-**MVVM-альтернатива:** то же — вычисления в VM. Плюсы: тестируемо без Compose.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
 ### M011. OrdersListDialog — `as?` и расчёт в UI
 
 **Статус:** открыто.
@@ -281,6 +258,34 @@ L4–L8 — не проверены, заполняются по мере инс
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
 ### Исправленные (L1)
+
+### ✅ M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable
+
+**Статус:** частично исправлено (2026-11-04, merge `5d4e867`, PR #92; пакет C).
+
+**Серьёзность:** средне.
+
+**Live тест:** -.
+
+**Описание:** `OrdersScreen.kt` — расчёт `pairExecPrice` / `pairedOrderType` для парной торговли был business-логикой в Composable (`PairOrderMapper.map(...)`). После пакета C расчёт вынесен в **pure-функцию** `calculatePairExec(uiState)` (вне Composable). Остаток — перенос в `OrdersViewModel` (в `OrdersUiState` готовые поля).
+
+**Нарушенное правило:** M1 — Composable делает работу VM/UseCase (расчёт).
+
+**Clean-альтернатива:** `pairExecPrice`/`pairedOrderType` — в `OrdersUiState` (вычисляются в VM при `onOrderTypeChanged`/`onQuantityChanged`/`setPairTradingEnabled`). Composable читает готовые поля. Плюсы: UI — только рендер. Минусы: VM добавляет 2 поля.
+
+**MVVM-альтернатива:** то же — вычисления в VM. Плюсы: тестируемо без Compose.
+
+**Выгоды (по 2c):** —.
+
+**Что сделано:** пакет C (PR #92) — `pairExecPrice`/`pairedOrderType` расчёт вынесен из Composable в pure `calculatePairExec(uiState)` (приватная функция в `OrdersScreen.kt`, но не в теле Composable). `OrdersConfirmDialogSection` вызывает `calculatePairExec` — логика вне UI-дерева. Полностью M008 не закрыт: расчёт всё ещё в presentation-слое.
+
+**Что осталось:** перенос `calculatePairExec` в `OrdersViewModel` / UseCase, +2 поля в `OrdersUiState`. Задача — `### M008: перенос pairExec в OrdersViewModel` (ROADMAP).
+
+**Ссылка на задачу:** `### M008: перенос pairExec в OrdersViewModel` (ROADMAP, запланировано).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
+
+
 
 ### ✅ Н94. God-функции Compose под `@Suppress` (частично)
 
