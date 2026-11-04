@@ -35,7 +35,9 @@ data class PairExecResult(
  * и её направлению; цена исполнения — `executionPrice` для лимитных,
  * иначе `pairCurrentPrice`.
  */
-class CalculatePairExecUseCase @Inject constructor() {
+class CalculatePairExecUseCase
+    @Inject
+    constructor() {
     fun execute(input: PairExecInput): PairExecResult {
         if (!input.pairTradingEnabled || !input.hasPairedInstrument) {
             return PairExecResult(pairExecPrice = 0.0, pairedOrderType = null)
