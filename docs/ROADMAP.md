@@ -313,7 +313,9 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/refactor-data-tinvest.
 
 **Контекст:** `TInvestBrokerApi` (262 строки) несёт `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")`. После nullable-val рефакторинга (`### BrokerApi: ревизия fat-части`, PR #61) все 41 методы стали `override`; `ignoreOverridden = true` (detekt default) их игнорирует. Non-override `fun` — 1 (`initialize`). `1 < 11` → `TooManyFunctions` формально мёртв. `PARAMETER_NAME_CHANGED_ON_OVERRIDE` — осознанно (KDoc), **оставить**.
 
@@ -359,7 +361,9 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/refactor-data-tinvest.
 
 **Контекст:** (clean-audit Н64) `TInvestPortfolioService.fetchPortfolioPositions` (59 строк, `@Suppress("CyclomaticComplexMethod")`) — декомпозиция не сделана при Пакете C (перенесена 1:1). KDoc ссылается на «ROADMAP → Рефакторинг data-слоя T-Invest» — задача не заведена до сейчас. Декомпозиция: извлечь `enrichWithInstrumentData` + `enrichWithMarginData`, оставить `fetchPortfolioPositions` = `getPortfolio` + map + enrich. Снять `@Suppress`.
 
