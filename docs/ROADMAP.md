@@ -350,54 +350,6 @@ clean-audit.
 
 ---
 
-### Н65: закрыть в clean-audit (mapProtoToDomain уже разбит)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** (clean-audit Н65) `TInvestInstrumentMapper.mapProtoToDomain` — `@Suppress("LongMethod")` (118 строк). **Фактически уже разбит**: `mapFuture` / `mapShare` / `mapProtoToDomain`-dispatcher (Phase 2, `### ✅ Instrument: Phase 2 (sealed interface)`, PR #83). `grep "LongMethod" TInvestInstrumentMapper.kt` — пусто. Clean-audit отстал. Задача — docs-only.
-
-**Соответствие Clean:** не применимо (docs-only).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `docs/clean-audit.md` — Н65 → `исправлено`, перенос в `### Исправленные (L6)`, `### ✅`, `**Что сделано:**` (PR #83); удалить строку таблицы L6.
-
-**Шаги:**
-1. `grep -nE "mapProtoToDomain|mapFuture|mapShare|LongMethod" app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestInstrumentMapper.kt` — подтвердить, что разбито.
-2. `docs/clean-audit.md`: Н65 → `### ✅ Н65`, `**Статус:** исправлено (PR #83)`, `**Что сделано:**`, перенос в `### Исправленные (L6)`.
-3. Удалить строку `| Н65. ...` из таблицы L6.
-4. `git diff --check`.
-5. Коммит `docs(clean-audit): Н65 исправлено (PR #83)` — прямой push в `dev` (docs-only, 5g кат. 2).
-
-**Тесты:** не требуются.
-
-**Референсы:** `docs/clean-audit.md` → Н65. `### ✅ Instrument: Phase 2 (sealed interface)` (PR #83).
-
-**Ограничения:** не трогать код (`TInvestInstrumentMapper` — не менять).
-
-**Критерий готовности:** Н65 в `### Исправленные (L6)` с `### ✅`; таблица L6 без Н65; `git diff --check` чистый.
-
-**Оценка:** ~5 мин.
-
-**Зависимости:** нет.
-
-**Связано:** `### ✅ Instrument: Phase 2 (sealed interface)`.
-
-**Открытые вопросы:** нет.
-
-
-
----
-
 ### CustomTrustManager: fail-fast + 5 CA (Н79+Н80)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). **Live-тест не требуется** (fail-fast виден в логах; unit-тест покрывает).
@@ -9677,3 +9629,51 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** `docs/clean-audit.md` → M008; `### Рефакторинг ViewModel-слоя`.
 
 **Открытые вопросы:** `calculatePairExec` — перенести в `domain/usecases` (`CalculatePairExecUseCase`) или оставить private в VM? **Решено (2026-11-05, PR #94):** UseCase. Аргументы: (а) тестируется без VM mock-инфраструктуры (в mobile/proot VM-тест невозможен); (б) консистентно с `PostOrderUseCase` (уже в `domain/usecases`); (в) Clean — бизнес-правило в domain, не в presentation. Исходный дефолт «private в VM» отменён — расчёт перестал быть «простым» после появления `pendingDirection` (M009) как входного поля.
+
+
+
+---
+
+### ✅ Н65: закрыть в clean-audit (mapProtoToDomain уже разбит)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** (clean-audit Н65) `TInvestInstrumentMapper.mapProtoToDomain` — `@Suppress("LongMethod")` (118 строк). **Фактически уже разбит**: `mapFuture` / `mapShare` / `mapProtoToDomain`-dispatcher (Phase 2, `### ✅ Instrument: Phase 2 (sealed interface)`, PR #83). `grep "LongMethod" TInvestInstrumentMapper.kt` — пусто. Clean-audit отстал. Задача — docs-only.
+
+**Соответствие Clean:** не применимо (docs-only).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `docs/clean-audit.md` — Н65 → `исправлено`, перенос в `### Исправленные (L6)`, `### ✅`, `**Что сделано:**` (PR #83); удалить строку таблицы L6.
+
+**Шаги:**
+1. `grep -nE "mapProtoToDomain|mapFuture|mapShare|LongMethod" app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestInstrumentMapper.kt` — подтвердить, что разбито.
+2. `docs/clean-audit.md`: Н65 → `### ✅ Н65`, `**Статус:** исправлено (PR #83)`, `**Что сделано:**`, перенос в `### Исправленные (L6)`.
+3. Удалить строку `| Н65. ...` из таблицы L6.
+4. `git diff --check`.
+5. Коммит `docs(clean-audit): Н65 исправлено (PR #83)` — прямой push в `dev` (docs-only, 5g кат. 2).
+
+**Тесты:** не требуются.
+
+**Референсы:** `docs/clean-audit.md` → Н65. `### ✅ Instrument: Phase 2 (sealed interface)` (PR #83).
+
+**Ограничения:** не трогать код (`TInvestInstrumentMapper` — не менять).
+
+**Критерий готовности:** Н65 в `### Исправленные (L6)` с `### ✅`; таблица L6 без Н65; `git diff --check` чистый.
+
+**Оценка:** ~5 мин.
+
+**Что сделано:** clean-audit Н65 → `исправлено` (merge `a48988a`): `mapProtoToDomain` разбит на dispatcher + 7 мапперов (`mapFuture` / `mapShare` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` / `mapOther`), `@Suppress("LongMethod")` снят (PR #83, `53810b9` + `fb6a67d`). Дубликат строки в таблице L6 убран.
+
+**Зависимости:** нет.
+
+**Связано:** `### ✅ Instrument: Phase 2 (sealed interface)`.
+
+**Открытые вопросы:** нет.
