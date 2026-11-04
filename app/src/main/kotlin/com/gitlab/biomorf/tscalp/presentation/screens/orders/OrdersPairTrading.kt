@@ -1,0 +1,385 @@
+package com.gitlab.biomorf.tscalp.presentation.screens.orders
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.gitlab.biomorf.tscalp.domain.models.*
+import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
+import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
+import com.gitlab.biomorf.tscalp.presentation.components.ConfirmOrderDialog
+import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
+import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
+// Архитектурный долг: функция требует декомпозиции.
+// См. ROADMAP → «Рефакторинг OrdersScreen».
+internal fun calculatePairExec(uiState: OrdersUiState): Pair<Double, OrderTypeSelection?> {
+    if (!uiState.pairTradingEnabled || uiState.pairedInstrument == null) {
+        return 0.0 to null
+    }
+    val primaryPrice =
+        when (uiState.orderType) {
+            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull()
+            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
+            else -> null
+        }
+    val direction = uiState.pendingDirection ?: OrderDirection.BUY
+    val pairedSpec = PairOrderMapper.map(uiState.orderType, direction, primaryPrice)
+    val pairExecPrice =
+        when (uiState.orderType) {
+            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.executionPrice
+            else -> uiState.pairCurrentPrice ?: 0.0
+        }
+    return pairExecPrice to pairedSpec.orderType
+}
+
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Composable
+internal fun OrdersPairSection(
+    uiState: OrdersUiState,
+    scrollState: ScrollState,
+    scope: CoroutineScope,
+    onPairSearchQueryChanged: (String) -> Unit,
+    onPairedInstrumentSelected: (Instrument) -> Unit,
+    onClearPairSearch: () -> Unit,
+    onRefreshPairSearch: () -> Unit,
+    onOpenPairSearchBrokerSettings: () -> Unit,
+    onPairTradingEnabledChanged: (Boolean) -> Unit,
+    onClearPairedInstrument: () -> Unit,
+    onOpenBrokerDialog: (String) -> Unit,
+    onPairedMultiplierChanged: (String) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 0.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
+        Switch(
+            checked = uiState.pairTradingEnabled,
+            onCheckedChange = onPairTradingEnabledChanged,
+        )
+    }
+    if (!uiState.pairTradingEnabled) return
+    if (uiState.pairedInstrument == null) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                InstrumentSearchField(
+                    query = uiState.pairSearchQuery,
+                    onQueryChanged = onPairSearchQueryChanged,
+                    isSearching = uiState.isPairSearching,
+                    searchResults = uiState.pairSearchResults,
+                    onInstrumentSelected = onPairedInstrumentSelected,
+                    onClear = onClearPairSearch,
+                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = uiState.tradingStatuses,
+                    modifier = Modifier.weight(1f),
+                )
+                if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
+                    IconButton(onClick = onRefreshPairSearch) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
+                    }
+                }
+                IconButton(onClick = onOpenPairSearchBrokerSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = "Настройки поиска")
+                }
+            }
+        }
+    } else {
+        uiState.pairedInstrument?.let { instrument: Instrument ->
+            val portfolioPos =
+                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
+            val pairPrice =
+                uiState.pairCurrentPrice
+                    ?: portfolioPos?.currentPrice
+                    ?: 0.0
+            val position =
+                portfolioPos
+                    ?: emptyPosition(
+                        instrument = instrument,
+                        currentPrice = pairPrice,
+                        accountId = uiState.selectedAccountId ?: "",
+                        brokerName = BrokerName.TINVEST,
+                    )
+            AssetPositionCard(
+                position = position,
+                displayCurrentPrice = pairPrice,
+                priceChangePercent = uiState.selectedPriceChangePercent,
+                onDelete = onClearPairedInstrument,
+                onSettings = { onOpenBrokerDialog(instrument.ticker) },
+                onClick = { },
+                isSelected = false,
+                resetSwipe = uiState.swipeResetTrigger,
+                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
+            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = uiState.pairedMultiplier,
+                    onValueChange = onPairedMultiplierChanged,
+                    label = { Text("Множитель") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    scope.launch {
+                                        scrollState.animateScrollTo(scrollState.maxValue)
+                                    }
+                                }
+                            },
+                )
+                val multiplierOverlay = uiState.multiplierOverlay
+                if (multiplierOverlay != null) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .matchParentSize()
+                                .padding(end = 12.dp, top = 8.dp),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        Text(
+                            text = multiplierOverlay,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier =
+                                Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                        RoundedCornerShape(4.dp),
+                                    ).padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Архитектурный долг: 63 строки > 60 (4 ветки AnimatedContent).
+// См. ROADMAP → «Compose-экраны» (Н94).
+@Suppress("LongMethod")
+@Composable
+internal fun OrdersPriceFields(
+    orderType: OrderTypeSelection,
+    limitPrice: String,
+    stopPrice: String,
+    onLimitPriceChanged: (String) -> Unit,
+    onStopPriceChanged: (String) -> Unit,
+) {
+    AnimatedContent(
+        targetState = orderType,
+        transitionSpec = {
+            fadeIn(animationSpec = tween(200)) togetherWith
+                fadeOut(animationSpec = tween(200))
+        },
+        label = "price_fields",
+    ) { type: OrderTypeSelection ->
+        when (type) {
+            OrderTypeSelection.Limit -> {
+                OutlinedTextField(
+                    value = limitPrice,
+                    onValueChange = onLimitPriceChanged,
+                    label = { Text("Цена за лот") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            OrderTypeSelection.StopLoss,
+            OrderTypeSelection.TakeProfit,
+            -> {
+                Column {
+                    OutlinedTextField(
+                        value = stopPrice,
+                        onValueChange = onStopPriceChanged,
+                        label = { Text("Триггер стоп-цена") },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            OrderTypeSelection.StopLimit -> {
+                Column {
+                    OutlinedTextField(
+                        value = stopPrice,
+                        onValueChange = onStopPriceChanged,
+                        label = { Text("Триггер стоп-цена") },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = limitPrice,
+                        onValueChange = onLimitPriceChanged,
+                        label = { Text("Лимитная цена") },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            else -> { /* Market – ничего не показываем */ }
+        }
+    }
+}
+
+@Composable
+internal fun OrdersTypeChips(
+    orderType: OrderTypeSelection,
+    onOrderTypeChanged: (OrderTypeSelection) -> Unit,
+) {
+    Column(
+        modifier = Modifier.wrapContentWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = orderType == OrderTypeSelection.Market,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.Market) },
+                label = { Text("Рын.") },
+            )
+            FilterChip(
+                selected = orderType == OrderTypeSelection.Limit,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.Limit) },
+                label = { Text("Лим.") },
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = orderType == OrderTypeSelection.StopLoss,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.StopLoss) },
+                label = { Text("Stop‑Loss") },
+            )
+            FilterChip(
+                selected = orderType == OrderTypeSelection.TakeProfit,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.TakeProfit) },
+                label = { Text("Take‑Profit") },
+            )
+            FilterChip(
+                selected = orderType == OrderTypeSelection.StopLimit,
+                onClick = { onOrderTypeChanged(OrderTypeSelection.StopLimit) },
+                label = { Text("Stop‑Limit") },
+            )
+        }
+    }
+}
+
+// Архитектурный долг: 62 строки > 60 (input + cost overlay + / +).
+// См. ROADMAP → «Compose-экраны» (Н94).
+@Suppress("LongMethod")
+@Composable
+internal fun OrdersQuantityRow(
+    quantity: String,
+    costOverlay: String?,
+    canDecrement: Boolean,
+    canIncrement: Boolean,
+    onQuantityChanged: (String) -> Unit,
+) {
+    val quantityAsLong = quantity.toLongOrNull() ?: 0L
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        IconButton(
+            onClick = {
+                if (quantityAsLong > 0) onQuantityChanged((quantityAsLong - 1).toString())
+            },
+            enabled = canDecrement,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Default.Remove, "Уменьшить", modifier = Modifier.size(24.dp))
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedTextField(
+                value = quantity,
+                onValueChange = onQuantityChanged,
+                label = { Text("Кол-во лотов") },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (costOverlay != null) {
+                Box(
+                    modifier =
+                        Modifier
+                            .matchParentSize()
+                            .padding(end = 12.dp, top = 8.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Text(
+                        text = costOverlay,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier =
+                            Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                    RoundedCornerShape(4.dp),
+                                ).padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        IconButton(
+            onClick = {
+                onQuantityChanged((quantityAsLong + 1).toString())
+            },
+            enabled = canIncrement,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(Icons.Default.Add, "Увеличить", modifier = Modifier.size(24.dp))
+        }
+    }
+}
