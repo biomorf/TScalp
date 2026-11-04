@@ -1223,7 +1223,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket | критично | L6 | `TInvestBrokerApi.kt` | ✓ |
 | Н63. TInvestMarketDataService — god-класс 622 строки | критично | L6 | `TInvestMarketDataService.kt` | - |
 | Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod") | средне | L6 | `TInvestMarketDataService.kt` | - |
-| Н65. mapProtoToDomain — @Suppress("LongMethod") | средне | L6 | `TInvestInstrumentMapper.kt` | - |
 | Н66. getTradingStatuses — N параллельных unary | высоко | L6 | `TInvestMarketDataService.kt` | ✓ |
 | Н67. postStopOrder — закомментированный expireDate | средне | L6 | `TInvestOrdersService.kt` | ✓ |
 | Н68. SettingsRepository — @Suppress("TooManyFunctions") | средне | L6 | `SettingsRepository.kt` | - |
@@ -1261,23 +1260,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (упомянут `fetchPortfolioPositions` декомпозиция).
 
-### Н65. TInvestInstrumentMapper.mapProtoToDomain — @Suppress("LongMethod")
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `TInvestInstrumentMapper.mapProtoToDomain` — 118 строк, `@Suppress("LongMethod")`. Единый `when` по `type` с тремя ветками (futures / share / else), в каждой — полный конструктор модели (~40 аргументов).
-
-**Нарушенное правило Clean:** SRP — функция маппит 3 типа инструмента.
-
-**Clean-альтернатива:** `mapFutures`, `mapShares`, `mapDefault` + диспетчеризация в `mapProtoToDomain`. Плюсы: каждая ветка ~30 строк. Минусы: —.
-
-**Выгоды:** один `when`, вся логика в одном месте.
-
-**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest`.
 
 ### Н66. getTradingStatuses — N параллельных unary
 
@@ -1725,6 +1707,27 @@ InvestRepository split` (ROADMAP).
 **Выгоды:** один фасад, простой доступ для UI.
 
 **Ссылка на задачу:** `### ✅ Разбивка InvestRepository по доменным областям` (закрыта, PR #56).
+
+### ✅ Н65. TInvestInstrumentMapper.mapProtoToDomain — @Suppress("LongMethod")
+
+**Статус:** исправлено (2026-11-05, PR #83).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `TInvestInstrumentMapper.mapProtoToDomain` — 118 строк, `@Suppress("LongMethod")`. Единый `when` по `type` с тремя ветками (futures / share / else), в каждой — полный конструктор модели (~40 аргументов).
+
+**Нарушенное правило Clean:** SRP — функция маппит 3 типа инструмента.
+
+**Clean-альтернатива:** `mapFutures`, `mapShares`, `mapDefault` + диспетчеризация в `mapProtoToDomain`. Плюсы: каждая ветка ~30 строк. Минусы: —.
+
+**Выгоды:** один `when`, вся логика в одном месте.
+
+**Что сделано:** `mapProtoToDomain` разбит на dispatcher + 7 мапперов (`mapFuture`, `mapShare`, `mapBond`, `mapOption`, `mapEtf`, `mapCurrency`, `mapOther`), `@Suppress("LongMethod")` снят. Merge `53810b9` + fix `fb6a67d`, PR #83.
+
+**Ссылка на задачу:** `### ✅ Instrument: Phase 2 (sealed interface)` (PR #83).
+
 
 ## L7 — di
 
