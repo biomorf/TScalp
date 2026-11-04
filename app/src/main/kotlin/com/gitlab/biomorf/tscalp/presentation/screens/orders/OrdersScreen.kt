@@ -725,6 +725,34 @@ fun ApiNotInitializedCard(modifier: Modifier = Modifier) {
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг OrdersScreen».
+@Composable
+private fun SearchResultItem(
+    instrument: Instrument,
+    onClick: () -> Unit,
+) {
+    val typeColor = getInstrumentTypeColor(instrument.instrumentType)
+    ListItem(
+        headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
+        supportingContent = {
+            Text(
+                text = instrument.tscalpInstrumentId,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        leadingContent = {
+            Box(
+                modifier =
+                    Modifier
+                        .width(4.dp)
+                        .height(36.dp)
+                        .background(typeColor),
+            )
+        },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+}
+
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -806,64 +834,26 @@ fun InstrumentSearchField(
                         recentInstruments.forEach { instrument ->
                             val status = tradingStatuses[instrument.tscalpInstrumentId]
                             if (status == TradingAvailability.UNAVAILABLE) return@forEach
-
-                            val typeColor = getInstrumentTypeColor(instrument.instrumentType)
-                            ListItem(
-                                headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
-                                supportingContent = {
-                                    Text(
-                                        text = instrument.tscalpInstrumentId,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                            SearchResultItem(
+                                instrument = instrument,
+                                onClick = {
+                                    onInstrumentSelected(instrument)
+                                    inputText = "${instrument.ticker} - ${instrument.name}"
+                                    expanded = false
                                 },
-                                leadingContent = {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .width(4.dp)
-                                                .height(36.dp)
-                                                .background(typeColor),
-                                    )
-                                },
-                                modifier =
-                                    Modifier.clickable {
-                                        onInstrumentSelected(instrument)
-                                        inputText = "${instrument.ticker} - ${instrument.name}"
-                                        expanded = false
-                                    },
                             )
                         }
                     } else {
                         searchResults.forEach { instrument ->
                             val status = tradingStatuses[instrument.tscalpInstrumentId]
                             if (status == TradingAvailability.UNAVAILABLE) return@forEach
-
-                            val typeColor = getInstrumentTypeColor(instrument.instrumentType)
-                            ListItem(
-                                headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
-                                supportingContent = {
-                                    Text(
-                                        text = instrument.tscalpInstrumentId,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                            SearchResultItem(
+                                instrument = instrument,
+                                onClick = {
+                                    onInstrumentSelected(instrument)
+                                    inputText = "${instrument.ticker} - ${instrument.name}"
+                                    expanded = false
                                 },
-                                leadingContent = {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .width(4.dp)
-                                                .height(36.dp)
-                                                .background(typeColor),
-                                    )
-                                },
-                                modifier =
-                                    Modifier.clickable {
-                                        onInstrumentSelected(instrument)
-                                        inputText = "${instrument.ticker} - ${instrument.name}"
-                                        expanded = false
-                                    },
                             )
                         }
                     }
