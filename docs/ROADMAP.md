@@ -255,55 +255,6 @@ clean-audit.
 
 
 
-### UI: extract composables — пакет A
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** (clean-audit Н94) `InstrumentSearchField` (153 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) содержит дублирующийся блок `SearchResultItem` (recent + results, 2× одинаковый `ListItem`). `OrderCard` (81 строка) — header + details + статус в одной функции. Extract без изменения визуала: `SearchResultItem` + 2 подкомпонента `OrderCard`.
-
-**Соответствие Clean:** соответствует (extract без изменения поведения).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `presentation/screens/orders/OrdersScreen.kt` — extract `SearchResultItem`, снять `@Suppress` на `InstrumentSearchField`.
-- `presentation/components/OrderCard.kt` — extract `OrderCardHeader` + `OrderCardDetails`.
-
-**Шаги:**
-1. `OrdersScreen.kt` — private `@Composable fun SearchResultItem(instrument, tradingStatuses, onClick)`, заменить 2 callsites.
-2. `InstrumentSearchField` — снять `@Suppress("LongMethod", "CyclomaticComplexMethod")`.
-3. `OrderCard.kt` — extract `OrderCardHeader` + `OrderCardDetails`.
-4. Preview — визуал 1:1 (OrderCard уже имеет 3 Preview).
-5. Гейт.
-
-**Тесты:** не меняются. Preview + гейт.
-
-**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты`.
-
-**Ограничения:** не менять UI. Preview — обязательна. `@Suppress` снимать только если detekt зелёный.
-
-**Критерий готовности:** `@Suppress` на `InstrumentSearchField` снят; `SearchResultItem` — 1 функция, 2 callsites; `OrderCard` — 3 функции; гейт зелёный; Preview 1:1.
-
-**Оценка:** ~30–40 мин.
-
-**Зависимости:** нет.
-
-**Связано:** `### UI: extract composables — пакет B`, `### UI: OrdersScreen decompose (пакет C)`; Н94.
-
-**Открытые вопросы:** нет.
-
-
-
----
-
 ### UI: extract composables — пакет B
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -9478,5 +9429,51 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Что сделано:** `PortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`, `toLegacyPortfolioPosition` удалены из `domain/models/Portfolio.kt`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`. `emptyPosition(instrument, currentPrice, accountId, brokerName, lockedQuantity)` — dispatcher по `Instrument` (7 subtypes). `PortfolioUiState.positions` удалён; `PortfolioViewModel` на `sheet` + `prices`/`priceChangePercents` overlay; `sheetState`/`pricesMap`/`priceChangePercentsMap` удалены. `OrdersUiState.portfolioPositions → List<Position>`; `toLegacyPortfolioPosition` adapter убран. `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`. `PositionFormatter` — чистые функции с примитивами. `PositionFormatterTest` переписан (26 тестов); `PortfolioConvertersTest` +7 кейсов `emptyPosition`; `CalculateProfitPercentTest` удалён.
 
 **Открытые вопросы:** нет. Решения — в истории merge `d04ecc4`, PR #90.
+
+---
+
+### ✅ UI: SearchResultItem extract (пакет A, частично)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** (clean-audit Н94) `InstrumentSearchField` (153 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) содержал дублирующийся блок `SearchResultItem` (recent + results, 2× одинаковый `ListItem`). Extract без изменения визуала: `SearchResultItem`.
+
+**Соответствие Clean:** соответствует (extract без изменения поведения).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — extract `SearchResultItem`.
+- `presentation/components/OrderCard.kt` — **не трогали** (см. «Что сделано»).
+
+**Шаги:**
+1. `OrdersScreen.kt` — private `@Composable fun SearchResultItem(instrument, tradingStatuses, onClick)`, заменены 2 callsites.
+2. `InstrumentSearchField` — `@Suppress` **оставлен** (функция после extract ~113 строк > 60).
+3. `OrderCard.kt` — **не трогали** (без `@Suppress`, extract без detekt-выгоды).
+4. Preview / гейт — CI `gate` (PR #91).
+
+**Тесты:** не меняются. Preview + гейт.
+
+**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` / `#### Compose-компоненты`.
+
+**Ограничения:** не менять UI. `@Suppress` снимать только если detekt зелёный.
+
+**Критерий готовности:** `SearchResultItem` — 1 функция, 2 callsites; `@Suppress` на `InstrumentSearchField` **остаётся** (функция > 60); `OrderCard` **не трогали** (отклонение от плана, обосновано); гейт зелёный.
+
+**Оценка:** ~30–40 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `### ✅ UI: extract composables — пакет B (частично)`; Н94.
+
+**Что сделано:** `SearchResultItem` — extract (убрано дублирование 40 строк). `InstrumentSearchField`: 153 → ~113 строк. **Не сделано (отклонение от плана A):** `@Suppress("LongMethod", "CyclomaticComplexMethod")` на `InstrumentSearchField` — **остаётся** (функция > 60, complexity > 14); `OrderCard` — **не трогали** (без `@Suppress`, extract без detekt-выгоды). Merge `aa06690`, PR #91.
+
+**Открытые вопросы:** нет. Решения — в истории merge `aa06690`, PR #91.
 
 ---
