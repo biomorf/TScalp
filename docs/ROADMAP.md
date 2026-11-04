@@ -255,60 +255,6 @@ clean-audit.
 
 
 
-### UI: OrdersScreen decompose (пакет C)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-**Ветка:** feature/ui-ordersscreen-decompose.
-**UI — санкция:** получена (2026-11-04, extract без визуальных изменений).
-
-**Контекст:** (clean-audit Н94, M008) `OrdersScreen` (662 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) — самый большой экран. 6–7 логических блоков в одной функции: header, поиск/карточка, quantity row, order type chips, price fields (`AnimatedContent`), pair section, bottom buttons. Extract без визуальных изменений. `M008` (расчёт `pairExecPrice` / `pairedOrderType` в Composable) — **вне scope** (это не extract, а перенос логики в VM, отдельная задача).
-
-**Соответствие Clean:** соответствует (extract без изменения поведения; M008 — отдельно).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** пакеты A и B закрыты.
-
-**Файлы:**
-- `presentation/screens/orders/OrdersScreen.kt` — extract 6–7 подкомпонентов.
-
-**Шаги:**
-1. `OrdersScreenHeader`.
-2. `OrdersInstrumentCard`.
-3. `OrdersQuantityRow`.
-4. `OrdersTypeChips`.
-5. `OrdersPriceFields`.
-6. `OrdersPairSection`.
-7. `OrdersBottomButtons`.
-8. Снять `@Suppress("LongMethod", "CyclomaticComplexMethod")` — если detekt зелёный.
-9. Гейт.
-
-**Тесты:** не меняются. Preview — опционально.
-
-**Референсы:** `docs/clean-audit.md` → Н94, M008. `### Рефакторинг архитектурного долга` → `#### Compose-экраны`.
-
-**Ограничения:** не менять UI. M008 — вне scope. `@Suppress` снимать только если detekt зелёный.
-
-**Критерий готовности:** `OrdersScreen` < 200 строк; 6–7 подкомпонентов; `@Suppress` снят; гейт зелёный; Preview / live-проверка 1:1.
-
-**Оценка:** ~2–3 ч.
-
-**Зависимости:** пакеты A, B.
-
-**Связано:** `### UI: extract composables — пакет A`, `### UI: extract composables — пакет B`; Н94; M008 (вне scope, завести отдельно при взятии C).
-
-**Открытые вопросы:** M008 — отдельной задачей? **Дефолт:** да.
-
-
-
----
-
 ### TInvestBrokerApi: снять @Suppress("TooManyFunctions")
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -9476,5 +9422,65 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Что сделано:** extract в 4 функциях — `AssetCardHeader` + `AssetCardLowerSection`, `SwipeActionButtons` (`BoxScope` extension) + `DraggableCardContent`, `PortfolioAccountBlock`, `BrokerSelector` + `AccountSelector`. `BrokerAccountDialog` — `@Suppress("LongMethod")` снят (функция после extract < 60). **Не сделано (отклонения от плана B):** `DialogActions` не выделен (кнопки `AlertDialog` нельзя извлечь — параметры компонента); `@Suppress` на `AssetPositionCard` (70) / `AssetCardHeader` (68) / `AssetCardLowerSection` (72) — возвращён (`LongMethod` > 60), с KDoc-пометкой «Н94»; `PortfolioScreen` — `@Suppress("LongMethod", "CyclomaticComplexMethod")` возвращён (139 строк, complexity 16). Дальнейшая декомпозиция до < 60 — `Н94` / `#### Compose-компоненты`. Merge `aa06690`, PR #91.
 
 **Открытые вопросы:** нет. Решения — в истории merge `aa06690`, PR #91.
+
+---
+
+### ✅ UI: OrdersScreen decompose (пакет C, частично)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** (clean-audit Н94, M008) `OrdersScreen` (662 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) — самый большой экран. Extract без визуальных изменений. `M008` (расчёт `pairExecPrice` / `pairedOrderType` в Composable) — **частично** (вынесено в pure-функцию `calculatePairExec`, полный перенос в VM — отдельная задача).
+
+**Соответствие Clean:** соответствует (extract без изменения поведения; M008 — частично, остаток отдельно).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** пакеты A и B закрыты.
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — 10 подкомпонентов.
+
+**Шаги:**
+1. `OrdersScreenHeader` (был с A).
+2. `OrdersInstrumentSection`.
+3. `OrdersQuantityRow`.
+4. `OrdersTypeChips`.
+5. `OrdersPriceFields`.
+6. `OrdersPairSection`.
+7. `OrdersBottomButtons`.
+8. `OrdersScreenShadows` (`BoxScope`).
+9. `TradingBrokerDialog` / `SearchBrokerDialog` / `PairSearchBrokerDialog`.
+10. `OrdersConfirmDialogSection` + `calculatePairExec` (pure, M008 частично).
+11. `@Suppress("LongMethod", "CyclomaticComplexMethod")` → `@Suppress("LongMethod")` (Cyclomatic снят, LongMethod 221 > 60 остаётся).
+12. `@file:Suppress("TooManyFunctions")` — файл 18 функций (было 3), KDoc-пометка.
+13. Гейт (CI `gate`, PR #92).
+
+**Тесты:** не меняются. CI `gate`.
+
+**Референсы:** `docs/clean-audit.md` → Н94, M008. `### Рефакторинг архитектурного долга` → `#### Compose-экраны`.
+
+**Ограничения:** не менять UI. M008 — вне scope (перенос в VM — отдельно).
+
+**Критерий готовности:** `OrdersScreen` < 200 строк **не достигнут** (221 — близко, дальше без логики нельзя); 10 подкомпонентов — сделаны; `CyclomaticComplexMethod` снят; `LongMethod` остаётся (KDoc); гейт зелёный.
+
+**Оценка:** ~2–3 ч. Факт: ~2.5 ч (с 4 фиксами CI: импорты, ktlint, detekt).
+
+**Зависимости:** пакеты A, B.
+
+**Связано:** `### ✅ UI: SearchResultItem extract (пакет A, частично)`, `### ✅ UI: extract composables — пакет B (частично)`; Н94; M008 (частично, полный перенос — отдельно).
+
+**Что сделано:** 10 подкомпонентов (Header, InstrumentSection, QuantityRow, TypeChips, PriceFields, PairSection, BottomButtons, ScreenShadows, 3 BrokerDialog, ConfirmDialogSection). `calculatePairExec` — pure-функция (расчёт `pairExecPrice` / `pairedOrderType` вне Composable). `OrdersScreen`: 662 → 221 строк. `CyclomaticComplexMethod` снят (complexity ~7 < 14). `@Suppress("LongMethod")` на `OrdersScreen` (221 > 60) с KDoc-пометкой «Н94». `@Suppress("LongMethod")` на `OrdersPriceFields` (63) и `OrdersQuantityRow` (62) — новые, после extract. `@file:Suppress("TooManyFunctions")` (18 функций в файле) с KDoc-пометкой. Merge `5d4e867`, PR #92.
+
+**Что не сделано (отклонения от плана C):**
+- `OrdersScreen` < 200 строк — **221**, не достигнуто (нужна дальнейшая декомпозиция: sidebar-навигация, статусы).
+- `@Suppress` полностью не снят: `LongMethod` на `OrdersScreen` (221), `OrdersPriceFields` (63), `OrdersQuantityRow` (62), `OrdersPairSection` (LongMethod+Cyclomatic), `InstrumentSearchField` (LongMethod+Cyclomatic).
+- `@file:Suppress("TooManyFunctions")` — 18 функций, разнесение по файлам (`OrdersBrokerDialogs.kt`, `OrdersPairTrading.kt`, `OrdersSearch.kt`) — отдельная задача.
+- `M008` — **частично**: расчёт `pairExecPrice`/`pairedOrderType` в pure-функции `calculatePairExec`, но не в VM. Полный перенос — отдельная задача.
+
+**Открытые вопросы:** нет. Решения — в истории merge `5d4e867`, PR #92.
 
 ---
