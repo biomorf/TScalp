@@ -1,3 +1,8 @@
+// File-level: 18 функций после extract (было 3). Декомпозиция —
+// Н94 / ROADMAP → «Compose-экраны». Разнесение helper-composable
+// по отдельным файлам — отдельная задача.
+@file:Suppress("TooManyFunctions")
+
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.compose.animation.AnimatedContent
@@ -371,6 +376,9 @@ private fun OrdersPairSection(
     }
 }
 
+// Архитектурный долг: 63 строки > 60 (4 ветки AnimatedContent).
+// См. ROADMAP → «Compose-экраны» (Н94).
+@Suppress("LongMethod")
 @Composable
 private fun OrdersPriceFields(
     orderType: OrderTypeSelection,
@@ -483,6 +491,9 @@ private fun OrdersTypeChips(
     }
 }
 
+// Архитектурный долг: 62 строки > 60 (input + cost overlay + / +).
+// См. ROADMAP → «Compose-экраны» (Н94).
+@Suppress("LongMethod")
 @Composable
 private fun OrdersQuantityRow(
     quantity: String,
