@@ -510,7 +510,9 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/instrument-colors.
 
 **Контекст:** (clean-audit Н94, остаток) `getInstrumentTypeColor`
 (`presentation/screens/orders/OrdersSearch.kt:228`) и `when` в
