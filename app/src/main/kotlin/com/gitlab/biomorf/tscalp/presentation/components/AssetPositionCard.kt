@@ -31,13 +31,13 @@ import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.FuturePosition
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.SharePosition
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
+import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 import com.gitlab.biomorf.tscalp.presentation.util.PositionFormatter
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -382,14 +382,7 @@ private fun AssetCardContent(
     tradingAvailability: TradingAvailability? = null,
 ) {
     val instrument = position.instrument
-    val typeColor =
-        when (instrument.instrumentType) {
-            InstrumentType.SHARE -> Color(0xFF1565C0)
-            InstrumentType.BOND -> Color(0xFFE65100)
-            InstrumentType.ETF -> Color(0xFF2E7D32)
-            InstrumentType.CURRENCY -> Color(0xFF6A1B9A)
-            else -> Color(0xFF757575)
-        }
+    val typeColor = getInstrumentTypeColor(instrument.instrumentType)
     val backgroundColor =
         if (isSelected) {
             MaterialTheme.colorScheme.secondaryContainer
