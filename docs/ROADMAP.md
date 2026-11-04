@@ -500,6 +500,60 @@ clean-audit.
 
 ---
 
+### M008: перенос pairExec в OrdersViewModel
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit M008) расчёт `pairExecPrice` / `pairedOrderType` для парной торговли — business-логика в Composable (`OrdersScreen.kt`). После пакета C (PR #92) расчёт вынесен в **pure-функцию** `calculatePairExec(uiState)` (вне Composable), но всё ещё в presentation-слое. Цель — перенести в `OrdersViewModel` / UseCase, чтобы `OrdersUiState` нёс готовые `pairExecPrice` / `pairedOrderType`.
+
+**Соответствие Clean:** соответствует (перенос business-логики в VM, чистый data flow).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет (пакет C закрыт, `calculatePairExec` — pure-функция).
+
+**Файлы:**
+- `presentation/screens/orders/OrdersUiState.kt` — +`pairExecPrice: Double = 0.0`, +`pairedOrderType: OrderTypeSelection? = null`.
+- `presentation/screens/orders/OrdersViewModel.kt` — вычислять при `onOrderTypeChanged` / `onQuantityChanged` / `onLimitPriceChanged` / `onStopPriceChanged` / `setPairTradingEnabled` / `onPairedMultiplierChanged` / `onPairedInstrumentSelected` / `onInstrumentSelected` (триггеры изменения состояния); `updateTradeDetails` или отдельный `updatePairExecDetails`.
+- `presentation/screens/orders/OrdersScreen.kt` — удалить `calculatePairExec`, `OrdersConfirmDialogSection` читает `uiState.pairExecPrice` / `uiState.pairedOrderType`.
+- `presentation/screens/orders/OrdersViewModelTest` (если есть) — тесты; иначе — новую `OrdersViewModelTest` (2–3 кейса).
+
+**Шаги:**
+1. `OrdersUiState` — +2 поля.
+2. `OrdersViewModel` — private `updatePairExecDetails()` — вызывает `calculatePairExec`-логику (перенести в VM, или в UseCase), обновляет `_uiState`.
+3. Все триггеры (8 методов) — вызов `updatePairExecDetails()` в конце.
+4. `OrdersScreen` — удалить `calculatePairExec`, `OrdersConfirmDialogSection` читает из state.
+5. `PairOrderMapper` — перенести импорт из `OrdersScreen.kt` в `OrdersViewModel.kt`.
+6. Тесты VM (2–3 кейса).
+7. Гейт.
+
+**Тесты:**
+- `OrdersViewModelTest` (новый, если нет) — `onOrderTypeChanged(Limit)` → `pairExecPrice` = `executionPrice`, `pairedOrderType` = `StopLoss` (или что даст `PairOrderMapper`); `setPairTradingEnabled(false)` → `0.0` / `null`; `onPairedInstrumentSelected` → пересчёт.
+- Если mock-инфраструктура VM отсутствует — тест только на `calculatePairExec` (pure-функцию, перенести в `domain/usecases` или оставить в VM как private static) + live-тест в песочнице.
+
+**Референсы:** `docs/clean-audit.md` → M008. `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (PR #92) — где `calculatePairExec` появился. `### Рефакторинг ViewModel-слоя` — общий контекст.
+
+**Ограничения:** не менять поведение (расчёт 1:1). `PairOrderMapper` — не трогать (только импорт). `OrdersConfirmDialogSection` — не менять сигнатуру, только источник данных (`uiState.*`).
+
+**Критерий готовности:** `calculatePairExec` удалён из `OrdersScreen.kt`; `OrdersUiState` содержит `pairExecPrice` / `pairedOrderType`; `OrdersViewModel` обновляет их при триггерах; тесты зелёные; гейт зелёный.
+
+**Оценка:** ~1.5–2 ч (state 10 мин, VM 30–40, триггеры 20, экран 10, тесты 20, гейт 10).
+
+**Зависимости:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` — закрыта (PR #92).
+
+**Связано:** `docs/clean-audit.md` → M008; `### Рефакторинг ViewModel-слоя`.
+
+**Открытые вопросы:** `calculatePairExec` — перенести в `domain/usecases` (`CalculatePairExecUseCase`) или оставить private в VM? **Дефолт:** оставить private в VM (расчёт простой, use case ради одного вызова — overkill). Пересмотреть при появлении второго потребителя.
+
+
+---
+
 ### Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
