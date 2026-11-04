@@ -58,7 +58,7 @@ internal fun OrdersInstrumentSection(
             }
         }
     } else {
-        uiState.selectedInstrument?.let { instrument: Instrument ->
+        uiState.selectedInstrument.let { instrument: Instrument ->
             val portfolioPos =
                 uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
             val currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0

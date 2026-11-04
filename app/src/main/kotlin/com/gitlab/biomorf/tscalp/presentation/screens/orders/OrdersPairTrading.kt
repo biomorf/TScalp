@@ -107,7 +107,7 @@ internal fun OrdersPairSection(
             }
         }
     } else {
-        uiState.pairedInstrument?.let { instrument: Instrument ->
+        uiState.pairedInstrument.let { instrument: Instrument ->
             val portfolioPos =
                 uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
             val pairPrice =
