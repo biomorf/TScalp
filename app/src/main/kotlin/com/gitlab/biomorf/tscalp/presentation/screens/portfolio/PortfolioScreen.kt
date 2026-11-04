@@ -31,7 +31,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(

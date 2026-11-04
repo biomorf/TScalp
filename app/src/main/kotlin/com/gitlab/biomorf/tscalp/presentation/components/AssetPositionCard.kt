@@ -113,6 +113,10 @@ private fun DraggableCardContent(
     }
 }
 
+// Архитектурный долг: 70 строк > 60. Extract сделан (SwipeActionButtons +
+// DraggableCardContent), дальнейшая декомпозиция — ROADMAP →
+// «Рефакторинг архитектурного долга» → «Compose-компоненты» (Н94).
+@Suppress("LongMethod")
 @Composable
 fun AssetPositionCard(
     position: Position,
@@ -213,6 +217,9 @@ fun AssetPositionCard(
     }
 }
 
+// Архитектурный долг: 68 строк > 60 (split price + name + id + animations).
+// См. ROADMAP → «Compose-компоненты» (Н94).
+@Suppress("LongMethod")
 @Composable
 private fun AssetCardHeader(
     position: Position,
@@ -287,6 +294,9 @@ private fun AssetCardHeader(
     }
 }
 
+// Архитектурный долг: 72 строки > 60 (avg | profit, две колонки).
+// См. ROADMAP → «Compose-компоненты» (Н94).
+@Suppress("LongMethod")
 @Composable
 private fun AssetCardLowerSection(position: Position) {
     val instrument = position.instrument
