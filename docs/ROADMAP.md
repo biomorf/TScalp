@@ -500,64 +500,6 @@ clean-audit.
 
 ---
 
-### M008: перенос pairExec в OrdersViewModel
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-
-**Ветка:** feature/m008-pairexec-vm.
-
-**Контекст:** (clean-audit M008) расчёт `pairExecPrice` / `pairedOrderType` для парной торговли — business-логика в Composable (`OrdersScreen.kt`). После пакета C (PR #92) расчёт вынесен в **pure-функцию** `calculatePairExec(uiState)` (вне Composable), но всё ещё в presentation-слое. Цель — перенести в `OrdersViewModel` / UseCase, чтобы `OrdersUiState` нёс готовые `pairExecPrice` / `pairedOrderType`.
-
-**Соответствие Clean:** соответствует (перенос business-логики в VM, чистый data flow).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет (пакет C закрыт, `calculatePairExec` — pure-функция).
-
-**Файлы:**
-- `presentation/screens/orders/OrdersUiState.kt` — +`pairExecPrice: Double = 0.0`, +`pairedOrderType: OrderTypeSelection? = null`.
-- `domain/usecases/CalculatePairExecUseCase.kt` (новый) — `PairExecInput` / `PairExecResult` / `execute(input)`. `PairOrderMapper` уже в `domain/usecases` — переиспользуется без переезда. Решение UseCase (не private в VM) — см. «Открытые вопросы».
-- `presentation/screens/orders/OrdersViewModel.kt` — `@Inject` + `calculatePairExecUseCase`; private `updatePairExecDetails()` — собирает `PairExecInput` из `_uiState`, вызывает `execute(...)`, пишет результат в `_uiState`; 13 триггеров.
-- `presentation/screens/orders/OrdersConfirmDialog.kt` — читает `uiState.pairExecPrice` / `uiState.pairedOrderType`; `calculatePairExec(uiState)` удалён.
-- `presentation/screens/orders/OrdersPairTrading.kt` — `calculatePairExec` удалён (перенесён в domain), импорт `PairOrderMapper` удалён.
-- `app/src/test/kotlin/.../domain/usecases/CalculatePairExecUseCaseTest.kt` (новый) — 5 тестов.
-
-**Шаги:**
-1. `OrdersUiState` — +2 поля (`pairExecPrice`, `pairedOrderType`).
-2. `domain/usecases/CalculatePairExecUseCase` — `PairExecInput` / `PairExecResult` / `execute(input)`. Тест `CalculatePairExecUseCaseTest` (5 кейсов, без VM mock-инфраструктуры).
-3. `OrdersViewModel` — `@Inject` + `calculatePairExecUseCase`; private `updatePairExecDetails()` — собирает `PairExecInput` из `_uiState`, вызывает `execute(...)`, `_uiState.update { copy(pairExecPrice, pairedOrderType) }`.
-4. **13 триггеров** `updatePairExecDetails()`:
-   - **7× рядом с `updateTradeDetails()`**: `checkApiInitialization`, `onInstrumentSelected`, `onQuantityChanged`, `onPairedInstrumentSelected`, `onOrderTypeChanged`, `onLimitPriceChanged`, `onStopPriceChanged`.
-   - **6 доп.** (меняют `pendingDirection` / `pairedInstrument` / `pairTradingEnabled` без `updateTradeDetails`): `onBuyClick`, `onSellClick`, `onConfirmOrder`, `onDismissConfirmDialog`, `setPairTradingEnabled`, `clearPairSearch`.
-   - `onPairedMultiplierChanged` — **не триггер** (в `PairExecInput` multiplier не входит).
-5. `OrdersConfirmDialog` — читает `uiState.pairExecPrice` / `uiState.pairedOrderType`. `calculatePairExec` удаляется из `OrdersPairTrading.kt`; импорт `PairOrderMapper` — тоже (в domain используется).
-6. Гейт (CI `gate` на feature).
-
-**Тесты:** `CalculatePairExecUseCaseTest` (новый) — 5 кейсов: pairTrading disabled → `0.0`/`null`; no paired instrument → `0.0`/`null`; limit buy → `executionPrice` + `StopLoss`; limit sell → `executionPrice` + `TakeProfit`; market → `pairCurrentPrice`. Mock-инфраструктура VM не нужна (UseCase — чистая функция). VM-тест на триггеры не заводится — триггеры покрыты через 14 callsites (`grep`) и live-тест в песочнице.
-
-**Референсы:** `docs/clean-audit.md` → M008. `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (PR #92) — где `calculatePairExec` появился. `### Рефакторинг ViewModel-слоя` — общий контекст.
-
-**Ограничения:** не менять поведение (расчёт 1:1). `PairOrderMapper` — не трогать (только импорт). `OrdersConfirmDialogSection` — не менять сигнатуру, только источник данных (`uiState.*`).
-
-**Критерий готовности:** `calculatePairExec` удалён из `OrdersPairTrading.kt` (`grep -rn '\bcalculatePairExec\b' app/src/main` = 0, кроме `CalculatePairExecUseCase`); `OrdersUiState` содержит `pairExecPrice` / `pairedOrderType`; `OrdersViewModel` обновляет их при 13 триггерах; `CalculatePairExecUseCaseTest` (5 тестов) зелёный; гейт зелёный.
-
-**Оценка:** ~2 ч (state 5 мин, `CalculatePairExecUseCase` + тест 45 мин, VM + 13 триггеров 30 мин, `OrdersConfirmDialog` + удаление `calculatePairExec` 15 мин, гейт + CI 25 мин). **Факт:** ~4 ч с учётом 5 ktlint-циклов на форматировании (AGENTS-LESSONS 78) — стоимость mobile-гейта без `ktlintFormat`, не работы.
-
-**Зависимости:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` — закрыта (PR #92).
-
-**Связано:** `docs/clean-audit.md` → M008; `### Рефакторинг ViewModel-слоя`.
-
-**Открытые вопросы:** `calculatePairExec` — перенести в `domain/usecases` (`CalculatePairExecUseCase`) или оставить private в VM? **Решено (пересмотрено 2026-11-05):** UseCase. Аргументы: (а) тестируется без VM mock-инфраструктуры (в mobile/proot VM-тест невозможен); (б) консистентно с `PostOrderUseCase` (уже в `domain/usecases`); (в) Clean — бизнес-правило в domain, не в presentation. Исходный дефолт «private в VM» отменён — расчёт перестал быть «простым» после появления `pendingDirection` (M009) как входного поля.
-
-
----
-
 ### UI: InstrumentColors в presentation/theme
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -9679,4 +9621,59 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** нет. Решения — в истории merge `5bb9184`, PR #93.
 
+
+
 ---
+
+### ✅ M008: перенос pairExec в OrdersViewModel
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** (clean-audit M008) расчёт `pairExecPrice` / `pairedOrderType` для парной торговли — business-логика в Composable (`OrdersScreen.kt`). После пакета C (PR #92) расчёт вынесен в **pure-функцию** `calculatePairExec(uiState)` (вне Composable), но всё ещё в presentation-слое. Цель — перенести в `OrdersViewModel` / UseCase, чтобы `OrdersUiState` нёс готовые `pairExecPrice` / `pairedOrderType`.
+
+**Соответствие Clean:** соответствует (перенос business-логики в VM, чистый data flow).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет (пакет C закрыт, `calculatePairExec` — pure-функция).
+
+**Файлы:**
+- `presentation/screens/orders/OrdersUiState.kt` — +`pairExecPrice: Double = 0.0`, +`pairedOrderType: OrderTypeSelection? = null`.
+- `domain/usecases/CalculatePairExecUseCase.kt` (новый) — `PairExecInput` / `PairExecResult` / `execute(input)`. `PairOrderMapper` уже в `domain/usecases` — переиспользуется без переезда. Решение UseCase (не private в VM) — см. «Открытые вопросы».
+- `presentation/screens/orders/OrdersViewModel.kt` — `@Inject` + `calculatePairExecUseCase`; private `updatePairExecDetails()` — собирает `PairExecInput` из `_uiState`, вызывает `execute(...)`, пишет результат в `_uiState`; 13 триггеров.
+- `presentation/screens/orders/OrdersConfirmDialog.kt` — читает `uiState.pairExecPrice` / `uiState.pairedOrderType`; `calculatePairExec(uiState)` удалён.
+- `presentation/screens/orders/OrdersPairTrading.kt` — `calculatePairExec` удалён (перенесён в domain), импорт `PairOrderMapper` удалён.
+- `app/src/test/kotlin/.../domain/usecases/CalculatePairExecUseCaseTest.kt` (новый) — 5 тестов.
+
+**Шаги:**
+1. `OrdersUiState` — +2 поля (`pairExecPrice`, `pairedOrderType`).
+2. `domain/usecases/CalculatePairExecUseCase` — `PairExecInput` / `PairExecResult` / `execute(input)`. Тест `CalculatePairExecUseCaseTest` (5 кейсов, без VM mock-инфраструктуры).
+3. `OrdersViewModel` — `@Inject` + `calculatePairExecUseCase`; private `updatePairExecDetails()` — собирает `PairExecInput` из `_uiState`, вызывает `execute(...)`, `_uiState.update { copy(pairExecPrice, pairedOrderType) }`.
+4. **13 триггеров** `updatePairExecDetails()`:
+   - **7× рядом с `updateTradeDetails()`**: `checkApiInitialization`, `onInstrumentSelected`, `onQuantityChanged`, `onPairedInstrumentSelected`, `onOrderTypeChanged`, `onLimitPriceChanged`, `onStopPriceChanged`.
+   - **6 доп.** (меняют `pendingDirection` / `pairedInstrument` / `pairTradingEnabled` без `updateTradeDetails`): `onBuyClick`, `onSellClick`, `onConfirmOrder`, `onDismissConfirmDialog`, `setPairTradingEnabled`, `clearPairSearch`.
+   - `onPairedMultiplierChanged` — **не триггер** (в `PairExecInput` multiplier не входит).
+5. `OrdersConfirmDialog` — читает `uiState.pairExecPrice` / `uiState.pairedOrderType`. `calculatePairExec` удаляется из `OrdersPairTrading.kt`; импорт `PairOrderMapper` — тоже (в domain используется).
+6. Гейт (CI `gate` на feature).
+
+**Тесты:** `CalculatePairExecUseCaseTest` (новый) — 5 кейсов: pairTrading disabled → `0.0`/`null`; no paired instrument → `0.0`/`null`; limit buy → `executionPrice` + `StopLoss`; limit sell → `executionPrice` + `TakeProfit`; market → `pairCurrentPrice`. Mock-инфраструктура VM не нужна (UseCase — чистая функция). VM-тест на триггеры не заводится — триггеры покрыты через 14 callsites (`grep`) и live-тест в песочнице.
+
+**Референсы:** `docs/clean-audit.md` → M008. `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (PR #92) — где `calculatePairExec` появился. `### Рефакторинг ViewModel-слоя` — общий контекст.
+
+**Ограничения:** не менять поведение (расчёт 1:1). `PairOrderMapper` — не трогать (только импорт). `OrdersConfirmDialogSection` — не менять сигнатуру, только источник данных (`uiState.*`).
+
+**Критерий готовности:** `calculatePairExec` удалён из `OrdersPairTrading.kt` (`grep -rn '\bcalculatePairExec\b' app/src/main` = 0, кроме `CalculatePairExecUseCase`); `OrdersUiState` содержит `pairExecPrice` / `pairedOrderType`; `OrdersViewModel` обновляет их при 13 триггерах; `CalculatePairExecUseCaseTest` (5 тестов) зелёный; гейт зелёный.
+
+**Оценка:** ~2 ч (state 5 мин, `CalculatePairExecUseCase` + тест 45 мин, VM + 13 триггеров 30 мин, `OrdersConfirmDialog` + удаление `calculatePairExec` 15 мин, гейт + CI 25 мин). **Факт:** ~4 ч с учётом 5 ktlint-циклов на форматировании (AGENTS-LESSONS 78) — стоимость mobile-гейта без `ktlintFormat`, не работы.
+
+**Что сделано:** `CalculatePairExecUseCase` в `domain/usecases` (`PairExecInput` / `PairExecResult` / `execute(input)`) — переиспользует `PairOrderMapper`. `OrdersUiState` +`pairExecPrice` / `pairedOrderType`. `OrdersViewModel`: `@Inject` + `calculatePairExecUseCase`, private `updatePairExecDetails()`, **13 триггеров** (7× рядом с `updateTradeDetails` + 6 доп.: `onBuyClick`, `onSellClick`, `onConfirmOrder`, `onDismissConfirmDialog`, `setPairTradingEnabled`, `clearPairSearch`). `OrdersConfirmDialog` читает `uiState.pairExecPrice` / `uiState.pairedOrderType`. `calculatePairExec` удалён из `OrdersPairTrading.kt`. `CalculatePairExecUseCaseTest` (5 тестов). 5 ktlint-циклов (AGENTS-LESSONS 78). Merge `34ffed5`, PR #94.
+
+**Зависимости:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` — закрыта (PR #92).
+
+**Связано:** `docs/clean-audit.md` → M008; `### Рефакторинг ViewModel-слоя`.
+
+**Открытые вопросы:** `calculatePairExec` — перенести в `domain/usecases` (`CalculatePairExecUseCase`) или оставить private в VM? **Решено (2026-11-05, PR #94):** UseCase. Аргументы: (а) тестируется без VM mock-инфраструктуры (в mobile/proot VM-тест невозможен); (б) консистентно с `PostOrderUseCase` (уже в `domain/usecases`); (в) Clean — бизнес-правило в domain, не в presentation. Исходный дефолт «private в VM» отменён — расчёт перестал быть «простым» после появления `pendingDirection` (M009) как входного поля.
