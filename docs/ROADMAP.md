@@ -554,6 +554,58 @@ clean-audit.
 
 ---
 
+### OrdersScreen.kt: split helper-composable files
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н94) после пакета C (PR #92) `OrdersScreen.kt` содержит 18 функций (было 3): `OrdersScreen` + 10 helper-composable + `SearchResultItem` / `InstrumentSearchField` / `getInstrumentTypeColor` / `ApiNotInitializedCard` / `calculatePairExec`. `@file:Suppress("TooManyFunctions")` — маркер долга (18 > 11). Файл ~1050 строк. Разнесение по файлам — устранение `@file:Suppress` без изменения поведения.
+
+**Соответствие Clean:** соответствует (организация файлов, без изменения поведения).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` — закрыта (PR #92).
+
+**Файлы:**
+- `presentation/screens/orders/OrdersScreen.kt` — оставить: `OrdersScreen`, `OrdersScreenHeader`, `ApiNotInitializedCard`, `getInstrumentTypeColor`.
+- `presentation/screens/orders/OrdersBrokerDialogs.kt` (новый) — `TradingBrokerDialog`, `SearchBrokerDialog`, `PairSearchBrokerDialog`.
+- `presentation/screens/orders/OrdersPairTrading.kt` (новый) — `OrdersPairSection`, `OrdersPriceFields`, `OrdersTypeChips`, `OrdersQuantityRow`, `calculatePairExec`.
+- `presentation/screens/orders/OrdersSearch.kt` (новый) — `OrdersInstrumentSection`, `SearchResultItem`, `InstrumentSearchField`.
+- `presentation/screens/orders/OrdersConfirmDialog.kt` (новый) — `OrdersConfirmDialogSection`.
+- `presentation/screens/orders/OrdersBottomButtons.kt` (новый) — `OrdersBottomButtons`, `OrdersScreenShadows` (`BoxScope`).
+
+**Шаги:**
+1. Создать 5 новых файлов, `git mv` соответствующих функций.
+2. Обновить импорты в `OrdersScreen.kt` (использует всё из новых файлов).
+3. Удалить `@file:Suppress("TooManyFunctions")` из `OrdersScreen.kt` (в новых файлах ≤ 11 функций).
+4. Проверить `ktlint`-порядок импортов (лексикографически).
+5. Гейт (CI).
+
+**Тесты:** не меняются. CI `gate` + ручной запуск экрана (визуал 1:1).
+
+**Референсы:** `docs/clean-audit.md` → Н94. `### Рефакторинг архитектурного долга` → `#### Compose-экраны`.
+
+**Ограничения:** не менять UI. Функции — `private` в новых файлах (доступ только из `OrdersScreen.kt` через same-package). `calculatePairExec` — `internal` или `private` в `OrdersPairTrading.kt` (если используется вне файла — `internal`).
+
+**Критерий готовности:** `@file:Suppress("TooManyFunctions")` снят; `OrdersScreen.kt` ≤ 11 функций; 5 новых файлов; импорты в порядке; гейт зелёный.
+
+**Оценка:** ~20–30 мин (создание 5 файлов + `git mv` + правка импортов + гейт).
+
+**Зависимости:** `### ✅ UI: OrdersScreen decompose (пакет C, частично)` (PR #92).
+
+**Связано:** `docs/clean-audit.md` → Н94 (маркер `@file:Suppress`); `### M008: перенос pairExec в OrdersViewModel` (после split — `calculatePairExec` уезжает в `OrdersPairTrading.kt`).
+
+**Открытые вопросы:** `calculatePairExec` — `private` в `OrdersPairTrading.kt` или `internal` (используется `OrdersConfirmDialogSection` в `OrdersConfirmDialog.kt`)? **Дефолт:** `internal` (межфайловый доступ same-module).
+
+
+---
+
 ### Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
