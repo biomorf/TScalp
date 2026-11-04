@@ -16,11 +16,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 
 @Composable
 internal fun OrdersInstrumentSection(
@@ -222,14 +222,3 @@ internal fun InstrumentSearchField(
         }
     }
 }
-
-@Suppress("MagicNumber") // 5 colors for InstrumentType — shared palette,
-// move to presentation/theme (task: InstrumentColors) — out of split scope.
-internal fun getInstrumentTypeColor(instrumentType: InstrumentType): Color =
-    when (instrumentType) {
-        InstrumentType.SHARE -> Color(0xFF1565C0)
-        InstrumentType.BOND -> Color(0xFFE65100)
-        InstrumentType.ETF -> Color(0xFF2E7D32)
-        InstrumentType.CURRENCY -> Color(0xFF6A1B9A)
-        else -> Color(0xFF757575)
-    }
