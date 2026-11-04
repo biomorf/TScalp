@@ -504,7 +504,9 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/m008-pairexec-vm.
 
 **Контекст:** (clean-audit M008) расчёт `pairExecPrice` / `pairedOrderType` для парной торговли — business-логика в Composable (`OrdersScreen.kt`). После пакета C (PR #92) расчёт вынесен в **pure-функцию** `calculatePairExec(uiState)` (вне Composable), но всё ещё в presentation-слое. Цель — перенести в `OrdersViewModel` / UseCase, чтобы `OrdersUiState` нёс готовые `pairExecPrice` / `pairedOrderType`.
 
