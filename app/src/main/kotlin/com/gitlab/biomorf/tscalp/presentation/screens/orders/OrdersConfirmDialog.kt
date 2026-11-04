@@ -13,7 +13,6 @@ internal fun OrdersConfirmDialogSection(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val (pairExecPrice, pairedOrderType) = calculatePairExec(uiState)
     ConfirmOrderDialog(
         show = uiState.showConfirmDialog,
         ticker = uiState.selectedInstrument?.ticker ?: "",
@@ -26,8 +25,8 @@ internal fun OrdersConfirmDialogSection(
         pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
         pairedInstrumentType = uiState.pairedInstrument?.instrumentType,
         pairedMultiplier = uiState.pairedMultiplier,
-        pairExecPrice = pairExecPrice,
-        pairedOrderType = pairedOrderType,
+        pairExecPrice = uiState.pairExecPrice,
+        pairedOrderType = uiState.pairedOrderType,
         onDismiss = onDismiss,
         onConfirm = onConfirm,
     )

@@ -24,34 +24,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
-import com.gitlab.biomorf.tscalp.domain.usecases.PairOrderMapper
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 private const val PRICE_FIELDS_ANIMATION_MS = 200
-
-// Архитектурный долг: функция требует декомпозиции.
-// См. ROADMAP → «Рефакторинг OrdersScreen».
-internal fun calculatePairExec(uiState: OrdersUiState): Pair<Double, OrderTypeSelection?> {
-    if (!uiState.pairTradingEnabled || uiState.pairedInstrument == null) {
-        return 0.0 to null
-    }
-    val primaryPrice =
-        when (uiState.orderType) {
-            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.limitPrice.toDoubleOrNull()
-            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> uiState.stopPrice.toDoubleOrNull()
-            else -> null
-        }
-    val direction = uiState.pendingDirection ?: OrderDirection.BUY
-    val pairedSpec = PairOrderMapper.map(uiState.orderType, direction, primaryPrice)
-    val pairExecPrice =
-        when (uiState.orderType) {
-            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> uiState.executionPrice
-            else -> uiState.pairCurrentPrice ?: 0.0
-        }
-    return pairExecPrice to pairedSpec.orderType
-}
 
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
