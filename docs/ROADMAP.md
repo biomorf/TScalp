@@ -357,57 +357,6 @@ clean-audit.
 
 ---
 
-### Рефакторинг data-слоя T-Invest (Н64)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-
-**Ветка:** feature/refactor-data-tinvest.
-
-**Контекст:** (clean-audit Н64) `TInvestPortfolioService.fetchPortfolioPositions` (59 строк, `@Suppress("CyclomaticComplexMethod")`) — декомпозиция не сделана при Пакете C (перенесена 1:1). KDoc ссылается на «ROADMAP → Рефакторинг data-слоя T-Invest» — задача не заведена до сейчас. Декомпозиция: извлечь `enrichWithInstrumentData` + `enrichWithMarginData`, оставить `fetchPortfolioPositions` = `getPortfolio` + map + enrich. Снять `@Suppress`.
-
-**Соответствие Clean:** соответствует (декомпозиция, SRP).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** `### TInvestBrokerApi: снять @Suppress("TooManyFunctions")` — закрыт.
-
-**Файлы:**
-- `data/api/tinvest/TInvestPortfolioService.kt` — extract 2 private функций, снять `@Suppress("CyclomaticComplexMethod")`.
-
-**Шаги:**
-1. Прочитать `fetchPortfolioPositions` (строки 47–105): выделить 2 фазы (instrument + margin).
-2. Extract `enrichWithInstrumentData(position, proto)`.
-3. Extract `enrichWithMarginData(position, proto)`.
-4. `fetchPortfolioPositions` — `getPortfolio` + `.map { enrichWithInstrumentData(enrichWithMarginData(it)) }`.
-5. Снять `@Suppress("CyclomaticComplexMethod")` — если detekt зелёный.
-6. Гейт.
-
-**Тесты:** существующие — не меняются. Если `fetchPortfolioPositions` покрыт unit-тестом — проверить 1:1. Обычно тестов нет (data-слой).
-
-**Референсы:** `docs/clean-audit.md` → Н64. `### ✅ Пакет C: TInvestMarketDataService split` (PR #84). `### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest`.
-
-**Ограничения:** не менять поведение `fetchPortfolioPositions`. Не трогать `getPortfolio`. Не смешивать с `### T-Invest: subtype-specific поля` (отдельная).
-
-**Критерий готовности:** `@Suppress("CyclomaticComplexMethod")` снят; `fetchPortfolioPositions` 20–25 строк; 2 helper'а; гейт зелёный.
-
-**Оценка:** ~40–50 мин.
-
-**Зависимости:** `### TInvestBrokerApi: снять @Suppress("TooManyFunctions")`.
-
-**Связано:** Н64; PR #84.
-
-**Открытые вопросы:** нет.
-
-
-
----
-
 ### CustomTrustManager: fail-fast + 5 CA (Н79+Н80)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). **Live-тест не требуется** (fail-fast виден в логах; unit-тест покрывает).
@@ -9738,3 +9687,56 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** `docs/clean-audit.md` → Н94 (остаток `@Suppress("MagicNumber")`); `### ✅ OrdersScreen.kt: split helper-composable files` (закрыта, PR #93); `### M008: перенос pairExec в OrdersViewModel` (следующая, не пересекается); `### UI: ActionColors в presentation/theme` (**не заведена** — потенциально: 5+ цветов «действие» / «динамика цены» в `AssetPositionCard.kt`, отдельная семантика, отдельная задача, если понадобится).
 
 **Открытые вопросы:** нет.
+
+
+
+---
+
+### ✅ Рефакторинг data-слоя T-Invest (Н64)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** (clean-audit Н64) `TInvestPortfolioService.fetchPortfolioPositions` (59 строк, `@Suppress("CyclomaticComplexMethod")`) — декомпозиция не сделана при Пакете C (перенесена 1:1). KDoc ссылается на «ROADMAP → Рефакторинг data-слоя T-Invest» — задача не заведена до сейчас. Декомпозиция: извлечь `enrichWithInstrumentData` + `enrichWithMarginData`, оставить `fetchPortfolioPositions` = `getPortfolio` + map + enrich. Снять `@Suppress`.
+
+**Соответствие Clean:** соответствует (декомпозиция, SRP).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### TInvestBrokerApi: снять @Suppress("TooManyFunctions")` — закрыт.
+
+**Файлы:**
+- `data/api/tinvest/TInvestPortfolioService.kt` — extract 2 private функций, снять `@Suppress("CyclomaticComplexMethod")`.
+
+**Шаги:**
+1. Прочитать `fetchPortfolioPositions` (строки 47–105): выделить 2 фазы (instrument + margin).
+2. Extract `enrichWithInstrumentData(position, proto)`.
+3. Extract `enrichWithMarginData(position, proto)`.
+4. `fetchPortfolioPositions` — `getPortfolio` + `.map { enrichWithInstrumentData(enrichWithMarginData(it)) }`.
+5. Снять `@Suppress("CyclomaticComplexMethod")` — если detekt зелёный.
+6. Гейт.
+
+**Тесты:** существующие — не меняются. Если `fetchPortfolioPositions` покрыт unit-тестом — проверить 1:1. Обычно тестов нет (data-слой).
+
+**Референсы:** `docs/clean-audit.md` → Н64. `### ✅ Пакет C: TInvestMarketDataService split` (PR #84). `### Рефакторинг архитектурного долга` → `#### Data-слой T-Invest`.
+
+**Ограничения:** не менять поведение `fetchPortfolioPositions`. Не трогать `getPortfolio`. Не смешивать с `### T-Invest: subtype-specific поля` (отдельная).
+
+**Критерий готовности:** `@Suppress("CyclomaticComplexMethod")` снят; `fetchPortfolioPositions` 20–25 строк; 2 helper'а; гейт зелёный.
+
+**Оценка:** ~40–50 мин.
+
+**Что сделано:** `fetchPortfolioPositions` (59 строк → 20) декомпозирована: `getPortfolio` + `mapNotNull { enrichWithInstrumentData(pos, accountId) }`. `private suspend enrichWithInstrumentData(pos, accountId): Position?` — `fetchProtoInstrument` + `getFuturesMargin` (для futures) + `mapProtoToDomain` + `toPosition`. `private fun enrichWithMarginData(pos, instrument, accountId): PositionStreamItem` — чистая сборка `PositionStreamItem` (14 полей, включая `isDomesticCurrency`). `@Suppress("CyclomaticComplexMethod")` снят. Поведение 1:1 (те же позиции, `balances = emptyList()`, комментарий про `money/blocked` сохранён — 5g.4). Merge `662d1e4`, PR #96.
+
+**Зависимости:** `### TInvestBrokerApi: снять @Suppress("TooManyFunctions")`.
+
+**Связано:** Н64; PR #84.
+
+**Открытые вопросы:** нет.
+
+
+
+---
