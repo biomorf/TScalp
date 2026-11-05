@@ -1,3 +1,4 @@
+<!-- LESSONS_FILE_BEGIN -->
 # AGENTS-LESSONS.md — уроки из инцидентов
 
 Дополняет `AGENTS.md`. Там — правила (императив), здесь — уроки из
@@ -7,6 +8,13 @@
 Если файл не передан пользователем в первом сообщении — ассистент
 **настойчиво требует** его (см. `AGENTS.md` → «Обязательные документы»).
 
+> **Маркеры целостности.** Файл обёрнут в `LESSONS_FILE_BEGIN` /
+> `LESSONS_FILE_END`; каждый `##`-раздел — в `LESSONS_SECTION_BEGIN: <id>` /
+> `LESSONS_SECTION_END: <id>`. Формат, список id, обязанность оглашения —
+> `AGENTS.md` → «Маркеры целостности» (§integrity). Обязательное оглашение
+> при получении — там же.
+
+<!-- LESSONS_SECTION_BEGIN: template -->
 ## Шаблон записи
 
     ### <Короткое название правила>
@@ -19,6 +27,8 @@
 
 ---
 
+<!-- LESSONS_SECTION_END: template -->
+<!-- LESSONS_SECTION_BEGIN: structure -->
 ## Структура файла
 
 Уроки сгруппированы по темам: «Скрипты и правки», «CI»,
@@ -39,6 +49,8 @@
 
 ---
 
+<!-- LESSONS_SECTION_END: structure -->
+<!-- LESSONS_SECTION_BEGIN: scripts -->
 ## Скрипты и правки
 
 ### 1. Grep по `main` и `test`
@@ -669,6 +681,8 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 **Связано:** урок 13 (anchor в скрипте — grep перед написанием).
 
 
+<!-- LESSONS_SECTION_END: scripts -->
+<!-- LESSONS_SECTION_BEGIN: kotlin -->
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
@@ -745,6 +759,8 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 **Проверка:** `grep -nE "^        (private )?(suspend )?fun [a-zA-Z]+\(" <file>` — count. Если > 11 — какая из функций pure (не читает поля класса)? → extension. Иначе — split (урок 60).
 
+<!-- LESSONS_SECTION_END: kotlin -->
+<!-- LESSONS_SECTION_BEGIN: diagnostics -->
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
@@ -828,6 +844,8 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 **Проверка:** для быстрой сверки — `ktlintFormat` локально или полагаться на CI.
 
 
+<!-- LESSONS_SECTION_END: diagnostics -->
+<!-- LESSONS_SECTION_BEGIN: clean-audit -->
 ## Clean-audit
 
 ### 20. Инвентаризация не пропускает «уже известное»
@@ -849,6 +867,8 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 ---
 
+<!-- LESSONS_SECTION_END: clean-audit -->
+<!-- LESSONS_SECTION_BEGIN: ui -->
 ## UI и дизайн
 
 ### 39. Дизайн/стили/иконки — только по явному указанию
@@ -861,6 +881,8 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 ---
 
+<!-- LESSONS_SECTION_END: ui -->
+<!-- LESSONS_SECTION_BEGIN: ci -->
 ## CI
 
 ### 8. `feature/**` push → CI запускается сразу
@@ -923,6 +945,8 @@ compile → ktlint → detekt, не смешивать. Сначала «что�
 
 ---
 
+<!-- LESSONS_SECTION_END: ci -->
+<!-- LESSONS_SECTION_BEGIN: estimates -->
 ## Оценки
 
 ### 12. Scriptable-задачи — реальное время в 5–10× меньше оценки
@@ -938,6 +962,8 @@ wall time (без учёта round-trips в чате).
 
 ---
 
+<!-- LESSONS_SECTION_END: estimates -->
+<!-- LESSONS_SECTION_BEGIN: process -->
 ## Процессные (для другой сессии)
 
 - `docs(roadmap): start` идёт в `dev` до feature (AGENTS 5g.2).
@@ -1020,7 +1046,12 @@ wall time (без учёта round-trips в чате).
 **Проверка:** `git status` после revert. Если `reverting` — `--continue` / `--abort` / `--quit`.
 
 
+<!-- LESSONS_SECTION_END: process -->
+<!-- LESSONS_SECTION_BEGIN: application -->
 ## Применение уроков
 
 Механизм — `AGENTS.md` → 4h «Проверка правок на соответствие
 перед коммитом». Без 4h уроки — просто текст.
+
+<!-- LESSONS_SECTION_END: application -->
+<!-- LESSONS_FILE_END -->
