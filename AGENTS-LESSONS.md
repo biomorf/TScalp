@@ -737,6 +737,14 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 5 grep + `cat -A` затронутого региона.
 
 
+### 84. `TooManyFunctions` на классе-менеджере — extraction в top-level extension
+
+**Правило:** если класс > 11 функций и раздутие идёт за счёт **pure-функции** без зависимости от полей класса — вынести её как top-level `private fun Type.method(...)` в тот же файл. Detekt `TooManyFunctions` считает только члены класса — top-level extension не считается. `@Suppress` не нужен. Если раздутие — из-за **разнородных** методов с зависимостью от состояния класса — split на доменные модули (урок 60).
+
+**Инцидент:** 2026-11-05, `PositionFlowManager` (задача «Portfolio: баланс и пополнение в песочнице»). Добавил `applySeed` (12-я функция) → detekt `TooManyFunctions` (порог 11). `mergePartial` — pure (`when` по subtypes `Position`, без полей класса). Вынес в `private fun Position.mergeStreamItem(...)` top-level → 11 функций в классе, гейт зелёный, `@Suppress` не понадобился.
+
+**Проверка:** `grep -nE "^        (private )?(suspend )?fun [a-zA-Z]+\(" <file>` — count. Если > 11 — какая из функций pure (не читает поля класса)? → extension. Иначе — split (урок 60).
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
