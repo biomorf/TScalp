@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -68,9 +67,7 @@ fun MainScreen() {
 
 @Composable
 fun TScalpBottomNavigation(navController: NavHostController) {
-    NavigationBar(
-        modifier = Modifier.height(80.dp), // Рекомендованная высота M3
-    ) {
+    NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
 

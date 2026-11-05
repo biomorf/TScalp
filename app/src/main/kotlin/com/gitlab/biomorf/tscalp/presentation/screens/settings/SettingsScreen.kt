@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.settings
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -132,6 +133,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
                 },
             )
         },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { paddingValues ->
         Column(
             modifier =
@@ -952,6 +954,7 @@ fun InfoSettingsContent(
                 },
             )
         },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { paddingValues ->
         val uiState by viewModel.uiState.collectAsStateWithLifecycle()
         Column(
