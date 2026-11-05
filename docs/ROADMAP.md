@@ -7,6 +7,8 @@
 CI/CD-планирование → `docs/ci-roadmap.md`.
 
 
+
+
 ## Шаблон задачи
 
 Все поля обязательные. Задачи без заполненных полей не
@@ -64,9 +66,18 @@ clean-audit.
 ответ.
 ~~~
 
+
+
+
 ---
 
+
+
+
 ## Планируемые задачи
+
+
+
 
 ### Нормализация разделителей в плановых документах
 
@@ -120,7 +131,12 @@ clean-audit.
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### Portfolio: баланс и пополнение в песочнице
 
@@ -178,7 +194,12 @@ clean-audit.
 **Открытые вопросы:** `getBalanceResult` возвращает `Double` — для `AccountBalance` нужны `money` и `blocked`. Сейчас `money = balance`, `blocked = 0.0`. Если `blocked` нужен — отдельная задача (через `GetPositions`).
 
 
----
+
+
+___
+
+
+
 
 ### Orders: счёт из свойств карточки не применяется к акциям
 
@@ -240,7 +261,13 @@ clean-audit.
 
 **Открытые вопросы:** гипотезы 1–5 (см. шаг 1) — фикс определяется после диагностики шага 0.
 
----
+
+
+
+___
+
+
+
 
 ### Orders: P&L в песочнице (expectedYield)
 
@@ -307,7 +334,11 @@ clean-audit.
 
 
 
----
+
+___
+
+
+
 
 ### CustomTrustManager: fail-fast + 5 CA (Н79+Н80)
 
@@ -355,7 +386,11 @@ clean-audit.
 
 
 
----
+
+___
+
+
+
 
 ### 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)
 
@@ -409,7 +444,11 @@ clean-audit.
 
 
 
----
+
+___
+
+
+
 
 ### Margin/risk → TradeCheckResult
 
@@ -471,7 +510,13 @@ clean-audit.
 - Форма: отдельный `MarginInfo` или поле в `TradeCheckResult` — решить при старте.
 - `klong`/`kshort` — deprecated в T-Invest; включать в модель или нет — решить при старте.
 
----
+
+
+
+___
+
+
+
 
 ### Реализация BCS Broker API
 
@@ -530,7 +575,13 @@ clean-audit.
 
 **Открытые вопросы:** BCS WS `type` + payload формат — по `https://trade-api.bcs.ru/websocket/portfolio/`; при реализации подтвердить.
 
----
+
+
+
+___
+
+
+
 
 ### T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
 
@@ -586,7 +637,11 @@ clean-audit.
 
 **Открытые вопросы:** какие proto-поля `Bond` / `Etf` / `Currency` точно доступны — при реализации подтвердить.
 
----
+
+
+
+___
+
 
 
 
@@ -659,7 +714,12 @@ clean-audit.
 
 
 
----
+
+___
+
+
+
+
 ### KMP: domain → commonMain
 
 **Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
@@ -712,7 +772,14 @@ clean-audit.
 - `:shared` с Android target — `androidLibrary` или `com.android.kotlin.multiplatform.library`? Уточнить при старте.
 - `domain/log/Logger` — остаётся интерфейсом (`AndroidAppLogger` в `:app/data/log`).
 
----
+
+
+
+___
+
+
+
+
 ### UI: показать executedPrice / executedQuantity на карточке
 
 **Мобильная работа:** частичное (live-тест UI).
@@ -765,6 +832,12 @@ clean-audit.
 **Связано:** `### Split order domain into sealed Regular/Stop`; `docs/clean-audit.md` → Н4; `docs/ROADMAP.md` → `### Split order domain into sealed Regular/Stop`.
 
 **Открытые вопросы:** какой вариант размещения (A/B/C)? Показывать ли при `executedQuantity == 0`? Нужно ли отображать для `Order.Stop` (сейчас полей нет — только `null`/`0`)?
+
+
+
+
+___
+
 
 
 
@@ -842,7 +915,11 @@ clean-audit.
 
 
 
----
+___
+
+
+
+
 ### Полировка debug-переключателей
 
 **Мобильная работа:** частичное (live-тест 8 комбинаций тумблеров).
@@ -896,7 +973,11 @@ gRPC stream stopped`). Покрыто отдельно в live-тесте PR #34
 
 
 
----
+
+___
+
+
+
 
 ### Установка GrpcExceptionGuard
 
@@ -980,11 +1061,11 @@ guard не срабатывает, разбираться отдельно.
 
 
 
----
+
+___
 
 
 
----
 
 ### Live-test Broker lifecycle API: BCS/Finam
 
@@ -1058,9 +1139,10 @@ success, стримы не идут» — не проверка, а конста
 
 **Открытые вопросы:** нет.
 
----
 
 
+
+___
 
 
 
@@ -1230,7 +1312,11 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 
 
 
----
+
+___
+
+
+
 
 ### Rate-limiter для unary-запросов T-Invest
 
@@ -1367,7 +1453,11 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 
 
----
+
+___
+
+
+
 
 ### UI-индикатор состояния стримов
 
@@ -1433,7 +1523,11 @@ live-теста. UI-индикатор блокируется **закрытие
 
 
 
----
+
+___
+
+
+
 
 ### UI: отображение blocked на валютной карточке
 
@@ -1554,7 +1648,11 @@ polling — рубли), без разбивки на свободные/заб�
 
 
 
----
+
+___
+
+
+
 
 ### Плавный переход Hilt → Koin
 
@@ -1717,7 +1815,11 @@ iOS-задачи миграция станет обязательной. Сей�
 
 
 
----
+
+___
+
+
+
 
 ### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
 
@@ -1829,7 +1931,11 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 
 
----
+
+___
+
+
+
 
 ### Переход на edge-to-edge (statusBarColor deprecated)
 
@@ -1851,7 +1957,11 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 
 
----
+
+___
+
+
+
 
 ### Рефакторинг архитектурного долга (detekt-группа 3)
 
@@ -1897,7 +2007,11 @@ app/src/main/kotlin`). Отдельная задача не нужна.
 
 
 
----
+
+___
+
+
+
 
 #### Compose-экраны
 
@@ -1929,7 +2043,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### Compose-компоненты
 
@@ -1944,7 +2062,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### ViewModel-слой
 
@@ -1965,7 +2087,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### BrokerApi-реализации
 
@@ -1976,7 +2102,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### Репозитории
 
@@ -2002,7 +2132,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### UseCase-слой
 
@@ -2020,7 +2154,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### Data-слой T-Invest
 
@@ -2039,7 +2177,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### Классификатор ошибок
 
@@ -2055,7 +2197,11 @@ composables. Для `OrdersScreen` — отдельно форма заявки,
 
 
 
----
+
+___
+
+
+
 
 #### Индикатор доступности инструмента в карточке позиции
 
@@ -2076,7 +2222,11 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 
 
----
+
+___
+
+
+
 
 ### Реализация Finam Broker API
 
@@ -2165,7 +2315,11 @@ Finam в UI.
 
 
 
----
+
+___
+
+
+
 
 ### Расшифровка кодов ошибок брокеров
 
@@ -2189,7 +2343,11 @@ Finam в UI.
 
 
 
----
+
+___
+
+
+
 
 ### P&L: client-side fallback для PortfolioPosition (низкий приоритет)
 
@@ -2252,6 +2410,13 @@ Finam в UI.
 - Если `averagePrice` устарел — проверка «свежести» отдельная задача.
 
 
+
+
+___
+
+
+
+
 ### Currency format: normalize ISO 4217 case
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -2312,9 +2477,18 @@ Finam в UI.
 - Какие регистры `Instrument.currency` реально приходят от T-Invest / BCS / Finam — не проверено live. Unit-тест покрывает оба варианта; live — при следующей сессии с реальным USD-инструментом.
 - Если `currency` придёт пустой `""` — `Currency.getInstance("")` тоже бросает IAE. Стоит ли fallback на `DOMESTIC_CURRENCY` при `isBlank()`? **Дефолт:** нет (пустая строка — невалидный вход, лучше упасть громко). Пересмотреть при появлении реального кейса.
 
+
+
+
 ---
 
+
+
+
 ## Закрытые задачи
+
+
+
 
 ### ✅ Единый источник цен (PriceStreamManager)
 
@@ -2552,7 +2726,12 @@ polling остаётся параллельным fallback'ом.
 
 
 
----
+
+___
+
+
+
+
 ### ✅ Compose Preview для компонентов
 
 Добавлены `@Preview`-функции для ключевых Compose-компонентов.
@@ -2584,7 +2763,12 @@ wrapper + content) — остаётся в задаче «Рефакторинг
 
 
 
----
+
+___
+
+
+
+
 ### ✅ Оркестратор стримов и Ktor WS transport
 
 Полный WS-транспорт для T-Invest: позиции, цены, статусы
@@ -2653,7 +2837,12 @@ wrapper + content) — остаётся в задаче «Рефакторинг
 
 
 
----
+
+___
+
+
+
+
 ### ✅ OrderStreamManager — snapshot + stream merge
 
 Единая точка агрегации активных заявок счёта. Polling
@@ -2705,7 +2894,12 @@ wrapper + content) — остаётся в задаче «Рефакторинг
 
 
 
----
+
+___
+
+
+
+
 ### ✅ Add stop() to TInvestOrderStateWebSocket
 
 `TInvestOrderStateWebSocket` приведён к lifecycle
@@ -2735,7 +2929,12 @@ transport-ktor:allTests` — зелёные.
 
 
 
----
+
+___
+
+
+
+
 ### ✅ Переименование `*StreamManager` → `*FlowManager`
 
 **Мобильная работа:** полное закрытие (правки `.kt` — через
@@ -2780,7 +2979,12 @@ proot; сборка и тесты — на десктопе).
 **Оценка:** ~30–40 минут.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ Race в start/stop `*FlowManager` — дублирование стримов
 
@@ -2892,10 +3096,12 @@ Debug-тумблеры (`toggleGrpc` / `toggleWs` / `toggleRest`) провере
 
 
 
----
+
+___
 
 
----
+
+
 ### ✅ Ktor REST transport для polling (prices)
 
 **Мобильная работа:** невозможно (требует сборки и проверки
@@ -2920,10 +3126,15 @@ REST-метод, доведённый до production в этой задаче. 
 - REST для позиций / заявок / баланса — см.
   `### Ktor REST для позиций/заявок/баланса`.
 - Миграция BCS на Ktor — см. `
----
 
 
----
+
+
+___
+
+
+
+
 ### ✅ Race-тесты для `*FlowManager` (мок-инфраструктура)
 
 **Мобильная работа:** невозможно (сборка и прогон тестов —
@@ -3034,10 +3245,12 @@ start/stop `*FlowManager`» в `dev` (PR #34), тест проверяет
 
 
 
----
+
+___
 
 
----
+
+
 ### ✅ Ktor REST для позиций/заявок/баланса
 
 **Мобильная работа:** невозможно (сборка и проверка на реальных данных).
@@ -3130,7 +3343,13 @@ flowchart BT
 - Формат REST-ответов для `getOrders` / `getStopOrders` — совпадает ли с gRPC по структуре? Уточнить при реализации.
 - `getPositions` и `fetchPositionsSnapshot` — REST-метод один и тот же или разные? Уточнить по Swagger.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Debug-тумблеры: применить ко всем менеджерам
 
@@ -3350,7 +3569,13 @@ debug-сборок`.
 - Live-тест (2026-10-23): 4 угла матрицы + logout, B1–B4 подтверждены; `19:09:10.075 Order: POLLING → STOPPED`.
 - 2 unit-теста в `OrderFlowManagerTest` (race + no-op).
 
----
+
+
+
+___
+
+
+
 
 ### ✅ StreamState в data-слое
 
@@ -3588,7 +3813,13 @@ STALE/восстановление, STOPPED) подтверждены. `STALE` �
 (PR #39, `0ca10f1`), повторный live-тест StreamState —
 зелёный.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Унификация имён и KDoc в *FlowManager
 
@@ -3796,7 +4027,13 @@ Variant B) три менеджера организованы единообра
 - **Гейт** зелёный на каждом шаге; тесты не менялись
   (private-методы).
 
----
+
+
+
+___
+
+
+
 
 ### ✅ DebugConfig: только для debug-сборок
 
@@ -3853,7 +4090,13 @@ Variant B) три менеджера организованы единообра
 - **Live-тест не требуется:** критерий задачи — статический
   гейт, не runtime-поведение. Закрытие по grep + чтению кода.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ TInvest-specific методы в *FlowManager
 
@@ -4059,10 +4302,13 @@ TInvest 20, BCS/Finam 10, managers 30, KDoc 15, тесты 30,
 - **Гейт** зелёный на каждом шаге: `testDebugUnitTest /
   lintDebug / ktlintCheck / detekt`.
 
----
 
 
----
+
+___
+
+
+
 
 ### ✅ StreamsApi: выделение роли из BrokerApi
 
@@ -4306,7 +4552,12 @@ OrderFlowManager 20, PriceFlowManager 30, InvestRepository
   (#2), по плану из этой секции.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ Broker lifecycle API
 
@@ -4565,7 +4816,12 @@ mock-инфраструктура).
   BrokerManager + 3 брокера). Дефолт — без, live-тест.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ Move domain/api into roles/ and managers/
 
@@ -4723,7 +4979,12 @@ domain/
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ TInvest-specific: fetchFullInstrument
 
@@ -4881,7 +5142,12 @@ BCS/Finam 5, repository 5, гейт 5).
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ OrdersApi
 
@@ -5054,7 +5320,12 @@ BCS/Finam 10, InvestRepository 6 callsite 40, гейт 15,
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ AccountsApi
 
@@ -5244,7 +5515,12 @@ BCS 10, Finam 5, InvestRepository 10, TScalpApplication 15,
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ SandboxApi
 
@@ -5430,7 +5706,12 @@ TScalpApplication 15, гейт 10, резерв 15).
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ UserInstrumentsApi
 
@@ -5633,7 +5914,12 @@ SearchCache 10, гейт 10, резерв 15).
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ BalanceApi
 
@@ -5804,7 +6090,12 @@ TInvest 5, BCS 3, Finam 3, InvestRepository 1 callsite 5,
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ Портфельный снимок: fetchPortfolioPositions + унификация на PositionStreamItem
 
@@ -6101,7 +6392,12 @@ TInvestBrokerApi 20, TInvestOrchestrator 20, BCS 30, Finam 5,
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ detekt: ignoreFailures=false
 
@@ -6204,7 +6500,12 @@ baseline) — устарела, разбирать нечего.
 **Открытые вопросы:** нет.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ Рефакторинг BrokerApi-реализаций (D)
 
@@ -6326,7 +6627,12 @@ reconsider.
 - `docs/architecture.md`, раздел 7 — при создании.
 
 
----
+
+
+___
+
+
+
 
 ### ✅ Рефакторинг ролей BrokerApi (nullable-val, Scenario2)
 
@@ -6649,7 +6955,11 @@ docs-коммитом.
 
 
 
----
+
+___
+
+
+
 
 ### ✅ Разбивка InvestRepository по доменным областям
 
@@ -6965,7 +7275,11 @@ ViewModel).
 
 
 
----
+
+___
+
+
+
 
 ### ✅ H21b. Domain-интерфейсы для 4 репозиториев
 
@@ -7140,7 +7454,11 @@ InvestRepository по доменным областям`.
 
 
 
----
+
+___
+
+
+
 
 ### ✅ H3. Move OrdersListViewModel to presentation/screens/orders/
 
@@ -7213,7 +7531,11 @@ ViewModel — в `presentation/screens/*/`. Нарушение конвенци�
 
 
 
----
+
+___
+
+
+
 
 ### ✅ H23. DebugFlagsRepository (scope B: Н23 + Н38)
 
@@ -7343,7 +7665,11 @@ debug-сборок`; H22 (`BrokerRegistry`) — следующий шаг
 
 
 
----
+
+___
+
+
+
 
 ### ✅ H22. BrokerRegistry
 
@@ -7474,7 +7800,11 @@ DI 10, 11 файлов main 30, 3 теста 15, гейт 15). Факт — по
 
 
 
----
+
+___
+
+
+
 
 ### ✅ BrokerApi: ревизия fat-части после InvestRepository split
 
@@ -7604,7 +7934,13 @@ H23 (#59), H22 (#60).
 
 **Открытые вопросы:** нет (форма B принята 2026-10-28).
 
----
+
+
+
+___
+
+
+
 
 ### ✅ H4. OrderType из data, не из UI
 
@@ -7653,10 +7989,13 @@ H23 (#59), H22 (#60).
 
 **Открытые вопросы:** `OrderTypeSelection` уже в domain — маппинг `String` -> enum логично в data. Внутри Split order — нормально.
 
----
 
 
----
+
+___
+
+
+
 
 ### ✅ Split order domain into sealed Regular/Stop
 
@@ -7837,11 +8176,12 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 
 
 
----
+
+___
 
 
 
----
+
 ### ✅ H24. Обогащение PositionStreamItem — в один метод
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -7892,7 +8232,12 @@ BrokerApi + брокеры 1 ч, ViewModel + UI 2 ч, тесты + гейт +
 
 
 
----
+
+___
+
+
+
+
 ### ✅ H17–H20. Перенос presentation-утилит из util
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -8011,12 +8356,12 @@ Compose в `util/`-пути; `domain/` не видит `android.util.Log`
 
 
 
----
+
+___
 
 
 
 
----
 ### ✅ Рефакторинг расчёта P&L для PortfolioPosition
 
 **Мобильная работа:** частичное (live-тест данных).
@@ -8162,12 +8507,12 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
----
+
+___
 
 
 
 
----
 ### ✅ H1. PortfolioPosition factory для UI
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
@@ -8254,7 +8599,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** `Long` или `kotlinx-datetime.Instant`? Зависит от того, нужны ли даты в `Instruments`.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ KMP: System.currentTimeMillis → Clock-интерфейс
 
@@ -8299,7 +8650,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** `Clock` (интерфейс) или `expect fun`? Рекомендация: `Clock` — тестируется fake'ом, KMP-friendly.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ KMP: инжект CoroutineDispatcher вместо Dispatchers.IO
 
@@ -8354,7 +8711,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Открытые вопросы:**
 - На iOS/native — `Dispatchers.Default` (в native `Dispatchers.IO` нет). `DispatcherModule` в `:app` (Android) даёт IO; при KMP-переезде — `androidMain`/`iosMain`-варианты. Сейчас — только Android.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Пакет 3: Н26 + Н50
 
@@ -8451,7 +8814,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 - `restoreBcs` — тесты аналогичные `restoreTInvest`? Рекомендация: 2–3 сценария (saved, getAccounts падает + saved, getAccounts падает + null).
 - `refreshInitializationState()` (Н51) — в scope? Рекомендация: **вне scope** (Н51 — отдельная задача, связана с жизненным циклом инициализации).
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Пакет A: retryWithBackoff resilience (Н60 + Н61)
 
@@ -8497,7 +8866,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** `RESOURCE_EXHAUSTED` — отдельная задержка (2×60с?) или стандартный backoff? Рекомендация: стандартный backoff + отдельная задача «Rate-limiter» для unary.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Пакет D: BrokerRegistry domain-config (Н35)
 
@@ -8543,13 +8918,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** `defaultBroker` — в `BrokerRegistry` companion или отдельный `BrokerDefaults`? Рекомендация: companion `BrokerRegistry`.
 
----
-
----
 
 
 
----
+___
+
+
+
 
 ### ✅ Пакет B: SettingsRepository split (Н68)
 
@@ -8592,11 +8967,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** `TradingStateRepository` — отдельный, не трогаем. `BrokerLifecycleManager` инжектит `SettingsRepository` — миграция в `BrokerCredentialsRepository`.
 
----
 
 
 
----
+___
+
+
+
 
 ### ✅ Н62: TInvestWsService.initialize не вызывает stop()
 
@@ -8637,7 +9014,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** нет.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Пакет C: TInvestMarketDataService split (Н63)
 
@@ -8736,7 +9119,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** нет (все дефолты зафиксированы при планировании 2026-10-31).
 
----
+
+
+
+___
+
+
+
 
 ### ✅ T-Invest REST: findInstruments fallback
 
@@ -8805,7 +9194,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 - ~~`FindInstrument` REST-эндпоинт возвращает `List<InstrumentShort>` — какие поля доступны в REST-ответе?~~ Закрыто: `InstrumentShort` содержит `uid`, `ticker`, `classCode`, `isin`, `instrumentType`, `name`, `figi`; `currency`/`lot` отсутствуют -> отсюда обязательность варианта B (N+1).
 - ~~`GetInstrumentBy` REST-метод для `fetchFullInstrument` — отдельная задача или в эту?~~ Решено: `getInstrumentBy` входит в эту задачу как часть fallback-цепочки B. `fetchFullInstrument` gRPC-путь не меняется.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Instrument: C-min (Phase 1)
 
@@ -8965,7 +9360,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** 7 из `docs/domain_models.md` §Портфель §10 (BCS `futuresLimit`, Finam теоретические позиции, Finam `current_price_currency` / `average_price_currency`, источник `money` / `blocked` для T-Invest gRPC/REST и BCS, `lockedQuantity` для Finam, `totalProfit` и Finam `unrealized_profit`, `PortfolioSheet` Map vs List — финал Map).
 
----
+
+
+
+___
+
+
+
 
 ### ✅ OrdersViewModel: миграция на PortfolioSheet
 
@@ -9071,7 +9472,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 - UI-санкция на `OrdersScreen` — **получена** (2026-11-03): M009 — багфикс (диалог подтверждения переживает поворот); M010/M012 — структурный рефакторинг без видимых изменений. Закрыто.
 - `PostOrderUseCase` — в этом PR (не отдельной задачей). Закрыто решением 2026-11-03.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Обогащение name в PortfolioPosition (вариант C)
 
@@ -9176,7 +9583,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 - Для `OrdersScreen` (карточка заявки) `name` также приходит из `Instrument` через `toLegacyPortfolioPosition` (fix в PR #89).
 **Открытые вопросы:** нет.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ H5. PortfolioPosition removed
 
@@ -9238,7 +9651,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** нет. Решения — в истории merge `d04ecc4`, PR #90.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ UI: SearchResultItem extract (пакет A, частично)
 
@@ -9284,7 +9703,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** нет. Решения — в истории merge `aa06690`, PR #91.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ UI: extract composables — пакет B (частично)
 
@@ -9334,7 +9759,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** нет. Решения — в истории merge `aa06690`, PR #91.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ UI: OrdersScreen decompose (пакет C, частично)
 
@@ -9394,7 +9825,13 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 **Открытые вопросы:** нет. Решения — в истории merge `5d4e867`, PR #92.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ OrdersScreen.kt: split helper-composable files
 
@@ -9455,7 +9892,11 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
----
+
+___
+
+
+
 
 ### ✅ M008: перенос pairExec в OrdersViewModel
 
@@ -9512,7 +9953,11 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
----
+
+___
+
+
+
 
 ### ✅ Н65: закрыть в clean-audit (mapProtoToDomain уже разбит)
 
@@ -9560,7 +10005,11 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
----
+
+___
+
+
+
 
 ### ✅ UI: InstrumentColors в presentation/theme
 
@@ -9642,7 +10091,11 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
----
+
+___
+
+
+
 
 ### ✅ Рефакторинг data-слоя T-Invest (Н64)
 
@@ -9691,7 +10144,11 @@ gRPC-стрима позиций — иначе переход на стрим �
 
 
 
----
+
+___
+
+
+
 
 ### ✅ TInvestBrokerApi: 2c-фиксация TooManyFunctions
 
@@ -9734,7 +10191,3 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Связано:** Н70; PR #61, PR #84.
 
 **Открытые вопросы:** нет.
-
-
-
----
