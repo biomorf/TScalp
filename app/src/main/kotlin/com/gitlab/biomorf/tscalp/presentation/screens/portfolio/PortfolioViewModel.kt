@@ -11,9 +11,11 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AccountBalance
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.Position
@@ -131,41 +133,82 @@ class PortfolioViewModel
                 }
                 logger.d(TAG, "loadPortfolio: ${accounts.size} accounts, sandbox=$sandbox")
 
-                // Первичный fetch по каждому счёту — seed sheet'а (до первого polling emit).
-                // SSoT-источник — PositionFlowManager (заместит первым sheet).
-                val seeded = mutableMapOf<AccountKey, AccountPortfolio>()
-                for (account in accounts) {
-                    when (val r = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, account.id, sandbox)) {
-                        is AppResult.Success -> {
-                            val key = AccountKey(BrokerName.TINVEST, account.id)
-                            seeded[key] =
-                                AccountPortfolio(
-                                    accountId = account.id,
-                                    brokerName = BrokerName.TINVEST,
-                                    positions = r.data,
-                                    balances = emptyList(),
-                                )
-                        }
-                        is AppResult.Failure ->
-                            logger.e(TAG, "loadPortfolio[${account.id}] failed: ${r.error.message}", r.error.cause)
-                    }
-                }
+                val sheet = seedSheet(accounts, sandbox)
                 _uiState.update {
-                    it.copy(sheet = PortfolioSheet(seeded), isLoading = false)
+                    it.copy(sheet = sheet, isLoading = false)
                 }
 
                 val keys = accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
-                startPositionUpdates(keys, sandbox)
+                startPositionUpdates(keys, sandbox, seed = sheet)
                 syncPriceInterest()
             }
+        }
+
+        /**
+         * Seed `PortfolioSheet` из первичного fetch по каждому счёту
+         * (до первого polling emit из `PositionFlowManager`).
+         *
+         * Баланс: `GetPortfolio` не отдаёт `money/blocked`, отдельный
+         * [PortfolioRepository.getBalanceResult]. Пока только RUB
+         * (`blocked = 0.0`); полный `AccountBalance` (валюты, blocked)
+         * — задача `Position: источники priceChangePercent и lockedQuantity`.
+         *
+         * При ошибке баланса — счет попадает в sheet с пустыми `balances`
+         * (не блокирует показ позиций; `AccountHeaderCard` покажет «нет данных»).
+         */
+        private suspend fun seedSheet(
+            accounts: List<BrokerAccount>,
+            sandbox: Boolean,
+        ): PortfolioSheet {
+            val seeded = mutableMapOf<AccountKey, AccountPortfolio>()
+            for (account in accounts) {
+                when (val r = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, account.id, sandbox)) {
+                    is AppResult.Success -> {
+                        val key = AccountKey(BrokerName.TINVEST, account.id)
+                        val balances =
+                            when (val b = portfolioRepository.getBalanceResult(account.id)) {
+                                is AppResult.Success ->
+                                    listOf(
+                                        AccountBalance(
+                                            currency = "rub",
+                                            money = b.data,
+                                            blocked = 0.0,
+                                        ),
+                                    )
+                                is AppResult.Failure -> {
+                                    logger.w(
+                                        TAG,
+                                        "seedSheet[${account.id}] balance failed: ${b.error.message}",
+                                    )
+                                    emptyList()
+                                }
+                            }
+                        seeded[key] =
+                            AccountPortfolio(
+                                accountId = account.id,
+                                brokerName = BrokerName.TINVEST,
+                                positions = r.data,
+                                balances = balances,
+                            )
+                    }
+                    is AppResult.Failure ->
+                        logger.e(TAG, "seedSheet[${account.id}] failed: ${r.error.message}", r.error.cause)
+                }
+            }
+            return PortfolioSheet(seeded)
         }
 
         private fun startPositionUpdates(
             keys: Set<AccountKey>,
             sandbox: Boolean,
+            seed: PortfolioSheet? = null,
         ) {
             stopPositionUpdates()
-            positionFlowManager.start(accountKeys = keys, sandboxMode = sandbox)
+            positionFlowManager.start(
+                accountKeys = keys,
+                sandboxMode = sandbox,
+                seed = seed,
+            )
             positionStreamJob =
                 viewModelScope.launch {
                     positionFlowManager.sheet.collect { sheet ->

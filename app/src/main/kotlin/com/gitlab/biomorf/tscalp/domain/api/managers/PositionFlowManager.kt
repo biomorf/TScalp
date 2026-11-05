@@ -108,13 +108,20 @@ class PositionFlowManager
          * Запускает сбор позиций со всех [accountKeys]. Идемпотентно
          * для того же набора счетов и режима. При изменении — перезапускает
          * оба источника и очищает [instrumentCache] + [PortfolioSheet] + replay [flow].
+         *
+         * @param seed начальный [PortfolioSheet] (из primary fetch в VM). Применяется
+         *   к [_sheet] идемпотентно: если счёт уже есть — обновляются только
+         *   `balances` (если seed.balances непуст), positions из manager'а
+         *   сохраняются (polling мог их обновить свежее, чем seed).
+         *   На первом старте (`_sheet` пуст) — seed кладётся целиком.
          */
         fun start(
             accountKeys: Set<AccountKey>,
             sandboxMode: Boolean,
             forceRestart: Boolean = false,
+            seed: PortfolioSheet? = null,
         ) = synchronized(startLock) {
-            doStart(accountKeys, sandboxMode, forceRestart)
+            doStart(accountKeys, sandboxMode, forceRestart, seed)
         }
 
         @OptIn(ExperimentalCoroutinesApi::class)
@@ -122,12 +129,14 @@ class PositionFlowManager
             accountKeys: Set<AccountKey>,
             sandboxMode: Boolean,
             forceRestart: Boolean,
+            seed: PortfolioSheet?,
         ) {
             if (!forceRestart &&
                 job?.isActive == true &&
                 currentKeys == accountKeys &&
                 currentSandboxMode == sandboxMode
             ) {
+                seed?.let { applySeed(it) }
                 logger.d(TAG, "Поток позиций уже запущен для $accountKeys")
                 return
             }
@@ -136,6 +145,7 @@ class PositionFlowManager
                 instrumentCache.clear()
                 _sheet.value = PortfolioSheet(emptyMap())
             }
+            seed?.let { applySeed(it) }
             job?.cancel()
             currentKeys = accountKeys
             currentSandboxMode = sandboxMode
@@ -236,7 +246,7 @@ class PositionFlowManager
                 }
             val merged: Position? =
                 if (existing != null) {
-                    mergePartial(existing, item)
+                    existing.mergeStreamItem(item)
                 } else {
                     val instrument = instrumentCache[accountKey]?.get(item.tscalpInstrumentId) ?: return
                     item.toPosition(instrument)
@@ -250,25 +260,6 @@ class PositionFlowManager
                 }
             _sheet.update { current ->
                 current.copy(accounts = current.accounts + (accountKey to currentAccount.copy(positions = newPositions)))
-            }
-        }
-
-        private fun mergePartial(
-            existing: Position,
-            item: PositionStreamItem,
-        ): Position {
-            val qty = item.quantity.toDouble()
-            val price = item.currentPrice ?: existing.currentPrice
-            val avg = item.averagePositionPrice ?: existing.averagePrice
-            val profit = item.expectedYield ?: existing.profit
-            return when (existing) {
-                is SharePosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
-                is FuturePosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
-                is BondPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
-                is OptionPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
-                is EtfPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
-                is CurrencyPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
-                is OtherPosition -> existing.copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
             }
         }
 
@@ -303,8 +294,30 @@ class PositionFlowManager
             synchronized(startLock) {
                 if (currentKeys.isEmpty()) return@synchronized
                 logger.d(TAG, "reapplyDebugFlags: restarting stream")
-                doStart(currentKeys, currentSandboxMode, forceRestart = true)
+                doStart(currentKeys, currentSandboxMode, forceRestart = true, seed = null)
             }
+
+        /**
+         * Merge [seed] в [_sheet]. Идемпотентно:
+         * - если счёта ещё нет — кладём seed-снимок целиком (первый старт);
+         * - если есть — обновляем только `balances` (positions из manager'а
+         *   могут быть свежее, чем seed). Если seed.balances пуст (ошибка
+         *   `getBalanceResult`) — оставляем существующие.
+         */
+        private fun applySeed(seed: PortfolioSheet) {
+            val current = _sheet.value
+            val merged = current.accounts.toMutableMap()
+            for ((key, seedAccount) in seed.accounts) {
+                val existing = merged[key]
+                merged[key] =
+                    when {
+                        existing == null -> seedAccount
+                        seedAccount.balances.isNotEmpty() -> existing.copy(balances = seedAccount.balances)
+                        else -> existing
+                    }
+            }
+            _sheet.value = PortfolioSheet(merged)
+        }
 
         private suspend fun stateWatchdog() {
             while (currentCoroutineContext().isActive) {
@@ -325,3 +338,30 @@ class PositionFlowManager
                 stateTracker.onStop()
             }
     }
+
+/**
+ * Merge stream-события [item] поверх существующей [Position].
+ *
+ * `quantity` — из события; `currentPrice` / `averagePrice` / `profit` —
+ * non-null fallback (partial-событие не обнуляет). `Type-preserving`:
+ * возвращает тот же subtype (Share/Future/...). Диспетчеризация по
+ * `this is XxxPosition`.
+ *
+ * Top-level extension (не метод `PositionFlowManager`): держит
+ * `TooManyFunctions` под порогом без `@Suppress`.
+ */
+private fun Position.mergeStreamItem(item: PositionStreamItem): Position {
+    val qty = item.quantity.toDouble()
+    val price = item.currentPrice ?: currentPrice
+    val avg = item.averagePositionPrice ?: averagePrice
+    val profit = item.expectedYield ?: this.profit
+    return when (this) {
+        is SharePosition -> copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+        is FuturePosition -> copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+        is BondPosition -> copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+        is OptionPosition -> copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+        is EtfPosition -> copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+        is CurrencyPosition -> copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+        is OtherPosition -> copy(quantity = qty, currentPrice = price, averagePrice = avg, profit = profit)
+    }
+}
