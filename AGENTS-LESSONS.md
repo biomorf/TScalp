@@ -638,6 +638,37 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 
 
+### 81. Multiline pre-check в скрипте — `\($` / `\([^)]*$`, не `\(`
+
+**Правило:** при проверке multiline wrapping в скрипте — `grep -nE "val \w+ = \w+\.\w+\($"` (с `$` — `(` в конце строки) или `\([^)]*$` (открывающая `(` без `)` на той же строке). **Не** `val \w+ = \w+\.\w+\(` (без `$`) — ложно-падает на однострочных `val x = obj.method(arg)`.
+
+**Инцидент:** 2026-11-05, H64 (`TInvestPortfolioService.kt`). Verify-grep `'val \w+ = \w+\.\w+\('` (без `$`) поймал `val protoInstrument = instrumentsService.fetchProtoInstrument(uid)` — однострочное, `)` на той же строке. Ложная тревога `multiline: 1`, диагностика.
+
+**Проверка:** `grep -nE "val \w+ = \w+\.\w+\($"` или `\([^)]*$` — только реальные multiline. `val x = obj.method(arg)` — не матчит.
+
+**Связано:** AGENTS.md 4h mobile-ветка, правило 4 (Multiline wrapping) — формулировка **корректная** (`\($`), ошибка была в скрипте.
+
+### 82. 5g.4 при extract — перенос комментариев
+
+**Правило:** при вынесении кода в helper / extract (2c-рефакторинг) — переносить **все комментарии внутри** старого блока. Потерянный комментарий — нарушение 5g.4 («содержимое не сокращается»).
+
+**Инцидент:** 2026-11-05, H64. В `fetchPortfolioPositions` был комментарий про `money/blocked` (`GetPortfolio` не отдаёт; WS или GetPositions). При extract в 3 функции — комментарий **потерян**. Восстановлен перед `AccountPortfolio(...)`.
+
+**Проверка:** при extract — `git diff` старого блока; каждый `//` / `/** */` внутри должен быть **где-то** в новом коде. `grep -n '// ' <old>` vs `grep -n '// ' <new>`.
+
+**Связано:** урок 66 (5g.4, перенос в Исправленные — три вещи).
+
+### 83. Clean-audit refs — проверять ID
+
+**Правило:** при закрытии задачи — проверять, что `→ docs/clean-audit.md → Нxx` ведёт на **правильную** запись. Перепутанный ID — источник ложных mark done.
+
+**Инцидент:** 2026-11-05, TInvestBrokerApi (PR #96). В ROADMAP `**Референсы:** docs/clean-audit.md → Н70` — но Н70 = `BrokerApi — @Suppress("TooManyFunctions")` (PR #61), **не** TInvestBrokerApi. Запись Н70 корректна, к TInvestBrokerApi не относится; правку Н70 **не** делали (решение пользователя). Урок: сверять ID.
+
+**Проверка:** `grep -n '### Н<xx>\.' docs/clean-audit.md` — заголовок соответствует задаче. И `grep -n '### ✅ Н<xx>\.'` для закрытых.
+
+**Связано:** урок 13 (anchor в скрипте — grep перед написанием).
+
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
