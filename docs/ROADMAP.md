@@ -83,6 +83,80 @@ ___
 
 
 
+### InitializeBrokerUseCase (M004 + M007)
+
+**Мобильная работа:** частичное (live-test UI подключения к T-Invest / BCS / Finam через «Подключиться»).
+
+**Статус:** в работе.
+
+**Ветка:** feature/initialize-broker-usecase
+
+**Контекст:** `SettingsViewModel.initializeTInvest/Bcs/Finam` (clean-audit M004) выполняют login-orchestration в VM: save creds → init → refresh state. `SettingsScreen` (clean-audit M007) вызывает их из `scope.launch { ... }` в `onClick` кнопки «Подключиться», оркеструет start/success/failure. `InitializeBrokerUseCase` закрывает обе находки: бизнес-логика уходит в `domain.usecases`, VM — тонкий (`connect*`), UI — просто `onClick { vm.connect*(...) }`.
+
+**Соответствие Clean:** соответствует (orchestration в domain.usecases — целевой слой).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/usecases/InitializeBrokerUseCase.kt` (новый) — `suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean>`; диспетчеризация по sealed `when`.
+- `presentation/screens/settings/SettingsViewModel.kt` — `initialize*` → `connect*`; общий private `connect(credentials, successMessage, markConnected)`.
+- `presentation/screens/settings/SettingsScreen.kt` — 3 callsites.
+
+**Шаги:**
+1. `InitializeBrokerUseCase` — 3 ветки:
+   - TInvest: `saveBrokerCredentials` → `lifecycleTInvest.initialize` → `refreshInitializationState`.
+   - Bcs: `lifecycleBcs.initialize` → `saveBrokerCredentials` → `refreshInitializationState` (порядок как сейчас — не сохранять битый токен).
+   - Finam: `saveToken` → `lifecycleFinam.initialize` → `refreshInitializationState`.
+   - Успех — `AppResult.Success(true)`; исключение — `AppResult.Failure(AppError.Unknown(...))` + лог.
+2. `SettingsViewModel` — 3 `connect*` метода. `_uiState.update` (statusMessage / isError / tInvestConnected / bcsConnected / finamConnected) — в VM, не в usecase.
+3. `SettingsScreen` — 3 callsite на `connect*`.
+4. Гейт после каждого шага.
+5. Live-test через UI.
+6. `clean-audit` M004, M007 → `исправлено`.
+7. `ROADMAP` mark done.
+
+**Тесты:** live-test через UI. Mock-инфраструктура (`BrokerRegistry` + `BrokerLifecycleApi` + `BrokerCredentialsRepository` + DataStore) — избыточна; live-test покрывает сценарий.
+
+**Референсы:**
+- `docs/clean-audit.md` → M004, M007.
+- `domain/api/roles/BrokerCredentials.kt` (sealed).
+- `domain/api/BrokerRegistry.kt`.
+
+**Ограничения:**
+- `clearBrokerCredentials` не трогаем (сейчас `initialize*` её не вызывает; описание M004 устарело).
+- Порядок save/init — 1:1 как сейчас (BCS — init → save; TInvest/Finam — save → init).
+- `withContext(Dispatchers.IO)` **не добавляем** в usecase (M005 — исправлено; репозитории/менеджеры dispatch-safe). Если live-test покажет ANR — отдельная задача.
+- UI: тексты, кнопки, поля — без изменений; только callsite-rename.
+- `SettingsScreen.kt` — UI-санкция получена.
+
+**Критерий готовности:**
+- `InitializeBrokerUseCase.execute(credentials): AppResult<Boolean>`.
+- `SettingsViewModel` — 3 `connect*`; `initialize*` удалены; `_uiState`-логика в VM.
+- `SettingsScreen` — 3 callsite на `connect*`.
+- Live-test: TInvest / BCS connect → success; Finam → success (заглушка) или понятная ошибка без краша.
+- Гейт зелёный.
+- `clean-audit` M004, M007 → `исправлено`.
+
+**Оценка:** ~3–3.5 ч.
+
+**Зависимости:** нет.
+
+**Связано:** `### Рефакторинг ViewModel-слоя` (M004), `### Рефакторинг Compose-экранов` (M007).
+
+**Открытые вопросы:**
+- `withContext(Dispatchers.IO)` в usecase — не добавляем (M005). Если live-test покажет ANR — пересмотреть.
+- `BrokerCredentials` property names — сверить при компиляции.
+___
+
+
+
+
 
 ### Архитектурный документ (docs/architecture.md)
 
