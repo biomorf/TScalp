@@ -2479,14 +2479,15 @@ ___
 - `MainScreen.kt` — `NavigationBar` лишён хардкода `height(80.dp)`; M3 сам добавляет `navigationBars` insets. Коммит `93f4eb5`.
 - `PortfolioScreen.kt` / `SettingsScreen.kt` (2 `Scaffold`) — `contentWindowInsets = WindowInsets(0, 0, 0, 0)` (убрать двойной слой от внешнего `MainScreen.Scaffold`). Коммит `93f4eb5`.
 - `PortfolioScreen.kt` / `SettingsScreen.kt` (3 `TopAppBar`) — `windowInsets = WindowInsets(0, 0, 0, 0)`; `TopAppBarDefaults.windowInsets` больше не дублирует statusbar-height, единственный источник — `MainScreen.Scaffold`. Коммит `231067d`.
-- PR `feature/edge-to-edge`.
+- PR #90 (`feature/edge-to-edge`).
 
 **Live-тест (desktop, эмуляторы):**
 - Android 11 (API 30): PASS. Statusbar прозрачный, иконки читаемы (светлая/тёмная), отступ сверху небольшой и одинаковый на всех 3 вкладках, navbar над системной навигацией.
 - Android 14 (API 34): PASS. Всё то же, отступы как на 11.
-- Android 12 / 13 / 15 — не прогонялись (не было под рукой). Риск: минимальный (поведение системных баров стабильно 11→14; на 15 система принудительно edge-to-edge, наша правка лишь «перестала мешать»). Догон — при случае.
+- Android 15 (API 35): PASS. Целевая версия (принудительный edge-to-edge); отступы, statusbar, navbar — как на 11/14.
+- Android 12 / 13 — не прогонялись. `WindowInsets` / `enableEdgeToEdge` API стабильны с API 30; правка не версионно-специфична (снимает override, который на 15 игнорировался, а на 11–14 дублировал инсеты). Риск минимальный.
 
-**Отклонение от плана:** в ROADMAP было «live-тест на 4 версиях Android». Фактически — 2 (11 и 14). Причина: 12/13 — идентичны 14 по поведению insets (разница минимальна), 15 — целевая (правка там ничего не меняет, только убирает deprecated warning). Приемлемо; отдельного «догоняющего» теста не заводим.
+**Отклонение от плана:** в ROADMAP было «live-тест на 4 версиях Android». Фактически — 3 (11, 14, 15). 12/13 — не гоняли (поведение insets — подмножество 14). Покрыты ключевые классы: minSdk (11), последняя «старая» (14), целевая (15). Отдельного «догоняющего» теста не заводим.
 
 
 **Связано:** PR #90 (`feature/edge-to-edge`); `docs/ISSUES.md` — записи про `statusBarColor` нет (не заводилась).
