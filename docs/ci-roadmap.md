@@ -5,9 +5,18 @@
 
 План разработки → `docs/ROADMAP.md`.
 
+
+
+
 ---
 
+
+
+
 ## Планируемые задачи
+
+
+
 
 ### Markdown linter в CI
 
@@ -103,7 +112,13 @@ job 15, проверка на PR 10).
   Рекомендация — отдельный job: доки не должны попадать
   в required gate, но должны быть проверены.
 
----
+
+
+
+___
+
+
+
 
 ### GitHub → GitLab mirror через GitHub Action
 
@@ -237,7 +252,13 @@ GitLab» — без зеркала переключение на резерв н
   игнорировать до реального сбоя, но добавить в
   monitoring, когда он появится.
 
----
+
+
+
+___
+
+
+
 
 ### Codecov: diff coverage в PR и бейдж покрытия
 
@@ -380,7 +401,13 @@ coverage в PR; может стать обязательным чеком в Rul
   Rulesets сразу или после стабилизации. Рекомендация —
   после.
 
----
+
+
+
+___
+
+
+
 
 ### Role emulation для тестировщика
 
@@ -442,6 +469,9 @@ web Settings GitHub + правка `docs/git-flow.md`.
 **Открытые вопросы:**
 - Роль второго участника: Write или Maintainer? Решить
   при появлении. Для approve достаточно Write.
+
+
+
 
 ### Self-hosted GitLab Runner через Ansible + Podman
 
@@ -531,7 +561,13 @@ web Settings GitHub + правка `docs/git-flow.md`.
 - Кастомный job-образ с Android SDK — отдельная задача после MVP.
 - Если 2 GB RAM на remote окажется мало — увеличить после внедрения.
 
----
+
+
+
+___
+
+
+
 
 ### Hot-swap CI на GitLab
 
@@ -632,7 +668,13 @@ Actions, которая сама будет перестроена на этап
   или допускается расхождение в деталях? Решить на
   этапе детализации после GitFlow.
 
----
+
+
+
+___
+
+
+
 
 ### Play Store Internal Testing
 
@@ -708,6 +750,9 @@ Service Account).
 
 **Открытые вопросы:** нет.
 
+
+
+
 ### Play Store Production
 
 **Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
@@ -762,9 +807,23 @@ Production track Play Store. Привязан к тегу `v*` на
 
 **Открытые вопросы:** нет.
 
+
+
+
+___
+
+
+
+
 ---
 
+
+
+
 ## Закрытые задачи
+
+
+
 
 ### ✅ Защита ветки master
 
@@ -782,12 +841,18 @@ CI-проверка в `build-release` (`git merge-base --is-ancestor`)
 остаётся как вторая линия обороны — тег обязан стоять на коммите
 из master.
 
+
+
+
 ### ✅ versionName в GitHub Release (отменено)
 
 Исходная задача из эпохи GitLab CI: добавить `Release vX.Y.Z`
 в description. В GitHub это решено через `name: Release
 ${{ inputs.tag }}` в `release.yml` — версия видна в заголовке
 релиза, дублирование в body не нужно
+
+
+
 
 ### ✅ Обновление GitHub Actions до Node.js 24
 
@@ -798,6 +863,9 @@ GitHub форсит Node.js 24 для actions с 2 июня 2026;
 Node.js 20 будет удалён с раннеров 16 сентября 2026.
 `actions/setup-java@v5` и `gradle/actions/setup-gradle@v5`
 уже были на Node.js 24.
+
+
+
 
 ### ✅ Переезд CI на GitHub Actions
 
@@ -825,6 +893,9 @@ CI/CD перенесён с GitLab на GitHub Actions.
 пайплайна через self-hosted runner (см. ROADMAP →
 «Self-hosted GitLab Runner через Ansible + Podman»).
 
+
+
+
 ### ✅ Renovate: self-hosted через GitHub Actions
 
 Автоматическое отслеживание обновлений Gradle-зависимостей
@@ -842,6 +913,9 @@ CI/CD перенесён с GitLab на GitHub Actions.
   Срок действия 90 дней — обновлять по уведомлению.
 - Default branch в GitHub переключён с `master` на `dev`:
   workflows индексируются только из default branch.
+
+
+
 
 ### ✅ Coverage в unit-tests
 
@@ -862,6 +936,9 @@ CI/CD перенесён с GitLab на GitHub Actions.
 
 **Итог:** JaCoCo полностью удалён из проекта, Kover единственный
 инструмент покрытия.
+
+
+
 
 ### ✅ ktlint enforcement
 
@@ -894,6 +971,9 @@ CI/CD перенесён с GitLab на GitHub Actions.
 
 **Итог:** `:app:ktlintCheck` падает при любом новом
 нарушении стиля. CI блокирует merge. 63 unit-теста зелёные.
+
+
+
 
 ### ✅ detekt enforcement
 
@@ -952,6 +1032,9 @@ CI блокирует merge. 63 unit-теста зелёные.
 целиком. Для остальных правил группы 3 `@Suppress`
 работает.
 
+
+
+
 ### ✅ CI: пропускать сборку на docs-only коммитах
 
 Workflow `ci.yml` больше не запускается на коммитах, которые
@@ -982,6 +1065,9 @@ Workflow `ci.yml` больше не запускается на коммитах
 (`app/**`, `gradle/**`, `build.gradle.kts`, `.github/**`).
 
 cat >> docs/ROADMAP.md <<'EOF'
+
+
+
 
 ### ✅ Перенос ROADMAP и ISSUES в docs/
 
@@ -1019,7 +1105,13 @@ cat >> docs/ROADMAP.md <<'EOF'
 (`README.md`, `LICENSE`, `AGENTS.md`). Вся проектная
 документация — в `docs/`.
 
----
+
+
+
+___
+
+
+
 
 ### ✅ Разделение планирования: dev-roadmap / ci-roadmap
 
@@ -1071,6 +1163,9 @@ CI-плане, потому что их роль — гейт на merge чер�
 
 **Итог:** два файла вместо одного, каждый со своим
 потребителем и слоем.
+
+
+
 
 ### ✅ Переход на полный GitFlow
 
@@ -1136,6 +1231,9 @@ CI-плане, потому что их роль — гейт на merge чер�
 Единственный работающий CI сейчас — GitHub Actions;
 GitLab — резерв (см. `### Hot-swap CI на GitLab`).
 
+
+
+
 ### ✅ Gate-job для required checks
 
 Устойчивый required check, который не исчезает из
@@ -1181,6 +1279,9 @@ UI-имени (`CI / gate (pull_request)`). Причина, по которой
 
 **Итог:** первый PR после паузы >7 дней запускает CI,
 gate появляется в picker'е, merge не блокируется вручную.
+
+
+
 
 ### ✅ Справочник по защите репозитория
 
@@ -1230,6 +1331,3 @@ required check в Rulesets задаётся именем job'а
 
 **Итог:** справочник создан, ссылки взаимны, дубли
 устранены.
-
----
----
