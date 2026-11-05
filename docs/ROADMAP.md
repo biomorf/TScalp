@@ -86,28 +86,75 @@ ___
 
 ### Переход на edge-to-edge (statusBarColor deprecated)
 
-**Статус:** запланировано, требует отдельной подготовки.
+**Мобильная работа:** частичное (live-тест UI на 4 версиях Android — desktop).
 
-**Что:** `window.statusBarColor` и `window.navigationBarColor` устарели.
-С Android 15 система применяет edge-to-edge принудительно для приложений
-с target SDK 35+.
+**Статус:** в работе.
 
-**Действия:**
-1. Убрать `window.statusBarColor = ...` из `Theme.kt`.
-2. Убедиться, что в `MainActivity` вызывается `enableEdgeToEdge()`.
-3. Проверить все 4 экрана (Заявки, Портфель, Настройки, MainScreen)
-   на Android 12, 13, 14, 15.
-4. При необходимости — добавить `WindowInsets` в `Scaffold`-ы.
+**Ветка:** feature/edge-to-edge
 
-**Оценка:** ~2 часа + прогон на устройствах разных версий.
-**Когда:** при подготовке релиза под Android 15 или target SDK 36.
+**Контекст:** `window.statusBarColor` / `window.navigationBarColor` deprecated. С Android 15 (targetSdk 35+) система применяет edge-to-edge принудительно. На `targetSdk=36` текущий `window.statusBarColor = colorScheme.primary.toArgb()` в `Theme.kt:48` **игнорируется** на Android 15+, но **перебивает** `enableEdgeToEdge()` на Android 12–14. Плюс `isAppearanceLightStatusBars = darkTheme` (Theme.kt:49) — инверсия (в тёмной теме `true` = тёмные иконки на тёмном фоне, нечитаемо).
 
+`enableEdgeToEdge()` в `MainActivity:15` — уже есть (без аргументов, `SystemBarStyle.auto`).
 
+**Соответствие Clean:** соответствует.
 
+**Нарушенное правило Clean:** —.
 
-___
+**Clean-альтернатива:** —.
 
+**Выгоды (для «отклонение по 2c»):** —.
 
+**Предусловия:** нет.
+
+**Файлы:**
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/theme/Theme.kt` — удалить `SideEffect { window.statusBarColor = ...; isAppearanceLightStatusBars = darkTheme }`; удалить импорты `Activity`, `SideEffect`, `toArgb`, `LocalView`, `WindowCompat`.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/MainActivity.kt` — `enableEdgeToEdge()` уже есть; возможно, добавить `enableEdgeToEdge(statusBarStyle = SystemBarStyle.auto(...))` при необходимости (по live-тесту).
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/MainScreen.kt` — `Scaffold` (bottomBar) — по live-тесту, возможно `contentWindowInsets` adjustment.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/settings/SettingsScreen.kt` — 2 `Scaffold` (124, 944) — по live-тесту.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/portfolio/PortfolioScreen.kt` — `Scaffold` (55) — по live-тесту.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/orders/OrdersScreen.kt` — своего `Scaffold` нет (внутри `MainScreen`), проверка live.
+- `app/src/main/res/values/themes.xml` — `android:Theme.Material.Light.NoActionBar` (старая тема, но без конфликтующих `windowTranslucentStatus` / `windowDrawableSystemBarBackgrounds`). Не трогаем, если live-тест не выявит проблему.
+
+**Шаги:**
+1. `Theme.kt` — удалить блок `SideEffect` (строки 44–51) + 5 импортов.
+2. Полный локальный гейт (desktop).
+3. Live-тест на Android **12, 13, 14, 15**:
+   - statusbar прозрачный; иконки читаемы (светлая/тёмная тема);
+   - контент не под statusbar (top app bar отступает);
+   - нет двойного отступа сверху на Portfolio/Settings (2 `Scaffold` друг в друге);
+   - bottom nav не перекрывает контент;
+   - Orders (без своего Scaffold) корректен.
+4. Если п.3 выявил двойной отступ — второй коммит: `MainScreen.Scaffold(contentWindowInsets = WindowInsets.navigationBars)` (или аналог).
+5. PR.
+
+**Тесты:** нет unit-тестов (UI-тема). Доказательство — live-тест на 4 версиях Android.
+
+**Референсы:**
+- Официальная документация: `https://developer.android.com/develop/ui/views/layout/edge-to-edge`.
+- `enableEdgeToEdge()` — `androidx.activity:activity-compose`.
+- `ScaffoldDefaults.contentWindowInsets` — Material3.
+
+**Ограничения:**
+- **UI-санкция** (правило 1 AGENTS) — получена.
+- **Live-тест обязателен** перед merge. Без него — не мержить.
+- Не менять `themes.xml` (старая `Material.Light.NoActionBar`) — отдельная задача, если live-тест покажет.
+- Не смешивать с рефакторингом `Theme.kt` (`DarkColorScheme` / `LightColorScheme` — стабильны).
+
+**Критерий готовности:**
+- `grep -rn "statusBarColor\|WindowCompat\|isAppearanceLightStatusBars" app/src/main --include="*.kt"` — пусто.
+- `enableEdgeToEdge()` в `MainActivity` — есть (не менялось).
+- Live-тест на 4 версиях Android — PASS (все 5 пунктов из шага 3).
+- Гейт зелёный (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`).
+
+**Оценка:** ~2 ч (правка Theme.kt 15 мин, гейт 1 мин, live-тест 4 версии 1–1.5 ч, PR 10 мин).
+
+**Зависимости:** нет.
+
+**Связано:** `docs/ISSUES.md` → warning `statusBarColor` (если запись есть — закрыть/обновить при mark done).
+
+**Открытые вопросы:**
+- Нужен ли `SystemBarStyle.auto(...)` явно в `enableEdgeToEdge()` или дефолт корректен? Решится live-тестом.
+- Нужны ли `contentWindowInsets` в `Scaffold`'ах (двойной отступ)? Решится live-тестом.
 
 ### Архитектурный документ (docs/architecture.md)
 
