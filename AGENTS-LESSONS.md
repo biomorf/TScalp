@@ -633,13 +633,20 @@ text` — inline-ссылки).
    если нет)`), не голый идентификатор.
 
 
-### 80. `echo` с backtick — 2-й раз; проверяй факт, не форму
+### 80. `echo` с backtick — 3-й раз; проверяй факт, не форму
 
 **Правило:** (а) `echo` с backtick внутри двойных кавычек —
 command substitution (повтор урока 64, 2026-11-05, M008-диагностика:
 `echo "=== ... 'OrdersViewModelTest` ..."` → `syntax error near
 unexpected token '('`). Писать `echo '...'` (одинарные) или без
-backticks вообще. (б) **Общий корень** всех ложных post-assert за
+backticks вообще.
+
+**Третий случай (2026-11-06, 5a-check):** `echo "``` count:
+$(grep -c '^```' file)"` — backticks внутри двойных кавычек,
+bash → `command substitution: syntax error near unexpected token
+')'`. Тот же класс, 3-й раз (64 → 80-первый → этот).
+
+(б) **Общий корень** всех ложных post-assert за
 M008-сессию (6 штук): **проверял предполагаемую форму, а не
 фактическое состояние**. Правило: post-assert проверяет **факт**
 (`old_frag not in <block>`), не «как я думаю выглядит файл».
