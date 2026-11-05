@@ -259,7 +259,9 @@ ___
 
 **Мобильная работа:** частичное (live-тест в песочнице).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/portfolio-balance-sandbox
 
 **Контекст:** После `Portfolio: модель портфеля` (PR #88) в песочнице per-account шапка счёта показывает «нет данных» вместо баланса RUB, а кнопка «Пополнить» визуально не даёт результата. Причины:
 - `TInvestPortfolioService.fetchPortfolioPositions` возвращает `AccountPortfolio(balances = emptyList())` — `GetPortfolio` не отдаёт `money/blocked`.
