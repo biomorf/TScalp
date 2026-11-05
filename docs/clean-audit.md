@@ -1243,25 +1243,6 @@ L4–L8 — не проверены, заполняются по мере инс
 **Соответствуют Clean (data-only, никаких утечек):**
 `TradingStateRepository`, `SettingsRepository`.
 
-### Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `TInvestPortfolioService.fetchPortfolioPositions` — `@Suppress("CyclomaticComplexMethod")`. ~40 строк, внутри: mapNotNull по позициям, fetchProtoInstrument для каждой, getFuturesMargin для фьючерсов, маппинг proto → domain, вычисление quantity/currentPrice/expectedYield/averagePrice, сборка `PositionStreamItem`.
-
-**Нарушенное правило Clean:** SRP — функция делает 3 вещи (fetch instrument, fetch margin, map position).
-
-**Clean-альтернатива:** `fetchPortfolioPositions` = `getPortfolio` + `.map { mapPositionToStreamItem(it, fetchInstrumentFn) }`. Плюсы: декомпозиция. Минусы: —.
-
-**Выгоды:** один метод, работает.
-
-**Ссылка на задачу:** `docs/ROADMAP.md` → `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Data-слой T-Invest` (упомянут `fetchPortfolioPositions` декомпозиция).
-
-
 ### Н66. getTradingStatuses — N параллельных unary
 
 **Статус:** открыто.
@@ -1729,6 +1710,25 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `### ✅ Instrument: Phase 2 (sealed interface)` (PR #83).
 
+### ✅ Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
+
+**Статус:** исправлено (2026-11-05, merge `662d1e4`, PR #96).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `TInvestPortfolioService.fetchPortfolioPositions` — `@Suppress("CyclomaticComplexMethod")`. ~40 строк, внутри: mapNotNull по позициям, fetchProtoInstrument для каждой, getFuturesMargin для фьючерсов, маппинг proto → domain, вычисление quantity/currentPrice/expectedYield/averagePrice, сборка `PositionStreamItem`.
+
+**Нарушенное правило Clean:** SRP — функция делает 3 вещи (fetch instrument, fetch margin, map position).
+
+**Clean-альтернатива:** `fetchPortfolioPositions` = `getPortfolio` + `.map { mapPositionToStreamItem(it, fetchInstrumentFn) }`. Плюсы: декомпозиция. Минусы: —.
+
+**Выгоды:** один метод, работает.
+
+**Что сделано:** `fetchPortfolioPositions` 59 → 20 строк: `getPortfolio` + `mapNotNull { enrichWithInstrumentData(pos, accountId) }`. 2 private helper'а: `enrichWithInstrumentData` (suspend, fetch proto + margin + map + toPosition) и `enrichWithMarginData` (сборка `PositionStreamItem`, 14 полей). `@Suppress("CyclomaticComplexMethod")` снят. Поведение 1:1: `balances = emptyList()` + комментарий про `money/blocked` сохранены (5g.4). Merge `662d1e4`, PR #96.
+
+**Ссылка на задачу:** `### ✅ Рефакторинг data-слоя T-Invest (Н64)` (ROADMAP, PR #96).
 
 ## L7 — di
 
