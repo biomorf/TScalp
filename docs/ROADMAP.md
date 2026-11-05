@@ -305,54 +305,6 @@ clean-audit.
 
 **Открытые вопросы:** `expectedYield` в sandbox — `null` или `0`? Определить шагом 0. Если `0` — возможно, UI показывает 0 корректно (нет P&L), но это не отличимо от «реальный ноль»; тогда — отдельный `ISSUES.md` без фикса.
 
----
-
-
-
-### TInvestBrokerApi: снять @Suppress("TooManyFunctions")
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-
-**Ветка:** feature/refactor-data-tinvest.
-
-**Контекст:** `TInvestBrokerApi` (262 строки) несёт `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")`. После nullable-val рефакторинга (`### BrokerApi: ревизия fat-части`, PR #61) все 41 методы стали `override`; `ignoreOverridden = true` (detekt default) их игнорирует. Non-override `fun` — 1 (`initialize`). `1 < 11` → `TooManyFunctions` формально мёртв. `PARAMETER_NAME_CHANGED_ON_OVERRIDE` — осознанно (KDoc), **оставить**.
-
-**Соответствие Clean:** соответствует (чистка мёртвого `@Suppress`).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `data/api/tinvest/TInvestBrokerApi.kt` — строка 52.
-
-**Шаги:**
-1. `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")` → `@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")`.
-2. Гейт: `detekt`. Если зелёный — done. Если красный — вернуть + 2c-фиксация в KDoc (в этом же PR).
-3. PR + CI `gate`.
-
-**Тесты:** не меняются.
-
-**Референсы:** `docs/clean-audit.md` → Н70. `### ✅ Пакет C: TInvestMarketDataService split` (PR #84).
-
-**Ограничения:** только `TInvestBrokerApi:52`. Не трогать BCS/Finam (заглушки, отдельные задачи).
-
-**Критерий готовности:** `@Suppress` снят; `detekt` зелёный (или возвращён с 2c-фиксацией); гейт зелёный.
-
-**Оценка:** ~5–10 мин.
-
-**Зависимости:** нет.
-
-**Связано:** Н70; PR #61, PR #84.
-
-**Открытые вопросы:** нет.
-
 
 
 ---
@@ -9734,6 +9686,52 @@ gRPC-стрима позиций — иначе переход на стрим �
 **Зависимости:** `### TInvestBrokerApi: снять @Suppress("TooManyFunctions")`.
 
 **Связано:** Н64; PR #84.
+
+**Открытые вопросы:** нет.
+
+
+
+---
+
+### ✅ TInvestBrokerApi: 2c-фиксация TooManyFunctions
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** `TInvestBrokerApi` (262 строки) несёт `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")`. После nullable-val рефакторинга (`### BrokerApi: ревизия fat-части`, PR #61) все методы стали `override`; detekt считает **все** (`ignoreOverridden` в `config/detekt/detekt.yml` **не выставлен**). Факт: **26 функций** (25 `override` + 1 non-override `initialize`) > 11 → detekt red. `@Suppress("TooManyFunctions")` **не мёртв**. `PARAMETER_NAME_CHANGED_ON_OVERRIDE` — осознанно (KDoc), **оставить**.
+
+**Соответствие Clean:** отклонение по 2c (принято).
+
+**Нарушенное правило Clean:** `TooManyFunctions` — 26 > 11 (SRP).
+
+**Clean-альтернатива:** декомпозировать фасад на N классов по областям (Accounts / Orders / MarketData / …) по образцу `TInvestMarketDataService` split (PR #84). Плюсы: +SRP. Минусы: ~3–4 ч, ломает nullable-val паттерн (`BrokerApi` — единая точка входа).
+
+**Выгоды (по 2c):** (а) 26 функций — тонкие делегаты в 7 сервисов (~1–2 строки на каждую), не god-класс по сложности; (б) роли уже вынесены в `val` (nullable-val, PR #61); (в) декомпозиция — отдельная задача, если понадобится.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `data/api/tinvest/TInvestBrokerApi.kt` — строка 52.
+
+**Шаги:**
+1. `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")` → `@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")`.
+2. Гейт: `detekt`. Если зелёный — done. Если красный — вернуть + 2c-фиксация в KDoc (в этом же PR).
+3. PR + CI `gate`.
+
+**Тесты:** не меняются.
+
+**Референсы:** `docs/clean-audit.md` → Н70. `### ✅ Пакет C: TInvestMarketDataService split` (PR #84).
+
+**Ограничения:** только `TInvestBrokerApi:52`. Не трогать BCS/Finam (заглушки, отдельные задачи).
+
+**Критерий готовности:** `@Suppress` снят; `detekt` зелёный (или возвращён с 2c-фиксацией); гейт зелёный.
+
+**Оценка:** ~5–10 мин.
+
+**Что сделано:** `@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")` возвращён (fix `4221803`, после `07bfb75`): CI detekt «26 функций > 11» — снятие откатано. KDoc 2c-фиксация: правило / Clean-альтернатива / выгоды (заменил устаревший `// 22 функции`). Merge `662d1e4`, PR #96.
+
+**Зависимости:** нет.
+
+**Связано:** Н70; PR #61, PR #84.
 
 **Открытые вопросы:** нет.
 
