@@ -255,70 +255,6 @@ ___
 
 
 
-### Portfolio: баланс и пополнение в песочнице
-
-**Мобильная работа:** частичное (live-тест в песочнице).
-
-**Статус:** в работе.
-
-**Ветка:** feature/portfolio-balance-sandbox
-
-**Контекст:** После `Portfolio: модель портфеля` (PR #88) в песочнице per-account шапка счёта показывает «нет данных» вместо баланса RUB, а кнопка «Пополнить» визуально не даёт результата. Причины:
-- `TInvestPortfolioService.fetchPortfolioPositions` возвращает `AccountPortfolio(balances = emptyList())` — `GetPortfolio` не отдаёт `money/blocked`.
-- `PortfolioViewModel.loadPortfolio` не дозапрашивает баланс отдельно (`portfolioRepository.getBalanceResult` — единственный потребитель `OrdersViewModel`, для low-balance warning).
-- `payInSandbox(accountId)` работает (`sandboxPayInResult` → `broker.sandbox.sandboxPayIn`), после успеха `loadPortfolio()`. Но `loadPortfolio` не заполняет `AccountBalance` → результат пополнения не виден.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды:** —.
-
-**Предусловия:** `### Portfolio: модель портфеля` — закрыта (PR #88).
-
-**Файлы:**
-- `presentation/screens/portfolio/PortfolioViewModel.kt` — `loadPortfolio` per-account `getBalanceResult`, заполнение `AccountBalance` в `sheet.accounts[accountKey].balances`.
-- `presentation/screens/portfolio/PortfolioScreen.kt` — per-account `AccountHeaderCard` уже показывает `AccountBalance.total`, если `balances` заполнены; правок UI может не потребоваться.
-- `presentation/screens/portfolio/PortfolioUiState.kt` — без изменений (глобальный `balance` не используем).
-
-**Шаги:**
-1. `PortfolioViewModel.loadPortfolio` — для каждого счёта `portfolioRepository.getBalanceResult(account.id)`; собрать `AccountBalance(currency = "rub", money = balance, blocked = 0.0)`. Merge в `sheet.accounts[accountKey].balances` (сохраняя существующие валюты).
-2. `payInSandbox` — после успеха `loadPortfolio` (уже есть). Проверить, что обновлённый `AccountBalance` отображается в шапке счёта.
-3. `PortfolioScreen` — проверить, что per-account `AccountHeaderCard` показывает баланс RUB (не «нет данных»), когда `balances` не пуст. Правок UI может не потребоваться.
-4. Тесты: не требуются (нет mock-инфры; live-тест в песочнице).
-
-**Тесты:** live-тест в песочнице: `loadPortfolio` — баланс RUB виден в per-account шапке (не «нет данных»), «Пополнить» → баланс увеличился.
-
-**Референсы:** `docs/architecture.md` → «Data flow: позиции»; `### Position: источники priceChangePercent и lockedQuantity` (альтернативный источник `AccountBalance` — `GetPositions`); PR #88 (регресс).
-
-**Ограничения:**
-- Не менять `TInvestPortfolioService` (пустой `balances`) — альтернатива `GetPositions` — в задаче `Position: источники priceChangePercent и lockedQuantity`.
-- `getBalanceResult` возвращает `Double` (не `AppResult<AccountBalance>`). `blocked` = `0.0` (нет данных из `BalanceApi`).
-- Глобальная карточка «Баланс» не восстанавливается (решение пользователя 2026-11-03): только per-account в шапке счёта.
-
-**Критерий готовности:**
-- В песочнице после `loadPortfolio` — баланс RUB виден в per-account шапке (не «нет данных»).
-- «Пополнить» — после успеха баланс обновляется в шапке.
-- На боевом счёте — регресс не вносится (тот же `getBalanceResult`, что и сейчас для `OrdersViewModel`).
-- Гейт зелёный.
-
-**Оценка:** ~1.5–2 ч (VM 45 мин, live-тест 30 мин, гейт 15 мин, резерв).
-
-**Зависимости:** нет.
-
-**Связано:** `### Position: источники priceChangePercent и lockedQuantity` (альтернативный источник `AccountBalance` через `GetPositions`); PR #88 (регресс).
-
-**Открытые вопросы:** `getBalanceResult` возвращает `Double` — для `AccountBalance` нужны `money` и `blocked`. Сейчас `money = balance`, `blocked = 0.0`. Если `blocked` нужен — отдельная задача (через `GetPositions`).
-
-
-
-
-___
-
-
-
 
 ### Orders: счёт из свойств карточки не применяется к акциям
 
@@ -2497,3 +2433,79 @@ ___
 **Открытые вопросы:**
 - Нужен ли `SystemBarStyle.auto(...)` явно в `enableEdgeToEdge()` или дефолт корректен? Решится live-тестом.
 - Нужны ли `contentWindowInsets` в `Scaffold`'ах (двойной отступ)? Решится live-тестом.
+
+### ✅ Portfolio: баланс и пополнение в песочнице
+
+**Мобильная работа:** частичное (live-тест в песочнице).
+
+**Контекст:** После `Portfolio: модель портфеля` (PR #88) в песочнице per-account шапка счёта показывает «нет данных» вместо баланса RUB, а кнопка «Пополнить» визуально не даёт результата. Причины:
+- `TInvestPortfolioService.fetchPortfolioPositions` возвращает `AccountPortfolio(balances = emptyList())` — `GetPortfolio` не отдаёт `money/blocked`.
+- `PortfolioViewModel.loadPortfolio` не дозапрашивает баланс отдельно (`portfolioRepository.getBalanceResult` — единственный потребитель `OrdersViewModel`, для low-balance warning).
+- `payInSandbox(accountId)` работает (`sandboxPayInResult` → `broker.sandbox.sandboxPayIn`), после успеха `loadPortfolio()`. Но `loadPortfolio` не заполняет `AccountBalance` → результат пополнения не виден.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**Предусловия:** `### Portfolio: модель портфеля` — закрыта (PR #88).
+
+**Файлы:**
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — `loadPortfolio` per-account `getBalanceResult`, заполнение `AccountBalance` в `sheet.accounts[accountKey].balances`.
+- `presentation/screens/portfolio/PortfolioScreen.kt` — per-account `AccountHeaderCard` уже показывает `AccountBalance.total`, если `balances` заполнены; правок UI может не потребоваться.
+- `presentation/screens/portfolio/PortfolioUiState.kt` — без изменений (глобальный `balance` не используем).
+
+**Шаги:**
+1. `PortfolioViewModel.loadPortfolio` — для каждого счёта `portfolioRepository.getBalanceResult(account.id)`; собрать `AccountBalance(currency = "rub", money = balance, blocked = 0.0)`. Merge в `sheet.accounts[accountKey].balances` (сохраняя существующие валюты).
+2. `payInSandbox` — после успеха `loadPortfolio` (уже есть). Проверить, что обновлённый `AccountBalance` отображается в шапке счёта.
+3. `PortfolioScreen` — проверить, что per-account `AccountHeaderCard` показывает баланс RUB (не «нет данных»), когда `balances` не пуст. Правок UI может не потребоваться.
+4. Тесты: не требуются (нет mock-инфры; live-тест в песочнице).
+
+**Тесты:** live-тест в песочнице: `loadPortfolio` — баланс RUB виден в per-account шапке (не «нет данных»), «Пополнить» → баланс увеличился.
+
+**Референсы:** `docs/architecture.md` → «Data flow: позиции»; `### Position: источники priceChangePercent и lockedQuantity` (альтернативный источник `AccountBalance` — `GetPositions`); PR #88 (регресс).
+
+**Ограничения:**
+- Не менять `TInvestPortfolioService` (пустой `balances`) — альтернатива `GetPositions` — в задаче `Position: источники priceChangePercent и lockedQuantity`.
+- `getBalanceResult` возвращает `Double` (не `AppResult<AccountBalance>`). `blocked` = `0.0` (нет данных из `BalanceApi`).
+- Глобальная карточка «Баланс» не восстанавливается (решение пользователя 2026-11-03): только per-account в шапке счёта.
+
+**Критерий готовности:**
+- В песочнице после `loadPortfolio` — баланс RUB виден в per-account шапке (не «нет данных»).
+- «Пополнить» — после успеха баланс обновляется в шапке.
+- На боевом счёте — регресс не вносится (тот же `getBalanceResult`, что и сейчас для `OrdersViewModel`).
+- Гейт зелёный.
+
+**Оценка:** ~1.5–2 ч (VM 45 мин, live-тест 30 мин, гейт 15 мин, резерв).
+
+**Зависимости:** нет.
+
+**Что сделано:**
+
+- `PositionFlowManager.start/doStart` — новый параметр `seed: PortfolioSheet? = null`; `applySeed()` merge-ит seed в `_sheet` (новый счёт → весь снимок, существующий → только `balances`; positions остаются из manager'а). Вызов на первом старте и на идемпотентном пути. Коммит `c7bc083`.
+- `PortfolioViewModel.loadPortfolio` — `seedSheet(accounts, sandbox)` (извлечён из `loadPortfolio` — detekt LongMethod) собирает seed per-account: `getBalanceResult(account.id)` → `AccountBalance(currency = "rub", money = balance, blocked = 0.0)`. Ошибка `getBalanceResult` → лог `warn`, `balances = emptyList()` (не блокирует seed positions).
+- `PortfolioViewModel.startPositionUpdates(keys, sandbox, seed = sheet)` — прокидывает seed в `start`.
+- `Position.mergeStreamItem(item)` — вынесен из класса как top-level private extension (`mergePartial`). Detekt `TooManyFunctions` (было 12 > 11) — без `@Suppress`.
+
+**Live-тест (T-Invest sandbox, 3 счёта):**
+- Баланс RUB виден в шапке каждого счёта (было «нет данных»).
+- «Пополнить» → +100 000 ₽; повторно → ещё +100 000 ₽.
+- Polling каждые 10 сек **не затирает** баланс.
+- Вкладка «Заявки»: low-balance warning (`OrdersViewModel`) не сломан.
+
+**Отклонение от плана:** ROADMAP §3 гласил «`PortfolioScreen` — правок UI может не потребоваться». Фактически — UI не трогали вообще: `AccountHeaderCard` уже рендерил `balances`, когда они есть. Правки только в domain (`PositionFlowManager`) и data-flow (`PortfolioViewModel`). UI-санкция получена на изменение видимого (баланс вместо «нет данных»), но код `*Screen.kt` / `*Card.kt` — без изменений.
+
+**Не сделано (вне scope):** `blocked` и валюты кроме RUB. Источник — `GetPositions` (money/blocked), задача `### Position: источники priceChangePercent и lockedQuantity`. `getBalanceResult` возвращает `Double` (не `AccountBalance`).
+
+
+**Связано:** `### Position: источники priceChangePercent и lockedQuantity` (альтернативный источник `AccountBalance` через `GetPositions`); PR #88 (регресс).
+
+**Открытые вопросы:** `getBalanceResult` возвращает `Double` — для `AccountBalance` нужны `money` и `blocked`. Сейчас `money = balance`, `blocked = 0.0`. Если `blocked` нужен — отдельная задача (через `GetPositions`).
+
+
+
+
+___
