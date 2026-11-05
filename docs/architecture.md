@@ -55,8 +55,8 @@ presentation-util.
   `money/blocked`; интеграция через `GetPositions` — отдельная задача).
 - **Stream** (`broker.streams?.subscribePositions(accountId)`):
   - `Position` уже есть в `sheet.accounts[accountKey].positions` →
-    `mergePartial` (только `quantity`, `currentPrice`, `averagePrice`,
-    `profit`).
+    `mergeStreamItem` (top-level extension `Position.mergeStreamItem(item)`;
+    обновляет `quantity`, `currentPrice`, `averagePrice`, `profit`).
   - `Position` нет, `Instrument` есть в `instrumentCache` →
     `toPosition(instrument)`.
   - `Instrument` нет → skip (ждём polling, который заполнит
@@ -67,7 +67,17 @@ presentation-util.
 - **`instrumentCache: Map<AccountKey, Map<tscalpInstrumentId, Instrument>>`** —
   заполняется polling'ом.
 
-**Правило `mergePartial`:** `quantity` — из события; `currentPrice` /
+**Seed (`start(accountKeys, sandboxMode, seed = PortfolioSheet?)`):**
+начальный снимок из `PortfolioViewModel.loadPortfolio` (первичный fetch +
+`getBalanceResult` per-account → `AccountBalance(currency = "rub",
+money, blocked = 0.0)`). `applySeed()` merge-ит seed в `_sheet`: новый
+счёт → seed целиком, существующий → только `balances` (positions
+остаются из manager'а — polling / WS могли обновить свежее). Без seed
+первый polling emit (раз в 10 сек) перезаписал бы `_sheet` пустыми
+balances (`GetPortfolio` не отдаёт `money/blocked`) → шапка счёта
+«нет данных».
+
+**Правило `mergeStreamItem`:** `quantity` — из события; `currentPrice` /
 `averagePrice` / `profit` — non-null fallback. Политика фильтрации
 partial-событий — в manager.
 
