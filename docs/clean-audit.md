@@ -97,10 +97,7 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
 | M001. OrdersViewModel форматирует overlay | средне | L1 | `OrdersViewModel.formatCostOverlay` (1148), `formatMultiplierOverlay` (1162) | - |
 | M003. PortfolioViewModel.payInSandbox — orchestration в VM | средне | L1 | `PortfolioViewModel.payInSandbox` (275–343) | ✓ |
-| M004. SettingsViewModel.initialize* — login-orchestration в VM | средне | L1 | `SettingsViewModel.initializeTInvest/Bcs/Finam` (237–349) | ✓ |
-| M005. SettingsViewModel — Dispatchers.IO в VM | средне | L1 | `SettingsViewModel.kt:246, 282, 317` | - |
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
-| M007. SettingsScreen — login-orchestration в UI | средне | L1 | `SettingsScreen.kt` (TInvest 238, Bcs 600, Finam 770) | ✓ |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
 
 ### M001. OrdersViewModel форматирует overlay (формулы в VM)
@@ -140,28 +137,6 @@ L4–L8 — не проверены, заполняются по мере инс
 **Clean-альтернатива:** `PayInSandboxUseCase` (domain.usecases): `suspend fun execute(accountId: String, amount: SandboxMoney): AppResult<Unit>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий. Минусы: ~1.5 ч + тесты.
 
 **MVVM-альтернатива:** тоже UseCase; тестируется без mock VM-инфраструктуры.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
-### M005. SettingsViewModel — Dispatchers.IO в VM
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `SettingsViewModel.kt:246, 282, 317` — `withContext(Dispatchers.IO)` вокруг `brokerManager.getBroker(...)`. Диспатчеризация — обязанность data-слоя (сервисы/репозитории уже используют `withContext(Dispatchers.IO)` внутри). VM дублирует диспатчеризацию.
-
-**Нарушенное правило:** M3 — VM знает платформу (`Dispatchers.IO`).
-
-**Clean-альтернатива:** убрать `withContext(Dispatchers.IO)` из VM — data-слой уже сам диспатчеризирует. Плюсы: чисто. Минусы: — (проверить, что `brokerManager.getBroker` действительно suspend-safe).
-
-**MVVM-альтернатива:** то же — VM не управляет диспатчерами. Плюсы: тестируемость с `TestDispatcher`.
 
 **Выгоды:** —.
 
@@ -232,6 +207,28 @@ L4–L8 — не проверены, заполняются по мере инс
 **MVVM-альтернатива:** тоже UseCase.
 
 **Что сделано:** `InitializeBrokerUseCase` (`domain/usecases/InitializeBrokerUseCase.kt`) — `execute(credentials): AppResult<Boolean>`, `when` по sealed `BrokerCredentials`, 3 private ветки. Порядок save/init сохранён 1:1 (TInvest: save→init; Bcs: init→save; Finam: save→init). `refreshInitializationState` — один раз после успеха. `SettingsViewModel.initializeTInvest/Bcs/Finam` → `connectTInvest/Bcs/Finam` (тонкие обёртки над private `connect()`); `_uiState.update` (statusMessage, isError, `*Connected`) — в VM. `withContext(Dispatchers.IO)` не добавлялся (M005 — исправлено ранее). Live-test через UI: TInvest sandbox, BCS refresh, Finam stub — PASS.
+
+**Ссылка на задачу:** `### InitializeBrokerUseCase (M004 + M007)` (ROADMAP, feature/initialize-broker-usecase).
+
+**Сводный отчёт, 2026-11-06:** да.
+
+### ✅ M005. SettingsViewModel — Dispatchers.IO в VM
+
+**Статус:** исправлено (2026-11-06, feature/initialize-broker-usecase, PR pending).
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsViewModel.kt:246, 282, 317` — `withContext(Dispatchers.IO)` вокруг `brokerManager.getBroker(...)` в `initializeTInvest/Bcs/Finam`. VM дублировал диспатчеризацию.
+
+**Нарушенное правило:** M3 — VM знает платформу (`Dispatchers.IO`).
+
+**Clean-альтернатива:** убрать `withContext(Dispatchers.IO)` из VM — data-слой уже сам диспатчеризирует.
+
+**MVVM-альтернатива:** то же — VM не управляет диспатчерами.
+
+**Что сделано:** `initializeTInvest/Bcs/Finam` удалены вместе с M004 (перенесены в `InitializeBrokerUseCase`); `connectTInvest/Bcs/Finam` и private `connect()` не содержат `withContext(Dispatchers.IO)`. Все три `withContext` ушли вместе с телом старых методов. Побочный fix M004; отдельно не заявлялся. Проверено `grep -n "withContext\|Dispatchers.IO" app/src/main/.../SettingsViewModel.kt` — пусто.
 
 **Ссылка на задачу:** `### InitializeBrokerUseCase (M004 + M007)` (ROADMAP, feature/initialize-broker-usecase).
 
