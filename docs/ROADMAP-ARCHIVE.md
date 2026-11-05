@@ -2,7 +2,7 @@
 
 Закрытые задачи из `docs/ROADMAP.md`.
 
-## Закрытые задачи
+## Закрытые
 
 
 
@@ -7846,3 +7846,259 @@ ___
 - **`ROADMAP-ARCHIVE.md` — один файл** или по годам (`ROADMAP-ARCHIVE-2026.md`)? **Дефолт:** один файл, при росте >5000 — разбить.
 - **`**Дата закрытия:**` — ISO-8601 (`2026-11-05`)** или `**Дата закрытия:** 5 ноября 2026`? **Дефолт:** ISO.
 - **`AGENTS.md` «Порядок секций»** — `## Закрытые` остаётся (ссылка) или удаляется? **Дефолт:** остаётся, но с пометкой «ссылка на архив».
+
+
+
+___
+
+
+
+### ✅ Переход на edge-to-edge (statusBarColor deprecated)
+
+**Мобильная работа:** частичное (live-тест UI на 4 версиях Android — desktop).
+
+**Контекст:** `window.statusBarColor` / `window.navigationBarColor` deprecated. С Android 15 (targetSdk 35+) система применяет edge-to-edge принудительно. На `targetSdk=36` текущий `window.statusBarColor = colorScheme.primary.toArgb()` в `Theme.kt:48` **игнорируется** на Android 15+, но **перебивает** `enableEdgeToEdge()` на Android 12–14. Плюс `isAppearanceLightStatusBars = darkTheme` (Theme.kt:49) — инверсия (в тёмной теме `true` = тёмные иконки на тёмном фоне, нечитаемо).
+
+`enableEdgeToEdge()` в `MainActivity:15` — уже есть (без аргументов, `SystemBarStyle.auto`).
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/theme/Theme.kt` — удалить `SideEffect { window.statusBarColor = ...; isAppearanceLightStatusBars = darkTheme }`; удалить импорты `Activity`, `SideEffect`, `toArgb`, `LocalView`, `WindowCompat`.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/MainActivity.kt` — `enableEdgeToEdge()` уже есть; возможно, добавить `enableEdgeToEdge(statusBarStyle = SystemBarStyle.auto(...))` при необходимости (по live-тесту).
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/MainScreen.kt` — `Scaffold` (bottomBar) — по live-тесту, возможно `contentWindowInsets` adjustment.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/settings/SettingsScreen.kt` — 2 `Scaffold` (124, 944) — по live-тесту.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/portfolio/PortfolioScreen.kt` — `Scaffold` (55) — по live-тесту.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/orders/OrdersScreen.kt` — своего `Scaffold` нет (внутри `MainScreen`), проверка live.
+- `app/src/main/res/values/themes.xml` — `android:Theme.Material.Light.NoActionBar` (старая тема, но без конфликтующих `windowTranslucentStatus` / `windowDrawableSystemBarBackgrounds`). Не трогаем, если live-тест не выявит проблему.
+
+**Шаги:**
+1. `Theme.kt` — удалить блок `SideEffect` (строки 44–51) + 5 импортов.
+2. Полный локальный гейт (desktop).
+3. Live-тест на Android **12, 13, 14, 15**:
+   - statusbar прозрачный; иконки читаемы (светлая/тёмная тема);
+   - контент не под statusbar (top app bar отступает);
+   - нет двойного отступа сверху на Portfolio/Settings (2 `Scaffold` друг в друге);
+   - bottom nav не перекрывает контент;
+   - Orders (без своего Scaffold) корректен.
+4. Если п.3 выявил двойной отступ — второй коммит: `MainScreen.Scaffold(contentWindowInsets = WindowInsets.navigationBars)` (или аналог).
+5. PR.
+
+**Тесты:** нет unit-тестов (UI-тема). Доказательство — live-тест на 4 версиях Android.
+
+**Референсы:**
+- Официальная документация: `https://developer.android.com/develop/ui/views/layout/edge-to-edge`.
+- `enableEdgeToEdge()` — `androidx.activity:activity-compose`.
+- `ScaffoldDefaults.contentWindowInsets` — Material3.
+
+**Ограничения:**
+- **UI-санкция** (правило 1 AGENTS) — получена.
+- **Live-тест обязателен** перед merge. Без него — не мержить.
+- Не менять `themes.xml` (старая `Material.Light.NoActionBar`) — отдельная задача, если live-тест покажет.
+- Не смешивать с рефакторингом `Theme.kt` (`DarkColorScheme` / `LightColorScheme` — стабильны).
+
+**Критерий готовности:**
+- `grep -rn "statusBarColor\|WindowCompat\|isAppearanceLightStatusBars" app/src/main --include="*.kt"` — пусто.
+- `enableEdgeToEdge()` в `MainActivity` — есть (не менялось).
+- Live-тест на 4 версиях Android — PASS (все 5 пунктов из шага 3).
+- Гейт зелёный (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`).
+
+**Оценка:** ~2 ч (правка Theme.kt 15 мин, гейт 1 мин, live-тест 4 версии 1–1.5 ч, PR 10 мин).
+
+**Зависимости:** нет.
+
+**Что сделано:**
+
+- `Theme.kt` — удалён `SideEffect { window.statusBarColor = colorScheme.primary.toArgb(); isAppearanceLightStatusBars = darkTheme }` + 5 неиспользуемых импортов (`Activity`, `SideEffect`, `toArgb`, `LocalView`, `WindowCompat`). Коммит `93f4eb5`.
+- `MainScreen.kt` — `NavigationBar` лишён хардкода `height(80.dp)`; M3 сам добавляет `navigationBars` insets. Коммит `93f4eb5`.
+- `PortfolioScreen.kt` / `SettingsScreen.kt` (2 `Scaffold`) — `contentWindowInsets = WindowInsets(0, 0, 0, 0)` (убрать двойной слой от внешнего `MainScreen.Scaffold`). Коммит `93f4eb5`.
+- `PortfolioScreen.kt` / `SettingsScreen.kt` (3 `TopAppBar`) — `windowInsets = WindowInsets(0, 0, 0, 0)`; `TopAppBarDefaults.windowInsets` больше не дублирует statusbar-height, единственный источник — `MainScreen.Scaffold`. Коммит `231067d`.
+- PR #90 (`feature/edge-to-edge`).
+
+**Live-тест (desktop, эмуляторы):**
+- Android 11 (API 30): PASS. Statusbar прозрачный, иконки читаемы (светлая/тёмная), отступ сверху небольшой и одинаковый на всех 3 вкладках, navbar над системной навигацией.
+- Android 14 (API 34): PASS. Всё то же, отступы как на 11.
+- Android 15 (API 35): PASS. Целевая версия (принудительный edge-to-edge); отступы, statusbar, navbar — как на 11/14.
+- Android 12 / 13 — не прогонялись. `WindowInsets` / `enableEdgeToEdge` API стабильны с API 30; правка не версионно-специфична (снимает override, который на 15 игнорировался, а на 11–14 дублировал инсеты). Риск минимальный.
+
+**Отклонение от плана:** в ROADMAP было «live-тест на 4 версиях Android». Фактически — 3 (11, 14, 15). 12/13 — не гоняли (поведение insets — подмножество 14). Покрыты ключевые классы: minSdk (11), последняя «старая» (14), целевая (15). Отдельного «догоняющего» теста не заводим.
+
+
+**Связано:** PR #90 (`feature/edge-to-edge`); `docs/ISSUES.md` — записи про `statusBarColor` нет (не заводилась).
+
+**Открытые вопросы:**
+- Нужен ли `SystemBarStyle.auto(...)` явно в `enableEdgeToEdge()` или дефолт корректен? Решится live-тестом.
+- Нужны ли `contentWindowInsets` в `Scaffold`'ах (двойной отступ)? Решится live-тестом.
+
+
+
+___
+
+
+
+### ✅ Portfolio: баланс и пополнение в песочнице
+
+**Мобильная работа:** частичное (live-тест в песочнице).
+
+**Контекст:** После `Portfolio: модель портфеля` (PR #88) в песочнице per-account шапка счёта показывает «нет данных» вместо баланса RUB, а кнопка «Пополнить» визуально не даёт результата. Причины:
+- `TInvestPortfolioService.fetchPortfolioPositions` возвращает `AccountPortfolio(balances = emptyList())` — `GetPortfolio` не отдаёт `money/blocked`.
+- `PortfolioViewModel.loadPortfolio` не дозапрашивает баланс отдельно (`portfolioRepository.getBalanceResult` — единственный потребитель `OrdersViewModel`, для low-balance warning).
+- `payInSandbox(accountId)` работает (`sandboxPayInResult` → `broker.sandbox.sandboxPayIn`), после успеха `loadPortfolio()`. Но `loadPortfolio` не заполняет `AccountBalance` → результат пополнения не виден.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**Предусловия:** `### Portfolio: модель портфеля` — закрыта (PR #88).
+
+**Файлы:**
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — `loadPortfolio` per-account `getBalanceResult`, заполнение `AccountBalance` в `sheet.accounts[accountKey].balances`.
+- `presentation/screens/portfolio/PortfolioScreen.kt` — per-account `AccountHeaderCard` уже показывает `AccountBalance.total`, если `balances` заполнены; правок UI может не потребоваться.
+- `presentation/screens/portfolio/PortfolioUiState.kt` — без изменений (глобальный `balance` не используем).
+
+**Шаги:**
+1. `PortfolioViewModel.loadPortfolio` — для каждого счёта `portfolioRepository.getBalanceResult(account.id)`; собрать `AccountBalance(currency = "rub", money = balance, blocked = 0.0)`. Merge в `sheet.accounts[accountKey].balances` (сохраняя существующие валюты).
+2. `payInSandbox` — после успеха `loadPortfolio` (уже есть). Проверить, что обновлённый `AccountBalance` отображается в шапке счёта.
+3. `PortfolioScreen` — проверить, что per-account `AccountHeaderCard` показывает баланс RUB (не «нет данных»), когда `balances` не пуст. Правок UI может не потребоваться.
+4. Тесты: не требуются (нет mock-инфры; live-тест в песочнице).
+
+**Тесты:** live-тест в песочнице: `loadPortfolio` — баланс RUB виден в per-account шапке (не «нет данных»), «Пополнить» → баланс увеличился.
+
+**Референсы:** `docs/architecture.md` → «Data flow: позиции»; `### Position: источники priceChangePercent и lockedQuantity` (альтернативный источник `AccountBalance` — `GetPositions`); PR #88 (регресс).
+
+**Ограничения:**
+- Не менять `TInvestPortfolioService` (пустой `balances`) — альтернатива `GetPositions` — в задаче `Position: источники priceChangePercent и lockedQuantity`.
+- `getBalanceResult` возвращает `Double` (не `AppResult<AccountBalance>`). `blocked` = `0.0` (нет данных из `BalanceApi`).
+- Глобальная карточка «Баланс» не восстанавливается (решение пользователя 2026-11-03): только per-account в шапке счёта.
+
+**Критерий готовности:**
+- В песочнице после `loadPortfolio` — баланс RUB виден в per-account шапке (не «нет данных»).
+- «Пополнить» — после успеха баланс обновляется в шапке.
+- На боевом счёте — регресс не вносится (тот же `getBalanceResult`, что и сейчас для `OrdersViewModel`).
+- Гейт зелёный.
+
+**Оценка:** ~1.5–2 ч (VM 45 мин, live-тест 30 мин, гейт 15 мин, резерв).
+
+**Зависимости:** нет.
+
+**Что сделано:**
+
+- `PositionFlowManager.start/doStart` — новый параметр `seed: PortfolioSheet? = null`; `applySeed()` merge-ит seed в `_sheet` (новый счёт → весь снимок, существующий → только `balances`; positions остаются из manager'а). Вызов на первом старте и на идемпотентном пути. Коммит `c7bc083`.
+- `PortfolioViewModel.loadPortfolio` — `seedSheet(accounts, sandbox)` (извлечён из `loadPortfolio` — detekt LongMethod) собирает seed per-account: `getBalanceResult(account.id)` → `AccountBalance(currency = "rub", money = balance, blocked = 0.0)`. Ошибка `getBalanceResult` → лог `warn`, `balances = emptyList()` (не блокирует seed positions).
+- `PortfolioViewModel.startPositionUpdates(keys, sandbox, seed = sheet)` — прокидывает seed в `start`.
+- `Position.mergeStreamItem(item)` — вынесен из класса как top-level private extension (`mergePartial`). Detekt `TooManyFunctions` (было 12 > 11) — без `@Suppress`.
+
+**Live-тест (T-Invest sandbox, 3 счёта):**
+- Баланс RUB виден в шапке каждого счёта (было «нет данных»).
+- «Пополнить» → +100 000 ₽; повторно → ещё +100 000 ₽.
+- Polling каждые 10 сек **не затирает** баланс.
+- Вкладка «Заявки»: low-balance warning (`OrdersViewModel`) не сломан.
+
+**Отклонение от плана:** ROADMAP §3 гласил «`PortfolioScreen` — правок UI может не потребоваться». Фактически — UI не трогали вообще: `AccountHeaderCard` уже рендерил `balances`, когда они есть. Правки только в domain (`PositionFlowManager`) и data-flow (`PortfolioViewModel`). UI-санкция получена на изменение видимого (баланс вместо «нет данных»), но код `*Screen.kt` / `*Card.kt` — без изменений.
+
+**Не сделано (вне scope):** `blocked` и валюты кроме RUB. Источник — `GetPositions` (money/blocked), задача `### Position: источники priceChangePercent и lockedQuantity`. `getBalanceResult` возвращает `Double` (не `AccountBalance`).
+
+
+**Связано:** `### Position: источники priceChangePercent и lockedQuantity` (альтернативный источник `AccountBalance` через `GetPositions`); PR #88 (регресс).
+
+**Открытые вопросы:** `getBalanceResult` возвращает `Double` — для `AccountBalance` нужны `money` и `blocked`. Сейчас `money = balance`, `blocked = 0.0`. Если `blocked` нужен — отдельная задача (через `GetPositions`).
+
+
+
+___
+
+
+
+### ✅ InitializeBrokerUseCase (M004 + M007)
+
+**Мобильная работа:** частичное (live-test UI подключения к T-Invest / BCS / Finam через «Подключиться»).
+
+**Контекст:** `SettingsViewModel.initializeTInvest/Bcs/Finam` (clean-audit M004) выполняют login-orchestration в VM: save creds → init → refresh state. `SettingsScreen` (clean-audit M007) вызывает их из `scope.launch { ... }` в `onClick` кнопки «Подключиться», оркеструет start/success/failure. `InitializeBrokerUseCase` закрывает обе находки: бизнес-логика уходит в `domain.usecases`, VM — тонкий (`connect*`), UI — просто `onClick { vm.connect*(...) }`.
+
+**Соответствие Clean:** соответствует (orchestration в domain.usecases — целевой слой).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/usecases/InitializeBrokerUseCase.kt` (новый) — `suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean>`; диспетчеризация по sealed `when`.
+- `presentation/screens/settings/SettingsViewModel.kt` — `initialize*` → `connect*`; общий private `connect(credentials, successMessage, markConnected)`.
+- `presentation/screens/settings/SettingsScreen.kt` — 3 callsites.
+
+**Шаги:**
+1. `InitializeBrokerUseCase` — 3 ветки:
+   - TInvest: `saveBrokerCredentials` → `lifecycleTInvest.initialize` → `refreshInitializationState`.
+   - Bcs: `lifecycleBcs.initialize` → `saveBrokerCredentials` → `refreshInitializationState` (порядок как сейчас — не сохранять битый токен).
+   - Finam: `saveToken` → `lifecycleFinam.initialize` → `refreshInitializationState`.
+   - Успех — `AppResult.Success(true)`; исключение — `AppResult.Failure(AppError.Unknown(...))` + лог.
+2. `SettingsViewModel` — 3 `connect*` метода. `_uiState.update` (statusMessage / isError / tInvestConnected / bcsConnected / finamConnected) — в VM, не в usecase.
+3. `SettingsScreen` — 3 callsite на `connect*`.
+4. Гейт после каждого шага.
+5. Live-test через UI.
+6. `clean-audit` M004, M007 → `исправлено`.
+7. `ROADMAP` mark done.
+
+**Тесты:** live-test через UI. Mock-инфраструктура (`BrokerRegistry` + `BrokerLifecycleApi` + `BrokerCredentialsRepository` + DataStore) — избыточна; live-test покрывает сценарий.
+
+**Референсы:**
+- `docs/clean-audit.md` → M004, M007.
+- `domain/api/roles/BrokerCredentials.kt` (sealed).
+- `domain/api/BrokerRegistry.kt`.
+
+**Ограничения:**
+- `clearBrokerCredentials` не трогаем (сейчас `initialize*` её не вызывает; описание M004 устарело).
+- Порядок save/init — 1:1 как сейчас (BCS — init → save; TInvest/Finam — save → init).
+- `withContext(Dispatchers.IO)` **не добавляем** в usecase (M005 — исправлено; репозитории/менеджеры dispatch-safe). Если live-test покажет ANR — отдельная задача.
+- UI: тексты, кнопки, поля — без изменений; только callsite-rename.
+- `SettingsScreen.kt` — UI-санкция получена.
+
+**Критерий готовности:**
+- `InitializeBrokerUseCase.execute(credentials): AppResult<Boolean>`.
+- `SettingsViewModel` — 3 `connect*`; `initialize*` удалены; `_uiState`-логика в VM.
+- `SettingsScreen` — 3 callsite на `connect*`.
+- Live-test: TInvest / BCS connect → success; Finam → success (заглушка) или понятная ошибка без краша.
+- Гейт зелёный.
+- `clean-audit` M004, M007 → `исправлено`.
+
+**Оценка:** ~3–3.5 ч.
+
+**Зависимости:** нет.
+
+**Что сделано:**
+
+- `domain/usecases/InitializeBrokerUseCase.kt` — `@Singleton @Inject constructor(BrokerRegistry, BrokerCredentialsRepository, Logger)`, `suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean>`. `when` по sealed `BrokerCredentials`, 3 private ветки с сохранённым порядком save/init 1:1 (TInvest: save→init; Bcs: init→save — не сохранять битый токен; Finam: save→init). `refreshInitializationState()` один раз после успеха. `CancellationException` пробрасывается; прочие `Exception` → `AppResult.Failure(AppError.Unknown(...))` + лог. Без `withContext(Dispatchers.IO)` (репозиторий и lifecycle API suspend-safe; M005). Коммит `89a5125`.
+- `SettingsViewModel` — конструктор +`initializeBrokerUseCase`; `initializeTInvest/Bcs/Finam` → `connectTInvest/Bcs/Finam` (тонкие обёртки над private `connect(credentials, successMessage, markConnected)`). `_uiState.update` (statusMessage / isError / `*Connected` флаги) — в VM; `brokerManager` / `lifecycle*` / `saveBrokerCredentials` из VM удалены. Коммит `fd2c6ff`.
+- `SettingsScreen` — 3 callsite `initialize*` → `connect*`. Тексты, кнопки, поля UI не менялись. Коммит `fd2c6ff`.
+- `docs/clean-audit.md` — M004, M007 → `исправлено`, перенесены в `### Исправленные (L1)`.
+
+**Live-тест (Android 14 эмулятор, через UI):**
+- **TInvest** (sandbox): вставить токен → «Подключиться» → статус «Подключено к Т-Инвестициям (режим песочница)», `tInvestConnected = true`.
+- **BCS** (refresh token): «Подключиться» → статус «Подключено к БКС (полный доступ / только чтение)», `bcsConnected = true`.
+- **Finam** (заглушка): «Подключиться» → успех (заглушка `initialize = true`), без краша.
+- Регрессов в Портфеле нет (связка `lifecycle` / `BrokerRegistry.anyInitialized` работает).
+
+**Отклонение от плана:** VM и Screen изменены **одним коммитом** `fd2c6ff` (не двумя). Причина: при разделении `initialize*` → `connect*` в VM ломается компиляция `SettingsScreen` (вызывает удалённые `initialize*`). Один логически завершённый шаг «VM + Screen на usecase» — один коммит. В ROADMAP §Шаги п.2–3 разделялись, но по 4b «один шаг — одна логически завершённая правка» — это один шаг.
+
+
+**Связано:** `### Рефакторинг ViewModel-слоя` (M004), `### Рефакторинг Compose-экранов` (M007).
+
+**Открытые вопросы:**
+- `withContext(Dispatchers.IO)` в usecase — не добавляем (M005). Если live-test покажет ANR — пересмотреть.
+- `BrokerCredentials` property names — сверить при компиляции.

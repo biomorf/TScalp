@@ -820,6 +820,6 @@ ___
 
 
 
-## Закрытые задачи
+## Закрытые
 
 Вынесены в [`CI-ROADMAP-ARCHIVE.md`](CI-ROADMAP-ARCHIVE.md) (22 задачи).
