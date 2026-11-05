@@ -18,6 +18,7 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.usecases.InitializeBrokerUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +64,7 @@ class SettingsViewModel
         private val orderFlowManager: OrderFlowManager,
         private val accountsRepository: AccountsRepository,
         private val debugFlagsRepository: DebugFlagsRepository,
+        private val initializeBrokerUseCase: InitializeBrokerUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SettingsUiState())
@@ -234,111 +236,68 @@ class SettingsViewModel
 
         // ---------- Инициализация брокеров ----------
 
-        suspend fun initializeTInvest(
+        suspend fun connectTInvest(
             token: String,
             sandbox: Boolean,
         ): Boolean {
-            logger.d(TAG, "initializeTInvest: sandbox=$sandbox")
-            val cleanToken = token.trim()
-            return try {
-                brokerCredentialsRepository.saveBrokerCredentials(BrokerName.TINVEST, cleanToken, sandbox)
-                val initialized =
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        brokerManager
-                            .getBroker(BrokerName.TINVEST)
-                            ?.lifecycleTInvest
-                            ?.initialize(BrokerCredentials.TInvest(cleanToken, sandbox)) ?: false
-                    }
-                if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
-                brokerManager.refreshInitializationState()
-                _uiState.update {
-                    it.copy(
-                        statusMessage =
-                            "Подключено к Т‑Инвестициям (режим " +
-                                "${if (sandbox) "песочница" else "боевой"})",
-                        isError = false,
-                        tInvestConnected = true,
-                    )
-                }
-                logger.d(TAG, "initializeTInvest: success")
-                true
-            } catch (e: Exception) {
-                logger.e(TAG, "initializeTInvest failed", e)
-                _uiState.update {
-                    it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
-                }
-                false
-            }
+            logger.d(TAG, "connectTInvest: sandbox=$sandbox")
+            return connect(
+                credentials = BrokerCredentials.TInvest(token, sandbox),
+                successMessage =
+                    "Подключено к Т‑Инвестициям (режим " +
+                        "${if (sandbox) "песочница" else "боевой"})",
+                markConnected = { it.copy(tInvestConnected = true) },
+            )
         }
 
-        suspend fun initializeBcs(
+        suspend fun connectBcs(
             refreshToken: String,
             isWriteMode: Boolean,
         ): Boolean {
-            logger.d(TAG, "initializeBcs: isWriteMode=$isWriteMode")
-            val cleanToken = refreshToken.trim()
-            return try {
-                val initialized =
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        brokerManager
-                            .getBroker(BrokerName.BCS)
-                            ?.lifecycleBcs
-                            ?.initialize(BrokerCredentials.Bcs(cleanToken, isWriteMode)) ?: false
-                    }
-                if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
-                brokerCredentialsRepository.saveBrokerCredentials(BrokerName.BCS, cleanToken, isWriteMode)
-                brokerManager.refreshInitializationState()
-                _uiState.update {
-                    it.copy(
-                        statusMessage =
-                            "Подключено к БКС " +
-                                "(${if (isWriteMode) "полный доступ" else "только чтение"})",
-                        isError = false,
-                        bcsConnected = true,
-                    )
-                }
-                logger.d(TAG, "initializeBcs: success")
-                true
-            } catch (e: Exception) {
-                logger.e(TAG, "initializeBcs failed", e)
-                _uiState.update {
-                    it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
-                }
-                false
-            }
+            logger.d(TAG, "connectBcs: isWriteMode=$isWriteMode")
+            return connect(
+                credentials = BrokerCredentials.Bcs(refreshToken, isWriteMode),
+                successMessage =
+                    "Подключено к БКС " +
+                        "(${if (isWriteMode) "полный доступ" else "только чтение"})",
+                markConnected = { it.copy(bcsConnected = true) },
+            )
         }
 
-        suspend fun initializeFinam(token: String): Boolean {
-            logger.d(TAG, "initializeFinam")
-            val cleanToken = token.trim()
-            return try {
-                brokerCredentialsRepository.saveToken(BrokerName.FINAM, cleanToken)
-                val initialized =
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        brokerManager
-                            .getBroker(BrokerName.FINAM)
-                            ?.lifecycleFinam
-                            ?.initialize(BrokerCredentials.Finam(cleanToken)) ?: false
-                    }
-                if (!initialized) throw IllegalStateException("Инициализация брокера не удалась")
-                brokerManager.refreshInitializationState()
-                _uiState.update {
-                    it.copy(
-                        statusMessage = "Подключено к Finam",
-                        isError = false,
-                        finamConnected = true,
-                    )
-                }
-                logger.d(TAG, "initializeFinam: success")
-                true
-            } catch (e: Exception) {
-                logger.e(TAG, "initializeFinam failed", e)
-                _uiState.update {
-                    it.copy(statusMessage = "Ошибка подключения: ${e.message}", isError = true)
-                }
-                false
-            }
+        suspend fun connectFinam(token: String): Boolean {
+            logger.d(TAG, "connectFinam")
+            return connect(
+                credentials = BrokerCredentials.Finam(token),
+                successMessage = "Подключено к Finam",
+                markConnected = { it.copy(finamConnected = true) },
+            )
         }
+
+        /**
+         * Общая логика подключения: use case + `_uiState.update`.
+         * Presentation не оркестрирует login (M004 / M007 закрыты).
+         */
+        private suspend fun connect(
+            credentials: BrokerCredentials,
+            successMessage: String,
+            markConnected: (SettingsUiState) -> SettingsUiState,
+        ): Boolean =
+            when (val result = initializeBrokerUseCase.execute(credentials)) {
+                is AppResult.Success -> {
+                    _uiState.update {
+                        markConnected(it).copy(statusMessage = successMessage, isError = false)
+                    }
+                    logger.d(TAG, "connect: success")
+                    true
+                }
+                is AppResult.Failure -> {
+                    _uiState.update {
+                        it.copy(statusMessage = "Ошибка подключения: ${result.error.message}", isError = true)
+                    }
+                    logger.e(TAG, "connect failed: ${result.error.message}")
+                    false
+                }
+            }
 
         // ---------- Операции со счётом песочницы ----------
         // Бросают исключение при ошибке — обработка остаётся на стороне вызова (панели).

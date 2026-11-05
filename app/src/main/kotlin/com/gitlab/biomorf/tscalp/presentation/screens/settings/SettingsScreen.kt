@@ -283,7 +283,7 @@ fun TInvestSettingsPanel() {
                     Button(
                         onClick = {
                             scope.launch {
-                                val success = settingsViewModel.initializeTInvest(token, sandboxMode)
+                                val success = settingsViewModel.connectTInvest(token, sandboxMode)
                                 if (success) {
                                     token = ""
                                     statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
@@ -661,7 +661,7 @@ fun BcsSettingsPanel() {
             Button(
                 onClick = {
                     scope.launch {
-                        val success = settingsViewModel.initializeBcs(refreshToken, isWriteMode)
+                        val success = settingsViewModel.connectBcs(refreshToken, isWriteMode)
                         connected = success
                         statusMessage =
                             if (success) {
@@ -832,7 +832,7 @@ fun FinamSettingsPanel() {
             Button(
                 onClick = {
                     scope.launch {
-                        val success = settingsViewModel.initializeFinam(token)
+                        val success = settingsViewModel.connectFinam(token)
                         connected = success
                         statusMessage = if (success) "Подключено к Finam" else "Ошибка подключения"
                         isError = !success
