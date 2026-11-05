@@ -147,28 +147,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### M004. SettingsViewModel.initialize* — login-orchestration в VM
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** ✓
-
-**Описание:** `SettingsViewModel.initializeTInvest` (237), `initializeBcs` (274), `initializeFinam` (311) — каждый выполняет сценарий: `clearBrokerCredentials` (cleanup старого) → sandbox-специфика → `saveBrokerCredentials` → `lifecycle.initialize` → `refreshInitializationState`. Login-orchestration, а не presentation.
-
-**Нарушенное правило:** M2 — business-logic в VM.
-
-**Clean-альтернатива:** `InitializeBrokerUseCase` (domain.usecases): `suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий, тестируемость. Минусы: ~2 ч + тесты.
-
-**MVVM-альтернатива:** тоже UseCase (или расширение `BrokerLifecycleManager`).
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
 ### M005. SettingsViewModel — Dispatchers.IO в VM
 
 **Статус:** открыто.
@@ -213,28 +191,6 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### M007. SettingsScreen — login-orchestration в UI
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** ✓
-
-**Описание:** `SettingsScreen.kt` — три панели (`TInvestSettingsPanel`, `BcsSettingsPanel`, `FinamSettingsPanel`) вызывают `settingsViewModel.initializeTInvest/Bcs/Finam` из `scope.launch { ... }` в `onClick` кнопки «Подключиться». UI оркестрирует login-сценарий: старт → обработка success/failure → `statusMessage`. Логика сценария — не UI.
-
-**Нарушенное правило:** M2 — orchestration в UI.
-
-**Clean-альтернатива:** VM-метод `connect(token)`, который сам вызывает `initialize*`, обновляет `isConnected` в `UiState`, выставляет `statusMessage`. UI — `onClick { vm.connect(token) }`. Плюсы: UI тонкий. Минусы: —.
-
-**MVVM-альтернатива:** тоже VM-метод. Плюсы: UI читает `uiState.isConnected`.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
 ### M011. OrdersListDialog — `as?` и расчёт в UI
 
 **Статус:** открыто.
@@ -258,6 +214,50 @@ L4–L8 — не проверены, заполняются по мере инс
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
 ### Исправленные (L1)
+
+### ✅ M004. SettingsViewModel.initialize* — login-orchestration в VM
+
+**Статус:** исправлено (2026-11-06, feature/initialize-broker-usecase, PR pending).
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsViewModel.initializeTInvest/Bcs/Finam` выполняли login-orchestration в VM: save creds → `lifecycle.initialize` → `refreshInitializationState`.
+
+**Нарушенное правило:** M2 — business-logic в VM.
+
+**Clean-альтернатива:** `InitializeBrokerUseCase` (domain.usecases): `suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий, тестируемость.
+
+**MVVM-альтернатива:** тоже UseCase.
+
+**Что сделано:** `InitializeBrokerUseCase` (`domain/usecases/InitializeBrokerUseCase.kt`) — `execute(credentials): AppResult<Boolean>`, `when` по sealed `BrokerCredentials`, 3 private ветки. Порядок save/init сохранён 1:1 (TInvest: save→init; Bcs: init→save; Finam: save→init). `refreshInitializationState` — один раз после успеха. `SettingsViewModel.initializeTInvest/Bcs/Finam` → `connectTInvest/Bcs/Finam` (тонкие обёртки над private `connect()`); `_uiState.update` (statusMessage, isError, `*Connected`) — в VM. `withContext(Dispatchers.IO)` не добавлялся (M005 — исправлено ранее). Live-test через UI: TInvest sandbox, BCS refresh, Finam stub — PASS.
+
+**Ссылка на задачу:** `### InitializeBrokerUseCase (M004 + M007)` (ROADMAP, feature/initialize-broker-usecase).
+
+**Сводный отчёт, 2026-11-06:** да.
+
+### ✅ M007. SettingsScreen — login-orchestration в UI
+
+**Статус:** исправлено (2026-11-06, feature/initialize-broker-usecase, PR pending).
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `SettingsScreen.kt` — три панели (`TInvestSettingsPanel`, `BcsSettingsPanel`, `FinamSettingsPanel`) вызывали `settingsViewModel.initialize*` из `scope.launch { ... }` в `onClick` кнопки «Подключиться». UI оркестрировал login-сценарий: старт → success/failure → `statusMessage`.
+
+**Нарушенное правило:** M2 — orchestration в UI.
+
+**Clean-альтернатива:** VM-метод `connect*(...)`, который сам вызывает use case, обновляет `*Connected` в `UiState`, выставляет `statusMessage`. UI — `onClick { vm.connect*(...) }`.
+
+**MVVM-альтернатива:** тоже VM-метод.
+
+**Что сделано:** `SettingsScreen` — 3 callsites `settingsViewModel.initializeTInvest/Bcs/Finam` → `connectTInvest/Bcs/Finam`; UI не оркестрирует login-сценарий. Все `_uiState.update` (statusMessage / isError / `*Connected`) — в `SettingsViewModel`. Тексты, кнопки, поля UI не менялись. Live-test: TInvest / BCS / Finam через «Подключиться» — PASS.
+
+**Ссылка на задачу:** `### InitializeBrokerUseCase (M004 + M007)` (ROADMAP, feature/initialize-broker-usecase).
+
+**Сводный отчёт, 2026-11-06:** да.
 
 ### ✅ M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable
 
