@@ -125,6 +125,7 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text("Подключение") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -946,6 +947,7 @@ fun InfoSettingsContent(
     Scaffold(
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text("О приложении") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
