@@ -43,13 +43,22 @@ import ru.ttech.piapi.core.InvestApi
  *  - TInvestPricesService — unary GetLastPrices + gRPC-стрим последних цен;
  *  - TInvestTradingService — статусы инструментов, стрим статусов заявок, проверка доступности;
  *  - TInvestOrdersService — заявки, стоп-заявки, отмена.
- *  // Архитектурный долг: 22 функции в классе. См. ROADMAP → «Рефакторинг BrokerApi-реализаций».
+ *
+ * TooManyFunctions (26 > 11): осознанно (2c). detekt считает все 25 `override`
+ * (ignoreOverridden не выставлен в config/detekt/detekt.yml), снятие @Suppress
+ * даёт красный detekt. Clean-альтернатива — декомпозиция фасада на N классов
+ * по областям (Accounts/Orders/MarketData/…) по образцу `TInvestMarketDataService`
+ * split (PR #84): +SRP, -~3–4 ч, -ломает nullable-val паттерн (`BrokerApi` —
+ * единая точка входа). Выгоды текущего: 26 функций — тонкие делегаты в 7
+ * сервисов (~1–2 строки на каждую), не god-класс по сложности; роли уже
+ * вынесены в `val` (nullable-val, PR #61). Декомпозиция — отдельная задача,
+ * если понадобится.
  *
  * PARAMETER_NAME_CHANGED_ON_OVERRIDE: осознанно. AGENTS.md «data честно
  * отражает формат брокера»: T-Invest — `uids`, domain — `tscalpInstrumentIds`.
  * Все callsites позиционные — named-argument risk отсутствует.
  */
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
+@Suppress("TooManyFunctions", "PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 class TInvestBrokerAPI(
     private val channelFactory: TInvestChannelFactory,
     private val httpClient: HttpClient,
