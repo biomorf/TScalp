@@ -619,15 +619,17 @@ ___
 - `OrdersListViewModel.loadOrders` — **убрано из scope** (F3): реальной orchestration нет, `getAccounts → accounts.first().id → orderFlowManager.start(accountId)`. Заказы приходят реактивно через `orderFlowManager.orders` (init, 45–48). `start()` — manager lifecycle, по Q2 остаётся в VM.
 - `PortfolioViewModel.checkApiInitialization` — **добавлено в scope** (F2): симметрична `OrdersViewModel.checkApiInitialization`, реальная orchestration (`getAllBrokers → isInitialized → loadPortfolio / cleanup`).
 
-Итог scope: 5 методов (2 Portfolio + 3 Orders) + 1 OrdersList (`cancelOrder`), **4 новых usecase + 2 reuse** `LoadBrokerAccountsUseCase` (M006). Merge Q5: `CheckPortfolioInitializationUseCase` и `CheckOrdersInitializationUseCase` объединены в **один** `CheckBrokerInitializationUseCase(consumer: PriceConsumer)`.
+Итог scope: 5 методов (2 Portfolio + 3 Orders) + 1 OrdersList (`cancelOrder`), **5 новых usecase**. Merge Q5: `CheckPortfolioInitializationUseCase` и `CheckOrdersInitializationUseCase` объединены в **один** `CheckBrokerInitializationUseCase(consumer: PriceConsumer)`.
+
+**Ревизия 2026-11-07 (по факту кода):** reuse M006 для `openBrokerDialog` / `loadDialogAccounts` **невозможен** — семантика разная (M006 читает saved из DataStore и сохраняет first; диалог карточки берёт saved параметром, без save). Введён отдельный `LoadCardAccountsUseCase` (Q10/Q11). Итог: 5 новых usecase, 0 reuse.
 
 | VM | Метод | Usecase | Возврат |
 |---|---|---|---|
 | `PortfolioViewModel` | `loadPortfolio` | `LoadPortfolioUseCase` | `AppResult<PortfolioSheet>` |
 | `PortfolioViewModel` / `OrdersViewModel` | `checkApiInitialization` | `CheckBrokerInitializationUseCase(consumer)` | `AppResult<BrokerInitState>` |
 | `OrdersViewModel` | `loadAccounts` | `LoadOrdersAccountsUseCase` | `AppResult<OrdersAccountsResult>` |
-| `OrdersViewModel` | `openBrokerDialog` | reuse `LoadBrokerAccountsUseCase` (M006) + VM selection | `AppResult<List<BrokerAccount>>` |
-| `OrdersViewModel` | `loadDialogAccounts` | reuse `LoadBrokerAccountsUseCase` (M006) | `AppResult<List<BrokerAccount>>` |
+| `OrdersViewModel` | `openBrokerDialog` | `LoadCardAccountsUseCase` | `AppResult<CardAccountsResult>` |
+| `OrdersViewModel` | `loadDialogAccounts` | `LoadCardAccountsUseCase` | `AppResult<CardAccountsResult>` |
 | `OrdersListViewModel` | `cancelOrder` | `CancelOrderUseCase` | `AppResult<Unit>` |
 
 **BrokerInitState (design):** `sealed interface BrokerInitState` (`AnyInitialized` / `NoneInitialized`), в `domain/models/BrokerInitState.kt`. Cleanup manager'ов (`priceFlowManager.clearInterest(consumer)` + `positionFlowManager.stop()`) — **в usecase** (симметрично init). `stopPositionUpdates()` — VM lifecycle, остаётся в VM. VM-level branching (`loadAccounts` / `loadPortfolio` / `syncPriceInterest`) — остаётся в VM (Q2 + F3).
@@ -641,7 +643,7 @@ ___
 **Выгоды (для «отклонение по 2c»):** —.
 
 **Предусловия:**
-- M003 (`PayInSandboxUseCase`), M006 (`LoadBrokerAccountsUseCase`, `DisconnectBrokerUseCase`) — закрыты. Переиспользуем `LoadBrokerAccountsUseCase` где возможно.
+- M003 (`PayInSandboxUseCase`), M006 (`LoadBrokerAccountsUseCase`, `DisconnectBrokerUseCase`) — закрыты. По ревизии 2026-11-07 reuse M006 невозможен (разные контракты: DataStore-read+save vs parameter+no-save) — все 5 usecase новые.
 - M004/M007 (образец тонкой VM).
 
 **Файлы:**
@@ -650,7 +652,8 @@ ___
 - `LoadPortfolioUseCase.kt` — getAccounts + `seedSheet`; `AppResult<PortfolioSheet>`.
 - `CheckBrokerInitializationUseCase.kt` — `getAllBrokers → isInitialized`; `AnyInitialized` → `AppResult.Success(BrokerInitState.AnyInitialized)`; `NoneInitialized` → `clearInterest(consumer)` + `positionFlowManager.stop()` → `AppResult.Success(BrokerInitState.NoneInitialized)`; `consumer: PriceConsumer` параметр; `AppResult<BrokerInitState>`.
 - `LoadOrdersAccountsUseCase.kt` — getAccounts + `loadDefaultAccountId` + `chosenAccount = saved-or-first`; `AppResult<OrdersAccountsResult>` (`accounts`, `selectedAccountId`).
-- `CancelOrderUseCase.kt` — getAccounts + `first().id` + stop/regular dispatch; `AppResult<Unit>`.
+- `CancelOrderUseCase.kt` — getAccounts + `first().id` + stop/regular dispatch; пустой accounts → `AppResult.Failure` (не тихий return, Q9); `AppResult<Unit>`.
+- `LoadCardAccountsUseCase.kt` — getAccounts + `savedAccountId` параметром (validated by trim) или first; **без** DataStore read/write (не путать с M006, Q10/Q11); `AppResult<CardAccountsResult>` (`accounts`, `selectedAccountId: String?`).
 
 Новый domain-файл:
 - `domain/models/BrokerInitState.kt` — `sealed interface BrokerInitState { data object AnyInitialized : BrokerInitState; data object NoneInitialized : BrokerInitState }`.
@@ -662,12 +665,12 @@ Panel-VM (без изменений в размере):
 
 **Шаги:**
 
-**Этап C (5 usecase + 2 reuse, ~6.5 ч):**
-1. ✅ `BrokerInitState` (`domain/models/BrokerInitState.kt`) + `CheckBrokerInitializationUseCase` + тесты. VM (Portfolio / Orders) → тонкие. Гейт. Коммиты `d32553d` (1a) + `a47ddae` (1b).
-2. `LoadPortfolioUseCase` + тест. `PortfolioViewModel.loadPortfolio` → тонкий. Гейт.
-3. `LoadOrdersAccountsUseCase` + тест. `OrdersViewModel.loadAccounts` → тонкий. Гейт.
-4. `CancelOrderUseCase` + тест. `OrdersListViewModel.cancelOrder` → тонкий. Гейт.
-5. `OrdersViewModel.openBrokerDialog` / `loadDialogAccounts` — reuse `LoadBrokerAccountsUseCase` (M006) + VM selection. Гейт.
+**Этап C (5 usecase, ~8.5 ч) — закрыт:**
+1. ✅ `BrokerInitState` + `CheckBrokerInitializationUseCase` + тесты. VM (Portfolio / Orders) → тонкие. Коммиты `d32553d` (1a) + `a47ddae` (1b).
+2. ✅ `LoadPortfolioUseCase` + тест. `PortfolioViewModel.loadPortfolio` → тонкий. Коммиты `069f0de` (2a) + `99ecd6a` (2b).
+3. ✅ `LoadOrdersAccountsUseCase` + тест. `OrdersViewModel.loadAccounts` → тонкий. Коммиты `ea46662` (3a) + `520bbcb` (3b).
+4. ✅ `CancelOrderUseCase` + тест. `OrdersListViewModel.cancelOrder` → тонкий. Коммиты `4e0264f` (4a) + `17512d4` (4b).
+5. ✅ `LoadCardAccountsUseCase` + тест. `OrdersViewModel.openBrokerDialog` / `loadDialogAccounts` → тонкие. Коммиты `eb1f68b` (5a) + `61a74d3` (5b).
 6. Live-test.
 
 **Этап B (доводка, отдельно, ~1.5–2 ч):**
@@ -700,7 +703,7 @@ Panel-VM (без изменений в размере):
 - **`onInstrumentSelected` / `onAccountSelectedDialog` / `onDismissConfirmDialog`** — state-update, не M2.
 - Не трогать `SearchCache` — отдельный кэш.
 - Не смешивать с M001 (formatted overlay) и M011 (`as?` в UI).
-- `openBrokerDialog` / `loadDialogAccounts`: перед шагом 5 — проверить сигнатуру `LoadBrokerAccountsUseCase` (M006); если возвращает только `accounts` — selection `saved-or-first` остаётся в VM (1–2 строки).
+- `openBrokerDialog` / `loadDialogAccounts`: `LoadCardAccountsUseCase` (Q10/Q11). `savedAccountId` (per-card / из `UiState`) читается **в VM**, передаётся параметром; usecase не читает DataStore и не сохраняет (не путать с M006).
 
 **Критерий готовности:**
 - 5 usecase покрыты тестами (success / failure / exception / cancellation).
@@ -723,6 +726,10 @@ Panel-VM (без изменений в размере):
 - F2 / F3 / InitState — утверждены 2026-11-06.
 - Q5 (merge check-usecases в один `CheckBrokerInitializationUseCase`) — утверждён, выполнено (`d32553d` + `a47ddae`).
 - Q6 (cleanup scope: `clearInterest` + `stop` в usecase; `stopPositionUpdates` + `_uiState` в VM) — утверждён, выполнено (`d32553d`).
+- Q8 (отдельный `LoadOrdersAccountsUseCase`, не reuse M006 — stale-saved + save side-effect) — утверждён, выполнено (`ea46662`).
+- Q9 (no silent failures: пустой accounts → `AppResult.Failure("Нет доступных счетов")`) — утверждён, выполнено (`4e0264f`).
+- Q10 (отдельный `LoadCardAccountsUseCase`, не reuse M006) — утверждён, выполнено (`eb1f68b`).
+- Q11 (`savedAccountId` параметром; failure → VM очищает `dialogAccounts` + `selectedAccountIdDialog`) — утверждён, выполнено (`eb1f68b` + `61a74d3`).
 
 
 
