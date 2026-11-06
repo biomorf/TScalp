@@ -18,6 +18,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.BrokerInitState
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
@@ -30,6 +31,7 @@ import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
@@ -76,6 +78,7 @@ class OrdersViewModel
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val postOrderUseCase: PostOrderUseCase,
         private val positionFlowManager: PositionFlowManager,
+        private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
@@ -134,32 +137,42 @@ class OrdersViewModel
         }
 
         fun checkApiInitialization() {
-            val isAnyApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
-            logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isAnyApiInit")
-            _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
-
-            if (isAnyApiInit) {
-                if (brokerManager.getDefaultBroker().isInitialized) {
-                    loadAccounts()
-                }
-                syncPriceInterest()
-            } else {
-                // Logout: останавливаем фоновые задачи, снимаем интерес к ценам
-                // и очищаем состояние.
-                stopPositionUpdates()
-                priceFlowManager.clearInterest(PriceConsumer.ORDERS)
-                positionFlowManager.stop()
-                _uiState.update {
-                    it.copy(
-                        accounts = emptyList(),
-                        selectedAccountId = null,
-                        portfolioPositions = emptyList(),
-                        lastSelectedInstruments = emptyList(),
-                        currentPrice = null,
-                        pairCurrentPrice = null,
-                        freeBalance = null,
-                        tradingStatuses = emptyMap(),
-                    )
+            viewModelScope.launch {
+                val initResult = checkBrokerInitializationUseCase.execute(PriceConsumer.ORDERS)
+                when (initResult) {
+                    is AppResult.Success -> {
+                        when (initResult.data) {
+                            is BrokerInitState.AnyInitialized -> {
+                                logger.d(TAG, "checkApiInitialization: anyApiInitialized=true")
+                                _uiState.update { it.copy(isApiInitialized = true) }
+                                if (brokerManager.getDefaultBroker().isInitialized) {
+                                    loadAccounts()
+                                }
+                                syncPriceInterest()
+                            }
+                            is BrokerInitState.NoneInitialized -> {
+                                logger.d(TAG, "checkApiInitialization: anyApiInitialized=false")
+                                _uiState.update { it.copy(isApiInitialized = false) }
+                                stopPositionUpdates()
+                                _uiState.update {
+                                    it.copy(
+                                        accounts = emptyList(),
+                                        selectedAccountId = null,
+                                        portfolioPositions = emptyList(),
+                                        lastSelectedInstruments = emptyList(),
+                                        currentPrice = null,
+                                        pairCurrentPrice = null,
+                                        freeBalance = null,
+                                        tradingStatuses = emptyMap(),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    is AppResult.Failure -> {
+                        logger.e(TAG, "checkApiInitialization failed: ${initResult.error.message}", initResult.error.cause)
+                        _uiState.update { it.copy(isApiInitialized = false) }
+                    }
                 }
             }
         }

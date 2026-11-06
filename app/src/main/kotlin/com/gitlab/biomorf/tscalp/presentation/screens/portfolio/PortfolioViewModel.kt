@@ -16,12 +16,14 @@ import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
+import com.gitlab.biomorf.tscalp.domain.models.BrokerInitState
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PayInSandboxUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -48,6 +50,7 @@ class PortfolioViewModel
         private val priceFlowManager: PriceFlowManager,
         private val positionFlowManager: PositionFlowManager,
         private val payInSandboxUseCase: PayInSandboxUseCase,
+        private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
@@ -86,24 +89,34 @@ class PortfolioViewModel
         }
 
         suspend fun checkApiInitialization() {
-            val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
             val sandbox = sandboxPreferencesRepository.isSandboxMode()
-            logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isApiInit, sandbox=$sandbox")
-            _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
-
-            if (isApiInit) {
-                viewModelScope.launch { loadPortfolio() }
-            } else {
-                stopPositionUpdates()
-                priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
-                positionFlowManager.stop()
-                _uiState.update {
-                    it.copy(
-                        sheet = PortfolioSheet(emptyMap()),
-                        prices = emptyMap(),
-                        priceChangePercents = emptyMap(),
-                        tradingStatuses = emptyMap(),
-                    )
+            val initResult = checkBrokerInitializationUseCase.execute(PriceConsumer.PORTFOLIO)
+            when (initResult) {
+                is AppResult.Success -> {
+                    when (initResult.data) {
+                        is BrokerInitState.AnyInitialized -> {
+                            logger.d(TAG, "checkApiInitialization: anyApiInitialized=true, sandbox=$sandbox")
+                            _uiState.update { it.copy(isApiInitialized = true, sandboxMode = sandbox) }
+                            viewModelScope.launch { loadPortfolio() }
+                        }
+                        is BrokerInitState.NoneInitialized -> {
+                            logger.d(TAG, "checkApiInitialization: anyApiInitialized=false, sandbox=$sandbox")
+                            _uiState.update { it.copy(isApiInitialized = false, sandboxMode = sandbox) }
+                            stopPositionUpdates()
+                            _uiState.update {
+                                it.copy(
+                                    sheet = PortfolioSheet(emptyMap()),
+                                    prices = emptyMap(),
+                                    priceChangePercents = emptyMap(),
+                                    tradingStatuses = emptyMap(),
+                                )
+                            }
+                        }
+                    }
+                }
+                is AppResult.Failure -> {
+                    logger.e(TAG, "checkApiInitialization failed: ${initResult.error.message}", initResult.error.cause)
+                    _uiState.update { it.copy(isApiInitialized = false, sandboxMode = sandbox) }
                 }
             }
         }
