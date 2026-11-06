@@ -121,6 +121,49 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
+### M013. Orchestration в Orders / Portfolio / OrdersList ViewModels (7 методов)
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Live тест:** ✓.
+
+**Описание:** после A2 (M006) orchestration вынесена из `SettingsViewModel` в usecase. Ревизия остальных ViewModel (2026-11-06) нашла тот же паттерн M2 в 3 VM, 7 методов, ~290 строк orchestration:
+
+| VM | Метод | Оркестрация |
+|---|---|---|
+| `PortfolioViewModel` | `loadPortfolio` | getAccounts → seedSheet (getBalance × accounts) → startPositionUpdates → syncPriceInterest |
+| `OrdersViewModel` | `checkApiInitialization` | init → loadAccounts + syncPriceInterest / logout cleanup (stop streams, clearInterest) |
+| `OrdersViewModel` | `loadAccounts` | getAccounts → loadDefaultAccountId → state |
+| `OrdersViewModel` | `openBrokerDialog` | findCard → getAccounts → dialog state |
+| `OrdersViewModel` | `loadDialogAccounts` | getAccounts → dialog state |
+| `OrdersListViewModel` | `cancelOrder` | getAccounts → cancelOrder / cancelStopOrder |
+| `OrdersListViewModel` | `loadOrders` | getAccounts → getOrders / getStopOrders |
+
+**Не в scope:** размер `OrdersViewModel` (1159 строк, 22 launch) — архитектурный вопрос разбиения на несколько VM, отдельная задача. M001 (formatted overlay), M011 (`as?` в UI) — отдельные записи.
+
+**Нарушенное правило:** M2 — business-logic (orchestration) в VM, не в UseCase.
+
+**Clean-альтернатива:** usecase в `domain.usecases` на каждый метод:
+- `LoadPortfolioUseCase` — accounts + seed + reload; возврат `PortfolioSheet` (seedSheet → в usecase).
+- `CheckBrokerInitializationUseCase` — init / logout cleanup (stop streams + clearInterest).
+- `LoadOrdersAccountsUseCase` — accounts + auto-select default; переиспользовать `LoadBrokerAccountsUseCase` (M006).
+- `OpenBrokerDialogUseCase` — findCard + accounts; тоже через `LoadBrokerAccountsUseCase`.
+- `LoadDialogAccountsUseCase` — accounts для диалога; через `LoadBrokerAccountsUseCase`.
+- `CancelOrderUseCase` — accounts + cancel (stop/regular); возврат `AppResult<Unit>`.
+- `LoadOrdersUseCase` — accounts + getOrders / getStopOrders; возврат `AppResult<List<Order>>`.
+
+VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тестируемы без mock-инфраструктуры, usecase покрыт unit-тестами. Минусы: 5–7 новых usecase (~2–3 ч) + миграция callsites.
+
+**MVVM-альтернатива:** то же — orchestration в UseCase, VM — state + delegation.
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (ROADMAP).
+
+**Сводный отчёт, 2026-11-06:** да.
+
 ### Исправленные (L1)
 
 ### ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
