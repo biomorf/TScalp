@@ -11,17 +11,17 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
-import com.gitlab.biomorf.tscalp.domain.models.AccountBalance
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
-import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
-import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
+import com.gitlab.biomorf.tscalp.domain.models.BrokerInitState
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.LoadPortfolioUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PayInSandboxUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -35,7 +35,6 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 // Архитектурный долг: 12 функций в классе. См. ROADMAP → «Рефакторинг ViewModel-слоя».
-@Suppress("TooManyFunctions")
 @HiltViewModel
 class PortfolioViewModel
     @Inject
@@ -48,6 +47,8 @@ class PortfolioViewModel
         private val priceFlowManager: PriceFlowManager,
         private val positionFlowManager: PositionFlowManager,
         private val payInSandboxUseCase: PayInSandboxUseCase,
+        private val loadPortfolioUseCase: LoadPortfolioUseCase,
+        private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
@@ -86,24 +87,34 @@ class PortfolioViewModel
         }
 
         suspend fun checkApiInitialization() {
-            val isApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
             val sandbox = sandboxPreferencesRepository.isSandboxMode()
-            logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isApiInit, sandbox=$sandbox")
-            _uiState.update { it.copy(isApiInitialized = isApiInit, sandboxMode = sandbox) }
-
-            if (isApiInit) {
-                viewModelScope.launch { loadPortfolio() }
-            } else {
-                stopPositionUpdates()
-                priceFlowManager.clearInterest(PriceConsumer.PORTFOLIO)
-                positionFlowManager.stop()
-                _uiState.update {
-                    it.copy(
-                        sheet = PortfolioSheet(emptyMap()),
-                        prices = emptyMap(),
-                        priceChangePercents = emptyMap(),
-                        tradingStatuses = emptyMap(),
-                    )
+            val initResult = checkBrokerInitializationUseCase.execute(PriceConsumer.PORTFOLIO)
+            when (initResult) {
+                is AppResult.Success -> {
+                    when (initResult.data) {
+                        is BrokerInitState.AnyInitialized -> {
+                            logger.d(TAG, "checkApiInitialization: anyApiInitialized=true, sandbox=$sandbox")
+                            _uiState.update { it.copy(isApiInitialized = true, sandboxMode = sandbox) }
+                            viewModelScope.launch { loadPortfolio() }
+                        }
+                        is BrokerInitState.NoneInitialized -> {
+                            logger.d(TAG, "checkApiInitialization: anyApiInitialized=false, sandbox=$sandbox")
+                            _uiState.update { it.copy(isApiInitialized = false, sandboxMode = sandbox) }
+                            stopPositionUpdates()
+                            _uiState.update {
+                                it.copy(
+                                    sheet = PortfolioSheet(emptyMap()),
+                                    prices = emptyMap(),
+                                    priceChangePercents = emptyMap(),
+                                    tradingStatuses = emptyMap(),
+                                )
+                            }
+                        }
+                    }
+                }
+                is AppResult.Failure -> {
+                    logger.e(TAG, "checkApiInitialization failed: ${initResult.error.message}", initResult.error.cause)
+                    _uiState.update { it.copy(isApiInitialized = false, sandboxMode = sandbox) }
                 }
             }
         }
@@ -113,91 +124,30 @@ class PortfolioViewModel
                 _uiState.update { it.copy(isLoading = true, statusMessage = null) }
                 val sandbox = sandboxPreferencesRepository.isSandboxMode()
 
-                val accounts =
-                    when (val r = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandbox)) {
-                        is AppResult.Success -> r.data
-                        is AppResult.Failure -> {
-                            logger.e(TAG, "loadPortfolio: getAccounts failed: ${r.error.message}", r.error.cause)
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    statusMessage = "Ошибка загрузки: ${r.error.message}",
-                                    isError = true,
-                                )
-                            }
-                            return@launch
+                when (val result = loadPortfolioUseCase.execute(BrokerName.TINVEST, sandbox)) {
+                    is AppResult.Success -> {
+                        val data = result.data
+                        logger.d(TAG, "loadPortfolio: ${data.accounts.size} accounts, sandbox=$sandbox")
+                        _uiState.update {
+                            it.copy(sheet = data.sheet, isLoading = false)
+                        }
+                        if (data.accounts.isEmpty()) return@launch
+                        val keys = data.accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
+                        startPositionUpdates(keys, sandbox, seed = data.sheet)
+                        syncPriceInterest()
+                    }
+                    is AppResult.Failure -> {
+                        logger.e(TAG, "loadPortfolio failed: ${result.error.message}", result.error.cause)
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                statusMessage = "Ошибка загрузки: ${result.error.message}",
+                                isError = true,
+                            )
                         }
                     }
-                if (accounts.isEmpty()) {
-                    logger.d(TAG, "loadPortfolio: no accounts")
-                    _uiState.update { it.copy(isLoading = false, sheet = PortfolioSheet(emptyMap())) }
-                    return@launch
-                }
-                logger.d(TAG, "loadPortfolio: ${accounts.size} accounts, sandbox=$sandbox")
-
-                val sheet = seedSheet(accounts, sandbox)
-                _uiState.update {
-                    it.copy(sheet = sheet, isLoading = false)
-                }
-
-                val keys = accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
-                startPositionUpdates(keys, sandbox, seed = sheet)
-                syncPriceInterest()
-            }
-        }
-
-        /**
-         * Seed `PortfolioSheet` из первичного fetch по каждому счёту
-         * (до первого polling emit из `PositionFlowManager`).
-         *
-         * Баланс: `GetPortfolio` не отдаёт `money/blocked`, отдельный
-         * [PortfolioRepository.getBalanceResult]. Пока только RUB
-         * (`blocked = 0.0`); полный `AccountBalance` (валюты, blocked)
-         * — задача `Position: источники priceChangePercent и lockedQuantity`.
-         *
-         * При ошибке баланса — счет попадает в sheet с пустыми `balances`
-         * (не блокирует показ позиций; `AccountHeaderCard` покажет «нет данных»).
-         */
-        private suspend fun seedSheet(
-            accounts: List<BrokerAccount>,
-            sandbox: Boolean,
-        ): PortfolioSheet {
-            val seeded = mutableMapOf<AccountKey, AccountPortfolio>()
-            for (account in accounts) {
-                when (val r = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, account.id, sandbox)) {
-                    is AppResult.Success -> {
-                        val key = AccountKey(BrokerName.TINVEST, account.id)
-                        val balances =
-                            when (val b = portfolioRepository.getBalanceResult(account.id)) {
-                                is AppResult.Success ->
-                                    listOf(
-                                        AccountBalance(
-                                            currency = "rub",
-                                            money = b.data,
-                                            blocked = 0.0,
-                                        ),
-                                    )
-                                is AppResult.Failure -> {
-                                    logger.w(
-                                        TAG,
-                                        "seedSheet[${account.id}] balance failed: ${b.error.message}",
-                                    )
-                                    emptyList()
-                                }
-                            }
-                        seeded[key] =
-                            AccountPortfolio(
-                                accountId = account.id,
-                                brokerName = BrokerName.TINVEST,
-                                positions = r.data,
-                                balances = balances,
-                            )
-                    }
-                    is AppResult.Failure ->
-                        logger.e(TAG, "seedSheet[${account.id}] failed: ${r.error.message}", r.error.cause)
                 }
             }
-            return PortfolioSheet(seeded)
         }
 
         private fun startPositionUpdates(

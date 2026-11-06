@@ -4,12 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
+import com.gitlab.biomorf.tscalp.domain.usecases.CancelOrderUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +24,7 @@ class OrdersListViewModel
     @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
-        private val ordersRepository: OrdersRepository,
+        private val cancelOrderUseCase: CancelOrderUseCase,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val orderFlowManager: OrderFlowManager,
         private val logger: Logger,
@@ -116,45 +116,18 @@ class OrdersListViewModel
             viewModelScope.launch {
                 logger.d(TAG, "cancelOrder: orderId=${order.orderId}, isStop=${order is Order.Stop}")
                 val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
-
-                // Шаг 1: счета
-                val accounts =
-                    when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                        is AppResult.Success -> result.data
-                        is AppResult.Failure -> {
-                            logger.e(
-                                TAG,
-                                "cancelOrder: getAccounts failed: ${result.error.message}",
-                                result.error.cause,
-                            )
-                            _uiState.update {
-                                it.copy(statusMessage = "Ошибка отмены: ${result.error.message}", isError = true)
-                            }
-                            return@launch
-                        }
-                    }
-                if (accounts.isEmpty()) return@launch
-                val accountId = accounts.first().id
-
-                // Шаг 2: отмена. Стоп-заявки и обычные — обе через репозиторий.
-                val cancelResult: AppResult<Unit> =
-                    if (order is Order.Stop) {
-                        ordersRepository.cancelStopOrderResult(accountId, order.orderId)
-                    } else {
-                        ordersRepository.cancelOrderResult(BrokerName.TINVEST, accountId, order.orderId)
-                    }
-
-                when (cancelResult) {
+                val result = cancelOrderUseCase.execute(BrokerName.TINVEST, order, sandboxMode)
+                when (result) {
                     is AppResult.Success -> loadOrders()
                     is AppResult.Failure -> {
                         logger.e(
                             TAG,
-                            "cancelOrder: failed for orderId=${order.orderId}: ${cancelResult.error.message}",
-                            cancelResult.error.cause,
+                            "cancelOrder failed: ${result.error.message}",
+                            result.error.cause,
                         )
                         _uiState.update {
                             it.copy(
-                                statusMessage = "Ошибка отмены: ${cancelResult.error.message}",
+                                statusMessage = "Ошибка отмены: ${result.error.message}",
                                 isError = true,
                             )
                         }

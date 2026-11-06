@@ -6,8 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
-import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
@@ -18,6 +16,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.BrokerInitState
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
@@ -30,6 +29,9 @@ import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
@@ -63,10 +65,8 @@ class OrdersViewModel
     constructor(
         private val marketDataRepository: MarketDataRepository,
         private val portfolioRepository: PortfolioRepository,
-        private val accountsRepository: AccountsRepository,
         private val instrumentRepo: InstrumentRepository,
         private val searchCache: SearchCacheRepository,
-        private val accountPreferencesRepository: AccountPreferencesRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val tradingStateRepository: TradingStateRepository,
@@ -75,7 +75,10 @@ class OrdersViewModel
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val postOrderUseCase: PostOrderUseCase,
+        private val loadOrdersAccountsUseCase: LoadOrdersAccountsUseCase,
+        private val loadCardAccountsUseCase: LoadCardAccountsUseCase,
         private val positionFlowManager: PositionFlowManager,
+        private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
@@ -134,32 +137,42 @@ class OrdersViewModel
         }
 
         fun checkApiInitialization() {
-            val isAnyApiInit = brokerManager.getAllBrokers().any { it.isInitialized }
-            logger.d(TAG, "checkApiInitialization: anyApiInitialized=$isAnyApiInit")
-            _uiState.update { it.copy(isApiInitialized = isAnyApiInit) }
-
-            if (isAnyApiInit) {
-                if (brokerManager.getDefaultBroker().isInitialized) {
-                    loadAccounts()
-                }
-                syncPriceInterest()
-            } else {
-                // Logout: останавливаем фоновые задачи, снимаем интерес к ценам
-                // и очищаем состояние.
-                stopPositionUpdates()
-                priceFlowManager.clearInterest(PriceConsumer.ORDERS)
-                positionFlowManager.stop()
-                _uiState.update {
-                    it.copy(
-                        accounts = emptyList(),
-                        selectedAccountId = null,
-                        portfolioPositions = emptyList(),
-                        lastSelectedInstruments = emptyList(),
-                        currentPrice = null,
-                        pairCurrentPrice = null,
-                        freeBalance = null,
-                        tradingStatuses = emptyMap(),
-                    )
+            viewModelScope.launch {
+                val initResult = checkBrokerInitializationUseCase.execute(PriceConsumer.ORDERS)
+                when (initResult) {
+                    is AppResult.Success -> {
+                        when (initResult.data) {
+                            is BrokerInitState.AnyInitialized -> {
+                                logger.d(TAG, "checkApiInitialization: anyApiInitialized=true")
+                                _uiState.update { it.copy(isApiInitialized = true) }
+                                if (brokerManager.getDefaultBroker().isInitialized) {
+                                    loadAccounts()
+                                }
+                                syncPriceInterest()
+                            }
+                            is BrokerInitState.NoneInitialized -> {
+                                logger.d(TAG, "checkApiInitialization: anyApiInitialized=false")
+                                _uiState.update { it.copy(isApiInitialized = false) }
+                                stopPositionUpdates()
+                                _uiState.update {
+                                    it.copy(
+                                        accounts = emptyList(),
+                                        selectedAccountId = null,
+                                        portfolioPositions = emptyList(),
+                                        lastSelectedInstruments = emptyList(),
+                                        currentPrice = null,
+                                        pairCurrentPrice = null,
+                                        freeBalance = null,
+                                        tradingStatuses = emptyMap(),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    is AppResult.Failure -> {
+                        logger.e(TAG, "checkApiInitialization failed: ${initResult.error.message}", initResult.error.cause)
+                        _uiState.update { it.copy(isApiInitialized = false) }
+                    }
                 }
             }
         }
@@ -233,37 +246,31 @@ class OrdersViewModel
                 _uiState.update { it.copy(isLoading = true) }
 
                 val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
-
-                when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                val result = loadOrdersAccountsUseCase.execute(BrokerName.TINVEST, sandboxMode)
+                when (result) {
                     is AppResult.Success -> {
-                        val accounts = result.data
-                        val savedAccountId = accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST)
-                        val chosenAccount =
-                            accounts.firstOrNull { it.id == savedAccountId }
-                                ?: accounts.firstOrNull()
-
+                        val data = result.data
                         _uiState.update {
                             it.copy(
-                                accounts = accounts,
-                                selectedAccountId = chosenAccount?.id,
+                                accounts = data.accounts,
+                                selectedAccountId = data.selectedAccountId,
                                 isLoading = false,
                                 statusMessage =
-                                    if (accounts.isEmpty()) {
+                                    if (data.accounts.isEmpty()) {
                                         "Нет доступных счетов"
                                     } else {
-                                        "Загружено ${accounts.size} счёт(ов)"
+                                        "Загружено ${data.accounts.size} счёт(ов)"
                                     },
                             )
                         }
                         logger.i(
                             TAG,
-                            "loadAccounts: success, accounts=${accounts.size}, selected=${_uiState.value.selectedAccountId}",
+                            "loadAccounts: success, accounts=${data.accounts.size}, selected=${data.selectedAccountId}",
                         )
-                        if (_uiState.value.selectedAccountId != null) {
+                        if (data.selectedAccountId != null) {
                             startPositionUpdates()
                         }
                     }
-
                     is AppResult.Failure -> {
                         logger.e(
                             TAG,
@@ -653,16 +660,18 @@ class OrdersViewModel
             viewModelScope.launch {
                 val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
                 val broker = existingCard?.brokerName ?: BrokerName.TINVEST
+                val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
+
+                val result =
+                    loadCardAccountsUseCase.execute(
+                        brokerName = broker,
+                        sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+                        savedAccountId = savedAccountId,
+                    )
 
                 val accounts =
-                    when (
-                        val result =
-                            accountsRepository.getAccountsResult(
-                                broker,
-                                sandboxPreferencesRepository.isSandboxMode(),
-                            )
-                    ) {
-                        is AppResult.Success -> result.data
+                    when (result) {
+                        is AppResult.Success -> result.data.accounts
                         is AppResult.Failure -> {
                             logger.e(
                                 TAG,
@@ -672,13 +681,10 @@ class OrdersViewModel
                             emptyList()
                         }
                     }
-
-                val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
                 val selectedId =
-                    if (savedAccountId != null && accounts.any { it.id.trim() == savedAccountId.trim() }) {
-                        savedAccountId
-                    } else {
-                        accounts.firstOrNull()?.id
+                    when (result) {
+                        is AppResult.Success -> result.data.selectedAccountId
+                        is AppResult.Failure -> accounts.firstOrNull()?.id
                     }
 
                 _uiState.update {
@@ -727,26 +733,19 @@ class OrdersViewModel
          * Загружает счета для указанного брокера в UIState диалога.
          */
         private suspend fun loadDialogAccounts(brokerName: BrokerName) {
-            when (
-                val result =
-                    accountsRepository.getAccountsResult(
-                        brokerName,
-                        sandboxPreferencesRepository.isSandboxMode(),
-                    )
-            ) {
+            val result =
+                loadCardAccountsUseCase.execute(
+                    brokerName = brokerName,
+                    sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+                    savedAccountId = _uiState.value.selectedAccountIdDialog,
+                )
+            when (result) {
                 is AppResult.Success -> {
-                    val accounts = result.data
-                    _uiState.update { state ->
-                        val current = state.selectedAccountIdDialog?.trim()
-                        val newSelected =
-                            if (current != null && accounts.any { it.id.trim() == current }) {
-                                state.selectedAccountIdDialog
-                            } else {
-                                accounts.firstOrNull()?.id
-                            }
-                        state.copy(
-                            dialogAccounts = accounts,
-                            selectedAccountIdDialog = newSelected,
+                    val data = result.data
+                    _uiState.update {
+                        it.copy(
+                            dialogAccounts = data.accounts,
+                            selectedAccountIdDialog = data.selectedAccountId,
                         )
                     }
                 }
