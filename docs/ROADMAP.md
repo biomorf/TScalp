@@ -82,6 +82,211 @@ ___
 
 
 
+### BrokerCredentialsRepository: hasSavedTokenFlow (B2, M006-предзадача)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** в работе.
+
+**Ветка:** feature/broker-credentials-flow.
+
+**Контекст:** M006 (рефакторинг settings-VM, A2) требует реактивного
+`connected`-флага для панелей брокеров. Сейчас `BrokerCredentialsRepository`
+содержит только `suspend`-методы (`hasSavedToken`, `getToken`, …);
+`SettingsViewModel` использует `init { hasSavedToken }` + `markConnected`
+в `connect*` — это **не реактивно**: после `restore*` в `TScalpApplication`
+(VM создана раньше, credentials восстановлены позже) `connected` не
+обновится. Плюс после A2 каждая panel-VM держит свой `connected` —
+императивный `init + update` требует cross-VM связи или внешних writers
+(плохо). Реактивный flow снимает обе проблемы.
+
+**Соответствие Clean:** соответствует (расширение domain-контракта
+репозитория; dependency rule не нарушен).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/api/repository/BrokerCredentialsRepository.kt` — +`hasSavedTokenFlow(brokerName): Flow<Boolean>`.
+- `data/repository/BrokerCredentialsRepositoryImpl.kt` — через `dataStore.data.map { it[SettingsKeys.tokenKey(brokerName)] != null }`.
+- `app/src/test/kotlin/.../data/repository/BrokerCredentialsRepositoryImplTest.kt` (новый) — 3 кейса.
+- `app/src/test/kotlin/.../testutil/MainDispatcherRule.kt` (новый) — для panel-VM тестов (M006).
+
+**Шаги:**
+1. `BrokerCredentialsRepository` — `fun hasSavedTokenFlow(brokerName: BrokerName): Flow<Boolean>` + KDoc «реактивный hasSavedToken, для panel-VM connected (M006)». Существующие методы не трогать.
+2. `BrokerCredentialsRepositoryImpl` — `dataStore.data.map { it[SettingsKeys.tokenKey(brokerName)] != null }`.
+3. `MainDispatcherRule.kt` — стандартный (`Dispatchers.setMain(UnconfinedTestDispatcher())` + `resetMain`). Нужен для panel-VM тестов M006.
+4. `BrokerCredentialsRepositoryImplTest` — 3 кейса: пусто → `false`; после `saveToken` → `true`; после `clearBrokerCredentials` → `false`. Fake `DataStore` через `PreferenceDataStoreFactory.create` + `TemporaryFolder`.
+5. Гейт.
+
+**Тесты:** `BrokerCredentialsRepositoryImplTest` (3 PASSED). Существующих тестов на этот репозиторий нет.
+
+**Референсы:** `TradingPreferencesRepositoryImpl.confirmOrdersEnabledFlow()` — уже существующий flow-образец в проекте; androidx DataStore docs (`dataStore.data: Flow<Preferences>`).
+
+**Ограничения:**
+- Не трогать остальные `suspend`-методы `BrokerCredentialsRepository` (обратная совместимость).
+- Не добавлять `loadBrokerCredentialsFlow` (для panel-VM достаточно `init { load }`, внешних writers нет).
+- Не добавлять flow в `SandboxPreferencesRepository` / `AccountPreferencesRepository` / `TradingPreferencesRepository` — отдельная задача `### PreferencesRepositories: Flow` (не блокер M006). У `TradingPreferences` уже есть `confirmOrdersEnabledFlow()`.
+- Fake `DataStore` через `TemporaryFolder` (не `mockk<DataStore>` — mockk плохо работает с холодными flow).
+
+**Критерий готовности:**
+- `BrokerCredentialsRepository.hasSavedTokenFlow` реализован.
+- `BrokerCredentialsRepositoryImplTest` — 3 PASSED.
+- `MainDispatcherRule` создан.
+- Гейт зелёный (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`).
+
+**Оценка:** ~1–1.5 ч.
+
+**Зависимости:** нет. **Разблокирует** `### Рефакторинг settings-VM (A2, M006)`.
+
+**Связано:** M006 (зависимая), clean-audit M006, M004/M007 (использовали нереактивный паттерн), `#### Compose-экраны`.
+
+**Открытые вопросы:** fake `DataStore` через `TemporaryFolder` или `File.createTempFile`? **Дефолт:** `TemporaryFolder` (auto-cleanup).
+
+
+
+___
+
+
+
+### Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)
+
+**Мобильная работа:** частичное (live-тест settings).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit M006 — `TInvestSettingsPanel` (`SettingsScreen.kt`
+line 175–525, 350 строк) оркестрирует business в UI: `getAccountsResult`
+в `LaunchedEffect` → **если `defaultAccountId.isBlank()` и `accounts`
+не пусты — выбрать первый + `saveDefaultAccountId`** (business-правило
+в UI, M2); `openSandboxAccountResult` / `closeSandboxAccountResult`
+в `scope.launch` → `getAccountsResult` → `saveDefaultAccountId` (M2).
+Аналогичный долг в BCS/Finam-панелях (меньше оркестрации, но state
+в `remember` вместо VM — M5). `SettingsViewModel` — 20+ функций,
+единый `SettingsUiState` — дальнейший рост упирается в
+`@Suppress("TooManyFunctions")`.
+
+**Расширение scope (2026-11-06):** не только TInvest (M006 в
+clean-audit), но и BCS / Finam / TradeSettings / InfoSettings.
+Цель — симметричная структура (1 VM = 1 область state), пока есть
+время. Адаптация BCS/Finam после `### Реализация BCS/Finam Broker API`
+возможна (принять, не блокер).
+
+**Соответствие Clean:** соответствует (оркестрация → usecase,
+state → panel-VM, UI → рендер; dependency rule не нарушен).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:**
+- `### BrokerCredentialsRepository: hasSavedTokenFlow (B2)` — закрыта
+  (реактивный `connected`).
+- M004 / M007 (`InitializeBrokerUseCase`, тонкие `connect*`) — закрыты.
+
+**Файлы:**
+
+Новые usecase (domain.usecases):
+- `LoadBrokerAccountsUseCase.kt` — `execute(brokerName, sandboxMode): AppResult<LoadAccountsResult>`; get + auto-select-first-if-blank.
+- `OpenSandboxAccountUseCase.kt` — `execute(brokerName, sandboxMode): AppResult<OpenResult>`; open + saveDefault(new) + reload accounts.
+- `CloseSandboxAccountUseCase.kt` — `execute(brokerName, sandboxMode, accountId): AppResult<List<BrokerAccount>>`; close + saveDefault("") + reload accounts.
+- Тесты на все 3.
+
+Новые panel-VM (presentation.screens.settings):
+- `TInvestSettingsViewModel.kt` + `TInvestUiState` — `availableAccounts`, `defaultAccountId`, `sandboxMode`, `isRefreshing`, `statusMessage`, `isError`, `connected` (via `hasSavedTokenFlow`), `anyApiInitialized` (via `brokerRegistry.anyInitialized`).
+- `BcsSettingsViewModel.kt` + `BcsUiState` — `refreshToken`, `isWriteMode`, `connected`, `statusMessage`, `isError`.
+- `FinamSettingsViewModel.kt` + `FinamUiState` — `token`, `connected`, `statusMessage`, `isError`.
+- `TradeSettingsViewModel.kt` + `TradeUiState` — `isConfirmOrdersEnabled`.
+- `InfoSettingsViewModel.kt` + `InfoUiState` — `disableGrpc`, `disableWs`, `forceRest`.
+- Тесты на все 5.
+
+Изменения:
+- `SettingsViewModel.kt` — сузить до `getAvailableBrokerNames()` (для корневого TabRow + Pager). Удалить `getAccountsResult`, `openSandboxAccountResult`, `closeSandboxAccountResult`, `connectTInvest/Bcs/Finam`, `setSandboxMode`, `setConfirmOrdersEnabled`, `toggleGrpc/Ws/Rest`, `saveBrokerCredentials`, `loadBrokerCredentials`, `saveToken`, `getToken`, `hasSavedToken`, `saveDefaultAccountId`, `loadDefaultAccountId`, `isSandboxMode`, `isConfirmOrdersEnabled`, `clearBrokerCredentials`, `clearStatus`. Всё — в panel-VM / usecase.
+- `SettingsScreen.kt` — панели берут `hiltViewModel<XSettingsViewModel>()`, читают state, не оркестрируют.
+- `SettingsUiState` — удалить.
+- `docs/clean-audit.md` — M006 → `исправлено` (на mark done).
+
+**Шаги:**
+1. `LoadBrokerAccountsUseCase` + тест.
+2. `OpenSandboxAccountUseCase` + тест.
+3. `CloseSandboxAccountUseCase` + тест.
+4. `TInvestSettingsViewModel` + `TInvestUiState` + тест.
+5. `BcsSettingsViewModel` + `BcsUiState` + тест.
+6. `FinamSettingsViewModel` + `FinamUiState` + тест.
+7. `TradeSettingsViewModel` + `TradeUiState` + тест.
+8. `InfoSettingsViewModel` + `InfoUiState` + тест.
+9. `SettingsScreen.kt` — TInvest-панель на новую VM.
+10. `SettingsScreen.kt` — BCS-панель.
+11. `SettingsScreen.kt` — Finam-панель.
+12. `SettingsScreen.kt` — `TradeSettingsContent`.
+13. `SettingsScreen.kt` — `InfoSettingsContent`.
+14. `SettingsViewModel` — сузить до `getAvailableBrokerNames`.
+15. `SettingsUiState` — удалить.
+16. Гейт + live-test.
+
+Каждый шаг — отдельный коммит (4b). Между шагами — сборка / гейт.
+
+**Тесты:**
+- Usecase-тесты: 3 файла × 3–4 кейса (success, failure passthrough, exception → Unknown, CancellationException rethrow) — по образцу `PayInSandboxUseCaseTest`.
+- VM-тесты: 5 файлов × 3–5 кейсов (init, load, connect, clear, business-rule). `MainDispatcherRule` (из B2) + mockk.
+- Live-test: переключение вкладок → панели не крешатся; connect BCS / Finam (заглушки); open / close sandbox счёта TInvest → список обновился; выбор счёта по умолчанию → сохранился и отобразился; logout → state корректный.
+
+**Референсы:**
+- `PayInSandboxUseCase` + `PayInSandboxUseCaseTest` (M003, `b120cd3`) — образец usecase.
+- `InitializeBrokerUseCase` + `SettingsViewModel.connect*` (M004/M007) — образец тонкой VM.
+- `PortfolioViewModel.payInSandbox` (M003) — образец тонкого VM-метода.
+- `TradingPreferencesRepositoryImpl.confirmOrdersEnabledFlow` — flow-паттерн.
+- clean-audit M006.
+
+**Ограничения:**
+- **UI визуально не меняется** — та же разметка, тексты, кнопки. Меняется только источник state (`remember` → `panelUiState`) и кто оркестрирует (`LaunchedEffect`/`scope.launch` в UI → usecase + VM-методы). Если по ходу окажется, что нужна правка видимого UI — отдельное согласование (правило 1).
+- **VM тонкая** — только state + delegation (`usecase.execute + _uiState.update`). Никакой оркестрации в VM (M2).
+- **Бизнес-правила — в usecase**, не в VM и не в UI. Например «auto-select-first-if-blank» живёт в `LoadBrokerAccountsUseCase`, не в `TInvestSettingsViewModel`.
+- **Нет VM → VM зависимостей.** Каждая panel-VM инжектит только usecase + repository + logger.
+- **`clearBrokerCredentials`** — в каждой panel-VM свой (тонкий, не shared).
+- **`connect*`** — в panel-VM, тонкие (`initializeBrokerUseCase.execute` + `_uiState.update`).
+- **`connected`** — реактивно через `hasSavedTokenFlow` (B2). Императивный `init + markConnected` запрещён (не увидит `restore*`).
+- **`isSandboxMode`** — в `TInvestSettingsViewModel` (единственный writer).
+- **`anyApiInitialized`** — в `TInvestSettingsViewModel` (единственный потребитель; через `brokerRegistry.anyInitialized` flow).
+- **`onAccountSelected`** — тонкий в `TInvestSettingsViewModel` (save + `_uiState.update`), не отдельный usecase.
+
+**Критерий готовности:**
+- `TInvestSettingsPanel` — < 100 строк, 0 `scope.launch`, `LaunchedEffect` только с `vm.loadAccounts(...)` (никакой оркестрации).
+- BCS / Finam / Trade / Info панели — по тому же паттерну.
+- `SettingsViewModel` — 1 метод (`getAvailableBrokerNames`), `@Suppress("TooManyFunctions")` снят.
+- `SettingsUiState` удалён.
+- 3 usecase покрыты тестами, 5 panel-VM покрыты тестами.
+- Live-test PASS.
+- Гейт зелёный.
+- clean-audit M006 → `исправлено`.
+
+**Оценка:** ~6–8 ч (usecases 1.5–2 ч, 5 VM 2–3 ч, 5 panel-rewrite 1.5–2 ч, `SettingsViewModel`/`SettingsUiState` 30 мин, live-test 1 ч).
+
+**Зависимости:** `### BrokerCredentialsRepository: hasSavedTokenFlow (B2)`.
+
+**Связано:** clean-audit M006, M003 (образец usecase), M004/M007 (образец тонкой VM), `### Реализация BCS/Finam Broker API` (возможна адаптация panel-VM после), `#### Compose-экраны`.
+
+**Открытые вопросы:**
+- `TInvestUiState.sandboxMode` — реактивно через `SandboxPreferencesRepository` flow (не сейчас) или императивно `init { isSandboxMode() }` (сейчас). **Дефолт:** императивно (внешних writers нет).
+- `refreshToken` / `isWriteMode` (BcsUiState), `token` (FinamUiState) — то же: `init { load }`. **Дефолт:** императивно.
+- `availableAccounts` / `defaultAccountId` — через usecase после `load` / `open` / `close` / `onAccountSelected`. **Дефолт:** так.
+- `isConnected` (`anyApiInitialized && connected`) — getter в `TInvestUiState`. **Дефолт:** getter в UiState.
+- `TradeSettingsViewModel` — реактивно `confirmOrdersEnabledFlow` (есть) или `init { isConfirmOrdersEnabled() }`. **Дефолт:** flow (симметрично).
+- `InfoSettingsViewModel` — `DebugFlagsRepository` уже `var` in-memory, `init` достаточно. **Дефолт:** `init`.
+
+
+
+___
+
+
+
 ### Архитектурный документ (docs/architecture.md)
 
 **Мобильная работа:** полное закрытие (правки .md — через proot;
