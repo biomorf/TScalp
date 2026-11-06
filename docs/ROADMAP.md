@@ -743,7 +743,9 @@ ___
 
 **Мобильная работа:** частичное (live-test Orders).
 
-**Статус:** запланировано.
+**Ветка:** feature/orders-vm-split.
+
+**Статус:** в работе.
 
 **Контекст:** `OrdersViewModel` после M013 — 1158 строк, 58 функций, 23 `viewModelScope.launch`, 8 `suspend fun`, 17 injected dependencies. Смешивает 4+ доменные области. `@Suppress("TooManyFunctions", "LargeClass")`. Архитектурный долг — SRP на уровне VM. **Не M2-orchestration** (orchestration вынесена в M013, `f282f36`).
 
@@ -760,6 +762,13 @@ ___
 **Предусловия:**
 - M013 orchestration вынесена (10 коммитов, merge `f282f36`, PR #104). `mark done` отложен по live-test 3–4 — **не блокер**.
 - M013 `**Подтверждение:**` не влияет (deferred closure, 5g.4).
+
+**Уточнения 2026-11-07** (по расширенной диагностике перед стартом):
+
+- **Пробел 1 — `TradingStateRepository.state`:** `load()` тоже эмитит в `state` (не только `save()`). Form вызывает `save()` в `clearSelectedInstrument` / `clearPairSearch` — иначе Coord не видит восстановленный/сброшенный snapshot и `syncPriceInterest` не срабатывает.
+- **Пробел 2 — `startPositionUpdates` fallback:** при пустом sheet Coord делает direct fetch и передаёт `seed: PortfolioSheet` в `positionFlowManager.start(..., seed = ...)` — по образцу `PortfolioViewModel.loadPortfolio` (`startPositionUpdates(keys, sandbox, seed = data.sheet)`). `portfolioPositions` в `OrdersUiState` **удаляется** (Form читает `PositionFlowManager.sheet`).
+- **Пробел 3 — `refreshLastSelectedInstruments`:** обновление на каждый sheet emit → карточки «Последние просмотренные» обновляют P&L real-time (не только после postOrder). **UI-санкция получена 2026-11-07.**
+- **Пробел 4 — `tradingStatuses`:** **не dead code** — читается в `OrdersSearch.kt` (строки 47, 82, 195, 208) и `OrdersPairTrading.kt` (75, 113). `TradingStatusRepository` (domain, in-memory `MutableStateFlow`) — нужен, UI читает из репозитория через VM.
 
 **Диагностика (2026-11-07, read-only):**
 
