@@ -6,7 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
-import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
@@ -31,6 +30,7 @@ import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
@@ -65,7 +65,6 @@ class OrdersViewModel
     constructor(
         private val marketDataRepository: MarketDataRepository,
         private val portfolioRepository: PortfolioRepository,
-        private val accountsRepository: AccountsRepository,
         private val instrumentRepo: InstrumentRepository,
         private val searchCache: SearchCacheRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
@@ -77,6 +76,7 @@ class OrdersViewModel
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val postOrderUseCase: PostOrderUseCase,
         private val loadOrdersAccountsUseCase: LoadOrdersAccountsUseCase,
+        private val loadCardAccountsUseCase: LoadCardAccountsUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val logger: Logger,
@@ -660,16 +660,18 @@ class OrdersViewModel
             viewModelScope.launch {
                 val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
                 val broker = existingCard?.brokerName ?: BrokerName.TINVEST
+                val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
+
+                val result =
+                    loadCardAccountsUseCase.execute(
+                        brokerName = broker,
+                        sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+                        savedAccountId = savedAccountId,
+                    )
 
                 val accounts =
-                    when (
-                        val result =
-                            accountsRepository.getAccountsResult(
-                                broker,
-                                sandboxPreferencesRepository.isSandboxMode(),
-                            )
-                    ) {
-                        is AppResult.Success -> result.data
+                    when (result) {
+                        is AppResult.Success -> result.data.accounts
                         is AppResult.Failure -> {
                             logger.e(
                                 TAG,
@@ -679,13 +681,10 @@ class OrdersViewModel
                             emptyList()
                         }
                     }
-
-                val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
                 val selectedId =
-                    if (savedAccountId != null && accounts.any { it.id.trim() == savedAccountId.trim() }) {
-                        savedAccountId
-                    } else {
-                        accounts.firstOrNull()?.id
+                    when (result) {
+                        is AppResult.Success -> result.data.selectedAccountId
+                        is AppResult.Failure -> accounts.firstOrNull()?.id
                     }
 
                 _uiState.update {
@@ -734,26 +733,19 @@ class OrdersViewModel
          * Загружает счета для указанного брокера в UIState диалога.
          */
         private suspend fun loadDialogAccounts(brokerName: BrokerName) {
-            when (
-                val result =
-                    accountsRepository.getAccountsResult(
-                        brokerName,
-                        sandboxPreferencesRepository.isSandboxMode(),
-                    )
-            ) {
+            val result =
+                loadCardAccountsUseCase.execute(
+                    brokerName = brokerName,
+                    sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+                    savedAccountId = _uiState.value.selectedAccountIdDialog,
+                )
+            when (result) {
                 is AppResult.Success -> {
-                    val accounts = result.data
-                    _uiState.update { state ->
-                        val current = state.selectedAccountIdDialog?.trim()
-                        val newSelected =
-                            if (current != null && accounts.any { it.id.trim() == current }) {
-                                state.selectedAccountIdDialog
-                            } else {
-                                accounts.firstOrNull()?.id
-                            }
-                        state.copy(
-                            dialogAccounts = accounts,
-                            selectedAccountIdDialog = newSelected,
+                    val data = result.data
+                    _uiState.update {
+                        it.copy(
+                            dialogAccounts = data.accounts,
+                            selectedAccountIdDialog = data.selectedAccountId,
                         )
                     }
                 }
