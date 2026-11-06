@@ -36,6 +36,7 @@ data class TInvestUiState(
     val connected: Boolean = false,
     val anyApiInitialized: Boolean = false,
     val sandboxMode: Boolean = true,
+    val token: String = "",
     val availableAccounts: List<BrokerAccount> = emptyList(),
     val defaultAccountId: String = "",
     val isRefreshing: Boolean = false,
@@ -100,15 +101,20 @@ class TInvestSettingsViewModel
             }
             viewModelScope.launch {
                 val sandbox = sandboxPreferencesRepository.isSandboxMode()
-                _uiState.update { it.copy(sandboxMode = sandbox) }
+                val creds = brokerCredentialsRepository.loadBrokerCredentials(BrokerName.TINVEST)
+                _uiState.update {
+                    it.copy(
+                        sandboxMode = sandbox,
+                        token = creds?.first ?: "",
+                    )
+                }
             }
         }
 
-        /**
-         * Загружает сохранённые credentials (для инициализации
-         * локальных полей ввода в UI). Не state — возврат.
-         */
-        suspend fun loadCredentials(): Pair<String, Boolean>? = brokerCredentialsRepository.loadBrokerCredentials(BrokerName.TINVEST)
+        /** Обновление поля токена (UI-ввод). */
+        fun setToken(text: String) {
+            _uiState.update { it.copy(token = text) }
+        }
 
         /**
          * Загружает счета (fire-and-forget). UI вызывает из
@@ -158,6 +164,7 @@ class TInvestSettingsViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                token = "",
                                 statusMessage =
                                     "Подключено к Т-Инвестициям (режим " +
                                         "${if (sandboxMode) "песочница" else "боевой"})",
@@ -183,6 +190,7 @@ class TInvestSettingsViewModel
                     is AppResult.Success ->
                         _uiState.update {
                             it.copy(
+                                token = "",
                                 availableAccounts = emptyList(),
                                 defaultAccountId = "",
                                 statusMessage = "Отключено",

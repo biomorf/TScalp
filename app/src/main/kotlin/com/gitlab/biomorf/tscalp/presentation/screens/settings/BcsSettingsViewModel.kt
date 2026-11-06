@@ -126,6 +126,16 @@ class BcsSettingsViewModel
             }
         }
 
+        /** Обновление поля refresh-токена (UI-ввод). */
+        fun setRefreshToken(text: String) {
+            _uiState.update { it.copy(refreshToken = text) }
+        }
+
+        /** Переключение прав доступа (read / write). */
+        fun setIsWriteMode(isWrite: Boolean) {
+            _uiState.update { it.copy(isWriteMode = isWrite) }
+        }
+
         /** Сброс statusMessage / isError. */
         fun clearStatus() {
             _uiState.update { it.copy(statusMessage = null, isError = false) }

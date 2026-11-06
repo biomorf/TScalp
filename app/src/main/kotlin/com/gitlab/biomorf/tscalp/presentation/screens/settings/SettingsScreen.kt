@@ -174,17 +174,9 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // UI-only state: остаётся в Compose (ввод, разворачивание, диалог).
-    var token by remember { mutableStateOf("") }
     var showToken by remember { mutableStateOf(false) }
     var accountExpanded by remember { mutableStateOf(false) }
     var showCloseDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        val creds = viewModel.loadCredentials()
-        if (creds != null) {
-            token = creds.first
-        }
-    }
 
     LaunchedEffect(uiState.isConnected, uiState.sandboxMode) {
         if (uiState.isConnected) {
@@ -237,8 +229,8 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
                     }
                 } else {
                     Button(
-                        onClick = { viewModel.connect(token, uiState.sandboxMode) },
-                        enabled = token.isNotBlank(),
+                        onClick = { viewModel.connect(uiState.token, uiState.sandboxMode) },
+                        enabled = uiState.token.isNotBlank(),
                     ) {
                         Text("Подключиться")
                     }
@@ -247,8 +239,8 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
         }
 
         OutlinedTextField(
-            value = token,
-            onValueChange = { token = it },
+            value = uiState.token,
+            onValueChange = { viewModel.setToken(it) },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите токен из личного кабинета") },
             visualTransformation =
@@ -425,25 +417,11 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
 // См. ROADMAP → «Рефакторинг Compose-экранов».
 @Suppress("LongMethod")
 @Composable
-fun BcsSettingsPanel() {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val settingsUiState by settingsViewModel.uiState.collectAsState()
+fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var refreshToken by remember { mutableStateOf("") }
-    var isWriteMode by remember { mutableStateOf(true) }
-    var connected by remember { mutableStateOf(settingsUiState.bcsConnected) }
+    // UI-only state: остаётся в Compose.
     var showToken by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var isError by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        val creds = settingsViewModel.loadBrokerCredentials(BrokerName.BCS)
-        if (creds != null) {
-            refreshToken = creds.first
-            connected = true
-        }
-    }
 
     Column(
         modifier =
@@ -452,13 +430,12 @@ fun BcsSettingsPanel() {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors =
                 CardDefaults.cardColors(
                     containerColor =
-                        if (connected) {
+                        if (uiState.connected) {
                             MaterialTheme.colorScheme.tertiaryContainer
                         } else {
                             MaterialTheme.colorScheme.errorContainer
@@ -473,20 +450,13 @@ fun BcsSettingsPanel() {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (connected) "✅ Подключено" else "❌ Не подключено",
+                        if (uiState.connected) "✅ Подключено" else "❌ Не подключено",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                if (connected) {
+                if (uiState.connected) {
                     Button(
-                        onClick = {
-                            settingsViewModel.clearBrokerCredentials(BrokerName.BCS)
-                            connected = false
-                            refreshToken = ""
-                            showToken = false
-                            statusMessage = "Подключение к БКС разорвано"
-                            isError = false
-                        },
+                        onClick = { viewModel.disconnect() },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text("Отключить")
@@ -495,10 +465,9 @@ fun BcsSettingsPanel() {
             }
         }
 
-        // Поле токена
         OutlinedTextField(
-            value = refreshToken,
-            onValueChange = { refreshToken = it },
+            value = uiState.refreshToken,
+            onValueChange = { viewModel.setRefreshToken(it) },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите refresh‑токен из личного кабинета") },
             visualTransformation =
@@ -514,10 +483,9 @@ fun BcsSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !connected,
+            enabled = !uiState.connected,
         )
 
-        // Права доступа
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -526,29 +494,21 @@ fun BcsSettingsPanel() {
             Column {
                 Text("Права доступа", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    if (isWriteMode) "Полный доступ (торговля)" else "Только чтение",
+                    if (uiState.isWriteMode) "Полный доступ (торговля)" else "Только чтение",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Switch(
-                checked = isWriteMode,
-                onCheckedChange = { isWriteMode = it },
-                enabled = !connected,
+                checked = uiState.isWriteMode,
+                onCheckedChange = { viewModel.setIsWriteMode(it) },
+                enabled = !uiState.connected,
             )
         }
 
-        // Кнопки
-        if (connected) {
+        if (uiState.connected) {
             Button(
-                onClick = {
-                    settingsViewModel.clearBrokerCredentials(BrokerName.BCS)
-                    connected = false
-                    refreshToken = ""
-                    showToken = false
-                    statusMessage = "Подключение к БКС разорвано"
-                    isError = false
-                },
+                onClick = { viewModel.disconnect() },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             ) {
@@ -556,27 +516,14 @@ fun BcsSettingsPanel() {
             }
         } else {
             Button(
-                onClick = {
-                    scope.launch {
-                        val success = settingsViewModel.connectBcs(refreshToken, isWriteMode)
-                        connected = success
-                        statusMessage =
-                            if (success) {
-                                "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
-                            } else {
-                                "Ошибка подключения"
-                            }
-                        isError = !success
-                    }
-                },
+                onClick = { viewModel.connect(uiState.refreshToken, uiState.isWriteMode) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = refreshToken.isNotBlank(),
+                enabled = uiState.refreshToken.isNotBlank(),
             ) {
                 Text("Подключиться")
             }
         }
 
-        // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -602,14 +549,13 @@ fun BcsSettingsPanel() {
             }
         }
 
-        // Статусное сообщение
-        statusMessage?.let { message ->
+        uiState.statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors =
                     CardDefaults.cardColors(
                         containerColor =
-                            if (isError) {
+                            if (uiState.isError) {
                                 MaterialTheme.colorScheme.errorContainer
                             } else {
                                 MaterialTheme.colorScheme.tertiaryContainer

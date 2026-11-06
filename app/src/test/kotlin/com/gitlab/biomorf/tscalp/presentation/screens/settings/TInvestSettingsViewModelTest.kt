@@ -56,6 +56,7 @@ class TInvestSettingsViewModelTest {
         every { brokerRegistry.anyInitialized } returns MutableStateFlow(false).asStateFlow()
         every { brokerCredentialsRepository.hasSavedTokenFlow(BrokerName.TINVEST) } returns flowOf(false)
         coEvery { sandboxPreferencesRepository.isSandboxMode() } returns true
+        coEvery { brokerCredentialsRepository.loadBrokerCredentials(BrokerName.TINVEST) } returns null
         return TInvestSettingsViewModel(
             initializeBrokerUseCase,
             disconnectBrokerUseCase,
@@ -76,6 +77,7 @@ class TInvestSettingsViewModelTest {
             every { brokerRegistry.anyInitialized } returns MutableStateFlow(true).asStateFlow()
             every { brokerCredentialsRepository.hasSavedTokenFlow(BrokerName.TINVEST) } returns flowOf(true)
             coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
+            coEvery { brokerCredentialsRepository.loadBrokerCredentials(BrokerName.TINVEST) } returns null
 
             val vm =
                 TInvestSettingsViewModel(
