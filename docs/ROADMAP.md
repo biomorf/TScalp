@@ -611,20 +611,27 @@ ___
 
 **Мобильная работа:** частичное (live-тест Orders/Portfolio/OrdersList).
 
-**Статус:** запланировано.
+**Статус:** в работе.
 
-**Контекст:** clean-audit M013. После M006 (settings-VM split) orchestration в остальных ViewModel осталась нетронутой. Ревизия 2026-11-06 нашла тот же паттерн M2 в 7 методах 3 VM (~290 строк orchestration):
-- `PortfolioViewModel.loadPortfolio` (~35 строк): getAccounts → seedSheet (getBalance × accounts) → startPositionUpdates → syncPriceInterest.
-- `OrdersViewModel.checkApiInitialization` (~30): init → loadAccounts + syncPriceInterest / logout cleanup (stop streams, clearInterest).
-- `OrdersViewModel.loadAccounts` (~55): getAccounts → loadDefaultAccountId → state.
-- `OrdersViewModel.openBrokerDialog` (~47): findCard → getAccounts → dialog state.
-- `OrdersViewModel.loadDialogAccounts` (~25): getAccounts → dialog state.
-- `OrdersListViewModel.cancelOrder` (~50): getAccounts → cancelOrder / cancelStopOrder.
-- `OrdersListViewModel.loadOrders` (~45): getAccounts → getOrders / getStopOrders.
+**Ветка:** feature/m013-orchestration-usecases.
 
-**Расширение scope (2026-11-06):** делаем **в 2 этапа**:
-- **Этап C** — 5–6 usecase из 7 методов (top + переиспользование `LoadBrokerAccountsUseCase` из M006).
-- **Этап B** — доводка до полного закрытия (оставшиеся orchestration, если найдутся при реализации; адаптация под BCS/Finam после их API).
+**Контекст:** clean-audit M013. После M006 (settings-VM split) orchestration в остальных ViewModel осталась нетронутой. Ревизия 2026-11-06 нашла тот же паттерн M2 в 3 VM. Уточнение после чтения кода (2026-11-06):
+- `OrdersListViewModel.loadOrders` — **убрано из scope** (F3): реальной orchestration нет, `getAccounts → accounts.first().id → orderFlowManager.start(accountId)`. Заказы приходят реактивно через `orderFlowManager.orders` (init, 45–48). `start()` — manager lifecycle, по Q2 остаётся в VM.
+- `PortfolioViewModel.checkApiInitialization` — **добавлено в scope** (F2): симметрична `OrdersViewModel.checkApiInitialization`, реальная orchestration (`getAllBrokers → isInitialized → loadPortfolio / cleanup`).
+
+Итог scope: 5 методов (2 Portfolio + 3 Orders) + 1 OrdersList (`cancelOrder`), 5 новых usecase + 2 reuse `LoadBrokerAccountsUseCase` (M006).
+
+| VM | Метод | Usecase | Возврат |
+|---|---|---|---|
+| `PortfolioViewModel` | `loadPortfolio` | `LoadPortfolioUseCase` | `AppResult<PortfolioSheet>` |
+| `PortfolioViewModel` | `checkApiInitialization` | `CheckPortfolioInitializationUseCase` | `AppResult<InitState>` |
+| `OrdersViewModel` | `checkApiInitialization` | `CheckOrdersInitializationUseCase` | `AppResult<InitState>` |
+| `OrdersViewModel` | `loadAccounts` | `LoadOrdersAccountsUseCase` | `AppResult<OrdersAccountsResult>` |
+| `OrdersViewModel` | `openBrokerDialog` | reuse `LoadBrokerAccountsUseCase` (M006) + VM selection | `AppResult<List<BrokerAccount>>` |
+| `OrdersViewModel` | `loadDialogAccounts` | reuse `LoadBrokerAccountsUseCase` (M006) | `AppResult<List<BrokerAccount>>` |
+| `OrdersListViewModel` | `cancelOrder` | `CancelOrderUseCase` | `AppResult<Unit>` |
+
+**InitState (design):** `sealed interface InitState` (`Initialized` / `NotInitialized`), в `domain/models/InitState.kt`. Cleanup manager'ов (`priceFlowManager.clearInterest(consumer)` + `positionFlowManager.stop()`) — **в usecase** (симметрично init). `stopPositionUpdates()` — VM lifecycle, остаётся в VM.
 
 **Соответствие Clean:** соответствует (orchestration → domain.usecases, panel-VM тонкие, dependency rule не нарушен).
 
@@ -640,40 +647,42 @@ ___
 
 **Файлы:**
 
-Новые usecase (domain.usecases, ~5–7 файлов):
-- `LoadPortfolioUseCase.kt` — accounts + seedSheet (getBalance × accounts) + reload; возврат `AppResult<PortfolioSheet>`.
-- `CheckBrokerInitializationUseCase.kt` — init / logout cleanup (stop streams + clearInterest). Возврат `AppResult<InitializationResult>` (`isInitialized`, `accounts: List<BrokerAccount>?`).
-- `CancelOrderUseCase.kt` — accounts + cancel (stop/regular); `AppResult<Unit>`.
-- `LoadOrdersUseCase.kt` — accounts + getOrders / getStopOrders; `AppResult<List<Order>>`.
-- (Опционально — если решим вынести из `OrdersViewModel.openBrokerDialog` / `loadDialogAccounts`: переиспользовать `LoadBrokerAccountsUseCase` из M006, не создавать новый).
+Новые usecase (domain.usecases, ~5 файлов):
+- `LoadPortfolioUseCase.kt` — getAccounts + `seedSheet`; `AppResult<PortfolioSheet>`.
+- `CheckPortfolioInitializationUseCase.kt` — `getAllBrokers → isInitialized`; `Initialized` → getAccounts + seedSheet; `NotInitialized` → `clearInterest(PORTFOLIO)` + `positionFlowManager.stop()`; `AppResult<InitState>`.
+- `CheckOrdersInitializationUseCase.kt` — `getAllBrokers → isInitialized`; `Initialized` → `LoadOrdersAccountsUseCase`; `NotInitialized` → `clearInterest(ORDERS)` + `positionFlowManager.stop()`; `AppResult<InitState>`.
+- `LoadOrdersAccountsUseCase.kt` — getAccounts + `loadDefaultAccountId` + `chosenAccount = saved-or-first`; `AppResult<OrdersAccountsResult>` (`accounts`, `selectedAccountId`).
+- `CancelOrderUseCase.kt` — getAccounts + `first().id` + stop/regular dispatch; `AppResult<Unit>`.
+
+Новый domain-файл:
+- `domain/models/InitState.kt` — `sealed interface InitState { data object Initialized : InitState; data object NotInitialized : InitState }`.
 
 Panel-VM (без изменений в размере):
-- `PortfolioViewModel.kt` — `loadPortfolio` → тонкий (usecase + `_uiState.update`), `seedSheet` → в usecase, `syncPriceInterest` — остаётся (aggregation + setInterest, не repository-orchestration, по 2c не M2).
-- `OrdersViewModel.kt` — `checkApiInitialization` / `loadAccounts` / `openBrokerDialog` / `loadDialogAccounts` → тонкие. `startPositionUpdates` / `stopPositionUpdates` — lifecycle, остаются.
-- `OrdersListViewModel.kt` — `cancelOrder` / `loadOrders` → тонкие.
+- `PortfolioViewModel.kt` — `loadPortfolio` / `checkApiInitialization` → тонкие. `startPositionUpdates` / `stopPositionUpdates` / `syncPriceInterest` — lifecycle, остаются.
+- `OrdersViewModel.kt` — `checkApiInitialization` / `loadAccounts` / `openBrokerDialog` / `loadDialogAccounts` → тонкие. `startPositionUpdates` / `stopPositionUpdates` / `syncPriceInterest` — lifecycle, остаются. Selection (`saved-or-first`) в `openBrokerDialog` — 1–2 строки в VM (reuse M006 возвращает `accounts`).
+- `OrdersListViewModel.kt` — `cancelOrder` → тонкий. `loadOrders` — не меняется (убрано из scope по F3).
 
 **Шаги:**
 
-**Этап C (5–6 usecase, ~4–5 ч):**
-1. `LoadPortfolioUseCase` + тест. SeedSheet логика (getBalance × accounts) — в usecase. Возврат `PortfolioSheet` (seed). `ViewModel.loadPortfolio` → тонкий: usecase → `_uiState.update(sheet)` + startPositionUpdates (lifecycle, в VM) + syncPriceInterest (VM).
-2. `CheckBrokerInitializationUseCase` + тест. Init: `getDefaultBroker().isInitialized` → getAccounts. Logout: stop streams + clearInterest. Возврат `AppResult<InitializationResult>`.
-3. `CancelOrderUseCase` + тест (accounts + cancelStop / cancelOrder). `OrdersListViewModel.cancelOrder` → тонкий.
-4. `LoadOrdersUseCase` + тест (accounts + getOrders / getStopOrders). `OrdersListViewModel.loadOrders` → тонкий.
-5. `OrdersViewModel.loadAccounts` → через `LoadBrokerAccountsUseCase` (M006, переиспользуем). Если сигнатуры не совпадают — новый usecase `LoadOrdersAccountsUseCase` (accounts + loadDefaultAccountId).
-6. `OrdersViewModel.openBrokerDialog` / `loadDialogAccounts` → через `LoadBrokerAccountsUseCase` (M006) или тонкие методы (если orchestration минимальна).
-7. Гейт + live-test.
+**Этап C (5 usecase + 2 reuse, ~6.5 ч):**
+1. `InitState` (`domain/models/InitState.kt`) + 2 usecase-check (`CheckPortfolioInitializationUseCase`, `CheckOrdersInitializationUseCase`) + тесты. Затем — VM (Portfolio / Orders) → тонкие. Гейт.
+2. `LoadPortfolioUseCase` + тест. `PortfolioViewModel.loadPortfolio` → тонкий. Гейт.
+3. `LoadOrdersAccountsUseCase` + тест. `OrdersViewModel.loadAccounts` → тонкий. Гейт.
+4. `CancelOrderUseCase` + тест. `OrdersListViewModel.cancelOrder` → тонкий. Гейт.
+5. `OrdersViewModel.openBrokerDialog` / `loadDialogAccounts` — reuse `LoadBrokerAccountsUseCase` (M006) + VM selection. Гейт.
+6. Live-test.
 
 **Этап B (доводка, отдельно, ~1.5–2 ч):**
-8. Пересмотр `OrdersViewModel` — что осталось из M2 (по результатам C).
-9. Адаптация под BCS / Finam после `### Реализация BCS/Finam Broker API` (если структура изменится).
-10. Обновление M013 → `исправлено` в clean-audit.
+7. Пересмотр оставшихся M2 в трёх VM (по результатам C).
+8. Адаптация под BCS / Finam после `### Реализация BCS/Finam Broker API`.
+9. Обновление M013 → `исправлено` в clean-audit.
 
 Каждый шаг — отдельный коммит (4b). Между шагами — гейт.
 
 **Тесты:**
-- 4–5 usecase-тестов по образцу `PayInSandboxUseCaseTest` (M003): success, failure passthrough, exception → Unknown, CancellationException rethrow.
-- VM-тесты: добавить 1–2 кейса в существующие VM-тесты (если есть) или новые по образцу `TInvestSettingsViewModelTest` (M006).
-- Live-test: Orders (загрузка счетов, dialog, отмена), Portfolio (loadPortfolio), OrdersList (loadOrders, cancelOrder). Прогон UI-сценариев, лог.
+- 5 usecase-тестов по образцу `PayInSandboxUseCaseTest` (M003): success, failure passthrough, exception → Unknown, CancellationException rethrow.
+- VM-тесты: 1–2 кейса в существующие VM-тесты (если есть) или новые по образцу `TInvestSettingsViewModelTest` (M006).
+- Live-test: Orders (загрузка счетов, dialog, отмена), Portfolio (loadPortfolio, checkApiInitialization), OrdersList (cancelOrder).
 
 **Референсы:**
 - `PayInSandboxUseCase` + `PayInSandboxUseCaseTest` (M003, `b120cd3`) — образец usecase.
@@ -686,32 +695,34 @@ Panel-VM (без изменений в размере):
 **Ограничения:**
 - **UI визуально не меняется** — та же разметка, тексты, кнопки.
 - **VM тонкая** — state + delegation.
-- **Размер `OrdersViewModel` (1159) — не в scope M013.** Это отдельная задача `### OrdersViewModel: разбить на несколько VM`.
-- **`syncPriceInterest` (Portfolio)** — остаётся в VM: aggregation (flatMap + setInterest), не orchestration repository. По 2c не M2.
+- **Размер `OrdersViewModel` (1159) — не в scope M013.** Отдельная задача `### OrdersViewModel: разбить на несколько VM`.
+- **`syncPriceInterest` (Portfolio + Orders)** — остаётся в VM: aggregation (flatMap + setInterest), не orchestration repository. По 2c не M2.
 - **`startPositionUpdates` / `stopPositionUpdates`** — lifecycle, остаются в VM.
 - **`onSearchQueryChanged` / `onPairSearchQueryChanged`** (debounce) — presentation-логика, не M2.
 - **`onInstrumentSelected` / `onAccountSelectedDialog` / `onDismissConfirmDialog`** — state-update, не M2.
 - Не трогать `SearchCache` — отдельный кэш.
 - Не смешивать с M001 (formatted overlay) и M011 (`as?` в UI).
+- `openBrokerDialog` / `loadDialogAccounts`: перед шагом 5 — проверить сигнатуру `LoadBrokerAccountsUseCase` (M006); если возвращает только `accounts` — selection `saved-or-first` остаётся в VM (1–2 строки).
 
 **Критерий готовности:**
-- 4–6 usecase покрыты тестами (success / failure / exception / cancellation).
-- `PortfolioViewModel.loadPortfolio`, `OrdersViewModel.checkApiInitialization / loadAccounts / openBrokerDialog / loadDialogAccounts`, `OrdersListViewModel.cancelOrder / loadOrders` — тонкие (≤15 строк).
+- 5 usecase покрыты тестами (success / failure / exception / cancellation).
+- `PortfolioViewModel.loadPortfolio / checkApiInitialization`, `OrdersViewModel.checkApiInitialization / loadAccounts / openBrokerDialog / loadDialogAccounts`, `OrdersListViewModel.cancelOrder` — тонкие (≤15 строк).
 - Гейт зелёный.
 - Live-test PASS.
 - clean-audit M013 → `исправлено`.
 
-**Оценка:** Этап C — ~4–5 ч. Этап B — ~1.5–2 ч. Итого ~5.5–7 ч.
+**Оценка:** Этап C — ~6.5 ч (5 usecase + 2 reuse, 6 шагов). Этап B — ~1.5–2 ч. Итого ~8–8.5 ч.
 
 **Зависимости:** нет.
 
 **Связано:** clean-audit M013, M003 / M004 / M006 (образцы usecase / тонкой VM), `### OrdersViewModel: разбить на несколько VM` (размер, не orchestration), `### Реализация BCS/Finam Broker API` (возможна адаптация).
 
 **Открытые вопросы:**
-- `CheckBrokerInitializationUseCase` — стоит ли выносить logout cleanup (stop streams + clearInterest) в usecase? Или это lifecycle, остаётся в VM? **Дефолт:** init → usecase, logout cleanup → usecase (симметрично init, оба — «смена состояния брокера»).
-- `PortfolioViewModel.syncPriceInterest` — в VM или usecase? **Дефолт:** VM (aggregation, не repository-orchestration).
-- `OrdersViewModel.openBrokerDialog` / `loadDialogAccounts` — новый usecase или `LoadBrokerAccountsUseCase` (M006)? **Дефолт:** переиспользовать M006, если сигнатуры совпадают; иначе — новый usecase.
-- Размер `OrdersViewModel` (1159) — отдельная задача. **Дефолт:** да, `### OrdersViewModel: разбить на несколько VM`.
+- Q1 (logout cleanup в usecase) — утверждён.
+- Q2 (`syncPriceInterest` в VM) — утверждён.
+- Q3 (reuse `LoadBrokerAccountsUseCase` M006) — утверждён.
+- Q4 (размер `OrdersViewModel` — отдельная задача) — утверждён.
+- F2 / F3 / InitState — утверждены 2026-11-06.
 
 
 
