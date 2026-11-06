@@ -82,76 +82,6 @@ ___
 
 
 
-### BrokerCredentialsRepository: hasSavedTokenFlow (B2, M006-предзадача)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-
-**Ветка:** feature/broker-credentials-flow.
-
-**Контекст:** M006 (рефакторинг settings-VM, A2) требует реактивного
-`connected`-флага для панелей брокеров. Сейчас `BrokerCredentialsRepository`
-содержит только `suspend`-методы (`hasSavedToken`, `getToken`, …);
-`SettingsViewModel` использует `init { hasSavedToken }` + `markConnected`
-в `connect*` — это **не реактивно**: после `restore*` в `TScalpApplication`
-(VM создана раньше, credentials восстановлены позже) `connected` не
-обновится. Плюс после A2 каждая panel-VM держит свой `connected` —
-императивный `init + update` требует cross-VM связи или внешних writers
-(плохо). Реактивный flow снимает обе проблемы.
-
-**Соответствие Clean:** соответствует (расширение domain-контракта
-репозитория; dependency rule не нарушен).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `domain/api/repository/BrokerCredentialsRepository.kt` — +`hasSavedTokenFlow(brokerName): Flow<Boolean>`.
-- `data/repository/BrokerCredentialsRepositoryImpl.kt` — через `dataStore.data.map { it[SettingsKeys.tokenKey(brokerName)] != null }`.
-- `app/src/test/kotlin/.../data/repository/BrokerCredentialsRepositoryImplTest.kt` (новый) — 3 кейса.
-
-**Шаги:**
-1. `BrokerCredentialsRepository` — `fun hasSavedTokenFlow(brokerName: BrokerName): Flow<Boolean>` + KDoc «реактивный hasSavedToken, для panel-VM connected (M006)». Существующие методы не трогать.
-2. `BrokerCredentialsRepositoryImpl` — `dataStore.data.map { it[SettingsKeys.tokenKey(brokerName)] != null }`.
-3. `BrokerCredentialsRepositoryImplTest` — 3 кейса: пусто → `false`; после `saveToken` → `true`; после `clearBrokerCredentials` → `false`. Fake `DataStore` через `PreferenceDataStoreFactory.create` + `TemporaryFolder`, `runTest` + `TestScope` (не `Dispatchers.IO` — KMP-safe).
-4. Гейт.
-
-**Тесты:** `BrokerCredentialsRepositoryImplTest` (3 PASSED). Существующих тестов на этот репозиторий нет.
-
-**Референсы:** `TradingPreferencesRepositoryImpl.confirmOrdersEnabledFlow()` — уже существующий flow-образец в проекте; androidx DataStore docs (`dataStore.data: Flow<Preferences>`).
-
-**Ограничения:**
-- Не трогать остальные `suspend`-методы `BrokerCredentialsRepository` (обратная совместимость).
-- Не добавлять `loadBrokerCredentialsFlow` (для panel-VM достаточно `init { load }`, внешних writers нет).
-- Не добавлять flow в `SandboxPreferencesRepository` / `AccountPreferencesRepository` / `TradingPreferencesRepository` — отдельная задача `### PreferencesRepositories: Flow` (не блокер M006). У `TradingPreferences` уже есть `confirmOrdersEnabledFlow()`.
-- Fake `DataStore` через `TemporaryFolder` (не `mockk<DataStore>` — mockk плохо работает с холодными flow).
-- Тесты используют `kotlinx-coroutines-test` (`runTest` + `TestScope`), не `Dispatchers.IO` — KMP-safe (плавный переход к KMP, `Dispatchers.IO` уходит).
-
-**Критерий готовности:**
-- `BrokerCredentialsRepository.hasSavedTokenFlow` реализован.
-- `BrokerCredentialsRepositoryImplTest` — 3 PASSED.
-- Гейт зелёный (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`).
-
-**Оценка:** ~1–1.5 ч.
-
-**Зависимости:** нет. **Разблокирует** `### Рефакторинг settings-VM (A2, M006)`.
-
-**Связано:** M006 (зависимая), clean-audit M006, M004/M007 (использовали нереактивный паттерн), `#### Compose-экраны`.
-
-**Открытые вопросы:** fake `DataStore` через `TemporaryFolder` или `File.createTempFile`? **Дефолт:** `TemporaryFolder` (auto-cleanup).
-
-
-
-___
-
-
-
 ### Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)
 
 **Мобильная работа:** частичное (live-тест settings).
@@ -185,7 +115,7 @@ state → panel-VM, UI → рендер; dependency rule не нарушен).
 **Выгоды (для «отклонение по 2c»):** —.
 
 **Предусловия:**
-- `### BrokerCredentialsRepository: hasSavedTokenFlow (B2)` — закрыта
+- `### ✅ BrokerCredentialsRepository: hasSavedTokenFlow (B2)` — закрыта
   (реактивный `connected`).
 - M004 / M007 (`InitializeBrokerUseCase`, тонкие `connect*`) — закрыты.
 
