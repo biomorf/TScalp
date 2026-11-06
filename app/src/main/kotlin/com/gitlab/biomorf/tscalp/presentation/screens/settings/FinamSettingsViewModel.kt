@@ -120,6 +120,11 @@ class FinamSettingsViewModel
             }
         }
 
+        /** Обновление поля токена (UI-ввод). */
+        fun setToken(text: String) {
+            _uiState.update { it.copy(token = text) }
+        }
+
         /** Сброс statusMessage / isError. */
         fun clearStatus() {
             _uiState.update { it.copy(statusMessage = null, isError = false) }

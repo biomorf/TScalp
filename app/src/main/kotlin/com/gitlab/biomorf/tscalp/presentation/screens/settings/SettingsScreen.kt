@@ -22,7 +22,6 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -34,7 +33,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import kotlinx.coroutines.launch
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-экранов».
@@ -572,25 +570,11 @@ fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
 // См. ROADMAP → «Рефакторинг Compose-экранов».
 @Suppress("LongMethod")
 @Composable
-fun FinamSettingsPanel() {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val settingsUiState by settingsViewModel.uiState.collectAsState()
+fun FinamSettingsPanel(viewModel: FinamSettingsViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var token by remember { mutableStateOf("") }
+    // UI-only state: остаётся в Compose.
     var showToken by remember { mutableStateOf(false) }
-    var connected by remember { mutableStateOf(settingsUiState.finamConnected) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var isError by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    // Загрузка сохранённых токенов
-    LaunchedEffect(Unit) {
-        val savedToken = settingsViewModel.getToken(BrokerName.FINAM)
-        if (savedToken != null) {
-            token = savedToken
-            connected = true
-        }
-    }
 
     Column(
         modifier =
@@ -599,13 +583,12 @@ fun FinamSettingsPanel() {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors =
                 CardDefaults.cardColors(
                     containerColor =
-                        if (connected) {
+                        if (uiState.connected) {
                             MaterialTheme.colorScheme.tertiaryContainer
                         } else {
                             MaterialTheme.colorScheme.errorContainer
@@ -623,20 +606,13 @@ fun FinamSettingsPanel() {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (connected) "✅ Подключено" else "❌ Не подключено",
+                        if (uiState.connected) "✅ Подключено" else "❌ Не подключено",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                if (connected) {
+                if (uiState.connected) {
                     Button(
-                        onClick = {
-                            settingsViewModel.clearBrokerCredentials(BrokerName.FINAM)
-                            connected = false
-                            token = ""
-                            showToken = false
-                            statusMessage = "Подключение к Finam разорвано"
-                            isError = false
-                        },
+                        onClick = { viewModel.disconnect() },
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.error,
@@ -648,10 +624,9 @@ fun FinamSettingsPanel() {
             }
         }
 
-        // Поле токена
         OutlinedTextField(
-            value = token,
-            onValueChange = { token = it },
+            value = uiState.token,
+            onValueChange = { viewModel.setToken(it) },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите секретный токен Finam") },
             visualTransformation =
@@ -667,28 +642,19 @@ fun FinamSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !connected,
+            enabled = !uiState.connected,
         )
 
-        // Кнопка подключения
-        if (!connected) {
+        if (!uiState.connected) {
             Button(
-                onClick = {
-                    scope.launch {
-                        val success = settingsViewModel.connectFinam(token)
-                        connected = success
-                        statusMessage = if (success) "Подключено к Finam" else "Ошибка подключения"
-                        isError = !success
-                    }
-                },
+                onClick = { viewModel.connect(uiState.token) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = token.isNotBlank(),
+                enabled = uiState.token.isNotBlank(),
             ) {
                 Text("Подключиться")
             }
         }
 
-        // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors =
@@ -715,14 +681,13 @@ fun FinamSettingsPanel() {
             }
         }
 
-        // Статусное сообщение
-        statusMessage?.let { message ->
+        uiState.statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors =
                     CardDefaults.cardColors(
                         containerColor =
-                            if (isError) {
+                            if (uiState.isError) {
                                 MaterialTheme.colorScheme.errorContainer
                             } else {
                                 MaterialTheme.colorScheme.tertiaryContainer
