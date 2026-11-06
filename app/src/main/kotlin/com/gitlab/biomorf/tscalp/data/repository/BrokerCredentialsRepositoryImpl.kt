@@ -5,7 +5,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import com.gitlab.biomorf.tscalp.domain.api.repository.BrokerCredentialsRepository
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,6 +53,11 @@ class BrokerCredentialsRepositoryImpl
         }
 
         override suspend fun hasSavedToken(brokerName: BrokerName): Boolean = dataStore.data.first()[SettingsKeys.tokenKey(brokerName)] != null
+
+        override fun hasSavedTokenFlow(brokerName: BrokerName): Flow<Boolean> =
+            dataStore.data.map { prefs ->
+                prefs[SettingsKeys.tokenKey(brokerName)] != null
+            }
 
         override suspend fun getToken(brokerName: BrokerName): String? = dataStore.data.first()[SettingsKeys.tokenKey(brokerName)]
     }
