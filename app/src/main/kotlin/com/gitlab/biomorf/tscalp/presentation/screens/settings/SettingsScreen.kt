@@ -22,7 +22,6 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,10 +32,7 @@ import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gitlab.biomorf.tscalp.BuildConfig
-import com.gitlab.biomorf.tscalp.domain.models.AppResult
-import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import kotlinx.coroutines.launch
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-экранов».
@@ -172,61 +168,17 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TInvestSettingsPanel() {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val settingsUiState by settingsViewModel.uiState.collectAsState()
+fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var token by remember { mutableStateOf("") }
-    var sandboxMode by remember { mutableStateOf(settingsUiState.isSandboxMode) }
+    // UI-only state: остаётся в Compose (ввод, разворачивание, диалог).
     var showToken by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var isError by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    var availableAccounts by remember { mutableStateOf<List<BrokerAccount>>(emptyList()) }
-    var defaultAccountId by remember { mutableStateOf(settingsUiState.defaultAccountIdTInvest) }
     var accountExpanded by remember { mutableStateOf(false) }
-
     var showCloseDialog by remember { mutableStateOf(false) }
-    var isRefreshing by remember { mutableStateOf(false) }
 
-    // Загрузка сохранённых креденшелов
-    LaunchedEffect(Unit) {
-        val creds = settingsViewModel.loadBrokerCredentials(BrokerName.TINVEST)
-        if (creds != null) {
-            token = creds.first
-            sandboxMode = creds.second
-        }
-    }
-
-    // Синхронизируем локальные значения, если они изменились во ViewModel
-    LaunchedEffect(settingsUiState.isSandboxMode) {
-        sandboxMode = settingsUiState.isSandboxMode
-    }
-    LaunchedEffect(settingsUiState.defaultAccountIdTInvest) {
-        defaultAccountId = settingsUiState.defaultAccountIdTInvest
-    }
-
-    val isConnected = settingsUiState.anyApiInitialized && settingsUiState.tInvestConnected
-
-    // При подключении/изменении режима перезагружаем счета
-    LaunchedEffect(isConnected, sandboxMode) {
-        if (isConnected) {
-            when (val result = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                is AppResult.Success -> {
-                    availableAccounts = result.data
-                    // Если счёт по умолчанию ещё не выбран — берём первый доступный
-                    if (defaultAccountId.isBlank() && availableAccounts.isNotEmpty()) {
-                        defaultAccountId = availableAccounts.first().id
-                        settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, defaultAccountId)
-                    }
-                }
-                is AppResult.Failure -> {
-                    availableAccounts = emptyList()
-                }
-            }
-        } else {
-            availableAccounts = emptyList()
+    LaunchedEffect(uiState.isConnected, uiState.sandboxMode) {
+        if (uiState.isConnected) {
+            viewModel.loadAccounts()
         }
     }
 
@@ -239,13 +191,12 @@ fun TInvestSettingsPanel() {
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start,
     ) {
-        // --- Карточка статуса подключения ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors =
                 CardDefaults.cardColors(
                     containerColor =
-                        if (isConnected) {
+                        if (uiState.isConnected) {
                             MaterialTheme.colorScheme.tertiaryContainer
                         } else {
                             MaterialTheme.colorScheme.errorContainer
@@ -263,38 +214,21 @@ fun TInvestSettingsPanel() {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (isConnected) "✅ Подключено" else "❌ Не подключено",
+                        if (uiState.isConnected) "✅ Подключено" else "❌ Не подключено",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                if (isConnected) {
+                if (uiState.isConnected) {
                     Button(
-                        onClick = {
-                            settingsViewModel.clearBrokerCredentials(BrokerName.TINVEST)
-                            token = ""
-                            statusMessage = "Подключение к Т‑Инвестициям разорвано"
-                            isError = false
-                        },
+                        onClick = { viewModel.disconnect() },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text("Отключить")
                     }
                 } else {
                     Button(
-                        onClick = {
-                            scope.launch {
-                                val success = settingsViewModel.connectTInvest(token, sandboxMode)
-                                if (success) {
-                                    token = ""
-                                    statusMessage = "Подключено к Т‑Инвестициям (режим ${if (sandboxMode) "песочница" else "боевой"})"
-                                    isError = false
-                                } else {
-                                    statusMessage = settingsViewModel.uiState.value.statusMessage ?: "Ошибка подключения"
-                                    isError = true
-                                }
-                            }
-                        },
-                        enabled = token.isNotBlank(),
+                        onClick = { viewModel.connect(uiState.token, uiState.sandboxMode) },
+                        enabled = uiState.token.isNotBlank(),
                     ) {
                         Text("Подключиться")
                     }
@@ -302,10 +236,9 @@ fun TInvestSettingsPanel() {
             }
         }
 
-        // --- Поле токена ---
         OutlinedTextField(
-            value = token,
-            onValueChange = { token = it },
+            value = uiState.token,
+            onValueChange = { viewModel.setToken(it) },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите токен из личного кабинета") },
             visualTransformation =
@@ -321,10 +254,9 @@ fun TInvestSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !isConnected,
+            enabled = !uiState.isConnected,
         )
 
-        // --- Переключатель песочницы ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -339,19 +271,18 @@ fun TInvestSettingsPanel() {
                 )
             }
             Switch(
-                checked = sandboxMode,
-                onCheckedChange = { sandboxMode = it },
-                enabled = !isConnected,
+                checked = uiState.sandboxMode,
+                onCheckedChange = { viewModel.setSandboxMode(it) },
+                enabled = !uiState.isConnected,
             )
         }
 
-        // --- Выбор счёта по умолчанию ---
-        if (isConnected) {
+        if (uiState.isConnected) {
             ExposedDropdownMenuBox(
                 expanded = accountExpanded,
                 onExpandedChange = { accountExpanded = it },
             ) {
-                val selectedAccount = availableAccounts.find { it.id == defaultAccountId }
+                val selectedAccount = uiState.availableAccounts.find { it.id == uiState.defaultAccountId }
                 TextField(
                     value = selectedAccount?.let { "${it.name} (${it.id})" } ?: "Выберите счёт",
                     onValueChange = {},
@@ -370,12 +301,11 @@ fun TInvestSettingsPanel() {
                     expanded = accountExpanded,
                     onDismissRequest = { accountExpanded = false },
                 ) {
-                    availableAccounts.forEach { account: BrokerAccount ->
+                    uiState.availableAccounts.forEach { account ->
                         DropdownMenuItem(
                             text = { Text("${account.name} (${account.id})") },
                             onClick = {
-                                defaultAccountId = account.id
-                                settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, account.id)
+                                viewModel.onAccountSelected(account.id)
                                 accountExpanded = false
                             },
                         )
@@ -383,38 +313,14 @@ fun TInvestSettingsPanel() {
                 }
             }
 
-            // --- Кнопка открытия счёта песочницы (только в режиме песочницы) ---
-            if (sandboxMode) {
+            if (uiState.sandboxMode) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = {
-                        scope.launch {
-                            isRefreshing = true
-                            // Кнопка «Открыть новый счёт песочницы»
-                            when (val openResult = settingsViewModel.openSandboxAccountResult()) {
-                                is AppResult.Success -> {
-                                    val newAccountId = openResult.data
-                                    when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                                        is AppResult.Success -> availableAccounts = accountsResult.data
-                                        is AppResult.Failure -> Unit // логируется в SettingsViewModel
-                                    }
-                                    defaultAccountId = newAccountId
-                                    settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, newAccountId)
-                                    statusMessage = "Новый счёт песочницы открыт (ID: $newAccountId)"
-                                    isError = false
-                                }
-                                is AppResult.Failure -> {
-                                    statusMessage = "Ошибка открытия счёта: ${openResult.error.message}"
-                                    isError = true
-                                }
-                            }
-                            isRefreshing = false
-                        }
-                    },
+                    onClick = { viewModel.openSandboxAccount() },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isRefreshing,
+                    enabled = !uiState.isRefreshing,
                 ) {
-                    if (isRefreshing) {
+                    if (uiState.isRefreshing) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp))
                     } else {
                         Text("Открыть новый счёт песочницы")
@@ -422,8 +328,7 @@ fun TInvestSettingsPanel() {
                 }
             }
 
-            // --- Кнопка закрытия счёта песочницы (только если выбран счёт) ---
-            if (sandboxMode && defaultAccountId.isNotBlank()) {
+            if (uiState.sandboxMode && uiState.defaultAccountId.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = { showCloseDialog = true },
@@ -435,7 +340,6 @@ fun TInvestSettingsPanel() {
             }
         }
 
-        // --- Инструкция ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -460,14 +364,13 @@ fun TInvestSettingsPanel() {
             }
         }
 
-        // --- Статусное сообщение ---
-        statusMessage?.let { message ->
+        uiState.statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors =
                     CardDefaults.cardColors(
                         containerColor =
-                            if (isError) {
+                            if (uiState.isError) {
                                 MaterialTheme.colorScheme.errorContainer
                             } else {
                                 MaterialTheme.colorScheme.tertiaryContainer
@@ -479,36 +382,20 @@ fun TInvestSettingsPanel() {
         }
     }
 
-    // --- Диалог подтверждения закрытия счёта ---
     if (showCloseDialog) {
         AlertDialog(
             onDismissRequest = { showCloseDialog = false },
             title = { Text("Закрытие счёта песочницы") },
-            text = { Text("Вы уверены, что хотите закрыть счёт «${availableAccounts.find { it.id == defaultAccountId }?.name}»? Это действие необратимо.") },
+            text = {
+                Text(
+                    "Вы уверены, что хотите закрыть счёт «${uiState.availableAccounts.find { it.id == uiState.defaultAccountId }?.name}»? Это действие необратимо.",
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
-                        scope.launch {
-                            isRefreshing = true
-                            when (val closeResult = settingsViewModel.closeSandboxAccountResult(defaultAccountId)) {
-                                is AppResult.Success -> {
-                                    when (val accountsResult = settingsViewModel.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
-                                        is AppResult.Success -> availableAccounts = accountsResult.data
-                                        is AppResult.Failure -> Unit // логируется в SettingsViewModel
-                                    }
-                                    defaultAccountId = ""
-                                    settingsViewModel.saveDefaultAccountId(BrokerName.TINVEST, "")
-                                    statusMessage = "Счёт песочницы закрыт"
-                                    isError = false
-                                }
-                                is AppResult.Failure -> {
-                                    statusMessage = "Ошибка закрытия счёта: ${closeResult.error.message}"
-                                    isError = true
-                                }
-                            }
-                            isRefreshing = false
-                            showCloseDialog = false
-                        }
+                        viewModel.closeSandboxAccount(uiState.defaultAccountId)
+                        showCloseDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 ) {
@@ -528,25 +415,11 @@ fun TInvestSettingsPanel() {
 // См. ROADMAP → «Рефакторинг Compose-экранов».
 @Suppress("LongMethod")
 @Composable
-fun BcsSettingsPanel() {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val settingsUiState by settingsViewModel.uiState.collectAsState()
+fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var refreshToken by remember { mutableStateOf("") }
-    var isWriteMode by remember { mutableStateOf(true) }
-    var connected by remember { mutableStateOf(settingsUiState.bcsConnected) }
+    // UI-only state: остаётся в Compose.
     var showToken by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var isError by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        val creds = settingsViewModel.loadBrokerCredentials(BrokerName.BCS)
-        if (creds != null) {
-            refreshToken = creds.first
-            connected = true
-        }
-    }
 
     Column(
         modifier =
@@ -555,13 +428,12 @@ fun BcsSettingsPanel() {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors =
                 CardDefaults.cardColors(
                     containerColor =
-                        if (connected) {
+                        if (uiState.connected) {
                             MaterialTheme.colorScheme.tertiaryContainer
                         } else {
                             MaterialTheme.colorScheme.errorContainer
@@ -576,20 +448,13 @@ fun BcsSettingsPanel() {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (connected) "✅ Подключено" else "❌ Не подключено",
+                        if (uiState.connected) "✅ Подключено" else "❌ Не подключено",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                if (connected) {
+                if (uiState.connected) {
                     Button(
-                        onClick = {
-                            settingsViewModel.clearBrokerCredentials(BrokerName.BCS)
-                            connected = false
-                            refreshToken = ""
-                            showToken = false
-                            statusMessage = "Подключение к БКС разорвано"
-                            isError = false
-                        },
+                        onClick = { viewModel.disconnect() },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text("Отключить")
@@ -598,10 +463,9 @@ fun BcsSettingsPanel() {
             }
         }
 
-        // Поле токена
         OutlinedTextField(
-            value = refreshToken,
-            onValueChange = { refreshToken = it },
+            value = uiState.refreshToken,
+            onValueChange = { viewModel.setRefreshToken(it) },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите refresh‑токен из личного кабинета") },
             visualTransformation =
@@ -617,10 +481,9 @@ fun BcsSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !connected,
+            enabled = !uiState.connected,
         )
 
-        // Права доступа
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -629,29 +492,21 @@ fun BcsSettingsPanel() {
             Column {
                 Text("Права доступа", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    if (isWriteMode) "Полный доступ (торговля)" else "Только чтение",
+                    if (uiState.isWriteMode) "Полный доступ (торговля)" else "Только чтение",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Switch(
-                checked = isWriteMode,
-                onCheckedChange = { isWriteMode = it },
-                enabled = !connected,
+                checked = uiState.isWriteMode,
+                onCheckedChange = { viewModel.setIsWriteMode(it) },
+                enabled = !uiState.connected,
             )
         }
 
-        // Кнопки
-        if (connected) {
+        if (uiState.connected) {
             Button(
-                onClick = {
-                    settingsViewModel.clearBrokerCredentials(BrokerName.BCS)
-                    connected = false
-                    refreshToken = ""
-                    showToken = false
-                    statusMessage = "Подключение к БКС разорвано"
-                    isError = false
-                },
+                onClick = { viewModel.disconnect() },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             ) {
@@ -659,27 +514,14 @@ fun BcsSettingsPanel() {
             }
         } else {
             Button(
-                onClick = {
-                    scope.launch {
-                        val success = settingsViewModel.connectBcs(refreshToken, isWriteMode)
-                        connected = success
-                        statusMessage =
-                            if (success) {
-                                "Подключено к БКС (${if (isWriteMode) "полный доступ" else "только чтение"})"
-                            } else {
-                                "Ошибка подключения"
-                            }
-                        isError = !success
-                    }
-                },
+                onClick = { viewModel.connect(uiState.refreshToken, uiState.isWriteMode) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = refreshToken.isNotBlank(),
+                enabled = uiState.refreshToken.isNotBlank(),
             ) {
                 Text("Подключиться")
             }
         }
 
-        // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -705,14 +547,13 @@ fun BcsSettingsPanel() {
             }
         }
 
-        // Статусное сообщение
-        statusMessage?.let { message ->
+        uiState.statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors =
                     CardDefaults.cardColors(
                         containerColor =
-                            if (isError) {
+                            if (uiState.isError) {
                                 MaterialTheme.colorScheme.errorContainer
                             } else {
                                 MaterialTheme.colorScheme.tertiaryContainer
@@ -729,25 +570,11 @@ fun BcsSettingsPanel() {
 // См. ROADMAP → «Рефакторинг Compose-экранов».
 @Suppress("LongMethod")
 @Composable
-fun FinamSettingsPanel() {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val settingsUiState by settingsViewModel.uiState.collectAsState()
+fun FinamSettingsPanel(viewModel: FinamSettingsViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var token by remember { mutableStateOf("") }
+    // UI-only state: остаётся в Compose.
     var showToken by remember { mutableStateOf(false) }
-    var connected by remember { mutableStateOf(settingsUiState.finamConnected) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var isError by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    // Загрузка сохранённых токенов
-    LaunchedEffect(Unit) {
-        val savedToken = settingsViewModel.getToken(BrokerName.FINAM)
-        if (savedToken != null) {
-            token = savedToken
-            connected = true
-        }
-    }
 
     Column(
         modifier =
@@ -756,13 +583,12 @@ fun FinamSettingsPanel() {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Статус подключения
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors =
                 CardDefaults.cardColors(
                     containerColor =
-                        if (connected) {
+                        if (uiState.connected) {
                             MaterialTheme.colorScheme.tertiaryContainer
                         } else {
                             MaterialTheme.colorScheme.errorContainer
@@ -780,20 +606,13 @@ fun FinamSettingsPanel() {
                 Column {
                     Text("Статус API", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (connected) "✅ Подключено" else "❌ Не подключено",
+                        if (uiState.connected) "✅ Подключено" else "❌ Не подключено",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                if (connected) {
+                if (uiState.connected) {
                     Button(
-                        onClick = {
-                            settingsViewModel.clearBrokerCredentials(BrokerName.FINAM)
-                            connected = false
-                            token = ""
-                            showToken = false
-                            statusMessage = "Подключение к Finam разорвано"
-                            isError = false
-                        },
+                        onClick = { viewModel.disconnect() },
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.error,
@@ -805,10 +624,9 @@ fun FinamSettingsPanel() {
             }
         }
 
-        // Поле токена
         OutlinedTextField(
-            value = token,
-            onValueChange = { token = it },
+            value = uiState.token,
+            onValueChange = { viewModel.setToken(it) },
             label = { Text("Токен доступа") },
             placeholder = { Text("Введите секретный токен Finam") },
             visualTransformation =
@@ -824,28 +642,19 @@ fun FinamSettingsPanel() {
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !connected,
+            enabled = !uiState.connected,
         )
 
-        // Кнопка подключения
-        if (!connected) {
+        if (!uiState.connected) {
             Button(
-                onClick = {
-                    scope.launch {
-                        val success = settingsViewModel.connectFinam(token)
-                        connected = success
-                        statusMessage = if (success) "Подключено к Finam" else "Ошибка подключения"
-                        isError = !success
-                    }
-                },
+                onClick = { viewModel.connect(uiState.token) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = token.isNotBlank(),
+                enabled = uiState.token.isNotBlank(),
             ) {
                 Text("Подключиться")
             }
         }
 
-        // Инструкция
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors =
@@ -872,14 +681,13 @@ fun FinamSettingsPanel() {
             }
         }
 
-        // Статусное сообщение
-        statusMessage?.let { message ->
+        uiState.statusMessage?.let { message ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors =
                     CardDefaults.cardColors(
                         containerColor =
-                            if (isError) {
+                            if (uiState.isError) {
                                 MaterialTheme.colorScheme.errorContainer
                             } else {
                                 MaterialTheme.colorScheme.tertiaryContainer
@@ -893,9 +701,11 @@ fun FinamSettingsPanel() {
 }
 
 @Composable
-fun TradeSettingsContent(onBack: () -> Unit) {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val uiState by settingsViewModel.uiState.collectAsState()
+fun TradeSettingsContent(
+    onBack: () -> Unit,
+    viewModel: TradeSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier =
@@ -929,7 +739,7 @@ fun TradeSettingsContent(onBack: () -> Unit) {
             Switch(
                 checked = uiState.isConfirmOrdersEnabled,
                 onCheckedChange = { enabled ->
-                    settingsViewModel.setConfirmOrdersEnabled(enabled)
+                    viewModel.setConfirmOrdersEnabled(enabled)
                 },
             )
         }
@@ -942,7 +752,7 @@ fun TradeSettingsContent(onBack: () -> Unit) {
 @Composable
 fun InfoSettingsContent(
     onBack: () -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel(),
+    viewModel: InfoSettingsViewModel = hiltViewModel(),
 ) {
     Scaffold(
         topBar = {
@@ -998,8 +808,8 @@ fun InfoSettingsContent(
 
 @Composable
 private fun DebugSwitchesSection(
-    uiState: SettingsUiState,
-    viewModel: SettingsViewModel,
+    uiState: InfoUiState,
+    viewModel: InfoSettingsViewModel,
 ) {
     Text("Диагностика транспортов (debug)", style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
