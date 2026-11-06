@@ -752,7 +752,7 @@ fun TradeSettingsContent(
 @Composable
 fun InfoSettingsContent(
     onBack: () -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel(),
+    viewModel: InfoSettingsViewModel = hiltViewModel(),
 ) {
     Scaffold(
         topBar = {
@@ -808,8 +808,8 @@ fun InfoSettingsContent(
 
 @Composable
 private fun DebugSwitchesSection(
-    uiState: SettingsUiState,
-    viewModel: SettingsViewModel,
+    uiState: InfoUiState,
+    viewModel: InfoSettingsViewModel,
 ) {
     Text("Диагностика транспортов (debug)", style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
