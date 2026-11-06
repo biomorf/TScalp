@@ -613,6 +613,8 @@ ___
 
 **Статус:** в работе.
 
+**Подтверждение:** ожидает (live-test 3–4: write-token на эмуляторе + рабочий BCS/Finam для смены брокера; критерий: диалог карточки → `LoadCardAccountsUseCase` → смена брокера PASS; частично — 5/7 сценариев PASS: 1–2, 5, 6-partial; 3–4 и `NoneInitialized`-ветка — см. `docs/ISSUES.md` → «BrokerRegistry.anyInitialized не сбрасывается после DisconnectBrokerUseCase»).
+
 **Ветка:** feature/m013-orchestration-usecases.
 
 **Контекст:** clean-audit M013. После M006 (settings-VM split) orchestration в остальных ViewModel осталась нетронутой. Ревизия 2026-11-06 нашла тот же паттерн M2 в 3 VM. Уточнение после чтения кода (2026-11-06):
@@ -671,7 +673,7 @@ Panel-VM (без изменений в размере):
 3. ✅ `LoadOrdersAccountsUseCase` + тест. `OrdersViewModel.loadAccounts` → тонкий. Коммиты `ea46662` (3a) + `520bbcb` (3b).
 4. ✅ `CancelOrderUseCase` + тест. `OrdersListViewModel.cancelOrder` → тонкий. Коммиты `4e0264f` (4a) + `17512d4` (4b).
 5. ✅ `LoadCardAccountsUseCase` + тест. `OrdersViewModel.openBrokerDialog` / `loadDialogAccounts` → тонкие. Коммиты `eb1f68b` (5a) + `61a74d3` (5b).
-6. Live-test.
+6. ✅ Live-test — **partial** (5/7 PASS; 3–4 deferred; `NoneInitialized`-ветка не покрыта из-за pre-existing `BrokerRegistry.anyInitialized` — `docs/ISSUES.md`). Логи: `~/tscalp-live.log` (1–2), `~/tscalp-live-orders.log` (5), `~/tscalp-live-logout.log` (6-partial), `~/tscalp-live-noneinit2.log` (6-бис). Детали — в `**Подтверждение:**` выше.
 
 **Этап B (доводка, отдельно, ~1.5–2 ч):**
 7. Пересмотр оставшихся M2 в трёх VM (по результатам C).
@@ -709,14 +711,14 @@ Panel-VM (без изменений в размере):
 - 5 usecase покрыты тестами (success / failure / exception / cancellation).
 - `PortfolioViewModel.loadPortfolio / checkApiInitialization`, `OrdersViewModel.checkApiInitialization / loadAccounts / openBrokerDialog / loadDialogAccounts`, `OrdersListViewModel.cancelOrder` — тонкие (≤15 строк).
 - Гейт зелёный.
-- Live-test PASS.
+- Live-test — 5/7 PASS, 3–4 deferred, `NoneInitialized`-ветка — pre-existing bug (см. `**Подтверждение:**`).
 - clean-audit M013 → `исправлено`.
 
 **Оценка:** Этап C — ~6.5 ч (5 usecase + 2 reuse, 6 шагов). Этап B — ~1.5–2 ч. Итого ~8–8.5 ч.
 
 **Зависимости:** нет.
 
-**Связано:** clean-audit M013, M003 / M004 / M006 (образцы usecase / тонкой VM), `### OrdersViewModel: разбить на несколько VM` (размер, не orchestration), `### Реализация BCS/Finam Broker API` (возможна адаптация).
+**Связано:** clean-audit M013, M003 / M004 / M006 (образцы usecase / тонкой VM), `### OrdersViewModel: разбить на несколько VM` (размер, не orchestration), `### Реализация BCS/Finam Broker API` (возможна адаптация). Live-test-находки: `docs/ISSUES.md` → «BrokerRegistry.anyInitialized не сбрасывается после DisconnectBrokerUseCase», «PriceFlowManager retry loop после logout при неактивных VM». До live-test-находок — `docs/ISSUES.md` → «REST poll failed: REST transport not initialized (W при disconnect)» (та же область).
 
 **Открытые вопросы:**
 - Q1 (logout cleanup в usecase) — утверждён.
