@@ -745,7 +745,7 @@ ___
 
 **Статус:** запланировано.
 
-**Контекст:** `OrdersViewModel` — 1159 строк, 22 `viewModelScope.launch`, 8 `suspend fun`, смешивает 4+ доменные области: форма заявки (calc, prices), поиск (debounce, searchCache), диалоги (broker / account), координация portfolio / positionUpdates. Дальнейший рост упирается в `@Suppress("TooManyFunctions")` и сложность навигации. Архитектурный вопрос (SRP на уровне VM), **не M2-orchestration** — orchestration выносится отдельно в M013.
+**Контекст:** `OrdersViewModel` — 1158 строк, 23 `viewModelScope.launch`, 8 `suspend fun`, 58 функций (после M013). Смешивает 4+ доменные области: форма заявки (calc, prices), поиск (debounce, searchCache), диалоги (broker / account), координация portfolio / positionUpdates. Дальнейший рост упирается в `@Suppress("TooManyFunctions", "LargeClass")` и сложность навигации. Архитектурный вопрос (SRP на уровне VM), **не M2-orchestration** — orchestration вынесена в M013 (`f282f36`), это split по SRP.
 
 **Соответствие Clean:** соответствует (разделение VM по областям — стандартный паттерн MVVM).
 
@@ -756,8 +756,8 @@ ___
 **Выгоды (для «отклонение по 2c»):** —.
 
 **Предусловия:**
-- M013 (orchestration out of Orders/Portfolio/OrdersList) — закрыта. Иначе при разделении VM orchestration переедет в новые VM — раздвоится.
-- (Опционально) `### A2: orchestration out of ... (M013)` — Этап C.
+- M013 (orchestration out of Orders/Portfolio/OrdersList) — **orchestration вынесена** (10 коммитов, merge `f282f36`, PR #104). `mark done` отложен по live-test 3–4 (write-token + BCS/Finam) — **не блокер для split**: orchestration уже в usecase, раздвоения не будет.
+- M013 `**Подтверждение:**` — не влияет на split (deferred closure, 5g.4).
 
 **Файлы:**
 - `presentation/screens/orders/OrdersViewModel.kt` — координатор, state (form + portfolio), ~200 строк.
