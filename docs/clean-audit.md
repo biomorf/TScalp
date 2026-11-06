@@ -96,7 +96,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
 | M001. OrdersViewModel форматирует overlay | средне | L1 | `OrdersViewModel.formatCostOverlay` (1148), `formatMultiplierOverlay` (1162) | - |
-| M003. PortfolioViewModel.payInSandbox — orchestration в VM | средне | L1 | `PortfolioViewModel.payInSandbox` (275–343) | ✓ |
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
 
@@ -115,28 +114,6 @@ L4–L8 — не проверены, заполняются по мере инс
 **Clean-альтернатива:** `formatCostOverlay`/`formatMultiplierOverlay` — в `presentation/util/` (рядом с `CurrencyFormat`), вызываются из Composable. Плюсы: VM отдаёт `TradeDetails`, UI форматирует. Минусы: правка `OrdersScreen` (2 callsites).
 
 **MVVM-альтернатива:** перенести форматирование в Composable (через `remember(details)`). Плюсы: VM — только состояние. Минусы: `OrdersScreen` уже 646 строк (см. detekt-группу 3 → Compose-экраны).
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
-### M003. PortfolioViewModel.payInSandbox — orchestration в VM
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** ✓
-
-**Описание:** `PortfolioViewModel.payInSandbox` (275–343) выполняет сценарий «получить счета → выбрать → sandboxPayIn → обновить состояние» с разбором `AppResult` на каждом шаге. Это business-orchestration, а не presentation.
-
-**Нарушенное правило:** M2 — business-logic в VM.
-
-**Clean-альтернатива:** `PayInSandboxUseCase` (domain.usecases): `suspend fun execute(accountId: String, amount: SandboxMoney): AppResult<Unit>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий. Минусы: ~1.5 ч + тесты.
-
-**MVVM-альтернатива:** тоже UseCase; тестируется без mock VM-инфраструктуры.
 
 **Выгоды:** —.
 
@@ -189,6 +166,33 @@ L4–L8 — не проверены, заполняются по мере инс
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
 ### Исправленные (L1)
+
+### ✅ M003. PortfolioViewModel.payInSandbox — orchestration в VM
+
+**Статус:** исправлено (2026-11-06, PR #101).
+
+**Серьёзность:** средне.
+
+**Live тест:** ✓
+
+**Описание:** `PortfolioViewModel.payInSandbox` (275–343) выполняет сценарий «получить счета → выбрать → sandboxPayIn → обновить состояние» с разбором `AppResult` на каждом шаге. Это business-orchestration, а не presentation.
+
+**Нарушенное правило:** M2 — business-logic в VM.
+
+**Clean-альтернатива:** `PayInSandboxUseCase` (domain.usecases): `suspend fun execute(accountId: String, amount: SandboxMoney): AppResult<Unit>`. VM — вызов + `_uiState.update`. Плюсы: VM тонкий. Минусы: ~1.5 ч + тесты.
+
+**MVVM-альтернатива:** тоже UseCase; тестируется без mock VM-инфраструктуры.
+
+**Выгоды:** —.
+
+**Что сделано:** `domain/usecases/PayInSandboxUseCase.kt` (новый) — `@Singleton @Inject constructor(accountsRepository, logger)`, `suspend fun execute(accountId, amount: SandboxMoney): AppResult<Unit>`; `CancellationException` rethrow, прочие `Exception` → `AppResult.Failure(AppError.Unknown(...))` + `logger.e`. `PortfolioViewModel.payInSandbox` — тонкий (~20 строк), `@Suppress("LongMethod")` снят. `PayInSandboxUseCaseTest` — 4 кейса (success / failure passthrough / exception → Unknown / `CancellationException` rethrow). Live-test sandbox (эмулятор Android 14): 4 пополнения × 4 счёта, `sandboxPayIn: success` → `loadPortfolio: 3 accounts`, balance +100 000 ₽. PR #101, merge `e9c592d`. Коммит `b120cd3`.
+
+**Ссылка на задачу:** `### ✅ M003: payInSandbox → PayInSandboxUseCase` (`docs/ROADMAP-ARCHIVE.md`, PR #101, merge `e9c592d`).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
+
+**Сводный отчёт, 2026-11-06:** да.
+
 
 ### ✅ M004. SettingsViewModel.initialize* — login-orchestration в VM
 
