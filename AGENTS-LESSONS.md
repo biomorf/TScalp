@@ -747,6 +747,18 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 <!-- LESSONS_SECTION_END: scripts -->
 <!-- LESSONS_SECTION_BEGIN: kotlin -->
+
+### 86. `assert "${X}" not in text` — ловит X в других методах
+
+**Правило:** post-write verify `assert "${result.error.message}" not in text` на **всём файле** ловит `${result.error.message}` в **pre-existing** методах, не только в изменённом. Проверять внутри извлечённого блока целевого метода: `re.search(r"fun <name>\(.*?
+    \}", text, re.DOTALL)` → `assert "${X}" not in match.group(0)`. Или проверять **позитивно** внутри блока (`initResult.error.message in block`), не негативно на файле.
+
+**Инцидент:** 2026-11-07, M013 step 1b (`a47ddae`). После apply: `git diff --check` пуст, `grep -nE "result\.(data|error)"` → `0 (clean)` (по **методу**), но мой whole-file `assert "${result.error.message}" not in t` упал на PortfolioViewModel: `${result.error.message}` есть в **pre-existing** `loadAccounts` (283, 289), `onSearchQueryChanged` (323), `openBrokerDialog` (682), `loadDialogAccounts` (769), `updateTradingStatuses` (847, 947), `refreshLastSelectedInstruments` (982). Файл корректен — assert ложный, лишний round-trip.
+
+**Проверка:** verify-assert после правки — только по извлечённому блоку целевого метода. `grep -nE` по файлу — для **диагностики** (понять, где именно), не для assert. Родственно урокам 67 (line-anchored для `###`), 79 (post-assert scope — только новые маркеры), 80(б) (проверяй факт, не форму).
+
+**Связано:** уроки 26 (`assert old not in text` — KDoc), 65 (`new ⊂ old`), 67 (inline-ссылки в `###`), 79 (post-assert scope), 80(б) (проверяй факт, не форму).
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
@@ -825,6 +837,24 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 <!-- LESSONS_SECTION_END: kotlin -->
 <!-- LESSONS_SECTION_BEGIN: diagnostics -->
+
+### 85. ktlint `multiline-expression-wrapping` — вынести subject в `val`
+
+**Правило (а) — внешний `when`.** `when (val X = call()) { ... }` с multiline-телом триггерит `A multiline expression should start on a new line`. Вынести `val X = call()` **перед** `when`, subject в `when (X)` становится простым — ktlint пропускает.
+
+**Правило (б) — вложенный `when` внутри `is Success ->`.** `is Success -> when (X.data) { ... }` — тоже multiline-expression. Обернуть в block: `is Success -> { when (X.data) { ... } }` — это уже statement, не expression.
+
+**Правило (в) — переименование subject.** Если переименовываешь `val result` → `val X`, `sed` по одному subject не покроет вхождения **внутри** body (`${result.error.message}`, `result.data`, `result.error.cause`). Они дадут `Unresolved reference` на компиляции, а ktlint — каскад `multiline-expression-wrapping` на вложенном. Править все вхождения сразу (список grep по `result.` до правки), не по одной ошибке.
+
+**Инцидент:** 2026-11-07, M013 step 1b (`a47ddae`). Три итерации гейта:
+1. `when (val result = checkBrokerInitializationUseCase.execute(...)) { ... }` — ktlint на 142:45 (Orders) / 94:41 (Portfolio).
+2. Вынес `val initResult = ...` + `when (initResult)`, но оставил внутри `when (result.data)` и `${result.error.message}` — `Unresolved reference 'result'` (143:51, 171:73, 171:97 / 95:47, 116:69, 116:93) + ktlint на вложенном 143:45 / 95:41.
+3. Обернул вложенный `when` в `{ }` + переименовал `result.` → `initResult.` — гейт зелёный.
+
+**Проверка:** перед `when (val X = ...) { ... }` с multiline body — вынести `val X = ...` на отдельную строку. Если внутри `is Success -> when (val Y = ...)` — обернуть в `{ when (val Y = ...) { ... } }`. `./gradlew :app:ktlintFormat` (desktop, урок 55) автофиксит (а), но не (б)/(в) — оба руками. На mobile/proot `ktlintFormat` недоступен — превентивно проверять `when (val` в затронутом регионе.
+
+**Связано:** урок 78 (ktlint на mobile — «золотой» гейт), урок 55 (ktlintFormat на desktop).
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
