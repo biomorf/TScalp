@@ -115,14 +115,12 @@ ___
 - `domain/api/repository/BrokerCredentialsRepository.kt` — +`hasSavedTokenFlow(brokerName): Flow<Boolean>`.
 - `data/repository/BrokerCredentialsRepositoryImpl.kt` — через `dataStore.data.map { it[SettingsKeys.tokenKey(brokerName)] != null }`.
 - `app/src/test/kotlin/.../data/repository/BrokerCredentialsRepositoryImplTest.kt` (новый) — 3 кейса.
-- `app/src/test/kotlin/.../testutil/MainDispatcherRule.kt` (новый) — для panel-VM тестов (M006).
 
 **Шаги:**
 1. `BrokerCredentialsRepository` — `fun hasSavedTokenFlow(brokerName: BrokerName): Flow<Boolean>` + KDoc «реактивный hasSavedToken, для panel-VM connected (M006)». Существующие методы не трогать.
 2. `BrokerCredentialsRepositoryImpl` — `dataStore.data.map { it[SettingsKeys.tokenKey(brokerName)] != null }`.
-3. `MainDispatcherRule.kt` — стандартный (`Dispatchers.setMain(UnconfinedTestDispatcher())` + `resetMain`). Нужен для panel-VM тестов M006.
-4. `BrokerCredentialsRepositoryImplTest` — 3 кейса: пусто → `false`; после `saveToken` → `true`; после `clearBrokerCredentials` → `false`. Fake `DataStore` через `PreferenceDataStoreFactory.create` + `TemporaryFolder`.
-5. Гейт.
+3. `BrokerCredentialsRepositoryImplTest` — 3 кейса: пусто → `false`; после `saveToken` → `true`; после `clearBrokerCredentials` → `false`. Fake `DataStore` через `PreferenceDataStoreFactory.create` + `TemporaryFolder`, `runTest` + `TestScope` (не `Dispatchers.IO` — KMP-safe).
+4. Гейт.
 
 **Тесты:** `BrokerCredentialsRepositoryImplTest` (3 PASSED). Существующих тестов на этот репозиторий нет.
 
@@ -133,11 +131,11 @@ ___
 - Не добавлять `loadBrokerCredentialsFlow` (для panel-VM достаточно `init { load }`, внешних writers нет).
 - Не добавлять flow в `SandboxPreferencesRepository` / `AccountPreferencesRepository` / `TradingPreferencesRepository` — отдельная задача `### PreferencesRepositories: Flow` (не блокер M006). У `TradingPreferences` уже есть `confirmOrdersEnabledFlow()`.
 - Fake `DataStore` через `TemporaryFolder` (не `mockk<DataStore>` — mockk плохо работает с холодными flow).
+- Тесты используют `kotlinx-coroutines-test` (`runTest` + `TestScope`), не `Dispatchers.IO` — KMP-safe (плавный переход к KMP, `Dispatchers.IO` уходит).
 
 **Критерий готовности:**
 - `BrokerCredentialsRepository.hasSavedTokenFlow` реализован.
 - `BrokerCredentialsRepositoryImplTest` — 3 PASSED.
-- `MainDispatcherRule` создан.
 - Гейт зелёный (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`).
 
 **Оценка:** ~1–1.5 ч.
@@ -235,7 +233,7 @@ state → panel-VM, UI → рендер; dependency rule не нарушен).
 
 **Тесты:**
 - Usecase-тесты: 3 файла × 3–4 кейса (success, failure passthrough, exception → Unknown, CancellationException rethrow) — по образцу `PayInSandboxUseCaseTest`.
-- VM-тесты: 5 файлов × 3–5 кейсов (init, load, connect, clear, business-rule). `MainDispatcherRule` (из B2) + mockk.
+- VM-тесты: 5 файлов × 3–5 кейсов (init, load, connect, clear, business-rule). `MainDispatcherRule` (новый, в рамках M006) + mockk.
 - Live-test: переключение вкладок → панели не крешатся; connect BCS / Finam (заглушки); open / close sandbox счёта TInvest → список обновился; выбор счёта по умолчанию → сохранился и отобразился; logout → state корректный.
 
 **Референсы:**
