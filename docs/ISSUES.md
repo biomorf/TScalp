@@ -1226,3 +1226,31 @@ live-тесте #2 задержки почти не было видно — View
 **Связано:** `docs/ROADMAP.md` → `### Currency format: normalize ISO 4217 case`; контекст PR #90 (H5) — при миграции `AssetPositionCard` / `PositionFormatter` на `Position` callsite не изменился.
 
 **Когда вернуться:** при выполнении задачи `### Currency format: normalize ISO 4217 case` (ROADMAP). Или — при первом live-кейсе с USD / EUR / BCS / Finam, где `Instrument.currency` придёт lowercase.
+
+---
+
+## REST poll failed: REST transport not initialized (W при disconnect)
+
+**Статус:** открыт (pre-existing, не блокер).
+
+**Симптом:** при disconnect брокера TInvest в logcat появляется:
+
+    W PriceFlowManager: REST poll failed: REST transport not initialized
+    W PriceFlowManager: java.lang.IllegalStateException: REST transport not initialized
+        at com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestRestService.pricesRestFallback(TInvestRestService.kt:50)
+
+**Причина:** `DisconnectBrokerUseCase` (и старый `SettingsViewModel.clearBrokerCredentials` до M006) вызывает `lifecycleTInvest?.deinitialize()` — REST-транспорт закрывается. `PriceFlowManager` polling loop (running in separate scope) может находиться в полёте в момент disconnect, следующий tick polling → REST fallback → `IllegalStateException("REST transport not initialized")` → ловится в `try/catch` (`runPolling`), логируется как W. Не краш.
+
+**Влияние:** W-шум в логах, не влияет на функциональность (disconnect проходит корректно, стримы останавливаются). После `setInterest(PORTFOLIO, size=0)` от UI → `Union empty, gRPC stream stopped` → polling остановится.
+
+**Решение:** (вариант A) остановить `priceFlowManager` в `DisconnectBrokerUseCase` ДО `lifecycle.deinitialize()` — сейчас порядок: repo clear → tradingState → deinit → stop position+order. Не хватает `stop priceFlowManager` в TInvest-ветке. Тогда polling остановится до deinit, W исчезнет.
+
+(вариант B) Пропустить (W не критичен, pre-existing с самого введения `DisconnectBrokerUseCase` / старого `clearBrokerCredentials`).
+
+**Файлы:**
+- `domain/usecases/DisconnectBrokerUseCase.kt` — добавить `priceFlowManager.stop()` для TInvest (или `clearInterest(PriceConsumer.PORTFOLIO)` + `stop()`).
+- `domain/api/managers/PriceFlowManager.kt` — опционально: обработка `IllegalStateException` в `runPolling` как тихий skip, если REST не инициализирован.
+
+**Связано:** `docs/ROADMAP.md` → `### ✅ M006` (закрыта, PR #103), `### PriceFlowManager.runPolling swallows CancellationException` (та же функция `runPolling`).
+
+**Когда вернуться:** при следующем касании `DisconnectBrokerUseCase` / `PriceFlowManager`; или при появлении жалобы на W-шум в логах.
