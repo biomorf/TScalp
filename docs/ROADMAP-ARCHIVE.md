@@ -8102,3 +8102,76 @@ ___
 **Открытые вопросы:**
 - `withContext(Dispatchers.IO)` в usecase — не добавляем (M005). Если live-test покажет ANR — пересмотреть.
 - `BrokerCredentials` property names — сверить при компиляции.
+
+
+
+___
+
+
+
+### ✅ M003: payInSandbox → PayInSandboxUseCase
+
+**Дата закрытия:** 2026-11-06
+
+**Мобильная работа:** частичное (live-тест sandbox pay-in).
+
+**Контекст:** clean-audit M003 — `PortfolioViewModel.payInSandbox` выполняет
+orchestration (вызов `accountsRepository.sandboxPayInResult` + разбор
+`AppResult` + логирование). Это business-orchestration в VM, а не
+presentation. Фактический размер — 29 строк (clean-audit говорит «275–343»
+= 68 строк — устарело).
+
+**Соответствие Clean:** соответствует (orchestration → domain.usecases).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/usecases/PayInSandboxUseCase.kt` (новый) — `suspend fun execute(accountId: String, amount: SandboxMoney): AppResult<Unit>`, обёртка над `AccountsRepository.sandboxPayInResult` + логирование.
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — `payInSandbox` → тонкий (вызов usecase, `_uiState.update` для isLoading/statusMessage/isError, `loadPortfolio()` после успеха).
+- `docs/clean-audit.md` — M003 → `исправлено`.
+
+**Шаги:**
+1. `PayInSandboxUseCase` — `@Singleton @Inject constructor(accountsRepository, logger)`, `execute(accountId, amount: SandboxMoney): AppResult<Unit>`. `CancellationException` пробрасывается; прочие `Exception` → `AppResult.Failure`. Лог — внутри usecase.
+2. `PortfolioViewModel.payInSandbox` → тонкий: `when (execute) { Success -> loadPortfolio(); Failure -> _uiState.update(...) }`.
+3. `docs(clean-audit)`: M003 → Исправленные (L1), ссылка на M003-задачу.
+4. `docs(roadmap)`: mark M003 done.
+5. Live-test sandbox.
+
+**Тесты:** unit-тест на `PayInSandboxUseCase` (mockk: success → `AppResult.Success`, failure → `AppResult.Failure`, exception → `AppResult.Failure`).
+
+**Референсы:** `InitializeBrokerUseCase` (образец), `AccountsRepository.sandboxPayInResult`, clean-audit M003.
+
+**Ограничения:**
+- `_uiState.update` (isLoading/statusMessage/isError) — остаётся в VM (presentation).
+- `loadPortfolio()` после успеха — в VM (триггер, не business).
+- UI не трогаем (Composable `PortfolioScreen` — без изменений).
+- Clean-audit M003 упоминает «275–343» — устарело, обновлю при mark done (фактически 29 строк).
+
+**Критерий готовности:** `payInSandbox` — тонкий (≤15 строк); usecase покрыт unit-тестом; live-test sandbox PASS; гейт зелёный; clean-audit M003 → `исправлено`.
+
+**Оценка:** ~1.5 ч.
+
+**Зависимости:** нет.
+
+**Что сделано:**
+
+- `domain/usecases/PayInSandboxUseCase.kt` (новый) — `@Singleton @Inject constructor(accountsRepository, logger)`, `suspend fun execute(accountId, amount: SandboxMoney): AppResult<Unit>`. Success → `AppResult.Success(Unit)` + `logger.d`; Failure → passthrough + `logger.e`. `CancellationException` пробрасывается; прочие `Exception` → `AppResult.Failure(AppError.Unknown(...))` + `logger.e`. Логирование — внутри usecase. Коммит `b120cd3`.
+- `PortfolioViewModel.payInSandbox` — тонкий (~20 строк): `_uiState.update(isLoading = true)` + `payInSandboxUseCase.execute(...)`; `is AppResult.Success -> loadPortfolio()`; `is AppResult.Failure -> _uiState.update(isLoading = false, statusMessage, isError = true)`. `accountsRepository` остаётся в конструкторе (используется в `loadPortfolio`). `@Suppress("LongMethod")` и KDoc «Архитектурный долг» сняты — функция ~20 строк (< 60). Коммит `b120cd3`.
+- `PayInSandboxUseCaseTest` (новый) — 4 кейса: success, failure passthrough, exception → `AppError.Unknown`, `CancellationException` rethrow. Коммит `b120cd3`.
+
+**Live-тест (Android 14 эмулятор, sandbox):** 4 пополнения на 4 разных песочных счёта. Цепочка `PortfolioViewModel → PayInSandboxUseCase → AccountsRepository` отработала 1:1: `Пополнение счёта <id> через Т-Инвестиции` → `PayInSandboxUseCase: execute: accountId=<id>, amount=100000 RUB` → `sandboxPayIn: success` → `loadPortfolio: 3 accounts`. `isLoading` крутится и гаснет, баланс растёт на 100 000 ₽. PASS.
+
+**Отклонение от плана:** в плане «Лог — внутри usecase», фактически логи разделены по слоям:
+- `logger.d("Пополнение счёта <id> через ...")` — **остаётся в VM** (presentation-событие клика, не business).
+- `logger.d("sandboxPayIn: success")` — **в usecase** (заменил «Пополнение выполнено успешно»).
+- `logger.e("sandboxPayIn failed: ...")` — **в usecase** (заменил `payInSandbox: sandboxPayIn failed`).
+
+**Связано:** `#### ViewModel-слой` (umbrella), clean-audit M003, `### M006` (следующая).
+
+**Открытые вопросы:** нет.
