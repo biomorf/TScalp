@@ -180,6 +180,15 @@ actual). Не доверять фильтру.
 
 **Проверка:** `grep -n "old_name" file | grep -v "^\s*\*"` — отфильтровать KDoc. Или проверять `text.count(": " + new_name)` / `text.count("?." + new_name)` — в коде, не в комментариях.
 
+
+**Расширение (2026-11-06, M006 steps 4, 5, 6, 13):** ещё 3 инцидента с подстрокой в идентификаторе:
+- `assert "SettingsViewModel" not in block` ловит `TInvestSettingsViewModel` (step 4) — panel-VM содержит имя базового класса как суффикс.
+- `assert "SettingsViewModel" not in info_block` ловит `InfoSettingsViewModel` (step 13) — тот же паттерн, забыл после step 4.
+- `assert "Dispatchers.IO" not in text` ловит KDoc `(нет Dispatchers.IO)` (step 8, MainDispatcherRule) — мой KDoc-комментарий содержит то, что я же проверяю.
+- `assert count("reapplyDebugFlags()") == 3` ловит упоминание в KDoc + 3 в коде = 4 (step 7.5, ToggleDebugFlagUseCase).
+
+**Правило (расширено):** в `assert X not in text` для новых имён классов, которые содержат в себе старый класс как суффикс/префикс (`XSettingsViewModel` ⊃ `SettingsViewModel`), проверять уникальный контекст (`" $X"`, `"\n$X("`, `" $X("`). Либо — `code-only` check (`grep -v '^\s*\*'`). Особенно — когда новое имя класса само является расширением старого (`TInvestSettingsViewModel` от `SettingsViewModel`).
+
 ---
 
 ### 27. Голый `assert` в скрипте — нет контекста падения
@@ -410,6 +419,12 @@ actual). Не доверять фильтру.
 
 **Проверка:** перед тестом с API — `grep` в документации/исходниках (KMP-таблица ограничений, JUnit-контракт); имя теста — без `.` `;` `[` `/` `<` `>`; JUnit4-метод — block body, не expression body.
 
+
+**Расширение (2026-11-06, M006 step 3.5):** ещё один инцидент с (б):
+- `DisconnectBrokerUseCaseTest`: имена `TInvest full: clear, tradingState, deinit, stop managers, refresh`, `BCS: clear, deinit, refresh; no tradingState, no stop`, `Finam: clear, deinit, refresh; no tradingState, no stop` — компилятор: `e: Name contains illegal characters: :.` и `;:`. Список запрещённых символов в (б) был неполным (только `.`), теперь — полный JVM-spec.
+
+**Правило (расширено):** в именах backtick-функций JUnit — **не использовать** `:`, `;`, `[`, `]`, `/`, `<`, `>`, `.`. Замены: ` -` (dash-space) и `,` (запятая) — безопасны.
+
 ---
 
 
@@ -484,6 +499,13 @@ actual). Не доверять фильтру.
 **Инцидент:** 2026-10-31, 8b-b (`mark Пакет C done`). `old_cls = "internal class TInvestAccountsService("`, `new_cls = "class TInvestAccountsService("`. `assert new_cls not in text` ложно-сработал как «already public» — потому что `new_cls` ⊂ `old_cls` (префикс `internal ` + `class TInvestAccountsService(`). Скрипт упал **до** `write_text` (файл не изменён, pre-assert сработал правильно), но с ложным сообщением. Урок 26/2d был, но применён не полностью.
 
 **Проверка:** в скрипте правки: если `old_fragment in new_fragment` — pre-check через `assert text.count(old) == 1`, **не** `assert new not in text`; пост-проверка — `assert old not in check` (старой формы нет) или `assert check.count(new) == 1`.
+
+
+**Расширение (2026-11-06, M006 steps 3/6, 5/6):** ещё 2 инцидента:
+- `assert '\nfun TradeSettingsContent' not in text` при `new = '\n@Composable\nfun TradeSettingsContent'` — `new` ⊃ `old`, assert не может пройти (новый содержит старый как подстроку). Правильно: `assert text.count('\n@Composable\nfun TradeSettingsContent') == 1` и не проверять отсутствие `\nfun TradeSettingsContent`.
+- `assert 'internal data class LoadAccountsResult' not in text` (new) при `old = 'internal data class LoadAccountsResult('` (со скобкой) — `old` ⊃ `new` (new без скобки), `new in old` — assert падает (new уже есть в тексте как подстрока old).
+
+**Правило (расширено):** в pre-check `assert new not in text` — проверять `old in new` и `new in old` (пересечения в обе стороны); если есть — не писать этот assert, использовать `assert text.count(old) == 1` (pre) и `assert text.count(new) == expected_count` (post).
 
 ### 67. `assert "### X" not in text` — line-anchored regex, не подстрока
 
