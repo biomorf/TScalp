@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.repository
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Domain-контракт учётных данных брокеров (clean-audit Н68, пакет B).
@@ -26,6 +27,18 @@ interface BrokerCredentialsRepository {
     )
 
     suspend fun hasSavedToken(brokerName: BrokerName): Boolean
+
+    /**
+     * Реактивный аналог [hasSavedToken]: `true`, пока токен
+     * брокера есть в DataStore.
+     *
+     * Нужен panel-VM в settings (M006) для реактивного
+     * `connected`-флага: `restore*` в `TScalpApplication`
+     * (VM создана раньше, credentials восстановлены позже)
+     * императивный `init { hasSavedToken }` не увидит —
+     * flow увидит.
+     */
+    fun hasSavedTokenFlow(brokerName: BrokerName): Flow<Boolean>
 
     suspend fun getToken(brokerName: BrokerName): String?
 }
