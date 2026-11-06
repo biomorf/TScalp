@@ -129,7 +129,9 @@ state → panel-VM, UI → рендер; dependency rule не нарушен).
 - `OpenSandboxAccountUseCase.kt` — `execute(brokerName, sandboxMode): AppResult<OpenResult>`; open + saveDefault(new) + reload accounts.
 - `CloseSandboxAccountUseCase.kt` — `execute(brokerName, sandboxMode, accountId): AppResult<List<BrokerAccount>>`; close + saveDefault("") + reload accounts.
 - `DisconnectBrokerUseCase.kt` — `execute(brokerName): AppResult<Unit>`; clear repo + tradingState (TInvest) + lifecycle deinit + position/order manager stop (TInvest) + refresh (перенос из `SettingsViewModel.clearBrokerCredentials`).
-- Тесты на все 4.
+- `ToggleDebugFlagUseCase.kt` — `execute(flag: DebugFlag, enabled: Boolean)`; `DebugFlag { GRPC, WS, REST }`; set flag (in-memory) + `reapplyDebugFlags()` × 3 managers (Price/Position/Order).
+- `SetSandboxModeUseCase.kt` — `execute(enabled: Boolean): AppResult<LoadAccountsResult>`; set preference (DataStore) + reload accounts via `LoadBrokerAccountsUseCase` (domain → domain).
+- Тесты на все 6.
 
 Новые panel-VM (presentation.screens.settings):
 - `TInvestSettingsViewModel.kt` + `TInvestUiState` — `availableAccounts`, `defaultAccountId`, `sandboxMode`, `isRefreshing`, `statusMessage`, `isError`, `connected` (via `hasSavedTokenFlow`), `anyApiInitialized` (via `brokerRegistry.anyInitialized`).
@@ -155,6 +157,10 @@ state → panel-VM, UI → рендер; dependency rule не нарушен).
 5. `BcsSettingsViewModel` + `BcsUiState` + тест.
 6. `FinamSettingsViewModel` + `FinamUiState` + тест.
 7. `TradeSettingsViewModel` + `TradeUiState` + тест.
+7.5. `ToggleDebugFlagUseCase` + тест (вставлен 2026-11-06:
+     пробел в плане — `toggle*` orchestration + `reapply × 3`).
+7.7. `SetSandboxModeUseCase` + тест (вставлен 2026-11-06:
+     пробел в плане — `setSandboxMode` = set preference + reload).
 8. `InfoSettingsViewModel` + `InfoUiState` + тест.
 9. `SettingsScreen.kt` — TInvest-панель на новую VM.
 10. `SettingsScreen.kt` — BCS-панель.
@@ -168,7 +174,7 @@ state → panel-VM, UI → рендер; dependency rule не нарушен).
 Каждый шаг — отдельный коммит (4b). Между шагами — сборка / гейт.
 
 **Тесты:**
-- Usecase-тесты: 4 файла × 3–5 кейсов (success, failure passthrough, exception → Unknown, CancellationException rethrow) — по образцу `PayInSandboxUseCaseTest`.
+- Usecase-тесты: 6 файлов × 3–5 кейсов (success, failure passthrough, exception → Unknown, CancellationException rethrow) — по образцу `PayInSandboxUseCaseTest`.
 - VM-тесты: 5 файлов × 3–5 кейсов (init, load, connect, clear, business-rule). `MainDispatcherRule` (новый, в рамках M006) + mockk.
 - Live-test: переключение вкладок → панели не крешатся; connect BCS / Finam (заглушки); open / close sandbox счёта TInvest → список обновился; выбор счёта по умолчанию → сохранился и отобразился; logout → state корректный.
 
@@ -185,6 +191,8 @@ state → panel-VM, UI → рендер; dependency rule не нарушен).
 - **Бизнес-правила — в usecase**, не в VM и не в UI. Например «auto-select-first-if-blank» живёт в `LoadBrokerAccountsUseCase`, не в `TInvestSettingsViewModel`.
 - **Нет VM → VM зависимостей.** Каждая panel-VM инжектит только usecase + repository + logger.
 - **`disconnect`** — через `DisconnectBrokerUseCase` (не в panel-VM, не в `SettingsViewModel`). Orchestration ~50 строк (repo clear + tradingState + deinit + stop managers + refresh) — domain-логика. Panel-VM только `usecase.execute + _uiState.update`.
+- **`toggle*`** (gRPC / WS / REST) — через `ToggleDebugFlagUseCase` (set flag + `reapply` × 3 managers — orchestration, не в VM). UI по-прежнему 3 тумблера, 3 `toggle*` в `InfoSettingsViewModel` — тонкие фасады.
+- **`setSandboxMode`** — через `SetSandboxModeUseCase` (set preference + reload accounts — 2 шага, не в VM).
 - **`connect*`** — в panel-VM, тонкие (`initializeBrokerUseCase.execute` + `_uiState.update`).
 - **`connected`** — реактивно через `hasSavedTokenFlow` (B2). Императивный `init + markConnected` запрещён (не увидит `restore*`).
 - **`isSandboxMode`** — в `TInvestSettingsViewModel` (единственный writer).
@@ -196,12 +204,12 @@ state → panel-VM, UI → рендер; dependency rule не нарушен).
 - BCS / Finam / Trade / Info панели — по тому же паттерну.
 - `SettingsViewModel` — 1 метод (`getAvailableBrokerNames`), `@Suppress("TooManyFunctions")` снят.
 - `SettingsUiState` удалён.
-- 4 usecase покрыты тестами, 5 panel-VM покрыты тестами.
+- 6 usecase покрыты тестами, 5 panel-VM покрыты тестами.
 - Live-test PASS.
 - Гейт зелёный.
 - clean-audit M006 → `исправлено`.
 
-**Оценка:** ~6.5–8.5 ч (usecases 2–2.5 ч, 5 VM 2–3 ч, 5 panel-rewrite 1.5–2 ч, `SettingsViewModel`/`SettingsUiState` 30 мин, live-test 1 ч).
+**Оценка:** ~7–9 ч (usecases 2.5–3.5 ч, 5 VM 2–3 ч, 5 panel-rewrite 1.5–2 ч, `SettingsViewModel`/`SettingsUiState` 30 мин, live-test 1 ч).
 
 **Зависимости:** `### BrokerCredentialsRepository: hasSavedTokenFlow (B2)`.
 
