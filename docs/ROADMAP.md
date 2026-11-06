@@ -619,19 +619,18 @@ ___
 - `OrdersListViewModel.loadOrders` — **убрано из scope** (F3): реальной orchestration нет, `getAccounts → accounts.first().id → orderFlowManager.start(accountId)`. Заказы приходят реактивно через `orderFlowManager.orders` (init, 45–48). `start()` — manager lifecycle, по Q2 остаётся в VM.
 - `PortfolioViewModel.checkApiInitialization` — **добавлено в scope** (F2): симметрична `OrdersViewModel.checkApiInitialization`, реальная orchestration (`getAllBrokers → isInitialized → loadPortfolio / cleanup`).
 
-Итог scope: 5 методов (2 Portfolio + 3 Orders) + 1 OrdersList (`cancelOrder`), 5 новых usecase + 2 reuse `LoadBrokerAccountsUseCase` (M006).
+Итог scope: 5 методов (2 Portfolio + 3 Orders) + 1 OrdersList (`cancelOrder`), **4 новых usecase + 2 reuse** `LoadBrokerAccountsUseCase` (M006). Merge Q5: `CheckPortfolioInitializationUseCase` и `CheckOrdersInitializationUseCase` объединены в **один** `CheckBrokerInitializationUseCase(consumer: PriceConsumer)`.
 
 | VM | Метод | Usecase | Возврат |
 |---|---|---|---|
 | `PortfolioViewModel` | `loadPortfolio` | `LoadPortfolioUseCase` | `AppResult<PortfolioSheet>` |
-| `PortfolioViewModel` | `checkApiInitialization` | `CheckPortfolioInitializationUseCase` | `AppResult<InitState>` |
-| `OrdersViewModel` | `checkApiInitialization` | `CheckOrdersInitializationUseCase` | `AppResult<InitState>` |
+| `PortfolioViewModel` / `OrdersViewModel` | `checkApiInitialization` | `CheckBrokerInitializationUseCase(consumer)` | `AppResult<BrokerInitState>` |
 | `OrdersViewModel` | `loadAccounts` | `LoadOrdersAccountsUseCase` | `AppResult<OrdersAccountsResult>` |
 | `OrdersViewModel` | `openBrokerDialog` | reuse `LoadBrokerAccountsUseCase` (M006) + VM selection | `AppResult<List<BrokerAccount>>` |
 | `OrdersViewModel` | `loadDialogAccounts` | reuse `LoadBrokerAccountsUseCase` (M006) | `AppResult<List<BrokerAccount>>` |
 | `OrdersListViewModel` | `cancelOrder` | `CancelOrderUseCase` | `AppResult<Unit>` |
 
-**InitState (design):** `sealed interface InitState` (`Initialized` / `NotInitialized`), в `domain/models/InitState.kt`. Cleanup manager'ов (`priceFlowManager.clearInterest(consumer)` + `positionFlowManager.stop()`) — **в usecase** (симметрично init). `stopPositionUpdates()` — VM lifecycle, остаётся в VM.
+**BrokerInitState (design):** `sealed interface BrokerInitState` (`AnyInitialized` / `NoneInitialized`), в `domain/models/BrokerInitState.kt`. Cleanup manager'ов (`priceFlowManager.clearInterest(consumer)` + `positionFlowManager.stop()`) — **в usecase** (симметрично init). `stopPositionUpdates()` — VM lifecycle, остаётся в VM. VM-level branching (`loadAccounts` / `loadPortfolio` / `syncPriceInterest`) — остаётся в VM (Q2 + F3).
 
 **Соответствие Clean:** соответствует (orchestration → domain.usecases, panel-VM тонкие, dependency rule не нарушен).
 
@@ -649,13 +648,12 @@ ___
 
 Новые usecase (domain.usecases, ~5 файлов):
 - `LoadPortfolioUseCase.kt` — getAccounts + `seedSheet`; `AppResult<PortfolioSheet>`.
-- `CheckPortfolioInitializationUseCase.kt` — `getAllBrokers → isInitialized`; `Initialized` → getAccounts + seedSheet; `NotInitialized` → `clearInterest(PORTFOLIO)` + `positionFlowManager.stop()`; `AppResult<InitState>`.
-- `CheckOrdersInitializationUseCase.kt` — `getAllBrokers → isInitialized`; `Initialized` → `LoadOrdersAccountsUseCase`; `NotInitialized` → `clearInterest(ORDERS)` + `positionFlowManager.stop()`; `AppResult<InitState>`.
+- `CheckBrokerInitializationUseCase.kt` — `getAllBrokers → isInitialized`; `AnyInitialized` → `AppResult.Success(BrokerInitState.AnyInitialized)`; `NoneInitialized` → `clearInterest(consumer)` + `positionFlowManager.stop()` → `AppResult.Success(BrokerInitState.NoneInitialized)`; `consumer: PriceConsumer` параметр; `AppResult<BrokerInitState>`.
 - `LoadOrdersAccountsUseCase.kt` — getAccounts + `loadDefaultAccountId` + `chosenAccount = saved-or-first`; `AppResult<OrdersAccountsResult>` (`accounts`, `selectedAccountId`).
 - `CancelOrderUseCase.kt` — getAccounts + `first().id` + stop/regular dispatch; `AppResult<Unit>`.
 
 Новый domain-файл:
-- `domain/models/InitState.kt` — `sealed interface InitState { data object Initialized : InitState; data object NotInitialized : InitState }`.
+- `domain/models/BrokerInitState.kt` — `sealed interface BrokerInitState { data object AnyInitialized : BrokerInitState; data object NoneInitialized : BrokerInitState }`.
 
 Panel-VM (без изменений в размере):
 - `PortfolioViewModel.kt` — `loadPortfolio` / `checkApiInitialization` → тонкие. `startPositionUpdates` / `stopPositionUpdates` / `syncPriceInterest` — lifecycle, остаются.
@@ -665,7 +663,7 @@ Panel-VM (без изменений в размере):
 **Шаги:**
 
 **Этап C (5 usecase + 2 reuse, ~6.5 ч):**
-1. `InitState` (`domain/models/InitState.kt`) + 2 usecase-check (`CheckPortfolioInitializationUseCase`, `CheckOrdersInitializationUseCase`) + тесты. Затем — VM (Portfolio / Orders) → тонкие. Гейт.
+1. ✅ `BrokerInitState` (`domain/models/BrokerInitState.kt`) + `CheckBrokerInitializationUseCase` + тесты. VM (Portfolio / Orders) → тонкие. Гейт. Коммиты `d32553d` (1a) + `a47ddae` (1b).
 2. `LoadPortfolioUseCase` + тест. `PortfolioViewModel.loadPortfolio` → тонкий. Гейт.
 3. `LoadOrdersAccountsUseCase` + тест. `OrdersViewModel.loadAccounts` → тонкий. Гейт.
 4. `CancelOrderUseCase` + тест. `OrdersListViewModel.cancelOrder` → тонкий. Гейт.
@@ -723,6 +721,8 @@ Panel-VM (без изменений в размере):
 - Q3 (reuse `LoadBrokerAccountsUseCase` M006) — утверждён.
 - Q4 (размер `OrdersViewModel` — отдельная задача) — утверждён.
 - F2 / F3 / InitState — утверждены 2026-11-06.
+- Q5 (merge check-usecases в один `CheckBrokerInitializationUseCase`) — утверждён, выполнено (`d32553d` + `a47ddae`).
+- Q6 (cleanup scope: `clearInterest` + `stop` в usecase; `stopPositionUpdates` + `_uiState` в VM) — утверждён, выполнено (`d32553d`).
 
 
 
