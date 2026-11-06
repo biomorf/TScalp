@@ -6,7 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
-import com.gitlab.biomorf.tscalp.domain.api.repository.AccountPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
@@ -32,6 +31,7 @@ import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
@@ -68,7 +68,6 @@ class OrdersViewModel
         private val accountsRepository: AccountsRepository,
         private val instrumentRepo: InstrumentRepository,
         private val searchCache: SearchCacheRepository,
-        private val accountPreferencesRepository: AccountPreferencesRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val tradingStateRepository: TradingStateRepository,
@@ -77,6 +76,7 @@ class OrdersViewModel
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val postOrderUseCase: PostOrderUseCase,
+        private val loadOrdersAccountsUseCase: LoadOrdersAccountsUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val logger: Logger,
@@ -246,37 +246,31 @@ class OrdersViewModel
                 _uiState.update { it.copy(isLoading = true) }
 
                 val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
-
-                when (val result = accountsRepository.getAccountsResult(BrokerName.TINVEST, sandboxMode)) {
+                val result = loadOrdersAccountsUseCase.execute(BrokerName.TINVEST, sandboxMode)
+                when (result) {
                     is AppResult.Success -> {
-                        val accounts = result.data
-                        val savedAccountId = accountPreferencesRepository.loadDefaultAccountId(BrokerName.TINVEST)
-                        val chosenAccount =
-                            accounts.firstOrNull { it.id == savedAccountId }
-                                ?: accounts.firstOrNull()
-
+                        val data = result.data
                         _uiState.update {
                             it.copy(
-                                accounts = accounts,
-                                selectedAccountId = chosenAccount?.id,
+                                accounts = data.accounts,
+                                selectedAccountId = data.selectedAccountId,
                                 isLoading = false,
                                 statusMessage =
-                                    if (accounts.isEmpty()) {
+                                    if (data.accounts.isEmpty()) {
                                         "Нет доступных счетов"
                                     } else {
-                                        "Загружено ${accounts.size} счёт(ов)"
+                                        "Загружено ${data.accounts.size} счёт(ов)"
                                     },
                             )
                         }
                         logger.i(
                             TAG,
-                            "loadAccounts: success, accounts=${accounts.size}, selected=${_uiState.value.selectedAccountId}",
+                            "loadAccounts: success, accounts=${data.accounts.size}, selected=${data.selectedAccountId}",
                         )
-                        if (_uiState.value.selectedAccountId != null) {
+                        if (data.selectedAccountId != null) {
                             startPositionUpdates()
                         }
                     }
-
                     is AppResult.Failure -> {
                         logger.e(
                             TAG,
