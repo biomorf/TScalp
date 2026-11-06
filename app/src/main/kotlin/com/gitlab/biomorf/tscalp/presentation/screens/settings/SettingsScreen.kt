@@ -701,9 +701,11 @@ fun FinamSettingsPanel(viewModel: FinamSettingsViewModel = hiltViewModel()) {
 }
 
 @Composable
-fun TradeSettingsContent(onBack: () -> Unit) {
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val uiState by settingsViewModel.uiState.collectAsState()
+fun TradeSettingsContent(
+    onBack: () -> Unit,
+    viewModel: TradeSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier =
@@ -737,7 +739,7 @@ fun TradeSettingsContent(onBack: () -> Unit) {
             Switch(
                 checked = uiState.isConfirmOrdersEnabled,
                 onCheckedChange = { enabled ->
-                    settingsViewModel.setConfirmOrdersEnabled(enabled)
+                    viewModel.setConfirmOrdersEnabled(enabled)
                 },
             )
         }
