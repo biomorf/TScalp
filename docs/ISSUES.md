@@ -1254,3 +1254,51 @@ live-тесте #2 задержки почти не было видно — View
 **Связано:** `docs/ROADMAP.md` → `### ✅ M006` (закрыта, PR #103), `### PriceFlowManager.runPolling swallows CancellationException` (та же функция `runPolling`).
 
 **Когда вернуться:** при следующем касании `DisconnectBrokerUseCase` / `PriceFlowManager`; или при появлении жалобы на W-шум в логах.
+---
+
+## BrokerRegistry.anyInitialized не сбрасывается после DisconnectBrokerUseCase
+
+**Статус:** открыт (pre-existing, не блокер).
+
+**Симптом:** после logout T-Invest (`DisconnectBrokerUseCase: success`) и перехода на Портфель:
+- `CheckBrokerInitializationUseCase: execute: consumer=PORTFOLIO`
+- `PortfolioViewModel: checkApiInitialization: anyApiInitialized=true` — **должно быть false**
+- `PortfolioViewModel: loadPortfolio failed: API не инициализирован` (`IllegalStateException` из `TInvestAccountsService.getAccounts`)
+
+**Причина:** `BrokerRegistry.anyInitialized` (StateFlow) не пересчитывается на `false` в момент `DisconnectBrokerUseCase.refreshInitializationState()`. Следующая VM получает cached `true` и идёт в `AnyInitialized`-ветку → `loadPortfolio` → `IllegalStateException`. Порядок в `DisconnectBrokerUseCase`: `deinitialize()` → `refreshInitializationState()`; `refresh` вызывается, но `anyInitialized` в этот момент уже проэмитил `true` в предыдущей сессии (токен был). После disconnect — не переэмитит `false`, потому что `_anyInitialized` StateFlow не обновился (или эмитит с задержкой, а VM уже прочитал `true`).
+
+**Наблюдение (2026-11-07, live-test M013):** force-stop + старт приложения с уже удалённым токеном; `CheckBrokerInitializationUseCase` вызывается, `anyApiInitialized=true` — не соответствует реальному состоянию. После logout через UI — то же.
+
+**Решение:** проверить `BrokerRegistryImpl.refreshInitializationState()` — пересчитывает ли `anyInitialized` синхронно; и `_anyInitialized` StateFlow — эмитит ли `false` при сбросе. Возможно:
+- `distinctUntilChanged` + принудительный re-emit на VM-стороне;
+- или `refreshInitializationState()` в `DisconnectBrokerUseCase` — до `deinitialize()`, не после;
+- или `anyInitialized` из reactive-источника (lifecycle.isInitialized каждого брокера), не из snapshot.
+
+**Файлы:** `domain/api/BrokerRegistry.kt` (интерфейс), `data/registry/BrokerRegistryImpl.kt` (реализация), `domain/usecases/DisconnectBrokerUseCase.kt` (порядок вызовов).
+
+**Связано:** `### ✅ M006` (DisconnectBrokerUseCase), `CheckBrokerInitializationUseCase` (M013, usecase), `docs/ROADMAP.md` → M013 `**Подтверждение:**`.
+
+**Когда вернуться:** при следующем касании `BrokerRegistry` / `DisconnectBrokerUseCase`, или при закрытии M013 deferred closure.
+
+---
+
+## PriceFlowManager retry loop после logout при неактивных VM
+
+**Статус:** открыт (pre-existing, не блокер).
+
+**Симптом:** после logout (`DisconnectBrokerUseCase: success`) и при неактивных VM (`PortfolioViewModel` / `OrdersViewModel` не созданы — пользователь на экране Настроек) в logcat:
+- `PriceFlowManager: state: LIVE → INITIALIZING`
+- `PriceFlowManager: state: INITIALIZING → LIVE` (через ~30с) — retry loop на `UNAUTHENTICATED` (токен отозван)
+- `PriceFlowManager: state: LIVE → STALE` (через ~17с)
+
+Менеджер не останавливается, продолжает retry. `clearInterest` не вызывается (`checkApiInitialization` не сработал из-за pre-existing бага `anyInitialized` — см. запись выше).
+
+**Причина:** `DisconnectBrokerUseCase` останавливает `positionFlowManager` + `orderFlowManager`, но **не** `priceFlowManager`. Цена останавливается только через `clearInterest(PriceConsumer.PORTFOLIO/ORDERS)` в VM — а VM неактивны. С retry-loop на `UNAUTHENTICATED` в `collectStream` (см. `retryWithBackoff` / `collectStream` в `PriceFlowManager`).
+
+**Решение:** (A) `DisconnectBrokerUseCase` останавливает `priceFlowManager` для TInvest (симметрично position/order). (B) `PriceFlowManager.collectStream` — останавливать retry на non-recoverable ошибках (`UNAUTHENTICATED`, `PERMISSION_DENIED`); частично сделано в `retryWithBackoff` (см. `clean-audit` L4-Н60), но `collectStream` — нет.
+
+**Файлы:** `domain/usecases/DisconnectBrokerUseCase.kt`, `domain/api/managers/PriceFlowManager.kt` (`collectStream`).
+
+**Связано:** ISSUES «REST poll failed: REST transport not initialized (W при disconnect)» (та же область), `docs/clean-audit.md` → L4-Н60 (`retryWithBackoff` non-retryable), запись выше (`anyInitialized` после disconnect — причина не-вызова `checkApiInitialization`).
+
+**Когда вернуться:** при следующем касании `DisconnectBrokerUseCase` / `PriceFlowManager`, или вместе с «REST poll failed».
