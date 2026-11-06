@@ -22,6 +22,7 @@ import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
+import com.gitlab.biomorf.tscalp.domain.usecases.PayInSandboxUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -46,6 +47,7 @@ class PortfolioViewModel
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val priceFlowManager: PriceFlowManager,
         private val positionFlowManager: PositionFlowManager,
+        private val payInSandboxUseCase: PayInSandboxUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
@@ -277,9 +279,6 @@ class PortfolioViewModel
             }
         }
 
-        // Архитектурный долг: функция требует декомпозиции.
-        // См. ROADMAP → «Рефакторинг ViewModel-слоя».
-        @Suppress("LongMethod")
         fun payInSandbox(accountId: String) {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }
@@ -287,17 +286,13 @@ class PortfolioViewModel
 
                 when (
                     val result =
-                        accountsRepository.sandboxPayInResult(
+                        payInSandboxUseCase.execute(
                             accountId = accountId,
                             amount = SandboxMoney(currency = "RUB", units = 100_000),
                         )
                 ) {
-                    is AppResult.Success -> {
-                        logger.d(TAG, "Пополнение выполнено успешно")
-                        loadPortfolio()
-                    }
-                    is AppResult.Failure -> {
-                        logger.e(TAG, "payInSandbox: sandboxPayIn failed: ${result.error.message}", result.error.cause)
+                    is AppResult.Success -> loadPortfolio()
+                    is AppResult.Failure ->
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -305,7 +300,6 @@ class PortfolioViewModel
                                 isError = true,
                             )
                         }
-                    }
                 }
             }
         }
