@@ -121,9 +121,11 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### M006. TInvestSettingsPanel — счета и orchestration в UI
+### Исправленные (L1)
 
-**Статус:** открыто.
+### ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
+
+**Статус:** исправлено (2026-11-06, PR #103).
 
 **Серьёзность:** высоко.
 
@@ -139,13 +141,17 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`; связана с M007.
+**Что сделано:** 5 panel-VM (`TInvestSettingsViewModel`, `BcsSettingsViewModel`, `FinamSettingsViewModel`, `TradeSettingsViewModel`, `InfoSettingsViewModel`) + 6 usecase (`LoadBrokerAccountsUseCase`, `OpenSandboxAccountUseCase`, `CloseSandboxAccountUseCase`, `DisconnectBrokerUseCase`, `ToggleDebugFlagUseCase`, `SetSandboxModeUseCase`). `SettingsViewModel` — 361 → 31 строк (1 метод + 1 инжект); `SettingsUiState` удалён. `SettingsScreen.kt` — 5 панелей на panel-VM, оркестрация ушла из UI. 34 новых теста. Live-test sandbox 12/12. PR #103, merge `24497eb`.
+
+**Ссылка на задачу:** `### ✅ Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)` (`docs/ROADMAP-ARCHIVE.md`, PR #103, merge `24497eb`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
+**Сводный отчёт, 2026-11-06:** да.
+
 ### M011. OrdersListDialog — `as?` и расчёт в UI
 
-**Статус:** открыто.
+**Статус:** исправлено (2026-11-06, PR #103).
 
 **Серьёзность:** средне.
 
@@ -161,11 +167,13 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны`.
+**Что сделано:** 5 panel-VM (`TInvestSettingsViewModel`, `BcsSettingsViewModel`, `FinamSettingsViewModel`, `TradeSettingsViewModel`, `InfoSettingsViewModel`) + 6 usecase (`LoadBrokerAccountsUseCase`, `OpenSandboxAccountUseCase`, `CloseSandboxAccountUseCase`, `DisconnectBrokerUseCase`, `ToggleDebugFlagUseCase`, `SetSandboxModeUseCase`). `SettingsViewModel` — 361 → 31 строк (1 метод + 1 инжект); `SettingsUiState` удалён. `SettingsScreen.kt` — 5 панелей на panel-VM, оркестрация ушла из UI. 34 новых теста. Live-test sandbox 12/12. PR #103, merge `24497eb`.
+
+**Ссылка на задачу:** `### ✅ Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)` (`docs/ROADMAP-ARCHIVE.md`, PR #103, merge `24497eb`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### Исправленные (L1)
+**Сводный отчёт, 2026-11-06:** да.
 
 ### ✅ M003. PortfolioViewModel.payInSandbox — orchestration в VM
 
