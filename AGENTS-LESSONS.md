@@ -777,6 +777,17 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 **Связано:** уроки 26 (`assert old not in text` — KDoc), 65 (`new ⊂ old`), 67 (inline-ссылки в `###`), 79 (post-assert scope), 80(б) (проверяй факт, не форму).
 
+
+### 88. Idempotency guard `if new_fragment in text: skip` неверен, когда new ⊂ old
+
+**Правило:** idempotency-guard в скрипте правки — проверять **old-fragment**, которого в новом состоянии **не будет** (`if old_frag not in text: print("already applied"); return`). **Не** `if new_frag in text: skip` — если `new` является подстрокой `old` или наоборот, guard срабатывает ложно: `new` уже есть в файле **до** правки (как часть `old`), правка не применяется, хотя должна.
+
+**Инцидент:** 2026-11-07, M013 step 2b (`99ecd6a`). `new_p1 = "@HiltViewModel\nclass PortfolioViewModel"` — эта строка есть **и до** (с `@Suppress("TooManyFunctions")` на предыдущей), **и после** удаления `@Suppress`. Guard `if new_p1 in t: print("P1: already applied — skip")` → **skip** → `@Suppress` не удалён. P2–P4 применились, `write_text` записал файл в несогласованном состоянии (`seedSheet` удалён, но `@Suppress` остался). Пришлось доделывать line-based fix.
+
+**Вторая ошибка того же шага:** `assert new_p in pt, "Portfolio fix already applied"` — inverted guard (`assert` при `True` пропускает, при `False` падает — то есть падает именно когда фикса **ещё нет**). Правильная семантика: `if new in text: skip; else: assert old in text; replace`.
+
+**Проверка:** в скрипте — guard по `old` (`if old_frag not in text: skip`), не по `new`. Если есть подозрение на пересечение — `assert old_frag in text, "old not found"` + `assert text.count(old_frag) == 1` до replace, `assert new_frag in text` после. Связано: урок 4d (идемпотентность), 65 (`new ⊂ old`), 79 (post-assert scope).
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
@@ -962,6 +973,19 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 <!-- LESSONS_SECTION_END: diagnostics -->
 <!-- LESSONS_SECTION_BEGIN: clean-audit -->
+
+### 87. Подсчёт функций класса через grep занижен при multi-prefix
+
+**Правило:** считать функции класса — `grep -cE "^        ((private|internal|suspend) )+fun |^        fun "` (extended pattern, `+` для повторов префиксов), или Python `re.findall(r"^        (?:private |internal |suspend )*fun ", text, re.MULTILINE)`. **Не** `grep "^\s*(private \|internal \|suspend )?fun"` — `?` матчит **один** префикс, `private suspend fun` не попадает.
+
+**Инцидент:** 2026-11-07, M013 step 2b (`99ecd6a`). После удаления `seedSheet` в `PortfolioViewModel` — assert `functions in class == 11` упал с `got 10`. Причина двойная:
+1. `grep -cE "^        (private |internal |suspend )?fun"` — `updateTradingStatuses` (`private suspend fun`, строка 210) не матчится (`?` = один префикс, тут два).
+2. Мой `assert == 11` — арифметическая ошибка от устаревшего KDoc «12 функций»; фактически 10 (9 + `updateTradingStatuses`).
+
+Файл корректен (`@Suppress("TooManyFunctions")` снят, 10 < 11 — detekt не ругается). Assert ложный, лишний round-trip.
+
+**Проверка:** `grep -nE "^        ((private|internal|suspend) )+fun |^        fun " file.kt | wc -l`. Дополнительно — Python с `(?:...)*`, сверить. Если KDoc класса говорит «N функций» — **проверить KDoc по факту**, не доверять (KDoc устаревает). Связано: урок 61 (двусторонняя проверка), 76 (unused import по count).
+
 ## Clean-audit
 
 ### 20. Инвентаризация не пропускает «уже известное»
@@ -1164,6 +1188,15 @@ wall time (без учёта round-trips в чате).
 
 <!-- LESSONS_SECTION_END: process -->
 <!-- LESSONS_SECTION_BEGIN: application -->
+
+### 89. Merge `origin/dev` в feature перед PR — через `--no-commit --no-ff`
+
+**Правило:** если в Rulesets включено «Require branches to be up to date before merging» — перед созданием PR (или перед merge) feature-ветка **обязана** содержать `origin/dev`. Проверять: `git merge origin/dev --no-commit --no-ff` → `git status --short` → если `Unmerged paths` пусто — `git commit -m "Merge origin/dev into <branch>"` → `git push`. **Не** `git merge origin/dev` сразу — без `--no-commit` merge-коммит создаётся автоматически, точка контроля (`git diff --cached --stat`) теряется.
+
+**Инцидент:** 2026-11-07, M013 PR. `git diff --stat origin/dev..origin/feature` показал **обратные** удаления (`AGENTS-LESSONS.md | 52 -----`, `docs/ISSUES.md | 48 -----`) — это не «удаления в feature», а «в feature нет docs-коммитов, которые есть в dev». Без merge PR был бы заблокирован ruleset'ом («Require branches to be up to date»). `git merge origin/dev --no-commit --no-ff` → `Automatic merge went well; stopped before committing as requested` → проверка `git diff --cached --stat` → commit → push.
+
+**Проверка:** `git log --oneline origin/feature..origin/dev` — пусто перед PR. Если непусто — `git merge origin/dev --no-commit --no-ff`, проверить `git diff --name-only --diff-filter=U` (пусто = нет конфликтов), commit, push. Связано: 5f-freeze, `docs/repo-protection.md` (Rulesets), 5f (post-PR).
+
 ## Применение уроков
 
 Механизм — `AGENTS.md` → 4h «Проверка правок на соответствие
