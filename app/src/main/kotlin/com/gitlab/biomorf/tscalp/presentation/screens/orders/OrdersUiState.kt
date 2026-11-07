@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -30,17 +29,10 @@ data class OrdersUiState(
     // val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)
     val limitPrice: String = "", // цена для лимитной заявки
     val selectedPriceChangePercent: Double? = null, // изменение цены выбранного инструмента
-    // Диалог брокера
-    val showBrokerDialog: Boolean = false, // флаг открытия диалога
-    val dialogInstrumentTicker: String? = null,
-    val selectedBroker: BrokerName = BrokerName.TINVEST, // выбранный брокер в диалоге
-    val selectedAccountIdDialog: String? = null, // выбранный счёт в диалоге
-    val dialogAccounts: List<BrokerAccount> = emptyList(), // счета для диалога
     // Парная торговля
     val pairTradingEnabled: Boolean = false,
     val pairedInstrument: Instrument? = null, // выбранный парный инструмент
     val pairedMultiplier: String = "1", // множитель (по умолчанию 10)
-    val swipeResetTrigger: Boolean = false,
     val currentPointValue: Double? = null,
     val pairedPointValue: Double? = null,
     // M008: pairExecPrice / pairedOrderType — вычисляются в VM
@@ -52,8 +44,6 @@ data class OrdersUiState(
     val stopPrice: String = "",
     val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
     val expireDate: String? = null,
-    // M012: диалоги выбора брокера для поиска (не путать с showBrokerDialog
-    // — тот для выбора счёта при торговле).
     // M009: диалог подтверждения заявки + направление pending-заявки.
     // Переживает config change (в отличие от remember { mutableStateOf } в Screen).
     val showConfirmDialog: Boolean = false,

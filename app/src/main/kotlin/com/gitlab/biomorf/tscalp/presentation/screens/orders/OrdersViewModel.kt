@@ -32,7 +32,6 @@ import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
@@ -41,7 +40,6 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
-import com.gitlab.biomorf.tscalp.domain.usecases.SaveCardSettingsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
@@ -81,11 +79,9 @@ class OrdersViewModel
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val postOrderUseCase: PostOrderUseCase,
         private val loadOrdersAccountsUseCase: LoadOrdersAccountsUseCase,
-        private val loadCardAccountsUseCase: LoadCardAccountsUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val selectInstrumentUseCase: SelectInstrumentUseCase,
-        private val saveCardSettingsUseCase: SaveCardSettingsUseCase,
         private val updateTradingStatusesUseCase: UpdateTradingStatusesUseCase,
         private val logger: Logger,
     ) : ViewModel() {
@@ -629,167 +625,8 @@ class OrdersViewModel
             _uiState.update { it.clearStatus() }
         }
 
-        fun getAvailableBrokerNames(): List<BrokerName> = brokerManager.getAvailableBrokerNames()
-
         fun retryLoadAccounts() {
             loadAccounts()
-        }
-
-        /**
-         * Открывает диалог настроек брокера/счёта для указанного тикера.
-         */
-        fun openBrokerDialog(ticker: String) {
-            viewModelScope.launch {
-                val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-                val broker = existingCard?.brokerName ?: BrokerName.TINVEST
-                val savedAccountId = existingCard?.accountId ?: _uiState.value.selectedAccountId
-
-                val result =
-                    loadCardAccountsUseCase.execute(
-                        brokerName = broker,
-                        sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
-                        savedAccountId = savedAccountId,
-                    )
-
-                val accounts =
-                    when (result) {
-                        is AppResult.Success -> result.data.accounts
-                        is AppResult.Failure -> {
-                            logger.e(
-                                TAG,
-                                "Ошибка загрузки счетов для ${broker.displayName}: ${result.error.message}",
-                                result.error.cause,
-                            )
-                            emptyList()
-                        }
-                    }
-                val selectedId =
-                    when (result) {
-                        is AppResult.Success -> result.data.selectedAccountId
-                        is AppResult.Failure -> accounts.firstOrNull()?.id
-                    }
-
-                _uiState.update {
-                    it.copy(
-                        showBrokerDialog = true,
-                        dialogInstrumentTicker = ticker,
-                        selectedBroker = broker,
-                        selectedAccountIdDialog = selectedId,
-                        dialogAccounts = accounts,
-                    )
-                }
-            }
-        }
-
-        /**
-         * Закрывает диалог без сохранения.
-         */
-        fun closeBrokerDialog() {
-            _uiState.update {
-                it.copy(
-                    showBrokerDialog = false,
-                    dialogInstrumentTicker = null,
-                    swipeResetTrigger = !it.swipeResetTrigger,
-                )
-            }
-        }
-
-        /**
-         * Обрабатывает выбор брокера в диалоге – загружает его счета.
-         */
-        fun onBrokerSelected(brokerName: BrokerName) {
-            _uiState.update { it.copy(selectedBroker = brokerName, selectedAccountIdDialog = null) }
-            viewModelScope.launch {
-                loadDialogAccounts(brokerName)
-            }
-        }
-
-        /**
-         * Обрабатывает выбор счёта в диалоге.
-         */
-        fun onAccountSelectedDialog(accountId: String) {
-            _uiState.update { it.copy(selectedAccountIdDialog = accountId) }
-        }
-
-        /**
-         * Загружает счета для указанного брокера в UIState диалога.
-         */
-        private suspend fun loadDialogAccounts(brokerName: BrokerName) {
-            val result =
-                loadCardAccountsUseCase.execute(
-                    brokerName = brokerName,
-                    sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
-                    savedAccountId = _uiState.value.selectedAccountIdDialog,
-                )
-            when (result) {
-                is AppResult.Success -> {
-                    val data = result.data
-                    _uiState.update {
-                        it.copy(
-                            dialogAccounts = data.accounts,
-                            selectedAccountIdDialog = data.selectedAccountId,
-                        )
-                    }
-                }
-                is AppResult.Failure -> {
-                    logger.e(
-                        TAG,
-                        "Ошибка загрузки счетов для $brokerName: ${result.error.message}",
-                        result.error.cause,
-                    )
-                    _uiState.update { it.copy(dialogAccounts = emptyList(), selectedAccountIdDialog = null) }
-                }
-            }
-        }
-
-        /**
-         * Сохраняет выбранные настройки для инструмента и закрывает диалог.
-         */
-        fun saveBrokerSettings() {
-            val ticker = _uiState.value.dialogInstrumentTicker ?: return
-            val broker = _uiState.value.selectedBroker
-            val accountId = _uiState.value.selectedAccountIdDialog
-            viewModelScope.launch {
-                when (val result = saveCardSettingsUseCase.execute(ticker, broker, accountId)) {
-                    is AppResult.Success -> {
-                        logger.d(
-                            TAG,
-                            "saveBrokerSettings: ticker=$ticker, broker=$broker, accountId=$accountId",
-                        )
-                        _uiState.update { state ->
-                            state.copy(
-                                lastSelectedInstruments =
-                                    state.lastSelectedInstruments.map { card ->
-                                        if (card.instrument.ticker == ticker) {
-                                            card.copy(brokerName = broker, accountId = accountId)
-                                        } else {
-                                            card
-                                        }
-                                    },
-                                showBrokerDialog = false,
-                                dialogInstrumentTicker = null,
-                                swipeResetTrigger = !state.swipeResetTrigger,
-                            )
-                        }
-                        refreshLastSelectedInstruments()
-                        startPositionUpdates()
-                    }
-                    is AppResult.Failure -> {
-                        logger.e(
-                            TAG,
-                            "saveBrokerSettings failed: ${result.error.message}",
-                            result.error.cause,
-                        )
-                        _uiState.update { state ->
-                            state.copy(
-                                showBrokerDialog = false,
-                                dialogInstrumentTicker = null,
-                                swipeResetTrigger = !state.swipeResetTrigger,
-                            )
-                        }
-                    }
-                }
-            }
         }
 
         fun setPairTradingEnabled(enabled: Boolean) {
