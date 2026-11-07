@@ -136,8 +136,8 @@ L4–L8 — не проверены, заполняются по мере инс
 | `PortfolioViewModel` | `loadPortfolio` | getAccounts → seedSheet (getBalance × accounts) → startPositionUpdates → syncPriceInterest |
 | `OrdersViewModel` | `checkApiInitialization` | init → loadAccounts + syncPriceInterest / logout cleanup (stop streams, clearInterest) |
 | `OrdersViewModel` | `loadAccounts` | getAccounts → loadDefaultAccountId → state |
-| `OrderDialogsViewModel` | `openBrokerDialog` | findCard → getAccounts → dialog state |
-| `OrderDialogsViewModel` | `loadDialogAccounts` | getAccounts → dialog state |
+| `OrderDialogsViewModel` | `openBrokerDialog` | M2 partial (M015) → OpenCardDialogUseCase (pending) |
+| `OrderDialogsViewModel` | `loadDialogAccounts` | M2-fixed in 12a (LoadCardAccountsUseCase) |
 | `OrdersListViewModel` | `cancelOrder` | getAccounts → cancelOrder / cancelStopOrder |
 | `OrdersListViewModel` | `loadOrders` | getAccounts → getOrders / getStopOrders |
 | `OrdersViewModel` | `restoreState` | load() + getInstrument × 2 + pointValue + brokerReady → форма |
@@ -218,6 +218,73 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 
 **Сводный отчёт, 2026-11-06:** да.
 
+### M015. OrderDialogsViewModel.openBrokerDialog — M2 partial
+
+**Статус:** открыто.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrderDialogsViewModel.openBrokerDialog` (75–119) содержит orchestration:
+- `cardsRepository.identities.first().find { it.ticker == ticker }` (78) — findCard по ticker в VM;
+- `accountSelectionRepository.selected(BrokerName.TINVEST).first()` (82) — read selected account в VM;
+- далее `loadCardAccountsUseCase.execute(...)` + `_state.update`.
+
+Часть orchestration (getAccounts + savedFallback) уже в `LoadCardAccountsUseCase`; findCard + selected fallback — в VM. `loadDialogAccounts` (181–207) — **thin delegate** на `LoadCardAccountsUseCase` (M2-fixed in 12a); `saveBrokerSettings` — thin delegate на `SaveCardSettingsUseCase`; M2 в них нет.
+
+**Нарушенное правило:** M2 — business-orchestration (findCard + selected fallback) в VM, не в UseCase.
+
+**Clean-альтернатива:** `OpenCardDialogUseCase(ticker): AppResult<CardAccountsResult>` — findCard + selectedFallback + `LoadCardAccountsUseCase.execute(...)` в domain. Плюсы: VM тонкая. Минусы: +1 usecase (обёртка над `LoadCardAccountsUseCase`).
+
+**MVVM-альтернатива:** то же — orchestration в UseCase, VM — state + delegation.
+
+**Ссылка на задачу:** `### OpenCardDialogUseCase (M2 partial + M013-таблица)` (ROADMAP, follow-up).
+
+**Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
+
+### M016. One-shot events через StateFlow (M6) — statusMessage / isError
+
+**Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `statusMessage` / `isError` живут в 4 state: `OrderSearchState` (30, 32), `OrderFormState` (73, 74), `OrdersCoordState` (36, 37), `OrdersListViewModel` state. UI читает через `collectAsState`; consume — `clearStatus()` + `LaunchedEffect(...statusMessage)` (workaround). `StateFlow` реплеит последнее значение → при пересоздании Composable snackbar показывается повторно.
+
+**Нарушенное правило:** M6 — one-shot события через `StateFlow` без consume.
+
+**Clean-альтернатива:** `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в каждой VM; `statusMessage` / `isError` удаляются из state. Плюсы: no replay, snackbar — 1:1. Минусы: миграция 4 VM + state + UI.
+
+**MVVM-альтернатива:** то же — event stream.
+
+**Ссылка на задачу:** `### M6: one-shot events (StatusEvent)` (`d64e1be`).
+
+**Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
+
+### M017. OrderFormViewModel.buildPlaceOrderRequest — presentation собирает domain-модель
+
+**Статус:** открыто (проблема, не 2c-принято).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `OrderFormViewModel.buildPlaceOrderRequest(state: OrderFormState): PlaceOrderRequest?` (159) — private-функция VM собирает domain-модель `PlaceOrderRequest` (10 полей) из presentation-Form-полей. В 13d-C-A1 было зафиксировано в KDoc как 2c-фиксация (P11); пересмотр 2026-11-08 — это **проблема** (M1), нужна задача.
+
+**Нарушенное правило:** M1 — presentation конструирует domain-модель (dependency rule обратно).
+
+**Clean-альтернатива:** `BuildPlaceOrderRequestUseCase(state): AppResult<PlaceOrderRequest>` в `domain.usecases`; либо `PlaceOrderUseCase.execute(FormSnapshot, direction)` — build + orchestration в одном usecase. Плюсы: VM без domain-конструирования, usecase тестируется. Минусы: Form→domain→Form (presentation DTO в domain usecase) — компромисс; либо 20+ параметров (раздувание).
+
+**MVVM-альтернатива:** то же — build в UseCase.
+
+**Ссылка на задачу:** — (не заведена). Нужна задача `### BuildPlaceOrderRequestUseCase` в ROADMAP.
+
+**Сводный отчёт, 2026-11-06:** нет.
+
+### Исправленные (L1)
+
 ### ✅ M014. OrdersCoordState — `activeCard` / `activePairedCard` → pure extensions
 
 **Статус:** исправлено (2026-11-07, 13d-F, `9776172`).
@@ -253,8 +320,6 @@ Compose state read).
 
 **Ссылка на задачу:** `### OrdersViewModel: разбить на несколько VM` (ROADMAP, шаг 13d-F).
 
-### Исправленные (L1)
-
 ### ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
 
 **Статус:** исправлено (2026-11-06, PR #103).
@@ -281,7 +346,7 @@ Compose state read).
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### M011. OrdersListDialog — `as?` и расчёт в UI
+### ✅ M011. OrdersListDialog — `as?` и расчёт в UI
 
 **Статус:** исправлено (2026-11-06, PR #103).
 
