@@ -6,23 +6,9 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.Position
+import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
-
-/**
- * Информация о выбранном инструменте для отображения в карточке «Последние просмотренные».
- */
-data class SelectedInstrumentInfo(
-    val instrument: Instrument,
-    val currentPrice: Double?,
-    val priceChangePercent: Double?,
-    val quantity: Long,
-    val averagePrice: Double?,
-    val profit: Double?,
-    val profitPercent: Double?,
-    val brokerName: BrokerName = BrokerName.TINVEST, // брокер по умолчанию
-    val accountId: String? = null,
-)
 
 data class OrdersUiState(
     val ticker: String = "",

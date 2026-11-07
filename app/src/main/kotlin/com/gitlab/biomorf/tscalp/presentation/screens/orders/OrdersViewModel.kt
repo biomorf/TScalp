@@ -24,6 +24,7 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
+import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
