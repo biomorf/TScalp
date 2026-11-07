@@ -1210,13 +1210,42 @@ fi
 - `<branch>` — имя текущей ветки, вписано **литерально**.
 - `<commit message>` — по 5b.
 
-**Автоматический push при зелёном гейте — дефолт для
-не-UI правок** (код, data, domain, рефакторинг без
-визуальных изменений). Один round-trip **для блока 2**:
-пользователь запускает блок 2 один раз, получает `PUSHED
-to origin <branch>` или `GATE RED` без коммита и push.
-Красный гейт блокирует коммит и push; фикс — отдельным
-шагом (4b).
+**Push при зелёном гейте — по типу ветки.** Для
+`dev` / `master` / `release` / `hotfix` — автоматический
+push после зелёного гейта: один round-trip **для блока 2**
+(пользователь запускает блок 2 один раз, получает `PUSHED
+to origin <branch>` или `GATE RED` без коммита и push).
+Для feature (desktop) — **батч перед PR** (см. ниже
+«Push в feature-ветке — батч перед PR»). Красный гейт
+блокирует коммит и push; фикс — отдельным шагом (4b).
+
+**Push в feature-ветке — батч перед PR (desktop).** На
+desktop (Bluefin) в feature-ветке коммиты идут **локально**,
+push — один раз, перед созданием PR:
+
+    git push origin feature/<name>
+
+После этого — открытие PR (5f). Причина: push каждого
+коммита в feature на desktop — лишние 10–20 сек на шаг,
+CI на каждый коммит (Actions-минуты, лишние прогоны gate
+для промежуточных состояний). PR гейтит финальное
+состояние.
+
+**Исключения — push после каждого коммита:**
+
+- **Mobile (proot)** — CI gate = единственный гейт
+  (локальный Gradle недоступен); push после WIP-коммита
+  даёт CI-проверку до следующего шага.
+- **`dev` / `master`** (docs-only, bypass) — прямой push
+  в защищённую ветку, post-push verify (5a) обязателен.
+- **`release/*` / `hotfix/*`** — стратегия как у feature
+  (батч перед PR в `master`).
+- **Запрос пользователя** — «пушни сейчас» переопределяет
+  дефолт.
+
+**Исторические push в feature не откатываются.** Если
+правило введено после N коммитов, они остаются
+запушенными — force-push не делаем.
 
 **Исключение: UI-правки.** Для изменений, видимых
 пользователю (правило 1: тексты, иконки, разметка, цвета,
@@ -1517,8 +1546,12 @@ git-дефолты (адресат, файлы, ветка).
       if [ "$GATE" -eq 0 ]; then
         git add <files>
         git commit -F "$HOME/.msg.txt"
-        git push origin <branch>
-        echo "PUSHED to origin <branch>"
+        if [ "$BRANCH" = "dev" ] || [ "$BRANCH" = "master" ]; then
+          git push origin "$BRANCH"
+          echo "PUSHED to origin $BRANCH"
+        else
+          echo "COMMITTED (not pushed — batch before PR, 4f)"
+        fi
       else
         echo "GATE RED — commit/push skipped"
         exit 1
@@ -1534,6 +1567,10 @@ git-дефолты (адресат, файлы, ветка).
 - `GATE=$?` — сразу после gradlew.
 - `grep ... || true` — `set -e` иначе убьёт группу на пустом grep.
 - `exit 1` в `else` — GATE RED сигнализируется и на shell-уровне.
+- `<branch>` — имя текущей ветки. Для `dev` / `master` —
+  push после коммита; для feature (desktop) — **не пушим**
+  (`COMMITTED (not pushed — batch before PR)`, 4f), push
+  отдельным шагом перед PR.
 - Для `git-операции` без гейта — «Шаблон 1» (единый блок).
 
 На телефоне (proot) — `printf` для commit message (урок 43),
@@ -1733,6 +1770,13 @@ detekt`). Исключения (WIP на desktop) — только по явно
 только после зелёного CI `gate` на последнем коммите
 feature-ветки. Desktop: полный локальный гейт обязателен до
 коммита; CI `gate` на PR — подтверждение.
+
+**Push в feature — перед PR (4f).** В feature-ветке на
+desktop push не после каждого коммита, а один раз перед
+открытием PR (`git push origin feature/<name>`). CI `gate`
+на финальном коммите — required check PR. Post-push verify
+(п. «Post-push проверка защищённых веток») — для `dev` /
+`master`, не для feature.
 
 Команда:
 

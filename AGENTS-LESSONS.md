@@ -970,6 +970,28 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 **Проверка:** для быстрой сверки — `ktlintFormat` локально или полагаться на CI.
 
+---
+
+### 90. DataStore на устройстве — `exec-out run-as base64`, не `shell run-as cat`
+
+**Правило:** читать файл DataStore (`*.preferences_pb`) с устройства —
+только через `adb exec-out run-as <pkg> base64 <path>` → `base64 -d`
+на хосте. `adb shell run-as <pkg> cat <binary>` в TTY отдаёт пусто
+(SE Linux / TTY-обработка), `strings` не находит ключей — ложный
+вывод «ключ не записан».
+
+**Инцидент:** 2026-11-07, live-regression A4 (`OrdersViewModel` split).
+`adb shell run-as com.gitlab.biomorf.tscalp cat files/datastore/*.preferences_pb
+| strings | grep order_cards` → пусто. Ложный вывод: `order_cards`
+не пишется → гипотезы F3/F4 (SaveCardSettingsUseCase не сохраняет).
+Реально: `ls -la` показал 541 байт; `exec-out run-as base64` +
+decode → `order_cards = TINVEST|e6123145-…|SBER|1fbeef7a-…` на месте.
+Потерян раунд диагностики.
+
+**Проверка:** `adb shell run-as <pkg> stat -c '%s' <path>` — размер
+> 0 подтверждает запись; `adb exec-out run-as <pkg> base64 <path> |
+base64 -d | strings -n 3` — видит ключи и значения.
+
 
 <!-- LESSONS_SECTION_END: diagnostics -->
 <!-- LESSONS_SECTION_BEGIN: clean-audit -->
