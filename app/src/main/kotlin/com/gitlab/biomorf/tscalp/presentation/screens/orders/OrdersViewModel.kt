@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
@@ -74,6 +75,7 @@ class OrdersViewModel
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val tradingStateRepository: TradingStateRepository,
+        private val accountSelectionRepository: AccountSelectionRepository,
         private val brokerManager: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
@@ -274,6 +276,7 @@ class OrdersViewModel
                             TAG,
                             "loadAccounts: success, accounts=${data.accounts.size}, selected=${data.selectedAccountId}",
                         )
+                        accountSelectionRepository.select(BrokerName.TINVEST, data.selectedAccountId)
                         if (data.selectedAccountId != null) {
                             startPositionUpdates()
                         }
@@ -422,6 +425,9 @@ class OrdersViewModel
 
         fun onAccountSelected(accountId: String) {
             _uiState.update { it.copy(selectedAccountId = accountId) }
+            viewModelScope.launch {
+                accountSelectionRepository.select(BrokerName.TINVEST, accountId)
+            }
         }
 
         fun onBuyClick() =
