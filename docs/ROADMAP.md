@@ -3081,6 +3081,67 @@ ___
 
 
 
+### OpenCardDialogUseCase (M2 partial + M013-таблица)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit **M015** (open) — `OrderDialogsViewModel.openBrokerDialog` содержит M2 partial: `cardsRepository.identities.first().find { it.ticker == ticker }` (findCard) + `accountSelectionRepository.selected(BrokerName.TINVEST).first()` (selected fallback) в VM. `loadDialogAccounts` — thin delegate на `LoadCardAccountsUseCase` (M2-fixed in 12a); `saveBrokerSettings` — thin delegate на `SaveCardSettingsUseCase`. Задача закрывает M015 и обновляет M013-таблицу (`openBrokerDialog`: M2 partial -> M2-fixed).
+
+**Соответствие Clean:** соответствует (orchestration -> domain, dependency rule не нарушен).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `domain/usecases/OpenCardDialogUseCase.kt` (новый).
+- `presentation/screens/orders/OrderDialogsViewModel.kt` — `openBrokerDialog` -> thin.
+- `docs/clean-audit.md` — M015 -> `исправлено` + перенос в «Исправленные (L1)»; M013-таблица `openBrokerDialog` -> `M2-fixed`.
+
+**Шаги:**
+1. Создать `OpenCardDialogUseCase`: inject `CardsRepository`, `AccountSelectionRepository`, `LoadCardAccountsUseCase`, `SandboxPreferencesRepository`, `Logger`; `suspend fun execute(ticker: String): AppResult<CardAccountsResult>` — findCard по ticker -> broker / savedAccountId -> `loadCardAccountsUseCase.execute(brokerName, sandboxMode, savedAccountId)`.
+2. `OrderDialogsViewModel.openBrokerDialog` -> thin: `usecase.execute(ticker)` + `_state.update` (dialog state 1:1: showBrokerDialog / dialogInstrumentTicker / selectedBroker / selectedAccountIdDialog / dialogAccounts).
+3. Тест `OpenCardDialogUseCaseTest` (4 кейса: success / no card (saved fallback) / failure / cancellation).
+4. `docs/clean-audit.md`: M015 -> `исправлено (дата, hash)`; перенести в «Исправленные (L1)»; M013-таблица `openBrokerDialog` -> `M2-fixed (OpenCardDialogUseCase)`.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. Live-test: dialog карточки (open / change broker / save) — 1:1.
+
+**Тесты:** `OpenCardDialogUseCaseTest` — 4 кейса; live-test — диалог карточки.
+
+**Референсы:** clean-audit M015, M013 (таблица); `LoadCardAccountsUseCase` (`eb1f68b`); 12a (`7e2f717`); `OrderDialogsViewModelTest` (`7e2f717`, 6 кейсов).
+
+**Ограничения:**
+- Не менять `loadDialogAccounts` / `saveBrokerSettings` (thin delegates, не M2).
+- 1:1 поведение `openBrokerDialog` (порядок dialog state / загрузки).
+- Не смешивать с `### M6: one-shot events (StatusEvent)` (M016) и `### M001: formatting в presentation`.
+
+**Критерий готовности:**
+- `OpenCardDialogUseCase` создан; `openBrokerDialog` -> thin.
+- M015 -> `исправлено`; M013-таблица `openBrokerDialog` -> `M2-fixed`.
+- Гейт зелёный; live-test PASS.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+
+**Связано:** clean-audit M015, M013; `### M6: one-shot events (StatusEvent)` (M016); `### M001: formatting в presentation`; 12a (`7e2f717`).
+
+**Открытые вопросы:** `LoadCardAccountsUseCase` уже inject'ится в `OrderDialogsViewModel`; в usecase — тоже. Двойная инъекция — OK (оба через domain).
+
+
+
+___
+
+
+
+
+
 ---
 
 
