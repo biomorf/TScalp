@@ -964,14 +964,18 @@ class OrdersViewModel
 
         suspend fun startPositionUpdates() {
             stopPositionUpdates()
-            val globalAccountId = _uiState.value.selectedAccountId ?: return
+            val globalAccountId = _uiState.value.selectedAccountId
             val accountIds =
                 buildSet {
-                    add(globalAccountId)
+                    globalAccountId?.let { add(it) }
                     _uiState.value.lastSelectedInstruments.forEach { card ->
                         card.accountId?.let { add(it) }
                     }
                 }
+            if (accountIds.isEmpty()) {
+                logger.d(TAG, "startPositionUpdates: no accounts, skip")
+                return
+            }
             logger.d(
                 TAG,
                 "startPositionUpdates: global=$globalAccountId, accounts=$accountIds",
@@ -992,7 +996,8 @@ class OrdersViewModel
                 }
             // Если позиции ещё не загружены (например, после восстановления состояния),
             // делаем разовый прямой запрос, чтобы сразу заполнить карточку
-            if (_uiState.value.portfolioPositions.isEmpty()) {
+            // (только для global-счёта; без него fallback не нужен)
+            if (globalAccountId != null && _uiState.value.portfolioPositions.isEmpty()) {
                 viewModelScope.launch {
                     val sandbox = sandboxPreferencesRepository.isSandboxMode()
                     when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, globalAccountId, sandbox)) {
