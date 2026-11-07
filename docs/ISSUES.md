@@ -1302,3 +1302,39 @@ live-тесте #2 задержки почти не было видно — View
 **Связано:** ISSUES «REST poll failed: REST transport not initialized (W при disconnect)» (та же область), `docs/clean-audit.md` → L4-Н60 (`retryWithBackoff` non-retryable), запись выше (`anyInitialized` после disconnect — причина не-вызова `checkApiInitialization`).
 
 **Когда вернуться:** при следующем касании `DisconnectBrokerUseCase` / `PriceFlowManager`, или вместе с «REST poll failed».
+
+## System: A resource failed to call release (lifecycle-находка)
+
+**Статус:** открыт (pre-existing, не блокер).
+
+**Симптом:** при disconnect брокера (logout / смена токена / force-stop) в
+logcat: `System: A resource failed to call release.` (PID 32180,
+2026-11-07 02:08:48.655 — live-logout-лог `~/tscalp-live-logout.log`).
+Предупреждение системы об утечке ресурса (OkHttp / CIO / gRPC channel /
+WS-socket), не наш код, но триггерится нашими lifecycle-переходами.
+
+**Причина:** не установлена. Возможные источники:
+`TInvestPositionsWebSocket` (CIO client), `TInvestPricesWebSocket`,
+`TInvestOrderStateWebSocket`, gRPC channel (`pricesStreamChannel` /
+`ordersStateChannel`), OkHttp client. Не закрываются при `deinitialize()` —
+только `stop()` отменяет scope, но клиент/канал не `close()`.
+
+**Решение:** диагностика — `grep` в `TInvestBrokerApi.deinitialize` /
+`TInvestWsService.stop` / `TInvestOrchestrator` — все `HttpClient` /
+`Channel` / `OkHttpClient` закрыты? Если нет — `close()` в
+`deinitialize()`. Отдельная задача (fix в 13d не входит — pre-existing,
+вне scope split VM).
+
+**Файлы:**
+- `data/api/TInvestBrokerApi.kt` — `deinitialize()`.
+- `transport-ktor/.../TInvestPositionsWebSocket.kt` /
+  `TInvestPricesWebSocket.kt` / `TInvestOrderStateWebSocket.kt` — `close()`.
+- `data/orchestrator/TInvestOrchestrator.kt` — `close()` gRPC channel.
+
+**Связано:** `docs/ISSUES.md` → «PriceFlowManager retry loop после logout
+при неактивных VM», «BrokerRegistry.anyInitialized не сбрасывается после
+DisconnectBrokerUseCase» (та же область — lifecycle disconnect).
+
+**Когда вернуться:** при следующей правке `TInvestBrokerApi.deinitialize`
+/ `TInvestWsService.stop` / `TInvestOrchestrator`, или при появлении
+жалоб на утечку ресурсов / battery drain после logout.
