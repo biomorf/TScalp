@@ -141,6 +141,7 @@ L4–L8 — не проверены, заполняются по мере инс
 | `OrdersListViewModel` | `cancelOrder` | getAccounts → cancelOrder / cancelStopOrder |
 | `OrdersListViewModel` | `loadOrders` | getAccounts → getOrders / getStopOrders |
 | `OrdersViewModel` | `restoreState` | load() + getInstrument × 2 + pointValue + brokerReady → форма |
+| `OrdersViewModel` | `onPairedInstrumentSelected` | getLastPrices → paired price / pointValue |
 
 **Не в scope:** размер `OrdersViewModel` (1159 строк, 22 launch) — архитектурный вопрос разбиения на несколько VM, отдельная задача. M001 (formatted overlay), M011 (`as?` в UI) — отдельные записи.
 
@@ -193,6 +194,25 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
   **до 13d** (`OrderFormViewModel`);
 - Clean-альтернатива частично реализована: usecase существует,
   wiring в VM — шаг 13d.
+
+**Расширено (13c, 2026-11-07, `5b08830`):** вынесен
+`onPairedInstrumentSelected`:
+
+- было: 8 методов в таблице;
+- стало: 9 методов (+ `OrdersViewModel.onPairedInstrumentSelected`:
+  `getLastPrices` + разбор `AppResult` → paired price / pointValue);
+- `SelectPairedInstrumentUseCase` создан (`5b08830`, `domain.usecases`),
+  возвращает `AppResult<SelectPairedResult>` (`price: Double?`,
+  `pointValue: Double`); `getLastPrices` failure -> `Success(price = null,
+  pointValue = ...)` (1:1);
+- **`save` не в usecase:** `saveState()` в VM 1:1 сохраняет
+  `pairedTscalpInstrumentId` (K8a); дубль DataStore write не вводим;
+- **wiring уже сделан** (13c-2): `OrdersViewModel.onPairedInstrumentSelected`
+  делегирует в use case, `updateTradeDetails` / `updatePairExecDetails` /
+  `saveState` / `syncPriceInterest` остаются в VM 1:1;
+- `SelectInstrumentUseCase` (`onInstrumentSelected`) в M013 **не
+  добавляется** — M2 уже исправлен шагом 6 (PR #89); проверено по
+  факту кода (K8e).
 
 **Ссылка на задачу:** `### A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (ROADMAP).
 
