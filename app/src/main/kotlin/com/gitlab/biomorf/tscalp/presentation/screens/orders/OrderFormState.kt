@@ -66,6 +66,8 @@ data class OrderFormState(
     // Confirm dialog (M009)
     val showConfirmDialog: Boolean = false,
     val pendingDirection: OrderDirection? = null,
+    /** M009: подтверждение заявок (Form владелец confirm-диалога, M009). */
+    val confirmOrdersEnabled: Boolean = true,
     // Status (Form-level; M6 pre-existing — отдельная задача)
     val isLoading: Boolean = false,
     val statusMessage: String? = null,

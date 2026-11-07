@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
@@ -72,12 +73,42 @@ class OrderFormViewModel
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val tradingStateRepository: TradingStateRepository,
+        private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val priceFlowManager: PriceFlowManager,
         private val logger: Logger,
         private val placeOrderUseCase: PlaceOrderUseCase,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderFormState())
         val state: StateFlow<OrderFormState> = _state.asStateFlow()
+
+        init {
+            viewModelScope.launch {
+                logger.d(TAG, "subscribed to confirmOrdersEnabledFlow")
+                tradingPreferencesRepository.confirmOrdersEnabledFlow().collect { enabled ->
+                    _state.update { it.copy(confirmOrdersEnabled = enabled) }
+                }
+            }
+        }
+
+        fun onBuyClick() =
+            viewModelScope.launch {
+                if (_state.value.confirmOrdersEnabled) {
+                    _state.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.BUY) }
+                    updatePairExecDetails()
+                } else {
+                    postOrder(OrderDirection.BUY)
+                }
+            }
+
+        fun onSellClick() =
+            viewModelScope.launch {
+                if (_state.value.confirmOrdersEnabled) {
+                    _state.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.SELL) }
+                    updatePairExecDetails()
+                } else {
+                    postOrder(OrderDirection.SELL)
+                }
+            }
 
         fun onConfirmOrder() {
             val direction = _state.value.pendingDirection ?: return
