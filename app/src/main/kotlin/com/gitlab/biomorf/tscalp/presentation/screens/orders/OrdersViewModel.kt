@@ -620,6 +620,11 @@ class OrdersViewModel
             if (currentList.isEmpty()) return
             val sheet = positionFlowManager.sheet.value
             val globalAccountId = _uiState.value.selectedAccountId
+            logger.d(
+                TAG,
+                "refreshLastSelectedInstruments: global=$globalAccountId, " +
+                    "sheetAccounts=${sheet.accounts.keys.map { it.accountId }}, cards=${currentList.size}",
+            )
             val updatedList =
                 currentList.map { card ->
                     val accountId = card.accountId ?: globalAccountId
@@ -765,6 +770,10 @@ class OrdersViewModel
             viewModelScope.launch {
                 when (val result = saveCardSettingsUseCase.execute(ticker, broker, accountId)) {
                     is AppResult.Success -> {
+                        logger.d(
+                            TAG,
+                            "saveBrokerSettings: ticker=$ticker, broker=$broker, accountId=$accountId",
+                        )
                         _uiState.update { state ->
                             state.copy(
                                 lastSelectedInstruments =
@@ -781,6 +790,7 @@ class OrdersViewModel
                             )
                         }
                         refreshLastSelectedInstruments()
+                        startPositionUpdates()
                     }
                     is AppResult.Failure -> {
                         logger.e(
@@ -954,9 +964,20 @@ class OrdersViewModel
 
         suspend fun startPositionUpdates() {
             stopPositionUpdates()
-            val accountId = _uiState.value.selectedAccountId ?: return
+            val globalAccountId = _uiState.value.selectedAccountId ?: return
+            val accountIds =
+                buildSet {
+                    add(globalAccountId)
+                    _uiState.value.lastSelectedInstruments.forEach { card ->
+                        card.accountId?.let { add(it) }
+                    }
+                }
+            logger.d(
+                TAG,
+                "startPositionUpdates: global=$globalAccountId, accounts=$accountIds",
+            )
             positionFlowManager.start(
-                accountKeys = setOf(AccountKey(BrokerName.TINVEST, accountId)),
+                accountKeys = accountIds.map { AccountKey(BrokerName.TINVEST, it) }.toSet(),
                 sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
             )
             positionStreamJob =
@@ -974,7 +995,7 @@ class OrdersViewModel
             if (_uiState.value.portfolioPositions.isEmpty()) {
                 viewModelScope.launch {
                     val sandbox = sandboxPreferencesRepository.isSandboxMode()
-                    when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, accountId, sandbox)) {
+                    when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, globalAccountId, sandbox)) {
                         is AppResult.Success ->
                             _uiState.update { it.copy(portfolioPositions = result.data) }
                         is AppResult.Failure ->
