@@ -136,7 +136,7 @@ L4–L8 — не проверены, заполняются по мере инс
 | `PortfolioViewModel` | `loadPortfolio` | getAccounts → seedSheet (getBalance × accounts) → startPositionUpdates → syncPriceInterest |
 | `OrdersViewModel` | `checkApiInitialization` | init → loadAccounts + syncPriceInterest / logout cleanup (stop streams, clearInterest) |
 | `OrdersViewModel` | `loadAccounts` | getAccounts → loadDefaultAccountId → state |
-| `OrderDialogsViewModel` | `openBrokerDialog` | M2 partial (M015) → OpenCardDialogUseCase (pending) |
+| `OrderDialogsViewModel` | `openBrokerDialog` | M2-fixed (OpenCardDialogUseCase) |
 | `OrderDialogsViewModel` | `loadDialogAccounts` | M2-fixed in 12a (LoadCardAccountsUseCase) |
 | `OrdersListViewModel` | `cancelOrder` | getAccounts → cancelOrder / cancelStopOrder |
 | `OrdersListViewModel` | `loadOrders` | getAccounts → getOrders / getStopOrders |
@@ -218,30 +218,6 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### M015. OrderDialogsViewModel.openBrokerDialog — M2 partial
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `OrderDialogsViewModel.openBrokerDialog` (75–119) содержит orchestration:
-- `cardsRepository.identities.first().find { it.ticker == ticker }` (78) — findCard по ticker в VM;
-- `accountSelectionRepository.selected(BrokerName.TINVEST).first()` (82) — read selected account в VM;
-- далее `loadCardAccountsUseCase.execute(...)` + `_state.update`.
-
-Часть orchestration (getAccounts + savedFallback) уже в `LoadCardAccountsUseCase`; findCard + selected fallback — в VM. `loadDialogAccounts` (181–207) — **thin delegate** на `LoadCardAccountsUseCase` (M2-fixed in 12a); `saveBrokerSettings` — thin delegate на `SaveCardSettingsUseCase`; M2 в них нет.
-
-**Нарушенное правило:** M2 — business-orchestration (findCard + selected fallback) в VM, не в UseCase.
-
-**Clean-альтернатива:** `OpenCardDialogUseCase(ticker): AppResult<CardAccountsResult>` — findCard + selectedFallback + `LoadCardAccountsUseCase.execute(...)` в domain. Плюсы: VM тонкая. Минусы: +1 usecase (обёртка над `LoadCardAccountsUseCase`).
-
-**MVVM-альтернатива:** то же — orchestration в UseCase, VM — state + delegation.
-
-**Ссылка на задачу:** `### OpenCardDialogUseCase (M2 partial + M013-таблица)` (ROADMAP, follow-up).
-
-**Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
 
 ### M016. One-shot events через StateFlow (M6) — statusMessage / isError
 
@@ -320,6 +296,42 @@ Compose state read).
 
 **Ссылка на задачу:** `### OrdersViewModel: разбить на несколько VM` (ROADMAP, шаг 13d-F).
 
+
+### ✅ M015. OrderDialogsViewModel.openBrokerDialog — M2 partial
+
+**Статус:** исправлено (2026-11-08, M015-A1b+A2, `6a4a597` + `5a2a4e3`).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrderDialogsViewModel.openBrokerDialog` (75–119) содержит orchestration:
+- `cardsRepository.identities.first().find { it.ticker == ticker }` (78) — findCard по ticker в VM;
+- `accountSelectionRepository.selected(BrokerName.TINVEST).first()` (82) — read selected account в VM;
+- далее `loadCardAccountsUseCase.execute(...)` + `_state.update`.
+
+Часть orchestration (getAccounts + savedFallback) уже в `LoadCardAccountsUseCase`; findCard + selected fallback — в VM. `loadDialogAccounts` (181–207) — **thin delegate** на `LoadCardAccountsUseCase` (M2-fixed in 12a); `saveBrokerSettings` — thin delegate на `SaveCardSettingsUseCase`; M2 в них нет.
+
+**Нарушенное правило:** M2 — business-orchestration (findCard + selected fallback) в VM, не в UseCase.
+
+**Clean-альтернатива:** `OpenCardDialogUseCase(ticker): AppResult<CardAccountsResult>` — findCard + selectedFallback + `LoadCardAccountsUseCase.execute(...)` в domain. Плюсы: VM тонкая. Минусы: +1 usecase (обёртка над `LoadCardAccountsUseCase`).
+
+**MVVM-альтернатива:** то же — orchestration в UseCase, VM — state + delegation.
+
+**Что сделано:** `OpenCardDialogUseCase` (`5d8462c`): findCard по ticker из
+`CardsRepository.identities` + selected fallback из
+`AccountSelectionRepository.selected(TINVEST)` + `sandboxMode` из
+`SandboxPreferencesRepository` + делегирование в `LoadCardAccountsUseCase`.
+`OpenCardDialogOutcome` (`6a4a597`): sealed Success/Failure — failure несёт
+`broker` (иначе VM не могла 1:1 выставить `selectedBroker`). `OrderDialogsViewModel.openBrokerDialog`
+→ thin (`5a2a4e3`); 6 тестов переведены на мок `openCardDialogUseCase`;
+`loadCardAccountsUseCase` остался для `onBrokerSelected` / `saveBrokerSettings`.
+`OpenCardDialogUseCaseTest` (4 кейса: success / no card + fallback / failure
+passthrough / cancellation).
+
+**Ссылка на задачу:** `### OpenCardDialogUseCase (M2 partial + M013-таблица)` (ROADMAP, follow-up).
+
+**Сводный отчёт, 2026-11-06:** нет (создана 2026-11-08).
 ### ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
 
 **Статус:** исправлено (2026-11-06, PR #103).
