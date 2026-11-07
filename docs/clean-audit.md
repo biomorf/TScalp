@@ -140,6 +140,7 @@ L4–L8 — не проверены, заполняются по мере инс
 | `OrderDialogsViewModel` | `loadDialogAccounts` | getAccounts → dialog state |
 | `OrdersListViewModel` | `cancelOrder` | getAccounts → cancelOrder / cancelStopOrder |
 | `OrdersListViewModel` | `loadOrders` | getAccounts → getOrders / getStopOrders |
+| `OrdersViewModel` | `restoreState` | load() + getInstrument × 2 + pointValue + brokerReady → форма |
 
 **Не в scope:** размер `OrdersViewModel` (1159 строк, 22 launch) — архитектурный вопрос разбиения на несколько VM, отдельная задача. M001 (formatted overlay), M011 (`as?` в UI) — отдельные записи.
 
@@ -175,6 +176,23 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
   `accountSelectionRepository.selected(TINVEST).first()`);
 - Clean-альтернатива не изменилась: `OpenBrokerDialogUseCase` /
   `LoadDialogAccountsUseCase` (эволюция M013).
+
+**Расширено (13a, 2026-11-07, `76587ef`):** при ревизии `restoreState()`
+обнаружена ещё одна M2-находка, ранее не заведённая в таблице:
+
+- было: 7 методов в таблице;
+- стало: 8 методов (+ `OrdersViewModel.restoreState`:
+  `tradingStateRepository.load()` + `getInstrument × 2` +
+  `moneyPerPointOfPrice` + `brokerReady` через
+  `BrokerRegistry.getDefaultBroker().isInitialized`);
+- `RestoreOrderFormUseCase` создан (`76587ef`, `domain.usecases`),
+  возвращает `AppResult<RestoredFormState>` (8 полей: 6 snapshot +
+  `currentPointValue` / `pairedPointValue`); presentation
+  (`syncPriceInterest` / `updateTradeDetails` /
+  `updatePairExecDetails` / `_uiState.update`) остаётся в Coord
+  **до 13d** (`OrderFormViewModel`);
+- Clean-альтернатива частично реализована: usecase существует,
+  wiring в VM — шаг 13d.
 
 **Ссылка на задачу:** `### A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (ROADMAP).
 
