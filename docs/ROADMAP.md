@@ -971,6 +971,63 @@ ___
 
 **Связано:** `docs/clean-audit.md` M013, M001 (вне scope), M6 (новая, вне scope), `docs/ISSUES.md` (BrokerRegistry.anyInitialized, PriceFlowManager retry loop).
 
+**Прогресс Фазы 2 (2026-11-07, после 11b):**
+
+**Сделано** (feature/orders-vm-split, ahead 22 от origin/feature, behind 1 от origin/dev — merge `ab552f2` перед PR, 89):
+
+- **11a-1** (`7c4b5d9`): `InstrumentFormat.displayName()` (P9, `presentation/util/`) + `InstrumentFormatTest` (3 кейса).
+- **11a-2** (`7e1196c`): `SearchInstrumentsUseCase` (P6, `domain/usecases/`) + `SearchInstrumentsUseCaseTest` (7).
+- **11a-3** (`eea0ec5`): `OrderSearchViewModel` (17 функций, `@Suppress("TooManyFunctions")` 2c, задача reduce в `dev` `ab552f2`) + `OrderSearchState` (15 полей, M6 pre-existing P8) + `OrderSearchViewModelTest` (6).
+- **11b** (`910ea5a`): UI-миграция Search — `OrdersScreen` (+`searchVM`, split callbacks, P4 KDoc, snackbar extract); `OrdersSearch` / `OrdersPairTrading` (+`searchState`); `OrdersBrokerDialogs` (`OrderSearchState`); `OrdersUiState` −13 Search-полей; `OrdersViewModel` −12 Search-методов; `clearPairSearch` → `clearPairedInstrument`.
+
+**Метрики (до Фазы 2 → после 11b):**
+
+- `OrdersViewModel.kt`: ~1200 → **1091** строк; функции 57 → **46**; inject **21**; `@Suppress("TooManyFunctions", "LargeClass")` (снять в 14a / 15).
+- `OrdersUiState.kt`: **125** строк; Search-поля 13 → **0**.
+- `OrderSearchViewModel.kt`: **246** строк; 17 функций (`@Suppress`, reduce-задача в `dev`).
+- `OrderSearchState.kt`: **33** строки; 15 полей (13 плана + `statusMessage` / `isError`, M6 pre-existing P8).
+- `OrdersScreen.kt`: **376** строк (было 289) — +snackbar extract (3 composable).
+- `OrdersSearch.kt`: **288** (было 289); `OrdersPairTrading.kt`: **346** (было 353); `OrdersBrokerDialogs.kt`: **73** (было 69).
+
+**Новые файлы (11a–11b):** `presentation/util/InstrumentFormat.kt` (+тест); `domain/usecases/SearchInstrumentsUseCase.kt` (+тест); `presentation/screens/orders/OrderSearchViewModel.kt` + `OrderSearchState.kt` (+тест).
+
+**Отклонения от плана (новые, не P1–P11):**
+
+- **N1:** `OrderSearchViewModel` 16 → 17 функций (`+clearStatus` для snackbar) → 2c `@Suppress("TooManyFunctions")`, задача `### OrderSearchViewModel: reduce functions` в `dev` (`ab552f2`).
+- **N2:** `OrdersScreen` complexity 17 > 14 (после +`LaunchedEffect(searchState)` и split callbacks) → extract snackbar (3 composable), `@Suppress` не плодится. Первая попытка `OrdersScreenSnackbar` (70 строк) → `LongMethod` → split на `OrdersSnackbarEffects` (~45) + `OrdersSnackbarHost` (~30).
+- **N3:** дубль `LaunchedEffect(uiState.statusMessage)` (автоочистка через 5 с + показ snackbar) — pre-existing, перенесён 1:1 в `OrdersSnackbarEffects`, **не исправлен** (M6, отдельная задача).
+
+**Предстоит (12a–17):**
+
+| Шаг | Что |
+|---|---|
+| 12a | `OrderDialogsViewModel` + `OrderDialogsState` (6 полей) + тест (6 кейсов) — **следующий** |
+| 12b | UI-миграция Dialogs (`TradingBrokerDialog` → `dialogsVM`; Coord −Dialog-поля/методы) |
+| 13a | `RestoreOrderFormUseCase` (M2) + тест (4) |
+| 13b | `RefreshSelectedInstrumentsUseCase` (M2) + тест (4) |
+| 13c | `SelectPairedInstrumentUseCase` (M2, P10) + тест (4) |
+| 13d | `OrderFormViewModel` + `OrderFormState` (29 полей) + `syncPriceInterest` + тест |
+| 13e | UI-миграция Form (`formVM`, Form-callbacks, `formState.*`) |
+| 14a | Coord cleanup: dead code (`onAccountSelected`, `retryLoadAccounts`), fallback fetch P2, unused inject |
+| 14b | `OrdersUiState` → `OrdersCoordState` (7 полей, `tradingStatuses` passthrough P1) |
+| 15 | Cleanup: `@Suppress` снять, unused imports |
+| 16 | Live-test полный (save счёт → force-stop → карточка с per-card accountId; переключение без перепоиска; покупка на правильный счёт; реактивность sheet) |
+| 17 | `docs(roadmap): mark OrdersViewModel split done` |
+
+**12a — детально (для другого ассистента):**
+
+- **Файлы:** `OrderDialogsViewModel.kt`, `OrderDialogsState.kt`, `OrderDialogsViewModelTest.kt`.
+- **State (6):** `showBrokerDialog`, `dialogInstrumentTicker`, `selectedBroker`, `selectedAccountIdDialog`, `dialogAccounts`, `swipeResetTrigger`.
+- **Inject:** `LoadCardAccountsUseCase`, `SaveCardSettingsUseCase`, `CardsRepository`, `AccountSelectionRepository`, `SandboxPreferencesRepository`, `BrokerRegistry`, `Logger`.
+- **`openBrokerDialog(ticker)`:** `existingCard = cardsRepository.identities.first().find { it.ticker == ticker }` (**не Coord**); `savedAccountId = existingCard?.accountId ?: accountSelectionRepository.selected(TINVEST).first()`; `loadCardAccountsUseCase.execute(broker, sandbox, savedAccountId)` → update (showBrokerDialog / dialogInstrumentTicker / selectedBroker / selectedAccountIdDialog / dialogAccounts).
+- **`closeBrokerDialog` / `onBrokerSelected` / `onAccountSelectedDialog`** — 1:1.
+- **`saveBrokerSettings`:** `saveCardSettingsUseCase.execute(ticker, broker, accountId)` + update (showBrokerDialog / dialogInstrumentTicker / swipeResetTrigger). **Без** `startPositionUpdates` / `refreshLastSelectedInstruments` (Coord на A3 / A4-b-1).
+- **`getAvailableBrokerNames`** — passthrough `BrokerRegistry`.
+- **`loadDialogAccounts`** (private).
+- **Тест (6):** open success / open failure / close / onBrokerSelected / save success / save failure.
+
+**Риски 12a:** `swipeResetTrigger` — Coord/UI читает для `resetSwipe`; после 12b — из `dialogsState`. `getAvailableBrokerNames` — 3 VM (Search / Dialogs / Coord), в 12a только Dialogs. `onAccountSelected` в Coord — dead code (14a).
+
 **Открытые вопросы:** —
 
 
