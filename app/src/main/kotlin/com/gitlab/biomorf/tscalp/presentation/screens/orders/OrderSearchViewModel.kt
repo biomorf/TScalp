@@ -33,7 +33,7 @@ import javax.inject.Inject
  * (`searchQuery = displayName`, results = [], isSearchActive = false).
  * Form-триггер (`formVM.onInstrumentSelected`) — UI (P4).
  *
- * **2c (clean-audit M2, 2026-11-07):** 16 функций = 2 симметричных
+ * **2c (clean-audit M2, 2026-11-07):** 17 функций = 2 симметричных
  * search-флоу (search / pairSearch) x 8. Split на 2 VM = +1 VM
  * (не 4-VM плана) + cross-VM через selectedBroker (M5).
  * Группировка (sealed SearchDialogAction) - хуже читаемость.
@@ -239,4 +239,8 @@ class OrderSearchViewModel
         }
 
         fun getAvailableBrokerNames(): List<BrokerName> = brokerRegistry.getAvailableBrokerNames()
+
+        fun clearStatus() {
+            _state.update { it.copy(statusMessage = null, isError = false) }
+        }
     }

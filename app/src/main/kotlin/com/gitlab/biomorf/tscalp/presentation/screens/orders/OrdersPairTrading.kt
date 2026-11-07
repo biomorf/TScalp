@@ -34,6 +34,7 @@ private const val PRICE_FIELDS_ANIMATION_MS = 200
 @Composable
 internal fun OrdersPairSection(
     uiState: OrdersUiState,
+    searchState: OrderSearchState,
     scrollState: ScrollState,
     scope: CoroutineScope,
     onPairSearchQueryChanged: (String) -> Unit,
@@ -65,17 +66,17 @@ internal fun OrdersPairSection(
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
-                    query = uiState.pairSearchQuery,
+                    query = searchState.pairSearchQuery,
                     onQueryChanged = onPairSearchQueryChanged,
-                    isSearching = uiState.isPairSearching,
-                    searchResults = uiState.pairSearchResults,
+                    isSearching = searchState.isPairSearching,
+                    searchResults = searchState.pairSearchResults,
                     onInstrumentSelected = onPairedInstrumentSelected,
                     onClear = onClearPairSearch,
                     recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                     tradingStatuses = uiState.tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
-                if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
+                if (searchState.pairSearchQuery.length >= 2 && !searchState.isPairSearching) {
                     IconButton(onClick = onRefreshPairSearch) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
                     }

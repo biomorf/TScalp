@@ -20,9 +20,6 @@ data class OrdersUiState(
     val isError: Boolean = false,
     val isApiInitialized: Boolean = false,
     val confirmOrdersEnabled: Boolean = true,
-    val searchQuery: String = "",
-    val searchResults: List<Instrument> = emptyList(),
-    val isSearching: Boolean = false,
     val selectedInstrument: Instrument? = null,
     val selectedTicker: String? = selectedInstrument?.ticker,
     val currentPrice: Double? = null,
@@ -30,7 +27,6 @@ data class OrdersUiState(
     val isPriceLoading: Boolean = false,
     val portfolioPositions: List<Position> = emptyList(),
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),
-    val isSearchActive: Boolean = false, // <-- для управления SearchBar
     // val orderType: BrokerOrderType = BrokerOrderType.MARKET,   // тип заявки (рыночная/лимитная)
     val limitPrice: String = "", // цена для лимитной заявки
     val selectedPriceChangePercent: Double? = null, // изменение цены выбранного инструмента
@@ -40,16 +36,11 @@ data class OrdersUiState(
     val selectedBroker: BrokerName = BrokerName.TINVEST, // выбранный брокер в диалоге
     val selectedAccountIdDialog: String? = null, // выбранный счёт в диалоге
     val dialogAccounts: List<BrokerAccount> = emptyList(), // счета для диалога
-    val searchBroker: BrokerName = BrokerName.TINVEST, // брокер для основного поиска
     // Парная торговля
     val pairTradingEnabled: Boolean = false,
-    val pairSearchQuery: String = "", // запрос второго поиска
-    val pairSearchResults: List<Instrument> = emptyList(), // результаты второго поиска
-    val isPairSearching: Boolean = false, // индикатор загрузки второго поиска
     val pairedInstrument: Instrument? = null, // выбранный парный инструмент
     val pairedMultiplier: String = "1", // множитель (по умолчанию 10)
     val swipeResetTrigger: Boolean = false,
-    val pairSearchBroker: BrokerName = BrokerName.TINVEST, // брокер для парного поиска
     val currentPointValue: Double? = null,
     val pairedPointValue: Double? = null,
     // M008: pairExecPrice / pairedOrderType — вычисляются в VM
@@ -63,10 +54,6 @@ data class OrdersUiState(
     val expireDate: String? = null,
     // M012: диалоги выбора брокера для поиска (не путать с showBrokerDialog
     // — тот для выбора счёта при торговле).
-    val showSearchBrokerDialog: Boolean = false,
-    val selectedSearchBroker: BrokerName = BrokerName.TINVEST,
-    val showPairSearchBrokerDialog: Boolean = false,
-    val selectedPairSearchBroker: BrokerName = BrokerName.TINVEST,
     // M009: диалог подтверждения заявки + направление pending-заявки.
     // Переживает config change (в отличие от remember { mutableStateOf } в Screen).
     val showConfirmDialog: Boolean = false,

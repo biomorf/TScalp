@@ -12,7 +12,6 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
@@ -51,7 +50,6 @@ import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,7 +70,6 @@ class OrdersViewModel
         private val marketDataRepository: MarketDataRepository,
         private val portfolioRepository: PortfolioRepository,
         private val instrumentRepo: InstrumentRepository,
-        private val searchCache: SearchCacheRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val tradingStateRepository: TradingStateRepository,
@@ -94,8 +91,6 @@ class OrdersViewModel
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
         val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
-        private var searchJob: Job? = null
-        private var pairSearchJob: Job? = null
         private var positionStreamJob: Job? = null
 
         companion object {
@@ -349,62 +344,11 @@ class OrdersViewModel
             }
         }
 
-        fun onSearchQueryChanged(query: String) {
-            _uiState.update { it.copy(searchQuery = query, selectedInstrument = null, ticker = "") }
-            searchJob?.cancel()
-            if (query.length >= 2) {
-                searchJob =
-                    viewModelScope.launch {
-                        try {
-                            delay(500)
-                            _uiState.update { it.copy(isSearching = true) }
-                            when (val result = searchCache.search(_uiState.value.searchBroker, query)) {
-                                is AppResult.Success -> {
-                                    val results = result.data
-                                    // Обновляем статусы доступности для найденных инструментов
-                                    if (results.isNotEmpty()) {
-                                        launch {
-                                            updateTradingStatuses(results.map { it.tscalpInstrumentId })
-                                        }
-                                    }
-                                    _uiState.update { it.copy(searchResults = results, isSearching = false) }
-                                }
-                                is AppResult.Failure -> {
-                                    _uiState.update {
-                                        it.copy(
-                                            searchResults = emptyList(),
-                                            isSearching = false,
-                                            statusMessage = "Ошибка поиска: ${result.error.message}",
-                                            isError = true,
-                                        )
-                                    }
-                                }
-                            }
-                        } catch (ce: kotlinx.coroutines.CancellationException) {
-                            _uiState.update { it.copy(isSearching = false) }
-                        } catch (e: Exception) {
-                            _uiState.update {
-                                it.copy(
-                                    searchResults = emptyList(),
-                                    isSearching = false,
-                                    statusMessage = "Ошибка поиска: ${e.message}",
-                                    isError = true,
-                                )
-                            }
-                        }
-                    }
-            } else {
-                _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
-            }
-        }
-
         fun onInstrumentSelected(instrument: Instrument) {
             _uiState.update {
                 it.copy(
                     selectedInstrument = instrument,
                     ticker = instrument.ticker,
-                    searchQuery = "${instrument.ticker} - ${instrument.name}",
-                    searchResults = emptyList(),
                 )
             }
             viewModelScope.launch {
@@ -447,23 +391,11 @@ class OrdersViewModel
                 it.copy(
                     selectedInstrument = null,
                     ticker = "",
-                    searchQuery = "",
                     currentPrice = null,
                     isPriceLoading = false,
                 )
             }
             syncPriceInterest()
-        }
-
-        fun setSearchActive(active: Boolean) {
-            _uiState.update { it.copy(isSearchActive = active) }
-            if (active) {
-                _uiState.update { it.copy(searchResults = emptyList(), searchQuery = "") }
-            }
-        }
-
-        fun clearSearch() {
-            _uiState.update { it.copy(searchQuery = "", searchResults = emptyList(), selectedInstrument = null, ticker = "", currentPrice = null, isPriceLoading = false, isSearchActive = false) }
         }
 
         fun onQuantityChanged(quantity: String) {
@@ -870,8 +802,6 @@ class OrdersViewModel
                         pairCurrentPrice = null,
                         pairedInstrument = null,
                         pairedMultiplier = "10",
-                        pairSearchQuery = "",
-                        pairSearchResults = emptyList(),
                     )
                 }
             }
@@ -880,57 +810,8 @@ class OrdersViewModel
             updatePairExecDetails()
         }
 
-        fun onPairSearchQueryChanged(query: String) {
-            _uiState.update { it.copy(pairSearchQuery = query) }
-            pairSearchJob?.cancel()
-            if (query.length >= 2) {
-                pairSearchJob =
-                    viewModelScope.launch {
-                        delay(500)
-                        _uiState.update { it.copy(isPairSearching = true) }
-                        try {
-                            when (val result = searchCache.search(_uiState.value.pairSearchBroker, query)) {
-                                is AppResult.Success -> {
-                                    val results = result.data
-                                    // Обновляем статусы доступности для найденных инструментов
-                                    if (results.isNotEmpty()) {
-                                        launch {
-                                            updateTradingStatuses(results.map { it.tscalpInstrumentId })
-                                        }
-                                    }
-                                    _uiState.update { it.copy(pairSearchResults = results, isPairSearching = false) }
-                                }
-                                is AppResult.Failure -> {
-                                    _uiState.update {
-                                        it.copy(
-                                            pairSearchResults = emptyList(),
-                                            isPairSearching = false,
-                                            statusMessage = "Ошибка поиска: ${result.error.message}",
-                                            isError = true,
-                                        )
-                                    }
-                                }
-                            }
-                        } catch (ce: CancellationException) {
-                            _uiState.update { it.copy(isPairSearching = false) }
-                        } catch (e: Exception) {
-                            _uiState.update {
-                                it.copy(
-                                    pairSearchResults = emptyList(),
-                                    isPairSearching = false,
-                                    statusMessage = "Ошибка поиска: ${e.message}",
-                                    isError = true,
-                                )
-                            }
-                        }
-                    }
-            } else {
-                _uiState.update { it.copy(pairSearchResults = emptyList(), isPairSearching = false) }
-            }
-        }
-
         fun onPairedInstrumentSelected(instrument: Instrument) {
-            _uiState.update { it.copy(pairedInstrument = instrument, pairSearchQuery = "${instrument.ticker} - ${instrument.name}", pairSearchResults = emptyList()) }
+            _uiState.update { it.copy(pairedInstrument = instrument) }
             syncPriceInterest() // обновляем интерес к ценам обоих инструментов
             viewModelScope.launch {
                 val price =
@@ -957,8 +838,8 @@ class OrdersViewModel
             }
         }
 
-        fun clearPairSearch() {
-            _uiState.update { it.copy(pairSearchQuery = "", pairSearchResults = emptyList(), pairedInstrument = null) }
+        fun clearPairedInstrument() {
+            _uiState.update { it.copy(pairedInstrument = null) }
             syncPriceInterest()
             updatePairExecDetails()
         }
@@ -1139,46 +1020,6 @@ class OrdersViewModel
                 state.copy(portfolioPositions = positions)
             }
             refreshLastSelectedInstruments()
-        }
-
-        fun openSearchBrokerSettings() {
-            _uiState.update { it.copy(showSearchBrokerDialog = true) }
-        }
-
-        fun openPairSearchBrokerSettings() {
-            _uiState.update { it.copy(showPairSearchBrokerDialog = true) }
-        }
-
-        fun saveSearchBrokerSettings(broker: BrokerName) {
-            _uiState.update { it.copy(selectedSearchBroker = broker, showSearchBrokerDialog = false) }
-        }
-
-        fun savePairSearchBrokerSettings(broker: BrokerName) {
-            _uiState.update { it.copy(selectedPairSearchBroker = broker, showPairSearchBrokerDialog = false) }
-        }
-
-        fun dismissSearchBrokerDialog() {
-            _uiState.update { it.copy(showSearchBrokerDialog = false) }
-        }
-
-        fun dismissPairSearchBrokerDialog() {
-            _uiState.update { it.copy(showPairSearchBrokerDialog = false) }
-        }
-
-        fun refreshSearch() {
-            val state = _uiState.value
-            if (state.searchQuery.length >= 2) {
-                searchCache.invalidate(state.searchBroker, state.searchQuery)
-                onSearchQueryChanged(state.searchQuery)
-            }
-        }
-
-        fun refreshPairSearch() {
-            val state = _uiState.value
-            if (state.pairSearchQuery.length >= 2) {
-                searchCache.invalidate(state.pairSearchBroker, state.pairSearchQuery)
-                onPairSearchQueryChanged(state.pairSearchQuery)
-            }
         }
 
         private fun updateTradeDetails() {

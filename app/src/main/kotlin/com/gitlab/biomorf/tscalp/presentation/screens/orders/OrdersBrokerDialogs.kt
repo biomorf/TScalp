@@ -33,14 +33,14 @@ internal fun TradingBrokerDialog(
 @Composable
 internal fun SearchBrokerDialog(
     availableBrokers: List<BrokerName>,
-    uiState: OrdersUiState,
+    searchState: OrderSearchState,
     onBrokerSelected: (BrokerName) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    if (!uiState.showSearchBrokerDialog) return
+    if (!searchState.showSearchBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = uiState.selectedSearchBroker,
+        selectedBroker = searchState.selectedSearchBroker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,
@@ -54,14 +54,14 @@ internal fun SearchBrokerDialog(
 @Composable
 internal fun PairSearchBrokerDialog(
     availableBrokers: List<BrokerName>,
-    uiState: OrdersUiState,
+    searchState: OrderSearchState,
     onBrokerSelected: (BrokerName) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    if (!uiState.showPairSearchBrokerDialog) return
+    if (!searchState.showPairSearchBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = uiState.selectedPairSearchBroker,
+        selectedBroker = searchState.selectedPairSearchBroker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,

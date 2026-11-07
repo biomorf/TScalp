@@ -25,6 +25,7 @@ import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 @Composable
 internal fun OrdersInstrumentSection(
     uiState: OrdersUiState,
+    searchState: OrderSearchState,
     onSearchQueryChanged: (String) -> Unit,
     onInstrumentSelected: (Instrument) -> Unit,
     onClearSearch: () -> Unit,
@@ -37,17 +38,17 @@ internal fun OrdersInstrumentSection(
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
-                    query = uiState.searchQuery,
+                    query = searchState.searchQuery,
                     onQueryChanged = onSearchQueryChanged,
-                    isSearching = uiState.isSearching,
-                    searchResults = uiState.searchResults,
+                    isSearching = searchState.isSearching,
+                    searchResults = searchState.searchResults,
                     onInstrumentSelected = onInstrumentSelected,
                     onClear = onClearSearch,
                     recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
                     tradingStatuses = uiState.tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
-                if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
+                if (searchState.searchQuery.length >= 2 && !searchState.isSearching) {
                     IconButton(onClick = onRefreshSearch) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
                     }

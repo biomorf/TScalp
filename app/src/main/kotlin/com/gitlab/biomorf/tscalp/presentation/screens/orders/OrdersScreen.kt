@@ -51,18 +51,15 @@ private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
 fun OrdersScreen() {
     val viewModel: OrdersViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
+    // orchestrates user-intent across 2 VMs (P4): search + form-trigger
+    // split (searchVM.onSearchResultSelected + coordVM.onInstrumentSelected).
+    val searchViewModel: OrderSearchViewModel = hiltViewModel()
+    val searchState by searchViewModel.state.collectAsState()
     val focusManager = LocalFocusManager.current
 
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showOrdersListDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(uiState.statusMessage) {
-        if (uiState.statusMessage != null && !uiState.isError) {
-            kotlinx.coroutines.delay(5000)
-            viewModel.clearStatus()
-        }
-    }
 
     LaunchedEffect(Unit) {
         viewModel.checkApiInitialization()
@@ -105,14 +102,19 @@ fun OrdersScreen() {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
                     OrdersInstrumentSection(
                         uiState = uiState,
-                        onSearchQueryChanged = { viewModel.onSearchQueryChanged(it) },
+                        searchState = searchState,
+                        onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
                         onInstrumentSelected = {
+                            searchViewModel.onSearchResultSelected(it)
                             viewModel.onInstrumentSelected(it)
                             focusManager.clearFocus()
                         },
-                        onClearSearch = { viewModel.clearSearch() },
-                        onRefreshSearch = { viewModel.refreshSearch() },
-                        onOpenSearchSettings = { viewModel.openSearchBrokerSettings() },
+                        onClearSearch = {
+                            searchViewModel.clearSearchQuery()
+                            viewModel.clearSelectedInstrument()
+                        },
+                        onRefreshSearch = { searchViewModel.refreshSearch() },
+                        onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
                         onClearSelected = { viewModel.clearSelectedInstrument() },
                         onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
                     )
@@ -153,18 +155,23 @@ fun OrdersScreen() {
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
                     OrdersPairSection(
                         uiState = uiState,
+                        searchState = searchState,
                         scrollState = scrollState,
                         scope = scope,
-                        onPairSearchQueryChanged = { viewModel.onPairSearchQueryChanged(it) },
+                        onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },
                         onPairedInstrumentSelected = {
+                            searchViewModel.onPairedSearchResultSelected(it)
                             viewModel.onPairedInstrumentSelected(it)
                             focusManager.clearFocus()
                         },
-                        onClearPairSearch = { viewModel.clearPairSearch() },
-                        onRefreshPairSearch = { viewModel.refreshPairSearch() },
-                        onOpenPairSearchBrokerSettings = { viewModel.openPairSearchBrokerSettings() },
+                        onClearPairSearch = { searchViewModel.clearPairSearchQuery() },
+                        onRefreshPairSearch = { searchViewModel.refreshPairSearch() },
+                        onOpenPairSearchBrokerSettings = { searchViewModel.openPairSearchBrokerSettings() },
                         onPairTradingEnabledChanged = { viewModel.setPairTradingEnabled(it) },
-                        onClearPairedInstrument = { viewModel.clearPairSearch() },
+                        onClearPairedInstrument = {
+                            searchViewModel.clearPairSearchQuery()
+                            viewModel.clearPairedInstrument()
+                        },
                         onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
                         onPairedMultiplierChanged = { viewModel.onPairedMultiplierChanged(it) },
                     )
@@ -187,56 +194,14 @@ fun OrdersScreen() {
             )
         }
 
-        // Снекбар поверх всего
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(8.dp),
-        ) { data ->
-            Snackbar(
-                containerColor =
-                    if (uiState.isError) {
-                        MaterialTheme.colorScheme.errorContainer
-                    } else {
-                        MaterialTheme.colorScheme.tertiaryContainer
-                    },
-                contentColor =
-                    if (uiState.isError) {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    } else {
-                        MaterialTheme.colorScheme.onTertiaryContainer
-                    },
-                action = {
-                    val label = data.visuals.actionLabel
-                    if (label != null) {
-                        TextButton(onClick = { data.dismiss() }) {
-                            Text(label)
-                        }
-                    }
-                },
-            ) {
-                Text(data.visuals.message)
-            }
-        }
-    }
-
-    // ==================== ДИАЛОГИ ====================
-    LaunchedEffect(uiState.statusMessage) {
-        uiState.statusMessage?.let { message ->
-            val visuals =
-                object : SnackbarVisuals {
-                    override val message: String = message
-                    override val actionLabel: String? = if (uiState.isError) "OK" else null
-                    override val withDismissAction: Boolean = false
-                    override val duration: SnackbarDuration =
-                        if (uiState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
-                }
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(visuals)
-            viewModel.clearStatus()
-        }
+        // Snackbar (extracted, Fase 2 11b)
+        OrdersScreenSnackbar(
+            snackbarHostState = snackbarHostState,
+            uiState = uiState,
+            searchState = searchState,
+            onClearStatus = { viewModel.clearStatus() },
+            onClearSearchStatus = { searchViewModel.clearStatus() },
+        )
     }
 
     TradingBrokerDialog(
@@ -255,22 +220,144 @@ fun OrdersScreen() {
     }
     // Диалог выбора брокера для основного поиска
     SearchBrokerDialog(
-        availableBrokers = viewModel.getAvailableBrokerNames(),
-        uiState = uiState,
-        onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
-        onDismiss = { viewModel.dismissSearchBrokerDialog() },
+        availableBrokers = searchViewModel.getAvailableBrokerNames(),
+        searchState = searchState,
+        onBrokerSelected = { searchViewModel.saveSearchBrokerSettings(it) },
+        onDismiss = { searchViewModel.dismissSearchBrokerDialog() },
     )
 
-// Диалог выбора брокера для парного поиска
+    // Диалог выбора брокера для парного поиска
     PairSearchBrokerDialog(
-        availableBrokers = viewModel.getAvailableBrokerNames(),
-        uiState = uiState,
-        onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
-        onDismiss = { viewModel.dismissPairSearchBrokerDialog() },
+        availableBrokers = searchViewModel.getAvailableBrokerNames(),
+        searchState = searchState,
+        onBrokerSelected = { searchViewModel.savePairSearchBrokerSettings(it) },
+        onDismiss = { searchViewModel.dismissPairSearchBrokerDialog() },
     )
 }
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+
+/**
+ * Snackbar для Orders-экрана (Fase 2, 11b): 2 эффекта + host.
+ * Разбито на [OrdersSnackbarEffects] + [OrdersSnackbarHost] (detekt
+ * LongMethod < 60, без @Suppress).
+ *
+ * `BoxScope` — для `Modifier.align(Alignment.BottomCenter)`.
+ */
+@Composable
+private fun BoxScope.OrdersScreenSnackbar(
+    snackbarHostState: SnackbarHostState,
+    uiState: OrdersUiState,
+    searchState: OrderSearchState,
+    onClearStatus: () -> Unit,
+    onClearSearchStatus: () -> Unit,
+) {
+    OrdersSnackbarEffects(
+        snackbarHostState = snackbarHostState,
+        uiState = uiState,
+        searchState = searchState,
+        onClearStatus = onClearStatus,
+        onClearSearchStatus = onClearSearchStatus,
+    )
+    OrdersSnackbarHost(snackbarHostState = snackbarHostState, isError = uiState.isError)
+}
+
+/**
+ * Эффекты Snackbar (Fase 2, 11b): автоочистка + показ.
+ *
+ * 2 × `LaunchedEffect(uiState.statusMessage)` (автоочистка через 5 с +
+ * показ, дубль pre-existing, 1:1) + `LaunchedEffect(searchState.statusMessage)`.
+ */
+@Composable
+private fun OrdersSnackbarEffects(
+    snackbarHostState: SnackbarHostState,
+    uiState: OrdersUiState,
+    searchState: OrderSearchState,
+    onClearStatus: () -> Unit,
+    onClearSearchStatus: () -> Unit,
+) {
+    LaunchedEffect(uiState.statusMessage) {
+        if (uiState.statusMessage != null && !uiState.isError) {
+            kotlinx.coroutines.delay(5000)
+            onClearStatus()
+        }
+    }
+
+    LaunchedEffect(searchState.statusMessage) {
+        searchState.statusMessage?.let { message ->
+            val visuals =
+                object : SnackbarVisuals {
+                    override val message: String = message
+                    override val actionLabel: String? = if (searchState.isError) "OK" else null
+                    override val withDismissAction: Boolean = false
+                    override val duration: SnackbarDuration =
+                        if (searchState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
+                }
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(visuals)
+            onClearSearchStatus()
+        }
+    }
+
+    LaunchedEffect(uiState.statusMessage) {
+        uiState.statusMessage?.let { message ->
+            val visuals =
+                object : SnackbarVisuals {
+                    override val message: String = message
+                    override val actionLabel: String? = if (uiState.isError) "OK" else null
+                    override val withDismissAction: Boolean = false
+                    override val duration: SnackbarDuration =
+                        if (uiState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
+                }
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(visuals)
+            onClearStatus()
+        }
+    }
+}
+
+/**
+ * Snackbar host (Fase 2, 11b): `SnackbarHost` + `Snackbar`.
+ * Контейнер / контент — error vs tertiary по [isError].
+ */
+@Composable
+private fun BoxScope.OrdersSnackbarHost(
+    snackbarHostState: SnackbarHostState,
+    isError: Boolean,
+) {
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier =
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(8.dp),
+    ) { data ->
+        Snackbar(
+            containerColor =
+                if (isError) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.tertiaryContainer
+                },
+            contentColor =
+                if (isError) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                },
+            action = {
+                val label = data.visuals.actionLabel
+                if (label != null) {
+                    TextButton(onClick = { data.dismiss() }) {
+                        Text(label)
+                    }
+                }
+            },
+        ) {
+            Text(data.visuals.message)
+        }
+    }
+}
 
 @Composable
 fun ApiNotInitializedCard(modifier: Modifier = Modifier) {
