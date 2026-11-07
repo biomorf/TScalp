@@ -40,6 +40,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.SaveCardSettingsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
@@ -82,6 +83,7 @@ class OrdersViewModel
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val selectInstrumentUseCase: SelectInstrumentUseCase,
+        private val saveCardSettingsUseCase: SaveCardSettingsUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
@@ -737,21 +739,40 @@ class OrdersViewModel
             val ticker = _uiState.value.dialogInstrumentTicker ?: return
             val broker = _uiState.value.selectedBroker
             val accountId = _uiState.value.selectedAccountIdDialog
-
-            _uiState.update { state ->
-                state.copy(
-                    lastSelectedInstruments =
-                        state.lastSelectedInstruments.map { card ->
-                            if (card.instrument.ticker == ticker) {
-                                card.copy(brokerName = broker, accountId = accountId)
-                            } else {
-                                card
-                            }
-                        },
-                    showBrokerDialog = false,
-                    dialogInstrumentTicker = null,
-                    swipeResetTrigger = !state.swipeResetTrigger,
-                )
+            viewModelScope.launch {
+                when (val result = saveCardSettingsUseCase.execute(ticker, broker, accountId)) {
+                    is AppResult.Success -> {
+                        _uiState.update { state ->
+                            state.copy(
+                                lastSelectedInstruments =
+                                    state.lastSelectedInstruments.map { card ->
+                                        if (card.instrument.ticker == ticker) {
+                                            card.copy(brokerName = broker, accountId = accountId)
+                                        } else {
+                                            card
+                                        }
+                                    },
+                                showBrokerDialog = false,
+                                dialogInstrumentTicker = null,
+                                swipeResetTrigger = !state.swipeResetTrigger,
+                            )
+                        }
+                    }
+                    is AppResult.Failure -> {
+                        logger.e(
+                            TAG,
+                            "saveBrokerSettings failed: ${result.error.message}",
+                            result.error.cause,
+                        )
+                        _uiState.update { state ->
+                            state.copy(
+                                showBrokerDialog = false,
+                                dialogInstrumentTicker = null,
+                                swipeResetTrigger = !state.swipeResetTrigger,
+                            )
+                        }
+                    }
+                }
             }
         }
 
