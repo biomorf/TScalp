@@ -1,0 +1,117 @@
+package com.gitlab.biomorf.tscalp.presentation.screens.orders
+
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
+import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
+
+/**
+ * Состояние формы заявки (Form-VM, шаг 13d-A).
+ *
+ * Вынесено из `OrdersUiState` (split `OrdersViewModel` на 4 VM,
+ * M013 / A2). Семантика полей 1:1, кроме 2c-фиксаций ниже.
+ *
+ * **2c (фиксация, 2026-11-07):**
+ * - `isFormValid` — pure-функция с параметром `isApiInitialized`
+ *   (Coord). **Правило Clean:** cross-VM (`isFormValid` зависит от
+ *   Form-полей + Coord-`isApiInitialized`). **Clean-альтернатива:**
+ *   параметр `isApiInitialized`; UI: `formState.isFormValid(
+ *   coordState.isApiInitialized)`. **Выгоды:** Coord — единственный
+ *   владелец инициализации (`loadAccounts` / `checkApiInitialization`);
+ *   Form не дублирует.
+ * - `activeCard` / `activePairedCard` — **не в State** (cross-VM:
+ *   Form-`selectedInstrument` + Coord-`lastSelectedInstruments`).
+ *   Становятся pure extension на Coord-State (13d-F):
+ *   `fun OrdersCoordState.activeCardFor(inst: Instrument?)`.
+ *   UI-composable вызывает. **Правило Clean:** cross-VM.
+ *   **Clean-альтернатива:** extension на Coord-State.
+ *   **Выгоды:** жёсткая централизация; Coord — владелец
+ *   `lastSelectedInstruments`; Form — `selectedInstrument`.
+ * - `saveState()` — в Form-VM (не в Coord): все callsites —
+ *   Form-методы; Coord-State после 13d-F не содержит Form-полей.
+ * - `isLoading` / `statusMessage` / `isError` — **Form-level**
+ *   (postOrder / confirm dialog); Coord-`isLoading` / `statusMessage` /
+ *   `isError` — loadAccounts / checkApiInitialization (отдельный state).
+ *   Это фактически разъезд M5 (два StateFlow в одной VM) по двум VM.
+ */
+data class OrderFormState(
+    // Instrument / price
+    val ticker: String = "",
+    val selectedInstrument: Instrument? = null,
+    val selectedTicker: String? = selectedInstrument?.ticker,
+    val currentPrice: Double? = null,
+    val pairCurrentPrice: Double? = null,
+    val isPriceLoading: Boolean = false,
+    val selectedPriceChangePercent: Double? = null,
+    val currentPointValue: Double? = null,
+    val pairedPointValue: Double? = null,
+    // Quantity / price / order type
+    val quantity: String = "",
+    val limitPrice: String = "",
+    val stopPrice: String = "",
+    val orderType: OrderTypeSelection = OrderTypeSelection.Market,
+    val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
+    val expireDate: String? = null,
+    // Pair
+    val pairTradingEnabled: Boolean = false,
+    val pairedInstrument: Instrument? = null,
+    val pairedMultiplier: String = "1",
+    val pairExecPrice: Double = 0.0,
+    val pairedOrderType: OrderTypeSelection? = null,
+    // Trade details
+    val executionPrice: Double = 0.0,
+    val costOverlay: String? = null,
+    val multiplierOverlay: String? = null,
+    val freeBalance: Double? = null,
+    // Confirm dialog (M009)
+    val showConfirmDialog: Boolean = false,
+    val pendingDirection: OrderDirection? = null,
+    // Status (Form-level; M6 pre-existing — отдельная задача)
+    val isLoading: Boolean = false,
+    val statusMessage: String? = null,
+    val isError: Boolean = false,
+) {
+    /**
+     * Валидность формы: 1:1 с `OrdersUiState.isFormValid`, кроме
+     * `isApiInitialized` — параметр (2c, см. KDoc класса).
+     */
+    fun isFormValid(isApiInitialized: Boolean): Boolean =
+        isBasicValid(isApiInitialized) &&
+            isLimitPriceValid() &&
+            isStopPriceValid() &&
+            isPairValid()
+
+    private fun isBasicValid(isApiInitialized: Boolean): Boolean =
+        selectedInstrument != null &&
+            quantity.toLongOrNull()?.let { it > 0 } == true &&
+            isApiInitialized
+
+    private fun isLimitPriceValid(): Boolean =
+        when (orderType) {
+            is OrderTypeSelection.Limit, is OrderTypeSelection.StopLimit ->
+                limitPrice.toDoubleOrNull() != null
+            else -> true
+        }
+
+    private fun isStopPriceValid(): Boolean =
+        when (orderType) {
+            is OrderTypeSelection.StopLoss,
+            is OrderTypeSelection.TakeProfit,
+            is OrderTypeSelection.StopLimit,
+            ->
+                stopPrice.toDoubleOrNull()?.let { it > 0 } == true
+            else -> true
+        }
+
+    private fun isPairValid(): Boolean =
+        if (pairTradingEnabled) {
+            pairedInstrument != null &&
+                pairedMultiplier.toDoubleOrNull()?.let { it > 0.0 } == true
+        } else {
+            true
+        }
+
+    val quantityAsLong: Long? get() = quantity.toLongOrNull()
+
+    fun clearStatus(): OrderFormState = copy(statusMessage = null, isError = false)
+}
