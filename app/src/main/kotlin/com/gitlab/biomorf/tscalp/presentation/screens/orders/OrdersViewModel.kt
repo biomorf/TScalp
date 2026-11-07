@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
@@ -76,6 +77,7 @@ class OrdersViewModel
         private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val tradingStateRepository: TradingStateRepository,
         private val accountSelectionRepository: AccountSelectionRepository,
+        private val cardsRepository: CardsRepository,
         private val brokerManager: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
@@ -141,6 +143,54 @@ class OrdersViewModel
                     if (idsToUpdate.isNotEmpty()) {
                         updateTradingStatuses(idsToUpdate)
                     }
+                }
+            }
+            // Восстановление lastSelectedInstruments из CardsRepository:
+            // identity (uid + broker + account) сохраняются между
+            // запусками; enrich (currentPrice, quantity, profit, …)
+            // выполняется здесь через getInstrument(uid) + refresh.
+            // Подписка также реагирует на saveBrokerSettings
+            // (brokerName / accountId per-card).
+            viewModelScope.launch {
+                logger.d(TAG, "subscribed to cards identities")
+                cardsRepository.identities.collect { identities ->
+                    val existing =
+                        _uiState.value.lastSelectedInstruments
+                            .associateBy { it.instrument.tscalpInstrumentId }
+                    val enriched =
+                        identities.mapNotNull { identity ->
+                            val existingCard = existing[identity.tscalpInstrumentId]
+                            if (existingCard != null) {
+                                existingCard.copy(
+                                    brokerName = identity.brokerName,
+                                    accountId = identity.accountId,
+                                )
+                            } else {
+                                val instrument =
+                                    instrumentRepo.getInstrument(identity.tscalpInstrumentId)
+                                if (instrument == null) {
+                                    logger.w(
+                                        TAG,
+                                        "cards: instrument not found: uid=${identity.tscalpInstrumentId}",
+                                    )
+                                    return@mapNotNull null
+                                }
+                                SelectedInstrumentInfo(
+                                    instrument = instrument,
+                                    currentPrice = null,
+                                    priceChangePercent = null,
+                                    quantity = 0L,
+                                    averagePrice = null,
+                                    profit = null,
+                                    profitPercent = null,
+                                    brokerName = identity.brokerName,
+                                    accountId = identity.accountId,
+                                )
+                            }
+                        }
+                    _uiState.update { it.copy(lastSelectedInstruments = enriched) }
+                    refreshLastSelectedInstruments()
+                    startPositionUpdates()
                 }
             }
         }
