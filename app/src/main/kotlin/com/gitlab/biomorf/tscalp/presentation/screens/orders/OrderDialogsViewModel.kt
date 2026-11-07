@@ -44,6 +44,18 @@ import javax.inject.Inject
  * **2c (фиксировано):** inject `SandboxPreferencesRepository`
  * (domain.api.repository) — не отклонение: интерфейс в domain-слое
  * после пакета B (H68).
+ *
+ * **M2 partial (clean-audit M013, L1):** `openBrokerDialog`
+ * содержит orchestration (find `existingCard` + `savedAccountId`
+ * fallback) — pre-existing M013, не новое (Coord делал то же
+ * до 12a). **Правило Clean:** M2 — business-orchestration в VM,
+ * не в UseCase. **Clean-альтернатива:** `OpenBrokerDialogUseCase
+ * (ticker): AppResult<CardAccountsResult>` — findCard +
+ * savedFallback + `LoadCardAccountsUseCase.execute(...)`.
+ * **Выгоды:** 1:1 с Coord (минимальный diff 12a);
+ * `loadCardAccountsUseCase` уже покрывает основную orchestration
+ * (Q10/Q11, ROADMAP 12a); снижение diff-риска в 12b.
+ * Чистая альтернатива — отдельная задача (эволюция M013).
  */
 @HiltViewModel
 class OrderDialogsViewModel
