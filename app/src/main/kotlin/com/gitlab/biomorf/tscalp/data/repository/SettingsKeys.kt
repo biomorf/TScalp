@@ -17,5 +17,7 @@ internal object SettingsKeys {
 
     fun defaultAccountKey(brokerName: BrokerName) = stringPreferencesKey("${brokerName.key}_default_account")
 
+    val ORDER_CARDS = stringPreferencesKey("order_cards")
+
     val CONFIRM_ORDERS_ENABLED = booleanPreferencesKey("confirm_orders_enabled")
 }

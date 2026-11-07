@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.di
 
 import com.gitlab.biomorf.tscalp.data.orchestrator.DebugConfig
 import com.gitlab.biomorf.tscalp.data.repository.AccountsRepositoryImpl
+import com.gitlab.biomorf.tscalp.data.repository.CardsRepositoryImpl
 import com.gitlab.biomorf.tscalp.data.repository.InstrumentRepositoryImpl
 import com.gitlab.biomorf.tscalp.data.repository.MarketDataRepositoryImpl
 import com.gitlab.biomorf.tscalp.data.repository.OrdersRepositoryImpl
@@ -10,6 +11,7 @@ import com.gitlab.biomorf.tscalp.data.repository.SearchCacheImpl
 import com.gitlab.biomorf.tscalp.data.repository.TradingStateRepositoryImpl
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
@@ -62,4 +64,8 @@ abstract class RepositoryBindingModule {
     @Binds
     @Singleton
     internal abstract fun bindDebugFlagsRepository(impl: DebugConfig): DebugFlagsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCardsRepository(impl: CardsRepositoryImpl): CardsRepository
 }
