@@ -81,14 +81,14 @@ class SelectInstrumentUseCase
             return try {
                 val actualInstrument =
                     instrumentRepository.getInstrument(instrument.tscalpInstrumentId) ?: instrument
-                val price = fetchPrice(instrument.tscalpInstrumentId)
-                val accountId = accountSelectionRepository.selected(BrokerName.TINVEST).first()
                 val currentCards = cardsRepository.identities.first()
                 val existingCard = currentCards.find { it.ticker == instrument.ticker }
-                val portfolioPos =
-                    findPortfolioPosition(instrument, existingCard?.accountId ?: accountId)
                 persistIdentity(instrument, currentCards, existingCard)
                 saveSelectedToSession(instrument.tscalpInstrumentId)
+                val price = fetchPrice(instrument.tscalpInstrumentId)
+                val accountId = accountSelectionRepository.selected(BrokerName.TINVEST).first()
+                val portfolioPos =
+                    findPortfolioPosition(instrument, existingCard?.accountId ?: accountId)
                 val card =
                     buildCard(
                         instrument = instrument,
