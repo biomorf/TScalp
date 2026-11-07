@@ -218,6 +218,41 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 
 **Сводный отчёт, 2026-11-06:** да.
 
+### ✅ M014. OrdersCoordState — `activeCard` / `activePairedCard` → pure extensions
+
+**Статус:** исправлено (2026-11-07, 13d-F, `9776172`).
+
+**Серьёзность:** низко.
+
+**Live тест:** -.
+
+**Описание:** `OrdersUiState.activeCard` / `.activePairedCard` — computed
+properties в state, неявно читающие `selectedInstrument` (Form) +
+`lastSelectedInstruments` (Coord). После split 13d эти поля живут в
+разных state; вычисление в Coord-state было бы cross-VM. 13d-F вынес их:
+`OrdersCoordState.activeCardFor(instrument)` / `.activePairedCardFor(instrument)`
+— pure extensions, принимающие `instrument` (Form) явным параметром.
+UI callsites (`OrdersSearch` / `OrdersPairTrading`) передают
+`formState.selectedInstrument` / `formState.pairedInstrument`.
+
+**Нарушенное правило:** M1 — state computed property неявно
+cross-references Form + Coord data; UI читает через state-обёртку вместо
+явного параметра.
+
+**Clean-альтернатива:** pure extension на `OrdersCoordState` с явным
+параметром `instrument` (2c fixation в 13d-F KDoc). Плюсы: нет скрытых
+cross-state reads; Coord-state immutable, без computed от другого state.
+Минусы: UI передаёт параметр явно (1 extra line per callsite).
+
+**MVVM-альтернатива:** то же — pure extension + parameter (standard
+Compose state read).
+
+**Что сделано:** `OrdersUiState.activeCard` / `.activePairedCard` (computed)
+→ `OrdersCoordState.activeCardFor` / `.activePairedCardFor` (extensions,
+13d-F). UI callsites в `OrdersSearch` / `OrdersPairTrading` обновлены.
+
+**Ссылка на задачу:** `### OrdersViewModel: разбить на несколько VM` (ROADMAP, шаг 13d-F).
+
 ### Исправленные (L1)
 
 ### ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
@@ -604,6 +639,23 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 **Выгоды:** —.
 
 **Ссылка на задачу:** `### ✅ OrdersViewModel: миграция на PortfolioSheet` (PR #89, `dev`, 2026-11-03).
+
+**Расширено (13d, 2026-11-07, `a793c38` + `9954877`):** postOrder
+orchestration fully removed from VM (13d-C-A1 + A2):
+
+- `PlaceOrderUseCase` (`a793c38`) — full orchestration: cards / account /
+  sandbox from domain repositories (`CardsRepository.identities`,
+  `AccountSelectionRepository.selected(TINVEST)`,
+  `SandboxPreferencesRepository.isSandboxMode()`); `postOrder` →
+  `PostOrderUseCase.execute`; `freeBalance` from
+  `PortfolioRepository.getBalanceResult`. No cross-VM parameters.
+- `OrderFormViewModel` (`9954877`) — `postOrder` / `buildPlaceOrderRequest` /
+  `handlePostOrderSuccess` / `handlePostOrderInsufficient` /
+  `handlePostOrderError` / `formatPostOrderSuccess`. VM thin:
+  `PlaceOrderUseCase.execute + _state.update`. `formatPostOrderSuccess`
+  (M1 formatting) — отдельная задача `### M001`.
+- `refreshLastSelectedInstruments` не вызывается из Form (Coord реактивен
+  через `PositionFlowManager.sheet`, 2c fixation).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
