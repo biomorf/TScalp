@@ -59,8 +59,8 @@ class OpenCardDialogUseCaseTest {
 
             val r = useCase.execute("SBER")
 
-            assertTrue(r is AppResult.Success)
-            val data = (r as AppResult.Success).data
+            assertTrue(r is OpenCardDialogOutcome.Success)
+            val data = (r as OpenCardDialogOutcome.Success).result
             assertEquals("SBER", data.ticker)
             assertEquals(BrokerName.TINVEST, data.broker)
             assertEquals(listOf(acc1, acc2), data.accounts)
@@ -80,8 +80,8 @@ class OpenCardDialogUseCaseTest {
 
             val r = useCase.execute("NEWTICKER")
 
-            assertTrue(r is AppResult.Success)
-            val data = (r as AppResult.Success).data
+            assertTrue(r is OpenCardDialogOutcome.Success)
+            val data = (r as OpenCardDialogOutcome.Success).result
             assertEquals("NEWTICKER", data.ticker)
             assertEquals(BrokerName.TINVEST, data.broker)
             assertEquals("acc-1", data.selectedAccountId)
@@ -100,8 +100,10 @@ class OpenCardDialogUseCaseTest {
 
             val r = useCase.execute("SBER")
 
-            assertTrue(r is AppResult.Failure)
-            assertTrue((r as AppResult.Failure).error is AppError.Network)
+            assertTrue(r is OpenCardDialogOutcome.Failure)
+            val failure = r as OpenCardDialogOutcome.Failure
+            assertEquals(BrokerName.TINVEST, failure.broker)
+            assertTrue(failure.error is AppError.Network)
         }
 
     @Test

@@ -26,6 +26,27 @@ data class OpenCardDialogResult(
 )
 
 /**
+ * Результат [OpenCardDialogUseCase.execute].
+ *
+ * **Почему не `AppResult`:** `Failure` должен нести [broker] — иначе
+ * VM не может выставить `selectedBroker` 1:1 (см. `openBrokerDialog`
+ * в `OrderDialogsViewModel`: `selectedBroker = existingCard?.brokerName
+ * ?: TINVEST` даже на failure). Если `broker` неизвестен (поток
+ * `identities` / `selected` бросил до резолва) — fallback `TINVEST`
+ * (совпадает с «нет карточки»).
+ */
+sealed interface OpenCardDialogOutcome {
+    data class Success(
+        val result: OpenCardDialogResult,
+    ) : OpenCardDialogOutcome
+
+    data class Failure(
+        val broker: BrokerName,
+        val error: AppError,
+    ) : OpenCardDialogOutcome
+}
+
+/**
  * Открытие диалога настроек карточки (брокер + счёт) — clean-audit
  * **M015** (open, M2 partial). Вынесено из
  * `OrderDialogsViewModel.openBrokerDialog` (findCard + selected
@@ -41,9 +62,12 @@ data class OpenCardDialogResult(
  * **Не путать с `loadDialogAccounts` (VM):** тот — thin delegate
  * на `LoadCardAccountsUseCase` (M2-fixed in 12a, не M2).
  *
- * **Failure из [LoadCardAccountsUseCase]** — passthrough
- * `AppResult.Failure`; VM разбирает 1:1 (accounts = empty,
- * selectedAccountId = null).
+ * **Failure из [LoadCardAccountsUseCase]** — `OpenCardDialogOutcome.Failure(broker, error)`,
+ * не `AppResult.Failure`: [broker] нужен VM для 1:1 `selectedBroker`
+ * (см. `OrderDialogsViewModel.openBrokerDialog`). VM разбирает failure
+ * 1:1: `showBrokerDialog = true`, `dialogInstrumentTicker = ticker`,
+ * `selectedBroker = outcome.broker`, `dialogAccounts = emptyList()`,
+ * `selectedAccountIdDialog = null`.
  *
  * Non-throwing (кроме `CancellationException` — rethrow).
  */
@@ -61,7 +85,7 @@ class OpenCardDialogUseCase
             private const val TAG = "OpenCardDialogUseCase"
         }
 
-        suspend fun execute(ticker: String): AppResult<OpenCardDialogResult> {
+        suspend fun execute(ticker: String): OpenCardDialogOutcome {
             logger.d(TAG, "execute: ticker=$ticker")
             return try {
                 val existingCard =
@@ -80,7 +104,7 @@ class OpenCardDialogUseCase
                         )
                 ) {
                     is AppResult.Success ->
-                        AppResult.Success(
+                        OpenCardDialogOutcome.Success(
                             OpenCardDialogResult(
                                 ticker = ticker,
                                 broker = broker,
@@ -95,15 +119,16 @@ class OpenCardDialogUseCase
                                 "broker=${broker.displayName}: ${result.error.message}",
                             result.error.cause,
                         )
-                        result
+                        OpenCardDialogOutcome.Failure(broker = broker, error = result.error)
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.e(TAG, "open card dialog exception: ticker=$ticker", e)
-                AppResult.Failure(
-                    AppError.Unknown("Ошибка открытия диалога карточки: ${e.message}", e),
+                OpenCardDialogOutcome.Failure(
+                    broker = BrokerName.TINVEST,
+                    error = AppError.Unknown("Ошибка открытия диалога карточки: ${e.message}", e),
                 )
             }
         }
