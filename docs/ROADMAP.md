@@ -249,6 +249,66 @@ ___
 
 
 
+### OrderSearchViewModel: reduce functions (снять @Suppress TooManyFunctions)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** в 11a-3 (split `OrdersViewModel`) `OrderSearchViewModel` получил 16 функций — 2 симметричных search-флоу (основной + парный) × 8 (query / refresh / clear / result / open-save-dismiss-брокер) + `getAvailableBrokerNames`. detekt `TooManyFunctions` (порог 11) — `@Suppress("TooManyFunctions")` с 2c-KDoc (коммит `eea0ec5`). Цель — снять `@Suppress`, не плодя cross-VM и M5.
+
+**Соответствие Clean:** отклонение по 2c (принято).
+
+**Нарушенное правило Clean:** SRP (1 VM — 2 флоу, M2-смежное: 2 бизнес-сценария в 1 VM).
+
+**Clean-альтернатива (split на 2 VM):** `OrderSearchViewModel` (8 методов: search / pair / refresh / clear / result × 2), `SearchBrokerSelectionViewModel` (6 методов: 2 диалога × open/save/dismiss) + `SearchBrokerRepository` (domain, StateFlow selectedSearchBroker / selectedPairSearchBroker). Search-VM читает из repo. **Плюсы:** оба VM ≤ 11, без `@Suppress`. **Минусы:** +1 VM, +1 repo, не 4-VM плана; cross-VM через `SearchBrokerRepository` (domain, не M5 — passthrough).
+
+**Clean-альтернатива (группировка):** 6 методов диалогов × 2 → 1 метод `onDialogAction(action: SearchDialogAction)` (sealed, 6 вариантов). **Плюсы:** 16 → 11, без +1 VM. **Минусы:** sealed-класс, читаемость хуже, UI-миграция сложнее.
+
+**Выгоды (2c):** 1 VM вместо 2, без +1 repo, без cross-VM; `@Suppress` — осознанный временный, KDoc на месте, задача закрывает.
+
+**Предусловия:** `### OrdersViewModel: разбить на несколько VM` (шаг 14b) закрыт — иначе конфликты в `OrdersScreen.kt` / `OrderSearchViewModel.kt`.
+
+**Файлы:**
+- `presentation/screens/orders/OrderSearchViewModel.kt` — split / группировка.
+- `presentation/screens/orders/OrderSearchState.kt` — split state (при split).
+- `presentation/screens/orders/OrdersScreen.kt` + `OrdersSearch.kt` + `OrdersPairTrading.kt` — UI-миграция.
+- `domain/api/repository/SearchBrokerRepository.kt` + `data/repository/SearchBrokerRepositoryImpl.kt` (при split) + `@Binds`.
+- Тесты: `OrderSearchViewModelTest`, `SearchBrokerSelectionViewModelTest` (при split) / обновить существующий (при группировке).
+
+**Шаги:**
+1. Решить: split (A) или группировка (B). A — если `SearchBrokerRepository` нужен и для других VM (Coord passthrough); B — если проще (без repo).
+2. Реализация A / B.
+3. Снять `@Suppress("TooManyFunctions")` + KDoc-2c (обновить).
+4. UI-миграция (3 файла).
+5. Тесты.
+6. Гейт (detekt без `@Suppress` — зелёный).
+
+**Тесты:** при A — `OrderSearchViewModelTest` (6, существующие) + `SearchBrokerSelectionViewModelTest` (4–5); при B — обновить существующий (6) + `onDialogAction` кейсы (3–4).
+
+**Референсы:** коммит `eea0ec5` (11a-3, `@Suppress` + 2c KDoc), `docs/clean-audit.md` M013.
+
+**Ограничения:**
+- Не плодить cross-VM через `_uiState` — только через domain (SearchBrokerRepository) или UI-оркестрацию (P4).
+- Не менять поведение search / pair search (1:1).
+- При A — `SearchBrokerRepository` не дублирует `SearchCacheRepository` (разные обязанности).
+
+**Критерий готовности:**
+- `@Suppress("TooManyFunctions")` снят.
+- Каждый VM ≤ 11 функций.
+- detekt зелёный без `@Suppress`.
+- Тесты покрывают search / pair / dialog-actions.
+- Live-test: поиск / парный поиск / смена брокера поиска.
+
+**Оценка:** A — ~3–4 ч; B — ~1.5–2 ч.
+
+**Зависимости:** `### OrdersViewModel: разбить на несколько VM` (14b).
+
+**Связано:** `### OrdersViewModel: разбить на несколько VM`, коммит `eea0ec5`.
+
+**Открытые вопросы:**
+- A или B? A — если `SearchBrokerRepository` переиспользуется (Coord passthrough); B — если проще. **Дефолт:** A (чище, без `@Suppress`).
+
 ### Orders: счёт из свойств карточки не применяется к акциям
 
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с одной бумагой).
