@@ -43,6 +43,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.SaveCardSettingsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
+import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
@@ -84,6 +85,7 @@ class OrdersViewModel
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val selectInstrumentUseCase: SelectInstrumentUseCase,
         private val saveCardSettingsUseCase: SaveCardSettingsUseCase,
+        private val updateTradingStatusesUseCase: UpdateTradingStatusesUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
@@ -912,7 +914,7 @@ class OrdersViewModel
 
         private suspend fun updateTradingStatuses(ids: List<String>) {
             if (ids.isEmpty()) return
-            when (val result = marketDataRepository.getTradingStatusesResult(BrokerName.TINVEST, ids)) {
+            when (val result = updateTradingStatusesUseCase.execute(BrokerName.TINVEST, ids)) {
                 is AppResult.Success -> {
                     _uiState.update { state ->
                         state.copy(tradingStatuses = state.tradingStatuses + result.data)
