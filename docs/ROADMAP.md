@@ -747,11 +747,9 @@ ___
 
 **Статус:** в работе.
 
-**Контекст:** `OrdersViewModel` после M013 — 1158 строк, 58 функций, 23 `viewModelScope.launch`, 8 `suspend fun`, 17 injected dependencies. Смешивает 4+ доменные области. `@Suppress("TooManyFunctions", "LargeClass")`. Архитектурный долг — SRP на уровне VM. **Не M2-orchestration** (orchestration вынесена в M013, `f282f36`).
+**Контекст:** `OrdersViewModel` после M013 / A4 — ~1200 строк, 57 функций, 23 `viewModelScope.launch`, 17 injected deps. Смешивает Search / Form / Dialogs / Coord + lifecycle. `@Suppress("TooManyFunctions", "LargeClass")`.
 
-**Цель:** 4 VM + domain-слой. Cross-VM = 0 (все связи через domain). `OrdersViewModel` (coord) ≤ 350 строк. Каждая VM — SRP.
-
-**Соответствие Clean:** соответствует (split по SRP + domain-state для shared — стандартный Clean).
+**Соответствие Clean:** соответствует (split по SRP; cross-VM — через domain или UI-оркестрацию, не через `_uiState` другого VM; M1/M2/M5/M7 в scope — 0, см. «Поправки диагностики»).
 
 **Нарушенное правило Clean:** —.
 
@@ -759,261 +757,162 @@ ___
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия:**
-- M013 orchestration вынесена (10 коммитов, merge `f282f36`, PR #104). `mark done` отложен по live-test 3–4 — **не блокер**.
-- M013 `**Подтверждение:**` не влияет (deferred closure, 5g.4).
+**Предусловия:** Фаза 1 (domain-prep) закрыта. A4 (per-card accountId, restore `lastSelectedInstruments`) закрыта. История — коммиты `61caac2`..`6a74867` (feature/orders-vm-split).
 
-**Уточнения 2026-11-07** (по расширенной диагностике перед стартом):
+**История плана.** Исходный план (4 VM, шаги 1–18) отменён 2026-11-07 после углублённой диагностики. Находки: `onInstrumentSelected` / `onPairedInstrumentSelected` — Form, не Search; `syncPriceInterest` — Form; `startPositionUpdates` — Coord/lifecycle; `refreshLastSelectedInstruments` — Coord (уже реактивно через A3); `saveBrokerSettings → startPositionUpdates` — дубль (A4-b-1); `onAccountSelected` / `retryLoadAccounts` — dead code; `portfolioPositions` — устаревает. Lifecycle-в-domain (manager подписка на state) — отменён (нарушает SRP, переворачивает M2, риск рекурсии).
 
-- **Пробел 1 — `TradingStateRepository.state`:** `load()` тоже эмитит в `state` (не только `save()`). Form вызывает `save()` в `clearSelectedInstrument` / `clearPairSearch` — иначе Coord не видит восстановленный/сброшенный snapshot и `syncPriceInterest` не срабатывает.
-- **Пробел 2 — `startPositionUpdates` fallback:** при пустом sheet Coord делает direct fetch и передаёт `seed: PortfolioSheet` в `positionFlowManager.start(..., seed = ...)` — по образцу `PortfolioViewModel.loadPortfolio` (`startPositionUpdates(keys, sandbox, seed = data.sheet)`). `portfolioPositions` в `OrdersUiState` **удаляется** (Form читает `PositionFlowManager.sheet`).
-- **Пробел 3 — `refreshLastSelectedInstruments`:** обновление на каждый sheet emit → карточки «Последние просмотренные» обновляют P&L real-time (не только после postOrder). **UI-санкция получена 2026-11-07.**
-- **Пробел 4 — `tradingStatuses`:** **не dead code** — читается в `OrdersSearch.kt` (строки 47, 82, 195, 208) и `OrdersPairTrading.kt` (75, 113). `TradingStatusRepository` (domain, in-memory `MutableStateFlow`) — нужен, UI читает из репозитория через VM.
+**Итог Фазы 1 (закрыта):** 5 usecase (`LoadPortfolioUseCase`, `CheckBrokerInitializationUseCase`, `LoadOrdersAccountsUseCase`, `CancelOrderUseCase`, `LoadCardAccountsUseCase`), 3 репозитория (`CardsRepository`, `AccountSelectionRepository`, `TradingStatusRepository`), `TradingStateRepository.state`. Коммиты `d32553d`..`61a74d3`. Live-test partial (5/7; 3–4 deferred, `NoneInitialized`-ветка — pre-existing `BrokerRegistry.anyInitialized`, `docs/ISSUES.md`).
 
-**Диагностика (2026-11-07, read-only):**
-
-Cross-coupling `_uiState.value` (11 мест) — за счёт общих полей формы и координатора:
-- Form читает `lastSelectedInstruments` / `portfolioPositions` / `selectedAccountId` (`buildOrderInput`, `updateTradeDetails`, `updatePairExecDetails`, `onInstrumentSelected`, `postOrder`).
-- Search пишет `selectedInstrument` / `lastSelectedInstruments` / `currentPrice` (`onInstrumentSelected`).
-- Dialogs пишет `lastSelectedInstruments` (`saveBrokerSettings`).
-- Coord `syncPriceInterest` читает `selectedInstrument` / `pairedInstrument` (form).
-- `tradingStatuses` — общий кэш (Search + Coord + Form).
-
-**Три сущности «счёт» — не переиспользуются:**
-
-| Сущность | Что | Кто использует |
-|---|---|---|
-| `AccountsRepository` | Список всех счетов брокера | Portfolio, Settings, `LoadCardAccountsUseCase` |
-| `AccountPreferencesRepository` | Default счёт из Настроек | **Только** open/close sandbox (отдельные кнопки) |
-| **`AccountSelectionRepository`** (new) | Выбранный счёт для формы Orders | Form, Coord, `openBrokerDialog` (fallback) |
-
-Портфель показывает **все** счета независимо от `AccountSelectionRepository`. Default из Настроек для формы **не используется** — это отдельная концепция «счёт по умолчанию» для open/close sandbox.
+**Актуальный план Фазы 2 (14 шагов, пересмотр 2026-11-07):**
 
 **Целевая архитектура — 4 VM:**
 
-```mermaid
-flowchart LR
-    Search[OrderSearchViewModel]
-    Form[OrderFormViewModel]
-    Dialogs[OrderDialogsViewModel]
-    Coord[OrdersViewModel<br/>coordinator]
+| VM | State (поля) | Cross-VM |
+|---|---|---|
+| `OrderSearchViewModel` | searchQuery, searchResults, isSearching, isSearchActive, searchBroker, pairSearchQuery, pairSearchResults, isPairSearching, pairSearchBroker, showSearchBrokerDialog, selectedSearchBroker, showPairSearchBrokerDialog, selectedPairSearchBroker (**13**) | — (UI оркестрирует user-action, P4) |
+| `OrderDialogsViewModel` | showBrokerDialog, dialogInstrumentTicker, selectedBroker, selectedAccountIdDialog, dialogAccounts, swipeResetTrigger (**6**) | → Coord: `CardsRepository.identities` (A4-b-1) |
+| `OrderFormViewModel` | ticker, quantity, limitPrice, stopPrice, orderType, expirationType, expireDate, pairTradingEnabled, pairedMultiplier, pairExecPrice, pairedOrderType, executionPrice, costOverlay, multiplierOverlay, selectedInstrument, pairedInstrument, currentPrice, pairCurrentPrice, currentPointValue, pairedPointValue, selectedPriceChangePercent, isPriceLoading, showConfirmDialog, pendingDirection, freeBalance, confirmOrdersEnabled, isLoading (Form), statusMessage (Form), isError (Form) (**29**) | → `SelectInstrumentUseCase`, `SelectPairedInstrumentUseCase`, `TradingStateRepository.state`, `PriceFlowManager.setInterest`, `CardsRepository`, `PositionFlowManager.sheet` |
+| `OrdersViewModel` (Coord) | accounts, selectedAccountId, isApiInitialized, lastSelectedInstruments, isLoading (Coord), statusMessage (Coord), isError (Coord) (**7**) + **passthrough** `tradingStatuses: StateFlow<Map> = tradingStatusRepository.statuses` | ← Dialogs: `identities`; passthrough `TradingStatusRepository.statuses` |
 
-    Cards[CardsRepository<br/>StateFlow, DataStore]
-    AccSel[AccountSelectionRepository<br/>StateFlow, DataStore]
-    TrState[TradingStateRepository<br/>+ state: StateFlow]
-    TrStatus[TradingStatusRepository<br/>StateFlow, in-memory]
+**Cross-VM связи — 5, все через domain или UI-оркестрацию (не через `_uiState`):**
 
-    PFM[PositionFlowManager<br/>sheet: StateFlow]
-    PriceFM[PriceFlowManager<br/>prices: SharedFlow]
+1. **Search → Form** (user-action, **UI оркестрирует**, P4 KDoc): `onSearchResultSelected` + `formVM.onInstrumentSelected`; `onPairedSearchResultSelected` + `formVM.onPairedInstrumentSelected`.
+2. **Dialogs → Coord** (domain): `saveBrokerSettings` → `SaveCardSettingsUseCase` → `CardsRepository.identities` → Coord подписан (A4-b-1).
+3. **Coord → Form** (data-flow, domain): `PositionFlowManager.sheet` — оба читают.
+4. **Search → UI** (data-flow, domain): Coord passthrough `TradingStatusRepository.statuses` (P1) — UI читает `coordVM.tradingStatuses`.
+5. **Form → Form** (data-flow, domain): `PriceFlowManager.setInterest(ORDERS, uids)` — Form-метод (private `syncPriceInterest`).
 
-    Search -->|SelectInstrumentUseCase| Cards
-    Search -->|UpdateTradingStatusesUseCase| TrStatus
-    Form -->|save| TrState
-    Form -->|read| Cards
-    Form -->|read| PFM
-    Form -->|read| PriceFM
-    Form -->|read| TrState
-    Form -->|read/write| AccSel
-    Dialogs -->|SaveCardSettingsUseCase| Cards
-    Dialogs -->|LoadCardAccountsUseCase| Dialogs
-    Coord -->|read| PFM
-    Coord -->|read| TrState
-    Coord -->|setInterest| PriceFM
-    Coord -->|read| TrStatus
-    Coord -->|read/write| Cards
-    Coord -->|read/write| AccSel
-```
+**Lifecycle — остаётся в VM (presentation-обязанность, не M2):**
+- `startPositionUpdates` / `stopPositionUpdates` (Coord) — `positionFlowManager.start` / `stop`.
+- `syncPriceInterest` (Form) — `priceFlowManager.setInterest`.
+- `onCleared` — Form: `clearInterest(ORDERS)`; Coord: `stop`.
 
-**Domain-prep (Фаза 1, ~8–10 ч) — 8 элементов:**
+**M2-фиксы (4 usecase, orchestration → UseCase):**
+- `SearchInstrumentsUseCase` (11a, P6): `searchCache.search(broker, query)` + `updateTradingStatuses(ids)` → `AppResult<List<Instrument>>`.
+- `RestoreOrderFormUseCase` (13a): `tradingStateRepository.load()` + `getInstrument(uid)` × 2 → `RestoredFormState`.
+- `RefreshSelectedInstrumentsUseCase` (13b): `sheet` + `identities` + enrich → `List<SelectedInstrumentInfo>`.
+- `SelectPairedInstrumentUseCase` (13c, P10): `tradingStateRepository.save(paired uid)` + `getLastPrices` → `AppResult<SelectPairedResult>`.
 
-1. **`CardsRepository`** (`domain/api/repository/CardsRepository.kt`):
-   - `val cards: StateFlow<List<SelectedInstrumentInfo>>`
-   - `suspend fun save(cards: List<SelectedInstrumentInfo>)`
-   - Реализация `CardsRepositoryImpl` в `data/repository/`, **DataStore (JSON)**. `@Binds` в `RepositoryBindingModule`.
-   - KDoc: «Последние карточки инструментов (per-card broker/account). Отдельно от `AccountSelectionRepository` (global selected для формы). Переживают перезапуск».
+**Поправки диагностики (2026-11-07):**
 
-2. **`AccountSelectionRepository`** (`domain/api/repository/AccountSelectionRepository.kt`):
-   - `val selected: StateFlow<String?>`
-   - `suspend fun select(accountId: String?)`
-   - Реализация — **DataStore** (ключ `<broker>_selected_order_account`).
-   - KDoc: «Выбранный пользователем счёт для выставления заявки (форма Orders). **Отдельная сущность от `AccountsRepository` (список всех счетов портфеля) и `AccountPreferencesRepository` (default счёт из Настроек, только для open/close sandbox)**. Портфель показывает все счета независимо от этого выбора».
+- **P1:** `tradingStatuses` — Coord **passthrough** (`val tradingStatuses: StateFlow<Map> = tradingStatusRepository.statuses`), не `_uiState`-copy (M5-free). Отдельный `TradingStatusViewModel` не нужен.
+- **P2:** `startPositionUpdates` — **без** fallback `fetchPositionsResult` (M2 уходит; `PositionFlowManager` шлёт первый polling snapshot; Form читает sheet через A4). `portfolioPositions` удаляется в 14b.
+- **P4:** UI-оркестрация user-action (`onClearSearch` → 2 VM) — **не M1**, KDoc в Composable (1 строка): «orchestrates user-intent across N VMs».
+- **P6:** `onSearchQueryChanged` → `SearchInstrumentsUseCase` (M2 уходит).
+- **P9:** `InstrumentFormat.displayName(): String = "$ticker - $name"` в `presentation/util/` — VM не строит строку (M1/M7 уходят).
+- **P10:** `onPairedInstrumentSelected` → `SelectPairedInstrumentUseCase` (M2 уходит, симметрия с `onInstrumentSelected`).
+- **P11 (2c-фиксация):** `buildOrderInput` собирает `PostOrderInput` из примитивов Form-state. **Правило Clean:** M1 (presentation собирает domain-модель). **Clean-альтернатива:** `BuildOrderInputUseCase(formState)` — domain→presentation (хуже), либо 20+ параметров (раздувание без выгоды). **Выгоды:** 1:1 с текущей сборкой, тривиальная (не orchestration), 1 место. KDoc в Form-VM.
+- **P7 / P8 — вне scope Фазы 2** (pre-existing, отдельные задачи): M001 (`formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` в Form-VM; `withCard` в UI) → `### M001: formatting в presentation` (ROADMAP). M6 (`statusMessage` через StateFlow без consume) → `### M6: one-shot events (StatusEvent)` (ROADMAP, новая).
 
-3. **`TradingStatusRepository`** (`domain/api/repository/TradingStatusRepository.kt`):
-   - `val statuses: StateFlow<Map<String, TradingAvailability>>`
-   - `suspend fun update(statuses: Map<String, TradingAvailability>)`
-   - In-memory (`MutableStateFlow`). KDoc: «Кэш trading availability по `tscalpInstrumentId`. Обновляется `UpdateTradingStatusesUseCase`».
+**Вне scope Фазы 2:**
+- **M001** — `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` (Form-VM, presentation-формат); `withCard` (UI-конвертация `SelectedInstrumentInfo` → `Position`, 2c `33dd378` «временно до 13/15» — переносится на M001).
+- **M6** — `statusMessage` StateFlow без consume (все VM).
 
-4. **`TradingStateRepository.state: StateFlow<TradingStateSnapshot?>`** (дополнение существующего интерфейса):
-   - `val state: StateFlow<TradingStateSnapshot?>`
-   - `TradingStateRepositoryImpl` — после `save` эмитит; при `init` — `null` (до первого `load`).
-   - Coord подписан на `state` → `syncPriceInterest`.
+**Dead code — удалить:** `onAccountSelected` (только определение), `retryLoadAccounts` (только определение).
 
-5. **`SelectedInstrumentInfo`** → перенос в `domain/models/SelectedInstrumentInfo.kt`. Поля не меняются. Import в `OrdersUiState.kt` — из нового пакета.
+**Дубль — убрать:** `saveBrokerSettings` (Dialogs) → `startPositionUpdates` / `refreshLastSelectedInstruments`; `postOrder success` → `refreshLastSelectedInstruments` (Coord уже реагирует через `identities` / sheet).
 
-6. **`SelectInstrumentUseCase`** (`domain/usecases/SelectInstrumentUseCase.kt`):
-   - `suspend fun execute(instrument: Instrument): AppResult<SelectedInstrumentInfo>`
-   - 1:1 из `OrdersViewModel.onInstrumentSelected`:
-     - `actualInstrument = instrumentRepo.getInstrument(uid) ?: instrument`
-     - `price = marketDataRepository.getLastPricesResult(listOf(uid))` (null на failure, log W)
-     - `portfolioPos = positionFlowManager.sheet.value.accounts[activeKey]?.positions?.find { ticker }`
-     - `existingCard = cardsRepository.cards.value.find { ticker }`
-     - `newCard = SelectedInstrumentInfo(...)` (brokerName/accountId — из existingCard, иначе TINVEST/null)
-     - `cards = (cards - ticker) + newCard` (в начало, take 5) → `cardsRepository.save(cards)`
-     - `tradingStateRepository.save(snapshot.copy(selectedTscalpInstrumentId = uid))`
-   - Возврат `SelectedInstrumentInfo` (для immediate UI в Search, опционально).
+**Порядок шагов (14, каждый — отдельный коммит, гейт, без push до PR):**
 
-7. **`SaveCardSettingsUseCase`** (`domain/usecases/SaveCardSettingsUseCase.kt`):
-   - `suspend fun execute(ticker: String, brokerName: BrokerName, accountId: String?)`
-   - `cards = cardsRepository.cards.value.map { if (ticker) card.copy(brokerName, accountId) else card }` → `save`.
+**11a — `InstrumentFormat` + `SearchInstrumentsUseCase` + `OrderSearchViewModel` + `OrderSearchState` + тест.**
+- `presentation/util/InstrumentFormat.kt` (P9): `fun Instrument.displayName(): String = "$ticker - $name"`.
+- `domain/usecases/SearchInstrumentsUseCase.kt` (P6): `execute(broker, query): AppResult<List<Instrument>>` — `searchCache.search` + `updateTradingStatusesUseCase.execute(TINVEST, ids)` + `tradingStatusRepository.update(result.data)`.
+- `OrderSearchViewModel.kt` + `OrderSearchState.kt` — 13 полей; inject: `SearchInstrumentsUseCase`, `SearchCacheRepository` (для invalidate), `BrokerRegistry`, `Logger`.
+- Методы: onSearchQueryChanged (debounce + usecase + state), onPairSearchQueryChanged, refreshSearch, refreshPairSearch, setSearchActive, clearSearchQuery, clearPairSearchQuery, openSearchBrokerSettings, openPairSearchBrokerSettings, saveSearchBrokerSettings, savePairSearchBrokerSettings, dismissSearchBrokerDialog, dismissPairSearchBrokerDialog, getAvailableBrokerNames, onSearchResultSelected, onPairedSearchResultSelected.
+- `onSearchQueryChanged` — **drop** `selectedInstrument = null, ticker = ""` (защитный код).
+- `onSearchResultSelected` — `searchQuery = inst.displayName()`, `searchResults = []`, `isSearchActive = false` (Form-триггер — отдельно `formVM.onInstrumentSelected`).
+- `clearSearchQuery` / `clearPairSearchQuery` — только search-поля.
+- Тест `OrderSearchViewModelTest` (5–6 кейсов: query ≥2 → usecase + state, query <2 → clear, refresh, save broker, failure).
 
-8. **`UpdateTradingStatusesUseCase`** (`domain/usecases/UpdateTradingStatusesUseCase.kt`):
-   - `suspend fun execute(brokerName: BrokerName, ids: List<String>)`
-   - `marketDataRepository.getTradingStatusesResult(brokerName, ids)` → `tradingStatusRepository.update(result.data)`.
+**11b — UI-миграция Search-части.**
+- `OrdersScreen.kt`: `hiltViewModel<OrderSearchViewModel>()`, `searchState by searchVM.state.collectAsState()`.
+- `OrdersSearch.kt`: `onSearchQueryChanged` → `searchVM.onSearchQueryChanged`; `onInstrumentSelected` → `searchVM.onSearchResultSelected(it); formVM.onInstrumentSelected(it)` (P4 KDoc на Composable).
+- `OrdersPairTrading.kt`: `onPairSearchQueryChanged` → `searchVM.onPairSearchQueryChanged`; `onPairedInstrumentSelected` → `searchVM.onPairedSearchResultSelected(it); formVM.onPairedInstrumentSelected(it)` (P4 KDoc).
+- `onClearSearch` → `searchVM.clearSearchQuery(); formVM.clearSelectedInstrument()` (P4 KDoc).
+- `onClearPairSearch` → `searchVM.clearPairSearchQuery(); formVM.clearPairedInstrument()` (P4 KDoc).
+- Search-callbacks (refresh / open / save / dismiss / getAvailableBrokerNames) → Search-VM.
+- `tradingStatuses` в UI — из Coord (`coordVM.tradingStatuses`).
+- Coord: удалить Search-поля/методы.
 
-**Split (Фаза 2, ~12–15 ч) — 4 VM:**
+**12a — `OrderDialogsViewModel` + `OrderDialogsState` + тест.**
+- Файлы: `OrderDialogsViewModel.kt`, `OrderDialogsState.kt`, `OrderDialogsViewModelTest.kt`.
+- Inject: `LoadCardAccountsUseCase`, `SaveCardSettingsUseCase`, `CardsRepository`, `AccountSelectionRepository`, `SandboxPreferencesRepository`, `BrokerRegistry`, `Logger`.
+- `openBrokerDialog(ticker)`: `existingCard = cardsRepository.identities.first().find { it.ticker == ticker }` (**не Coord**); `savedAccountId = existingCard?.accountId ?: accountSelectionRepository.selected(TINVEST).first()`.
+- `saveBrokerSettings`: `SaveCardSettingsUseCase` + `_uiState.update` (showBrokerDialog / dialogInstrumentTicker / swipeResetTrigger). **Без** `startPositionUpdates` / `refreshLastSelectedInstruments`.
 
-**`OrderSearchViewModel`** (Search):
+**12b — UI-миграция Dialogs.**
+- `OrdersScreen.kt`: `hiltViewModel<OrderDialogsViewModel>()`, `dialogsState by dialogsVM.state.collectAsState()`.
+- `TradingBrokerDialog` callsites — из Dialogs-VM.
+- Coord: удалить Dialog-поля/методы.
 
-- State: `searchQuery`, `searchResults`, `isSearching`, `isSearchActive`, `searchBroker`, `pairSearchQuery`, `pairSearchResults`, `isPairSearching`, `pairSearchBroker`, `showSearchBrokerDialog`, `selectedSearchBroker`, `showPairSearchBrokerDialog`, `selectedPairSearchBroker`.
-- Зависимости: `SearchCacheRepository`, `SelectInstrumentUseCase`, `UpdateTradingStatusesUseCase`.
-- Методы: `onSearchQueryChanged` (debounce 500ms, `searchCache.search(searchBroker, query)`, `updateTradingStatuses` после), `onInstrumentSelected(Instrument)` → `SelectInstrumentUseCase.execute`, `onPairSearchQueryChanged`, `refreshSearch`, `refreshPairSearch`, `setSearchActive`, `clearSearch`, `clearPairSearch`, `openSearchBrokerSettings`/`openPairSearchBrokerSettings`, `saveSearchBrokerSettings`/`savePairSearchBrokerSettings`, `dismissSearchBrokerDialog`/`dismissPairSearchBrokerDialog`.
-- **Парный инструмент:** `onPairedInstrumentSelected` — не здесь, в Form.
+**13a — `RestoreOrderFormUseCase` (M2-фикс).**
+- `domain/usecases/RestoreOrderFormUseCase.kt`: `execute(): AppResult<RestoredFormState>` — `tradingStateRepository.load()` + `getInstrument(uid)` × 2 + currentPointValue / pairedPointValue.
+- `RestoredFormState(selectedInstrument, pairedInstrument, pairTradingEnabled, quantity, pairedMultiplier, orderType, currentPointValue, pairedPointValue)`.
+- Тест 4 кейса (both null / only selected / both / getInstrument null).
 
-**`OrderDialogsViewModel`** (Dialogs):
+**13b — `RefreshSelectedInstrumentsUseCase` (M2-фикс).**
+- `domain/usecases/RefreshSelectedInstrumentsUseCase.kt`: `execute(sheet, identities): List<SelectedInstrumentInfo>` — enrich (currentPrice / quantity / profit / profitPercent).
+- Тест 4 кейса.
 
-- State: `showBrokerDialog`, `dialogInstrumentTicker`, `selectedBroker`, `selectedAccountIdDialog`, `dialogAccounts`, `swipeResetTrigger`.
-- Зависимости: `LoadCardAccountsUseCase`, `SaveCardSettingsUseCase`, `CardsRepository`, `AccountSelectionRepository`.
-- Методы: `openBrokerDialog(ticker)` → `LoadCardAccountsUseCase.execute(broker, sandbox, existingCard?.accountId ?: accSel.selected.value)`, `closeBrokerDialog`, `onBrokerSelected(broker)`, `onAccountSelectedDialog(accountId)`, `saveBrokerSettings` → `SaveCardSettingsUseCase.execute(ticker, broker, accountId)` + close, `loadDialogAccounts(broker)`.
+**13c — `SelectPairedInstrumentUseCase` (M2-фикс, P10).**
+- `domain/usecases/SelectPairedInstrumentUseCase.kt`: `execute(instrument): AppResult<SelectPairedResult>` — `tradingStateRepository.save(snapshot.copy(pairedTscalpInstrumentId = uid))` + `marketDataRepository.getLastPricesResult` → `(price, pointValue)`.
+- `SelectPairedResult(price: Double?, pointValue: Double)`.
+- Тест 4 кейса.
 
-**`OrderFormViewModel`** (Form):
+**13d — `OrderFormViewModel` + `OrderFormState` + `syncPriceInterest`.**
+- Файлы: `OrderFormViewModel.kt`, `OrderFormState.kt`, `OrderFormViewModelTest.kt`.
+- Inject: `SelectInstrumentUseCase`, `SelectPairedInstrumentUseCase`, `RestoreOrderFormUseCase`, `PostOrderUseCase`, `CalculateTradeDetailsUseCase`, `CalculatePairExecUseCase`, `TradingStateRepository`, `CardsRepository`, `AccountSelectionRepository`, `PositionFlowManager`, `PriceFlowManager`, `InstrumentRepository`, `MarketDataRepository`, `PortfolioRepository`, `SandboxPreferencesRepository`, `TradingPreferencesRepository`, `Logger`.
+- `init`: `confirmOrdersEnabledFlow.collect`, `priceFlowManager.prices.collect`, `positionFlowManager.sheet.collect` (позиции), `restoreOrderFormUseCase.execute()` → update.
+- `onInstrumentSelected(inst)` — `selectInstrumentUseCase.execute(inst)` + `_uiState.update` (selected/ticker/currentPrice/currentPointValue) + `syncPriceInterest`. **Без** `startPositionUpdates`.
+- `onPairedInstrumentSelected(inst)` — `selectPairedInstrumentUseCase.execute(inst)` + `_uiState.update` + `syncPriceInterest`.
+- `clearSelectedInstrument` / `clearPairedInstrument` — Form-only + `syncPriceInterest`.
+- `postOrder` / handlers / `formatPostOrderSuccess` (P7 — M001, остаётся) / `updateTradeDetails` / `updatePairExecDetails` / `formatCostOverlay` / `formatMultiplierOverlay` (P7 — M001) — private.
+- `buildOrderInput` — **2c-фиксация** (P11) в KDoc: «M1: presentation собирает domain `PostOrderInput`; альтернатива — UseCase с FormState (domain→presentation) или 20+ параметров; выгоды — 1:1, тривиально».
+- `syncPriceInterest` — private, `priceFlowManager.setInterest(PriceConsumer.ORDERS, uids)`.
+- `onCleared` — `priceFlowManager.clearInterest(ORDERS)`.
 
-- State: `ticker`, `quantity`, `orderType`, `limitPrice`, `stopPrice`, `expirationType`, `expireDate`, `pairTradingEnabled`, `pairedMultiplier`, `selectedInstrument`, `pairedInstrument`, `currentPrice`, `pairCurrentPrice`, `isPriceLoading`, `currentPointValue`, `pairedPointValue`, `executionPrice`, `costOverlay`, `multiplierOverlay`, `pairExecPrice`, `pairedOrderType`, `showConfirmDialog`, `pendingDirection`, `isLoading`, `statusMessage`, `isError`, `freeBalance`, `confirmOrdersEnabled`, `selectedPriceChangePercent`.
-- Computed: `isFormValid`, `quantityAsLong`, `clearStatus`.
-- Зависимости: `TradingStateRepository`, `PositionFlowManager`, `PriceFlowManager`, `CardsRepository`, `AccountSelectionRepository`, `CalculateTradeDetailsUseCase`, `CalculatePairExecUseCase`, `PostOrderUseCase`, `MarketDataRepository`, `InstrumentRepository`, `TradingPreferencesRepository`, `SandboxPreferencesRepository`, `PortfolioRepository`, `Logger`.
-- Методы (1:1): `onQuantityChanged`, `onOrderTypeChanged`, `onLimitPriceChanged`, `onStopPriceChanged`, `onPairedMultiplierChanged`, `setPairTradingEnabled`, `onBuyClick`, `onSellClick`, `onConfirmOrder`, `onDismissConfirmDialog`, `postOrder`, `buildOrderInput`, `handlePostOrderSuccess`, `handlePostOrderInsufficient`, `handlePostOrderError`, `formatPostOrderSuccess`, `updateTradeDetails`, `updatePairExecDetails`, `formatCostOverlay`, `formatMultiplierOverlay`, `onPairedInstrumentSelected`, `clearSelectedInstrument`, `clearPairSearch`, `saveState`, `restoreState`.
-- **init:** `restoreState()`, `tradingPreferencesRepository.confirmOrdersEnabledFlow().collect { ... }`, `priceFlowManager.prices.collect { updateInstrumentPrice(it) }`, `positionFlowManager.sheet.collect { updatePosition(it) }` (для activeCard-количества), `accountSelectionRepository.selected.collect { ... }`.
+**13e — UI-миграция Form.**
+- `OrdersScreen.kt`: `hiltViewModel<OrderFormViewModel>()`, `formState by formVM.state.collectAsState()`.
+- Form-callbacks → Form-VM.
+- `OrdersSearch` / `OrdersPairTrading`: Form-поля из `formState.*`.
+- `onClearSelected` → `formVM.clearSelectedInstrument()` (P4 KDoc).
+- `onClearPairedInstrument` → `formVM.clearPairedInstrument()` (rename из `clearPairSearch`).
+- Coord: удалить Form-поля/методы.
 
-**`OrdersViewModel`** (Coord, тонкий):
+**14a — Coord cleanup.**
+- Удалить `onAccountSelected`, `retryLoadAccounts` (dead code).
+- Удалить fallback fetch из `startPositionUpdates` (P2).
+- Удалить unused inject. Оставить: `brokerRegistry`, `cardsRepository`, `positionFlowManager`, `sandboxPreferencesRepository`, `portfolioRepository`, `loadOrdersAccountsUseCase`, `updateTradingStatusesUseCase`, `checkBrokerInitializationUseCase`, `tradingStatusRepository` (для passthrough), `logger`.
 
-- State: `isApiInitialized`, `accounts`, `selectedAccountId`, `lastSelectedInstruments`, `isLoading`, `statusMessage`, `isError`.
-- Зависимости: `BrokerRegistry`, `PositionFlowManager`, `PriceFlowManager`, `CardsRepository`, `AccountSelectionRepository`, `TradingStateRepository`, `TradingStatusRepository`, `UpdateTradingStatusesUseCase`, `LoadOrdersAccountsUseCase`, `CheckBrokerInitializationUseCase`, `Logger`.
-- Методы: `checkApiInitialization`, `loadAccounts`, `retryLoadAccounts`, `onAccountSelected(accountId)` → `accSel.select`, `startPositionUpdates` (PFM.start + `sheet.collect` → `CardsRepository`), `stopPositionUpdates`, `syncPriceInterest` (из `TradingStateRepository.state`), `updateTradingStatuses` (usecase), `onCleared` (clearInterest), `getAvailableBrokerNames`, `refreshLastSelectedInstruments` (из `PositionFlowManager.sheet` + `CardsRepository`).
-- **init:** `brokerRegistry.anyInitialized.collect { checkApiInitialization() }`, `tradingStateRepository.state.collect { syncPriceInterest() }`, `positionFlowManager.sheet.collect { updatePositionsFromSheet(it) }`, `while (isActive) { delay(5min); updateTradingStatuses(...) }`.
+**14b — `OrdersUiState` → `OrdersCoordState`.**
+- Переименовать. Поля: `accounts`, `selectedAccountId`, `isApiInitialized`, `lastSelectedInstruments`, `isLoading`, `statusMessage`, `isError`.
+- **`tradingStatuses` — passthrough** (P1): `val tradingStatuses: StateFlow<Map> = tradingStatusRepository.statuses` (не поле state, M5-free).
+- Удалить: `portfolioPositions`, computed `isFormValid`, `quantityAsLong`, `clearStatus`, `activeCard`, `activePairedCard`.
 
-**UI — `OrdersScreen.kt`:**
+**15 — Cleanup.**
+- Снять `@Suppress("TooManyFunctions", "LargeClass")` с `OrdersViewModel`.
+- Удалить unused imports в 4 VM.
 
-- 4 × `hiltViewModel<X>()`, 4 × `collectAsState()`.
-- 30 callsites — по назначению.
-- 2 × `LaunchedEffect(statusMessage)` → в форму.
-- `LaunchedEffect(Unit) { viewModel.checkApiInitialization() }` — coord.
+**16 — live-test полный** (save счёт → force-stop → карточка восстановлена с per-card accountId; переключение без перепоиска; покупка на правильный счёт; реактивность sheet emit).
 
-**Карта: старое поле UiState → новый state-класс:**
-
-| Поле | VM / репозиторий |
-|---|---|
-| `ticker`, `quantity`, `orderType`, `limitPrice`, `stopPrice`, `expirationType`, `expireDate`, `pairTradingEnabled`, `pairedMultiplier`, `selectedInstrument`, `pairedInstrument`, `currentPrice`, `pairCurrentPrice`, `isPriceLoading`, `currentPointValue`, `pairedPointValue`, `executionPrice`, `costOverlay`, `multiplierOverlay`, `pairExecPrice`, `pairedOrderType`, `showConfirmDialog`, `pendingDirection`, `confirmOrdersEnabled`, `statusMessage`, `isError`, `isLoading`, `freeBalance`, `selectedPriceChangePercent` | Form |
-| `searchQuery`, `searchResults`, `isSearching`, `isSearchActive`, `searchBroker`, `pairSearchQuery`, `pairSearchResults`, `isPairSearching`, `pairSearchBroker`, `showSearchBrokerDialog`, `selectedSearchBroker`, `showPairSearchBrokerDialog`, `selectedPairSearchBroker` | Search |
-| `showBrokerDialog`, `dialogInstrumentTicker`, `selectedBroker`, `selectedAccountIdDialog`, `dialogAccounts`, `swipeResetTrigger` | Dialogs |
-| `accounts`, `selectedAccountId`, `lastSelectedInstruments`, `isApiInitialized`, `isLoading`, `statusMessage`, `isError` | Coord |
-| `tradingStatuses` | `TradingStatusRepository` (domain) |
-| `portfolioPositions` | **удалить** — форма читает `PositionFlowManager.sheet` |
-
-**Файлы:**
-
-Новые (16):
-- `domain/api/repository/CardsRepository.kt`
-- `domain/api/repository/AccountSelectionRepository.kt`
-- `domain/api/repository/TradingStatusRepository.kt`
-- `data/repository/CardsRepositoryImpl.kt`
-- `data/repository/AccountSelectionRepositoryImpl.kt`
-- `data/repository/TradingStatusRepositoryImpl.kt`
-- `domain/models/SelectedInstrumentInfo.kt` (перенос)
-- `domain/usecases/SelectInstrumentUseCase.kt`
-- `domain/usecases/SaveCardSettingsUseCase.kt`
-- `domain/usecases/UpdateTradingStatusesUseCase.kt`
-- `presentation/screens/orders/OrderSearchViewModel.kt`
-- `presentation/screens/orders/OrderDialogsViewModel.kt`
-- `presentation/screens/orders/OrderFormViewModel.kt`
-- Тесты (5): `SelectInstrumentUseCaseTest`, `SaveCardSettingsUseCaseTest`, `UpdateTradingStatusesUseCaseTest`, `OrderSearchViewModelTest`, `OrderFormViewModelTest`.
-
-Изменяемые (7):
-- `domain/api/repository/TradingStateRepository.kt` (+ `state: StateFlow<TradingStateSnapshot?>`)
-- `data/repository/TradingStateRepositoryImpl.kt` (эмит в `state`)
-- `di/RepositoryBindingModule.kt` (+ 3 `@Binds`)
-- `presentation/screens/orders/OrdersViewModel.kt` (coord, ≤350)
-- `presentation/screens/orders/OrdersUiState.kt` (урезать до coord state)
-- `presentation/screens/orders/OrdersScreen.kt` (4 × `hiltViewModel`, 4 × `collectAsState`)
-- `docs/ROADMAP.md` (пометки о прогрессе)
-
-**Шаги (каждый — отдельный коммит, гейт между):**
-
-**Фаза 1: domain-prep (10 шагов):**
-1. `SelectedInstrumentInfo` → `domain/models/`. Import в `OrdersUiState.kt`. Гейт.
-2. `CardsRepository` + `CardsRepositoryImpl` (DataStore) + `@Binds`. `CardsRepositoryImplTest`. Гейт.
-3. `AccountSelectionRepository` + `AccountSelectionRepositoryImpl` (DataStore) + `@Binds`. Тест. Гейт.
-4. `TradingStatusRepository` + `TradingStatusRepositoryImpl` (in-memory) + `@Binds`. Тест. Гейт.
-5. `TradingStateRepository` + `state: StateFlow`. `TradingStateRepositoryImpl` — эмит. Тест. Гейт.
-6. `SelectInstrumentUseCase` + тест. Гейт.
-7. `SaveCardSettingsUseCase` + тест. Гейт.
-8. `UpdateTradingStatusesUseCase` + тест. Гейт.
-9. Обновить `OrdersViewModel` — использовать usecase вместо inline (без split). Гейт.
-10. Live-test (regression check до split). Гейт.
-
-**Фаза 2: split 4 VM (8 шагов):**
-
-11. `OrderSearchViewModel` + state + тест. Миграция UI. Гейт.
-12. `OrderDialogsViewModel` + state + тест. Миграция UI. Гейт.
-13. `OrderFormViewModel` + state + тест. Миграция UI. Гейт.
-14. `OrdersViewModel` (coord) — удалить перенесённые методы/state. Гейт.
-15. `OrdersUiState` → coord state + `OrdersScreen` cleanups. Гейт.
-16. Cleanup: unused imports, unused deps, снять `@Suppress`. Гейт.
-17. Live-test (полный). Гейт.
-18. `docs(roadmap): mark OrdersViewModel split done` в feature. Гейт.
-
-**Тесты:**
-- `SelectInstrumentUseCaseTest` (~5): success, no instrument, no price, no position, no existing card.
-- `SaveCardSettingsUseCaseTest` (~3): card exists, no card, multiple cards.
-- `UpdateTradingStatusesUseCaseTest` (~3): success, empty ids, failure passthrough.
-- `CardsRepositoryImplTest`, `AccountSelectionRepositoryImplTest`, `TradingStatusRepositoryImplTest` (~2 each).
-- VM-тесты (2–3 на VM) — по образцу `TInvestSettingsViewModelTest`.
-- Live-test: Orders / Portfolio / OrdersList.
-
-**Референсы:**
-- M013 (merge `f282f36`, PR #104) — образец выноса orchestration.
-- M006 (`TInvestSettingsViewModel`, `ab0f1bb`) — образец тонкой panel-VM.
-- `docs/clean-audit.md` → M013.
-
-**Ограничения:**
-- UI визуально не меняется.
-- `OrdersUiState.portfolioPositions` **удаляется** — форма читает `PositionFlowManager.sheet` сама.
-- `OrdersUiState.tradingStatuses` **удаляется** — `TradingStatusRepository` (domain).
-- `OrdersViewModel.currentPrice` / `pairCurrentPrice` — **удаляются** из coord, переезжают в форму.
-- `saveState` / `restoreState` — в форме.
-- `SelectedInstrumentInfo` переносится в `domain/models/`, поля не меняются.
-- `AccountSelectionRepository` — **не** переиспользовать с `AccountsRepository` / `AccountPreferencesRepository`. Три разные сущности (см. таблицу выше).
-- Не смешивать с M013 (закрыт/deferred).
-- `@Suppress("TooManyFunctions", "LargeClass")` — снять после split.
+**17 — `docs(roadmap): mark OrdersViewModel split done`** (перенести в `ROADMAP-ARCHIVE.md`, `### ✅ OrdersViewModel: разбить на несколько VM`).
 
 **Критерий готовности:**
-- 4 VM: `OrdersViewModel` (coord) ≤ 350, `OrderFormViewModel` ≤ 400, `OrderSearchViewModel` ≤ 250, `OrderDialogsViewModel` ≤ 200.
-- Cross-VM = 0 (все связи через domain).
-- `@Suppress("TooManyFunctions", "LargeClass")` сняты.
-- Все usecase-тесты + VM-тесты покрывают success/failure/exception/cancellation.
+- 4 VM: `OrderSearchViewModel` ≤ 250, `OrderDialogsViewModel` ≤ 200, `OrderFormViewModel` ≤ 500, `OrdersViewModel` (Coord) ≤ 300.
+- Cross-VM `_uiState` = 0.
+- `@Suppress("TooManyFunctions", "LargeClass")` снят.
+- M1/M2/M5/M7 в scope = 0 (P1–P11); M001/M6 — вне scope, отдельные задачи.
 - Live-test PASS.
 - Гейт зелёный.
-- **Закрыты:** `### OrdersViewModel: разбить на несколько VM` (этот PR), `#### ViewModel-слой` → `OrdersViewModel` (detekt-group 3). **Не закрываются:** M001 (formatted overlay, отдельная задача), M011 (unrelated), другие.
 
-**Оценка:** Фаза 1 — ~8–10 ч. Фаза 2 — ~12–15 ч. Итого **~20–25 ч**.
+**Оценка:** ~21–28 ч (11a 4–5, 11b 1–2, 12a 2–3, 12b 1–2, 13a 0.5–1, 13b 0.5–1, 13c 1, 13d 5–6, 13e 2–3, 14a 1, 14b 1–2, 15 0.5, 16 0.5, 17 0.2).
 
-**Зависимости:** M013 orchestration (вынесена, `f282f36`). `mark done` M013 — не блокер.
+**Зависимости:** Фаза 1 (закрыта), A4 (закрыта).
 
-**Связано:** `docs/clean-audit.md` → M013, M001 (formatted overlay, **отдельно**), M011 (`as?` в UI, **отдельно**), `docs/ISSUES.md` → `BrokerRegistry.anyInitialized` (pre-existing, не влияет).
+**Связано:** `docs/clean-audit.md` M013, M001 (вне scope), M6 (новая, вне scope), `docs/ISSUES.md` (BrokerRegistry.anyInitialized, PriceFlowManager retry loop).
 
-**Открытые вопросы:**
-- `CardsRepository` — **DataStore** (JSON). Карточки переживают перезапуск.
-- `AccountSelectionRepository` — **DataStore**. Выбор счёта переживает перезапуск.
-- `TradingStatusRepository` — **in-memory** (`MutableStateFlow`), статусы перезагружаются при старте.
-- `SelectedInstrumentInfo` — в `domain/models/`.
+**Открытые вопросы:** —
+
 
 
 ___
