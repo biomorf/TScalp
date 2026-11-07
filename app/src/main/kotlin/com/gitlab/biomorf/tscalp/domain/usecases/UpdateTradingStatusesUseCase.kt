@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,14 +41,14 @@ class UpdateTradingStatusesUseCase
         suspend fun execute(
             brokerName: BrokerName,
             ids: List<String>,
-        ): AppResult<Unit> {
-            if (ids.isEmpty()) return AppResult.Success(Unit)
+        ): AppResult<Map<String, TradingAvailability>> {
+            if (ids.isEmpty()) return AppResult.Success(emptyMap())
             logger.d(TAG, "execute: brokerName=$brokerName, ids=${ids.size}")
             return try {
                 when (val result = marketDataRepository.getTradingStatusesResult(brokerName, ids)) {
                     is AppResult.Success -> {
                         tradingStatusRepository.update(result.data)
-                        AppResult.Success(Unit)
+                        AppResult.Success(result.data)
                     }
                     is AppResult.Failure -> {
                         logger.e(TAG, "Ошибка обновления статусов: ${result.error.message}", result.error.cause)

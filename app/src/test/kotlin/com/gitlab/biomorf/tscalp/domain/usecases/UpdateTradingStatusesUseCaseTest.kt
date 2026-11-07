@@ -25,17 +25,18 @@ class UpdateTradingStatusesUseCaseTest {
         UpdateTradingStatusesUseCase(marketDataRepository, tradingStatusRepository, logger)
 
     @Test
-    fun `empty ids is no-op success without repository call`() =
+    fun `empty ids is no-op success with empty map without repository call`() =
         runBlocking {
             val r = useCase.execute(BrokerName.TINVEST, emptyList())
 
             assertTrue(r is AppResult.Success)
+            assertEquals(emptyMap<String, TradingAvailability>(), (r as AppResult.Success).data)
             coVerify(exactly = 0) { marketDataRepository.getTradingStatusesResult(any(), any()) }
             coVerify(exactly = 0) { tradingStatusRepository.update(any()) }
         }
 
     @Test
-    fun `success passes data to repository update`() =
+    fun `success passes data to repository update and returns map`() =
         runBlocking {
             val statuses = mapOf("uid-1" to TradingAvailability.AVAILABLE)
             coEvery {
@@ -45,6 +46,7 @@ class UpdateTradingStatusesUseCaseTest {
             val r = useCase.execute(BrokerName.TINVEST, listOf("uid-1"))
 
             assertTrue(r is AppResult.Success)
+            assertEquals(statuses, (r as AppResult.Success).data)
             coVerify(exactly = 1) { tradingStatusRepository.update(statuses) }
         }
 
