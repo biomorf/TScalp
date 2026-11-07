@@ -9,24 +9,24 @@ import com.gitlab.biomorf.tscalp.presentation.components.ConfirmOrderDialog
 
 @Composable
 internal fun OrdersConfirmDialogSection(
-    uiState: OrdersUiState,
+    formState: OrderFormState,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     ConfirmOrderDialog(
-        show = uiState.showConfirmDialog,
-        ticker = uiState.selectedInstrument?.ticker ?: "",
-        quantity = uiState.quantityAsLong ?: 0L,
-        pendingDirection = uiState.pendingDirection,
-        orderType = uiState.orderType,
-        instrumentType = uiState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
-        executionPrice = uiState.executionPrice,
-        pairTradingEnabled = uiState.pairTradingEnabled,
-        pairedInstrumentTicker = uiState.pairedInstrument?.ticker,
-        pairedInstrumentType = uiState.pairedInstrument?.instrumentType,
-        pairedMultiplier = uiState.pairedMultiplier,
-        pairExecPrice = uiState.pairExecPrice,
-        pairedOrderType = uiState.pairedOrderType,
+        show = formState.showConfirmDialog,
+        ticker = formState.selectedInstrument?.ticker ?: "",
+        quantity = formState.quantityAsLong ?: 0L,
+        pendingDirection = formState.pendingDirection,
+        orderType = formState.orderType,
+        instrumentType = formState.selectedInstrument?.instrumentType ?: InstrumentType.OTHER,
+        executionPrice = formState.executionPrice,
+        pairTradingEnabled = formState.pairTradingEnabled,
+        pairedInstrumentTicker = formState.pairedInstrument?.ticker,
+        pairedInstrumentType = formState.pairedInstrument?.instrumentType,
+        pairedMultiplier = formState.pairedMultiplier,
+        pairExecPrice = formState.pairExecPrice,
+        pairedOrderType = formState.pairedOrderType,
         onDismiss = onDismiss,
         onConfirm = onConfirm,
     )

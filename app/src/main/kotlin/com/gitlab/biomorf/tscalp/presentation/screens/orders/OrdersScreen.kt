@@ -112,20 +112,21 @@ fun OrdersScreen() {
                     OrdersInstrumentSection(
                         uiState = uiState,
                         searchState = searchState,
+                        formState = formState,
                         resetSwipe = dialogsState.swipeResetTrigger,
                         onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
                         onInstrumentSelected = {
                             searchViewModel.onSearchResultSelected(it)
-                            viewModel.onInstrumentSelected(it)
+                            formViewModel.onInstrumentSelected(it)
                             focusManager.clearFocus()
                         },
                         onClearSearch = {
                             searchViewModel.clearSearchQuery()
-                            viewModel.clearSelectedInstrument()
+                            formViewModel.clearSelectedInstrument()
                         },
                         onRefreshSearch = { searchViewModel.refreshSearch() },
                         onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
-                        onClearSelected = { viewModel.clearSelectedInstrument() },
+                        onClearSelected = { formViewModel.clearSelectedInstrument() },
                         onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
                     )
 
@@ -134,57 +135,58 @@ fun OrdersScreen() {
                     // ========== Поле количества ==========
                     // Определяем цену исполнения в зависимости от типа заявки
                     OrdersConfirmDialogSection(
-                        uiState = uiState,
-                        onDismiss = { viewModel.onDismissConfirmDialog() },
-                        onConfirm = { viewModel.onConfirmOrder() },
+                        formState = formState,
+                        onDismiss = { formViewModel.onDismissConfirmDialog() },
+                        onConfirm = { formViewModel.onConfirmOrder() },
                     )
 
                     OrdersQuantityRow(
-                        quantity = uiState.quantity,
-                        costOverlay = uiState.costOverlay,
-                        canDecrement = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null,
-                        canIncrement = uiState.selectedInstrument != null,
-                        onQuantityChanged = { viewModel.onQuantityChanged(it) },
+                        quantity = formState.quantity,
+                        costOverlay = formState.costOverlay,
+                        canDecrement = (formState.quantityAsLong ?: 0L) > 0 && formState.selectedInstrument != null,
+                        canIncrement = formState.selectedInstrument != null,
+                        onQuantityChanged = { formViewModel.onQuantityChanged(it) },
                     )
 
                     // ========== Выбор типа заявки ==========
                     OrdersTypeChips(
-                        orderType = uiState.orderType,
-                        onOrderTypeChanged = { viewModel.onOrderTypeChanged(it) },
+                        orderType = formState.orderType,
+                        onOrderTypeChanged = { formViewModel.onOrderTypeChanged(it) },
                     )
 
                     // ========== Ценовые поля (статическая высота) ==========
                     OrdersPriceFields(
-                        orderType = uiState.orderType,
-                        limitPrice = uiState.limitPrice,
-                        stopPrice = uiState.stopPrice,
-                        onLimitPriceChanged = { viewModel.onLimitPriceChanged(it) },
-                        onStopPriceChanged = { viewModel.onStopPriceChanged(it) },
+                        orderType = formState.orderType,
+                        limitPrice = formState.limitPrice,
+                        stopPrice = formState.stopPrice,
+                        onLimitPriceChanged = { formViewModel.onLimitPriceChanged(it) },
+                        onStopPriceChanged = { formViewModel.onStopPriceChanged(it) },
                     )
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
                     OrdersPairSection(
                         uiState = uiState,
                         searchState = searchState,
+                        formState = formState,
                         resetSwipe = dialogsState.swipeResetTrigger,
                         scrollState = scrollState,
                         scope = scope,
                         onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },
                         onPairedInstrumentSelected = {
                             searchViewModel.onPairedSearchResultSelected(it)
-                            viewModel.onPairedInstrumentSelected(it)
+                            formViewModel.onPairedInstrumentSelected(it)
                             focusManager.clearFocus()
                         },
                         onClearPairSearch = { searchViewModel.clearPairSearchQuery() },
                         onRefreshPairSearch = { searchViewModel.refreshPairSearch() },
                         onOpenPairSearchBrokerSettings = { searchViewModel.openPairSearchBrokerSettings() },
-                        onPairTradingEnabledChanged = { viewModel.setPairTradingEnabled(it) },
+                        onPairTradingEnabledChanged = { formViewModel.setPairTradingEnabled(it) },
                         onClearPairedInstrument = {
                             searchViewModel.clearPairSearchQuery()
-                            viewModel.clearPairedInstrument()
+                            formViewModel.clearPairedInstrument()
                         },
                         onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
-                        onPairedMultiplierChanged = { viewModel.onPairedMultiplierChanged(it) },
+                        onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
                     )
                 } // конец скроллируемой колонки
 
@@ -197,11 +199,11 @@ fun OrdersScreen() {
 
             // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
             OrdersBottomButtons(
-                freeBalance = uiState.freeBalance,
-                isFormValid = uiState.isFormValid,
-                isLoading = uiState.isLoading,
-                onBuyClick = { viewModel.onBuyClick() },
-                onSellClick = { viewModel.onSellClick() },
+                freeBalance = formState.freeBalance,
+                isFormValid = formState.isFormValid(uiState.isApiInitialized),
+                isLoading = formState.isLoading,
+                onBuyClick = { formViewModel.onBuyClick() },
+                onSellClick = { formViewModel.onSellClick() },
             )
         }
 

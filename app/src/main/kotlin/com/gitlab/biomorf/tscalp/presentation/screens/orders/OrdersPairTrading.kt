@@ -35,6 +35,7 @@ private const val PRICE_FIELDS_ANIMATION_MS = 200
 internal fun OrdersPairSection(
     uiState: OrdersUiState,
     searchState: OrderSearchState,
+    formState: OrderFormState,
     resetSwipe: Boolean,
     scrollState: ScrollState,
     scope: CoroutineScope,
@@ -58,12 +59,12 @@ internal fun OrdersPairSection(
     ) {
         Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
         Switch(
-            checked = uiState.pairTradingEnabled,
+            checked = formState.pairTradingEnabled,
             onCheckedChange = onPairTradingEnabledChanged,
         )
     }
-    if (!uiState.pairTradingEnabled) return
-    if (uiState.pairedInstrument == null) {
+    if (!formState.pairTradingEnabled) return
+    if (formState.pairedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
@@ -88,10 +89,10 @@ internal fun OrdersPairSection(
             }
         }
     } else {
-        uiState.pairedInstrument.let { instrument: Instrument ->
+        formState.pairedInstrument.let { instrument: Instrument ->
             val card = uiState.activePairedCard
             val pairPrice =
-                uiState.pairCurrentPrice
+                formState.pairCurrentPrice
                     ?: card?.currentPrice
                     ?: 0.0
             val position =
@@ -104,7 +105,7 @@ internal fun OrdersPairSection(
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = pairPrice,
-                priceChangePercent = uiState.selectedPriceChangePercent,
+                priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearPairedInstrument,
                 onSettings = { onOpenBrokerDialog(instrument.ticker) },
                 onClick = { },
@@ -114,7 +115,7 @@ internal fun OrdersPairSection(
             )
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
-                    value = uiState.pairedMultiplier,
+                    value = formState.pairedMultiplier,
                     onValueChange = onPairedMultiplierChanged,
                     label = { Text("Множитель") },
                     textStyle = MaterialTheme.typography.bodyLarge,
@@ -131,7 +132,7 @@ internal fun OrdersPairSection(
                                 }
                             },
                 )
-                val multiplierOverlay = uiState.multiplierOverlay
+                val multiplierOverlay = formState.multiplierOverlay
                 if (multiplierOverlay != null) {
                     Box(
                         modifier =

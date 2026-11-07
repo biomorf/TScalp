@@ -26,6 +26,7 @@ import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 internal fun OrdersInstrumentSection(
     uiState: OrdersUiState,
     searchState: OrderSearchState,
+    formState: OrderFormState,
     resetSwipe: Boolean,
     onSearchQueryChanged: (String) -> Unit,
     onInstrumentSelected: (Instrument) -> Unit,
@@ -35,7 +36,7 @@ internal fun OrdersInstrumentSection(
     onClearSelected: () -> Unit,
     onOpenBrokerDialog: (String) -> Unit,
 ) {
-    if (uiState.selectedInstrument == null) {
+    if (formState.selectedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
@@ -60,9 +61,9 @@ internal fun OrdersInstrumentSection(
             }
         }
     } else {
-        uiState.selectedInstrument.let { instrument: Instrument ->
+        formState.selectedInstrument.let { instrument: Instrument ->
             val card = uiState.activeCard
-            val currentPrice = uiState.currentPrice ?: card?.currentPrice ?: 0.0
+            val currentPrice = formState.currentPrice ?: card?.currentPrice ?: 0.0
             val position =
                 emptyPosition(
                     instrument = instrument,
@@ -73,7 +74,7 @@ internal fun OrdersInstrumentSection(
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = currentPrice,
-                priceChangePercent = uiState.selectedPriceChangePercent,
+                priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearSelected,
                 onSettings = { onOpenBrokerDialog(instrument.ticker) },
                 onClick = { },
