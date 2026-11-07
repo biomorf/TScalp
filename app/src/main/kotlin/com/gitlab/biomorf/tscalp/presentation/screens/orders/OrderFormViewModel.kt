@@ -368,6 +368,10 @@ class OrderFormViewModel
             viewModelScope.launch { saveState() }
         }
 
+        fun clearStatus() {
+            _state.update { it.clearStatus() }
+        }
+
         /**
          * 2c (clean-audit M013 / A2, 2026-11-07): в отличие от Coord
          * `OrdersViewModel.onInstrumentSelected` — **не** обновляет

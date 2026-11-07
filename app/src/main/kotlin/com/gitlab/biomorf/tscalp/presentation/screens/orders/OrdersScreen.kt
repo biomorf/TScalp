@@ -59,6 +59,11 @@ fun OrdersScreen() {
     // Coord remains source of form/positions state.
     val dialogsViewModel: OrderDialogsViewModel = hiltViewModel()
     val dialogsState by dialogsViewModel.state.collectAsState()
+    // Form-VM (split 13d): form-only state (instrument / quantity / orderType /
+    // prices / pair / confirm / status). Coord `uiState` owns accounts /
+    // lastSelectedInstruments / tradingStatuses. Cross-VM via domain only.
+    val formViewModel: OrderFormViewModel = hiltViewModel()
+    val formState by formViewModel.state.collectAsState()
     val focusManager = LocalFocusManager.current
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -200,12 +205,14 @@ fun OrdersScreen() {
             )
         }
 
-        // Snackbar (extracted, Fase 2 11b)
+        // Snackbar (extracted, Fase 2 11b; 13d-E-A: coord + form channels)
         OrdersScreenSnackbar(
             snackbarHostState = snackbarHostState,
-            uiState = uiState,
+            coordState = uiState,
+            formState = formState,
             searchState = searchState,
-            onClearStatus = { viewModel.clearStatus() },
+            onClearCoordStatus = { viewModel.clearStatus() },
+            onClearFormStatus = { formViewModel.clearStatus() },
             onClearSearchStatus = { searchViewModel.clearStatus() },
         )
     }
@@ -253,71 +260,94 @@ fun OrdersScreen() {
 @Composable
 private fun BoxScope.OrdersScreenSnackbar(
     snackbarHostState: SnackbarHostState,
-    uiState: OrdersUiState,
+    coordState: OrdersUiState,
+    formState: OrderFormState,
     searchState: OrderSearchState,
-    onClearStatus: () -> Unit,
+    onClearCoordStatus: () -> Unit,
+    onClearFormStatus: () -> Unit,
     onClearSearchStatus: () -> Unit,
 ) {
     OrdersSnackbarEffects(
         snackbarHostState = snackbarHostState,
-        uiState = uiState,
+        coordState = coordState,
+        formState = formState,
         searchState = searchState,
-        onClearStatus = onClearStatus,
+        onClearCoordStatus = onClearCoordStatus,
+        onClearFormStatus = onClearFormStatus,
         onClearSearchStatus = onClearSearchStatus,
     )
-    OrdersSnackbarHost(snackbarHostState = snackbarHostState, isError = uiState.isError)
+    OrdersSnackbarHost(
+        snackbarHostState = snackbarHostState,
+        isError = coordState.isError || formState.isError,
+    )
 }
 
 /**
  * Эффекты Snackbar (Fase 2, 11b): автоочистка + показ.
  *
- * 2 × `LaunchedEffect(uiState.statusMessage)` (автоочистка через 5 с +
- * показ, дубль pre-existing, 1:1) + `LaunchedEffect(searchState.statusMessage)`.
+ * Two status channels after 13d-E-A: `coordState.statusMessage` (Coord:
+ * `loadAccounts` / `checkApiInitialization`) and `formState.statusMessage`
+ * (Form: postOrder flow). Plus `searchState.statusMessage` (Search).
+ * Each channel: show + auto-dismiss by SnackbarResult -> onClear*.
+ * Pre-existing N3-duplicate (`2 × LaunchedEffect(uiState.statusMessage)`)
+ * is removed as part of this split.
  */
 @Composable
 private fun OrdersSnackbarEffects(
     snackbarHostState: SnackbarHostState,
-    uiState: OrdersUiState,
+    coordState: OrdersUiState,
+    formState: OrderFormState,
     searchState: OrderSearchState,
-    onClearStatus: () -> Unit,
+    onClearCoordStatus: () -> Unit,
+    onClearFormStatus: () -> Unit,
     onClearSearchStatus: () -> Unit,
 ) {
-    LaunchedEffect(uiState.statusMessage) {
-        if (uiState.statusMessage != null && !uiState.isError) {
-            kotlinx.coroutines.delay(5000)
-            onClearStatus()
-        }
-    }
+    StatusEffect(
+        snackbarHostState = snackbarHostState,
+        message = coordState.statusMessage,
+        isError = coordState.isError,
+        onClear = onClearCoordStatus,
+    )
+    StatusEffect(
+        snackbarHostState = snackbarHostState,
+        message = formState.statusMessage,
+        isError = formState.isError,
+        onClear = onClearFormStatus,
+    )
+    StatusEffect(
+        snackbarHostState = snackbarHostState,
+        message = searchState.statusMessage,
+        isError = searchState.isError,
+        onClear = onClearSearchStatus,
+    )
+}
 
-    LaunchedEffect(searchState.statusMessage) {
-        searchState.statusMessage?.let { message ->
-            val visuals =
-                object : SnackbarVisuals {
-                    override val message: String = message
-                    override val actionLabel: String? = if (searchState.isError) "OK" else null
-                    override val withDismissAction: Boolean = false
-                    override val duration: SnackbarDuration =
-                        if (searchState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
-                }
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(visuals)
-            onClearSearchStatus()
-        }
-    }
-
-    LaunchedEffect(uiState.statusMessage) {
-        uiState.statusMessage?.let { message ->
-            val visuals =
-                object : SnackbarVisuals {
-                    override val message: String = message
-                    override val actionLabel: String? = if (uiState.isError) "OK" else null
-                    override val withDismissAction: Boolean = false
-                    override val duration: SnackbarDuration =
-                        if (uiState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
-                }
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(visuals)
-            onClearStatus()
+/**
+ * Один status-канал: `LaunchedEffect(message)` -> `showSnackbar` ->
+ * `onClear` на `Dismissed` / `ActionPerformed`. 1:1 поведение прежних
+ * трёх `LaunchedEffect`-блоков (coord / form / search).
+ *
+ * Split `OrdersSnackbarEffects` на 3 канала (13d-E-A fix): detekt
+ * `CyclomaticComplexMethod` (16 > 14) на объединённой функции.
+ */
+@Composable
+private fun StatusEffect(
+    snackbarHostState: SnackbarHostState,
+    message: String?,
+    isError: Boolean,
+    onClear: () -> Unit,
+) {
+    LaunchedEffect(message) {
+        message?.let { text ->
+            val result =
+                snackbarHostState.showSnackbar(
+                    message = text,
+                    actionLabel = if (isError) "OK" else null,
+                    duration = if (isError) SnackbarDuration.Indefinite else SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.Dismissed || result == SnackbarResult.ActionPerformed) {
+                onClear()
+            }
         }
     }
 }
