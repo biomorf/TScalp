@@ -1,24 +1,22 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
-import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.usecases.CardAccountsResult
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogResult
+import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SaveCardSettingsUseCase
 import com.gitlab.biomorf.tscalp.testutil.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -43,9 +41,8 @@ class OrderDialogsViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val loadCardAccountsUseCase = mockk<LoadCardAccountsUseCase>(relaxed = true)
+    private val openCardDialogUseCase = mockk<OpenCardDialogUseCase>(relaxed = true)
     private val saveCardSettingsUseCase = mockk<SaveCardSettingsUseCase>(relaxed = true)
-    private val cardsRepository = mockk<CardsRepository>(relaxed = true)
-    private val accountSelectionRepository = mockk<AccountSelectionRepository>(relaxed = true)
     private val sandboxPreferencesRepository = mockk<SandboxPreferencesRepository>(relaxed = true)
     private val brokerRegistry = mockk<BrokerRegistry>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
@@ -53,29 +50,20 @@ class OrderDialogsViewModelTest {
     private fun createVm() =
         OrderDialogsViewModel(
             loadCardAccountsUseCase,
+            openCardDialogUseCase,
             saveCardSettingsUseCase,
-            cardsRepository,
-            accountSelectionRepository,
             sandboxPreferencesRepository,
             brokerRegistry,
             logger,
         )
 
-    private fun stubExistingCard(
-        ticker: String = "SBER",
-        accountId: String? = "acc-1",
-    ) {
-        every { cardsRepository.identities } returns
-            flowOf(listOf(CardIdentity("uid-$ticker", ticker, BrokerName.TINVEST, accountId)))
-    }
-
     @Test
     fun `openBrokerDialog success sets dialog state`() =
         runTest {
-            stubExistingCard()
-            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
-            coEvery { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") } returns
-                AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "acc-1"))
+            coEvery { openCardDialogUseCase.execute("SBER") } returns
+                OpenCardDialogOutcome.Success(
+                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
+                )
 
             val vm = createVm()
             vm.openBrokerDialog("SBER")
@@ -87,16 +75,14 @@ class OrderDialogsViewModelTest {
             assertEquals(BrokerName.TINVEST, s.selectedBroker)
             assertEquals("acc-1", s.selectedAccountIdDialog)
             assertTrue(s.dialogAccounts.isEmpty())
-            coVerify(exactly = 1) { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") }
+            coVerify(exactly = 1) { openCardDialogUseCase.execute("SBER") }
         }
 
     @Test
     fun `openBrokerDialog failure clears selected account`() =
         runTest {
-            stubExistingCard()
-            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
-            coEvery { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") } returns
-                AppResult.Failure(AppError.Network("err", null))
+            coEvery { openCardDialogUseCase.execute("SBER") } returns
+                OpenCardDialogOutcome.Failure(BrokerName.TINVEST, AppError.Network("err", null))
 
             val vm = createVm()
             vm.openBrokerDialog("SBER")
@@ -112,10 +98,10 @@ class OrderDialogsViewModelTest {
     @Test
     fun `closeBrokerDialog resets flags and toggles swipe`() =
         runTest {
-            stubExistingCard()
-            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
-            coEvery { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") } returns
-                AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "acc-1"))
+            coEvery { openCardDialogUseCase.execute("SBER") } returns
+                OpenCardDialogOutcome.Success(
+                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
+                )
 
             val vm = createVm()
             vm.openBrokerDialog("SBER")
@@ -133,10 +119,10 @@ class OrderDialogsViewModelTest {
     @Test
     fun `onBrokerSelected reloads accounts with null saved id`() =
         runTest {
-            stubExistingCard()
-            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
-            coEvery { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") } returns
-                AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "acc-1"))
+            coEvery { openCardDialogUseCase.execute("SBER") } returns
+                OpenCardDialogOutcome.Success(
+                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
+                )
             coEvery { loadCardAccountsUseCase.execute(BrokerName.BCS, false, null) } returns
                 AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "bcs-acc"))
 
@@ -156,10 +142,10 @@ class OrderDialogsViewModelTest {
     @Test
     fun `saveBrokerSettings success closes dialog`() =
         runTest {
-            stubExistingCard()
-            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
-            coEvery { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") } returns
-                AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "acc-1"))
+            coEvery { openCardDialogUseCase.execute("SBER") } returns
+                OpenCardDialogOutcome.Success(
+                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
+                )
             coEvery { saveCardSettingsUseCase.execute("SBER", BrokerName.TINVEST, "acc-1") } returns
                 AppResult.Success(Unit)
 
@@ -181,10 +167,10 @@ class OrderDialogsViewModelTest {
     @Test
     fun `saveBrokerSettings failure still closes dialog`() =
         runTest {
-            stubExistingCard()
-            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
-            coEvery { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") } returns
-                AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "acc-1"))
+            coEvery { openCardDialogUseCase.execute("SBER") } returns
+                OpenCardDialogOutcome.Success(
+                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
+                )
             coEvery { saveCardSettingsUseCase.execute("SBER", BrokerName.TINVEST, "acc-1") } returns
                 AppResult.Failure(AppError.Network("err", null))
 

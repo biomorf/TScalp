@@ -3,19 +3,18 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
-import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SaveCardSettingsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -62,9 +61,8 @@ class OrderDialogsViewModel
     @Inject
     constructor(
         private val loadCardAccountsUseCase: LoadCardAccountsUseCase,
+        private val openCardDialogUseCase: OpenCardDialogUseCase,
         private val saveCardSettingsUseCase: SaveCardSettingsUseCase,
-        private val cardsRepository: CardsRepository,
-        private val accountSelectionRepository: AccountSelectionRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val brokerRegistry: BrokerRegistry,
         private val logger: Logger,
@@ -74,46 +72,35 @@ class OrderDialogsViewModel
 
         fun openBrokerDialog(ticker: String) {
             viewModelScope.launch {
-                val existingCard =
-                    cardsRepository.identities.first().find { it.ticker == ticker }
-                val broker = existingCard?.brokerName ?: BrokerName.TINVEST
-                val savedAccountId =
-                    existingCard?.accountId
-                        ?: accountSelectionRepository.selected(BrokerName.TINVEST).first()
-
-                val result =
-                    loadCardAccountsUseCase.execute(
-                        brokerName = broker,
-                        sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
-                        savedAccountId = savedAccountId,
-                    )
-
-                val accounts =
-                    when (result) {
-                        is AppResult.Success -> result.data.accounts
-                        is AppResult.Failure -> {
-                            logger.e(
-                                TAG,
-                                "Ошибка загрузки счетов для ${broker.displayName}: ${result.error.message}",
-                                result.error.cause,
+                when (val outcome = openCardDialogUseCase.execute(ticker)) {
+                    is OpenCardDialogOutcome.Success -> {
+                        val data = outcome.result
+                        _state.update {
+                            it.copy(
+                                showBrokerDialog = true,
+                                dialogInstrumentTicker = ticker,
+                                selectedBroker = data.broker,
+                                selectedAccountIdDialog = data.selectedAccountId,
+                                dialogAccounts = data.accounts,
                             )
-                            emptyList()
                         }
                     }
-                val selectedId =
-                    when (result) {
-                        is AppResult.Success -> result.data.selectedAccountId
-                        is AppResult.Failure -> accounts.firstOrNull()?.id
+                    is OpenCardDialogOutcome.Failure -> {
+                        logger.e(
+                            TAG,
+                            "Ошибка загрузки счетов для ${outcome.broker.displayName}: ${outcome.error.message}",
+                            outcome.error.cause,
+                        )
+                        _state.update {
+                            it.copy(
+                                showBrokerDialog = true,
+                                dialogInstrumentTicker = ticker,
+                                selectedBroker = outcome.broker,
+                                selectedAccountIdDialog = null,
+                                dialogAccounts = emptyList(),
+                            )
+                        }
                     }
-
-                _state.update {
-                    it.copy(
-                        showBrokerDialog = true,
-                        dialogInstrumentTicker = ticker,
-                        selectedBroker = broker,
-                        selectedAccountIdDialog = selectedId,
-                        dialogAccounts = accounts,
-                    )
                 }
             }
         }
