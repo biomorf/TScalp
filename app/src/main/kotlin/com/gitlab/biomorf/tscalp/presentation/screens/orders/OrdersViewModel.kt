@@ -11,43 +11,20 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStatusRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerInitState
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
-import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
-import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
-import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
-import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
+import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.models.map
-import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
-import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
-import com.gitlab.biomorf.tscalp.domain.usecases.PairedOrderInput
-import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
-import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderInput
-import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderOutcome
-import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.RefreshSelectedInstrumentsUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
-import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
-import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
-import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
-import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -69,26 +46,26 @@ class OrdersViewModel
         private val portfolioRepository: PortfolioRepository,
         private val instrumentRepo: InstrumentRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
-        private val tradingPreferencesRepository: TradingPreferencesRepository,
-        private val tradingStateRepository: TradingStateRepository,
         private val accountSelectionRepository: AccountSelectionRepository,
         private val cardsRepository: CardsRepository,
         private val brokerManager: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,
-        private val calculateTradeDetails: CalculateTradeDetailsUseCase,
-        private val calculatePairExecUseCase: CalculatePairExecUseCase,
-        private val postOrderUseCase: PostOrderUseCase,
         private val loadOrdersAccountsUseCase: LoadOrdersAccountsUseCase,
         private val refreshSelectedInstrumentsUseCase: RefreshSelectedInstrumentsUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
-        private val selectInstrumentUseCase: SelectInstrumentUseCase,
-        private val selectPairedInstrumentUseCase: SelectPairedInstrumentUseCase,
         private val updateTradingStatusesUseCase: UpdateTradingStatusesUseCase,
+        private val tradingStatusRepository: TradingStatusRepository,
         private val logger: Logger,
     ) : ViewModel() {
-        private val _uiState = MutableStateFlow(OrdersUiState())
-        val uiState: StateFlow<OrdersUiState> = _uiState.asStateFlow()
+        private val _coordState = MutableStateFlow(OrdersCoordState())
+        val coordState: StateFlow<OrdersCoordState> = _coordState.asStateFlow()
+
+        /**
+         * Passthrough из [TradingStatusRepository] (SSoT, P1).
+         * Coord не дублирует статусы в `OrdersCoordState`.
+         */
+        val tradingStatuses: StateFlow<Map<String, TradingAvailability>> = tradingStatusRepository.statuses
         private var positionStreamJob: Job? = null
 
         companion object {
@@ -105,33 +82,15 @@ class OrdersViewModel
                     checkApiInitialization()
                 }
             }
-            // Подписка на настройку «подтверждение заявок».
-            // Значение в state всегда актуальное: при переключении тумблера
-            // в Настройках DataStore эмитит изменение, Flow доставляет,
-            // state обновляется, onClick видит свежее значение.
+            // Фоновое обновление статусов каждые 5 минут.
+            // 13d-F-A: restoreState() переехал в OrderFormViewModel
+            // (RestoreOrderFormUseCase); tradingStatuses — passthrough
+            // из TradingStatusRepository (P1).
             viewModelScope.launch {
-                logger.d(TAG, "subscribed to confirmOrdersEnabledFlow")
-                tradingPreferencesRepository.confirmOrdersEnabledFlow().collect { enabled ->
-                    _uiState.update { it.copy(confirmOrdersEnabled = enabled) }
-                }
-            }
-            // Подписка на единый поток цен. Обновляет currentPrice /
-            // pairCurrentPrice / selectedPriceChangePercent. Набор инструментов
-            // задаётся через syncPriceInterest() при изменении
-            // selectedInstrument / pairedInstrument.
-            viewModelScope.launch {
-                logger.d(TAG, "subscribed to prices")
-                priceFlowManager.prices.collect { update ->
-                    updateInstrumentPrice(update)
-                }
-            }
-            // Фоновое обновление статусов каждые 5 минут
-            viewModelScope.launch {
-                restoreState()
                 while (isActive) {
                     delay(5 * 60 * 1000L)
                     val idsToUpdate =
-                        _uiState.value.tradingStatuses.keys
+                        tradingStatuses.value.keys
                             .toList()
                     if (idsToUpdate.isNotEmpty()) {
                         updateTradingStatuses(idsToUpdate)
@@ -148,7 +107,7 @@ class OrdersViewModel
                 logger.d(TAG, "subscribed to cards identities")
                 cardsRepository.identities.collect { identities ->
                     val existing =
-                        _uiState.value.lastSelectedInstruments
+                        _coordState.value.lastSelectedInstruments
                             .associateBy { it.instrument.tscalpInstrumentId }
                     val enriched =
                         identities.mapNotNull { identity ->
@@ -181,7 +140,7 @@ class OrdersViewModel
                                 )
                             }
                         }
-                    _uiState.update { it.copy(lastSelectedInstruments = enriched) }
+                    _coordState.update { it.copy(lastSelectedInstruments = enriched) }
                     refreshLastSelectedInstruments()
                     startPositionUpdates()
                 }
@@ -196,26 +155,21 @@ class OrdersViewModel
                         when (initResult.data) {
                             is BrokerInitState.AnyInitialized -> {
                                 logger.d(TAG, "checkApiInitialization: anyApiInitialized=true")
-                                _uiState.update { it.copy(isApiInitialized = true) }
+                                _coordState.update { it.copy(isApiInitialized = true) }
                                 if (brokerManager.getDefaultBroker().isInitialized) {
                                     loadAccounts()
                                 }
-                                syncPriceInterest()
                             }
                             is BrokerInitState.NoneInitialized -> {
                                 logger.d(TAG, "checkApiInitialization: anyApiInitialized=false")
-                                _uiState.update { it.copy(isApiInitialized = false) }
+                                _coordState.update { it.copy(isApiInitialized = false) }
                                 stopPositionUpdates()
-                                _uiState.update {
+                                _coordState.update {
                                     it.copy(
                                         accounts = emptyList(),
                                         selectedAccountId = null,
                                         portfolioPositions = emptyList(),
                                         lastSelectedInstruments = emptyList(),
-                                        currentPrice = null,
-                                        pairCurrentPrice = null,
-                                        freeBalance = null,
-                                        tradingStatuses = emptyMap(),
                                     )
                                 }
                             }
@@ -223,86 +177,23 @@ class OrdersViewModel
                     }
                     is AppResult.Failure -> {
                         logger.e(TAG, "checkApiInitialization failed: ${initResult.error.message}", initResult.error.cause)
-                        _uiState.update { it.copy(isApiInitialized = false) }
+                        _coordState.update { it.copy(isApiInitialized = false) }
                     }
                 }
             }
-        }
-
-        private suspend fun saveState() {
-            val state = _uiState.value
-            tradingStateRepository.save(
-                TradingStateSnapshot(
-                    selectedTscalpInstrumentId = state.selectedInstrument?.tscalpInstrumentId,
-                    pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
-                    pairTradingEnabled = state.pairTradingEnabled,
-                    quantity = state.quantity,
-                    pairedMultiplier = state.pairedMultiplier,
-                    orderType = state.orderType,
-                ),
-            )
-        }
-
-        private suspend fun restoreState() {
-            val repo = instrumentRepo
-            val brokerReady = brokerManager.getDefaultBroker().isInitialized
-
-            val snapshot = tradingStateRepository.load()
-
-            // Восстановление основного инструмента
-            val tscalpId = snapshot.selectedTscalpInstrumentId
-            if (tscalpId != null && brokerReady) {
-                val instrument = repo.getInstrument(tscalpId)
-                if (instrument != null) {
-                    _uiState.update { it.copy(selectedInstrument = instrument, ticker = instrument.ticker) }
-
-                    val pointVal = instrument.moneyPerPointOfPrice
-                    _uiState.update { it.copy(currentPointValue = pointVal) }
-
-                    syncPriceInterest()
-                }
-            }
-
-            // Восстановление парного инструмента
-            val pairedTscalpId = snapshot.pairedTscalpInstrumentId
-            if (pairedTscalpId != null && brokerReady) {
-                val pairInstrument = repo.getInstrument(pairedTscalpId)
-                if (pairInstrument != null) {
-                    _uiState.update { it.copy(pairedInstrument = pairInstrument) }
-
-                    val pairPointVal = pairInstrument.moneyPerPointOfPrice
-                    _uiState.update { it.copy(pairedPointValue = pairPointVal) }
-
-                    // если не был запущен ценовой стрим для основного, запустим сейчас
-                    if (_uiState.value.selectedInstrument != null) {
-                        syncPriceInterest()
-                    }
-                }
-            }
-
-            _uiState.update { state ->
-                state.copy(
-                    pairTradingEnabled = snapshot.pairTradingEnabled,
-                    quantity = snapshot.quantity,
-                    pairedMultiplier = snapshot.pairedMultiplier,
-                    orderType = snapshot.orderType,
-                )
-            }
-            updateTradeDetails()
-            updatePairExecDetails()
         }
 
         fun loadAccounts() {
             viewModelScope.launch {
                 logger.d(TAG, "loadAccounts: start")
-                _uiState.update { it.copy(isLoading = true) }
+                _coordState.update { it.copy(isLoading = true) }
 
                 val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
                 val result = loadOrdersAccountsUseCase.execute(BrokerName.TINVEST, sandboxMode)
                 when (result) {
                     is AppResult.Success -> {
                         val data = result.data
-                        _uiState.update {
+                        _coordState.update {
                             it.copy(
                                 accounts = data.accounts,
                                 selectedAccountId = data.selectedAccountId,
@@ -330,7 +221,7 @@ class OrdersViewModel
                             "loadAccounts failed: ${result.error.message}",
                             result.error.cause,
                         )
-                        _uiState.update {
+                        _coordState.update {
                             it.copy(
                                 isLoading = false,
                                 statusMessage = "Ошибка загрузки счетов: ${result.error.message}",
@@ -342,244 +233,11 @@ class OrdersViewModel
             }
         }
 
-        fun onInstrumentSelected(instrument: Instrument) {
-            _uiState.update {
-                it.copy(
-                    selectedInstrument = instrument,
-                    ticker = instrument.ticker,
-                )
-            }
-            viewModelScope.launch {
-                _uiState.update { it.copy(isPriceLoading = true) }
-                when (val result = selectInstrumentUseCase.execute(instrument)) {
-                    is AppResult.Success -> {
-                        val data = result.data
-                        val card = data.card
-                        val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
-                        currentList.removeAll { it.instrument.ticker == instrument.ticker }
-                        currentList.add(0, card)
-                        _uiState.update {
-                            it.copy(
-                                currentPrice = card.currentPrice,
-                                isPriceLoading = false,
-                                lastSelectedInstruments = currentList.take(5),
-                                currentPointValue = data.pointValue,
-                            )
-                        }
-                        updateTradeDetails()
-                        updatePairExecDetails()
-                        syncPriceInterest()
-                        startPositionUpdates()
-                        saveState()
-                    }
-                    is AppResult.Failure -> {
-                        logger.e(
-                            TAG,
-                            "onInstrumentSelected failed: ${result.error.message}",
-                            result.error.cause,
-                        )
-                        _uiState.update { it.copy(isPriceLoading = false) }
-                    }
-                }
-            }
-        }
-
-        fun clearSelectedInstrument() {
-            _uiState.update {
-                it.copy(
-                    selectedInstrument = null,
-                    ticker = "",
-                    currentPrice = null,
-                    isPriceLoading = false,
-                )
-            }
-            syncPriceInterest()
-        }
-
-        fun onQuantityChanged(quantity: String) {
-            _uiState.update { it.copy(quantity = quantity.filter { it.isDigit() }) }
-            updateTradeDetails()
-            updatePairExecDetails()
-            viewModelScope.launch { saveState() }
-        }
-
         fun onAccountSelected(accountId: String) {
-            _uiState.update { it.copy(selectedAccountId = accountId) }
+            _coordState.update { it.copy(selectedAccountId = accountId) }
             viewModelScope.launch {
                 accountSelectionRepository.select(BrokerName.TINVEST, accountId)
             }
-        }
-
-        fun onBuyClick() =
-            viewModelScope.launch {
-                if (_uiState.value.confirmOrdersEnabled) {
-                    _uiState.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.BUY) }
-                    updatePairExecDetails()
-                } else {
-                    postOrder(OrderDirection.BUY)
-                }
-            }
-
-        fun onSellClick() =
-            viewModelScope.launch {
-                if (_uiState.value.confirmOrdersEnabled) {
-                    _uiState.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.SELL) }
-                    updatePairExecDetails()
-                } else {
-                    postOrder(OrderDirection.SELL)
-                }
-            }
-
-        fun onConfirmOrder() =
-            viewModelScope.launch {
-                val direction = _uiState.value.pendingDirection ?: return@launch
-                _uiState.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
-                updatePairExecDetails()
-                postOrder(direction)
-            }
-
-        fun onDismissConfirmDialog() {
-            _uiState.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
-            updatePairExecDetails()
-        }
-
-        private suspend fun postOrder(direction: OrderDirection) {
-            val state = _uiState.value
-            val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return
-            logger.d(
-                TAG,
-                "postOrder: direction=$direction, ticker=$ticker, qty=${state.quantityAsLong}, orderType=${state.orderType}",
-            )
-
-            val activeCard = state.lastSelectedInstruments.find { it.instrument.ticker == ticker }
-            val input = buildOrderInput(state, direction, activeCard) ?: return
-
-            _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            when (val outcome = postOrderUseCase.execute(input)) {
-                is PostOrderOutcome.Success -> handlePostOrderSuccess(outcome, input.accountId)
-                is PostOrderOutcome.InsufficientFunds -> handlePostOrderInsufficient(outcome)
-                is PostOrderOutcome.Error -> handlePostOrderError(outcome)
-                is PostOrderOutcome.InvalidRequest -> {
-                    logger.w(TAG, "postOrder: invalid request — ${outcome.reason}")
-                    _uiState.update { it.copy(isLoading = false) }
-                }
-            }
-        }
-
-        private suspend fun buildOrderInput(
-            state: OrdersUiState,
-            direction: OrderDirection,
-            activeCard: SelectedInstrumentInfo?,
-        ): PostOrderInput? {
-            val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return null
-            val quantity = state.quantityAsLong ?: return null
-            val brokerName = activeCard?.brokerName ?: BrokerName.TINVEST
-            val accountId = activeCard?.accountId ?: state.selectedAccountId ?: return null
-            val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return null
-
-            val pairedCard =
-                state.pairedInstrument?.let { pi ->
-                    state.lastSelectedInstruments.find { it.instrument.ticker == pi.ticker }
-                }
-            val pairedInput =
-                state.pairedInstrument?.let { pi ->
-                    PairedOrderInput(
-                        tscalpInstrumentId = pi.tscalpInstrumentId,
-                        ticker = pi.ticker,
-                        brokerName = pairedCard?.brokerName ?: BrokerName.TINVEST,
-                        accountId = pairedCard?.accountId ?: accountId,
-                        multiplier = state.pairedMultiplier,
-                    )
-                }
-
-            return PostOrderInput(
-                brokerName = brokerName,
-                ticker = ticker,
-                tscalpInstrumentId = tscalpId,
-                quantity = quantity,
-                direction = direction,
-                accountId = accountId,
-                sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
-                orderType = state.orderType,
-                limitPrice = state.limitPrice,
-                stopPrice = state.stopPrice,
-                expirationType = state.expirationType,
-                paired = pairedInput,
-            )
-        }
-
-        private suspend fun handlePostOrderSuccess(
-            outcome: PostOrderOutcome.Success,
-            accountId: String,
-        ) {
-            refreshLastSelectedInstruments()
-            val currentBalance =
-                when (val balanceResult = portfolioRepository.getBalanceResult(accountId)) {
-                    is AppResult.Success -> balanceResult.data
-                    is AppResult.Failure -> {
-                        logger.w(
-                            TAG,
-                            "postOrder: getBalance failed: ${balanceResult.error.message}",
-                            balanceResult.error.cause,
-                        )
-                        null
-                    }
-                }
-            var message = formatPostOrderSuccess(outcome)
-            if (currentBalance != null && currentBalance < 1000.0) {
-                message += "\n⚠️ Низкий свободный остаток: ${formatDomesticCurrency(currentBalance)}"
-            }
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    statusMessage = message,
-                    isError = false,
-                    quantity = "",
-                    limitPrice = "",
-                    stopPrice = "",
-                    freeBalance = currentBalance,
-                )
-            }
-        }
-
-        private fun handlePostOrderInsufficient(outcome: PostOrderOutcome.InsufficientFunds) {
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    statusMessage =
-                        "❌ Недостаточно средств. Свободно: ${formatDomesticCurrency(outcome.balance)}, требуется: ~${formatDomesticCurrency(outcome.required)}",
-                    isError = true,
-                )
-            }
-        }
-
-        private fun handlePostOrderError(outcome: PostOrderOutcome.Error) {
-            logger.e(TAG, "postOrder failed: ${outcome.message}", outcome.cause)
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    statusMessage = "❌ ${outcome.message}",
-                    isError = true,
-                )
-            }
-        }
-
-        private fun formatPostOrderSuccess(outcome: PostOrderOutcome.Success): String {
-            val primary =
-                when (val p = outcome.primary) {
-                    is PrimaryOutcome.Regular ->
-                        "✅ Заявка выполнена!\nID: ${p.orderId}\nИсполнено: ${p.executedLots}/${p.totalLots} лотов"
-                    is PrimaryOutcome.Stop -> "✅ Стоп‑заявка выставлена, ID: ${p.orderId.take(8)}…"
-                }
-            val paired =
-                outcome.paired?.let { p ->
-                    when (p) {
-                        is PairedOutcome.Regular -> "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId}"
-                        is PairedOutcome.Stop -> "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId.take(8)}…"
-                        is PairedOutcome.Failed -> "\n❌ Ошибка контрсделки: ${p.message}"
-                    }
-                } ?: ""
-            return primary + paired
         }
 
         /**
@@ -588,7 +246,7 @@ class OrdersViewModel
          * глобального (`selectedAccountId` — вкладка Настройки).
          *
          * Источник — `PositionFlowManager.sheet` (StateFlow, sync read),
-         * а не `_uiState.portfolioPositions` (глобальный счёт). Это
+         * а не `_coordState.portfolioPositions` (глобальный счёт). Это
          * делает карточки реактивными к sheet emit (polling ~10 сек,
          * WS) без перепоиска инструмента.
          *
@@ -596,7 +254,7 @@ class OrdersViewModel
          * `averagePrice` сохраняется, `profit / profitPercent = 0.0` (1:1).
          */
         private fun refreshLastSelectedInstruments() {
-            val state = _uiState.value
+            val state = _coordState.value
             if (state.lastSelectedInstruments.isEmpty()) return
             val sheet = positionFlowManager.sheet.value
             logger.d(
@@ -610,107 +268,23 @@ class OrdersViewModel
                     globalAccountId = state.selectedAccountId,
                     sheet = sheet,
                 )
-            _uiState.update { it.copy(lastSelectedInstruments = updatedList) }
+            _coordState.update { it.copy(lastSelectedInstruments = updatedList) }
         }
 
         fun clearStatus() {
-            _uiState.update { it.clearStatus() }
+            _coordState.update { it.clearStatus() }
         }
 
         fun retryLoadAccounts() {
             loadAccounts()
         }
 
-        fun setPairTradingEnabled(enabled: Boolean) {
-            _uiState.update {
-                if (enabled) {
-                    it.copy(pairTradingEnabled = true)
-                } else {
-                    it.copy(
-                        pairTradingEnabled = false,
-                        pairCurrentPrice = null,
-                        pairedInstrument = null,
-                        pairedMultiplier = "10",
-                    )
-                }
-            }
-            viewModelScope.launch { saveState() }
-            syncPriceInterest()
-            updatePairExecDetails()
-        }
-
-        fun onPairedInstrumentSelected(instrument: Instrument) {
-            _uiState.update { it.copy(pairedInstrument = instrument) }
-            syncPriceInterest() // обновляем интерес к ценам обоих инструментов
-            viewModelScope.launch {
-                when (val result = selectPairedInstrumentUseCase.execute(instrument)) {
-                    is AppResult.Success -> {
-                        val data = result.data
-                        val price = data.price
-                        if (price != null) {
-                            _uiState.update { it.copy(pairCurrentPrice = price) }
-                            _uiState.update { it.copy(pairedPointValue = data.pointValue) }
-                        }
-                    }
-                    is AppResult.Failure -> {
-                        logger.e(
-                            TAG,
-                            "onPairedInstrumentSelected failed: ${result.error.message}",
-                            result.error.cause,
-                        )
-                    }
-                }
-                updateTradeDetails()
-                updatePairExecDetails()
-                saveState()
-            }
-        }
-
-        fun clearPairedInstrument() {
-            _uiState.update { it.copy(pairedInstrument = null) }
-            syncPriceInterest()
-            updatePairExecDetails()
-        }
-
-        fun onPairedMultiplierChanged(value: String) {
-            val filtered = value.filter { it.isDigit() || it == '.' }
-            _uiState.update { it.copy(pairedMultiplier = filtered) }
-            viewModelScope.launch { saveState() }
-        }
-
-        fun onOrderTypeChanged(type: OrderTypeSelection) {
-            _uiState.update { it.copy(orderType = type) }
-            if (type == OrderTypeSelection.Market) {
-                _uiState.update { it.copy(limitPrice = "") }
-            }
-            updateTradeDetails()
-            updatePairExecDetails()
-            viewModelScope.launch { saveState() }
-        }
-
-        fun onLimitPriceChanged(price: String) {
-            val filtered = price.filter { it.isDigit() || it == '.' }
-            _uiState.update { it.copy(limitPrice = filtered) }
-            updateTradeDetails()
-            updatePairExecDetails()
-            viewModelScope.launch { saveState() }
-        }
-
-        fun onStopPriceChanged(price: String) {
-            _uiState.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
-            updateTradeDetails()
-            updatePairExecDetails()
-            viewModelScope.launch { saveState() }
-        }
-
         private suspend fun updateTradingStatuses(ids: List<String>) {
             if (ids.isEmpty()) return
+            // 13d-F-A: usecase пишет в TradingStatusRepository (SSoT),
+            // Coord не дублирует статусы в state (passthrough выше).
             when (val result = updateTradingStatusesUseCase.execute(BrokerName.TINVEST, ids)) {
-                is AppResult.Success -> {
-                    _uiState.update { state ->
-                        state.copy(tradingStatuses = state.tradingStatuses + result.data)
-                    }
-                }
+                is AppResult.Success -> Unit
                 is AppResult.Failure -> {
                     logger.e(
                         TAG,
@@ -723,11 +297,11 @@ class OrdersViewModel
 
         suspend fun startPositionUpdates() {
             stopPositionUpdates()
-            val globalAccountId = _uiState.value.selectedAccountId
+            val globalAccountId = _coordState.value.selectedAccountId
             val accountIds =
                 buildSet {
                     globalAccountId?.let { add(it) }
-                    _uiState.value.lastSelectedInstruments.forEach { card ->
+                    _coordState.value.lastSelectedInstruments.forEach { card ->
                         card.accountId?.let { add(it) }
                     }
                 }
@@ -756,12 +330,12 @@ class OrdersViewModel
             // Если позиции ещё не загружены (например, после восстановления состояния),
             // делаем разовый прямой запрос, чтобы сразу заполнить карточку
             // (только для global-счёта; без него fallback не нужен)
-            if (globalAccountId != null && _uiState.value.portfolioPositions.isEmpty()) {
+            if (globalAccountId != null && _coordState.value.portfolioPositions.isEmpty()) {
                 viewModelScope.launch {
                     val sandbox = sandboxPreferencesRepository.isSandboxMode()
                     when (val result = portfolioRepository.fetchPositionsResult(BrokerName.TINVEST, globalAccountId, sandbox)) {
                         is AppResult.Success ->
-                            _uiState.update { it.copy(portfolioPositions = result.data) }
+                            _coordState.update { it.copy(portfolioPositions = result.data) }
                         is AppResult.Failure ->
                             logger.w(
                                 TAG,
@@ -778,142 +352,27 @@ class OrdersViewModel
             positionStreamJob = null
         }
 
-        /**
-         * Собирает текущий набор tscalpInstrumentId
-         * (selectedInstrument + pairedInstrument) и передаёт в
-         * PriceFlowManager. Менеджер пересоздаст стрим только при
-         * фактическом изменении union.
-         */
-        private fun syncPriceInterest() {
-            val state = _uiState.value
-            val uids =
-                buildSet {
-                    state.selectedInstrument?.let { add(it.tscalpInstrumentId) }
-                    state.pairedInstrument?.let { add(it.tscalpInstrumentId) }
-                }
-            priceFlowManager.setInterest(PriceConsumer.ORDERS, uids)
-        }
-
-        /**
-         * Применяет обновление цены из PriceFlowManager к соответствующему
-         * инструменту в UI: selectedInstrument или pairedInstrument.
-         * Для неизвестного tscalpInstrumentId — no-op.
-         */
-        private fun updateInstrumentPrice(update: PriceUpdate) {
-            // Пока активен только TInvest — фильтрация по брокеру не нужна.
-            // При мультиброкерности здесь появится сравнение с brokerName
-            // соответствующего инструмента.
-            val tscalpId = update.tscalpInstrumentId
-            val price = update.price
-            _uiState.update { state ->
-                when (tscalpId) {
-                    state.selectedInstrument?.tscalpInstrumentId -> {
-                        val oldPrice = state.currentPrice
-                        val newPercent =
-                            if (oldPrice != null && oldPrice != 0.0) {
-                                ((price - oldPrice) / oldPrice) * 100.0
-                            } else {
-                                null
-                            }
-                        state.copy(
-                            currentPrice = price,
-                            selectedPriceChangePercent = newPercent,
-                        )
-                    }
-                    state.pairedInstrument?.tscalpInstrumentId -> {
-                        state.copy(pairCurrentPrice = price)
-                    }
-                    else -> state
-                }
-            }
-        }
-
         override fun onCleared() {
             logger.d(TAG, "onCleared")
-            priceFlowManager.clearInterest(PriceConsumer.ORDERS)
+            // 13d-F-A: clearInterest(ORDERS) переехал в OrderFormViewModel
+            // (Form-lifecycle цен). Coord — lifecycle позиций.
+            stopPositionUpdates()
         }
 
         /**
          * Multi-account: `PositionFlowManager` эмитит `PortfolioSheet` со всех
          * счетов. Обновляем карточки только по активному счёту
-         * ([OrdersUiState.selectedAccountId]).
+         * ([OrdersCoordState.selectedAccountId]).
          */
         private fun updatePositionsFromSheet(sheet: PortfolioSheet) {
-            val activeAccount = _uiState.value.selectedAccountId ?: return
+            val activeAccount = _coordState.value.selectedAccountId ?: return
             val key = AccountKey(BrokerName.TINVEST, activeAccount)
             val accountPortfolio = sheet.accounts[key] ?: return
             val positions = accountPortfolio.positions
             logger.d(TAG, "updatePositionsFromSheet: account=$activeAccount, positions=${positions.size}")
-            _uiState.update { state ->
+            _coordState.update { state ->
                 state.copy(portfolioPositions = positions)
             }
             refreshLastSelectedInstruments()
-        }
-
-        private fun updateTradeDetails() {
-            val state = _uiState.value
-            val details =
-                calculateTradeDetails.calculate(
-                    currentPrice = state.currentPrice,
-                    limitPrice = state.limitPrice,
-                    stopPrice = state.stopPrice,
-                    orderType = state.orderType,
-                    instrument = state.selectedInstrument,
-                    pairedInstrument = state.pairedInstrument,
-                    quantity = state.quantityAsLong ?: 0L,
-                    pairedMultiplier = state.pairedMultiplier,
-                    pairCurrentPrice = state.pairCurrentPrice,
-                )
-            val costOverlay = formatCostOverlay(details, state)
-            val multiplierOverlay = formatMultiplierOverlay(details, state)
-            _uiState.update { it.copy(executionPrice = details.executionPrice, costOverlay = costOverlay, multiplierOverlay = multiplierOverlay) }
-        }
-
-        private fun updatePairExecDetails() {
-            val state = _uiState.value
-            val result =
-                calculatePairExecUseCase.execute(
-                    PairExecInput(
-                        pairTradingEnabled = state.pairTradingEnabled,
-                        hasPairedInstrument = state.pairedInstrument != null,
-                        orderType = state.orderType,
-                        limitPrice = state.limitPrice,
-                        stopPrice = state.stopPrice,
-                        pendingDirection = state.pendingDirection,
-                        executionPrice = state.executionPrice,
-                        pairCurrentPrice = state.pairCurrentPrice,
-                    ),
-                )
-            _uiState.update {
-                it.copy(pairExecPrice = result.pairExecPrice, pairedOrderType = result.pairedOrderType)
-            }
-        }
-
-        private fun formatCostOverlay(
-            details: TradeDetails,
-            state: OrdersUiState,
-        ): String? {
-            val instrumentType = state.selectedInstrument?.instrumentType ?: InstrumentType.OTHER
-            val currency = state.selectedInstrument?.currency ?: DOMESTIC_CURRENCY
-            return when {
-                details.costPoints != null && details.costDomesticCurrency != null ->
-                    "${formatPrice(details.costPoints, instrumentType, currency)}  ·  ${formatDomesticCurrency(details.costDomesticCurrency)}"
-                details.costCurrency != null -> formatCurrency(details.costCurrency, currency)
-                else -> null
-            }
-        }
-
-        private fun formatMultiplierOverlay(
-            details: TradeDetails,
-            state: OrdersUiState,
-        ): String? {
-            val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: InstrumentType.OTHER
-            val currency = state.pairedInstrument?.currency ?: DOMESTIC_CURRENCY
-            return when {
-                details.multiplierPoints != null && details.multiplierDomesticCurrency != null ->
-                    "${formatPrice(details.multiplierPoints, pairedInstrumentType, currency)}  ·  ${formatDomesticCurrency(details.multiplierDomesticCurrency)}"
-                details.multiplierCurrency != null -> formatCurrency(details.multiplierCurrency, currency)
-                else -> null
-            }
         }
     }

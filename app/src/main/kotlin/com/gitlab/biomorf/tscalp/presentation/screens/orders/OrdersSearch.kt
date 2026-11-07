@@ -24,9 +24,10 @@ import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 
 @Composable
 internal fun OrdersInstrumentSection(
-    uiState: OrdersUiState,
+    coordState: OrdersCoordState,
     searchState: OrderSearchState,
     formState: OrderFormState,
+    tradingStatuses: Map<String, TradingAvailability>,
     resetSwipe: Boolean,
     onSearchQueryChanged: (String) -> Unit,
     onInstrumentSelected: (Instrument) -> Unit,
@@ -46,8 +47,8 @@ internal fun OrdersInstrumentSection(
                     searchResults = searchState.searchResults,
                     onInstrumentSelected = onInstrumentSelected,
                     onClear = onClearSearch,
-                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                    tradingStatuses = uiState.tradingStatuses,
+                    recentInstruments = coordState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
                 if (searchState.searchQuery.length >= 2 && !searchState.isSearching) {
@@ -62,13 +63,13 @@ internal fun OrdersInstrumentSection(
         }
     } else {
         formState.selectedInstrument.let { instrument: Instrument ->
-            val card = uiState.activeCard
+            val card = coordState.activeCardFor(formState.selectedInstrument)
             val currentPrice = formState.currentPrice ?: card?.currentPrice ?: 0.0
             val position =
                 emptyPosition(
                     instrument = instrument,
                     currentPrice = currentPrice,
-                    accountId = card?.accountId ?: uiState.selectedAccountId ?: "",
+                    accountId = card?.accountId ?: coordState.selectedAccountId ?: "",
                     brokerName = card?.brokerName ?: BrokerName.TINVEST,
                 ).withCard(card)
             AssetPositionCard(
@@ -80,7 +81,7 @@ internal fun OrdersInstrumentSection(
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,
-                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
+                tradingAvailability = tradingStatuses[instrument.tscalpInstrumentId],
             )
         }
     }

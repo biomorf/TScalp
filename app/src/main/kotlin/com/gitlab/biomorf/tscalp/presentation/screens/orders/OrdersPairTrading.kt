@@ -33,9 +33,10 @@ private const val PRICE_FIELDS_ANIMATION_MS = 200
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 internal fun OrdersPairSection(
-    uiState: OrdersUiState,
+    coordState: OrdersCoordState,
     searchState: OrderSearchState,
     formState: OrderFormState,
+    tradingStatuses: Map<String, TradingAvailability>,
     resetSwipe: Boolean,
     scrollState: ScrollState,
     scope: CoroutineScope,
@@ -74,8 +75,8 @@ internal fun OrdersPairSection(
                     searchResults = searchState.pairSearchResults,
                     onInstrumentSelected = onPairedInstrumentSelected,
                     onClear = onClearPairSearch,
-                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                    tradingStatuses = uiState.tradingStatuses,
+                    recentInstruments = coordState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
                 if (searchState.pairSearchQuery.length >= 2 && !searchState.isPairSearching) {
@@ -90,7 +91,7 @@ internal fun OrdersPairSection(
         }
     } else {
         formState.pairedInstrument.let { instrument: Instrument ->
-            val card = uiState.activePairedCard
+            val card = coordState.activePairedCardFor(formState.pairedInstrument)
             val pairPrice =
                 formState.pairCurrentPrice
                     ?: card?.currentPrice
@@ -99,7 +100,7 @@ internal fun OrdersPairSection(
                 emptyPosition(
                     instrument = instrument,
                     currentPrice = pairPrice,
-                    accountId = card?.accountId ?: uiState.selectedAccountId ?: "",
+                    accountId = card?.accountId ?: coordState.selectedAccountId ?: "",
                     brokerName = card?.brokerName ?: BrokerName.TINVEST,
                 ).withCard(card)
             AssetPositionCard(
@@ -111,7 +112,7 @@ internal fun OrdersPairSection(
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,
-                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
+                tradingAvailability = tradingStatuses[instrument.tscalpInstrumentId],
             )
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(

@@ -50,7 +50,8 @@ private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
 @Composable
 fun OrdersScreen() {
     val viewModel: OrdersViewModel = hiltViewModel()
-    val uiState by viewModel.uiState.collectAsState()
+    val coordState by viewModel.coordState.collectAsState()
+    val tradingStatuses by viewModel.tradingStatuses.collectAsState()
     // orchestrates user-intent across 2 VMs (P4): search + form-trigger
     // split (searchVM.onSearchResultSelected + coordVM.onInstrumentSelected).
     val searchViewModel: OrderSearchViewModel = hiltViewModel()
@@ -84,7 +85,7 @@ fun OrdersScreen() {
             // ========== ЗАГОЛОВОК ==========
             OrdersScreenHeader(onShowOrdersList = { showOrdersListDialog = true })
 
-            if (!uiState.isApiInitialized) {
+            if (!coordState.isApiInitialized) {
                 ApiNotInitializedCard()
                 return@Box
             }
@@ -110,9 +111,10 @@ fun OrdersScreen() {
                 ) {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
                     OrdersInstrumentSection(
-                        uiState = uiState,
+                        coordState = coordState,
                         searchState = searchState,
                         formState = formState,
+                        tradingStatuses = tradingStatuses,
                         resetSwipe = dialogsState.swipeResetTrigger,
                         onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
                         onInstrumentSelected = {
@@ -165,9 +167,10 @@ fun OrdersScreen() {
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
                     OrdersPairSection(
-                        uiState = uiState,
+                        coordState = coordState,
                         searchState = searchState,
                         formState = formState,
+                        tradingStatuses = tradingStatuses,
                         resetSwipe = dialogsState.swipeResetTrigger,
                         scrollState = scrollState,
                         scope = scope,
@@ -200,8 +203,8 @@ fun OrdersScreen() {
             // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
             OrdersBottomButtons(
                 freeBalance = formState.freeBalance,
-                isFormValid = formState.isFormValid(uiState.isApiInitialized),
-                isLoading = formState.isLoading,
+                isFormValid = formState.isFormValid(coordState.isApiInitialized),
+                isLoading = formState.isLoading || coordState.isLoading,
                 onBuyClick = { formViewModel.onBuyClick() },
                 onSellClick = { formViewModel.onSellClick() },
             )
@@ -210,7 +213,7 @@ fun OrdersScreen() {
         // Snackbar (extracted, Fase 2 11b; 13d-E-A: coord + form channels)
         OrdersScreenSnackbar(
             snackbarHostState = snackbarHostState,
-            coordState = uiState,
+            coordState = coordState,
             formState = formState,
             searchState = searchState,
             onClearCoordStatus = { viewModel.clearStatus() },
@@ -262,7 +265,7 @@ fun OrdersScreen() {
 @Composable
 private fun BoxScope.OrdersScreenSnackbar(
     snackbarHostState: SnackbarHostState,
-    coordState: OrdersUiState,
+    coordState: OrdersCoordState,
     formState: OrderFormState,
     searchState: OrderSearchState,
     onClearCoordStatus: () -> Unit,
@@ -291,13 +294,13 @@ private fun BoxScope.OrdersScreenSnackbar(
  * `loadAccounts` / `checkApiInitialization`) and `formState.statusMessage`
  * (Form: postOrder flow). Plus `searchState.statusMessage` (Search).
  * Each channel: show + auto-dismiss by SnackbarResult -> onClear*.
- * Pre-existing N3-duplicate (`2 × LaunchedEffect(uiState.statusMessage)`)
+ * Pre-existing N3-duplicate (`2 × LaunchedEffect(coordState.statusMessage)`)
  * is removed as part of this split.
  */
 @Composable
 private fun OrdersSnackbarEffects(
     snackbarHostState: SnackbarHostState,
-    coordState: OrdersUiState,
+    coordState: OrdersCoordState,
     formState: OrderFormState,
     searchState: OrderSearchState,
     onClearCoordStatus: () -> Unit,
