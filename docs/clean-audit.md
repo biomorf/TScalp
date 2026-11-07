@@ -136,8 +136,8 @@ L4–L8 — не проверены, заполняются по мере инс
 | `PortfolioViewModel` | `loadPortfolio` | getAccounts → seedSheet (getBalance × accounts) → startPositionUpdates → syncPriceInterest |
 | `OrdersViewModel` | `checkApiInitialization` | init → loadAccounts + syncPriceInterest / logout cleanup (stop streams, clearInterest) |
 | `OrdersViewModel` | `loadAccounts` | getAccounts → loadDefaultAccountId → state |
-| `OrdersViewModel` | `openBrokerDialog` | findCard → getAccounts → dialog state |
-| `OrdersViewModel` | `loadDialogAccounts` | getAccounts → dialog state |
+| `OrderDialogsViewModel` | `openBrokerDialog` | findCard → getAccounts → dialog state |
+| `OrderDialogsViewModel` | `loadDialogAccounts` | getAccounts → dialog state |
 | `OrdersListViewModel` | `cancelOrder` | getAccounts → cancelOrder / cancelStopOrder |
 | `OrdersListViewModel` | `loadOrders` | getAccounts → getOrders / getStopOrders |
 
@@ -159,6 +159,22 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 **MVVM-альтернатива:** то же — orchestration в UseCase, VM — state + delegation.
 
 **Выгоды:** —.
+
+**Расширено (12a, 2026-11-07, `7e2f717`):** после выноса
+`OrderDialogsViewModel` (шаг 12a ROADMAP `### OrdersViewModel: разбить
+на несколько VM`) M2-паттерн расширился:
+
+- было: 3 VM (`PortfolioViewModel`, `OrdersViewModel`,
+  `OrdersListViewModel`), 7 методов;
+- стало: 4 VM (+ `OrderDialogsViewModel`), 7 методов: 5 в 2 VM
+  (2 `PortfolioViewModel` + 3 `OrdersViewModel`) + 2 в новой
+  `OrderDialogsViewModel`;
+- `openBrokerDialog` / `loadDialogAccounts` — теперь в
+  `OrderDialogsViewModel` (M2 partial: find `existingCard` +
+  `savedAccountId` fallback, `cardsRepository.identities.first()` +
+  `accountSelectionRepository.selected(TINVEST).first()`);
+- Clean-альтернатива не изменилась: `OpenBrokerDialogUseCase` /
+  `LoadDialogAccountsUseCase` (эволюция M013).
 
 **Ссылка на задачу:** `### A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (ROADMAP).
 
