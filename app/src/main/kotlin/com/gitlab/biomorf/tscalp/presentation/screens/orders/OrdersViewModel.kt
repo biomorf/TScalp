@@ -40,6 +40,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
@@ -80,6 +81,7 @@ class OrdersViewModel
         private val loadCardAccountsUseCase: LoadCardAccountsUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
+        private val selectInstrumentUseCase: SelectInstrumentUseCase,
         private val logger: Logger,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OrdersUiState())
@@ -340,7 +342,6 @@ class OrdersViewModel
         }
 
         fun onInstrumentSelected(instrument: Instrument) {
-            // Обновляем выбранный инструмент и поисковую строку
             _uiState.update {
                 it.copy(
                     selectedInstrument = instrument,
@@ -349,70 +350,38 @@ class OrdersViewModel
                     searchResults = emptyList(),
                 )
             }
-
             viewModelScope.launch {
                 _uiState.update { it.copy(isPriceLoading = true) }
-
-                // Загружаем актуальный Instrument с pointValue
-                val actualInstrument = instrumentRepo.getInstrument(instrument.tscalpInstrumentId) ?: instrument
-
-                // 1. Мгновенно получаем последнюю цену (чтобы не ждать стрим)
-                val price =
-                    when (val pricesResult = marketDataRepository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
-                        is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
-                        is AppResult.Failure -> {
-                            logger.w(
-                                TAG,
-                                "onInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
-                                pricesResult.error.cause,
+                when (val result = selectInstrumentUseCase.execute(instrument)) {
+                    is AppResult.Success -> {
+                        val data = result.data
+                        val card = data.card
+                        val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
+                        currentList.removeAll { it.instrument.ticker == instrument.ticker }
+                        currentList.add(0, card)
+                        _uiState.update {
+                            it.copy(
+                                currentPrice = card.currentPrice,
+                                isPriceLoading = false,
+                                lastSelectedInstruments = currentList.take(5),
+                                currentPointValue = data.pointValue,
                             )
-                            null
                         }
+                        updateTradeDetails()
+                        updatePairExecDetails()
+                        syncPriceInterest()
+                        startPositionUpdates()
+                        saveState()
                     }
-
-                // 2. Ищем позицию в портфеле
-                val portfolioPos =
-                    _uiState.value.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
-
-                // 3. Берём существующую карточку (если была), чтобы сохранить настройки брокера/счёта
-                val existingCard = _uiState.value.lastSelectedInstruments.find { it.instrument.ticker == instrument.ticker }
-
-                val newCard =
-                    SelectedInstrumentInfo(
-                        instrument = instrument,
-                        currentPrice = price,
-                        priceChangePercent = null,
-                        quantity = portfolioPos?.quantity?.toLong() ?: 0L,
-                        averagePrice = portfolioPos?.currentPrice,
-                        profit = portfolioPos?.profit,
-                        profitPercent = portfolioPos?.profitPercent,
-                        brokerName = existingCard?.brokerName ?: BrokerName.TINVEST,
-                        accountId = existingCard?.accountId,
-                    )
-
-                // 4. Обновляем список последних выбранных инструментов
-                val currentList = _uiState.value.lastSelectedInstruments.toMutableList()
-                currentList.removeAll { it.instrument.ticker == instrument.ticker }
-                currentList.add(0, newCard)
-
-                _uiState.update {
-                    it.copy(
-                        currentPrice = price,
-                        isPriceLoading = false,
-                        lastSelectedInstruments = currentList.take(5),
-                    )
+                    is AppResult.Failure -> {
+                        logger.e(
+                            TAG,
+                            "onInstrumentSelected failed: ${result.error.message}",
+                            result.error.cause,
+                        )
+                        _uiState.update { it.copy(isPriceLoading = false) }
+                    }
                 }
-                // Сохраняем pointValue для UI
-                val pointVal = actualInstrument.moneyPerPointOfPrice
-                _uiState.update { it.copy(currentPointValue = pointVal) }
-
-                updateTradeDetails()
-                updatePairExecDetails()
-
-                // 5. Запускаем стрим для реактивного обновления цены
-                syncPriceInterest()
-                startPositionUpdates()
-                saveState()
             }
         }
 
