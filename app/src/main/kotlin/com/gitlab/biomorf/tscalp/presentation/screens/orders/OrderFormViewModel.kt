@@ -7,9 +7,11 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
@@ -19,6 +21,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderRequest
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
@@ -77,6 +80,7 @@ class OrderFormViewModel
         private val priceFlowManager: PriceFlowManager,
         private val logger: Logger,
         private val placeOrderUseCase: PlaceOrderUseCase,
+        private val restoreOrderFormUseCase: RestoreOrderFormUseCase,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderFormState())
         val state: StateFlow<OrderFormState> = _state.asStateFlow()
@@ -87,6 +91,15 @@ class OrderFormViewModel
                 tradingPreferencesRepository.confirmOrdersEnabledFlow().collect { enabled ->
                     _state.update { it.copy(confirmOrdersEnabled = enabled) }
                 }
+            }
+            viewModelScope.launch {
+                logger.d(TAG, "subscribed to prices")
+                priceFlowManager.prices.collect { update ->
+                    updateInstrumentPrice(update)
+                }
+            }
+            viewModelScope.launch {
+                restoreOrderForm()
             }
         }
 
@@ -226,6 +239,68 @@ class OrderFormViewModel
                     }
                 } ?: ""
             return primaryText + pairedText
+        }
+
+        private suspend fun restoreOrderForm() {
+            when (val result = restoreOrderFormUseCase.execute()) {
+                is AppResult.Success -> {
+                    val data = result.data
+                    _state.update {
+                        it.copy(
+                            selectedInstrument = data.selectedInstrument,
+                            ticker = data.selectedInstrument?.ticker ?: "",
+                            pairedInstrument = data.pairedInstrument,
+                            pairTradingEnabled = data.pairTradingEnabled,
+                            quantity = data.quantity,
+                            pairedMultiplier = data.pairedMultiplier,
+                            orderType = data.orderType,
+                            currentPointValue = data.currentPointValue,
+                            pairedPointValue = data.pairedPointValue,
+                        )
+                    }
+                    updateTradeDetails()
+                    updatePairExecDetails()
+                    syncPriceInterest()
+                }
+                is AppResult.Failure -> {
+                    logger.e(
+                        TAG,
+                        "restoreOrderForm failed: ${result.error.message}",
+                        result.error.cause,
+                    )
+                }
+            }
+        }
+
+        private fun updateInstrumentPrice(update: PriceUpdate) {
+            val tscalpId = update.tscalpInstrumentId
+            val price = update.price
+            _state.update { state ->
+                when (tscalpId) {
+                    state.selectedInstrument?.tscalpInstrumentId -> {
+                        val oldPrice = state.currentPrice
+                        val newPercent =
+                            if (oldPrice != null && oldPrice != 0.0) {
+                                ((price - oldPrice) / oldPrice) * 100.0
+                            } else {
+                                null
+                            }
+                        state.copy(
+                            currentPrice = price,
+                            selectedPriceChangePercent = newPercent,
+                        )
+                    }
+                    state.pairedInstrument?.tscalpInstrumentId -> {
+                        state.copy(pairCurrentPrice = price)
+                    }
+                    else -> state
+                }
+            }
+        }
+
+        override fun onCleared() {
+            logger.d(TAG, "onCleared")
+            priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
         companion object {
