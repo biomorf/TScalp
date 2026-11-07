@@ -87,20 +87,18 @@ internal fun OrdersPairSection(
         }
     } else {
         uiState.pairedInstrument.let { instrument: Instrument ->
-            val portfolioPos =
-                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
+            val card = uiState.activePairedCard
             val pairPrice =
                 uiState.pairCurrentPrice
-                    ?: portfolioPos?.currentPrice
+                    ?: card?.currentPrice
                     ?: 0.0
             val position =
-                portfolioPos
-                    ?: emptyPosition(
-                        instrument = instrument,
-                        currentPrice = pairPrice,
-                        accountId = uiState.selectedAccountId ?: "",
-                        brokerName = BrokerName.TINVEST,
-                    )
+                emptyPosition(
+                    instrument = instrument,
+                    currentPrice = pairPrice,
+                    accountId = card?.accountId ?: uiState.selectedAccountId ?: "",
+                    brokerName = card?.brokerName ?: BrokerName.TINVEST,
+                ).withCard(card)
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = pairPrice,

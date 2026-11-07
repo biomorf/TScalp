@@ -109,5 +109,30 @@ data class OrdersUiState(
         }
     val quantityAsLong: Long? get() = quantity.toLongOrNull()
 
+    /**
+     * Per-card `SelectedInstrumentInfo` для выбранного основного
+     * инструмента (если есть в `lastSelectedInstruments`).
+     *
+     * Источник для UI-карточки основного инструмента: приоритетнее
+     * глобального `portfolioPositions` (счёт из Настроек). Per-card
+     * `accountId` (свойства карточки) — приоритет (см.
+     * `refreshLastSelectedInstruments`).
+     */
+    val activeCard: SelectedInstrumentInfo?
+        get() =
+            selectedInstrument?.let { inst ->
+                lastSelectedInstruments.find { it.instrument.ticker == inst.ticker }
+            }
+
+    /**
+     * Per-card `SelectedInstrumentInfo` для парного инструмента.
+     * Аналог [activeCard] для `pairedInstrument`.
+     */
+    val activePairedCard: SelectedInstrumentInfo?
+        get() =
+            pairedInstrument?.let { inst ->
+                lastSelectedInstruments.find { it.instrument.ticker == inst.ticker }
+            }
+
     fun clearStatus(): OrdersUiState = copy(statusMessage = null, isError = false)
 }

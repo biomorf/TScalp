@@ -59,17 +59,15 @@ internal fun OrdersInstrumentSection(
         }
     } else {
         uiState.selectedInstrument.let { instrument: Instrument ->
-            val portfolioPos =
-                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
-            val currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0
+            val card = uiState.activeCard
+            val currentPrice = uiState.currentPrice ?: card?.currentPrice ?: 0.0
             val position =
-                portfolioPos
-                    ?: emptyPosition(
-                        instrument = instrument,
-                        currentPrice = currentPrice,
-                        accountId = uiState.selectedAccountId ?: "",
-                        brokerName = BrokerName.TINVEST,
-                    )
+                emptyPosition(
+                    instrument = instrument,
+                    currentPrice = currentPrice,
+                    accountId = card?.accountId ?: uiState.selectedAccountId ?: "",
+                    brokerName = card?.brokerName ?: BrokerName.TINVEST,
+                ).withCard(card)
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = currentPrice,
@@ -220,5 +218,70 @@ internal fun InstrumentSearchField(
                 }
             }
         }
+    }
+}
+
+/**
+ * Применяет поля per-card [SelectedInstrumentInfo] (quantity,
+ * averagePrice, profit) к базовой [Position] для отображения в
+ * [com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard].
+ *
+ * **2c-фиксация (M1):** UI конвертирует `SelectedInstrumentInfo`
+ * (identity + per-card счёт) в `Position` (domain) — формально
+ * M1 (UI маппит domain). Временное: шаг 13/15 (Coord на
+ * `PositionFlowManager.sheet` per-account) даст готовые
+ * `Position`, extension и `activeCard` удаляются.
+ *
+ * `profitPercent` / `totalValue` — computed getters `Position`,
+ * не передаются (считаются из `quantity` / `averagePrice` /
+ * `profit` / `currentPrice` / `instrument.moneyPerPointOfPrice`).
+ *
+ * `null` card → `this` (no-op).
+ */
+internal fun Position.withCard(card: SelectedInstrumentInfo?): Position {
+    if (card == null) return this
+    return when (this) {
+        is SharePosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is FuturePosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is BondPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is OptionPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is EtfPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is CurrencyPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is OtherPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
     }
 }
