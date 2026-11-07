@@ -40,6 +40,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.RefreshSelectedInstrumentsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
@@ -79,6 +80,7 @@ class OrdersViewModel
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
         private val postOrderUseCase: PostOrderUseCase,
         private val loadOrdersAccountsUseCase: LoadOrdersAccountsUseCase,
+        private val refreshSelectedInstrumentsUseCase: RefreshSelectedInstrumentsUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val selectInstrumentUseCase: SelectInstrumentUseCase,
@@ -594,30 +596,20 @@ class OrdersViewModel
          * `averagePrice` сохраняется, `profit / profitPercent = 0.0` (1:1).
          */
         private fun refreshLastSelectedInstruments() {
-            val currentList = _uiState.value.lastSelectedInstruments
-            if (currentList.isEmpty()) return
+            val state = _uiState.value
+            if (state.lastSelectedInstruments.isEmpty()) return
             val sheet = positionFlowManager.sheet.value
-            val globalAccountId = _uiState.value.selectedAccountId
             logger.d(
                 TAG,
-                "refreshLastSelectedInstruments: global=$globalAccountId, " +
-                    "sheetAccounts=${sheet.accounts.keys.map { it.accountId }}, cards=${currentList.size}",
+                "refreshLastSelectedInstruments: global=${state.selectedAccountId}, " +
+                    "sheetAccounts=${sheet.accounts.keys.map { it.accountId }}, cards=${state.lastSelectedInstruments.size}",
             )
             val updatedList =
-                currentList.map { card ->
-                    val accountId = card.accountId ?: globalAccountId
-                    val positions =
-                        accountId
-                            ?.let { sheet.accounts[AccountKey(BrokerName.TINVEST, it)]?.positions }
-                            .orEmpty()
-                    val pos = positions.find { it.instrument.ticker == card.instrument.ticker }
-                    card.copy(
-                        quantity = pos?.quantity?.toLong() ?: 0L,
-                        averagePrice = pos?.currentPrice ?: card.averagePrice,
-                        profit = pos?.profit ?: 0.0,
-                        profitPercent = pos?.profitPercent ?: 0.0,
-                    )
-                }
+                refreshSelectedInstrumentsUseCase.execute(
+                    cards = state.lastSelectedInstruments,
+                    globalAccountId = state.selectedAccountId,
+                    sheet = sheet,
+                )
             _uiState.update { it.copy(lastSelectedInstruments = updatedList) }
         }
 
