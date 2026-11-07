@@ -9,7 +9,6 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
@@ -42,6 +41,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.RefreshSelectedInstrumentsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
@@ -66,7 +66,6 @@ import javax.inject.Inject
 class OrdersViewModel
     @Inject
     constructor(
-        private val marketDataRepository: MarketDataRepository,
         private val portfolioRepository: PortfolioRepository,
         private val instrumentRepo: InstrumentRepository,
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
@@ -84,6 +83,7 @@ class OrdersViewModel
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
         private val selectInstrumentUseCase: SelectInstrumentUseCase,
+        private val selectPairedInstrumentUseCase: SelectPairedInstrumentUseCase,
         private val updateTradingStatusesUseCase: UpdateTradingStatusesUseCase,
         private val logger: Logger,
     ) : ViewModel() {
@@ -643,23 +643,22 @@ class OrdersViewModel
             _uiState.update { it.copy(pairedInstrument = instrument) }
             syncPriceInterest() // обновляем интерес к ценам обоих инструментов
             viewModelScope.launch {
-                val price =
-                    when (val pricesResult = marketDataRepository.getLastPricesResult(listOf(instrument.tscalpInstrumentId))) {
-                        is AppResult.Success -> pricesResult.data[instrument.tscalpInstrumentId]
-                        is AppResult.Failure -> {
-                            logger.w(
-                                TAG,
-                                "onPairedInstrumentSelected: getLastPrices failed: ${pricesResult.error.message}",
-                                pricesResult.error.cause,
-                            )
-                            null
+                when (val result = selectPairedInstrumentUseCase.execute(instrument)) {
+                    is AppResult.Success -> {
+                        val data = result.data
+                        val price = data.price
+                        if (price != null) {
+                            _uiState.update { it.copy(pairCurrentPrice = price) }
+                            _uiState.update { it.copy(pairedPointValue = data.pointValue) }
                         }
                     }
-                if (price != null) {
-                    _uiState.update { it.copy(pairCurrentPrice = price) }
-                    // Сохраняем pointValue парного инструмента
-                    val pairedPointVal = instrument.moneyPerPointOfPrice
-                    _uiState.update { it.copy(pairedPointValue = pairedPointVal) }
+                    is AppResult.Failure -> {
+                        logger.e(
+                            TAG,
+                            "onPairedInstrumentSelected failed: ${result.error.message}",
+                            result.error.cause,
+                        )
+                    }
                 }
                 updateTradeDetails()
                 updatePairExecDetails()
