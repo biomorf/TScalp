@@ -55,6 +55,10 @@ fun OrdersScreen() {
     // split (searchVM.onSearchResultSelected + coordVM.onInstrumentSelected).
     val searchViewModel: OrderSearchViewModel = hiltViewModel()
     val searchState by searchViewModel.state.collectAsState()
+    // orchestrates user-intent across dialogs (12b): dialog + save -> dialogsVM,
+    // Coord remains source of form/positions state.
+    val dialogsViewModel: OrderDialogsViewModel = hiltViewModel()
+    val dialogsState by dialogsViewModel.state.collectAsState()
     val focusManager = LocalFocusManager.current
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -116,7 +120,7 @@ fun OrdersScreen() {
                         onRefreshSearch = { searchViewModel.refreshSearch() },
                         onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
                         onClearSelected = { viewModel.clearSelectedInstrument() },
-                        onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
+                        onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
                     )
 
                     // Spacer(modifier = Modifier.height(1.dp))
@@ -172,7 +176,7 @@ fun OrdersScreen() {
                             searchViewModel.clearPairSearchQuery()
                             viewModel.clearPairedInstrument()
                         },
-                        onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
+                        onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
                         onPairedMultiplierChanged = { viewModel.onPairedMultiplierChanged(it) },
                     )
                 } // конец скроллируемой колонки
@@ -205,12 +209,12 @@ fun OrdersScreen() {
     }
 
     TradingBrokerDialog(
-        availableBrokers = viewModel.getAvailableBrokerNames(),
-        uiState = uiState,
-        onBrokerSelected = { viewModel.onBrokerSelected(it) },
-        onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
-        onDismiss = { viewModel.closeBrokerDialog() },
-        onSave = { viewModel.saveBrokerSettings() },
+        availableBrokers = dialogsViewModel.getAvailableBrokerNames(),
+        dialogsState = dialogsState,
+        onBrokerSelected = { dialogsViewModel.onBrokerSelected(it) },
+        onAccountSelected = { dialogsViewModel.onAccountSelectedDialog(it) },
+        onDismiss = { dialogsViewModel.closeBrokerDialog() },
+        onSave = { dialogsViewModel.saveBrokerSettings() },
     )
 
     if (showOrdersListDialog) {

@@ -11,19 +11,19 @@ import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
 @Composable
 internal fun TradingBrokerDialog(
     availableBrokers: List<BrokerName>,
-    uiState: OrdersUiState,
+    dialogsState: OrderDialogsState,
     onBrokerSelected: (BrokerName) -> Unit,
     onAccountSelected: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    if (!uiState.showBrokerDialog) return
+    if (!dialogsState.showBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = uiState.selectedBroker,
+        selectedBroker = dialogsState.selectedBroker,
         onBrokerSelected = onBrokerSelected,
-        accounts = uiState.dialogAccounts,
-        selectedAccountId = uiState.selectedAccountIdDialog,
+        accounts = dialogsState.dialogAccounts,
+        selectedAccountId = dialogsState.selectedAccountIdDialog,
         onAccountSelected = onAccountSelected,
         onDismiss = onDismiss,
         onSave = onSave,
