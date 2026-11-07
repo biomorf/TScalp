@@ -308,10 +308,6 @@ class OrderFormViewModel
             priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
-        companion object {
-            private const val TAG = "OrderFormViewModel"
-        }
-
         fun onQuantityChanged(quantity: String) {
             _state.update { it.copy(quantity = quantity.filter { c -> c.isDigit() }) }
             updateTradeDetails()
@@ -560,5 +556,9 @@ class OrderFormViewModel
                 details.multiplierCurrency != null -> formatCurrency(details.multiplierCurrency, currency)
                 else -> null
             }
+        }
+
+        companion object {
+            private const val TAG = "OrderFormViewModel"
         }
     }
