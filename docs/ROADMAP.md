@@ -1555,6 +1555,78 @@ ___
 
 
 
+### Рефакторинг: tscalpInstrumentId в CardIdentity (ticker — legacy)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** в A4 (live-regression split `OrdersViewModel`) `CardIdentity` получил `tscalpInstrumentId` рядом с `ticker` (оба non-null). `tscalpInstrumentId` — канонический domain-идентификатор; `ticker` оставлен **временно** для:
+- `SaveCardSettingsUseCase` (ищет карточку по `card.ticker == ticker`);
+- `OrdersUiState.activeCard` / `activePairedCard` (сопоставление с `instrument.ticker`);
+- legacy DataStore-формата (3-польный, `tscalpInstrumentId = ticker` при decode).
+
+По канону AGENTS «domain и слои к UI — `tscalpInstrumentId`»; `ticker` — legacy. Задача — убрать `ticker` из `CardIdentity` и перевести потребителей на uid.
+
+**Соответствие Clean:** соответствует (усиление правила «domain оперирует `tscalpInstrumentId`»).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** PR «OrdersViewModel split» смержен в `dev` (текущая feature-ветка). Иначе — конфликты.
+
+**Файлы:**
+
+- `domain/models/CardIdentity.kt` — удалить `ticker`, оставить `(tscalpInstrumentId, brokerName, accountId)`.
+- `data/repository/CardsRepositoryImpl.kt` — encode 3 поля (`broker|uid|account`); decode: 4-польный (текущий) → uid (skip ticker); 3-польный legacy → `uid = ticker` (backward compat).
+- `domain/usecases/SaveCardSettingsUseCase.kt` — сигнатура `(tscalpInstrumentId: String, brokerName, accountId)`; поиск по uid.
+- `presentation/screens/orders/OrdersViewModel.kt` — `saveBrokerSettings`: передавать `state.selectedInstrument?.tscalpInstrumentId`.
+- `presentation/screens/orders/OrdersUiState.kt` — `activeCard` / `activePairedCard`: по `it.instrument.tscalpInstrumentId == inst.tscalpInstrumentId`.
+- Тесты: `CardsRepositoryImplTest` (4-польный decode), `SaveCardSettingsUseCaseTest` (uid).
+
+**Шаги:**
+
+1. `CardIdentity` — удалить `ticker`; KDoc убрать legacy-оговорку.
+2. `CardsRepositoryImpl.encode` — 3 поля (`broker|uid|account`).
+3. `CardsRepositoryImpl.decode` — 3 формата: 4-польный A4 (uid), 3-польный новый (uid), 3-польный legacy (`uid = ticker`). KDoc.
+4. `SaveCardSettingsUseCase` — параметр `tscalpInstrumentId`, поиск по uid.
+5. `OrdersViewModel.saveBrokerSettings` — `state.selectedInstrument?.tscalpInstrumentId ?: return`.
+6. `OrdersUiState.activeCard` / `activePairedCard` — по uid.
+7. `SelectInstrumentUseCase.persistIdentity` — `CardIdentity(tscalpInstrumentId, brokerName, accountId)`.
+8. Тесты: обновить constructions (без `ticker`), decode-кейсы (4-польный A4, 3-польный legacy).
+9. Live-test: поиск SBER → карточка → save счёт → force-stop → запуск → карточка восстановлена с per-card accountId.
+
+**Тесты:** ~5 в `CardsRepositoryImplTest` (4-польный, 3-польный новый, 3-польный legacy, empty, roundtrip), 4 в `SaveCardSettingsUseCaseTest` (uid вместо ticker, no-op, exception, cancellation).
+
+**Референсы:**
+- AGENTS.md → «Идентификаторы инструментов» (domain → `tscalpInstrumentId`).
+- Коммиты A4: `593ebfe` (`CardIdentity` + uid), `6a74867` (persist-first), `015a279` (init-collect).
+
+**Ограничения:**
+- Не ломать legacy: 3-польные старые карточки (`broker|ticker|account`) → `uid = ticker` (одноразовая потеря при `getInstrument(ticker) = null` — приемлемо).
+- Не менять `dialogInstrumentTicker` (остаётся для открытия диалога; только `save` по uid).
+- Не смешивать с Фазой 2 (порядок: Фаза 2 → merge → этот refactor).
+
+**Критерий готовности:**
+- `CardIdentity` — 3 поля.
+- `grep -rn "ticker" .../CardIdentity.kt .../SaveCardSettingsUseCase.kt` — пусто.
+- `activeCard` — по uid.
+- Live-test PASS.
+- Гейт зелёный.
+
+**Оценка:** ~2–3 ч.
+
+**Зависимости:** PR «OrdersViewModel split» смержен.
+
+**Связано:** A4 (`593ebfe`, `6a74867`, `015a279`), AGENTS-LESSONS → 90. При split `OrderDialogsViewModel` унаследует `saveBrokerSettings`.
+
+**Открытые вопросы:**
+- `dialogInstrumentTicker` → uid? `openBrokerDialog(ticker)` вызывается из UI-клика, ticker доступен. Решить в задаче.
+- `TradingBrokerDialog.onSave` без параметра. Либо uid-параметр, либо VM читает из `_uiState` (текущий подход). Решить в задаче.
+
 ### KMP: domain → commonMain
 
 **Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
