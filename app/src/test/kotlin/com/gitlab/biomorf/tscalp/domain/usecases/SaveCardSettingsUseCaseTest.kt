@@ -26,7 +26,7 @@ class SaveCardSettingsUseCaseTest {
     fun `card exists updates brokerName and accountId`() =
         runBlocking {
             val existing =
-                CardIdentity(ticker = "SBER", brokerName = BrokerName.TINVEST, accountId = "t-inv")
+                CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER", brokerName = BrokerName.TINVEST, accountId = "t-inv")
             every { cardsRepository.identities } returns flowOf(listOf(existing))
 
             val r = useCase.execute("SBER", BrokerName.BCS, "bcs-acc")
@@ -59,7 +59,7 @@ class SaveCardSettingsUseCaseTest {
     fun `exception returns Failure Unknown`() =
         runBlocking {
             every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity(ticker = "SBER")))
+                flowOf(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER")))
             coEvery { cardsRepository.save(any()) } throws RuntimeException("boom")
 
             val r = useCase.execute("SBER", BrokerName.BCS, "bcs-acc")
@@ -73,7 +73,7 @@ class SaveCardSettingsUseCaseTest {
     fun `cancellation rethrows`() =
         runBlocking {
             every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity(ticker = "SBER")))
+                flowOf(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER")))
             coEvery { cardsRepository.save(any()) } throws CancellationException()
 
             try {

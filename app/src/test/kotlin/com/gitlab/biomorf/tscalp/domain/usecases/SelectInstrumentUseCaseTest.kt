@@ -176,7 +176,7 @@ class SelectInstrumentUseCaseTest {
         runBlocking {
             stubDefaults()
             every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity(ticker = "SBER", brokerName = BrokerName.BCS, accountId = "bcs-acc")))
+                flowOf(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER", brokerName = BrokerName.BCS, accountId = "bcs-acc")))
 
             val r = useCase.execute(inputInstrument)
 
@@ -235,6 +235,7 @@ class SelectInstrumentUseCaseTest {
                 flowOf(
                     listOf(
                         CardIdentity(
+                            tscalpInstrumentId = "uid-sber",
                             ticker = "SBER",
                             brokerName = BrokerName.TINVEST,
                             accountId = "card-acc",

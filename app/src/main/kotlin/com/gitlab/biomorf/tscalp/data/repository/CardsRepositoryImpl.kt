@@ -33,7 +33,8 @@ class CardsRepositoryImpl
         private val dataStore: DataStore<Preferences>,
     ) : CardsRepository {
         private companion object {
-            private const val PARTS_COUNT = 3
+            private const val PARTS_COUNT_NEW = 4
+            private const val PARTS_COUNT_LEGACY = 3
         }
 
         override val identities: Flow<List<CardIdentity>> =
@@ -54,17 +55,40 @@ class CardsRepositoryImpl
             }
         }
 
-        private fun encode(id: CardIdentity): String = "${id.brokerName.name}|${id.ticker}|${id.accountId ?: ""}"
+        private fun encode(id: CardIdentity): String = "${id.brokerName.name}|${id.tscalpInstrumentId}|${id.ticker}|${id.accountId ?: ""}"
 
         private fun decode(raw: String): List<CardIdentity> =
             raw.split("\n").filter { it.isNotBlank() }.mapNotNull { line ->
                 val parts = line.split("|")
-                if (parts.size != PARTS_COUNT) return@mapNotNull null
-                val broker =
-                    runCatching { BrokerName.valueOf(parts[0]) }.getOrNull()
-                        ?: return@mapNotNull null
-                val ticker = parts[1].ifBlank { return@mapNotNull null }
-                val accountId = parts[2].ifBlank { null }
-                CardIdentity(ticker = ticker, brokerName = broker, accountId = accountId)
+                when (parts.size) {
+                    PARTS_COUNT_NEW -> {
+                        val broker =
+                            runCatching { BrokerName.valueOf(parts[0]) }.getOrNull()
+                                ?: return@mapNotNull null
+                        val tscalpInstrumentId = parts[1].ifBlank { return@mapNotNull null }
+                        val ticker = parts[2].ifBlank { return@mapNotNull null }
+                        val accountId = parts[3].ifBlank { null }
+                        CardIdentity(
+                            tscalpInstrumentId = tscalpInstrumentId,
+                            ticker = ticker,
+                            brokerName = broker,
+                            accountId = accountId,
+                        )
+                    }
+                    PARTS_COUNT_LEGACY -> {
+                        val broker =
+                            runCatching { BrokerName.valueOf(parts[0]) }.getOrNull()
+                                ?: return@mapNotNull null
+                        val ticker = parts[1].ifBlank { return@mapNotNull null }
+                        val accountId = parts[2].ifBlank { null }
+                        CardIdentity(
+                            tscalpInstrumentId = ticker,
+                            ticker = ticker,
+                            brokerName = broker,
+                            accountId = accountId,
+                        )
+                    }
+                    else -> null
+                }
             }
     }
