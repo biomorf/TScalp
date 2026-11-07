@@ -486,6 +486,26 @@ actual). Не доверять фильтру.
 
 **Проверка:** для каждого extension-символа в тесте — `grep -cE "\.<extName>" <file>` vs `grep -cE "^import .*\.<extName>$" <file>` (равны или 0/0). Прецедент: 13a `sber.moneyPerPointOfPrice` в тесте без импорта — 3 compile-errors.
 
+**Расширение (2026-11-07, Session Orders-VM-Split, 13d-F, 2-й инцидент):**
+обратная сторона снова, но для **inject** и **типа из wildcard**. В Coord
+13d-F добавлены `private val tradingStatusRepository: TradingStatusRepository`
+и `val tradingStatuses: StateFlow<Map<String, TradingAvailability>>` — импорты
+не добавлены. KSP упал: `InjectProcessingStep was unable to process
+'OrdersViewModel(...)' because 'TradingStatusRepository' could not be resolved`.
+`TradingAvailability` — из wildcard-импорта в `OrdersPairTrading.kt`
+(`domain.models.*`), но `OrdersSearch.kt` использует explicit import.
+Координатная state — `OrdersCoordState` (same-package), импорт не нужен.
+
+**Правило (расширено):** при добавлении **нового inject-поля** или
+**нового типа в public property** — проверить: (а) импорт типа добавлен;
+(б) если тип из wildcard-пакета — либо wildcard, либо explicit import
+(ktlint `no-wildcard-imports` не форсит, но и не запрещает); (в) типы
+из того же package — без импорта.
+
+**Проверка:** `grep -nE "^import .*<Type>" file` для каждого нового
+inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full gate) до
+коммита — KSP первым ловит missing imports.
+
 ### 62. Import order после rename — лексикографически, не только «нет старого имени»
 
 **Правило:** при переименовании класса (rename) — пересортировать блок `import` **заново**, не просто заменить строку `<Old> -> <New>` на месте. Лексикографический порядок может измениться: `TInvestPositionsService` (`Pos`) идёт **после** `TInvestPortfolioService` (`Por`), но `TInvestOrdersService` (`O`) — раньше обоих.
@@ -807,6 +827,85 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 **Проверка:** в скрипте — guard по `old` (`if old_frag not in text: skip`), не по `new`. Если есть подозрение на пересечение — `assert old_frag in text, "old not found"` + `assert text.count(old_frag) == 1` до replace, `assert new_frag in text` после. Связано: урок 4d (идемпотентность), 65 (`new ⊂ old`), 79 (post-assert scope).
 
+### 91. Verify = call-form / declaration-form, никогда `not in text` для symbols
+
+**Правило:** при verify правки / pre-commit — проверять **фактическое
+состояние кода**, не подстроку в файле. Для символов (`fun X`, `val X`,
+`@Annotation`, `suspend fun X`, `LaunchedEffect(x)`) — call-form /
+declaration-form (`^\s*(suspend\s+)?fun\s+X\(`, `^\s*val\s+X\b`,
+`^\s*@Annotation\b`, `^\s*LaunchedEffect\(x\)`) или **code-only**
+grep (`grep -vE '^\s*(\*|//|/\*|\*/|import)'`). `assert "X" not in
+text` / `grep "X"` ловит KDoc, комментарии, KDoc-цитаты — ложные
+срабатывания.
+
+**Инцидент-счётчик (2026-11-07, Session Orders-VM-Split, 12+ нарушений
+класса 80(б) за сессию):**
+1. `assert "startPositionUpdates" not in text` — KDoc «**не вызывает**
+   `startPositionUpdates` (12b, P4)».
+2. `assert "Правило Clean: M2" in t` — фактически `**Правило Clean:** M2`
+   (bold между `Clean:` и `M2`).
+3. `assert "suspend" not in t` — KDoc «нет suspend, deterministic».
+4. `grep -nE "@Inject constructor"` — KDoc «**`@Inject constructor()` без
+   зависимостей** — для Hilt-инъекции в VM».
+5. `assert "LaunchedEffect(uiState.statusMessage)" not in t` — KDoc
+   «Pre-existing N3-duplicate (`2 × LaunchedEffect(uiState.statusMessage)`)».
+6. `state anchor count=0` — anchor `val state:`, фактически `val uiState:`.
+7. `assert "updateTradingStatuses" not in vm_text` — мой assert искал
+   `private fun updateTradingStatuses(`, в файле
+   `private suspend fun updateTradingStatuses(`.
+8. `assert "restoreState()" not in t2` — KDoc «13d-F-A: restoreState()
+   переехал в OrderFormViewModel».
+9. `assert "currentPrice =" not in t2` — `SelectedInstrumentInfo(
+   currentPrice = null, …)` (domain-конструктор, не state).
+10. `assert "coordState\." not in t2` — re.sub без raw-строки (см. урок 92).
+11. `assert "N3 duplicate still present"` — KDoc «Two status channels …
+    Pre-existing N3-duplicate (`2 × LaunchedEffect(uiState.statusMessage)`)».
+12. `assert "PriceConsumer" import` — импорт был после `PriceFlowManager`
+    (урок 48).
+
+**Правило (окончательно):** `assert "X" not in text` для **symbol** —
+**запрещён**. Только:
+- **call-form**: `re.search(r'^\s*(private\s+|suspend\s+|override\s+)?fun\s+X\(', text, re.MULTILINE)`;
+- **declaration-form**: `re.search(r'^\s*val\s+X\b', text, re.MULTILINE)`;
+- **code-only**: `grep -vE '^\s*(\*|//|/\*|\*/|import)' "$file" | grep -nE "X"`;
+- **markdown-aware**: `assert "**Правило Clean:** M2" in t` (с `**`);
+- **call-form для LaunchedEffect**: `re.search(r'^\s*LaunchedEffect\([^)]*\)', text, re.MULTILINE)`.
+
+**Проверка:** перед отправкой скрипта — для каждого `assert "X" not in
+text` — `grep -n "X" file | grep -vE '^\s*\*'` + call-form regex.
+`grep "X" file` без фильтра — запрещён как verify.
+
+### 92. `re.sub` replacement — raw-string или без escaped-symbol; `SyntaxWarning` = сигнал
+
+**Правило:** `re.sub(pattern, replacement, text)` — replacement-строка
+**не должна содержать** escaped-symbol (`\.`, `\(`, `\)`, …) вне
+raw-строки (`r'\.'`). Python 3.12+ выдаёт `SyntaxWarning: "\." is an
+invalid escape sequence` — это **сигнал**, что `re.sub` вставит литеральный
+`\.` вместо `.`. Использовать `re.sub(pattern, 'coordState.', text)` (без
+escape) или `re.sub(pattern, r'coordState\.', text)` (raw-string, если
+escape **нужен** в regex-replacement — редко).
+
+**Инцидент:** 2026-11-07, Session Orders-VM-Split, 13d-F. В скрипте:
+`sc = re.sub(r'\buiState\.', 'coordState\.', sc)` (replacement —
+`'coordState\.'`, не raw). Python выдал `SyntaxWarning: "\." is an invalid
+escape sequence` — я его проигнорировал. В 6 местах файла записалось
+`coordState\.` (литеральный backslash) — `viewModel.coordState\.collectAsState()`.
+Kotlin-компилятор упал бы на `Unresolved reference 'coordState\'`, но
+повезло — гейт остановился раньше (ktlint). Fix: `t.replace("coordState\.",
+"coordState.")`.
+
+**Правило (расширено):** `SyntaxWarning` в Python-скрипте — **не
+косметика**, а реальный баг в replacement. `re.sub` — только с
+raw-string в **pattern** (`r'...'`) и без escaped-symbol в **replacement**
+(или тоже raw, если действительно нужен `\`).
+
+**Проверка:** перед отправкой скрипта — `grep -n "re.sub" script.py` и
+`grep -nE "\\([.()\\[\\]{}])" script.py` (escaped-symbol в
+replacement). Если есть — заменить на raw-string или убрать escape.
+Дополнительно — Python при запуске печатает `SyntaxWarning` — **читать
+stderr**, не подавлять.
+
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
@@ -995,6 +1094,29 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 **Правило (расширено):** fallback-проверка import-order в bash-скрипте **запрещена**, если не реализует ktlint-правило (`java`/`javax`/`kotlin` — в конце, остальное — лексикографически). Либо (а) полагаться на `:app:ktlintCheck` в гейте, либо (б) писать ktlint-совместимый awk с явным разделением группы: `java`/`javax`/`kotlin` — в конце, остальное — `$0 < prev` в своей группе.
 
 **Проверка:** перед добавлением awk-import-order в pre-commit — `grep -q "ktlintCheck"` в гейте. Если есть — awk не нужен.
+
+**Инцидент-счётчик (2026-11-07, Session Orders-VM-Split, 2 нарушения):**
+ещё 2 случая в той же сессии. (а) Python `post-assert` для 12a-fix использовал
+чистый лексикографический порядок (`for i in range(len(imports)-1):
+assert imports[i] <= imports[i+1]`) — упал на корректном файле с
+`import kotlinx.coroutines.launch` → `import javax.inject.Inject` (по ktlint
+`javax` в конце). (б) При вставке нового импорта позиционно — `PriceConsumer`
+вставлен после `PriceFlowManager` (оба `domain.api.managers`; `C < F` — нужно
+до); `AppResult` вставлен перед `OrderDirection` (оба `domain.models`;
+`AppResult < InstrumentType` — нужно раньше). Три раза — ktlint упал на
+`Imports must be ordered`, каждый раз — фикс-цикл.
+
+**Правило (расширено, окончательно):** при вставке **нового** импорта в
+`.kt` — **пересортировать весь блок imports** по ktlint-группам
+(`java`/`javax`/`kotlin` — в конце, остальное — лексикографически в своей
+группе). Позиционная вставка («после anchor») — **запрещена** (урок 62
+расширяется на insert, не только на rename). В python post-assert:
+`imports.sort()` неверен; нужен `sorted(imports, key=ktlint_key)` с явным
+разделением групп.
+
+**Проверка:** в скрипте, вставляющем импорт — собрать `set(imports) | {new}`,
+отсортировать `ktlint_key`, переписать блок. Post-assert — `ktlint_groups_ok`
+(группы, не чистый алфавит).
 
 ---
 
@@ -1244,6 +1366,37 @@ wall time (без учёта round-trips в чате).
 **Инцидент:** 2026-11-07, M013 PR. `git diff --stat origin/dev..origin/feature` показал **обратные** удаления (`AGENTS-LESSONS.md | 52 -----`, `docs/ISSUES.md | 48 -----`) — это не «удаления в feature», а «в feature нет docs-коммитов, которые есть в dev». Без merge PR был бы заблокирован ruleset'ом («Require branches to be up to date»). `git merge origin/dev --no-commit --no-ff` → `Automatic merge went well; stopped before committing as requested` → проверка `git diff --cached --stat` → commit → push.
 
 **Проверка:** `git log --oneline origin/feature..origin/dev` — пусто перед PR. Если непусто — `git merge origin/dev --no-commit --no-ff`, проверить `git diff --name-only --diff-filter=U` (пусто = нет конфликтов), commit, push. Связано: 5f-freeze, `docs/repo-protection.md` (Rulesets), 5f (post-PR).
+
+### 93. 4f: правки → пауза → гейт+коммит → пауза (не в одном блоке)
+
+**Правило:** при работе с кодом на desktop (feature-ветка) — правки,
+гейт и коммит **разделены на два блока** с паузой после каждого:
+
+1. **Блок 1 — правки + verify + `git diff`.** Пауза: пользователь видит
+   diff, проверяет корректность.
+2. **Блок 2 — гейт → условный коммит → push.** Пауза: пользователь видит
+   `BUILD SUCCESSFUL` / `GATE RED`.
+
+Один блок «правки + гейт + коммит» — **запрещён**. Это лишает пользователя
+точки контроля между правками и гейтом: если правки некорректны, гейт
+упадёт, но пауза для review уже потеряна.
+
+**Инцидент:** 2026-11-07, Session Orders-VM-Split, 14a. Ассистент выдал
+один bash-блок: удаление orphan import `PriceFlowManager` + гейт
+(`./gradlew ...`) + коммит + push (в одном `{...} | tee`). Нарушение 4f:
+блок 1 и блок 2 должны быть разделены паузой. Пользователь запросил
+verify-only, скрипт не запускался — но правило нарушено на этапе
+формулировки.
+
+**Проверка:** перед отправкой ответа — если в bash-блоке есть
+`./gradlew` **и** `git commit` **в одном** `{ ... }` → **разделить** на
+два блока. Один блок — один тип операции: правки/verify (блок 1) или
+гейт+commit+push (блок 2). `git add` — в блоке 1 (staging после review
+diff), `git commit` — в блоке 2.
+
+**Связано:** AGENTS 4f (структура шага: блок 1 + блок 2), 4b (один шаг
+за раз), 4d (пауза после скрипта).
+
 
 ## Применение уроков
 
