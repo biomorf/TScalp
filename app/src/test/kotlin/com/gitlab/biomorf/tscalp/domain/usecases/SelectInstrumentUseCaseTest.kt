@@ -224,4 +224,66 @@ class SelectInstrumentUseCaseTest {
                 // OK
             }
         }
+
+    @Test
+    fun `existing card accountId takes priority over global for position lookup`() =
+        runBlocking {
+            stubDefaults()
+            every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns
+                flowOf("global-acc")
+            every { cardsRepository.identities } returns
+                flowOf(
+                    listOf(
+                        CardIdentity(
+                            ticker = "SBER",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = "card-acc",
+                        ),
+                    ),
+                )
+            val posGlobal =
+                SharePosition(
+                    instrument = actualInstrument,
+                    brokerName = BrokerName.TINVEST,
+                    accountId = "global-acc",
+                    quantity = 10.0,
+                    currentPrice = 100.0,
+                )
+            val posCard =
+                SharePosition(
+                    instrument = actualInstrument,
+                    brokerName = BrokerName.TINVEST,
+                    accountId = "card-acc",
+                    quantity = 3.0,
+                    currentPrice = 100.0,
+                )
+            every { positionFlowManager.sheet } returns
+                MutableStateFlow(
+                    PortfolioSheet(
+                        mapOf(
+                            AccountKey(BrokerName.TINVEST, "global-acc") to
+                                AccountPortfolio(
+                                    accountId = "global-acc",
+                                    brokerName = BrokerName.TINVEST,
+                                    positions = listOf(posGlobal),
+                                    balances = emptyList(),
+                                ),
+                            AccountKey(BrokerName.TINVEST, "card-acc") to
+                                AccountPortfolio(
+                                    accountId = "card-acc",
+                                    brokerName = BrokerName.TINVEST,
+                                    positions = listOf(posCard),
+                                    balances = emptyList(),
+                                ),
+                        ),
+                    ),
+                )
+
+            val r = useCase.execute(inputInstrument)
+
+            assertTrue(r is AppResult.Success)
+            val result = (r as AppResult.Success<SelectInstrumentResult>).data
+            assertEquals(3L, result.card.quantity)
+            assertEquals("card-acc", result.card.accountId)
+        }
 }
