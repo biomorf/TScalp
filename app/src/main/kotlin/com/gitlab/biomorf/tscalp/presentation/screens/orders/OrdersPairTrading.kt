@@ -35,6 +35,7 @@ private const val PRICE_FIELDS_ANIMATION_MS = 200
 internal fun OrdersPairSection(
     uiState: OrdersUiState,
     searchState: OrderSearchState,
+    resetSwipe: Boolean,
     scrollState: ScrollState,
     scope: CoroutineScope,
     onPairSearchQueryChanged: (String) -> Unit,
@@ -108,7 +109,7 @@ internal fun OrdersPairSection(
                 onSettings = { onOpenBrokerDialog(instrument.ticker) },
                 onClick = { },
                 isSelected = false,
-                resetSwipe = uiState.swipeResetTrigger,
+                resetSwipe = resetSwipe,
                 tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
             )
             Box(modifier = Modifier.fillMaxWidth()) {

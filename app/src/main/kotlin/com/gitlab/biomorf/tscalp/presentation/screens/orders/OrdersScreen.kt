@@ -107,6 +107,7 @@ fun OrdersScreen() {
                     OrdersInstrumentSection(
                         uiState = uiState,
                         searchState = searchState,
+                        resetSwipe = dialogsState.swipeResetTrigger,
                         onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
                         onInstrumentSelected = {
                             searchViewModel.onSearchResultSelected(it)
@@ -160,6 +161,7 @@ fun OrdersScreen() {
                     OrdersPairSection(
                         uiState = uiState,
                         searchState = searchState,
+                        resetSwipe = dialogsState.swipeResetTrigger,
                         scrollState = scrollState,
                         scope = scope,
                         onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },

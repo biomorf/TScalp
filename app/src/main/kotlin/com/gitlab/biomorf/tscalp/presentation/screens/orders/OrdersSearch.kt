@@ -26,6 +26,7 @@ import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 internal fun OrdersInstrumentSection(
     uiState: OrdersUiState,
     searchState: OrderSearchState,
+    resetSwipe: Boolean,
     onSearchQueryChanged: (String) -> Unit,
     onInstrumentSelected: (Instrument) -> Unit,
     onClearSearch: () -> Unit,
@@ -77,7 +78,7 @@ internal fun OrdersInstrumentSection(
                 onSettings = { onOpenBrokerDialog(instrument.ticker) },
                 onClick = { },
                 isSelected = false,
-                resetSwipe = uiState.swipeResetTrigger,
+                resetSwipe = resetSwipe,
                 tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
             )
         }
