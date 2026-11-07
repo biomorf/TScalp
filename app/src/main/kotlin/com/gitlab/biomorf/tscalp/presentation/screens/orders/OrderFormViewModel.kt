@@ -7,11 +7,17 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
+import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderOutcome
+import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderRequest
+import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
@@ -68,9 +74,128 @@ class OrderFormViewModel
         private val tradingStateRepository: TradingStateRepository,
         private val priceFlowManager: PriceFlowManager,
         private val logger: Logger,
+        private val placeOrderUseCase: PlaceOrderUseCase,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderFormState())
         val state: StateFlow<OrderFormState> = _state.asStateFlow()
+
+        fun onConfirmOrder() {
+            val direction = _state.value.pendingDirection ?: return
+            _state.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
+            updatePairExecDetails()
+            postOrder(direction)
+        }
+
+        fun onDismissConfirmDialog() {
+            _state.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
+            updatePairExecDetails()
+        }
+
+        private fun postOrder(direction: OrderDirection) {
+            val request = buildPlaceOrderRequest(_state.value) ?: return
+            viewModelScope.launch {
+                _state.update { it.copy(isLoading = true, statusMessage = null) }
+                when (val outcome = placeOrderUseCase.execute(request, direction)) {
+                    is PlaceOrderOutcome.Success -> handlePostOrderSuccess(outcome)
+                    is PlaceOrderOutcome.InsufficientFunds -> handlePostOrderInsufficient(outcome)
+                    is PlaceOrderOutcome.Error -> handlePostOrderError(outcome)
+                    is PlaceOrderOutcome.InvalidRequest -> {
+                        logger.w(TAG, "postOrder: invalid request — ${outcome.reason}")
+                        _state.update { it.copy(isLoading = false) }
+                    }
+                }
+            }
+        }
+
+        private fun buildPlaceOrderRequest(state: OrderFormState): PlaceOrderRequest? {
+            val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return null
+            val quantity = state.quantityAsLong ?: return null
+            val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return null
+            return PlaceOrderRequest(
+                ticker = ticker,
+                tscalpInstrumentId = tscalpId,
+                quantity = quantity,
+                orderType = state.orderType,
+                limitPrice = state.limitPrice,
+                stopPrice = state.stopPrice,
+                expirationType = state.expirationType,
+                pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
+                pairedTicker = state.pairedInstrument?.ticker,
+                pairedMultiplier = state.pairedMultiplier,
+            )
+        }
+
+        /**
+         * 2c (clean-audit M013 / A2, 2026-11-07): `handlePostOrderSuccess`
+         * **не вызывает** `refreshLastSelectedInstruments` — это Coord-метод
+         * (cross-VM call запрещён, централизация). Coord реактивен через
+         * `PositionFlowManager.sheet` -> `updatePositionsFromSheet` ->
+         * `refreshLastSelectedInstruments`. `freeBalance` приходит из
+         * [PlaceOrderOutcome.Success] (usecase делает `getBalanceResult`).
+         */
+        private fun handlePostOrderSuccess(outcome: PlaceOrderOutcome.Success) {
+            var message = formatPostOrderSuccess(outcome.primary, outcome.paired)
+            val freeBalance = outcome.freeBalance
+            if (freeBalance != null && freeBalance < 1000.0) {
+                message += "\n⚠️ Низкий свободный остаток: ${formatDomesticCurrency(freeBalance)}"
+            }
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    statusMessage = message,
+                    isError = false,
+                    quantity = "",
+                    limitPrice = "",
+                    stopPrice = "",
+                    freeBalance = freeBalance,
+                )
+            }
+        }
+
+        private fun handlePostOrderInsufficient(outcome: PlaceOrderOutcome.InsufficientFunds) {
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    statusMessage =
+                        "❌ Недостаточно средств. Свободно: ${formatDomesticCurrency(outcome.balance)}, требуется: ~${formatDomesticCurrency(outcome.required)}",
+                    isError = true,
+                )
+            }
+        }
+
+        private fun handlePostOrderError(outcome: PlaceOrderOutcome.Error) {
+            logger.e(TAG, "postOrder failed: ${outcome.message}", outcome.cause)
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    statusMessage = "❌ ${outcome.message}",
+                    isError = true,
+                )
+            }
+        }
+
+        private fun formatPostOrderSuccess(
+            primary: PrimaryOutcome,
+            paired: PairedOutcome?,
+        ): String {
+            val primaryText =
+                when (primary) {
+                    is PrimaryOutcome.Regular ->
+                        "✅ Заявка выполнена!\nID: ${primary.orderId}\nИсполнено: ${primary.executedLots}/${primary.totalLots} лотов"
+                    is PrimaryOutcome.Stop -> "✅ Стоп‑заявка выставлена, ID: ${primary.orderId.take(8)}…"
+                }
+            val pairedText =
+                paired?.let { p ->
+                    when (p) {
+                        is PairedOutcome.Regular ->
+                            "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId}"
+                        is PairedOutcome.Stop ->
+                            "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId.take(8)}…"
+                        is PairedOutcome.Failed -> "\n❌ Ошибка контрсделки: ${p.message}"
+                    }
+                } ?: ""
+            return primaryText + pairedText
+        }
 
         companion object {
             private const val TAG = "OrderFormViewModel"
