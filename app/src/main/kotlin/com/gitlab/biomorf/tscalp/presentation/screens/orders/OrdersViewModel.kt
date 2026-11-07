@@ -603,15 +603,30 @@ class OrdersViewModel
         }
 
         /**
-         * Обновляет список lastSelectedInstruments, подтягивая актуальные данные из портфеля.
+         * Пересчитывает `lastSelectedInstruments` по per-card accountId:
+         * счёт из свойств карточки (`card.accountId`) приоритетнее
+         * глобального (`selectedAccountId` — вкладка Настройки).
+         *
+         * Источник — `PositionFlowManager.sheet` (StateFlow, sync read),
+         * а не `_uiState.portfolioPositions` (глобальный счёт). Это
+         * делает карточки реактивными к sheet emit (polling ~10 сек,
+         * WS) без перепоиска инструмента.
+         *
+         * Fallback (позиция не найдена на счёте карточки): `quantity = 0L`,
+         * `averagePrice` сохраняется, `profit / profitPercent = 0.0` (1:1).
          */
         private fun refreshLastSelectedInstruments() {
             val currentList = _uiState.value.lastSelectedInstruments
             if (currentList.isEmpty()) return
-
-            val positions = _uiState.value.portfolioPositions
+            val sheet = positionFlowManager.sheet.value
+            val globalAccountId = _uiState.value.selectedAccountId
             val updatedList =
                 currentList.map { card ->
+                    val accountId = card.accountId ?: globalAccountId
+                    val positions =
+                        accountId
+                            ?.let { sheet.accounts[AccountKey(BrokerName.TINVEST, it)]?.positions }
+                            .orEmpty()
                     val pos = positions.find { it.instrument.ticker == card.instrument.ticker }
                     card.copy(
                         quantity = pos?.quantity?.toLong() ?: 0L,
@@ -765,6 +780,7 @@ class OrdersViewModel
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }
+                        refreshLastSelectedInstruments()
                     }
                     is AppResult.Failure -> {
                         logger.e(
@@ -1046,6 +1062,7 @@ class OrdersViewModel
             _uiState.update { state ->
                 state.copy(portfolioPositions = positions)
             }
+            refreshLastSelectedInstruments()
         }
 
         fun openSearchBrokerSettings() {
