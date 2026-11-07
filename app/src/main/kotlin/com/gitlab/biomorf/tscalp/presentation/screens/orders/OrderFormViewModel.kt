@@ -8,6 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesReposit
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -22,6 +23,8 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderRequest
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
@@ -81,6 +84,8 @@ class OrderFormViewModel
         private val logger: Logger,
         private val placeOrderUseCase: PlaceOrderUseCase,
         private val restoreOrderFormUseCase: RestoreOrderFormUseCase,
+        private val selectInstrumentUseCase: SelectInstrumentUseCase,
+        private val selectPairedInstrumentUseCase: SelectPairedInstrumentUseCase,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderFormState())
         val state: StateFlow<OrderFormState> = _state.asStateFlow()
@@ -361,6 +366,99 @@ class OrderFormViewModel
             updateTradeDetails()
             updatePairExecDetails()
             viewModelScope.launch { saveState() }
+        }
+
+        /**
+         * 2c (clean-audit M013 / A2, 2026-11-07): в отличие от Coord
+         * `OrdersViewModel.onInstrumentSelected` — **не** обновляет
+         * `lastSelectedInstruments` и **не** вызывает `startPositionUpdates`:
+         * - `lastSelectedInstruments` — Coord-владелец; Coord реактивен через
+         *   `CardsRepository.identities` (A3/A4-b-1) + `RefreshSelectedInstrumentsUseCase`.
+         *   Cross-VM call запрещён (централизация).
+         * - `startPositionUpdates` — Coord-lifecycle (подписка на
+         *   `PositionFlowManager.sheet`); Form не управляет lifecycle менеджеров.
+         *   Coord реактивен через `updatePositionsFromSheet` -> `refreshLastSelectedInstruments`.
+         */
+        fun onInstrumentSelected(instrument: Instrument) {
+            _state.update {
+                it.copy(
+                    selectedInstrument = instrument,
+                    ticker = instrument.ticker,
+                )
+            }
+            viewModelScope.launch {
+                _state.update { it.copy(isPriceLoading = true) }
+                when (val result = selectInstrumentUseCase.execute(instrument)) {
+                    is AppResult.Success -> {
+                        val data = result.data
+                        val card = data.card
+                        _state.update {
+                            it.copy(
+                                currentPrice = card.currentPrice,
+                                isPriceLoading = false,
+                                currentPointValue = data.pointValue,
+                            )
+                        }
+                        updateTradeDetails()
+                        updatePairExecDetails()
+                        syncPriceInterest()
+                        saveState()
+                    }
+                    is AppResult.Failure -> {
+                        logger.e(
+                            TAG,
+                            "onInstrumentSelected failed: ${result.error.message}",
+                            result.error.cause,
+                        )
+                        _state.update { it.copy(isPriceLoading = false) }
+                    }
+                }
+            }
+        }
+
+        fun clearSelectedInstrument() {
+            _state.update {
+                it.copy(
+                    selectedInstrument = null,
+                    ticker = "",
+                    currentPrice = null,
+                    isPriceLoading = false,
+                )
+            }
+            syncPriceInterest()
+        }
+
+        fun onPairedInstrumentSelected(instrument: Instrument) {
+            _state.update { it.copy(pairedInstrument = instrument) }
+            syncPriceInterest()
+            viewModelScope.launch {
+                when (val result = selectPairedInstrumentUseCase.execute(instrument)) {
+                    is AppResult.Success -> {
+                        val data = result.data
+                        val price = data.price
+                        if (price != null) {
+                            _state.update { it.copy(pairCurrentPrice = price) }
+                            _state.update { it.copy(pairedPointValue = data.pointValue) }
+                        }
+                    }
+                    is AppResult.Failure -> {
+                        logger.e(
+                            TAG,
+                            "onPairedInstrumentSelected failed: ${result.error.message}",
+                            result.error.cause,
+                        )
+                    }
+                }
+                updateTradeDetails()
+                updatePairExecDetails()
+                saveState()
+            }
+        }
+
+        fun clearPairedInstrument() {
+            _state.update { it.copy(pairedInstrument = null) }
+            syncPriceInterest()
+            updatePairExecDetails()
         }
 
         private suspend fun saveState() {
