@@ -480,6 +480,12 @@ actual). Не доверять фильтру.
 
 **Проверка:** в pre-commit по 4h для каждого изменённого `.kt`: (1) каждый импорт используется (>= 2 вхождений — import + тело); (2) после удаления любого импорта — `grep -n '<symbol>' <file>` без `^import` — если непусто, импорт **нельзя** удалять. Быстрый вариант: `./gradlew :app:compileDebugKotlin` до коммита.
 
+**Расширение (2026-11-07, Session Orders-VM-Split, 13a):** обратная сторона — **использование extension в теле без импорта**. Создал `RestoreOrderFormUseCaseTest.kt` с `sber.moneyPerPointOfPrice` в трёх местах; импорт `import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice` не добавил (проверял использование в usecase-файле, не в тесте). Гейт упал: `Unresolved reference 'moneyPerPointOfPrice' on receiver of type 'Share'` в 3 строках (93, 123, 124) + `Cannot infer type for type parameter 'T'` как следствие.
+
+**Правило (расширено):** при генерации тестового файла — проверять **использование extension в теле** vs **импорт в шапке** для каждого extension-символа. Для usecase проверка прошла (импорт есть), для теста — нет.
+
+**Проверка:** для каждого extension-символа в тесте — `grep -cE "\.<extName>" <file>` vs `grep -cE "^import .*\.<extName>$" <file>` (равны или 0/0). Прецедент: 13a `sber.moneyPerPointOfPrice` в тесте без импорта — 3 compile-errors.
+
 ### 62. Import order после rename — лексикографически, не только «нет старого имени»
 
 **Правило:** при переименовании класса (rename) — пересортировать блок `import` **заново**, не просто заменить строку `<Old> -> <New>` на месте. Лексикографический порядок может измениться: `TInvestPositionsService` (`Pos`) идёт **после** `TInvestPortfolioService` (`Por`), но `TInvestOrdersService` (`O`) — раньше обоих.
@@ -726,7 +732,20 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 **Связано:** урок 64 (`echo` с backtick), 65 (`new` ⊂ `old`),
 67 (line-anchored), 79 (post-assert scope).
 
+**Инцидент-счётчик (2026-11-07, Session Orders-VM-Split, 4 нарушения):**
+один и тот же класс за сессию — post-assert / verify / pre-commit проверяет подстроку в файле, а ловит **KDoc** (текст комментария), не код. Счётчик «6-й раз за сессию».
 
+1. 12a, verify `OrderDialogsViewModel.kt`: `assert "startPositionUpdates" not in text` упал — строка есть в KDoc («**не вызывает** `startPositionUpdates` (UI-оркестрация, 12b, P4)»). В коде вызова нет. Нужен был call-form: `grep -nE "[^`]startPositionUpdates\("` (без backticks) — пусто.
+
+2. 12a-fix, verify KDoc `OrderDialogsViewModel`: `assert "Правило Clean: M2" in t` упал — фактически в файле `**Правило Clean:** M2` (bold между `Clean:` и `M2`). Подстрока без `**` не совпадает.
+
+3. 13b-1, verify `RefreshSelectedInstrumentsUseCase.kt`: `assert "suspend" not in t` упал — `suspend` есть в KDoc («нет suspend, deterministic»). Файл корректен (pure). Нужен был call-form: `grep -nE "^\s*suspend\s+fun\s"` — пусто.
+
+4. 13b-2, pre-commit `RefreshSelectedInstrumentsUseCase.kt`: `grep -nE "@Inject constructor"` сматчил строку KDoc «**`@Inject constructor()` без зависимостей** — для Hilt-инъекции в VM». Файл корректен (`@Inject` на отдельной строке, `constructor()` на следующей — урок 78). Нужно было: `grep -nE "@Inject[[:space:]]+constructor" "$f" | grep -vE "^[0-9]+:[[:space:]]*\*"` (исключить KDoc).
+
+**Правило (расширено, для всех verify/pre-commit):** (а) для **символов** — verify по **call-form / declaration-form** (`^\s*(suspend\s+)?fun\s+X\(`), не по подстроке в файле; (б) для **markdown-текста** — учитывать `**bold**` в паттерне или проверять **вне** backticks; (в) для **pre-commit аннотаций** — `grep … | grep -vE "^[0-9]+:[[:space:]]*\*"` (исключить KDoc-строки), иначе KDoc-цитата даёт ложный PREFAIL.
+
+**Проверка:** перед отправкой скрипта — для каждого `assert "X" not in text` / `grep "X"` — `grep -n "X" file | grep -v "^\s*\*"` + `grep -nE "^\s*(suspend\s+)?fun\s+X\("`.
 
 ### 81. Multiline pre-check в скрипте — `\($` / `\([^)]*$`, не `\(`
 
@@ -969,6 +988,13 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 **Инцидент:** 2026-10-28. Self-check показал `FAIL: kotlinx.coroutines.withContext > javax.inject.Inject` — ложная тревога, ktlint-стандарт `javax` в конце.
 
 **Проверка:** для быстрой сверки — `ktlintFormat` локально или полагаться на CI.
+
+**Инцидент-счётчик (2026-11-07, Session Orders-VM-Split, 1 нарушение):**
+Мой pre-commit блок для 12a включал `awk '/^import / { if (prev != "" && $0 < prev) print "OOD: " ... }'` как fallback-проверку import-order. На корректном файле (`import kotlinx.coroutines.launch` → `import javax.inject.Inject` — по ktlint-правилу `javax` в конце) awk дал ложный OOD. Гейт (`:app:ktlintCheck`) в том же прогоне был зелёный — awk **имитировал** ktlint-правило неверно.
+
+**Правило (расширено):** fallback-проверка import-order в bash-скрипте **запрещена**, если не реализует ktlint-правило (`java`/`javax`/`kotlin` — в конце, остальное — лексикографически). Либо (а) полагаться на `:app:ktlintCheck` в гейте, либо (б) писать ktlint-совместимый awk с явным разделением группы: `java`/`javax`/`kotlin` — в конце, остальное — `$0 < prev` в своей группе.
+
+**Проверка:** перед добавлением awk-import-order в pre-commit — `grep -q "ktlintCheck"` в гейте. Если есть — awk не нужен.
 
 ---
 
