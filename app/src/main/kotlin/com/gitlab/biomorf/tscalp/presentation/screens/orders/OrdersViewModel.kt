@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
-import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
@@ -38,7 +37,7 @@ import javax.inject.Inject
 
 // Архитектурный долг: 49 функций, класс слишком большой.
 // См. ROADMAP → «Рефакторинг ViewModel-слоя».
-@Suppress("TooManyFunctions", "LargeClass")
+@Suppress("TooManyFunctions")
 @HiltViewModel
 class OrdersViewModel
     @Inject
@@ -49,7 +48,6 @@ class OrdersViewModel
         private val accountSelectionRepository: AccountSelectionRepository,
         private val cardsRepository: CardsRepository,
         private val brokerManager: BrokerRegistry,
-        private val priceFlowManager: PriceFlowManager,
         private val loadOrdersAccountsUseCase: LoadOrdersAccountsUseCase,
         private val refreshSelectedInstrumentsUseCase: RefreshSelectedInstrumentsUseCase,
         private val positionFlowManager: PositionFlowManager,
@@ -233,13 +231,6 @@ class OrdersViewModel
             }
         }
 
-        fun onAccountSelected(accountId: String) {
-            _coordState.update { it.copy(selectedAccountId = accountId) }
-            viewModelScope.launch {
-                accountSelectionRepository.select(BrokerName.TINVEST, accountId)
-            }
-        }
-
         /**
          * Пересчитывает `lastSelectedInstruments` по per-card accountId:
          * счёт из свойств карточки (`card.accountId`) приоритетнее
@@ -273,10 +264,6 @@ class OrdersViewModel
 
         fun clearStatus() {
             _coordState.update { it.clearStatus() }
-        }
-
-        fun retryLoadAccounts() {
-            loadAccounts()
         }
 
         private suspend fun updateTradingStatuses(ids: List<String>) {
