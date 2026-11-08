@@ -188,7 +188,7 @@ class SelectInstrumentUseCaseTest {
                     ),
                 )
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument, currentAccountId = "t-inv")
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -312,11 +312,47 @@ class SelectInstrumentUseCaseTest {
                     ),
                 )
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument, currentAccountId = "card-acc")
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
             assertEquals(3L, result.card.quantity)
             assertEquals("card-acc", result.card.accountId)
+        }
+
+    @Test
+    fun `findCard by composite uses currentAccountId`() =
+        runBlocking {
+            stubDefaults()
+            val cardA = CardIdentity("uid-1", BrokerName.TINVEST, "A")
+            val cardB = CardIdentity("uid-1", BrokerName.TINVEST, "B")
+            every { cardsRepository.identities } returns flowOf(listOf(cardA, cardB))
+
+            val r = useCase.execute(inputInstrument, currentAccountId = "B")
+
+            assertTrue(r is AppResult.Success)
+            val result = (r as AppResult.Success<SelectInstrumentResult>).data
+            assertEquals("B", result.card.accountId)
+        }
+
+    @Test
+    fun `persistIdentity deduplicates only target composite`() =
+        runBlocking {
+            stubDefaults()
+            val cardA = CardIdentity("uid-1", BrokerName.TINVEST, "A")
+            val cardB = CardIdentity("uid-1", BrokerName.TINVEST, "B")
+            every { cardsRepository.identities } returns flowOf(listOf(cardA, cardB))
+
+            useCase.execute(inputInstrument, currentAccountId = "A")
+
+            coVerify(exactly = 1) {
+                cardsRepository.save(
+                    match { cards ->
+                        cards.size == 2 &&
+                            cards.any { it.tscalpInstrumentId == "uid-1" && it.brokerName == BrokerName.TINVEST && it.accountId == "A" } &&
+                            cards.any { it.tscalpInstrumentId == "uid-1" && it.brokerName == BrokerName.TINVEST && it.accountId == "B" }
+                    },
+                )
+            }
         }
 }

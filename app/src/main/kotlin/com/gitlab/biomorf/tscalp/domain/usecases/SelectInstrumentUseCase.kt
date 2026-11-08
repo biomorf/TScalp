@@ -77,14 +77,21 @@ class SelectInstrumentUseCase
          *   исключении DataStore / repository.
          *   `getLastPrices` failure — не ошибка (price = null, 1:1).
          */
-        suspend fun execute(instrument: Instrument): AppResult<SelectInstrumentResult> {
-            logger.d(TAG, "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}")
+        suspend fun execute(
+            instrument: Instrument,
+            currentAccountId: String? = null,
+        ): AppResult<SelectInstrumentResult> {
+            logger.d(
+                TAG,
+                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}, " +
+                    "currentAccountId=$currentAccountId",
+            )
             return try {
                 val actualInstrument =
                     instrumentRepository.getInstrument(instrument.tscalpInstrumentId) ?: instrument
                 val currentCards = cardsRepository.identities.first()
-                val existingCard = currentCards.findCard(instrument)
-                persistIdentity(instrument, currentCards, existingCard)
+                val existingCard = currentCards.findCard(instrument, currentAccountId)
+                persistIdentity(instrument, currentCards, existingCard, currentAccountId)
                 saveSelectedToSession(instrument.tscalpInstrumentId)
                 val price = fetchPrice(instrument.tscalpInstrumentId)
                 val accountId = accountSelectionRepository.selected(BrokerName.TINVEST).first()
@@ -145,6 +152,7 @@ class SelectInstrumentUseCase
             instrument: Instrument,
             currentCards: List<CardIdentity>,
             existingCard: CardIdentity?,
+            currentAccountId: String?,
         ) {
             val newIdentity =
                 CardIdentity(
@@ -153,7 +161,7 @@ class SelectInstrumentUseCase
                     accountId = existingCard?.accountId,
                 )
             val updatedIdentities =
-                (listOf(newIdentity) + currentCards.filter { !it.matches(instrument) })
+                (listOf(newIdentity) + currentCards.filter { !it.matches(instrument, currentAccountId) })
                     .take(CARD_LIMIT)
             cardsRepository.save(updatedIdentities)
         }

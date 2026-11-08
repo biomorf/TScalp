@@ -384,7 +384,7 @@ class OrderFormViewModel
             }
             viewModelScope.launch {
                 _state.update { it.copy(isPriceLoading = true) }
-                when (val result = selectInstrumentUseCase.execute(instrument)) {
+                when (val result = selectInstrumentUseCase.execute(instrument, _state.value.selectedAccountId)) {
                     is AppResult.Success -> {
                         val data = result.data
                         val card = data.card
