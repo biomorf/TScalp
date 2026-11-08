@@ -30,7 +30,9 @@ class OrderFormStateMapperTest {
                 limitPrice = "150.5",
                 stopPrice = "0",
                 expirationType = StopOrderExpirationType.GOOD_TILL_DATE,
+                selectedAccountId = "acc-1",
                 pairedInstrument = sber,
+                pairedAccountId = "acc-2",
                 pairedMultiplier = "2",
             )
 
@@ -38,6 +40,8 @@ class OrderFormStateMapperTest {
 
         assertEquals("SBER", r.instrument.ticker)
         assertEquals("uid-sber", r.instrument.tscalpInstrumentId)
+        assertEquals("acc-1", r.selectedAccountId)
+        assertEquals("acc-2", r.pairedAccountId)
         assertEquals(3L, r.quantity)
         assertEquals(OrderTypeSelection.Limit, r.orderType)
         assertEquals("150.5", r.limitPrice)

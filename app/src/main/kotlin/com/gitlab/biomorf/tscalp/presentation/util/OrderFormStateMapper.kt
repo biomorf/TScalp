@@ -27,12 +27,14 @@ fun OrderFormState.toPlaceOrderRequest(): PlaceOrderRequest? {
     val quantity = quantityAsLong ?: return null
     return PlaceOrderRequest(
         instrument = instrument,
+        selectedAccountId = selectedAccountId,
         quantity = quantity,
         orderType = orderType,
         limitPrice = limitPrice,
         stopPrice = stopPrice,
         expirationType = expirationType,
         pairedInstrument = pairedInstrument,
+        pairedAccountId = pairedAccountId,
         pairedMultiplier = pairedMultiplier,
     )
 }

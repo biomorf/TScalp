@@ -58,12 +58,14 @@ class PlaceOrderUseCaseTest {
     private val request =
         PlaceOrderRequest(
             instrument = sber,
+            selectedAccountId = "acc-1",
             quantity = 1L,
             orderType = OrderTypeSelection.Market,
             limitPrice = "",
             stopPrice = "",
             expirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
             pairedInstrument = null,
+            pairedAccountId = null,
             pairedMultiplier = "1",
         )
 
@@ -147,12 +149,16 @@ class PlaceOrderUseCaseTest {
         }
 
     @Test
-    fun `invalid when neither card nor selected account resolves`() =
+    fun `invalid when card request account and selection all null`() =
         runBlocking {
             every { cardsRepository.identities } returns flowOf(emptyList())
             every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf(null)
 
-            val r = useCase.execute(request, OrderDirection.BUY)
+            val r =
+                useCase.execute(
+                    request.copy(selectedAccountId = null),
+                    OrderDirection.BUY,
+                )
 
             assertTrue(r is PlaceOrderOutcome.InvalidRequest)
             coVerify(exactly = 0) { postOrderUseCase.execute(any()) }

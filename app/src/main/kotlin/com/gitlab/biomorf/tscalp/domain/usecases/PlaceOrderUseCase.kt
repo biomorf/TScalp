@@ -5,7 +5,6 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
@@ -33,12 +32,16 @@ import javax.inject.Singleton
  */
 data class PlaceOrderRequest(
     val instrument: Instrument,
+    /** accountId слота primary (какой счёт у карточки в момент postOrder). */
+    val selectedAccountId: String?,
     val quantity: Long,
     val orderType: OrderTypeSelection,
     val limitPrice: String,
     val stopPrice: String,
     val expirationType: StopOrderExpirationType,
     val pairedInstrument: Instrument?,
+    /** accountId слота pair (null — parный счёт совпадает с primary). */
+    val pairedAccountId: String?,
     val pairedMultiplier: String,
 )
 
@@ -154,10 +157,11 @@ class PlaceOrderUseCase
             request: PlaceOrderRequest,
             cards: List<CardIdentity>,
         ): ResolvedContext? {
-            val activeCard = cards.find { it.matches(request.instrument) }
+            val activeCard = cards.find { it.matches(request.instrument, request.selectedAccountId) }
             val accountId =
                 activeCard?.accountId
-                    ?: accountSelectionRepository.selected(BrokerName.TINVEST).first()
+                    ?: request.selectedAccountId
+                    ?: accountSelectionRepository.selected(request.instrument.brokerName).first()
                     ?: return null
             val context =
                 ResolvedContext(
@@ -194,10 +198,10 @@ class PlaceOrderUseCase
             primaryAccountId: String,
         ): PairedOrderInput? {
             val pairedInstrument = request.pairedInstrument ?: return null
-            val pairedCard = cards.find { it.matches(pairedInstrument) }
+            val pairedCard = cards.find { it.matches(pairedInstrument, request.pairedAccountId) }
             return PairedOrderInput(
                 instrument = pairedInstrument,
-                accountId = pairedCard?.accountId ?: primaryAccountId,
+                accountId = pairedCard?.accountId ?: request.pairedAccountId ?: primaryAccountId,
                 multiplier = request.pairedMultiplier,
             )
         }
