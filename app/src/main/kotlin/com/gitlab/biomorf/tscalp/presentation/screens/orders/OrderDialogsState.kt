@@ -4,6 +4,9 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 
+/** Слот формы заявки: primary / pair (UI-концепт; domain ролей не знает). */
+enum class CardSlot { PRIMARY, PAIR }
+
 /**
  * Состояние диалога выбора брокера и счёта для карточки инструмента.
  *
@@ -24,6 +27,7 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 data class OrderDialogsState(
     val showBrokerDialog: Boolean = false,
     val dialogInstrument: Instrument? = null,
+    val dialogSlot: CardSlot = CardSlot.PRIMARY,
     val dialogOldAccountId: String? = null,
     val selectedBroker: BrokerName = BrokerName.TINVEST,
     val selectedAccountIdDialog: String? = null,

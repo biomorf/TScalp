@@ -50,6 +50,7 @@ class OrderDialogsViewModel
         fun openBrokerDialog(
             instrument: Instrument,
             currentAccountId: String? = null,
+            slot: CardSlot = CardSlot.PRIMARY,
         ) {
             viewModelScope.launch {
                 when (val outcome = openCardDialogUseCase.execute(instrument, currentAccountId)) {
@@ -59,6 +60,7 @@ class OrderDialogsViewModel
                             it.copy(
                                 showBrokerDialog = true,
                                 dialogInstrument = instrument,
+                                dialogSlot = slot,
                                 dialogOldAccountId = data.oldAccountId,
                                 selectedBroker = data.broker,
                                 selectedAccountIdDialog = data.selectedAccountId,
@@ -77,6 +79,7 @@ class OrderDialogsViewModel
                             it.copy(
                                 showBrokerDialog = true,
                                 dialogInstrument = instrument,
+                                dialogSlot = slot,
                                 dialogOldAccountId = null,
                                 selectedBroker = outcome.broker,
                                 selectedAccountIdDialog = null,
@@ -94,6 +97,7 @@ class OrderDialogsViewModel
                 it.copy(
                     showBrokerDialog = false,
                     dialogInstrument = null,
+                    dialogSlot = CardSlot.PRIMARY,
                     dialogOldAccountId = null,
                     takenAccountIds = emptySet(),
                     swipeResetTrigger = !it.swipeResetTrigger,
@@ -112,8 +116,9 @@ class OrderDialogsViewModel
             _state.update { it.copy(selectedAccountIdDialog = accountId) }
         }
 
-        fun saveBrokerSettings() {
+        fun saveBrokerSettings(onSaved: (CardSlot, String?) -> Unit = { _, _ -> }) {
             val instrument = _state.value.dialogInstrument ?: return
+            val slot = _state.value.dialogSlot
             val oldAccountId = _state.value.dialogOldAccountId
             val newAccountId = _state.value.selectedAccountIdDialog
             viewModelScope.launch {
@@ -129,11 +134,13 @@ class OrderDialogsViewModel
                             state.copy(
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
+                                dialogSlot = CardSlot.PRIMARY,
                                 dialogOldAccountId = null,
                                 takenAccountIds = emptySet(),
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }
+                        onSaved(slot, newAccountId)
                     }
                     is AppResult.Failure -> {
                         logger.e(
@@ -145,6 +152,7 @@ class OrderDialogsViewModel
                             state.copy(
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
+                                dialogSlot = CardSlot.PRIMARY,
                                 dialogOldAccountId = null,
                                 takenAccountIds = emptySet(),
                                 swipeResetTrigger = !state.swipeResetTrigger,

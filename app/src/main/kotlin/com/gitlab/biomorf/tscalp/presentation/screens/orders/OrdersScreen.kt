@@ -129,7 +129,9 @@ fun OrdersScreen() {
                         onRefreshSearch = { searchViewModel.refreshSearch() },
                         onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
                         onClearSelected = { formViewModel.clearSelectedInstrument() },
-                        onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
+                        onOpenBrokerDialog = { inst, acc ->
+                            dialogsViewModel.openBrokerDialog(inst, acc, CardSlot.PRIMARY)
+                        },
                     )
 
                     // Spacer(modifier = Modifier.height(1.dp))
@@ -188,7 +190,9 @@ fun OrdersScreen() {
                             searchViewModel.clearPairSearchQuery()
                             formViewModel.clearPairedInstrument()
                         },
-                        onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
+                        onOpenBrokerDialog = { inst, acc ->
+                            dialogsViewModel.openBrokerDialog(inst, acc, CardSlot.PAIR)
+                        },
                         onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
                     )
                 } // конец скроллируемой колонки
@@ -228,7 +232,14 @@ fun OrdersScreen() {
         onBrokerSelected = { dialogsViewModel.onBrokerSelected(it) },
         onAccountSelected = { dialogsViewModel.onAccountSelectedDialog(it) },
         onDismiss = { dialogsViewModel.closeBrokerDialog() },
-        onSave = { dialogsViewModel.saveBrokerSettings() },
+        onSave = {
+            dialogsViewModel.saveBrokerSettings { slot, newAccountId ->
+                when (slot) {
+                    CardSlot.PRIMARY -> formViewModel.onAccountSaved(newAccountId)
+                    CardSlot.PAIR -> formViewModel.onPairedAccountSaved(newAccountId)
+                }
+            }
+        },
     )
 
     if (showOrdersListDialog) {

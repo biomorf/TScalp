@@ -36,7 +36,7 @@ internal fun OrdersInstrumentSection(
     onRefreshSearch: () -> Unit,
     onOpenSearchSettings: () -> Unit,
     onClearSelected: () -> Unit,
-    onOpenBrokerDialog: (Instrument) -> Unit,
+    onOpenBrokerDialog: (Instrument, String?) -> Unit,
 ) {
     if (formState.selectedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -78,7 +78,7 @@ internal fun OrdersInstrumentSection(
                 displayCurrentPrice = currentPrice,
                 priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearSelected,
-                onSettings = { onOpenBrokerDialog(instrument) },
+                onSettings = { onOpenBrokerDialog(instrument, formState.selectedAccountId) },
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,

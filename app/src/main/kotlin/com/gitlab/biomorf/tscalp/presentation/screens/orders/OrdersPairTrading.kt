@@ -48,7 +48,7 @@ internal fun OrdersPairSection(
     onOpenPairSearchBrokerSettings: () -> Unit,
     onPairTradingEnabledChanged: (Boolean) -> Unit,
     onClearPairedInstrument: () -> Unit,
-    onOpenBrokerDialog: (Instrument) -> Unit,
+    onOpenBrokerDialog: (Instrument, String?) -> Unit,
     onPairedMultiplierChanged: (String) -> Unit,
 ) {
     Row(
@@ -109,7 +109,7 @@ internal fun OrdersPairSection(
                 displayCurrentPrice = pairPrice,
                 priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearPairedInstrument,
-                onSettings = { onOpenBrokerDialog(instrument) },
+                onSettings = { onOpenBrokerDialog(instrument, formState.pairedAccountId) },
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,
