@@ -1701,7 +1701,7 @@ Test:
   `withRecreatedSettings(uid, broker, oldAccountId, newAccountId)`;
   старые — `@Deprecated(WARNING)`, поведение не меняется (any-account).
   `CardIdentityTest` +5 кейсов. Гейт.
-- **1b-1b** ✅ (~1.5–2 ч, коммит `9fff3e8`). Сигнатура `SaveCardSettingsUseCase`:
+- **1b-1b** ✅ (~1.5–2 ч, коммит `9fff3e8`). **Переработано в 1b-11** (модель A: ensure-add, без delete/collision). Сигнатура `SaveCardSettingsUseCase`:
   `execute(instrument, oldAccountId, newAccountId)` — пересоздание
   (delete old + create new) + коллизия → `Failure("account taken")`.
   `OpenCardDialogResult + oldAccountId: String?` (для VM: какой счёт
@@ -1729,7 +1729,7 @@ Test:
   (inline — `SelectedInstrumentInfo` — проекция, не `CardIdentity`).
   Callsites (`OrdersSearch`, `OrdersPairTrading`) передают
   `formState.selectedAccountId` / `pairedAccountId`. Гейт.
-- **1b-4** ✅ (~1.5–2 ч, коммит `2f5cd25`). `takenAccountIds` — из domain
+- **1b-4** ✅ (~1.5–2 ч, коммит `2f5cd25`). **Переработано в 1b-11** (`takenAccountIds` убран; disabled нет). `takenAccountIds` — из domain
   (`CardsRepository.identities`), **не** из UI-кеша
   (`lastSelectedInstruments` — внутреннее дело Coord, не источник).
   - `OpenCardDialogResult + takenAccountIds: Set<String>` — usecase
@@ -1752,7 +1752,7 @@ Test:
     (`state.takenAccountIds` после open); `BrokerAccountDialog` — UI,
     отдельный `@Preview` disabled.
   - Гейт.
-- **1b-5** ✅ (~0.5–1 ч, коммит `8e4c442`). `CardSlot` enum
+- **1b-5** ✅ (~0.5–1 ч, коммит `8e4c442`). **Переработано в 1b-11** (без `otherSlotAccountId`; `CardSlot` остаётся для роутинга). `CardSlot` enum
   (`PRIMARY` / `PAIR`) в `OrderDialogsState`; `OrderDialogsViewModel.openBrokerDialog(
   instrument, currentAccountId, slot = PRIMARY)` — сохраняет slot;
   `saveBrokerSettings(onSaved: (CardSlot, String?) -> Unit = { _, _ -> })` —
@@ -1795,6 +1795,124 @@ Test:
   (отложенные сценарии Фазы 2).
 - **1b-10** (~0.15 ч). Push + CI + PR.
 
+- **1b-11** (~2.5–3 ч). **Модель A: `CardIdentity` — история, ensure-add.**
+
+**Модель A (утверждена 2026-11-08 после live-test регрессии).**
+
+`CardIdentity` — запись истории «Последних просмотренных». Один
+`(uid, broker)` может иметь **много** записей (разные счета = разные
+карточки). Слот (primary/pair) — активная карточка (Instrument +
+accountId), а не отдельная identity. Смена счёта в слоте — не
+«пересоздание», а «ensure target exists»: старая запись **остаётся**
+в истории.
+
+**Что было (1b-1b/4/5, сломано):**
+
+- `withRecreatedSettings` = delete old + add new — старая A исчезает
+  из истории.
+- Collision: `(uid, T, B)` уже есть → Failure — пользователь не может
+  выбрать B (это просто старая запись).
+- `takenAccountIds` из `identities` (stale) — disabled 604871ba.
+- `takenAccountIds` из other-slot (1b-fix) — всё ещё баг при
+  `oldAccountId=null` + `(uid, T, B)` stale → collision → Failure →
+  слот `null`.
+
+**Что будет (модель A):**
+
+| Операция | Поведение |
+|---|---|
+| Выбор из поиска | `ensure (uid, broker, currentAccountId)` — если нет, добавить. Слот активен. |
+| Смена счёта в свойствах A→B | `ensure (uid, broker, B)` — если нет, добавить. `(uid, T, A)` **остаётся** в истории. Слот → B. |
+| Сброс счёта (null) | `ensure (uid, broker, null)` — если нет, добавить. Слот → null. |
+| Коллизия | **Нет.** `(uid, T, B)` уже есть — просто «слот указывает на неё». |
+| Disabled в диалоге | **Нет.** Все счета выбираемы (пользователь сам решает; same-account в двух слотах — валидно). |
+| Restart | История переживает: ensure-add ничего не удаляет. Слот восстановлен из `TradingStateSnapshot` (instrument), accountId — **не сохранён** (отдельная задача `TradingStateSnapshot`). |
+
+**Что НЕ меняется:** `CardIdentity(uid, broker, accountId)` — 3 поля,
+composite key; `matches` / `findCard` по `(uid, broker, accountId)`;
+DataStore-формат `broker|uid|account`; `activeCardFor(instrument,
+accountId)`; `PlaceOrderRequest` slot accountIds (1b-6a);
+`SelectInstrumentUseCase(instrument, currentAccountId)` (1b-6b).
+
+**2c-фиксация (ensure вместо delete+add):**
+
+- **Правило:** смена счёта = «ensure target exists», не «delete old +
+  add new».
+- **Почему:** `CardIdentity` — история, а не уникальная identity;
+  delete противоречит «последним просмотренным».
+- **Альтернатива (delete+add):** плюс — DataStore не растёт; минус —
+  теряется история, collision-семантика.
+- **Выгоды ensure:** история сохраняется, нет collision, нет
+  `oldAccountId`, идемпотентно (повторный save = no-op).
+
+**Известные эффекты:**
+
+- **Stale `(SBER, T, null)`** остаётся в истории. В UI «Последние»
+  рендерятся из `SelectedInstrumentInfo` (не raw `CardIdentity`),
+  визуально «SBER без счёта» не должно появляться. Если появится —
+  отдельная задача «фильтровать accountId = null в UI», не блокер.
+- **Один `(uid, T, A)` в двух слотах** возможен (пользователь сам
+  выбрал). Это не баг — валидное состояние.
+
+**План реализации (10 шагов, ~2.5–3 ч):**
+
+1. **`CardIdentity.kt`** (~20 мин). Удалить `withRecreatedSettings`;
+   добавить `withEnsuredCard(uid, broker, newAccountId)`:
+   `if (findCard(uid, broker, newAccountId) == null) this + CardIdentity(...)
+   else this`. KDoc: «idempotent add, history». `CardIdentityTest` —
+   обновить 3 теста `withRecreatedSettings` → `withEnsuredCard`
+   (add if new / no-op if exists).
+2. **`SaveCardSettingsUseCase`** (~20 мин). `execute(instrument,
+   newAccountId)` — убрать `oldAccountId`. Логика: `findCard(uid,
+   broker, new)` == null → `withEnsuredCard` + save; иначе no-op Success.
+   Убрать collision. Тесты: ensure (add) / no-op (already exists) /
+   null (add null-card) / exception / cancellation.
+3. **`OpenCardDialogUseCase`** (~10 мин). `OpenCardDialogResult` —
+   убрать `oldAccountId`. `execute(instrument, currentAccountId)` — не
+   ищет «старую» карточку (findCard только для `broker`/`selectedAccountId`
+   fallback). Тесты: `oldAccountId` assertions удалить.
+4. **`OrderDialogsViewModel` / `OrderDialogsState`** (~20 мин).
+   `openBrokerDialog(instrument, currentAccountId, slot: CardSlot =
+   PRIMARY)` — **без** `otherSlotAccountId`. `saveBrokerSettings(onSaved:
+   (CardSlot, String?) -> Unit = { _, _ -> })` — **без** `oldAccountId`;
+   передаёт `slot` + `newAccountId`. `OrderDialogsState` — убрать
+   `takenAccountIds`, `dialogOldAccountId`. `dialogSlot`, `CardSlot` —
+   **оставить** (для роутинга `onAccountSaved` vs `onPairedAccountSaved`).
+   Тесты: убрать `takenAccountIds` / `oldAccountId` /
+   `otherSlotAccountId`; success-кейс — assert `state.selectedAccountIdDialog`,
+   `state.takenAccountIds` больше нет.
+5. **`OrdersScreen`** (~10 мин). `openBrokerDialog(inst, acc, slot)` —
+   убрать `otherSlotAccountId`. `onSave` — `onSaved(slot, newAccountId)`
+   роутинг сохраняется (без `old`).
+6. **`BrokerAccountDialog`** (~5 мин). Удалить `disabledAccountIds` +
+   disabled-item-логику. Удалить `@Preview disabled` (если был).
+7. **Тесты (сборный)** (~40 мин). `CardIdentityTest` — withEnsuredCard
+   (3 кейса). `SaveCardSettingsUseCaseTest` — 5 кейсов (ensure /
+   no-op / null / exception / cancellation), без collision.
+   `OpenCardDialogUseCaseTest` — убрать `oldAccountId` /
+   `takenAccountIds`; 4 кейса. `OrderDialogsViewModelTest` — убрать
+   `oldAccountId` / `takenAccountIds`; +save → `onSaved(slot, new)`.
+   `OrderFormViewModelTest` — без изменений.
+8. **Гейт** (~15 мин). `./gradlew :app:clean :app:testDebugUnitTest
+   :app:lintDebug :app:ktlintCheck :app:detekt --rerun-tasks`.
+9. **Retest (sandbox)** (~15–20 мин).
+   1. **История:** SBER → счёт A (ensure); SBER → счёт B (ensure).
+      DataStore: две записи `(SBER, T, A)`, `(SBER, T, B)`. Обе в
+      «Последних».
+   2. **Смена в свойствах A→C (свободный):** ensure `(SBER, T, C)`;
+      `(SBER, T, A)` остаётся.
+   3. **Смена на уже-существующий B (stale):** ensure no-op; слот →
+      B; **без** Failure.
+   4. **Pair SBER(B):** primary SBER(A) + pair SBER(B) → обе активны,
+      покупается per-card.
+   5. **Покупка** на primary → `resolveContext.accountId = A`.
+10. **Docs (ROADMAP)** (~15 мин). Правка 1b-1b / 1b-4 / 1b-5: пометить
+    «переработано в 1b-11». Новая секция 1b-11 (эта). 2c-фиксация
+    ensure.
+
+**Оценка 1b-11:** ~2 ч 55 мин (шаги 1–10); с запасом ~3–3.5 ч (учёт
+компиляции, ktlint-фиксов, round-trip'ов).
+
 **Риски:**
 - Расширение `matches` / `findCard` / `withUpdatedSettings` — 11 callsites
   main + 10 test. Компилятор покажет пропуски.
@@ -1817,7 +1935,7 @@ Test:
 - 1b-7 — `e9f41f0`.
 - 1b-8 — `7e52714`.
 
-**Осталось:** 1b-9 (live-test, ~0.5–1 ч) + 1b-10 (push + PR, ~0.15 ч).
+**Осталось:** 1b-9 (live-test, ~0.5–1 ч) + 1b-10 (push + PR, ~0.15 ч) + 1b-11 (модель A: ensure-add, ~3–3.5 ч, уточнено после live-test регрессии).
 
 **Критерий готовности:**
 
