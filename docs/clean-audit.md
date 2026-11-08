@@ -585,9 +585,6 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 областям` (PR #56, `dev`) + `### H21b. Domain-интерфейсы для 4
 репозиториев` (PR #57, `dev`).
 
-
----
-
 ---
 
 ### ✅ Н23. ViewModel → data.orchestrator.DebugConfig
