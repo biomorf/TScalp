@@ -64,7 +64,7 @@ internal fun OrdersInstrumentSection(
         }
     } else {
         formState.selectedInstrument.let { instrument: Instrument ->
-            val card = coordState.activeCardFor(formState.selectedInstrument)
+            val card = coordState.activeCardFor(formState.selectedInstrument, formState.selectedAccountId)
             val currentPrice = formState.currentPrice ?: card?.currentPrice ?: 0.0
             val position =
                 emptyPosition(

@@ -92,7 +92,7 @@ internal fun OrdersPairSection(
         }
     } else {
         formState.pairedInstrument.let { instrument: Instrument ->
-            val card = coordState.activePairedCardFor(formState.pairedInstrument)
+            val card = coordState.activePairedCardFor(formState.pairedInstrument, formState.pairedAccountId)
             val pairPrice =
                 formState.pairCurrentPrice
                     ?: card?.currentPrice

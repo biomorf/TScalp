@@ -52,11 +52,15 @@ data class OrdersCoordState(
  * `lastSelectedInstruments`, Form — `selectedInstrument`. UI передаёт
  * instrument явно, VM друг друга не читают.
  */
-fun OrdersCoordState.activeCardFor(instrument: Instrument?): SelectedInstrumentInfo? =
+fun OrdersCoordState.activeCardFor(
+    instrument: Instrument?,
+    accountId: String?,
+): SelectedInstrumentInfo? =
     instrument?.let { inst ->
         lastSelectedInstruments.find {
             it.instrument.tscalpInstrumentId == inst.tscalpInstrumentId &&
-                it.instrument.brokerName == inst.brokerName
+                it.instrument.brokerName == inst.brokerName &&
+                it.accountId == accountId
         }
     }
 
@@ -64,10 +68,14 @@ fun OrdersCoordState.activeCardFor(instrument: Instrument?): SelectedInstrumentI
  * Per-card `SelectedInstrumentInfo` для парного инструмента — аналог
  * [activeCardFor] для Form-`pairedInstrument` (2c-фиксация).
  */
-fun OrdersCoordState.activePairedCardFor(instrument: Instrument?): SelectedInstrumentInfo? =
+fun OrdersCoordState.activePairedCardFor(
+    instrument: Instrument?,
+    accountId: String?,
+): SelectedInstrumentInfo? =
     instrument?.let { inst ->
         lastSelectedInstruments.find {
             it.instrument.tscalpInstrumentId == inst.tscalpInstrumentId &&
-                it.instrument.brokerName == inst.brokerName
+                it.instrument.brokerName == inst.brokerName &&
+                it.accountId == accountId
         }
     }
