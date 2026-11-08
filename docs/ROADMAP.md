@@ -1223,7 +1223,17 @@ ___
 
 **Мобильная работа:** частичное (Фаза 1 — полное в proot; Фаза 2 — компилятор + unit-тесты через proot, live-тест T-Invest на эмуляторе на десктопе).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** `refactor/card-identity-tscalp-uid` (10 коммитов: Фазы 1a + 2 реализованы).
+
+**Дефект Фазы 1a (live-test 2026-11-08):** `CardIdentity.matches` /
+`findCard` / `withUpdatedSettings` ключуют по `(uid, broker)` —
+без `accountId`. Из-за этого primary SBER на счёте A и pair SBER на
+счёте B считаются одной карточкой (смена счёта в одной меняет обе).
+По утверждённой модели (см. `docs/architecture.md` → «CardIdentity
+и слоты») ключ обязан включать `accountId`. Доработка — **Фаза 1b**.
+Фазы 1a и 2 **не merge'ать** до завершения Фазы 1b.
 
 **Контекст:** в A4 (live-regression split `OrdersViewModel`) `CardIdentity` получил `tscalpInstrumentId` рядом с `ticker` (оба non-null). `tscalpInstrumentId` — канонический domain-идентификатор; `ticker` — legacy, временный.
 
@@ -1239,17 +1249,25 @@ ___
   `lastSelectedInstruments.find { it.instrument.ticker == inst.ticker }`;
 - `openBrokerDialog(ticker)` не различает роль (primary/pair).
 
-**Domain-модель (утверждена 2026-11-08):**
+**Domain-модель (утверждена 2026-11-08, уточнена 2026-11-08 после
+live-теста):**
 - **`tscalpInstrumentId` — broker-specific**, паспорт инструмента
   (`docs/domain_models.md` §3: `uid` T-Invest / `figi` BCS / `id` Finam).
 - **Уникальность инструмента в domain** = `CardIdentity(
   tscalpInstrumentId, brokerName, accountId)` — composite key.
+  **Все три поля входят в ключ.** `(uid, T, A)` и `(uid, T, B)` —
+  **две разные** карточки (разные счета одного инструмента). `(uid1, T, A)`
+  и `(uid2, B, A)` — **две разные** карточки (разные инструменты у разных
+  брокеров).
 - **`ticker` в domain запрещён** как ключ/persist. В `Instrument.ticker` —
   вспомогательное поле (для BCS/Finam data-границы). В `PairedOutcome` —
   display через `instrument.ticker`.
-- **Ролей (primary/pair) нет.** Один инструмент на одном счёте у одного
-  брокера = одна `CardIdentity`; primary + pair на одном счёте — одна
-  карточка (утверждено 2026-11-08).
+- **Ролей (primary/pair) в `CardIdentity` нет.** Слоты primary/pair —
+  UI-концепт, каждый хранит свою активную `CardIdentity`. Один и тот же
+  инструмент в двух слотах — две разные карточки (с разными `accountId`
+  или `broker`).
+- **Полная модель, создание, коллизия α — `docs/architecture.md` →
+  «CardIdentity и слоты».**
 
 **Архитектурный принцип: `Instrument` как паспорт.**
 
@@ -1480,6 +1498,78 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
 - `InstrumentRepository.getInstrument(uid)` — не трогать (broker-agnostic,
   для `SelectInstrumentUseCase`); в `BrokerOrderRequest`-flow не использовать.
 
+**Фаза 1b — composite key с `accountId` + слоты (~6–8 ч):**
+
+Исправляет дефект Фазы 1a: `CardIdentity.matches` / `findCard` /
+`withUpdatedSettings` ключуют по `(uid, broker)` без `accountId`.
+Плюс — слоты primary/pair с независимыми (broker, account).
+
+**Файлы и шаги:**
+
+1. `domain/models/CardIdentity.kt` — расширить extensions:
+   - `matches(tscalpInstrumentId, brokerName, accountId: String?)`;
+   - `findCard(tscalpInstrumentId, brokerName, accountId: String?)`;
+   - `withUpdatedSettings(tscalpInstrumentId, brokerName, oldAccountId: String?, newAccountId: String?)`.
+   KDoc: `(uid, broker, accountId)` — полный composite.
+
+2. `domain/usecases/SaveCardSettingsUseCase.kt` — переписать как
+   «пересоздание карточки»:
+   - `execute(uid, broker, oldAccountId: String?, newAccountId: String?)`;
+   - find по `(uid, broker, oldAccountId)`; если нет — создать
+     `(uid, broker, newAccountId)` (не no-op);
+   - удалить старую identity, добавить новую;
+   - **коллизия α:** если `(uid, broker, newAccountId)` уже есть в
+     другой identity — вернуть `AppResult.Failure(AppError.Unknown(
+     "account is taken"))`; VM не даёт выбрать disabled-счёт.
+
+3. `presentation/screens/orders/OrderFormState.kt` — два поля на каждый
+   слот (не composite, потому что accountId обновляется до подтверждения):
+   - `selectedBroker: BrokerName = TINVEST`,
+   - `selectedAccountId: String? = null`,
+   - `pairedBroker: BrokerName = TINVEST`,
+   - `pairedAccountId: String? = null`.
+
+4. `presentation/screens/orders/OrdersCoordState.kt`:
+   - `activeCardFor(instrument, accountId: String?)` — find по
+     `(uid, broker, accountId)`; если `accountId == null`, find по
+     `(uid, broker, null)` (карточка создана, счёт не выбран);
+   - `activePairedCardFor(...)` — аналогично.
+
+5. `presentation/screens/orders/OrderDialogsViewModel.kt`:
+   - `openBrokerDialog(instrument, accountId, otherAccountIds: Set<String>)`
+     — передаёт VM список занятых счетов для `(uid, broker)`;
+   - `saveBrokerSettings` → `saveCardSettingsUseCase.execute(uid, broker,
+     oldAccountId, newAccountId)`; при `Failure` — snackbar.
+   - `OrderDialogsState` — `dialogInstrument: Instrument?`,
+     `dialogOldAccountId: String?`, `dialogTakenAccountIds: Set<String>`
+     (для disabled).
+
+6. `presentation/screens/orders/OrdersSearch.kt` /
+   `OrdersPairTrading.kt` — `onSettings` передаёт `(instrument, currentAccountId)`.
+
+7. UI-диалог `BrokerAccountDialog` (или аналог): disabled для счетов,
+   которые уже заняты **другим** слотом/карточкой того же `(uid, broker)`.
+
+8. `OrdersScreen` — передаёт `activeCardFor(selectedInstrument, selectedAccountId)`.
+
+9. Тесты:
+   - `CardIdentityTest` — composite по `accountId` (новые кейсы);
+   - `SaveCardSettingsUseCaseTest` — пересоздание (create new + delete old),
+     коллизия → Failure;
+   - `activeCardFor` / `activePairedCardFor` — find по слоту;
+   - `OrderDialogsViewModelTest` — disabled занятых, save с old→new.
+
+10. Live-test (sandbox, T-Invest):
+    - primary SBER (A) + pair SBER (B) → две **независимые** карточки;
+    - смена счёта в одной карточке не влияет на другую;
+    - коллизия: primary SBER (A), pair SBER (A) — в диалоге счёт A disabled
+      (если уже занят);
+    - покупка на per-card счёт (из Фазы 1a — продолжает работать).
+
+**Тесты:** перечислены выше. Live-test — обязателен (сценарий 10).
+
+**Оценка Фазы 1b:** ~6–8 ч.
+
 **Критерий готовности:**
 
 *Фаза 1:*
@@ -1508,7 +1598,7 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
 - T-Invest live — PASS (purchase/sell).
 - Гейт зелёный.
 
-**Оценка:** Фаза 1 — ~10–14 ч; Фаза 2 — ~4–6 ч. **Итого ~14–20 ч.**
+**Оценка:** Фаза 1a — ~10–14 ч (выполнено); Фаза 2 — ~4–6 ч (выполнено); **Фаза 1b — ~6–8 ч (осталось)**. **Итого ~20–28 ч**, из них выполнено ~14–20 ч, осталось ~6–8 ч (+ swap-кнопка ~2–3 ч отдельной задачей).
 
 **Зависимости:** PR `bugfix/order-card-account-diagnostic` — **смержен**
 (`d1ec084`, 2026-11-08).
@@ -1543,6 +1633,60 @@ ___
 
 
 
+
+### UI: кнопка swap слотов (primary ↔ pair)
+
+**Мобильная работа:** частичное (live-тест UI).
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** по `docs/architecture.md` → «CardIdentity и слоты» α-вариант:
+swap карточек между слотами возможен через временный счёт или через
+удаление + пересоздание. UX-неудобно (3–4 действия). Нужна явная кнопка
+swap рядом со slider «Парная торговля».
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** Фаза 1b закрыта (composite key + слоты работают).
+
+**Файлы:**
+- `presentation/screens/orders/OrdersPairTrading.kt` — новый IconButton
+  рядом со slider «Парная торговля».
+- `presentation/screens/orders/OrderFormViewModel.kt` — `swapSlots()`:
+  exchange `selectedInstrument` / `pairedInstrument`, `selectedBroker` /
+  `pairedBroker`, `selectedAccountId` / `pairedAccountId`; `saveState()`.
+- `presentation/screens/orders/OrdersScreen.kt` — передача `onSwapSlots`.
+
+**Шаги:**
+1. **UI-санкция** (правило 1): согласовать иконку, текст, положение
+   относительно slider.
+2. `OrderFormViewModel.swapSlots()` — атомарный swap полей слота.
+3. UI-кнопка.
+4. Live-test: primary SBER(A) + pair SBER(B) → swap → primary SBER(B) +
+   pair SBER(A); сохранить в DataStore; после перезапуска — то же.
+
+**Тесты:** `OrderFormViewModelTest.swapSlots` (unit).
+
+**Референсы:** `docs/architecture.md` → «CardIdentity и слоты»; Фаза 1b.
+
+**Ограничения:** не смешивать с Фазой 1b (отдельный PR). UI-санкция.
+
+**Критерий готовности:** кнопка swap работает; слоты меняются местами;
+переживает перезапуск; гейт зелёный; live-test PASS.
+
+**Оценка:** ~2–3 ч (с UI-санкцией).
+
+**Зависимости:** Фаза 1b.
+
+**Связано:** `### Рефакторинг: tscalpInstrumentId в CardIdentity + весь domain`.
+
+---
 
 ### KMP: domain → commonMain
 
