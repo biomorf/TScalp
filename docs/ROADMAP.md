@@ -1695,16 +1695,25 @@ Test:
 `@Deprecated(WARNING)`; callsites мигрируют по шагам; deprecated
 удаляется в 1b-7.
 
-- **1b-1** (~2.5–3.5 ч). `CardIdentity.kt`: новые
-  `matches(uid, broker, accountId)` / `findCard(uid, broker, accountId)` /
-  `withRecreatedSettings(uid, broker, oldAccountId, newAccountId)`.
-  Старые `matches(uid, broker)` / `findCard(uid, broker)` /
-  `withUpdatedSettings(...)` — `@Deprecated(WARNING)`, поведение не
-  меняется (any-account). `SaveCardSettingsUseCase.execute(instrument,
-  oldAccountId, newAccountId)` — пересоздание (delete old + create new)
-  + коллизия → `Failure`; переводится на `withRecreatedSettings`.
-  Тесты: `CardIdentityTest` (+4 кейса), `SaveCardSettingsUseCaseTest`
-  (create / recreate / collision / exception / cancellation). Гейт.
+- **1b-1a** ✅ (~2.5–3.5 ч, коммит `19a3b81`). `CardIdentity.kt`:
+  новые `matches(uid, broker, accountId)` /
+  `findCard(uid, broker, accountId)` /
+  `withRecreatedSettings(uid, broker, oldAccountId, newAccountId)`;
+  старые — `@Deprecated(WARNING)`, поведение не меняется (any-account).
+  `CardIdentityTest` +5 кейсов. Гейт.
+- **1b-1b** (~1.5–2 ч). Сигнатура `SaveCardSettingsUseCase`:
+  `execute(instrument, oldAccountId, newAccountId)` — пересоздание
+  (delete old + create new) + коллизия → `Failure("account taken")`.
+  `OpenCardDialogResult + oldAccountId: String?` (для VM: какой счёт
+  был у карточки до save). `OrderDialogsState + dialogOldAccountId:
+  String? = null` (для save). `OrderDialogsViewModel.openBrokerDialog(
+  instrument, currentAccountId: String? = null)` — default `null`
+  (обратная совместимость UI-callsites до 1b-5); `saveBrokerSettings`
+  → `SaveCardSettingsUseCase.execute(instrument, state.dialogOldAccountId,
+  state.selectedAccountIdDialog)`. Тесты: `SaveCardSettingsUseCaseTest`
+  (create old=null / recreate old→new / collision / not found /
+  exception / cancellation), `OpenCardDialogUseCaseTest` +1 (oldAccountId
+  в результате), `OrderDialogsViewModelTest` (execute(sber, old, new)). Гейт.
 - **1b-2** (~0.5–1 ч). `OrderFormState` (+ `selectedBroker` /
   `selectedAccountId` / `pairedBroker` / `pairedAccountId`).
   `OrderFormViewModel.saveState` / `restoreOrderForm` — поля слотов
@@ -1712,15 +1721,19 @@ Test:
 - **1b-3** (~0.5 ч). `OrdersCoordState.activeCardFor` /
   `activePairedCardFor` — параметр `accountId`, `it.instrument.matches(inst,
   accountId)`; **убрать inline composite** (`:57, :69`). Гейт.
-- **1b-4** (~1–1.5 ч). `OrderDialogsState` (+ `takenAccountIds:
-  Set<String>`, `oldAccountId: String?`); `OrderDialogsViewModel.openBrokerDialog
-  (instrument, currentAccountId, takenAccountIds)`; `saveBrokerSettings`
-  → `SaveCardSettingsUseCase.execute(instrument, oldAccountId,
-  newAccountId)`; `BrokerAccountDialog` — disabled занятых
-  `(uid, broker, accountId)` другой карточкой. Гейт.
+- **1b-4** (~1–1.5 ч). `OrderDialogsState + takenAccountIds:
+  Set<String> = emptySet()` (для disabled в UI). `OrderDialogsViewModel
+  + openBrokerDialog(instrument, currentAccountId, takenAccountIds)`
+  — `openBrokerDialog` уже с `currentAccountId` (default `null` из 1b-1b),
+  добавить `takenAccountIds`; `dialogOldAccountId` из 1b-1b — заполняется
+  существующим `accountId` карточки. `BrokerAccountDialog` — disabled
+  занятых `(uid, broker, accountId)` другой карточкой. Гейт.
 - **1b-5** (~0.5–1 ч). `OrdersSearch` / `OrdersPairTrading` —
-  `onSettings(instrument, accountId)`; `OrdersScreen` —
-  `activeCardFor(selectedInstrument, selectedAccountId)`. Гейт.
+  `onSettings(instrument, currentAccountId)` — миграция UI на явный
+  `currentAccountId` слота (1b-1b-сигнатура `openBrokerDialog` с default
+  `null` → с 1b-5 передаётся реальный `accountId` слота);
+  `OrdersScreen` — `activeCardFor(selectedInstrument, selectedAccountId)`.
+  Гейт.
 - **1b-6** (~0.5–1 ч). `SelectInstrumentUseCase` / `OpenCardDialogUseCase` /
   `PlaceOrderUseCase.resolveContext` — composite с `accountId`. Гейт.
 - **1b-7** (~0.5 ч). Удалить `@Deprecated` overloads (`matches(uid, broker)`
@@ -1745,7 +1758,8 @@ Test:
 
 **Тесты:** в коммитах 1b-1…1b-7. Live-test 1b-8 — обязателен.
 
-**Оценка Фазы 1b:** ~8–12 ч.
+**Оценка Фазы 1b:** ~8–12 ч. Из них выполнено:
+1b-1a — ~2.5–3.5 ч (коммит `19a3b81`); осталось: 1b-1b..1b-10 (~6–9 ч).
 
 **Критерий готовности:**
 
