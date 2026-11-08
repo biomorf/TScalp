@@ -17,11 +17,11 @@ import javax.inject.Singleton
  * разбиение `OrdersViewModel` на 4 VM, шаг 7.
  *
  * Вынесено из `OrdersViewModel.saveBrokerSettings` (clean-audit
- * M013, M2): обновление `CardsRepository` для конкретного
- * ticker — domain-orchestration.
+ * M013, M2): обновление `CardsRepository` для composite identity
+ * `(tscalpInstrumentId, brokerName)` — domain-orchestration.
  *
- * **UI-часть** (`_uiState.update` с `showBrokerDialog=false` /
- * `dialogInstrumentTicker=null` / `swipeResetTrigger` toggle)
+ * **UI-часть** (`_state.update` с `showBrokerDialog=false` /
+ * `dialogInstrument=null` / `swipeResetTrigger` toggle)
  * остаётся в VM (Dialogs, 1:1).
  *
  * **No-op при отсутствии карточки** — `AppResult.Success(Unit)`,

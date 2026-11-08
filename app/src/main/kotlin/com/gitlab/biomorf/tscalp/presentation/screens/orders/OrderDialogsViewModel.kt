@@ -50,7 +50,7 @@ import javax.inject.Inject
  * fallback) — pre-existing M013, не новое (Coord делал то же
  * до 12a). **Правило Clean:** M2 — business-orchestration в VM,
  * не в UseCase. **Clean-альтернатива:** `OpenBrokerDialogUseCase
- * (ticker): AppResult<CardAccountsResult>` — findCard +
+ * (instrument): AppResult<CardAccountsResult>` — findCard +
  * savedFallback + `LoadCardAccountsUseCase.execute(...)`.
  * **Выгоды:** 1:1 с Coord (минимальный diff 12a);
  * `loadCardAccountsUseCase` уже покрывает основную orchestration

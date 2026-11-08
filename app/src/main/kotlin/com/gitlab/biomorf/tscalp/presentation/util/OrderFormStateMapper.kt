@@ -20,8 +20,7 @@ import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
  * (10 параметров на входе) отклонена: не делает работу use case.
  *
  * @return `PlaceOrderRequest?` — `null`, если не хватает обязательных
- *   Form-полей: `ticker` (или `selectedInstrument.ticker`), `quantity`,
- *   `tscalpInstrumentId`.
+ *   Form-полей: `selectedInstrument`, `quantity`.
  */
 fun OrderFormState.toPlaceOrderRequest(): PlaceOrderRequest? {
     val instrument = selectedInstrument ?: return null

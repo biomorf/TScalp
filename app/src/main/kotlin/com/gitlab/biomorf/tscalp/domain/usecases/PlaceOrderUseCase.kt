@@ -22,10 +22,10 @@ import javax.inject.Singleton
  * Параметры торговой операции, которые Form-VM получает из
  * `OrderFormState` и передаёт в [PlaceOrderUseCase].
  *
- * Только «сырые» Form-значения (ticker / quantity / orderType /
- * limitPrice / stopPrice / pair). Координатные данные
- * (`activeCard` из `CardsRepository.identities`, `accountId` из
- * `AccountSelectionRepository.selected`) резолвятся **внутри
+ * Только «сырые» Form-значения (`instrument` / `quantity` /
+ * `orderType` / `limitPrice` / `stopPrice` / pair). Координатные
+ * данные (`activeCard` из `CardsRepository.identities`, `accountId`
+ * из `AccountSelectionRepository.selected`) резолвятся **внутри
  * usecase** — не через cross-VM параметры.
  *
  * `limitPrice` / `stopPrice` — `String` (как в `OrderFormState`):

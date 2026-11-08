@@ -33,12 +33,11 @@ import javax.inject.Singleton
  * existingCard + save identity + save selected to session —
  * domain-orchestration, не presentation.
  *
- * **Не в scope** (VM-часть, 1:1): `_uiState.update`
- * (`selectedInstrument` / `ticker` / `searchQuery` / `searchResults`
- * / `isPriceLoading` / `currentPrice` / `currentPointValue` /
- * `lastSelectedInstruments`), `updateTradeDetails` /
- * `updatePairExecDetails`, `syncPriceInterest` /
- * `startPositionUpdates`, `saveState`.
+ * **Не в scope** (VM-часть, 1:1): `_state.update`
+ * (`selectedInstrument` / `searchQuery` / `searchResults` /
+ * `isPriceLoading` / `currentPrice` / `currentPointValue`),
+ * `updateTradeDetails` / `updatePairExecDetails`, `syncPriceInterest`
+ * / `startPositionUpdates`, `saveState`.
  *
  * **Persistence:** `CardsRepository.save` — identity-only
  * (`CardIdentity`, не полная `SelectedInstrumentInfo`).

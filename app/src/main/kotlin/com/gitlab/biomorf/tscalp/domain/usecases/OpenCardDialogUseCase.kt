@@ -16,9 +16,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Результат [OpenCardDialogUseCase]: ticker + broker + accounts +
+ * Результат [OpenCardDialogUseCase]: broker + accounts +
  * selectedAccountId — всё, что нужно `OrderDialogsState` для
- * открытия диалога карточки.
+ * открытия диалога карточки. Инструмент VM уже знает (передаёт
+ * `Instrument` в [OpenCardDialogUseCase.execute]); в результате
+ * он не дублируется.
  */
 data class OpenCardDialogResult(
     val broker: BrokerName,
@@ -54,10 +56,10 @@ sealed interface OpenCardDialogOutcome {
  * fallback + `LoadCardAccountsUseCase.execute`).
  *
  * **Не путать с [LoadCardAccountsUseCase]:** тот делает только
- * getAccounts + savedFallback; здесь — findCard по ticker из
- * `CardsRepository.identities` + selected fallback из
- * `AccountSelectionRepository.selected(TINVEST)` + `sandboxMode`
- * из `SandboxPreferencesRepository` + делегирование в
+ * getAccounts + savedFallback; здесь — findCard по composite
+ * `(tscalpInstrumentId, brokerName)` из `CardsRepository.identities` +
+ * selected fallback из `AccountSelectionRepository.selected(broker)` +
+ * `sandboxMode` из `SandboxPreferencesRepository` + делегирование в
  * `LoadCardAccountsUseCase`.
  *
  * **Не путать с `loadDialogAccounts` (VM):** тот — thin delegate
@@ -66,7 +68,7 @@ sealed interface OpenCardDialogOutcome {
  * **Failure из [LoadCardAccountsUseCase]** — `OpenCardDialogOutcome.Failure(broker, error)`,
  * не `AppResult.Failure`: [broker] нужен VM для 1:1 `selectedBroker`
  * (см. `OrderDialogsViewModel.openBrokerDialog`). VM разбирает failure
- * 1:1: `showBrokerDialog = true`, `dialogInstrumentTicker = ticker`,
+ * 1:1: `showBrokerDialog = true`, `dialogInstrument = instrument`,
  * `selectedBroker = outcome.broker`, `dialogAccounts = emptyList()`,
  * `selectedAccountIdDialog = null`.
  *

@@ -7,13 +7,14 @@ import kotlinx.coroutines.flow.Flow
  * Domain-контракт хранилища identity карточек «Последние
  * просмотренные» (разбиение `OrdersViewModel` на 4 VM, шаг 2).
  *
- * Хранит **только identity** (`ticker` + `brokerName` + `accountId`).
- * Полная `SelectedInstrumentInfo` (currentPrice, quantity,
- * profit, profitPercent) обогащается в Coordinator из
+ * Хранит **только identity** (`tscalpInstrumentId` + `brokerName` +
+ * `accountId`). Полная `SelectedInstrumentInfo` (currentPrice,
+ * quantity, profit, profitPercent) обогащается в Coordinator из
  * `InstrumentRepository` + `PositionFlowManager.sheet` — в
  * репозитории не хранится.
  *
- * Персистентность — DataStore, legacy-формат.
+ * Персистентность — DataStore, формат `<brokerName>|<uid>|<accountId>`
+ * (3 поля).
  */
 interface CardsRepository {
     val identities: Flow<List<CardIdentity>>
