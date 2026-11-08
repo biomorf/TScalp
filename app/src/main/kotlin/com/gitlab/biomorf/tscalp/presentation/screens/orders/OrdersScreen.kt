@@ -50,19 +50,26 @@ private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
 @Composable
 fun OrdersScreen() {
     val viewModel: OrdersViewModel = hiltViewModel()
-    val uiState by viewModel.uiState.collectAsState()
+    val coordState by viewModel.coordState.collectAsState()
+    val tradingStatuses by viewModel.tradingStatuses.collectAsState()
+    // orchestrates user-intent across 2 VMs (P4): search + form-trigger
+    // split (searchVM.onSearchResultSelected + coordVM.onInstrumentSelected).
+    val searchViewModel: OrderSearchViewModel = hiltViewModel()
+    val searchState by searchViewModel.state.collectAsState()
+    // orchestrates user-intent across dialogs (12b): dialog + save -> dialogsVM,
+    // Coord remains source of form/positions state.
+    val dialogsViewModel: OrderDialogsViewModel = hiltViewModel()
+    val dialogsState by dialogsViewModel.state.collectAsState()
+    // Form-VM (split 13d): form-only state (instrument / quantity / orderType /
+    // prices / pair / confirm / status). Coord `uiState` owns accounts /
+    // lastSelectedInstruments / tradingStatuses. Cross-VM via domain only.
+    val formViewModel: OrderFormViewModel = hiltViewModel()
+    val formState by formViewModel.state.collectAsState()
     val focusManager = LocalFocusManager.current
 
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showOrdersListDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(uiState.statusMessage) {
-        if (uiState.statusMessage != null && !uiState.isError) {
-            kotlinx.coroutines.delay(5000)
-            viewModel.clearStatus()
-        }
-    }
 
     LaunchedEffect(Unit) {
         viewModel.checkApiInitialization()
@@ -78,7 +85,7 @@ fun OrdersScreen() {
             // ========== ЗАГОЛОВОК ==========
             OrdersScreenHeader(onShowOrdersList = { showOrdersListDialog = true })
 
-            if (!uiState.isApiInitialized) {
+            if (!coordState.isApiInitialized) {
                 ApiNotInitializedCard()
                 return@Box
             }
@@ -104,17 +111,25 @@ fun OrdersScreen() {
                 ) {
                     // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
                     OrdersInstrumentSection(
-                        uiState = uiState,
-                        onSearchQueryChanged = { viewModel.onSearchQueryChanged(it) },
+                        coordState = coordState,
+                        searchState = searchState,
+                        formState = formState,
+                        tradingStatuses = tradingStatuses,
+                        resetSwipe = dialogsState.swipeResetTrigger,
+                        onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
                         onInstrumentSelected = {
-                            viewModel.onInstrumentSelected(it)
+                            searchViewModel.onSearchResultSelected(it)
+                            formViewModel.onInstrumentSelected(it)
                             focusManager.clearFocus()
                         },
-                        onClearSearch = { viewModel.clearSearch() },
-                        onRefreshSearch = { viewModel.refreshSearch() },
-                        onOpenSearchSettings = { viewModel.openSearchBrokerSettings() },
-                        onClearSelected = { viewModel.clearSelectedInstrument() },
-                        onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
+                        onClearSearch = {
+                            searchViewModel.clearSearchQuery()
+                            formViewModel.clearSelectedInstrument()
+                        },
+                        onRefreshSearch = { searchViewModel.refreshSearch() },
+                        onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
+                        onClearSelected = { formViewModel.clearSelectedInstrument() },
+                        onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
                     )
 
                     // Spacer(modifier = Modifier.height(1.dp))
@@ -122,51 +137,59 @@ fun OrdersScreen() {
                     // ========== Поле количества ==========
                     // Определяем цену исполнения в зависимости от типа заявки
                     OrdersConfirmDialogSection(
-                        uiState = uiState,
-                        onDismiss = { viewModel.onDismissConfirmDialog() },
-                        onConfirm = { viewModel.onConfirmOrder() },
+                        formState = formState,
+                        onDismiss = { formViewModel.onDismissConfirmDialog() },
+                        onConfirm = { formViewModel.onConfirmOrder() },
                     )
 
                     OrdersQuantityRow(
-                        quantity = uiState.quantity,
-                        costOverlay = uiState.costOverlay,
-                        canDecrement = (uiState.quantityAsLong ?: 0L) > 0 && uiState.selectedInstrument != null,
-                        canIncrement = uiState.selectedInstrument != null,
-                        onQuantityChanged = { viewModel.onQuantityChanged(it) },
+                        quantity = formState.quantity,
+                        costOverlay = formState.costOverlay,
+                        canDecrement = (formState.quantityAsLong ?: 0L) > 0 && formState.selectedInstrument != null,
+                        canIncrement = formState.selectedInstrument != null,
+                        onQuantityChanged = { formViewModel.onQuantityChanged(it) },
                     )
 
                     // ========== Выбор типа заявки ==========
                     OrdersTypeChips(
-                        orderType = uiState.orderType,
-                        onOrderTypeChanged = { viewModel.onOrderTypeChanged(it) },
+                        orderType = formState.orderType,
+                        onOrderTypeChanged = { formViewModel.onOrderTypeChanged(it) },
                     )
 
                     // ========== Ценовые поля (статическая высота) ==========
                     OrdersPriceFields(
-                        orderType = uiState.orderType,
-                        limitPrice = uiState.limitPrice,
-                        stopPrice = uiState.stopPrice,
-                        onLimitPriceChanged = { viewModel.onLimitPriceChanged(it) },
-                        onStopPriceChanged = { viewModel.onStopPriceChanged(it) },
+                        orderType = formState.orderType,
+                        limitPrice = formState.limitPrice,
+                        stopPrice = formState.stopPrice,
+                        onLimitPriceChanged = { formViewModel.onLimitPriceChanged(it) },
+                        onStopPriceChanged = { formViewModel.onStopPriceChanged(it) },
                     )
 
                     // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
                     OrdersPairSection(
-                        uiState = uiState,
+                        coordState = coordState,
+                        searchState = searchState,
+                        formState = formState,
+                        tradingStatuses = tradingStatuses,
+                        resetSwipe = dialogsState.swipeResetTrigger,
                         scrollState = scrollState,
                         scope = scope,
-                        onPairSearchQueryChanged = { viewModel.onPairSearchQueryChanged(it) },
+                        onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },
                         onPairedInstrumentSelected = {
-                            viewModel.onPairedInstrumentSelected(it)
+                            searchViewModel.onPairedSearchResultSelected(it)
+                            formViewModel.onPairedInstrumentSelected(it)
                             focusManager.clearFocus()
                         },
-                        onClearPairSearch = { viewModel.clearPairSearch() },
-                        onRefreshPairSearch = { viewModel.refreshPairSearch() },
-                        onOpenPairSearchBrokerSettings = { viewModel.openPairSearchBrokerSettings() },
-                        onPairTradingEnabledChanged = { viewModel.setPairTradingEnabled(it) },
-                        onClearPairedInstrument = { viewModel.clearPairSearch() },
-                        onOpenBrokerDialog = { viewModel.openBrokerDialog(it) },
-                        onPairedMultiplierChanged = { viewModel.onPairedMultiplierChanged(it) },
+                        onClearPairSearch = { searchViewModel.clearPairSearchQuery() },
+                        onRefreshPairSearch = { searchViewModel.refreshPairSearch() },
+                        onOpenPairSearchBrokerSettings = { searchViewModel.openPairSearchBrokerSettings() },
+                        onPairTradingEnabledChanged = { formViewModel.setPairTradingEnabled(it) },
+                        onClearPairedInstrument = {
+                            searchViewModel.clearPairSearchQuery()
+                            formViewModel.clearPairedInstrument()
+                        },
+                        onOpenBrokerDialog = { dialogsViewModel.openBrokerDialog(it) },
+                        onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
                     )
                 } // конец скроллируемой колонки
 
@@ -179,73 +202,33 @@ fun OrdersScreen() {
 
             // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
             OrdersBottomButtons(
-                freeBalance = uiState.freeBalance,
-                isFormValid = uiState.isFormValid,
-                isLoading = uiState.isLoading,
-                onBuyClick = { viewModel.onBuyClick() },
-                onSellClick = { viewModel.onSellClick() },
+                freeBalance = formState.freeBalance,
+                isFormValid = formState.isFormValid(coordState.isApiInitialized),
+                isLoading = formState.isLoading || coordState.isLoading,
+                onBuyClick = { formViewModel.onBuyClick() },
+                onSellClick = { formViewModel.onSellClick() },
             )
         }
 
-        // Снекбар поверх всего
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(8.dp),
-        ) { data ->
-            Snackbar(
-                containerColor =
-                    if (uiState.isError) {
-                        MaterialTheme.colorScheme.errorContainer
-                    } else {
-                        MaterialTheme.colorScheme.tertiaryContainer
-                    },
-                contentColor =
-                    if (uiState.isError) {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    } else {
-                        MaterialTheme.colorScheme.onTertiaryContainer
-                    },
-                action = {
-                    val label = data.visuals.actionLabel
-                    if (label != null) {
-                        TextButton(onClick = { data.dismiss() }) {
-                            Text(label)
-                        }
-                    }
-                },
-            ) {
-                Text(data.visuals.message)
-            }
-        }
-    }
-
-    // ==================== ДИАЛОГИ ====================
-    LaunchedEffect(uiState.statusMessage) {
-        uiState.statusMessage?.let { message ->
-            val visuals =
-                object : SnackbarVisuals {
-                    override val message: String = message
-                    override val actionLabel: String? = if (uiState.isError) "OK" else null
-                    override val withDismissAction: Boolean = false
-                    override val duration: SnackbarDuration =
-                        if (uiState.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short
-                }
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(visuals)
-            viewModel.clearStatus()
-        }
+        // Snackbar (extracted, Fase 2 11b; 13d-E-A: coord + form channels)
+        OrdersScreenSnackbar(
+            snackbarHostState = snackbarHostState,
+            coordState = coordState,
+            formState = formState,
+            searchState = searchState,
+            onClearCoordStatus = { viewModel.clearStatus() },
+            onClearFormStatus = { formViewModel.clearStatus() },
+            onClearSearchStatus = { searchViewModel.clearStatus() },
+        )
     }
 
     TradingBrokerDialog(
-        availableBrokers = viewModel.getAvailableBrokerNames(),
-        uiState = uiState,
-        onBrokerSelected = { viewModel.onBrokerSelected(it) },
-        onAccountSelected = { viewModel.onAccountSelectedDialog(it) },
-        onDismiss = { viewModel.closeBrokerDialog() },
-        onSave = { viewModel.saveBrokerSettings() },
+        availableBrokers = dialogsViewModel.getAvailableBrokerNames(),
+        dialogsState = dialogsState,
+        onBrokerSelected = { dialogsViewModel.onBrokerSelected(it) },
+        onAccountSelected = { dialogsViewModel.onAccountSelectedDialog(it) },
+        onDismiss = { dialogsViewModel.closeBrokerDialog() },
+        onSave = { dialogsViewModel.saveBrokerSettings() },
     )
 
     if (showOrdersListDialog) {
@@ -255,22 +238,167 @@ fun OrdersScreen() {
     }
     // Диалог выбора брокера для основного поиска
     SearchBrokerDialog(
-        availableBrokers = viewModel.getAvailableBrokerNames(),
-        uiState = uiState,
-        onBrokerSelected = { viewModel.saveSearchBrokerSettings(it) },
-        onDismiss = { viewModel.dismissSearchBrokerDialog() },
+        availableBrokers = searchViewModel.getAvailableBrokerNames(),
+        searchState = searchState,
+        onBrokerSelected = { searchViewModel.saveSearchBrokerSettings(it) },
+        onDismiss = { searchViewModel.dismissSearchBrokerDialog() },
     )
 
-// Диалог выбора брокера для парного поиска
+    // Диалог выбора брокера для парного поиска
     PairSearchBrokerDialog(
-        availableBrokers = viewModel.getAvailableBrokerNames(),
-        uiState = uiState,
-        onBrokerSelected = { viewModel.savePairSearchBrokerSettings(it) },
-        onDismiss = { viewModel.dismissPairSearchBrokerDialog() },
+        availableBrokers = searchViewModel.getAvailableBrokerNames(),
+        searchState = searchState,
+        onBrokerSelected = { searchViewModel.savePairSearchBrokerSettings(it) },
+        onDismiss = { searchViewModel.dismissPairSearchBrokerDialog() },
     )
 }
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+
+/**
+ * Snackbar для Orders-экрана (Fase 2, 11b): 2 эффекта + host.
+ * Разбито на [OrdersSnackbarEffects] + [OrdersSnackbarHost] (detekt
+ * LongMethod < 60, без @Suppress).
+ *
+ * `BoxScope` — для `Modifier.align(Alignment.BottomCenter)`.
+ */
+@Composable
+private fun BoxScope.OrdersScreenSnackbar(
+    snackbarHostState: SnackbarHostState,
+    coordState: OrdersCoordState,
+    formState: OrderFormState,
+    searchState: OrderSearchState,
+    onClearCoordStatus: () -> Unit,
+    onClearFormStatus: () -> Unit,
+    onClearSearchStatus: () -> Unit,
+) {
+    OrdersSnackbarEffects(
+        snackbarHostState = snackbarHostState,
+        coordState = coordState,
+        formState = formState,
+        searchState = searchState,
+        onClearCoordStatus = onClearCoordStatus,
+        onClearFormStatus = onClearFormStatus,
+        onClearSearchStatus = onClearSearchStatus,
+    )
+    OrdersSnackbarHost(
+        snackbarHostState = snackbarHostState,
+        isError = coordState.isError || formState.isError,
+    )
+}
+
+/**
+ * Эффекты Snackbar (Fase 2, 11b): автоочистка + показ.
+ *
+ * Two status channels after 13d-E-A: `coordState.statusMessage` (Coord:
+ * `loadAccounts` / `checkApiInitialization`) and `formState.statusMessage`
+ * (Form: postOrder flow). Plus `searchState.statusMessage` (Search).
+ * Each channel: show + auto-dismiss by SnackbarResult -> onClear*.
+ * Pre-existing N3-duplicate (`2 × LaunchedEffect(coordState.statusMessage)`)
+ * is removed as part of this split.
+ */
+@Composable
+private fun OrdersSnackbarEffects(
+    snackbarHostState: SnackbarHostState,
+    coordState: OrdersCoordState,
+    formState: OrderFormState,
+    searchState: OrderSearchState,
+    onClearCoordStatus: () -> Unit,
+    onClearFormStatus: () -> Unit,
+    onClearSearchStatus: () -> Unit,
+) {
+    StatusEffect(
+        snackbarHostState = snackbarHostState,
+        message = coordState.statusMessage,
+        isError = coordState.isError,
+        onClear = onClearCoordStatus,
+    )
+    StatusEffect(
+        snackbarHostState = snackbarHostState,
+        message = formState.statusMessage,
+        isError = formState.isError,
+        onClear = onClearFormStatus,
+    )
+    StatusEffect(
+        snackbarHostState = snackbarHostState,
+        message = searchState.statusMessage,
+        isError = searchState.isError,
+        onClear = onClearSearchStatus,
+    )
+}
+
+/**
+ * Один status-канал: `LaunchedEffect(message)` -> `showSnackbar` ->
+ * `onClear` на `Dismissed` / `ActionPerformed`. 1:1 поведение прежних
+ * трёх `LaunchedEffect`-блоков (coord / form / search).
+ *
+ * Split `OrdersSnackbarEffects` на 3 канала (13d-E-A fix): detekt
+ * `CyclomaticComplexMethod` (16 > 14) на объединённой функции.
+ */
+@Composable
+private fun StatusEffect(
+    snackbarHostState: SnackbarHostState,
+    message: String?,
+    isError: Boolean,
+    onClear: () -> Unit,
+) {
+    LaunchedEffect(message) {
+        message?.let { text ->
+            val result =
+                snackbarHostState.showSnackbar(
+                    message = text,
+                    actionLabel = if (isError) "OK" else null,
+                    duration = if (isError) SnackbarDuration.Indefinite else SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.Dismissed || result == SnackbarResult.ActionPerformed) {
+                onClear()
+            }
+        }
+    }
+}
+
+/**
+ * Snackbar host (Fase 2, 11b): `SnackbarHost` + `Snackbar`.
+ * Контейнер / контент — error vs tertiary по [isError].
+ */
+@Composable
+private fun BoxScope.OrdersSnackbarHost(
+    snackbarHostState: SnackbarHostState,
+    isError: Boolean,
+) {
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier =
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(8.dp),
+    ) { data ->
+        Snackbar(
+            containerColor =
+                if (isError) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.tertiaryContainer
+                },
+            contentColor =
+                if (isError) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                },
+            action = {
+                val label = data.visuals.actionLabel
+                if (label != null) {
+                    TextButton(onClick = { data.dismiss() }) {
+                        Text(label)
+                    }
+                }
+            },
+        ) {
+            Text(data.visuals.message)
+        }
+    }
+}
 
 @Composable
 fun ApiNotInitializedCard(modifier: Modifier = Modifier) {

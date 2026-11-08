@@ -24,7 +24,11 @@ import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 
 @Composable
 internal fun OrdersInstrumentSection(
-    uiState: OrdersUiState,
+    coordState: OrdersCoordState,
+    searchState: OrderSearchState,
+    formState: OrderFormState,
+    tradingStatuses: Map<String, TradingAvailability>,
+    resetSwipe: Boolean,
     onSearchQueryChanged: (String) -> Unit,
     onInstrumentSelected: (Instrument) -> Unit,
     onClearSearch: () -> Unit,
@@ -33,21 +37,21 @@ internal fun OrdersInstrumentSection(
     onClearSelected: () -> Unit,
     onOpenBrokerDialog: (String) -> Unit,
 ) {
-    if (uiState.selectedInstrument == null) {
+    if (formState.selectedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
-                    query = uiState.searchQuery,
+                    query = searchState.searchQuery,
                     onQueryChanged = onSearchQueryChanged,
-                    isSearching = uiState.isSearching,
-                    searchResults = uiState.searchResults,
+                    isSearching = searchState.isSearching,
+                    searchResults = searchState.searchResults,
                     onInstrumentSelected = onInstrumentSelected,
                     onClear = onClearSearch,
-                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                    tradingStatuses = uiState.tradingStatuses,
+                    recentInstruments = coordState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
-                if (uiState.searchQuery.length >= 2 && !uiState.isSearching) {
+                if (searchState.searchQuery.length >= 2 && !searchState.isSearching) {
                     IconButton(onClick = onRefreshSearch) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
                     }
@@ -58,28 +62,26 @@ internal fun OrdersInstrumentSection(
             }
         }
     } else {
-        uiState.selectedInstrument.let { instrument: Instrument ->
-            val portfolioPos =
-                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
-            val currentPrice = uiState.currentPrice ?: portfolioPos?.currentPrice ?: 0.0
+        formState.selectedInstrument.let { instrument: Instrument ->
+            val card = coordState.activeCardFor(formState.selectedInstrument)
+            val currentPrice = formState.currentPrice ?: card?.currentPrice ?: 0.0
             val position =
-                portfolioPos
-                    ?: emptyPosition(
-                        instrument = instrument,
-                        currentPrice = currentPrice,
-                        accountId = uiState.selectedAccountId ?: "",
-                        brokerName = BrokerName.TINVEST,
-                    )
+                emptyPosition(
+                    instrument = instrument,
+                    currentPrice = currentPrice,
+                    accountId = card?.accountId ?: coordState.selectedAccountId ?: "",
+                    brokerName = card?.brokerName ?: BrokerName.TINVEST,
+                ).withCard(card)
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = currentPrice,
-                priceChangePercent = uiState.selectedPriceChangePercent,
+                priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearSelected,
                 onSettings = { onOpenBrokerDialog(instrument.ticker) },
                 onClick = { },
                 isSelected = false,
-                resetSwipe = uiState.swipeResetTrigger,
-                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
+                resetSwipe = resetSwipe,
+                tradingAvailability = tradingStatuses[instrument.tscalpInstrumentId],
             )
         }
     }
@@ -220,5 +222,70 @@ internal fun InstrumentSearchField(
                 }
             }
         }
+    }
+}
+
+/**
+ * Применяет поля per-card [SelectedInstrumentInfo] (quantity,
+ * averagePrice, profit) к базовой [Position] для отображения в
+ * [com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard].
+ *
+ * **2c-фиксация (M1):** UI конвертирует `SelectedInstrumentInfo`
+ * (identity + per-card счёт) в `Position` (domain) — формально
+ * M1 (UI маппит domain). Временное: шаг 13/15 (Coord на
+ * `PositionFlowManager.sheet` per-account) даст готовые
+ * `Position`, extension и `activeCard` удаляются.
+ *
+ * `profitPercent` / `totalValue` — computed getters `Position`,
+ * не передаются (считаются из `quantity` / `averagePrice` /
+ * `profit` / `currentPrice` / `instrument.moneyPerPointOfPrice`).
+ *
+ * `null` card → `this` (no-op).
+ */
+internal fun Position.withCard(card: SelectedInstrumentInfo?): Position {
+    if (card == null) return this
+    return when (this) {
+        is SharePosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is FuturePosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is BondPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is OptionPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is EtfPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is CurrencyPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
+        is OtherPosition ->
+            copy(
+                quantity = card.quantity.toDouble(),
+                averagePrice = card.averagePrice,
+                profit = card.profit,
+            )
     }
 }

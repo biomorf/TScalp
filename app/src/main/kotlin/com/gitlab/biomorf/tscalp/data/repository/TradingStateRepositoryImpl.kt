@@ -10,6 +10,9 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.models.orderTypeFromStorageKey
 import com.gitlab.biomorf.tscalp.domain.models.toStorageKey
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,6 +32,9 @@ class TradingStateRepositoryImpl
     constructor(
         private val dataStore: DataStore<Preferences>,
     ) : TradingStateRepository {
+        private val _state = MutableStateFlow<TradingStateSnapshot?>(null)
+        override val state: StateFlow<TradingStateSnapshot?> = _state.asStateFlow()
+
         override suspend fun save(snapshot: TradingStateSnapshot) {
             dataStore.edit { prefs ->
                 snapshot.selectedTscalpInstrumentId?.let {
@@ -44,20 +50,24 @@ class TradingStateRepositoryImpl
                 prefs[PAIRED_MULTIPLIER] = snapshot.pairedMultiplier
                 prefs[ORDER_TYPE] = snapshot.orderType.toStorageKey()
             }
+            _state.value = snapshot
         }
 
         override suspend fun load(): TradingStateSnapshot {
             val prefs = dataStore.data.first()
-            return TradingStateSnapshot(
-                selectedTscalpInstrumentId = prefs[SELECTED_INSTRUMENT_UID],
-                pairedTscalpInstrumentId = prefs[PAIRED_INSTRUMENT_UID],
-                pairTradingEnabled = prefs[PAIR_TRADING_ENABLED] ?: false,
-                quantity = prefs[QUANTITY] ?: "",
-                pairedMultiplier = prefs[PAIRED_MULTIPLIER] ?: "10",
-                orderType =
-                    prefs[ORDER_TYPE]?.let { orderTypeFromStorageKey(it) }
-                        ?: OrderTypeSelection.Market,
-            )
+            val snapshot =
+                TradingStateSnapshot(
+                    selectedTscalpInstrumentId = prefs[SELECTED_INSTRUMENT_UID],
+                    pairedTscalpInstrumentId = prefs[PAIRED_INSTRUMENT_UID],
+                    pairTradingEnabled = prefs[PAIR_TRADING_ENABLED] ?: false,
+                    quantity = prefs[QUANTITY] ?: "",
+                    pairedMultiplier = prefs[PAIRED_MULTIPLIER] ?: "10",
+                    orderType =
+                        prefs[ORDER_TYPE]?.let { orderTypeFromStorageKey(it) }
+                            ?: OrderTypeSelection.Market,
+                )
+            _state.value = snapshot
+            return snapshot
         }
 
         override suspend fun clear() {
@@ -69,6 +79,7 @@ class TradingStateRepositoryImpl
                 prefs.remove(PAIRED_MULTIPLIER)
                 prefs.remove(ORDER_TYPE)
             }
+            _state.value = null
         }
 
         private companion object {

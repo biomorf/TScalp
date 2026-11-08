@@ -33,7 +33,11 @@ private const val PRICE_FIELDS_ANIMATION_MS = 200
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 internal fun OrdersPairSection(
-    uiState: OrdersUiState,
+    coordState: OrdersCoordState,
+    searchState: OrderSearchState,
+    formState: OrderFormState,
+    tradingStatuses: Map<String, TradingAvailability>,
+    resetSwipe: Boolean,
     scrollState: ScrollState,
     scope: CoroutineScope,
     onPairSearchQueryChanged: (String) -> Unit,
@@ -56,26 +60,26 @@ internal fun OrdersPairSection(
     ) {
         Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
         Switch(
-            checked = uiState.pairTradingEnabled,
+            checked = formState.pairTradingEnabled,
             onCheckedChange = onPairTradingEnabledChanged,
         )
     }
-    if (!uiState.pairTradingEnabled) return
-    if (uiState.pairedInstrument == null) {
+    if (!formState.pairTradingEnabled) return
+    if (formState.pairedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
-                    query = uiState.pairSearchQuery,
+                    query = searchState.pairSearchQuery,
                     onQueryChanged = onPairSearchQueryChanged,
-                    isSearching = uiState.isPairSearching,
-                    searchResults = uiState.pairSearchResults,
+                    isSearching = searchState.isPairSearching,
+                    searchResults = searchState.pairSearchResults,
                     onInstrumentSelected = onPairedInstrumentSelected,
                     onClear = onClearPairSearch,
-                    recentInstruments = uiState.lastSelectedInstruments.map { it.instrument },
-                    tradingStatuses = uiState.tradingStatuses,
+                    recentInstruments = coordState.lastSelectedInstruments.map { it.instrument },
+                    tradingStatuses = tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
-                if (uiState.pairSearchQuery.length >= 2 && !uiState.isPairSearching) {
+                if (searchState.pairSearchQuery.length >= 2 && !searchState.isPairSearching) {
                     IconButton(onClick = onRefreshPairSearch) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
                     }
@@ -86,35 +90,33 @@ internal fun OrdersPairSection(
             }
         }
     } else {
-        uiState.pairedInstrument.let { instrument: Instrument ->
-            val portfolioPos =
-                uiState.portfolioPositions.find { it.instrument.ticker == instrument.ticker }
+        formState.pairedInstrument.let { instrument: Instrument ->
+            val card = coordState.activePairedCardFor(formState.pairedInstrument)
             val pairPrice =
-                uiState.pairCurrentPrice
-                    ?: portfolioPos?.currentPrice
+                formState.pairCurrentPrice
+                    ?: card?.currentPrice
                     ?: 0.0
             val position =
-                portfolioPos
-                    ?: emptyPosition(
-                        instrument = instrument,
-                        currentPrice = pairPrice,
-                        accountId = uiState.selectedAccountId ?: "",
-                        brokerName = BrokerName.TINVEST,
-                    )
+                emptyPosition(
+                    instrument = instrument,
+                    currentPrice = pairPrice,
+                    accountId = card?.accountId ?: coordState.selectedAccountId ?: "",
+                    brokerName = card?.brokerName ?: BrokerName.TINVEST,
+                ).withCard(card)
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = pairPrice,
-                priceChangePercent = uiState.selectedPriceChangePercent,
+                priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearPairedInstrument,
                 onSettings = { onOpenBrokerDialog(instrument.ticker) },
                 onClick = { },
                 isSelected = false,
-                resetSwipe = uiState.swipeResetTrigger,
-                tradingAvailability = uiState.tradingStatuses[instrument.tscalpInstrumentId],
+                resetSwipe = resetSwipe,
+                tradingAvailability = tradingStatuses[instrument.tscalpInstrumentId],
             )
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
-                    value = uiState.pairedMultiplier,
+                    value = formState.pairedMultiplier,
                     onValueChange = onPairedMultiplierChanged,
                     label = { Text("Множитель") },
                     textStyle = MaterialTheme.typography.bodyLarge,
@@ -131,7 +133,7 @@ internal fun OrdersPairSection(
                                 }
                             },
                 )
-                val multiplierOverlay = uiState.multiplierOverlay
+                val multiplierOverlay = formState.multiplierOverlay
                 if (multiplierOverlay != null) {
                     Box(
                         modifier =

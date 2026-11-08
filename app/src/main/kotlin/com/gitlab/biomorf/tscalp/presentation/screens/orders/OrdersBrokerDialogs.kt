@@ -11,19 +11,19 @@ import com.gitlab.biomorf.tscalp.presentation.components.BrokerAccountDialog
 @Composable
 internal fun TradingBrokerDialog(
     availableBrokers: List<BrokerName>,
-    uiState: OrdersUiState,
+    dialogsState: OrderDialogsState,
     onBrokerSelected: (BrokerName) -> Unit,
     onAccountSelected: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    if (!uiState.showBrokerDialog) return
+    if (!dialogsState.showBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = uiState.selectedBroker,
+        selectedBroker = dialogsState.selectedBroker,
         onBrokerSelected = onBrokerSelected,
-        accounts = uiState.dialogAccounts,
-        selectedAccountId = uiState.selectedAccountIdDialog,
+        accounts = dialogsState.dialogAccounts,
+        selectedAccountId = dialogsState.selectedAccountIdDialog,
         onAccountSelected = onAccountSelected,
         onDismiss = onDismiss,
         onSave = onSave,
@@ -33,14 +33,14 @@ internal fun TradingBrokerDialog(
 @Composable
 internal fun SearchBrokerDialog(
     availableBrokers: List<BrokerName>,
-    uiState: OrdersUiState,
+    searchState: OrderSearchState,
     onBrokerSelected: (BrokerName) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    if (!uiState.showSearchBrokerDialog) return
+    if (!searchState.showSearchBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = uiState.selectedSearchBroker,
+        selectedBroker = searchState.selectedSearchBroker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,
@@ -54,14 +54,14 @@ internal fun SearchBrokerDialog(
 @Composable
 internal fun PairSearchBrokerDialog(
     availableBrokers: List<BrokerName>,
-    uiState: OrdersUiState,
+    searchState: OrderSearchState,
     onBrokerSelected: (BrokerName) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    if (!uiState.showPairSearchBrokerDialog) return
+    if (!searchState.showPairSearchBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = uiState.selectedPairSearchBroker,
+        selectedBroker = searchState.selectedPairSearchBroker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,

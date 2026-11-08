@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.api.repository
 
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Domain-контракт торгового состояния сессии.
@@ -10,6 +11,8 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
  * `data.repository.TradingStateRepository` без изменений.
  */
 interface TradingStateRepository {
+    val state: StateFlow<TradingStateSnapshot?>
+
     suspend fun save(snapshot: TradingStateSnapshot)
 
     suspend fun load(): TradingStateSnapshot
