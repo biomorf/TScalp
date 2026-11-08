@@ -1235,6 +1235,34 @@ ___
 и слоты») ключ обязан включать `accountId`. Доработка — **Фаза 1b**.
 Фазы 1a и 2 **не merge'ать** до завершения Фазы 1b.
 
+**Ход выполнения (2026-11-08):**
+
+Ветка `refactor/card-identity-tscalp-uid`, 10 коммитов поверх `origin/dev`:
+
+Фаза 1a (7):
+- `748577f` `Instrument.brokerName` (паспорт)
+- `674106a` extensions `matches` / `findCard` / `withUpdatedSettings`
+- `1bb310a` `PlaceOrderRequest(instrument)` вместо ticker/uid
+- `28018d4` карточный диалог: `Instrument` composite (usecases/VM/state/UI)
+- `ef370c1` `SelectInstrumentUseCase` / `RefreshSelectedInstruments` — composite
+- `5a4c810` удалить `ticker` из `CardIdentity`; DataStore 3 поля
+- `dc19360` KDoc после удаления ticker
+
+Фаза 2 (3):
+- `a4e57dc` `BrokerOrderRequest` / `StopOrderRequest` / `PostOrderInput` →
+  `instrument`; `sandboxMode` — `state.sandboxMode` в data
+- `d615953` `PairedOutcome(instrument)` + display `p.instrument.ticker`
+- `a50f2c6` KDoc/message: composite `(uid, accountId)` в validation
+
+**Live-test Фазы 2 (sandbox, 2026-11-08):** BUY market — **PASS**.
+`PlaceOrderUseCase.resolveContext: activeCard != null, accountId=<per-card>`;
+`OrderFormViewModel.postOrder success` (executedLots=1). SELL / stop-loss /
+парная — после Фазы 1b.
+
+**Live-test Фазы 1a (sandbox, 2026-11-08):** **дефект.** `(uid, broker)` —
+неполный ключ: primary SBER(A) и pair SBER(B) считаются одной карточкой,
+смена счёта в одной меняет обе. Доработка — Фаза 1b.
+
 **Контекст:** в A4 (live-regression split `OrdersViewModel`) `CardIdentity` получил `tscalpInstrumentId` рядом с `ticker` (оба non-null). `tscalpInstrumentId` — канонический domain-идентификатор; `ticker` — legacy, временный.
 
 **Триггер расширения scope (2026-11-08):** после live-теста
@@ -1268,6 +1296,116 @@ live-теста):**
   или `broker`).
 - **Полная модель, создание, коллизия α — `docs/architecture.md` →
   «CardIdentity и слоты».**
+
+**Что пересмотрено (по сравнению с первоначальным планом):**
+
+1. **Legacy DataStore.** Изначально: «ломать можно, пользователей нет,
+   проект не в проде». Факт (live-test 2026-11-08): на устройстве
+   разработчика был 4-польный legacy-формат, decode вернул пустой список
+   → карточки визуально «пропали» (`quantity = 0`). Не регресс модели
+   (пользователь не в проде), но **реальный эффект на устройстве**.
+   Решение прежнее (legacy не поддерживаем; тестовые данные
+   пересоздаются от брокера), зафиксировано как известный эффект.
+
+2. **Ключ `CardIdentity`.** Изначально (Q-D «ролей нет»): ключ
+   `(uid, broker)`, «primary + pair на одном счёте — одна карточка».
+   Пересмотрено после live-теста: **ключ обязан включать `accountId`**.
+   `(uid, broker, A)` и `(uid, broker, B)` — две разные карточки.
+   Роли primary/pair — UI-концепт (слоты), не поле identity.
+
+3. **`SaveCardSettingsUseCase`.** Изначально: «обновляет accountId
+   существующей карточки; no-op при отсутствии — не ошибка». Пересмотрено:
+   **пересоздание identity** `(uid, broker, oldAccountId)` →
+   `(uid, broker, newAccountId)`; коллизия (новый accountId уже занят
+   другой карточкой того же `(uid, broker)`) → `AppResult.Failure`,
+   UI disabled.
+
+**Обойдённые альтернативы (для ревью):**
+
+Технические решения, принятые «для скорости» или «по контексту» в ходе
+Фаз 1a/2, с ценой и статусом. Часть — приемлема, часть — долг.
+
+1. **`Instrument` в `BrokerOrderRequest` (heavyweight DTO).**
+   - Альтернатива: data-слой резолвит `ticker` через `InstrumentRepository`
+     по `uid`.
+   - Почему обошли: `getInstrument(uid)` broker-agnostic неоднозначен
+     между брокерами (uid T-Invest может совпасть с figi BCS); BCS/Finam
+     не имеют своего API до реализации.
+   - Цена: `BrokerOrderRequest` ~20–40 полей (вложенный паспорт); сигнатура
+     длиннее.
+   - **Статус:** 2c-фиксация (принято с обоснованием). Оставить.
+
+2. **`sandboxMode` — `state.sandboxMode` в data (без inject
+   `SandboxPreferencesRepository`).**
+   - Альтернатива: inject repo в `TInvestOrdersService`, читать
+     `isSandboxMode()`.
+   - Почему обошли: `state.sandboxMode` уже SSoT T-Invest data-слоя;
+     «один режим за раз, разные логины» — race невозможен.
+   - Цена: если `state.sandboxMode` когда-то разойдётся с реальным
+     (init race), заявка уйдёт не туда (sandbox ↔ prod).
+   - **Статус:** 2c-фиксация. Оставить; live-test подтверждает.
+
+3. **`ticker` в `Instrument` — оставлен.**
+   - Альтернатива: удалить `ticker` из `Instrument` полностью; BCS/Finam
+     data резолвят по `uid` / `figi`.
+   - Почему обошли: без `ticker` в паспорте BCS не построит `ticker +
+     classCode` для postOrder.
+   - Цена: `ticker` остаётся в domain-модели (хоть и как вспомогательное
+     поле, не ключ).
+   - **Статус:** принято (паспорт). Оставить.
+
+4. **`CardIdentity` без `accountId` в ключе (Фаза 1a).**
+   - Альтернатива: сразу включить `accountId` в `matches` / `findCard` /
+     `withUpdatedSettings`.
+   - Почему обошли: план Q-D «ролей нет» → ключ `(uid, broker)`.
+   - Цена: **дефект** — primary + pair на разных счетах слипаются.
+   - **Статус:** исправляется в Фазе 1b.
+
+5. **`TradingStateSnapshot` без broker/account.**
+   - Альтернатива: сразу добавить `selectedBroker` / `selectedAccountId` /
+     `paired*` в snapshot.
+   - Почему обошли: расширило бы Фазу 1a/1b на +2 ч и затронуло
+     DataStore-миграцию.
+   - Цена: слоты после перезапуска восстановятся с `TINVEST` / `null`.
+   - **Статус:** отдельная задача
+     `### CardIdentity: persist broker + account в TradingStateSnapshot`.
+
+6. **`activeCardFor` — inline composite (не pure extension
+   `matches(instrument, accountId)`).**
+   - Альтернатива: pure extension в `CardIdentity.kt`.
+   - Почему обошли: при первом `compile-fix` Фазы 1a inline
+     `it.instrument.tscalpInstrumentId == inst.tscalpInstrumentId &&
+     it.instrument.brokerName == inst.brokerName` был быстрее, чем
+     переписать extension.
+   - Цена: дублирование composite-логики в двух местах
+     (`OrdersCoordState.kt:57` и `:69`).
+   - **Статус:** чистится в Фазе 1b-4 (pure extension).
+
+7. **BCS/Finam `postOrder` — заглушки (не реализованы).**
+   - Альтернатива: реализовать сейчас (реальный резолв `ticker` /
+   `classCode` / `exchange`).
+   - Почему обошли: BCS/Finam — отдельные большие задачи
+     (`### Реализация BCS Broker API` / `### Реализация Finam Broker API`).
+   - Цена: live-test Фазы 2 — только T-Invest; BCS/Finam — компилятор +
+     unit-тест.
+   - **Статус:** отдельные задачи (ROADMAP). Оставить.
+
+8. **`PairedOutcome.instrument` — только для display.**
+   - Альтернатива: отдельные поля `ticker` + `tscalpInstrumentId` +
+     `brokerName`.
+   - Почему обошли: `instrument` — уже готовая паспортная структура;
+     display читает `p.instrument.ticker`.
+   - Цена: `PairedOutcome` heavyweight; в `formatPostOrderSuccess`
+     неявная зависимость `instrument.ticker`.
+   - **Статус:** принято (2c). Оставить.
+
+9. **Legacy DataStore — не поддерживаем.**
+   - Альтернатива: backward-compat decode 4-польного формата.
+   - Почему обошли: «пользователей нет, проект не в проде» — YAGNI.
+   - Цена: при обновлении с 4-польной версии — карточки визуально
+     «пропадают» (восстанавливаются пересозданием от брокера). Зафиксировано
+     live-тестом 2026-11-08.
+   - **Статус:** принято. Пересмотреть, если появится реальный прод-пользователь.
 
 **Архитектурный принцип: `Instrument` как паспорт.**
 
@@ -1500,73 +1638,94 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
 
 **Фаза 1b — composite key с `accountId` + слоты (~6–8 ч):**
 
-Исправляет дефект Фазы 1a: `CardIdentity.matches` / `findCard` /
-`withUpdatedSettings` ключуют по `(uid, broker)` без `accountId`.
-Плюс — слоты primary/pair с независимыми (broker, account).
+Исправляет дефект Фазы 1a (live-test 2026-11-08): `CardIdentity.matches` /
+`findCard` / `withUpdatedSettings` ключуют по `(uid, broker)` без
+`accountId`. Плюс — слоты primary/pair с независимыми (broker, account).
+Полная модель — `docs/architecture.md` → «CardIdentity и слоты».
 
-**Файлы и шаги:**
+**Шаг 0 — обязательно:** `git checkout refactor/card-identity-tscalp-uid`
+(все правки Фазы 1a/2 — только в этой ветке). Перед стартом —
+`git status` чистый, `git log --oneline -1` = `4e481d6` или новее.
 
-1. `domain/models/CardIdentity.kt` — расширить extensions:
-   - `matches(tscalpInstrumentId, brokerName, accountId: String?)`;
-   - `findCard(tscalpInstrumentId, brokerName, accountId: String?)`;
-   - `withUpdatedSettings(tscalpInstrumentId, brokerName, oldAccountId: String?, newAccountId: String?)`.
-   KDoc: `(uid, broker, accountId)` — полный composite.
+**Точные сигнатуры (сейчас → должно быть):**
 
-2. `domain/usecases/SaveCardSettingsUseCase.kt` — переписать как
-   «пересоздание карточки»:
-   - `execute(uid, broker, oldAccountId: String?, newAccountId: String?)`;
-   - find по `(uid, broker, oldAccountId)`; если нет — создать
-     `(uid, broker, newAccountId)` (не no-op);
-   - удалить старую identity, добавить новую;
-   - **коллизия α:** если `(uid, broker, newAccountId)` уже есть в
-     другой identity — вернуть `AppResult.Failure(AppError.Unknown(
-     "account is taken"))`; VM не даёт выбрать disabled-счёт.
+*CardIdentity.kt:*
+- `matches(tscalpInstrumentId, brokerName): Boolean` →
+  `matches(tscalpInstrumentId, brokerName, accountId: String?): Boolean`
+- `matches(instrument): Boolean` → `matches(instrument, accountId: String?)`
+- `findCard(tscalpInstrumentId, brokerName)` →
+  `findCard(tscalpInstrumentId, brokerName, accountId: String?)`
+- `findCard(instrument)` → `findCard(instrument, accountId: String?)`
+- `withUpdatedSettings(tscalpInstrumentId, brokerName, accountId)` →
+  `withUpdatedSettings(tscalpInstrumentId, brokerName, oldAccountId: String?, newAccountId: String?)`
 
-3. `presentation/screens/orders/OrderFormState.kt` — два поля на каждый
-   слот (не composite, потому что accountId обновляется до подтверждения):
-   - `selectedBroker: BrokerName = TINVEST`,
-   - `selectedAccountId: String? = null`,
-   - `pairedBroker: BrokerName = TINVEST`,
-   - `pairedAccountId: String? = null`.
+*SaveCardSettingsUseCase.execute:* сейчас `execute(instrument, accountId)` →
+`execute(instrument, oldAccountId: String?, newAccountId: String?)`:
+пересоздание (delete old + create new); коллизия → `AppResult.Failure`.
 
-4. `presentation/screens/orders/OrdersCoordState.kt`:
-   - `activeCardFor(instrument, accountId: String?)` — find по
-     `(uid, broker, accountId)`; если `accountId == null`, find по
-     `(uid, broker, null)` (карточка создана, счёт не выбран);
-   - `activePairedCardFor(...)` — аналогично.
+*OrdersCoordState.activeCardFor / activePairedCardFor:* сейчас
+`(instrument)` → `(instrument, accountId: String?)`; find по
+`(uid, broker, accountId)`. **Убрать inline composite** (временный
+из Фазы 1a, `OrdersCoordState.kt:57,69`) — заменить на pure extension
+`it.instrument.matches(inst, accountId)`.
 
-5. `presentation/screens/orders/OrderDialogsViewModel.kt`:
-   - `openBrokerDialog(instrument, accountId, otherAccountIds: Set<String>)`
-     — передаёт VM список занятых счетов для `(uid, broker)`;
-   - `saveBrokerSettings` → `saveCardSettingsUseCase.execute(uid, broker,
-     oldAccountId, newAccountId)`; при `Failure` — snackbar.
-   - `OrderDialogsState` — `dialogInstrument: Instrument?`,
-     `dialogOldAccountId: String?`, `dialogTakenAccountIds: Set<String>`
-     (для disabled).
+*OrderFormState:* +4 поля: `selectedBroker: BrokerName = TINVEST`,
+`selectedAccountId: String? = null`, `pairedBroker: BrokerName = TINVEST`,
+`pairedAccountId: String? = null`.
 
-6. `presentation/screens/orders/OrdersSearch.kt` /
-   `OrdersPairTrading.kt` — `onSettings` передаёт `(instrument, currentAccountId)`.
+*OrderDialogsState:* сейчас `dialogInstrument: Instrument?` +
+`selectedBroker` + `selectedAccountIdDialog` → добавить `takenAccountIds:
+Set<String>` и `oldAccountId: String?`.
 
-7. UI-диалог `BrokerAccountDialog` (или аналог): disabled для счетов,
-   которые уже заняты **другим** слотом/карточкой того же `(uid, broker)`.
+*OrdersSearch / OrdersPairTrading:* `onSettings: (Instrument, String?) -> Unit`.
 
-8. `OrdersScreen` — передаёт `activeCardFor(selectedInstrument, selectedAccountId)`.
+**Callsites `.matches` / `.findCard` / `.withUpdatedSettings` (сломаются
+при расширении сигнатур):**
+Main:
+- `domain/usecases/OpenCardDialogUseCase.kt:97`
+- `domain/usecases/PlaceOrderUseCase.kt:157,197`
+- `domain/usecases/SaveCardSettingsUseCase.kt:52,60`
+- `domain/usecases/SelectInstrumentUseCase.kt:86,156`
+- `presentation/screens/orders/OrdersCoordState.kt:57,69` (inline — заменить)
+Test:
+- `domain/models/CardIdentityTest.kt` (10 кейсов)
 
-9. Тесты:
-   - `CardIdentityTest` — composite по `accountId` (новые кейсы);
-   - `SaveCardSettingsUseCaseTest` — пересоздание (create new + delete old),
-     коллизия → Failure;
-   - `activeCardFor` / `activePairedCardFor` — find по слоту;
-   - `OrderDialogsViewModelTest` — disabled занятых, save с old→new.
+**Порядок коммитов (4b, каждый компилируется):**
 
-10. Live-test (sandbox, T-Invest):
-    - primary SBER (A) + pair SBER (B) → две **независимые** карточки;
-    - смена счёта в одной карточке не влияет на другую;
-    - коллизия: primary SBER (A), pair SBER (A) — в диалоге счёт A disabled
-      (если уже занят);
-    - покупка на per-card счёт (из Фазы 1a — продолжает работать).
+- **1b-1.** `CardIdentity` extensions + `CardIdentityTest` (расширить +
+  новые кейсы: `(uid, T, A)` vs `(uid, T, B)` разные; `(uid, T, null)` vs
+  `(uid, T, A)` разные; `withUpdatedSettings` old→new; old==null). Гейт.
+- **1b-2.** `SaveCardSettingsUseCase` (пересоздание + коллизия) +
+  тест (create, recreate, collision, exception, cancellation). Гейт.
+- **1b-3.** `OrderFormState` (+4 поля) + `saveState` / `restoreOrderForm`
+  (слоты; `TradingStateSnapshot` **не трогаем** — отдельная задача). Гейт.
+- **1b-4.** `OrdersCoordState.activeCardFor` / `activePairedCardFor` —
+  `accountId`; **убрать inline composite**; `OrderDialogsState` (+
+  `takenAccountIds`, `oldAccountId`); `OrderDialogsViewModel.openBrokerDialog`
+  — `(instrument, currentAccountId, takenAccountIds)`. Гейт.
+- **1b-5.** `OrdersSearch` / `OrdersPairTrading` — `onSettings(instrument,
+  accountId)`; `OrdersScreen` — `activeCardFor(selectedInstrument,
+  selectedAccountId)`; `BrokerAccountDialog` — disabled занятых. Гейт.
+- **1b-6.** `SelectInstrumentUseCase` / `OpenCardDialogUseCase` /
+  `PlaceOrderUseCase.resolveContext` — composite с `accountId`. Гейт.
+- **1b-7.** Тесты 1b (usecase'ы + VM + `OrderDialogsViewModelTest`). Гейт.
+- **1b-8.** Live-test (sandbox T-Invest):
+  1. primary SBER(A) + pair SBER(B) → две независимые карточки; смена
+     счёта в одной не меняет другую.
+  2. primary SBER(A) + pair SBER(A) → в диалоге второй счёт A disabled.
+  3. Покупка на per-card счёт (Фаза 1a — продолжает работать).
+  4. (если успеем) SELL market, stop-loss, парная (из Фазы 2).
+- **1b-9.** Push + CI + PR.
 
-**Тесты:** перечислены выше. Live-test — обязателен (сценарий 10).
+**Риски:**
+- Расширение `matches` / `findCard` / `withUpdatedSettings` — 11 callsites
+  main + 10 test. Компилятор покажет пропуски.
+- `accountId: String?` — `null` = «создана, счёт не выбран». Пересоздание
+  `(uid, broker, null)` → `(uid, broker, A)`: удалить `null`, добавить `A`.
+- Коллизия α: `AppResult.Failure` + disabled в UI.
+- `TradingStateSnapshot` — вне 1b (отдельная задача).
+
+**Тесты:** в коммитах 1b-1…1b-7. Live-test 1b-8 — обязателен.
 
 **Оценка Фазы 1b:** ~6–8 ч.
 
@@ -1633,6 +1792,68 @@ ___
 
 
 
+
+### CardIdentity: persist broker + account в TradingStateSnapshot
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** Фаза 1b вводит `selectedBroker` / `selectedAccountId` /
+`pairedBroker` / `pairedAccountId` в `OrderFormState`. `saveState()` их
+**не сохраняет**: `TradingStateSnapshot` содержит `selectedTscalpInstrumentId`
+/ `pairedTscalpInstrumentId` / `pairTradingEnabled` / `quantity` /
+`pairedMultiplier` / `orderType` — без broker/account. После перезапуска
+слоты восстановятся с `TINVEST` / `null` — потеря счёта. Обойдённая
+альтернатива Фазы 1b (см. «Обойдённые альтернативы» п.5).
+
+**Соответствие Clean:** соответствует (domain-DTO расширяется; DataStore —
+data-слой).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** Фаза 1b закрыта.
+
+**Файлы:**
+- `domain/models/TradingState.kt` — `TradingStateSnapshot` + 4 nullable
+  поля (`= null`).
+- `presentation/screens/orders/OrderFormViewModel.kt` — `saveState` пишет
+  новые поля; `restoreOrderForm` читает.
+- `domain/usecases/RestoreOrderFormUseCase.kt` — читает новые поля.
+- `data/.../TradingStateRepositoryImpl` — encode/decode; новые
+  DataStore-ключи (`selected_broker`, `selected_account_id`,
+  `paired_broker`, `paired_account_id`).
+
+**Шаги:**
+1. `TradingStateSnapshot` +4 поля (nullable).
+2. `TradingStateRepositoryImpl` — encode/decode.
+3. `OrderFormViewModel.saveState` / `restoreOrderForm`.
+4. Тесты: `TradingStateRepositoryImplTest` (roundtrip с broker/account);
+   `RestoreOrderFormUseCaseTest` (+4 кейса).
+5. Live-test: primary SBER(B) + pair SBER(A) → force-stop → запуск →
+   слоты восстановлены с правильными broker/account.
+
+**Тесты:** `TradingStateRepositoryImplTest`, `RestoreOrderFormUseCaseTest`.
+
+**Референсы:** Фаза 1b; `docs/architecture.md` → «CardIdentity и слоты».
+
+**Ограничения:** не смешивать с Фазой 1b (отдельный PR). DataStore — новые
+ключи, legacy не трогаем.
+
+**Критерий готовности:** broker/account слотов переживают перезапуск;
+гейт зелёный; live-test PASS.
+
+**Оценка:** ~2–3 ч.
+
+**Зависимости:** Фаза 1b.
+
+**Связано:** Фаза 1b; `### UI: кнопка swap слотов`.
+
+---
 
 ### UI: кнопка swap слотов (primary ↔ pair)
 
