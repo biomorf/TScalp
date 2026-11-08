@@ -91,39 +91,3 @@ fun List<CardIdentity>.withRecreatedSettings(
         withoutOld + CardIdentity(tscalpInstrumentId, brokerName, newAccountId)
     }
 }
-
-// ---------- Deprecated overloads (key without accountId) ----------
-// Используются в callsites Фазы 1a, пока не мигрированы (1b-1b..1b-6).
-// Удаляются в 1b-7. Поведение — любая карточка с этим (uid, broker).
-
-@Deprecated("Use matches(tscalpInstrumentId, brokerName, accountId)")
-fun CardIdentity.matches(
-    tscalpInstrumentId: String,
-    brokerName: BrokerName,
-): Boolean = this.tscalpInstrumentId == tscalpInstrumentId && this.brokerName == brokerName
-
-@Deprecated("Use matches(instrument, accountId)")
-fun CardIdentity.matches(instrument: Instrument): Boolean = matches(instrument.tscalpInstrumentId, instrument.brokerName)
-
-@Deprecated("Use findCard(tscalpInstrumentId, brokerName, accountId)")
-fun List<CardIdentity>.findCard(
-    tscalpInstrumentId: String,
-    brokerName: BrokerName,
-): CardIdentity? = find { it.matches(tscalpInstrumentId, brokerName) }
-
-@Deprecated("Use findCard(instrument, accountId)")
-fun List<CardIdentity>.findCard(instrument: Instrument): CardIdentity? = findCard(instrument.tscalpInstrumentId, instrument.brokerName)
-
-@Deprecated("Use withRecreatedSettings(uid, broker, oldAccountId, newAccountId)")
-fun List<CardIdentity>.withUpdatedSettings(
-    tscalpInstrumentId: String,
-    brokerName: BrokerName,
-    accountId: String?,
-): List<CardIdentity> =
-    map { card ->
-        if (card.matches(tscalpInstrumentId, brokerName)) {
-            card.copy(accountId = accountId)
-        } else {
-            card
-        }
-    }
