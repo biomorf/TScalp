@@ -1636,7 +1636,7 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
 - `InstrumentRepository.getInstrument(uid)` — не трогать (broker-agnostic,
   для `SelectInstrumentUseCase`); в `BrokerOrderRequest`-flow не использовать.
 
-**Фаза 1b — composite key с `accountId` + слоты (~6–8 ч):**
+**Фаза 1b — composite key с `accountId` + слоты (~8–12 ч):**
 
 Исправляет дефект Фазы 1a (live-test 2026-11-08): `CardIdentity.matches` /
 `findCard` / `withUpdatedSettings` ключуют по `(uid, broker)` без
@@ -1690,32 +1690,50 @@ Main:
 Test:
 - `domain/models/CardIdentityTest.kt` (10 кейсов)
 
-**Порядок коммитов (4b, каждый компилируется):**
+**Порядок коммитов (4b, каждый компилируется).** Подход a':
+новые функции добавляются рядом со старыми; старые помечаются
+`@Deprecated(WARNING)`; callsites мигрируют по шагам; deprecated
+удаляется в 1b-7.
 
-- **1b-1.** `CardIdentity` extensions + `CardIdentityTest` (расширить +
-  новые кейсы: `(uid, T, A)` vs `(uid, T, B)` разные; `(uid, T, null)` vs
-  `(uid, T, A)` разные; `withUpdatedSettings` old→new; old==null). Гейт.
-- **1b-2.** `SaveCardSettingsUseCase` (пересоздание + коллизия) +
-  тест (create, recreate, collision, exception, cancellation). Гейт.
-- **1b-3.** `OrderFormState` (+4 поля) + `saveState` / `restoreOrderForm`
-  (слоты; `TradingStateSnapshot` **не трогаем** — отдельная задача). Гейт.
-- **1b-4.** `OrdersCoordState.activeCardFor` / `activePairedCardFor` —
-  `accountId`; **убрать inline composite**; `OrderDialogsState` (+
-  `takenAccountIds`, `oldAccountId`); `OrderDialogsViewModel.openBrokerDialog`
-  — `(instrument, currentAccountId, takenAccountIds)`. Гейт.
-- **1b-5.** `OrdersSearch` / `OrdersPairTrading` — `onSettings(instrument,
-  accountId)`; `OrdersScreen` — `activeCardFor(selectedInstrument,
-  selectedAccountId)`; `BrokerAccountDialog` — disabled занятых. Гейт.
-- **1b-6.** `SelectInstrumentUseCase` / `OpenCardDialogUseCase` /
+- **1b-1** (~2.5–3.5 ч). `CardIdentity.kt`: новые
+  `matches(uid, broker, accountId)` / `findCard(uid, broker, accountId)` /
+  `withRecreatedSettings(uid, broker, oldAccountId, newAccountId)`.
+  Старые `matches(uid, broker)` / `findCard(uid, broker)` /
+  `withUpdatedSettings(...)` — `@Deprecated(WARNING)`, поведение не
+  меняется (any-account). `SaveCardSettingsUseCase.execute(instrument,
+  oldAccountId, newAccountId)` — пересоздание (delete old + create new)
+  + коллизия → `Failure`; переводится на `withRecreatedSettings`.
+  Тесты: `CardIdentityTest` (+4 кейса), `SaveCardSettingsUseCaseTest`
+  (create / recreate / collision / exception / cancellation). Гейт.
+- **1b-2** (~0.5–1 ч). `OrderFormState` (+ `selectedBroker` /
+  `selectedAccountId` / `pairedBroker` / `pairedAccountId`).
+  `OrderFormViewModel.saveState` / `restoreOrderForm` — поля слотов
+  (`TradingStateSnapshot` **не трогаем** — отдельная задача). Гейт.
+- **1b-3** (~0.5 ч). `OrdersCoordState.activeCardFor` /
+  `activePairedCardFor` — параметр `accountId`, `it.instrument.matches(inst,
+  accountId)`; **убрать inline composite** (`:57, :69`). Гейт.
+- **1b-4** (~1–1.5 ч). `OrderDialogsState` (+ `takenAccountIds:
+  Set<String>`, `oldAccountId: String?`); `OrderDialogsViewModel.openBrokerDialog
+  (instrument, currentAccountId, takenAccountIds)`; `saveBrokerSettings`
+  → `SaveCardSettingsUseCase.execute(instrument, oldAccountId,
+  newAccountId)`; `BrokerAccountDialog` — disabled занятых
+  `(uid, broker, accountId)` другой карточкой. Гейт.
+- **1b-5** (~0.5–1 ч). `OrdersSearch` / `OrdersPairTrading` —
+  `onSettings(instrument, accountId)`; `OrdersScreen` —
+  `activeCardFor(selectedInstrument, selectedAccountId)`. Гейт.
+- **1b-6** (~0.5–1 ч). `SelectInstrumentUseCase` / `OpenCardDialogUseCase` /
   `PlaceOrderUseCase.resolveContext` — composite с `accountId`. Гейт.
-- **1b-7.** Тесты 1b (usecase'ы + VM + `OrderDialogsViewModelTest`). Гейт.
-- **1b-8.** Live-test (sandbox T-Invest):
-  1. primary SBER(A) + pair SBER(B) → две независимые карточки; смена
-     счёта в одной не меняет другую.
-  2. primary SBER(A) + pair SBER(A) → в диалоге второй счёт A disabled.
-  3. Покупка на per-card счёт (Фаза 1a — продолжает работать).
-  4. (если успеем) SELL market, stop-loss, парная (из Фазы 2).
-- **1b-9.** Push + CI + PR.
+- **1b-7** (~0.5 ч). Удалить `@Deprecated` overloads (`matches(uid, broker)`
+  / `findCard(uid, broker)` / `withUpdatedSettings(...)`) + мигрировать
+  оставшиеся callsites. Гейт.
+- **1b-8** (~0.5–1 ч). Тесты VM + `OrderDialogsViewModelTest` (disabled,
+  old→new). Гейт.
+- **1b-9** (~0.5–1 ч). Live-test (sandbox T-Invest): 1) primary SBER(A) +
+  pair SBER(B) → две независимые; смена счёта в одной не меняет другую;
+  2) primary SBER(A) + pair SBER(A) → счёт A disabled; 3) покупка на
+  per-card счёт (из Фазы 1a); 4) опционально — SELL / stop-loss / парная
+  (отложенные сценарии Фазы 2).
+- **1b-10** (~0.15 ч). Push + CI + PR.
 
 **Риски:**
 - Расширение `matches` / `findCard` / `withUpdatedSettings` — 11 callsites
@@ -1727,7 +1745,7 @@ Test:
 
 **Тесты:** в коммитах 1b-1…1b-7. Live-test 1b-8 — обязателен.
 
-**Оценка Фазы 1b:** ~6–8 ч.
+**Оценка Фазы 1b:** ~8–12 ч.
 
 **Критерий готовности:**
 
@@ -1757,7 +1775,17 @@ Test:
 - T-Invest live — PASS (purchase/sell).
 - Гейт зелёный.
 
-**Оценка:** Фаза 1a — ~10–14 ч (выполнено); Фаза 2 — ~4–6 ч (выполнено); **Фаза 1b — ~6–8 ч (осталось)**. **Итого ~20–28 ч**, из них выполнено ~14–20 ч, осталось ~6–8 ч (+ swap-кнопка ~2–3 ч отдельной задачей).
+**Оценка:**
+- Фаза 1a — ~10–14 ч. **Реализовано** (7 коммитов); live-test выявил
+  дефект (ключ без `accountId`) — исправление в Фазе 1b.
+- Фаза 2 — ~4–6 ч. **Реализовано** (3 коммита); live-test BUY market
+  (sandbox) PASS; SELL / stop-loss / парная — после Фазы 1b.
+- Фаза 1b — **~8–12 ч** (уточнено: 10 подшагов, 11 main + 10 test
+  callsites, `@Deprecated`-миграция, `BrokerAccountDialog` disabled).
+  **Осталось.**
+
+**Итого ~22–32 ч**, из них выполнено ~14–20 ч, осталось ~8–12 ч
+(+ swap-кнопка ~2–3 ч отдельной задачей).
 
 **Зависимости:** PR `bugfix/order-card-account-diagnostic` — **смержен**
 (`d1ec084`, 2026-11-08).
