@@ -179,13 +179,10 @@ enum class OrderDirection { BUY, SELL }
  * Универсальная модель стоп-заявки, не зависящая от protobuf.
  */
 data class StopOrderRequest(
-    val brokerName: BrokerName,
-    val ticker: String,
-    val tscalpInstrumentId: String? = null,
+    val instrument: Instrument,
     val quantity: Long,
     val direction: OrderDirection,
     val accountId: String,
-    val sandboxMode: Boolean,
     val stopPrice: Double,
     // для stop-limit, иначе null
     val price: Double?,
@@ -204,13 +201,10 @@ enum class StopOrderExpirationType { GOOD_TILL_CANCEL, GOOD_TILL_DATE }
  * @param price цена (для рыночной игнорируется)
  */
 data class BrokerOrderRequest(
-    val brokerName: BrokerName,
-    val ticker: String,
-    val tscalpInstrumentId: String? = null,
+    val instrument: Instrument,
     val quantity: Long,
     val direction: OrderDirection,
     val accountId: String,
-    val sandboxMode: Boolean,
     val type: BrokerOrderType = BrokerOrderType.MARKET,
     val price: Double? = null,
 )

@@ -2,8 +2,8 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
@@ -20,13 +20,10 @@ import javax.inject.Inject
  * сюда не входят. VM валидирует и передаёт сюда уже резолвнутые domain-значения.
  */
 data class PostOrderInput(
-    val brokerName: BrokerName,
-    val ticker: String,
-    val tscalpInstrumentId: String,
+    val instrument: Instrument,
     val quantity: Long,
     val direction: OrderDirection,
     val accountId: String,
-    val sandboxMode: Boolean,
     val orderType: OrderTypeSelection,
     val limitPrice: String?,
     val stopPrice: String?,
@@ -36,9 +33,7 @@ data class PostOrderInput(
 
 /** Парная сделка: контр-заявка при `pairTradingEnabled`. */
 data class PairedOrderInput(
-    val tscalpInstrumentId: String,
-    val ticker: String,
-    val brokerName: BrokerName,
+    val instrument: Instrument,
     val accountId: String,
     val multiplier: String?,
 )
@@ -143,7 +138,7 @@ class PostOrderUseCase
          * Никогда не бросает (кроме `CancellationException` — пробрасывается).
          */
         suspend fun execute(input: PostOrderInput): PostOrderOutcome {
-            if (input.ticker.isBlank() || input.accountId.isBlank() || input.tscalpInstrumentId.isBlank()) {
+            if (input.instrument.tscalpInstrumentId.isBlank() || input.accountId.isBlank()) {
                 return PostOrderOutcome.InvalidRequest(
                     "Не хватает ticker / accountId / tscalpInstrumentId",
                 )
@@ -166,20 +161,15 @@ class PostOrderUseCase
             val prepared =
                 try {
                     prepareOrderRequest.prepare(
-                        brokerName = input.brokerName,
-                        ticker = input.ticker,
-                        tscalpInstrumentId = input.tscalpInstrumentId,
+                        instrument = input.instrument,
                         quantity = input.quantity,
                         direction = input.direction,
                         accountId = input.accountId,
-                        sandboxMode = input.sandboxMode,
                         orderType = input.orderType,
                         limitPrice = input.limitPrice,
                         stopPrice = input.stopPrice,
                         expirationType = input.expirationType,
-                        pairedTscalpInstrumentId = input.paired?.tscalpInstrumentId,
-                        pairedTicker = input.paired?.ticker,
-                        pairedBrokerName = input.paired?.brokerName,
+                        pairedInstrument = input.paired?.instrument,
                         pairedAccountId = input.paired?.accountId,
                         pairedMultiplier = input.paired?.multiplier,
                     )
@@ -213,9 +203,9 @@ class PostOrderUseCase
                 when (
                     val result =
                         ordersRepository.checkTradeAvailabilityResult(
-                            brokerName = input.brokerName,
+                            brokerName = input.instrument.brokerName,
                             accountId = input.accountId,
-                            tscalpInstrumentId = input.tscalpInstrumentId,
+                            tscalpInstrumentId = input.instrument.tscalpInstrumentId,
                             direction = input.direction,
                             quantity = input.quantity,
                         )
@@ -272,7 +262,7 @@ class PostOrderUseCase
                     val req = prepared.pairedRequest as StopOrderRequest
                     when (val r = ordersRepository.postStopOrderResult(req)) {
                         is AppResult.Success ->
-                            PairedOutcome.Stop(ticker = req.ticker, orderId = r.data, quantity = req.quantity)
+                            PairedOutcome.Stop(ticker = req.instrument.ticker, orderId = r.data, quantity = req.quantity)
                         is AppResult.Failure ->
                             PairedOutcome.Failed(r.error.message, r.error.cause)
                     }
@@ -280,7 +270,7 @@ class PostOrderUseCase
                     val req = prepared.pairedRequest as BrokerOrderRequest
                     when (val r = ordersRepository.postOrderResult(req)) {
                         is AppResult.Success ->
-                            PairedOutcome.Regular(ticker = req.ticker, orderId = r.data.orderId, quantity = req.quantity)
+                            PairedOutcome.Regular(ticker = req.instrument.ticker, orderId = r.data.orderId, quantity = req.quantity)
                         is AppResult.Failure ->
                             PairedOutcome.Failed(r.error.message, r.error.cause)
                     }

@@ -3,7 +3,6 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -121,7 +120,6 @@ class PlaceOrderUseCase
         private val postOrderUseCase: PostOrderUseCase,
         private val cardsRepository: CardsRepository,
         private val accountSelectionRepository: AccountSelectionRepository,
-        private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val portfolioRepository: PortfolioRepository,
         private val logger: Logger,
     ) {
@@ -165,8 +163,6 @@ class PlaceOrderUseCase
                 ResolvedContext(
                     activeCard = activeCard,
                     accountId = accountId,
-                    brokerName = activeCard?.brokerName ?: BrokerName.TINVEST,
-                    sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
                 )
             logger.d(TAG, "resolveContext: $context")
             return context
@@ -180,13 +176,10 @@ class PlaceOrderUseCase
         ): PostOrderInput {
             val pairedInput = buildPairedInput(request, cards, context.accountId)
             return PostOrderInput(
-                brokerName = context.brokerName,
-                ticker = request.instrument.ticker,
-                tscalpInstrumentId = request.instrument.tscalpInstrumentId,
+                instrument = request.instrument,
                 quantity = request.quantity,
                 direction = direction,
                 accountId = context.accountId,
-                sandboxMode = context.sandboxMode,
                 orderType = request.orderType,
                 limitPrice = request.limitPrice,
                 stopPrice = request.stopPrice,
@@ -201,13 +194,9 @@ class PlaceOrderUseCase
             primaryAccountId: String,
         ): PairedOrderInput? {
             val pairedInstrument = request.pairedInstrument ?: return null
-            val pairedUid = pairedInstrument.tscalpInstrumentId
-            val pairedTicker = pairedInstrument.ticker
             val pairedCard = cards.find { it.matches(pairedInstrument) }
             return PairedOrderInput(
-                tscalpInstrumentId = pairedUid,
-                ticker = pairedTicker,
-                brokerName = pairedCard?.brokerName ?: BrokerName.TINVEST,
+                instrument = pairedInstrument,
                 accountId = pairedCard?.accountId ?: primaryAccountId,
                 multiplier = request.pairedMultiplier,
             )
@@ -249,6 +238,4 @@ class PlaceOrderUseCase
 private data class ResolvedContext(
     val activeCard: CardIdentity?,
     val accountId: String,
-    val brokerName: BrokerName,
-    val sandboxMode: Boolean,
 )

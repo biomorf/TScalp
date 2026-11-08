@@ -3,7 +3,6 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -28,7 +27,6 @@ class PlaceOrderUseCaseTest {
     private val postOrderUseCase = mockk<PostOrderUseCase>(relaxed = true)
     private val cardsRepository = mockk<CardsRepository>(relaxed = true)
     private val accountSelectionRepository = mockk<AccountSelectionRepository>(relaxed = true)
-    private val sandboxPreferencesRepository = mockk<SandboxPreferencesRepository>(relaxed = true)
     private val portfolioRepository = mockk<PortfolioRepository>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
 
@@ -37,7 +35,6 @@ class PlaceOrderUseCaseTest {
             postOrderUseCase = postOrderUseCase,
             cardsRepository = cardsRepository,
             accountSelectionRepository = accountSelectionRepository,
-            sandboxPreferencesRepository = sandboxPreferencesRepository,
             portfolioRepository = portfolioRepository,
             logger = logger,
         )
@@ -73,7 +70,6 @@ class PlaceOrderUseCaseTest {
     private fun stubHappyResolve() {
         every { cardsRepository.identities } returns flowOf(listOf(card))
         every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf("acc-1")
-        coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
     }
 
     @Test
@@ -96,7 +92,7 @@ class PlaceOrderUseCaseTest {
             coVerify(exactly = 1) {
                 postOrderUseCase.execute(
                     match { input ->
-                        input.ticker == "SBER" &&
+                        input.instrument.tscalpInstrumentId == "uid-sber" &&
                             input.accountId == "acc-1" &&
                             input.direction == OrderDirection.BUY
                     },

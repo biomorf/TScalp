@@ -33,16 +33,16 @@ class OrdersRepositoryImpl
         ): AppResult<OrderResult> =
             withContext(Dispatchers.IO) {
                 val broker =
-                    brokerManager.getBroker(request.brokerName)
+                    brokerManager.getBroker(request.instrument.brokerName)
                         ?: return@withContext AppResult.Failure(
-                            AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован"),
+                            AppError.Unknown("Брокер ${request.instrument.brokerName.displayName} не зарегистрирован"),
                         )
                 val ordersApi =
                     broker.orders
                         ?: return@withContext AppResult.Failure(
-                            AppError.Unknown("Брокер ${request.brokerName.displayName} не поддерживает заявки"),
+                            AppError.Unknown("Брокер ${request.instrument.brokerName.displayName} не поддерживает заявки"),
                         )
-                runCatchingAppResult(request.brokerName) { ordersApi.postOrder(request) }
+                runCatchingAppResult(request.instrument.brokerName) { ordersApi.postOrder(request) }
             }
 
         override suspend fun postStopOrderResult(
@@ -50,16 +50,16 @@ class OrdersRepositoryImpl
         ): AppResult<String> =
             withContext(Dispatchers.IO) {
                 val broker =
-                    brokerManager.getBroker(request.brokerName)
+                    brokerManager.getBroker(request.instrument.brokerName)
                         ?: return@withContext AppResult.Failure(
-                            AppError.Unknown("Брокер ${request.brokerName.displayName} не зарегистрирован"),
+                            AppError.Unknown("Брокер ${request.instrument.brokerName.displayName} не зарегистрирован"),
                         )
                 val ordersApi =
                     broker.orders
                         ?: return@withContext AppResult.Failure(
-                            AppError.Unknown("Брокер ${request.brokerName.displayName} не поддерживает заявки"),
+                            AppError.Unknown("Брокер ${request.instrument.brokerName.displayName} не поддерживает заявки"),
                         )
-                runCatchingAppResult(request.brokerName) { ordersApi.postStopOrder(request) }
+                runCatchingAppResult(request.instrument.brokerName) { ordersApi.postStopOrder(request) }
             }
 
         override suspend fun cancelStopOrderResult(
