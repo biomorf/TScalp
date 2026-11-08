@@ -42,7 +42,7 @@ class SaveCardSettingsUseCase
             brokerName: BrokerName,
             accountId: String?,
         ): AppResult<Unit> {
-            logger.d(TAG, "execute: ticker=$ticker, brokerName=$brokerName")
+            logger.d(TAG, "execute: ticker=$ticker, brokerName=$brokerName, accountId=$accountId")
             return try {
                 val currentCards = cardsRepository.identities.first()
                 val exists = currentCards.any { it.ticker == ticker }
