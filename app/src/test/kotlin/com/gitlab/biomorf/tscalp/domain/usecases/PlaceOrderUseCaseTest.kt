@@ -11,6 +11,7 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -49,17 +50,24 @@ class PlaceOrderUseCaseTest {
             accountId = "acc-1",
         )
 
+    private val sber =
+        Share(
+            brokerName = BrokerName.TINVEST,
+            tscalpInstrumentId = "uid-sber",
+            ticker = "SBER",
+            name = "Сбербанк",
+            isin = "RU0009029540",
+        )
+
     private val request =
         PlaceOrderRequest(
-            ticker = "SBER",
-            tscalpInstrumentId = "uid-sber",
+            instrument = sber,
             quantity = 1L,
             orderType = OrderTypeSelection.Market,
             limitPrice = "",
             stopPrice = "",
             expirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
-            pairedTscalpInstrumentId = null,
-            pairedTicker = null,
+            pairedInstrument = null,
             pairedMultiplier = "1",
         )
 

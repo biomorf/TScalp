@@ -24,19 +24,16 @@ import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
  *   `tscalpInstrumentId`.
  */
 fun OrderFormState.toPlaceOrderRequest(): PlaceOrderRequest? {
-    val ticker = ticker.ifBlank { selectedInstrument?.ticker } ?: return null
+    val instrument = selectedInstrument ?: return null
     val quantity = quantityAsLong ?: return null
-    val tscalpId = selectedInstrument?.tscalpInstrumentId ?: return null
     return PlaceOrderRequest(
-        ticker = ticker,
-        tscalpInstrumentId = tscalpId,
+        instrument = instrument,
         quantity = quantity,
         orderType = orderType,
         limitPrice = limitPrice,
         stopPrice = stopPrice,
         expirationType = expirationType,
-        pairedTscalpInstrumentId = pairedInstrument?.tscalpInstrumentId,
-        pairedTicker = pairedInstrument?.ticker,
+        pairedInstrument = pairedInstrument,
         pairedMultiplier = pairedMultiplier,
     )
 }

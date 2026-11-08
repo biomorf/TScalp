@@ -8,9 +8,11 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
+import com.gitlab.biomorf.tscalp.domain.models.matches
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -31,15 +33,13 @@ import javax.inject.Singleton
  * (`PostOrderInput.limitPrice: String?` принимает `""`).
  */
 data class PlaceOrderRequest(
-    val ticker: String,
-    val tscalpInstrumentId: String,
+    val instrument: Instrument,
     val quantity: Long,
     val orderType: OrderTypeSelection,
     val limitPrice: String,
     val stopPrice: String,
     val expirationType: StopOrderExpirationType,
-    val pairedTscalpInstrumentId: String?,
-    val pairedTicker: String?,
+    val pairedInstrument: Instrument?,
     val pairedMultiplier: String,
 )
 
@@ -86,7 +86,7 @@ sealed interface PlaceOrderOutcome {
  *
  * **Резолв:**
  * - `cards = CardsRepository.identities.first()`; `activeCard =
- *   cards.find { it.ticker == request.ticker }` — 1:1 с Coord
+ *   cards.find { it.matches(request.instrument) }` — 1:1 с Coord
  *   `lastSelectedInstruments.find` (оба — projection of
  *   `CardsRepository.identities`, A3/A4-b-1).
  * - `accountId = activeCard?.accountId
@@ -135,7 +135,7 @@ class PlaceOrderUseCase
         ): PlaceOrderOutcome {
             logger.d(
                 TAG,
-                "execute: ticker=${request.ticker}, direction=$direction, qty=${request.quantity}",
+                "execute: ticker=${request.instrument.ticker}, direction=$direction, qty=${request.quantity}",
             )
             return try {
                 val cards = cardsRepository.identities.first()
@@ -156,7 +156,7 @@ class PlaceOrderUseCase
             request: PlaceOrderRequest,
             cards: List<CardIdentity>,
         ): ResolvedContext? {
-            val activeCard = cards.find { it.ticker == request.ticker }
+            val activeCard = cards.find { it.matches(request.instrument) }
             val accountId =
                 activeCard?.accountId
                     ?: accountSelectionRepository.selected(BrokerName.TINVEST).first()
@@ -181,8 +181,8 @@ class PlaceOrderUseCase
             val pairedInput = buildPairedInput(request, cards, context.accountId)
             return PostOrderInput(
                 brokerName = context.brokerName,
-                ticker = request.ticker,
-                tscalpInstrumentId = request.tscalpInstrumentId,
+                ticker = request.instrument.ticker,
+                tscalpInstrumentId = request.instrument.tscalpInstrumentId,
                 quantity = request.quantity,
                 direction = direction,
                 accountId = context.accountId,
@@ -200,9 +200,10 @@ class PlaceOrderUseCase
             cards: List<CardIdentity>,
             primaryAccountId: String,
         ): PairedOrderInput? {
-            val pairedUid = request.pairedTscalpInstrumentId ?: return null
-            val pairedTicker = request.pairedTicker ?: return null
-            val pairedCard = cards.find { it.ticker == pairedTicker }
+            val pairedInstrument = request.pairedInstrument ?: return null
+            val pairedUid = pairedInstrument.tscalpInstrumentId
+            val pairedTicker = pairedInstrument.ticker
+            val pairedCard = cards.find { it.matches(pairedInstrument) }
             return PairedOrderInput(
                 tscalpInstrumentId = pairedUid,
                 ticker = pairedTicker,

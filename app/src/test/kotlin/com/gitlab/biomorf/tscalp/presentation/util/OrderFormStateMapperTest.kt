@@ -36,30 +36,31 @@ class OrderFormStateMapperTest {
 
         val r = state.toPlaceOrderRequest()!!
 
-        assertEquals("SBER", r.ticker)
-        assertEquals("uid-sber", r.tscalpInstrumentId)
+        assertEquals("SBER", r.instrument.ticker)
+        assertEquals("uid-sber", r.instrument.tscalpInstrumentId)
         assertEquals(3L, r.quantity)
         assertEquals(OrderTypeSelection.Limit, r.orderType)
         assertEquals("150.5", r.limitPrice)
         assertEquals("0", r.stopPrice)
         assertEquals(StopOrderExpirationType.GOOD_TILL_DATE, r.expirationType)
-        assertEquals("uid-sber", r.pairedTscalpInstrumentId)
-        assertEquals("SBER", r.pairedTicker)
+        assertEquals("uid-sber", r.pairedInstrument?.tscalpInstrumentId)
+        assertEquals("SBER", r.pairedInstrument?.ticker)
         assertEquals("2", r.pairedMultiplier)
     }
 
     @Test
-    fun `blank ticker falls back to selectedInstrument ticker`() {
+    fun `ticker in state is ignored, instrument from selectedInstrument`() {
         val state =
             OrderFormState(
-                ticker = "",
+                ticker = "IGNORED",
                 selectedInstrument = sber,
                 quantity = "1",
             )
 
         val r = state.toPlaceOrderRequest()!!
 
-        assertEquals("SBER", r.ticker)
+        assertEquals("SBER", r.instrument.ticker)
+        assertEquals("uid-sber", r.instrument.tscalpInstrumentId)
     }
 
     @Test
