@@ -1225,7 +1225,7 @@ ___
 
 **Статус:** в работе.
 
-**Ветка:** `refactor/card-identity-tscalp-uid` (10 коммитов: Фазы 1a + 2 реализованы).
+**Ветка:** `refactor/card-identity-tscalp-uid` (25 коммитов: Фазы 1a + 1b-код (1b-1a..1b-8) + 2 реализованы; ahead origin/feature на 15).
 
 **Дефект Фазы 1a (live-test 2026-11-08):** `CardIdentity.matches` /
 `findCard` / `withUpdatedSettings` ключуют по `(uid, broker)` —
@@ -1701,7 +1701,7 @@ Test:
   `withRecreatedSettings(uid, broker, oldAccountId, newAccountId)`;
   старые — `@Deprecated(WARNING)`, поведение не меняется (any-account).
   `CardIdentityTest` +5 кейсов. Гейт.
-- **1b-1b** (~1.5–2 ч). Сигнатура `SaveCardSettingsUseCase`:
+- **1b-1b** ✅ (~1.5–2 ч, коммит `9fff3e8`). Сигнатура `SaveCardSettingsUseCase`:
   `execute(instrument, oldAccountId, newAccountId)` — пересоздание
   (delete old + create new) + коллизия → `Failure("account taken")`.
   `OpenCardDialogResult + oldAccountId: String?` (для VM: какой счёт
@@ -1714,14 +1714,22 @@ Test:
   (create old=null / recreate old→new / collision / not found /
   exception / cancellation), `OpenCardDialogUseCaseTest` +1 (oldAccountId
   в результате), `OrderDialogsViewModelTest` (execute(sber, old, new)). Гейт.
-- **1b-2** (~0.5–1 ч). `OrderFormState` (+ `selectedBroker` /
+- **1b-2** ✅ (~0.5–1 ч, коммит `7b596b6`). `OrderFormState` (+ `selectedBroker` /
   `selectedAccountId` / `pairedBroker` / `pairedAccountId`).
-  `OrderFormViewModel.saveState` / `restoreOrderForm` — поля слотов
-  (`TradingStateSnapshot` **не трогаем** — отдельная задача). Гейт.
-- **1b-3** (~0.5 ч). `OrdersCoordState.activeCardFor` /
-  `activePairedCardFor` — параметр `accountId`, `it.instrument.matches(inst,
-  accountId)`; **убрать inline composite** (`:57, :69`). Гейт.
-- **1b-4** (~1.5–2 ч). `takenAccountIds` — из domain
+  `onInstrumentSelected` ставит broker из `instrument.brokerName` + accountId
+  из `SelectInstrumentResult.card.accountId`; `onPairedInstrumentSelected` —
+  broker из instrument, `pairedAccountId = null` (нет источника в
+  `SelectPairedResult`); callbacks `onAccountSaved` / `onPairedAccountSaved`
+  для UI-оркестрации; `restoreOrderForm` — broker из restored instrument,
+  accountId = null (`TradingStateSnapshot` **не трогаем** — отдельная
+  задача). Гейт.
+- **1b-3** ✅ (~0.5 ч, коммит `35e55f5`). `OrdersCoordState.activeCardFor` /
+  `activePairedCardFor` — параметр `accountId`; find по полному composite
+  `(it.instrument.tscalpInstrumentId, it.instrument.brokerName, it.accountId)`
+  (inline — `SelectedInstrumentInfo` — проекция, не `CardIdentity`).
+  Callsites (`OrdersSearch`, `OrdersPairTrading`) передают
+  `formState.selectedAccountId` / `pairedAccountId`. Гейт.
+- **1b-4** ✅ (~1.5–2 ч, коммит `2f5cd25`). `takenAccountIds` — из domain
   (`CardsRepository.identities`), **не** из UI-кеша
   (`lastSelectedInstruments` — внутреннее дело Coord, не источник).
   - `OpenCardDialogResult + takenAccountIds: Set<String>` — usecase
@@ -1744,23 +1752,42 @@ Test:
     (`state.takenAccountIds` после open); `BrokerAccountDialog` — UI,
     отдельный `@Preview` disabled.
   - Гейт.
-- **1b-5** (~0.5–1 ч). `OrdersSearch` / `OrdersPairTrading` —
-  `onSettings(instrument, currentAccountId)` — миграция UI на явный
-  `currentAccountId` слота (1b-1b-сигнатура `openBrokerDialog` с default
-  `null` → с 1b-5 передаётся реальный `accountId` слота);
-  `OrdersScreen` — `activeCardFor(selectedInstrument, selectedAccountId)`.
-  Гейт.
-- **1b-6** (~0.5–1 ч). `SelectInstrumentUseCase` / `OpenCardDialogUseCase` /
-  `PlaceOrderUseCase.resolveContext` — composite с `accountId`. Гейт.
-- **1b-7** (~0.5 ч). Удалить `@Deprecated` overloads (`matches(uid, broker)`
-  / `findCard(uid, broker)` / `withUpdatedSettings(...)`) + мигрировать
-  оставшиеся callsites. Гейт.
-- **1b-8** (~0.5–1 ч). `OrderFormViewModelTest` с нуля (8 моков;
-  `onInstrumentSelected` / `onPairedInstrumentSelected` / `onAccountSaved` /
-  `onPairedAccountSaved` / `clearSelectedInstrument` / `clearPairedInstrument`
-  / `restoreOrderForm`). `OrderDialogsViewModelTest` — disabled-тесты
-  уже в 1b-4, old→new — в 1b-1b; добавить только `takenAccountIds`-кейс
-  (если не покрыт). Гейт.
+- **1b-5** ✅ (~0.5–1 ч, коммит `8e4c442`). `CardSlot` enum
+  (`PRIMARY` / `PAIR`) в `OrderDialogsState`; `OrderDialogsViewModel.openBrokerDialog(
+  instrument, currentAccountId, slot = PRIMARY)` — сохраняет slot;
+  `saveBrokerSettings(onSaved: (CardSlot, String?) -> Unit = { _, _ -> })` —
+  после success вызывает callback (не после failure); `OrdersScreen` —
+  primary/pair `openBrokerDialog` с явным `CardSlot`, `onSave` роутит в
+  `formViewModel.onAccountSaved` / `onPairedAccountSaved`. `OrdersSearch` /
+  `OrdersPairTrading` — `onSettings(instrument, currentAccountId)`. Гейт.
+- **1b-6a** ✅ (~0.5 ч, коммит `af072d1`). `PlaceOrderRequest` +
+  `selectedAccountId` / `pairedAccountId`; `resolveContext` / `buildPairedInput`
+  — find `activeCard` / `pairedCard` по `matches(instrument, accountId)`;
+  fallback: request.accountId → `AccountSelectionRepository` (для primary);
+  request.pairedAccountId → primaryAccountId (для pair). `OrderFormStateMapper`
+  передаёт accountId из FormState. Tests: request + selectedAccountId,
+  mapper asserts. Гейт.
+- **1b-6b** ✅ (~0.5 ч, коммит `e510898`). `SelectInstrumentUseCase.execute(
+  instrument, currentAccountId = null)` — findCard по полному composite;
+  `persistIdentity` — `filter { !matches(instrument, currentAccountId) }`
+  (target account заменяется, остальные accountId того же uid/broker
+  остаются). `OrderFormViewModel` передаёт `_state.value.selectedAccountId`.
+  Tests: +2 (findCard по composite, dedup только target). Гейт.
+- **1b-7** ✅ (~0.5 ч, коммит `e9f41f0`). Удалены `@Deprecated` overloads
+  (`matches(uid, broker)` / `matches(instrument)` / `findCard(uid, broker)` /
+  `findCard(instrument)` / `withUpdatedSettings`); `CardIdentityTest` —
+  10 deprecated-кейсов удалены, остались 8 (4 full-composite `matches` /
+  `findCard` + 3 `withRecreatedSettings` + `findCard distinguishes accounts`).
+  Гейт (warnings deprecated исчезли).
+- **1b-8** ✅ (~1–1.5 ч, коммит `7e52714`). `OrderFormViewModelTest` с нуля
+  (10 моков + `MainDispatcherRule`), 9 тестов: `onInstrumentSelected`
+  (success: broker + accountId; передача currentAccountId; failure: broker,
+  accountId=null), `onPairedInstrumentSelected` (broker + pairedAccountId=null,
+  primary slot не тронут), `onAccountSaved` / `onPairedAccountSaved`
+  (set/clear), `clearSelectedInstrument` / `clearPairedInstrument`
+  (reset broker + account), `restoreOrderForm` (broker из instrument,
+  accountId=null). `OrderDialogsViewModelTest` — disabled-тесты в 1b-4,
+  old→new в 1b-1b; `takenAccountIds`-кейс там же. Гейт.
 - **1b-9** (~0.5–1 ч). Live-test (sandbox T-Invest): 1) primary SBER(A) +
   pair SBER(B) → две независимые; смена счёта в одной не меняет другую;
   2) primary SBER(A) + pair SBER(A) → счёт A disabled; 3) покупка на
@@ -1778,13 +1805,19 @@ Test:
 
 **Тесты:** в коммитах 1b-1…1b-7. Live-test 1b-8 — обязателен.
 
-**Оценка Фазы 1b:** ~8–12 ч (уточнено: 1b-4 ~1.5–2 ч из-за
-`takenAccountIds` через domain, не через кеш). Из них выполнено:
-- 1b-1a — ~2.5–3.5 ч (`19a3b81`).
-- 1b-1b — ~1.5–2 ч (`9fff3e8`).
-- 1b-2 — ~0.5–1 ч (`7b596b6`).
-- 1b-3 — ~0.5 ч (`35e55f5`).
-Итого выполнено ~5–7 ч; осталось: 1b-4..1b-10 (~6–9 ч).
+**Оценка Фазы 1b:** ~8–12 ч. Из них выполнено (1b-1a..1b-8, ~7–9 ч
+по факту):
+- 1b-1a — `19a3b81`.
+- 1b-1b — `9fff3e8`.
+- 1b-2 — `7b596b6`.
+- 1b-3 — `35e55f5`.
+- 1b-4 — `2f5cd25`.
+- 1b-5 — `8e4c442`.
+- 1b-6a — `af072d1`; 1b-6b — `e510898`.
+- 1b-7 — `e9f41f0`.
+- 1b-8 — `7e52714`.
+
+**Осталось:** 1b-9 (live-test, ~0.5–1 ч) + 1b-10 (push + PR, ~0.15 ч).
 
 **Критерий готовности:**
 
