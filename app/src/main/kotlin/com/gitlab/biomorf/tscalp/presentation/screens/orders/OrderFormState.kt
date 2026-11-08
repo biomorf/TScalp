@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -52,6 +53,15 @@ data class OrderFormState(
     val orderType: OrderTypeSelection = OrderTypeSelection.Market,
     val expirationType: StopOrderExpirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
     val expireDate: String? = null,
+    // Slot (broker + account; Фаза 1b)
+    // selectedBroker / pairedBroker — из instrument.brokerName при выборе;
+    // selectedAccountId / pairedAccountId — из SelectInstrumentResult.card.accountId
+    // (paired: null, источник в SelectPairedResult отсутствует) или через
+    // onAccountSaved / onPairedAccountSaved callback (UI-оркестрация после save).
+    val selectedBroker: BrokerName = BrokerName.TINVEST,
+    val selectedAccountId: String? = null,
+    val pairedBroker: BrokerName = BrokerName.TINVEST,
+    val pairedAccountId: String? = null,
     // Pair
     val pairTradingEnabled: Boolean = false,
     val pairedInstrument: Instrument? = null,

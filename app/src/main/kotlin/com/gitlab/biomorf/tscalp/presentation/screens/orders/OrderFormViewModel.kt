@@ -8,6 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesReposit
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
@@ -244,7 +245,11 @@ class OrderFormViewModel
                         it.copy(
                             selectedInstrument = data.selectedInstrument,
                             ticker = data.selectedInstrument?.ticker ?: "",
+                            selectedBroker = data.selectedInstrument?.brokerName ?: BrokerName.TINVEST,
+                            selectedAccountId = null,
                             pairedInstrument = data.pairedInstrument,
+                            pairedBroker = data.pairedInstrument?.brokerName ?: BrokerName.TINVEST,
+                            pairedAccountId = null,
                             pairTradingEnabled = data.pairTradingEnabled,
                             quantity = data.quantity,
                             pairedMultiplier = data.pairedMultiplier,
@@ -374,6 +379,7 @@ class OrderFormViewModel
                 it.copy(
                     selectedInstrument = instrument,
                     ticker = instrument.ticker,
+                    selectedBroker = instrument.brokerName,
                 )
             }
             viewModelScope.launch {
@@ -387,6 +393,7 @@ class OrderFormViewModel
                                 currentPrice = card.currentPrice,
                                 isPriceLoading = false,
                                 currentPointValue = data.pointValue,
+                                selectedAccountId = card.accountId,
                             )
                         }
                         updateTradeDetails()
@@ -411,6 +418,8 @@ class OrderFormViewModel
                 it.copy(
                     selectedInstrument = null,
                     ticker = "",
+                    selectedBroker = BrokerName.TINVEST,
+                    selectedAccountId = null,
                     currentPrice = null,
                     isPriceLoading = false,
                 )
@@ -419,7 +428,13 @@ class OrderFormViewModel
         }
 
         fun onPairedInstrumentSelected(instrument: Instrument) {
-            _state.update { it.copy(pairedInstrument = instrument) }
+            _state.update {
+                it.copy(
+                    pairedInstrument = instrument,
+                    pairedBroker = instrument.brokerName,
+                    pairedAccountId = null,
+                )
+            }
             syncPriceInterest()
             viewModelScope.launch {
                 when (val result = selectPairedInstrumentUseCase.execute(instrument)) {
@@ -445,8 +460,31 @@ class OrderFormViewModel
             }
         }
 
+        /**
+         * Callback из UI-оркестрации после `OrderDialogsViewModel.saveBrokerSettings`:
+         * новый accountId карточки основного слота. `null` — счёт сброшен
+         * (карточка `(uid, broker, null)`).
+         */
+        fun onAccountSaved(newAccountId: String?) {
+            _state.update { it.copy(selectedAccountId = newAccountId) }
+        }
+
+        /**
+         * Callback из UI-оркестрации после `OrderDialogsViewModel.saveBrokerSettings`:
+         * новый accountId карточки парного слота.
+         */
+        fun onPairedAccountSaved(newAccountId: String?) {
+            _state.update { it.copy(pairedAccountId = newAccountId) }
+        }
+
         fun clearPairedInstrument() {
-            _state.update { it.copy(pairedInstrument = null) }
+            _state.update {
+                it.copy(
+                    pairedInstrument = null,
+                    pairedBroker = BrokerName.TINVEST,
+                    pairedAccountId = null,
+                )
+            }
             syncPriceInterest()
             updatePairExecDetails()
         }
