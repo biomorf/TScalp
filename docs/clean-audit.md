@@ -121,9 +121,32 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### M013. Orchestration в Orders / Portfolio / OrdersList ViewModels (7 методов)
+### M016. One-shot events через StateFlow (M6) — statusMessage / isError
 
 **Статус:** открыто.
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `statusMessage` / `isError` живут в 4 state: `OrderSearchState` (30, 32), `OrderFormState` (73, 74), `OrdersCoordState` (36, 37), `OrdersListViewModel` state. UI читает через `collectAsState`; consume — `clearStatus()` + `LaunchedEffect(...statusMessage)` (workaround). `StateFlow` реплеит последнее значение → при пересоздании Composable snackbar показывается повторно.
+
+**Нарушенное правило:** M6 — one-shot события через `StateFlow` без consume.
+
+**Clean-альтернатива:** `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в каждой VM; `statusMessage` / `isError` удаляются из state. Плюсы: no replay, snackbar — 1:1. Минусы: миграция 4 VM + state + UI.
+
+**MVVM-альтернатива:** то же — event stream.
+
+**Ссылка на задачу:** `### M6: one-shot events (StatusEvent)` (`d64e1be`).
+
+**Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
+
+
+### Исправленные (L1)
+
+### ✅ M013. Orchestration в Orders / Portfolio / OrdersList ViewModels (7 методов)
+
+**Статус:** исправлено (2026-11-09, A2 закрыт; PR #110; live-test 1-2,5,6-partial PASS).
 
 **Серьёзность:** высоко.
 
@@ -162,85 +185,11 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 
 **Выгоды:** —.
 
-**Расширено (12a, 2026-11-07, `7e2f717`):** после выноса
-`OrderDialogsViewModel` (шаг 12a ROADMAP `### OrdersViewModel: разбить
-на несколько VM`) M2-паттерн расширился:
+**Что сделано:** A2 закрыт 2026-11-09 (PR #110). 7 из 9 методов вынесены в usecase: `LoadPortfolioUseCase`, `CheckBrokerInitializationUseCase` (1 для Portfolio + Orders, Q5), `LoadOrdersAccountsUseCase`, `LoadCardAccountsUseCase` (1 для `openBrokerDialog` / `loadDialogAccounts`, Q10), `CancelOrderUseCase`. `openBrokerDialog` / `loadDialogAccounts` переехали в `OrderDialogsViewModel` (split 13d), wiring → usecases (M015). `loadOrders` — по Q3/F3 manager-lifecycle, остаётся в VM (`startPositionUpdates`). `startPositionUpdates` / `stopPositionUpdates` / `syncPriceInterest` — lifecycle (Q2), остаются в VM. M013-related follow-ups закрыты: M002 (`PlaceOrderUseCase`), M015 (`OpenCardDialogUseCase`), M017 (`OrderFormStateMapper`). Live-test: 1-2,5,6-partial PASS (write-token, sandbox T-Invest); 3-4 (смена брокера) — deferred closure в отдельной задаче `### Live-test Broker lifecycle API: BCS/Finam` (ROADMAP); `NoneInitialized`-ветка — pre-existing `BrokerRegistry.anyInitialized` (`docs/ISSUES.md`).
 
-- было: 3 VM (`PortfolioViewModel`, `OrdersViewModel`,
-  `OrdersListViewModel`), 7 методов;
-- стало: 4 VM (+ `OrderDialogsViewModel`), 7 методов: 5 в 2 VM
-  (2 `PortfolioViewModel` + 3 `OrdersViewModel`) + 2 в новой
-  `OrderDialogsViewModel`;
-- `openBrokerDialog` / `loadDialogAccounts` — теперь в
-  `OrderDialogsViewModel` (M2 partial: find `existingCard` +
-  `savedAccountId` fallback, `cardsRepository.identities.first()` +
-  `accountSelectionRepository.selected(TINVEST).first()`);
-- Clean-альтернатива не изменилась: `OpenBrokerDialogUseCase` /
-  `LoadDialogAccountsUseCase` (эволюция M013).
-
-**Расширено (13a, 2026-11-07, `76587ef`):** при ревизии `restoreState()`
-обнаружена ещё одна M2-находка, ранее не заведённая в таблице:
-
-- было: 7 методов в таблице;
-- стало: 8 методов (+ `OrdersViewModel.restoreState`:
-  `tradingStateRepository.load()` + `getInstrument × 2` +
-  `moneyPerPointOfPrice` + `brokerReady` через
-  `BrokerRegistry.getDefaultBroker().isInitialized`);
-- `RestoreOrderFormUseCase` создан (`76587ef`, `domain.usecases`),
-  возвращает `AppResult<RestoredFormState>` (8 полей: 6 snapshot +
-  `currentPointValue` / `pairedPointValue`); presentation
-  (`syncPriceInterest` / `updateTradeDetails` /
-  `updatePairExecDetails` / `_uiState.update`) остаётся в Coord
-  **до 13d** (`OrderFormViewModel`);
-- Clean-альтернатива частично реализована: usecase существует,
-  wiring в VM — шаг 13d.
-
-**Расширено (13c, 2026-11-07, `5b08830`):** вынесен
-`onPairedInstrumentSelected`:
-
-- было: 8 методов в таблице;
-- стало: 9 методов (+ `OrdersViewModel.onPairedInstrumentSelected`:
-  `getLastPrices` + разбор `AppResult` → paired price / pointValue);
-- `SelectPairedInstrumentUseCase` создан (`5b08830`, `domain.usecases`),
-  возвращает `AppResult<SelectPairedResult>` (`price: Double?`,
-  `pointValue: Double`); `getLastPrices` failure -> `Success(price = null,
-  pointValue = ...)` (1:1);
-- **`save` не в usecase:** `saveState()` в VM 1:1 сохраняет
-  `pairedTscalpInstrumentId` (K8a); дубль DataStore write не вводим;
-- **wiring уже сделан** (13c-2): `OrdersViewModel.onPairedInstrumentSelected`
-  делегирует в use case, `updateTradeDetails` / `updatePairExecDetails` /
-  `saveState` / `syncPriceInterest` остаются в VM 1:1;
-- `SelectInstrumentUseCase` (`onInstrumentSelected`) в M013 **не
-  добавляется** — M2 уже исправлен шагом 6 (PR #89); проверено по
-  факту кода (K8e).
-
-**Ссылка на задачу:** `### A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (ROADMAP).
+**Ссылка на задачу:** `### ✅ A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (`docs/ROADMAP-ARCHIVE.md`, PR #110, merge `a590122a`).
 
 **Сводный отчёт, 2026-11-06:** да.
-
-
-### M016. One-shot events через StateFlow (M6) — statusMessage / isError
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `statusMessage` / `isError` живут в 4 state: `OrderSearchState` (30, 32), `OrderFormState` (73, 74), `OrdersCoordState` (36, 37), `OrdersListViewModel` state. UI читает через `collectAsState`; consume — `clearStatus()` + `LaunchedEffect(...statusMessage)` (workaround). `StateFlow` реплеит последнее значение → при пересоздании Composable snackbar показывается повторно.
-
-**Нарушенное правило:** M6 — one-shot события через `StateFlow` без consume.
-
-**Clean-альтернатива:** `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в каждой VM; `statusMessage` / `isError` удаляются из state. Плюсы: no replay, snackbar — 1:1. Минусы: миграция 4 VM + state + UI.
-
-**MVVM-альтернатива:** то же — event stream.
-
-**Ссылка на задачу:** `### M6: one-shot events (StatusEvent)` (`d64e1be`).
-
-**Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
-
-
-### Исправленные (L1)
 
 ### ✅ M014. OrdersCoordState — `activeCard` / `activePairedCard` → pure extensions
 
