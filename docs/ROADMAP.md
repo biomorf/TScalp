@@ -1404,12 +1404,9 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
 
 *Data:*
 - `data/repository/CardsRepositoryImpl.kt` — encode/decode: 3 поля
-  (`broker|uid|account`); decode 4 формата:
-  - 4-польный A4 (uid, skip ticker) — legacy;
-  - 3-польный новый (uid) — целевой;
-  - 3-польный legacy (`uid = ticker`) — legacy до A4;
-  - 2-польный `broker|ticker` (если был) — `uid = ticker, accountId = null`.
-  KDoc-таблица форматов.
+  (`broker|uid|account`). **Один формат**; legacy не поддерживаем
+  (2026-11-08: пользователей нет, проект не в проде; правильные имена —
+  сразу). KDoc — формат + пометка «legacy не поддерживается».
 - Мапперы `Instrument` — проставить `brokerName`:
   - `data/api/tinvest/TInvestInstrumentMapper.kt` — `brokerName = TINVEST`;
   - `data/api/tinvest/TInvestRestInstrumentMappers.kt` — `TINVEST`;
@@ -1450,7 +1447,8 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
   при правке).
 
 *Tests:*
-- `data/repository/CardsRepositoryImplTest` — 4 формата decode + roundtrip.
+- `data/repository/CardsRepositoryImplTest` — roundtrip 3-польного формата
+  (`broker|uid|account`). Legacy decode — не тестируем.
 - `domain/models/CardIdentityTest` (новый) — `matches` / `findCard` /
   `withUpdatedSettings` (pure, без mock).
 - `domain/usecases/SaveCardSettingsUseCaseTest` — `execute(instrument, accountId)`,
@@ -1469,7 +1467,8 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
 1. `Instrument.brokerName` + мапперы T-Invest main + REST.
 2. `CardIdentity` — 3 поля; pure extensions (`matches` / `findCard` /
    `withUpdatedSettings`).
-3. `CardsRepositoryImpl` — encode/decode 3 поля + 4 формата.
+3. `CardsRepositoryImpl` — encode/decode 3 поля (`broker|uid|account`).
+   Legacy не поддерживаем.
 4. `SaveCardSettingsUseCase` — `execute(instrument, accountId)` тонкий.
 5. `OpenCardDialogUseCase` — `execute(instrument)`.
 6. `SelectInstrumentUseCase` — `brokerName = instrument.brokerName`;
@@ -1521,15 +1520,20 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
   pure extension рядом с моделью.
 
 **Ограничения:**
-- Не ломать legacy DataStore: 3-польный старый (`broker|ticker|account`)
-  → `uid = ticker` (одноразовая потеря при `getInstrument(ticker) = null`
-  — приемлемо, документируется в KDoc).
+- Legacy DataStore **ломать можно** (2026-11-08: пользователей нет,
+  проект не в проде). Decode — только 3-польный (`broker|uid|account`);
+  старые форматы не поддерживаются. Правильные имена полям — сразу.
 - `ticker` в `Instrument` — **оставить** (вспомогательное, для BCS/Finam
   data). `ticker` в `CardIdentity` / `PlaceOrderRequest` /
   `BrokerOrderRequest` — **удалить**. `ticker` в `PairedOutcome` —
   **удалить** (display через `instrument.ticker`).
 - Не менять `InstrumentType` enum, `instrumentType` — вне scope.
-- Не смешивать с `### M6: one-shot events` / `### M001: formatting`.
+- M6 / M001 — **не смешивать по умолчанию**, но если правка не усложняет —
+  можно заодно. **Приоритет — M001** (formatting в presentation, 2c-долг
+  из 13d): `OrderFormViewModel.formatPostOrderSuccess` /
+  `formatCostOverlay` / `formatMultiplierOverlay` → `presentation/util/` —
+  естественно ложится в Фазу 1 (или Фазу 2 при `formatPostOrderSuccess`).
+  M6 (`Channel<StatusEvent>`) — по обстоятельствам (отдельный паттерн).
 - BCS/Finam impl — заглушки; их `postOrder` — компилятор + unit-тест;
   live — после `### Реализация BCS/Finam Broker API`.
 - `InstrumentRepository.getInstrument(uid)` — не трогать (broker-agnostic,
@@ -1546,6 +1550,8 @@ zero runtime-cost (data class — ссылка, не копия). Минус: с
   (кроме `Instrument.ticker` в данных и `OrderFormState.selectedTicker`
   как display-поля).
 - `PlaceOrderRequest` содержит `instrument` / `pairedInstrument`.
+- `CardsRepositoryImpl` — только 3-польный формат (`broker|uid|account`);
+  legacy не поддерживается.
 - Primary SBER + pair SBER на разных счетах → разные карточки;
   на одном счёте — одна карточка.
 - Гейт зелёный; live-test PASS.
