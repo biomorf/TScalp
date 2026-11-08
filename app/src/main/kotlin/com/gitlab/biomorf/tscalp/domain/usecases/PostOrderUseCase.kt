@@ -83,13 +83,13 @@ sealed interface PrimaryOutcome {
 /** Итог парной заявки (не блокирует основную). */
 sealed interface PairedOutcome {
     data class Regular(
-        val ticker: String,
+        val instrument: Instrument,
         val orderId: String,
         val quantity: Long,
     ) : PairedOutcome
 
     data class Stop(
-        val ticker: String,
+        val instrument: Instrument,
         val orderId: String,
         val quantity: Long,
     ) : PairedOutcome
@@ -262,7 +262,7 @@ class PostOrderUseCase
                     val req = prepared.pairedRequest as StopOrderRequest
                     when (val r = ordersRepository.postStopOrderResult(req)) {
                         is AppResult.Success ->
-                            PairedOutcome.Stop(ticker = req.instrument.ticker, orderId = r.data, quantity = req.quantity)
+                            PairedOutcome.Stop(instrument = req.instrument, orderId = r.data, quantity = req.quantity)
                         is AppResult.Failure ->
                             PairedOutcome.Failed(r.error.message, r.error.cause)
                     }
@@ -270,7 +270,7 @@ class PostOrderUseCase
                     val req = prepared.pairedRequest as BrokerOrderRequest
                     when (val r = ordersRepository.postOrderResult(req)) {
                         is AppResult.Success ->
-                            PairedOutcome.Regular(ticker = req.instrument.ticker, orderId = r.data.orderId, quantity = req.quantity)
+                            PairedOutcome.Regular(instrument = req.instrument, orderId = r.data.orderId, quantity = req.quantity)
                         is AppResult.Failure ->
                             PairedOutcome.Failed(r.error.message, r.error.cause)
                     }

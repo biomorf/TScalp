@@ -227,9 +227,9 @@ class OrderFormViewModel
                 paired?.let { p ->
                     when (p) {
                         is PairedOutcome.Regular ->
-                            "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId}"
+                            "\n✅ Контрсделка: ${p.instrument.ticker} ${p.quantity} лотов, ID: ${p.orderId}"
                         is PairedOutcome.Stop ->
-                            "\n✅ Контрсделка: ${p.ticker} ${p.quantity} лотов, ID: ${p.orderId.take(8)}…"
+                            "\n✅ Контрсделка: ${p.instrument.ticker} ${p.quantity} лотов, ID: ${p.orderId.take(8)}…"
                         is PairedOutcome.Failed -> "\n❌ Ошибка контрсделки: ${p.message}"
                     }
                 } ?: ""
