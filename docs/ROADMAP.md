@@ -249,69 +249,6 @@ ___
 
 
 
-### OrderSearchViewModel: reduce functions (снять @Suppress TooManyFunctions)
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** в 11a-3 (split `OrdersViewModel`) `OrderSearchViewModel` получил 16 функций — 2 симметричных search-флоу (основной + парный) × 8 (query / refresh / clear / result / open-save-dismiss-брокер) + `getAvailableBrokerNames`. detekt `TooManyFunctions` (порог 11) — `@Suppress("TooManyFunctions")` с 2c-KDoc (коммит `eea0ec5`). Цель — снять `@Suppress`, не плодя cross-VM и M5.
-
-**Соответствие Clean:** отклонение по 2c (принято).
-
-**Нарушенное правило Clean:** SRP (1 VM — 2 флоу, M2-смежное: 2 бизнес-сценария в 1 VM).
-
-**Clean-альтернатива (split на 2 VM):** `OrderSearchViewModel` (8 методов: search / pair / refresh / clear / result × 2), `SearchBrokerSelectionViewModel` (6 методов: 2 диалога × open/save/dismiss) + `SearchBrokerRepository` (domain, StateFlow selectedSearchBroker / selectedPairSearchBroker). Search-VM читает из repo. **Плюсы:** оба VM ≤ 11, без `@Suppress`. **Минусы:** +1 VM, +1 repo, не 4-VM плана; cross-VM через `SearchBrokerRepository` (domain, не M5 — passthrough).
-
-**Clean-альтернатива (группировка):** 6 методов диалогов × 2 → 1 метод `onDialogAction(action: SearchDialogAction)` (sealed, 6 вариантов). **Плюсы:** 16 → 11, без +1 VM. **Минусы:** sealed-класс, читаемость хуже, UI-миграция сложнее.
-
-**Выгоды (2c):** 1 VM вместо 2, без +1 repo, без cross-VM; `@Suppress` — осознанный временный, KDoc на месте, задача закрывает.
-
-**Предусловия:** `### OrdersViewModel: разбить на несколько VM` (шаг 14b) закрыт — иначе конфликты в `OrdersScreen.kt` / `OrderSearchViewModel.kt`.
-
-**Файлы:**
-- `presentation/screens/orders/OrderSearchViewModel.kt` — split / группировка.
-- `presentation/screens/orders/OrderSearchState.kt` — split state (при split).
-- `presentation/screens/orders/OrdersScreen.kt` + `OrdersSearch.kt` + `OrdersPairTrading.kt` — UI-миграция.
-- `domain/api/repository/SearchBrokerRepository.kt` + `data/repository/SearchBrokerRepositoryImpl.kt` (при split) + `@Binds`.
-- Тесты: `OrderSearchViewModelTest`, `SearchBrokerSelectionViewModelTest` (при split) / обновить существующий (при группировке).
-
-**Шаги:**
-1. Решить: split (A) или группировка (B). A — если `SearchBrokerRepository` нужен и для других VM (Coord passthrough); B — если проще (без repo).
-2. Реализация A / B.
-3. Снять `@Suppress("TooManyFunctions")` + KDoc-2c (обновить).
-4. UI-миграция (3 файла).
-5. Тесты.
-6. Гейт (detekt без `@Suppress` — зелёный).
-
-**Тесты:** при A — `OrderSearchViewModelTest` (6, существующие) + `SearchBrokerSelectionViewModelTest` (4–5); при B — обновить существующий (6) + `onDialogAction` кейсы (3–4).
-
-**Референсы:** коммит `eea0ec5` (11a-3, `@Suppress` + 2c KDoc), `docs/clean-audit.md` M013.
-
-**Ограничения:**
-- Не плодить cross-VM через `_uiState` — только через domain (SearchBrokerRepository) или UI-оркестрацию (P4).
-- Не менять поведение search / pair search (1:1).
-- При A — `SearchBrokerRepository` не дублирует `SearchCacheRepository` (разные обязанности).
-
-**Критерий готовности:**
-- `@Suppress("TooManyFunctions")` снят.
-- Каждый VM ≤ 11 функций.
-- detekt зелёный без `@Suppress`.
-- Тесты покрывают search / pair / dialog-actions.
-- Live-test: поиск / парный поиск / смена брокера поиска.
-
-**Оценка:** A — ~3–4 ч; B — ~1.5–2 ч.
-
-**Зависимости:** `### OrdersViewModel: разбить на несколько VM` (14b).
-
-**Связано:** `### OrdersViewModel: разбить на несколько VM`, коммит `eea0ec5`.
-
-**Открытые вопросы:**
-- A или B? A — если `SearchBrokerRepository` переиспользуется (Coord passthrough); B — если проще. **Дефолт:** A (чище, без `@Suppress`).
-
-
-
-
 ___
 
 
@@ -495,26 +432,30 @@ ___
 
 #### ViewModel-слой
 
-**Файлы:**
-- `presentation/screens/orders/OrdersViewModel.kt` — 49 функций,
-  LargeClass; `postOrder` (172 строки, complexity 28).
-- `presentation/screens/portfolio/PortfolioViewModel.kt` —
-  12 функций; `payInSandbox` (61 строка).
-- `presentation/screens/settings/SettingsViewModel.kt` —
-  20 функций.
+**Статус:** выполнено (13d split, 2026-11-07; M006, 2026-11-06).
 
-**Пути решения:** вынести бизнес-логику в UseCase,
-оставить во ViewModel только состояние и делегирование.
-Для `OrdersViewModel` — возможно разделение на
-`OrderFormViewModel` / `OrderListViewModel`.
+**Что сделано:**
+- `OrdersViewModel` → 4 VM (Coord / Form / Search / Dialogs), 13d split.
+  `postOrder` orchestration → `PlaceOrderUseCase` (13d-C, `a793c38`).
+  Было: 49 функций / LargeClass / `postOrder` 172 строки.
+  Факт: `OrdersViewModel` — 8 функций.
+- `SettingsViewModel` → 5 panel-VM + 6 usecase (M006, PR #103).
+  Было: 20 функций. Факт: 1 функция.
+- `PortfolioViewModel`: 12 → 10 функций.
 
-**Оценка:** ~5 часов.
+**Остаток (отдельные задачи, не здесь):**
+- `OrderFormViewModel` — 29 функций, `@Suppress("TooManyFunctions")` →
+  `### OrderFormViewModel: reduce functions`.
+- `OrderSearchViewModel` — 17 функций, `@Suppress("TooManyFunctions")` →
+  `### OrderSearchViewModel: reduce functions` (см. ниже).
+- `OrdersViewModel` — 8 функций, `@Suppress("TooManyFunctions")` остаточный
+  (over-suppress после split; 8 ≤ 11) → chore-коммит без задачи.
 
+**Оценка:** ~5 часов (было; выполнено в 13d + M006).
 
 
 
 ___
-
 
 
 
@@ -2793,7 +2734,7 @@ ___
 
 
 
-### 1. OrderSearchViewModel: reduce functions
+### OrderSearchViewModel: reduce functions
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -2832,6 +2773,11 @@ ___
 **Ограничения:**
 - `statusMessage` / `isError` (M6 pre-existing) — **не трогать** в этой задаче (M6 — отдельная).
 - UI-санкция не требуется (только внутренняя структура VM).
+- **Связанная M001** (`### M001: formatting в presentation`) — если правка
+  не усложняет, можно заодно: `formatCostOverlay` /
+  `formatMultiplierOverlay` / `formatPostOrderSuccess` из Form-VM в
+  `presentation/util/`. Формально не часть этой задачи — приоритет M001
+  отдельно, но по 2c-долгу — можно.
 
 **Критерий готовности:**
 - `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
