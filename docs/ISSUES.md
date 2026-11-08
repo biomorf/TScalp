@@ -27,6 +27,182 @@
 **Когда вернуться:** ...
 ```
 
+## Race в start/stop *FlowManager — дублирование стримов
+
+**Статус:** открыт (частично, live-test 2026-11-08, шаг 16b).
+
+**Симптом:** при старте приложения в logcat видно **по два
+параллельных подключения** одного и того же транспорта на
+каждом менеджере. Пример из live-смоука 2026-10-22
+(Pixel 8a, Android 14, старт приложения):
+
+    D PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    D PositionFlowManager: Перезапуск потока позиций: null → 2309452027
+    D TInvestMarketData: [stream/gRPC/TInvest]: connecting (attempt=1)
+    D TInvestMarketData: [stream/gRPC/TInvest]: connecting (attempt=1)
+    D TInvestWS:          [WS/ktor/TInvest]  connecting (attempt=1)
+    D TInvestWS:          [WS/ktor/TInvest]  connecting (attempt=1)
+
+Две строки `Перезапуск` — из разных нитей в одну миллисекунду:
+`4138-4138` (main, `PortfolioViewModel.loadPortfolio` →
+`startPositionUpdates`) и `4138-4224` (worker, `TScalpApplication.restoreTInvest`
+→ `positionFlowManager.start`). Оба вызова легитимны, оба
+защищены идемпотентностью — она не срабатывает из-за race.
+
+Та же картина на `PriceFlowManager` (два `TInvestWS/prices connecting`
+подряд от двух `setInterest` из `PortfolioViewModel` и
+`OrdersViewModel`) и на `OrderFlowManager` (симметричный код).
+
+**Наблюдение live-test 2026-11-08 (16b):** после fix PR #34/#35 утечка
+orphan-job'ов не воспроизводится (нет двух параллельных `connecting`), но
+**остаточный multi-call `startPositionUpdates`** на старте / после
+force-stop виден в логах:
+
+    14:11:45.393 startPositionUpdates: global=8e43..., accounts=[8e43, 1fbe]
+    14:11:45.449 startPositionUpdates: global=8e43..., accounts=[8e43, 1fbe]
+    14:11:45.484 startPositionUpdates: global=8e43..., accounts=[8e43, 1fbe]
+
+— три вызова за ~90 мс. И при force-stop:
+
+    13:37:51.260 startPositionUpdates: global=null, accounts=[1fbe]
+    13:37:51.268 startPositionUpdates: global=8e43..., accounts=[8e43, 1fbe]
+
+— `global=null` (per-card restore до `loadAccounts`) → `global=8e43`
+(после `loadAccounts`). Функционально корректно: `stopPositionUpdates()`
+отменяет `job`, утечки нет, `PositionFlowManager` state проходит
+`POLLING → INITIALIZING → POLLING` 2–3 раза. Но лишние переподключения
+стрима + дубли `PositionFlowManager: Перезапуск` в логах.
+
+**Причина остаточного multi-call (2026-11-08):** `synchronized(startLock)`
+закрывает race между параллельными `start()`, но **не** закрывает
+race «два последовательных `start()` с разными `accountId` в одном
+потоке» — `_state.update` (один set `selectedAccountId`) + `start`
+из `restoreLastSelectedInstruments` (per-card, до `loadAccounts`) +
+`start` из `loadAccounts` (global, после). `start()` идемпотентен
+по `(currentAccountId, job)` — но второй вызов с другим `accountId`
+не идемпотентен и пересоздаёт job. Это **не** утечка (job отменяется),
+это **лишний рестарт**.
+
+**Решение (отдельный fix):** не вызывать `start` из
+`restoreLastSelectedInstruments` при `globalAccountId == null` —
+ждать `loadAccounts` (Coord `selectedAccountId`), который стартует
+один раз с полным набором `accounts`. Или debounce `start` (100 мс
+после последнего set). Решение — отдельной задачей (1–2 ч).
+
+**Причина (подтверждена чтением кода):** `start()` в
+`PositionFlowManager` / `PriceFlowManager` / `OrderFlowManager`
+имеет критическую секцию без синхронизации между проверкой
+идемпотентности и присвоением `job`:
+
+    fun start(accountId: String, forceRestart: Boolean = false) {
+        if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
+            return
+        }
+        if (currentAccountId != accountId) { /* snapshotCache.clear() */ }
+        job?.cancel()                 // ← нет синхронизации
+        currentAccountId = accountId  // ← нет синхронизации
+        job = scope.launch { ... }    // ← нет синхронизации
+    }
+
+Interleaving при двух параллельных вызовах (A из main, B из worker):
+
+1. A: `job?.isActive == true && currentAccountId == accountId` →
+   `false` (оба null) → проверка пройдена.
+2. B: то же → проверка пройдена.
+3. A: `job?.cancel()` (no-op), `currentAccountId = acc`, `job_A = launch{...}`.
+4. B: `job?.cancel()` (no-op или отменяет `job_A` в зависимости от
+   точного момента), `currentAccountId = acc`, `job_B = launch{...}`
+   — перезаписывает ссылку.
+
+**Результат:** два активных job'а, ссылка на один (`job_B`).
+`job_A` — orphan: продолжает эмитить в `_flow` до перезапуска
+процесса. Следующий `stop()` отменит только `job_B`, `job_A`
+останется. Это **утечка job'ов**, а не только дубль транспорта.
+
+**Уточнение к старой записи «Двойное WS-подключение к PositionsStream»**
+(была отложена, требует подтверждения — теперь подтверждена и
+расширена):
+- Гипотеза №3 (два подписчика на cold flow
+  `broker.subscribePositions()`) **не подтвердилась**: подписчики
+  на `_flow` (hot `SharedFlow`), не на cold flow брокера.
+- Гипотеза №2 (перезапуск создаёт второй `collect`, оставляя
+  первый активным) — подтвердилась, но **механизм другой**:
+  не «оставил активным», а «создал orphan из-за race в
+  `start/stop`».
+- Гипотеза №1 (двойной вызов `start`) — подтвердилась:
+  `TScalpApplication` + ViewModel.
+
+**Происхождение:** паттерн «cancel-then-restart» вошёл в код
+вместе с задачей «Ktor REST transport для polling» и
+debug-переключателями транспортов (`toggleRest` →
+`reapplyDebugFlags()`). В `PositionFlowManager.reapplyDebugFlags`
+и `PriceFlowManager.reapplyDebugFlags` используется та же схема
+`job?.cancel(); start(..., forceRestart = true)` — потенциально
+с той же race-природой. **Сами переключатели нужны** для
+динамических live-тестов транспортов — их не удалять. Фикс
+(`synchronized`) закрывает и их случай тоже.
+
+**Последствия без фикса (усугубление при BCS / Finam):**
+
+1. **Больше вызовов.** `TScalpApplication.restoreBrokerConnection`
+   вызывается в цикле по всем брокерам. N брокеров × M ViewModel =
+   N×M потенциальных гонок.
+2. **Больше транспортов на один дубль.** У Finam три транспорта
+   (gRPC / WS / REST) — двойной `start()` = двойной набор всех
+   трёх, не одного.
+3. **Rate-limits.** T-Invest: `80001` «превышен лимит одновременных
+   stream-соединений»; BCS: 429 Too Many Requests; Finam — свои
+   лимиты. Дубль подключений съедает квоты без пользы.
+4. **Диагностика.** События приходят в два потока, UI получает
+   один из них — расследование инцидентов в проде усложняется
+   пропорционально числу дублей.
+
+**Решение:**
+
+1. Добавить приватный lock-объект в каждый менеджер:
+
+        private val startLock = Any()
+
+2. Обернуть в `synchronized(startLock) { ... }`:
+   - `PositionFlowManager.start` / `stop` / `reapplyDebugFlags`
+   - `PriceFlowManager.setInterest` / `clearInterest` /
+     `reapplyDebugFlags`
+   - `OrderFlowManager.start` / `stop`
+3. Критическая секция — короткая: только чтение `job` /
+   `currentAccountId`, изменение, `launch`. Внутрь секции
+   `scope.launch` кладётся без `join` (сам launch — не suspend),
+   так что блокировки на IO не будет.
+4. Покрыть unit-тестом: два параллельных `start(accountId)`
+   из разных корутин → `job` одинаковый (сравнение ссылок),
+   `broker.subscribePositions()` вызван один раз (мок-счётчик).
+
+**Почему `synchronized`, а не `Mutex`:**
+- `start()/stop()/setInterest()` — не `suspend`, ни одного
+  suspension point в критической секции. `synchronized` проще,
+  не требует `coroutineScope`/`runBlocking` на вызывающей стороне.
+- Если в будущем понадобится suspend внутри (например,
+  асинхронная проверка инициализации брокера) — заменить на
+  `Mutex`, но сейчас это over-engineering.
+
+**Файлы:**
+- `app/src/main/kotlin/.../domain/api/PositionFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/PriceFlowManager.kt`
+- `app/src/main/kotlin/.../domain/api/OrderFlowManager.kt`
+- `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt`
+  (дополнить тест на race)
+
+**Когда вернуться:** сейчас. Фикс изолированный, разблокирует
+BCS / Finam без утечек.
+
+**Связанные записи:**
+- «Двойное WS-подключение к PositionsStream» — объединено в
+  эту запись (2026-10-22).
+- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport» —
+  оркестратор как downstream потребитель корректен, проблема
+  upstream (в менеджерах).
+
+---
+
 ## Separator между секциями ROADMAP не везде по шаблону
 
 **Статус:** открыт.
@@ -784,145 +960,6 @@ reconnect-loop без пользы. С 2026-10-27 `TInvestPositionsWebSocket`
 
 ---
 
-## Race в start/stop *FlowManager — дублирование стримов
-
-**Статус:** решён (PR #34, PR #35, live-test 2026-10-22).
-
-**Симптом:** при старте приложения в logcat видно **по два
-параллельных подключения** одного и того же транспорта на
-каждом менеджере. Пример из live-смоука 2026-10-22
-(Pixel 8a, Android 14, старт приложения):
-
-    D PositionFlowManager: Перезапуск потока позиций: null → 2309452027
-    D PositionFlowManager: Перезапуск потока позиций: null → 2309452027
-    D TInvestMarketData: [stream/gRPC/TInvest]: connecting (attempt=1)
-    D TInvestMarketData: [stream/gRPC/TInvest]: connecting (attempt=1)
-    D TInvestWS:          [WS/ktor/TInvest]  connecting (attempt=1)
-    D TInvestWS:          [WS/ktor/TInvest]  connecting (attempt=1)
-
-Две строки `Перезапуск` — из разных нитей в одну миллисекунду:
-`4138-4138` (main, `PortfolioViewModel.loadPortfolio` →
-`startPositionUpdates`) и `4138-4224` (worker, `TScalpApplication.restoreTInvest`
-→ `positionFlowManager.start`). Оба вызова легитимны, оба
-защищены идемпотентностью — она не срабатывает из-за race.
-
-Та же картина на `PriceFlowManager` (два `TInvestWS/prices connecting`
-подряд от двух `setInterest` из `PortfolioViewModel` и
-`OrdersViewModel`) и на `OrderFlowManager` (симметричный код).
-
-**Причина (подтверждена чтением кода):** `start()` в
-`PositionFlowManager` / `PriceFlowManager` / `OrderFlowManager`
-имеет критическую секцию без синхронизации между проверкой
-идемпотентности и присвоением `job`:
-
-    fun start(accountId: String, forceRestart: Boolean = false) {
-        if (!forceRestart && job?.isActive == true && currentAccountId == accountId) {
-            return
-        }
-        if (currentAccountId != accountId) { /* snapshotCache.clear() */ }
-        job?.cancel()                 // ← нет синхронизации
-        currentAccountId = accountId  // ← нет синхронизации
-        job = scope.launch { ... }    // ← нет синхронизации
-    }
-
-Interleaving при двух параллельных вызовах (A из main, B из worker):
-
-1. A: `job?.isActive == true && currentAccountId == accountId` →
-   `false` (оба null) → проверка пройдена.
-2. B: то же → проверка пройдена.
-3. A: `job?.cancel()` (no-op), `currentAccountId = acc`, `job_A = launch{...}`.
-4. B: `job?.cancel()` (no-op или отменяет `job_A` в зависимости от
-   точного момента), `currentAccountId = acc`, `job_B = launch{...}`
-   — перезаписывает ссылку.
-
-**Результат:** два активных job'а, ссылка на один (`job_B`).
-`job_A` — orphan: продолжает эмитить в `_flow` до перезапуска
-процесса. Следующий `stop()` отменит только `job_B`, `job_A`
-останется. Это **утечка job'ов**, а не только дубль транспорта.
-
-**Уточнение к старой записи «Двойное WS-подключение к PositionsStream»**
-(была отложена, требует подтверждения — теперь подтверждена и
-расширена):
-- Гипотеза №3 (два подписчика на cold flow
-  `broker.subscribePositions()`) **не подтвердилась**: подписчики
-  на `_flow` (hot `SharedFlow`), не на cold flow брокера.
-- Гипотеза №2 (перезапуск создаёт второй `collect`, оставляя
-  первый активным) — подтвердилась, но **механизм другой**:
-  не «оставил активным», а «создал orphan из-за race в
-  `start/stop`».
-- Гипотеза №1 (двойной вызов `start`) — подтвердилась:
-  `TScalpApplication` + ViewModel.
-
-**Происхождение:** паттерн «cancel-then-restart» вошёл в код
-вместе с задачей «Ktor REST transport для polling» и
-debug-переключателями транспортов (`toggleRest` →
-`reapplyDebugFlags()`). В `PositionFlowManager.reapplyDebugFlags`
-и `PriceFlowManager.reapplyDebugFlags` используется та же схема
-`job?.cancel(); start(..., forceRestart = true)` — потенциально
-с той же race-природой. **Сами переключатели нужны** для
-динамических live-тестов транспортов — их не удалять. Фикс
-(`synchronized`) закрывает и их случай тоже.
-
-**Последствия без фикса (усугубление при BCS / Finam):**
-
-1. **Больше вызовов.** `TScalpApplication.restoreBrokerConnection`
-   вызывается в цикле по всем брокерам. N брокеров × M ViewModel =
-   N×M потенциальных гонок.
-2. **Больше транспортов на один дубль.** У Finam три транспорта
-   (gRPC / WS / REST) — двойной `start()` = двойной набор всех
-   трёх, не одного.
-3. **Rate-limits.** T-Invest: `80001` «превышен лимит одновременных
-   stream-соединений»; BCS: 429 Too Many Requests; Finam — свои
-   лимиты. Дубль подключений съедает квоты без пользы.
-4. **Диагностика.** События приходят в два потока, UI получает
-   один из них — расследование инцидентов в проде усложняется
-   пропорционально числу дублей.
-
-**Решение:**
-
-1. Добавить приватный lock-объект в каждый менеджер:
-
-        private val startLock = Any()
-
-2. Обернуть в `synchronized(startLock) { ... }`:
-   - `PositionFlowManager.start` / `stop` / `reapplyDebugFlags`
-   - `PriceFlowManager.setInterest` / `clearInterest` /
-     `reapplyDebugFlags`
-   - `OrderFlowManager.start` / `stop`
-3. Критическая секция — короткая: только чтение `job` /
-   `currentAccountId`, изменение, `launch`. Внутрь секции
-   `scope.launch` кладётся без `join` (сам launch — не suspend),
-   так что блокировки на IO не будет.
-4. Покрыть unit-тестом: два параллельных `start(accountId)`
-   из разных корутин → `job` одинаковый (сравнение ссылок),
-   `broker.subscribePositions()` вызван один раз (мок-счётчик).
-
-**Почему `synchronized`, а не `Mutex`:**
-- `start()/stop()/setInterest()` — не `suspend`, ни одного
-  suspension point в критической секции. `synchronized` проще,
-  не требует `coroutineScope`/`runBlocking` на вызывающей стороне.
-- Если в будущем понадобится suspend внутри (например,
-  асинхронная проверка инициализации брокера) — заменить на
-  `Mutex`, но сейчас это over-engineering.
-
-**Файлы:**
-- `app/src/main/kotlin/.../domain/api/PositionFlowManager.kt`
-- `app/src/main/kotlin/.../domain/api/PriceFlowManager.kt`
-- `app/src/main/kotlin/.../domain/api/OrderFlowManager.kt`
-- `app/src/test/kotlin/.../domain/api/PositionFlowManagerTest.kt`
-  (дополнить тест на race)
-
-**Когда вернуться:** сейчас. Фикс изолированный, разблокирует
-BCS / Finam без утечек.
-
-**Связанные записи:**
-- «Двойное WS-подключение к PositionsStream» — объединено в
-  эту запись (2026-10-22).
-- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport» —
-  оркестратор как downstream потребитель корректен, проблема
-  upstream (в менеджерах).
-
----
 
 ## INTERNAL: 70001 при параллельных unary-запросах
 
