@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.util
 
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -9,6 +10,7 @@ class InstrumentFormatTest {
     fun `displayName combines ticker and name`() {
         val instrument =
             Share(
+                brokerName = BrokerName.TINVEST,
                 tscalpInstrumentId = "uid-sber",
                 ticker = "SBER",
                 name = "Сбербанк",
@@ -21,6 +23,7 @@ class InstrumentFormatTest {
     fun `displayName with empty name keeps dash`() {
         val instrument =
             Share(
+                brokerName = BrokerName.TINVEST,
                 tscalpInstrumentId = "uid-x",
                 ticker = "XYZ",
                 name = "",
@@ -33,6 +36,7 @@ class InstrumentFormatTest {
     fun `displayName with spaces in name keeps as-is`() {
         val instrument =
             Share(
+                brokerName = BrokerName.TINVEST,
                 tscalpInstrumentId = "uid-gazp",
                 ticker = "GAZP",
                 name = "Газпром ао",

@@ -15,6 +15,8 @@ import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.Position
 import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
+import com.gitlab.biomorf.tscalp.domain.models.findCard
+import com.gitlab.biomorf.tscalp.domain.models.matches
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -31,12 +33,11 @@ import javax.inject.Singleton
  * existingCard + save identity + save selected to session —
  * domain-orchestration, не presentation.
  *
- * **Не в scope** (VM-часть, 1:1): `_uiState.update`
- * (`selectedInstrument` / `ticker` / `searchQuery` / `searchResults`
- * / `isPriceLoading` / `currentPrice` / `currentPointValue` /
- * `lastSelectedInstruments`), `updateTradeDetails` /
- * `updatePairExecDetails`, `syncPriceInterest` /
- * `startPositionUpdates`, `saveState`.
+ * **Не в scope** (VM-часть, 1:1): `_state.update`
+ * (`selectedInstrument` / `searchQuery` / `searchResults` /
+ * `isPriceLoading` / `currentPrice` / `currentPointValue`),
+ * `updateTradeDetails` / `updatePairExecDetails`, `syncPriceInterest`
+ * / `startPositionUpdates`, `saveState`.
  *
  * **Persistence:** `CardsRepository.save` — identity-only
  * (`CardIdentity`, не полная `SelectedInstrumentInfo`).
@@ -76,14 +77,21 @@ class SelectInstrumentUseCase
          *   исключении DataStore / repository.
          *   `getLastPrices` failure — не ошибка (price = null, 1:1).
          */
-        suspend fun execute(instrument: Instrument): AppResult<SelectInstrumentResult> {
-            logger.d(TAG, "execute: ticker=${instrument.ticker}")
+        suspend fun execute(
+            instrument: Instrument,
+            currentAccountId: String? = null,
+        ): AppResult<SelectInstrumentResult> {
+            logger.d(
+                TAG,
+                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}, " +
+                    "currentAccountId=$currentAccountId",
+            )
             return try {
                 val actualInstrument =
                     instrumentRepository.getInstrument(instrument.tscalpInstrumentId) ?: instrument
                 val currentCards = cardsRepository.identities.first()
-                val existingCard = currentCards.find { it.ticker == instrument.ticker }
-                persistIdentity(instrument, currentCards, existingCard)
+                val existingCard = currentCards.findCard(instrument, currentAccountId)
+                persistIdentity(instrument, currentCards, existingCard, currentAccountId)
                 saveSelectedToSession(instrument.tscalpInstrumentId)
                 val price = fetchPrice(instrument.tscalpInstrumentId)
                 val accountId = accountSelectionRepository.selected(BrokerName.TINVEST).first()
@@ -134,23 +142,26 @@ class SelectInstrumentUseCase
                 positionFlowManager.sheet.value
                     .accounts[AccountKey(BrokerName.TINVEST, it)]
                     ?.positions
-                    ?.find { p -> p.instrument.ticker == instrument.ticker }
+                    ?.find { p ->
+                        p.instrument.tscalpInstrumentId == instrument.tscalpInstrumentId &&
+                            p.instrument.brokerName == instrument.brokerName
+                    }
             }
 
         private suspend fun persistIdentity(
             instrument: Instrument,
             currentCards: List<CardIdentity>,
             existingCard: CardIdentity?,
+            currentAccountId: String?,
         ) {
             val newIdentity =
                 CardIdentity(
                     tscalpInstrumentId = instrument.tscalpInstrumentId,
-                    ticker = instrument.ticker,
-                    brokerName = existingCard?.brokerName ?: BrokerName.TINVEST,
+                    brokerName = instrument.brokerName,
                     accountId = existingCard?.accountId,
                 )
             val updatedIdentities =
-                (listOf(newIdentity) + currentCards.filter { it.ticker != instrument.ticker })
+                (listOf(newIdentity) + currentCards.filter { !it.matches(instrument, currentAccountId) })
                     .take(CARD_LIMIT)
             cardsRepository.save(updatedIdentities)
         }
@@ -176,7 +187,7 @@ class SelectInstrumentUseCase
                 averagePrice = portfolioPos?.currentPrice,
                 profit = portfolioPos?.profit,
                 profitPercent = portfolioPos?.profitPercent,
-                brokerName = existingCard?.brokerName ?: BrokerName.TINVEST,
+                brokerName = instrument.brokerName,
                 accountId = existingCard?.accountId,
             )
     }

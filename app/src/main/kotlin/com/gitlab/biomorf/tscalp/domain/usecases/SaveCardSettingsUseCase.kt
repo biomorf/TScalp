@@ -4,27 +4,31 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.withEnsuredCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Сохранение настроек карточки (брокер + счёт) —
- * разбиение `OrdersViewModel` на 4 VM, шаг 7.
+ * Сохранение настроек карточки (счёт) — разбиение `OrdersViewModel`
+ * на 4 VM, шаг 7; пересмотрено в Фазе 1b-11 (модель A).
  *
- * Вынесено из `OrdersViewModel.saveBrokerSettings` (clean-audit
- * M013, M2): обновление `CardsRepository` для конкретного
- * ticker — domain-orchestration.
+ * **Ensure-add** (1b-11): `CardIdentity` — запись истории «Последних
+ * просмотренных». Один `(uid, broker)` может иметь много записей
+ * (разные счета = разные карточки). Смена счёта в слоте = «ensure
+ * target exists»: старая запись **остаётся** в истории.
  *
- * **UI-часть** (`_uiState.update` с `showBrokerDialog=false` /
- * `dialogInstrumentTicker=null` / `swipeResetTrigger` toggle)
- * остаётся в VM (Dialogs, 1:1).
+ * **Нет коллизии**: если `(uid, broker, newAccountId)` уже есть —
+ * это нормально (слот указывает на существующую запись). Никакого
+ * `Failure("account taken")`, никакого disabled в UI.
  *
- * **No-op при отсутствии карточки** — `AppResult.Success(Unit)`,
- * `save` не вызывается (1:1 по эффекту с оригиналом; сценарий
- * «карточка удалена, диалог открыт» не должен ломаться).
+ * **Идемпотентно:** повторный save с тем же `newAccountId` — no-op
+ * (`findCard` находит, `withEnsuredCard` не добавляет).
+ *
+ * **`newAccountId = null`** — валидный кейс (карточка без счёта).
+ * ensure с `null` тоже идемпотентен.
  */
 @Singleton
 class SaveCardSettingsUseCase
@@ -38,27 +42,27 @@ class SaveCardSettingsUseCase
         }
 
         suspend fun execute(
-            ticker: String,
-            brokerName: BrokerName,
-            accountId: String?,
+            instrument: Instrument,
+            newAccountId: String?,
         ): AppResult<Unit> {
-            logger.d(TAG, "execute: ticker=$ticker, brokerName=$brokerName, accountId=$accountId")
+            logger.d(
+                TAG,
+                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}, " +
+                    "newAccountId=$newAccountId",
+            )
             return try {
                 val currentCards = cardsRepository.identities.first()
-                val exists = currentCards.any { it.ticker == ticker }
-                if (!exists) {
-                    logger.w(TAG, "card not found: ticker=$ticker — no-op")
-                    return AppResult.Success(Unit)
-                }
                 val updated =
-                    currentCards.map { card ->
-                        if (card.ticker == ticker) {
-                            card.copy(brokerName = brokerName, accountId = accountId)
-                        } else {
-                            card
-                        }
-                    }
-                cardsRepository.save(updated)
+                    currentCards.withEnsuredCard(
+                        tscalpInstrumentId = instrument.tscalpInstrumentId,
+                        brokerName = instrument.brokerName,
+                        newAccountId = newAccountId,
+                    )
+                if (updated == currentCards) {
+                    logger.d(TAG, "already exists — no-op")
+                } else {
+                    cardsRepository.save(updated)
+                }
                 AppResult.Success(Unit)
             } catch (e: CancellationException) {
                 throw e

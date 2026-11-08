@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.Bond
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Currency
 import com.gitlab.biomorf.tscalp.domain.models.Etf
 import com.gitlab.biomorf.tscalp.domain.models.Future
@@ -17,6 +18,7 @@ import com.gitlab.biomorf.tscalp.transport.ktor.RestInstrument
 
 internal fun RestInstrument.toFuture(): Future =
     Future(
+        brokerName = BrokerName.TINVEST,
         tscalpInstrumentId = uid,
         ticker = ticker,
         name = name,
@@ -43,6 +45,7 @@ internal fun RestInstrument.toFuture(): Future =
 
 internal fun RestInstrument.toShare(): Share =
     Share(
+        brokerName = BrokerName.TINVEST,
         tscalpInstrumentId = uid,
         ticker = ticker,
         name = name,
@@ -69,6 +72,7 @@ internal fun RestInstrument.toShare(): Share =
 
 internal fun RestInstrument.toBond(): Bond =
     Bond(
+        brokerName = BrokerName.TINVEST,
         tscalpInstrumentId = uid,
         ticker = ticker,
         name = name,
@@ -95,6 +99,7 @@ internal fun RestInstrument.toBond(): Bond =
 
 internal fun RestInstrument.toOption(): Option =
     Option(
+        brokerName = BrokerName.TINVEST,
         tscalpInstrumentId = uid,
         ticker = ticker,
         name = name,
@@ -121,6 +126,7 @@ internal fun RestInstrument.toOption(): Option =
 
 internal fun RestInstrument.toEtf(): Etf =
     Etf(
+        brokerName = BrokerName.TINVEST,
         tscalpInstrumentId = uid,
         ticker = ticker,
         name = name,
@@ -147,6 +153,7 @@ internal fun RestInstrument.toEtf(): Etf =
 
 internal fun RestInstrument.toCurrency(): Currency =
     Currency(
+        brokerName = BrokerName.TINVEST,
         tscalpInstrumentId = uid,
         ticker = ticker,
         name = name,
@@ -173,6 +180,7 @@ internal fun RestInstrument.toCurrency(): Currency =
 
 internal fun RestInstrument.toOther(): Other =
     Other(
+        brokerName = BrokerName.TINVEST,
         tscalpInstrumentId = uid,
         ticker = ticker,
         name = name,

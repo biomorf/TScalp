@@ -9,6 +9,7 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderResult
 import com.gitlab.biomorf.tscalp.domain.models.OrderStatus
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import io.mockk.coEvery
@@ -25,15 +26,30 @@ class PostOrderUseCaseTest {
     private val prepareOrderRequest = mockk<PrepareOrderRequestUseCase>()
     private val useCase = PostOrderUseCase(ordersRepository, prepareOrderRequest)
 
+    private val sber =
+        Share(
+            brokerName = BrokerName.TINVEST,
+            tscalpInstrumentId = "uid-sber",
+            ticker = "SBER",
+            name = "Сбербанк",
+            isin = "RU0009029540",
+        )
+
+    private val tmon =
+        Share(
+            brokerName = BrokerName.TINVEST,
+            tscalpInstrumentId = "uid-pair",
+            ticker = "TMON",
+            name = "ТМОН",
+            isin = "RU0000000000",
+        )
+
     private val baseInput =
         PostOrderInput(
-            brokerName = BrokerName.TINVEST,
-            ticker = "SBER",
-            tscalpInstrumentId = "uid-sber",
+            instrument = sber,
             quantity = 2L,
             direction = OrderDirection.BUY,
             accountId = "acc-1",
-            sandboxMode = false,
             orderType = OrderTypeSelection.Market,
             limitPrice = null,
             stopPrice = null,
@@ -45,13 +61,10 @@ class PostOrderUseCaseTest {
         PrepareOrderRequestUseCase.PreparedOrders(
             primaryRequest =
                 BrokerOrderRequest(
-                    brokerName = BrokerName.TINVEST,
-                    ticker = "SBER",
-                    tscalpInstrumentId = "uid-sber",
+                    instrument = sber,
                     quantity = quantity,
                     direction = OrderDirection.BUY,
                     accountId = "acc-1",
-                    sandboxMode = false,
                 ),
             pairedRequest = null,
             isPrimaryStop = false,
@@ -60,7 +73,19 @@ class PostOrderUseCaseTest {
 
     private fun stubPrepare(prepared: PrepareOrderRequestUseCase.PreparedOrders) {
         coEvery {
-            prepareOrderRequest.prepare(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            prepareOrderRequest.prepare(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+            )
         } returns prepared
     }
 
@@ -135,9 +160,7 @@ class PostOrderUseCaseTest {
         runBlocking {
             val pairedInput =
                 PairedOrderInput(
-                    tscalpInstrumentId = "uid-pair",
-                    ticker = "TMON",
-                    brokerName = BrokerName.TINVEST,
+                    instrument = tmon,
                     accountId = "acc-1",
                     multiplier = "2",
                 )
@@ -145,13 +168,10 @@ class PostOrderUseCaseTest {
                 marketPrepared().copy(
                     pairedRequest =
                         BrokerOrderRequest(
-                            brokerName = BrokerName.TINVEST,
-                            ticker = "TMON",
-                            tscalpInstrumentId = "uid-pair",
+                            instrument = tmon,
                             quantity = 4,
                             direction = OrderDirection.SELL,
                             accountId = "acc-1",
-                            sandboxMode = false,
                         ),
                     isPairedStop = false,
                 )
@@ -175,9 +195,7 @@ class PostOrderUseCaseTest {
         runBlocking {
             val pairedInput =
                 PairedOrderInput(
-                    tscalpInstrumentId = "uid-pair",
-                    ticker = "TMON",
-                    brokerName = BrokerName.TINVEST,
+                    instrument = tmon,
                     accountId = "acc-1",
                     multiplier = "1",
                 )
@@ -185,13 +203,10 @@ class PostOrderUseCaseTest {
                 marketPrepared().copy(
                     pairedRequest =
                         BrokerOrderRequest(
-                            brokerName = BrokerName.TINVEST,
-                            ticker = "TMON",
-                            tscalpInstrumentId = "uid-pair",
+                            instrument = tmon,
                             quantity = 2,
                             direction = OrderDirection.SELL,
                             accountId = "acc-1",
-                            sandboxMode = false,
                         ),
                     isPairedStop = false,
                 )

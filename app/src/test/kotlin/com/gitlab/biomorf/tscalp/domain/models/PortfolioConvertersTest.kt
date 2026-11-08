@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.models
 
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -13,6 +14,7 @@ import org.junit.Test
 class PortfolioConvertersTest {
     private val share =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-share",
             ticker = "SBER",
             name = "Сбербанк",
@@ -20,6 +22,7 @@ class PortfolioConvertersTest {
         )
     private val future =
         Future(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-future",
             ticker = "SiU4",
             name = "Si",
@@ -27,6 +30,7 @@ class PortfolioConvertersTest {
         )
     private val bond =
         Bond(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-bond",
             ticker = "OFZ26207",
             name = "ОФЗ 26207",
@@ -34,6 +38,7 @@ class PortfolioConvertersTest {
         )
     private val option =
         Option(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-option",
             ticker = "SiU4-C-85000",
             name = "Call Si",
@@ -41,6 +46,7 @@ class PortfolioConvertersTest {
         )
     private val etf =
         Etf(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-etf",
             ticker = "TMOS",
             name = "Тинькофф iMOEX",
@@ -48,6 +54,7 @@ class PortfolioConvertersTest {
         )
     private val currency =
         Currency(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-usd",
             ticker = "USD000UTSTOM",
             name = "Доллар США",
@@ -56,6 +63,7 @@ class PortfolioConvertersTest {
         )
     private val other =
         Other(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-other",
             ticker = "OTHER",
             name = "Прочее",

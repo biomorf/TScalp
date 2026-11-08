@@ -38,9 +38,7 @@ class TInvestOrdersService(
     suspend fun postOrder(request: BrokerOrderRequest): OrderResult =
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val uid =
-                request.tscalpInstrumentId
-                    ?: throw IllegalArgumentException("BrokerOrderRequest.tscalpInstrumentId не может быть null")
+            val uid = request.instrument.tscalpInstrumentId
 
             val price =
                 if (request.type == BrokerOrderType.LIMIT && request.price != null) {
@@ -77,7 +75,7 @@ class TInvestOrdersService(
                     .build()
 
             val response =
-                if (request.sandboxMode) {
+                if (state.sandboxMode) {
                     currentApi.sandboxServiceSync.postSandboxOrder(apiRequest)
                 } else {
                     currentApi.ordersServiceSync.postOrder(apiRequest)
@@ -136,9 +134,7 @@ class TInvestOrdersService(
     suspend fun postStopOrder(request: StopOrderRequest): String =
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val uid =
-                request.tscalpInstrumentId
-                    ?: throw IllegalArgumentException("StopOrderRequest.tscalpInstrumentId не может быть null")
+            val uid = request.instrument.tscalpInstrumentId
 
             val builder =
                 PostStopOrderRequest

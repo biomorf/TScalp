@@ -1,8 +1,8 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderType
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
@@ -23,20 +23,15 @@ class PrepareOrderRequestUseCase(
     // См. ROADMAP → «Рефакторинг UseCase-слоя».
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun prepare(
-        brokerName: BrokerName,
-        ticker: String,
-        tscalpInstrumentId: String?,
+        instrument: Instrument,
         quantity: Long,
         direction: OrderDirection,
         accountId: String,
-        sandboxMode: Boolean,
         orderType: OrderTypeSelection,
         limitPrice: String?,
         stopPrice: String?,
-        expirationType: com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType,
-        pairedTscalpInstrumentId: String?,
-        pairedTicker: String?,
-        pairedBrokerName: BrokerName?,
+        expirationType: StopOrderExpirationType,
+        pairedInstrument: Instrument?,
         pairedAccountId: String?,
         pairedMultiplier: String?,
     ): PreparedOrders {
@@ -45,37 +40,28 @@ class PrepareOrderRequestUseCase(
             when (orderType) {
                 OrderTypeSelection.Market, OrderTypeSelection.Limit -> {
                     BrokerOrderRequest(
-                        brokerName = brokerName,
-                        ticker = ticker,
-                        tscalpInstrumentId = tscalpInstrumentId,
+                        instrument = instrument,
                         quantity = quantity,
                         direction = direction,
                         accountId = accountId,
-                        sandboxMode = sandboxMode,
                         type = if (orderType == OrderTypeSelection.Market) BrokerOrderType.MARKET else BrokerOrderType.LIMIT,
                         price = limitPrice?.toDoubleOrNull(),
                     )
                 }
                 else -> {
                     StopOrderRequest(
-                        brokerName = brokerName,
-                        ticker = ticker,
-                        tscalpInstrumentId = tscalpInstrumentId,
+                        instrument = instrument,
                         quantity = quantity,
                         direction = direction,
                         accountId = accountId,
-                        sandboxMode = sandboxMode,
                         stopPrice =
                             stopPrice?.toDoubleOrNull() ?: return PreparedOrders(
                                 primaryRequest =
                                     BrokerOrderRequest(
-                                        brokerName = brokerName,
-                                        ticker = ticker,
-                                        tscalpInstrumentId = tscalpInstrumentId,
+                                        instrument = instrument,
                                         quantity = quantity,
                                         direction = direction,
                                         accountId = accountId,
-                                        sandboxMode = sandboxMode,
                                         type = BrokerOrderType.MARKET,
                                         price = null,
                                     ),
@@ -93,7 +79,7 @@ class PrepareOrderRequestUseCase(
         val isPrimaryStop = primaryRequest is StopOrderRequest
 
         // Парная сделка
-        if (pairedTscalpInstrumentId == null || pairedTicker == null || pairedBrokerName == null || pairedAccountId == null) {
+        if (pairedInstrument == null || pairedAccountId == null) {
             return PreparedOrders(primaryRequest, null, isPrimaryStop, null)
         }
 
@@ -111,13 +97,10 @@ class PrepareOrderRequestUseCase(
         val pairedRequest: Any =
             if (pairedSpec.isStopOrder) {
                 StopOrderRequest(
-                    brokerName = pairedBrokerName,
-                    ticker = pairedTicker,
-                    tscalpInstrumentId = pairedTscalpInstrumentId,
+                    instrument = pairedInstrument,
                     quantity = pairedQuantity,
                     direction = pairedDirection,
                     accountId = pairedAccountId,
-                    sandboxMode = sandboxMode,
                     stopPrice = pairedSpec.stopPrice ?: return PreparedOrders(primaryRequest, null, isPrimaryStop, null),
                     price = pairedSpec.price,
                     stopOrderType = pairedSpec.stopOrderType ?: StopOrderType.STOP_LOSS,
@@ -125,13 +108,10 @@ class PrepareOrderRequestUseCase(
                 )
             } else {
                 BrokerOrderRequest(
-                    brokerName = pairedBrokerName,
-                    ticker = pairedTicker,
-                    tscalpInstrumentId = pairedTscalpInstrumentId,
+                    instrument = pairedInstrument,
                     quantity = pairedQuantity,
                     direction = pairedDirection,
                     accountId = pairedAccountId,
-                    sandboxMode = sandboxMode,
                     type = pairedSpec.brokerOrderType ?: BrokerOrderType.MARKET,
                     price = pairedSpec.price,
                 )

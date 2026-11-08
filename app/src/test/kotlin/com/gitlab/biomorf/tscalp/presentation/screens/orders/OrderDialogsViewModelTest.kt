@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.usecases.CardAccountsResult
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogOutcome
@@ -26,15 +27,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Тесты [OrderDialogsViewModel] (split `OrdersViewModel`, шаг 12a).
- *
- * Покрытие: openBrokerDialog (success / failure), closeBrokerDialog,
- * onBrokerSelected, saveBrokerSettings (success / failure).
- *
- * `loadCardAccountsUseCase` / `saveCardSettingsUseCase` — suspend ->
- * coEvery / coVerify (AGENTS «Unit-тесты: mockk для suspend-функций»).
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OrderDialogsViewModelTest {
     @get:Rule
@@ -47,6 +39,15 @@ class OrderDialogsViewModelTest {
     private val brokerRegistry = mockk<BrokerRegistry>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
 
+    private val sber =
+        Share(
+            brokerName = BrokerName.TINVEST,
+            tscalpInstrumentId = "uid-sber",
+            ticker = "SBER",
+            name = "Сбербанк",
+            isin = "RU0009029540",
+        )
+
     private fun createVm() =
         OrderDialogsViewModel(
             loadCardAccountsUseCase,
@@ -57,40 +58,66 @@ class OrderDialogsViewModelTest {
             logger,
         )
 
+    private fun success(
+        broker: BrokerName = BrokerName.TINVEST,
+        selectedAccountId: String? = "acc-1",
+    ) = OpenCardDialogOutcome.Success(
+        OpenCardDialogResult(broker, emptyList(), selectedAccountId),
+    )
+
     @Test
     fun `openBrokerDialog success sets dialog state`() =
         runTest {
-            coEvery { openCardDialogUseCase.execute("SBER") } returns
-                OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
-                )
-
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns success()
             val vm = createVm()
-            vm.openBrokerDialog("SBER")
+            vm.openBrokerDialog(sber)
             advanceUntilIdle()
 
             val s = vm.state.value
             assertTrue(s.showBrokerDialog)
-            assertEquals("SBER", s.dialogInstrumentTicker)
+            assertEquals(sber, s.dialogInstrument)
             assertEquals(BrokerName.TINVEST, s.selectedBroker)
             assertEquals("acc-1", s.selectedAccountIdDialog)
             assertTrue(s.dialogAccounts.isEmpty())
-            coVerify(exactly = 1) { openCardDialogUseCase.execute("SBER") }
+            coVerify(exactly = 1) { openCardDialogUseCase.execute(sber, null) }
+        }
+
+    @Test
+    fun `openBrokerDialog passes currentAccountId to usecase`() =
+        runTest {
+            coEvery { openCardDialogUseCase.execute(sber, "acc-1") } returns success(selectedAccountId = "acc-1")
+            val vm = createVm()
+            vm.openBrokerDialog(sber, currentAccountId = "acc-1")
+            advanceUntilIdle()
+
+            assertEquals("acc-1", vm.state.value.selectedAccountIdDialog)
+            coVerify(exactly = 1) { openCardDialogUseCase.execute(sber, "acc-1") }
+        }
+
+    @Test
+    fun `openBrokerDialog stores dialogSlot`() =
+        runTest {
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns success()
+            val vm = createVm()
+            vm.openBrokerDialog(sber, slot = CardSlot.PAIR)
+            advanceUntilIdle()
+
+            assertEquals(CardSlot.PAIR, vm.state.value.dialogSlot)
         }
 
     @Test
     fun `openBrokerDialog failure clears selected account`() =
         runTest {
-            coEvery { openCardDialogUseCase.execute("SBER") } returns
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Failure(BrokerName.TINVEST, AppError.Network("err", null))
 
             val vm = createVm()
-            vm.openBrokerDialog("SBER")
+            vm.openBrokerDialog(sber)
             advanceUntilIdle()
 
             val s = vm.state.value
             assertTrue(s.showBrokerDialog)
-            assertEquals("SBER", s.dialogInstrumentTicker)
+            assertEquals(sber, s.dialogInstrument)
             assertNull(s.selectedAccountIdDialog)
             assertTrue(s.dialogAccounts.isEmpty())
         }
@@ -98,13 +125,9 @@ class OrderDialogsViewModelTest {
     @Test
     fun `closeBrokerDialog resets flags and toggles swipe`() =
         runTest {
-            coEvery { openCardDialogUseCase.execute("SBER") } returns
-                OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
-                )
-
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns success()
             val vm = createVm()
-            vm.openBrokerDialog("SBER")
+            vm.openBrokerDialog(sber)
             advanceUntilIdle()
             val before = vm.state.value.swipeResetTrigger
 
@@ -112,22 +135,19 @@ class OrderDialogsViewModelTest {
 
             val s = vm.state.value
             assertFalse(s.showBrokerDialog)
-            assertNull(s.dialogInstrumentTicker)
+            assertNull(s.dialogInstrument)
             assertEquals(!before, s.swipeResetTrigger)
         }
 
     @Test
     fun `onBrokerSelected reloads accounts with null saved id`() =
         runTest {
-            coEvery { openCardDialogUseCase.execute("SBER") } returns
-                OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
-                )
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns success()
             coEvery { loadCardAccountsUseCase.execute(BrokerName.BCS, false, null) } returns
                 AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "bcs-acc"))
 
             val vm = createVm()
-            vm.openBrokerDialog("SBER")
+            vm.openBrokerDialog(sber)
             advanceUntilIdle()
 
             vm.onBrokerSelected(BrokerName.BCS)
@@ -140,51 +160,66 @@ class OrderDialogsViewModelTest {
         }
 
     @Test
-    fun `saveBrokerSettings success closes dialog`() =
+    fun `saveBrokerSettings success closes dialog and calls onSaved`() =
         runTest {
-            coEvery { openCardDialogUseCase.execute("SBER") } returns
-                OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
-                )
-            coEvery { saveCardSettingsUseCase.execute("SBER", BrokerName.TINVEST, "acc-1") } returns
-                AppResult.Success(Unit)
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns success(selectedAccountId = "acc-1")
+            coEvery { saveCardSettingsUseCase.execute(sber, "acc-1") } returns AppResult.Success(Unit)
 
             val vm = createVm()
-            vm.openBrokerDialog("SBER")
+            vm.openBrokerDialog(sber)
             advanceUntilIdle()
             val before = vm.state.value.swipeResetTrigger
 
-            vm.saveBrokerSettings()
+            var savedSlot: CardSlot? = null
+            var savedAccount: String? = "unset"
+            vm.saveBrokerSettings { slot, acc ->
+                savedSlot = slot
+                savedAccount = acc
+            }
             advanceUntilIdle()
 
             val s = vm.state.value
             assertFalse(s.showBrokerDialog)
-            assertNull(s.dialogInstrumentTicker)
+            assertNull(s.dialogInstrument)
             assertEquals(!before, s.swipeResetTrigger)
-            coVerify(exactly = 1) { saveCardSettingsUseCase.execute("SBER", BrokerName.TINVEST, "acc-1") }
+            assertEquals(CardSlot.PRIMARY, savedSlot)
+            assertEquals("acc-1", savedAccount)
+            coVerify(exactly = 1) { saveCardSettingsUseCase.execute(sber, "acc-1") }
         }
 
     @Test
-    fun `saveBrokerSettings failure still closes dialog`() =
+    fun `saveBrokerSettings passes pair slot to onSaved`() =
         runTest {
-            coEvery { openCardDialogUseCase.execute("SBER") } returns
-                OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult("SBER", BrokerName.TINVEST, emptyList(), "acc-1"),
-                )
-            coEvery { saveCardSettingsUseCase.execute("SBER", BrokerName.TINVEST, "acc-1") } returns
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns success(selectedAccountId = "acc-1")
+            coEvery { saveCardSettingsUseCase.execute(sber, "acc-1") } returns AppResult.Success(Unit)
+
+            val vm = createVm()
+            vm.openBrokerDialog(sber, slot = CardSlot.PAIR)
+            advanceUntilIdle()
+
+            var savedSlot: CardSlot? = null
+            vm.saveBrokerSettings { slot, _ -> savedSlot = slot }
+            advanceUntilIdle()
+
+            assertEquals(CardSlot.PAIR, savedSlot)
+        }
+
+    @Test
+    fun `saveBrokerSettings failure closes dialog without onSaved`() =
+        runTest {
+            coEvery { openCardDialogUseCase.execute(sber, null) } returns success()
+            coEvery { saveCardSettingsUseCase.execute(sber, "acc-1") } returns
                 AppResult.Failure(AppError.Network("err", null))
 
             val vm = createVm()
-            vm.openBrokerDialog("SBER")
-            advanceUntilIdle()
-            val before = vm.state.value.swipeResetTrigger
-
-            vm.saveBrokerSettings()
+            vm.openBrokerDialog(sber)
             advanceUntilIdle()
 
-            val s = vm.state.value
-            assertFalse(s.showBrokerDialog)
-            assertNull(s.dialogInstrumentTicker)
-            assertEquals(!before, s.swipeResetTrigger)
+            var called = false
+            vm.saveBrokerSettings { _, _ -> called = true }
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.showBrokerDialog)
+            assertEquals(false, called)
         }
 }

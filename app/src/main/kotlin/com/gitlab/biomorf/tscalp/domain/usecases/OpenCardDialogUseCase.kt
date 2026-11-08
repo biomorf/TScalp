@@ -8,18 +8,22 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.findCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Результат [OpenCardDialogUseCase]: ticker + broker + accounts +
+ * Результат [OpenCardDialogUseCase]: broker + accounts +
  * selectedAccountId — всё, что нужно `OrderDialogsState` для
  * открытия диалога карточки.
+ *
+ * `oldAccountId` не нужен: модель A (1b-11) — ensure-add,
+ * старая карточка не удаляется.
  */
 data class OpenCardDialogResult(
-    val ticker: String,
     val broker: BrokerName,
     val accounts: List<BrokerAccount>,
     val selectedAccountId: String?,
@@ -31,9 +35,7 @@ data class OpenCardDialogResult(
  * **Почему не `AppResult`:** `Failure` должен нести [broker] — иначе
  * VM не может выставить `selectedBroker` 1:1 (см. `openBrokerDialog`
  * в `OrderDialogsViewModel`: `selectedBroker = existingCard?.brokerName
- * ?: TINVEST` даже на failure). Если `broker` неизвестен (поток
- * `identities` / `selected` бросил до резолва) — fallback `TINVEST`
- * (совпадает с «нет карточки»).
+ * ?: TINVEST` даже на failure).
  */
 sealed interface OpenCardDialogOutcome {
     data class Success(
@@ -52,22 +54,13 @@ sealed interface OpenCardDialogOutcome {
  * `OrderDialogsViewModel.openBrokerDialog` (findCard + selected
  * fallback + `LoadCardAccountsUseCase.execute`).
  *
- * **Не путать с [LoadCardAccountsUseCase]:** тот делает только
- * getAccounts + savedFallback; здесь — findCard по ticker из
- * `CardsRepository.identities` + selected fallback из
- * `AccountSelectionRepository.selected(TINVEST)` + `sandboxMode`
- * из `SandboxPreferencesRepository` + делегирование в
- * `LoadCardAccountsUseCase`.
- *
- * **Не путать с `loadDialogAccounts` (VM):** тот — thin delegate
- * на `LoadCardAccountsUseCase` (M2-fixed in 12a, не M2).
+ * **Composite-ключ (Фаза 1b):** `findCard(instrument, currentAccountId)`
+ * — по полному `(uid, broker, accountId)` карточки слота. `currentAccountId`
+ * — accountId, с которым карточка сейчас в слоте (может быть `null` —
+ * карточка создана до выбора счёта).
  *
  * **Failure из [LoadCardAccountsUseCase]** — `OpenCardDialogOutcome.Failure(broker, error)`,
- * не `AppResult.Failure`: [broker] нужен VM для 1:1 `selectedBroker`
- * (см. `OrderDialogsViewModel.openBrokerDialog`). VM разбирает failure
- * 1:1: `showBrokerDialog = true`, `dialogInstrumentTicker = ticker`,
- * `selectedBroker = outcome.broker`, `dialogAccounts = emptyList()`,
- * `selectedAccountIdDialog = null`.
+ * не `AppResult.Failure`: [broker] нужен VM для 1:1 `selectedBroker`.
  *
  * Non-throwing (кроме `CancellationException` — rethrow).
  */
@@ -85,15 +78,21 @@ class OpenCardDialogUseCase
             private const val TAG = "OpenCardDialogUseCase"
         }
 
-        suspend fun execute(ticker: String): OpenCardDialogOutcome {
-            logger.d(TAG, "execute: ticker=$ticker")
+        suspend fun execute(
+            instrument: Instrument,
+            currentAccountId: String?,
+        ): OpenCardDialogOutcome {
+            logger.d(
+                TAG,
+                "execute: uid=${instrument.tscalpInstrumentId}, " +
+                    "broker=${instrument.brokerName}, currentAccountId=$currentAccountId",
+            )
             return try {
-                val existingCard =
-                    cardsRepository.identities.first().find { it.ticker == ticker }
-                val broker = existingCard?.brokerName ?: BrokerName.TINVEST
+                val existingCard = cardsRepository.identities.first().findCard(instrument, currentAccountId)
+                val broker = existingCard?.brokerName ?: instrument.brokerName
                 val savedAccountId =
                     existingCard?.accountId
-                        ?: accountSelectionRepository.selected(BrokerName.TINVEST).first()
+                        ?: accountSelectionRepository.selected(broker).first()
 
                 when (
                     val result =
@@ -106,7 +105,6 @@ class OpenCardDialogUseCase
                     is AppResult.Success ->
                         OpenCardDialogOutcome.Success(
                             OpenCardDialogResult(
-                                ticker = ticker,
                                 broker = broker,
                                 accounts = result.data.accounts,
                                 selectedAccountId = result.data.selectedAccountId,
@@ -115,7 +113,7 @@ class OpenCardDialogUseCase
                     is AppResult.Failure -> {
                         logger.e(
                             TAG,
-                            "loadCardAccounts failed: ticker=$ticker, " +
+                            "loadCardAccounts failed: uid=${instrument.tscalpInstrumentId}, " +
                                 "broker=${broker.displayName}: ${result.error.message}",
                             result.error.cause,
                         )
@@ -125,7 +123,7 @@ class OpenCardDialogUseCase
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                logger.e(TAG, "open card dialog exception: ticker=$ticker", e)
+                logger.e(TAG, "open card dialog exception: uid=${instrument.tscalpInstrumentId}", e)
                 OpenCardDialogOutcome.Failure(
                     broker = BrokerName.TINVEST,
                     error = AppError.Unknown("Ошибка открытия диалога карточки: ${e.message}", e),

@@ -4,6 +4,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import io.mockk.coEvery
@@ -23,6 +24,7 @@ class SelectPairedInstrumentUseCaseTest {
 
     private val gazp =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-gazp",
             ticker = "GAZP",
             name = "Газпром",

@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesReposit
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogUseCase
@@ -23,38 +24,13 @@ import javax.inject.Inject
  * ViewModel диалога выбора брокера и счёта для карточки инструмента.
  *
  * Вынесено из `OrdersViewModel` в рамках split `OrdersViewModel`
- * (M013 / A2, шаг 12a). Тела методов 1:1 с прежними Dialog-методами
- * Coord'а, кроме двух замен источников:
- * - `_uiState.value.lastSelectedInstruments` ->
- *   `cardsRepository.identities.first()` — эквивалент:
- *   `lastSelectedInstruments` — projection of [CardsRepository.identities]
- *   через A3/A4 [RefreshSelectedInstrumentsUseCase];
- * - `_uiState.value.selectedAccountId` ->
- *   `accountSelectionRepository.selected(TINVEST).first()` — эквивалент:
- *   Coord `selectedAccountId` приходит из `loadOrdersAccountsUseCase`,
- *   чей source — [AccountSelectionRepository.selected] + fallback
- *   `accounts.firstOrNull()?.id`; [LoadCardAccountsUseCase] при
- *   `savedAccountId = null` делает тот же fallback.
+ * (M013 / A2, шаг 12a). Семантика Dialog-методов 1:1 с прежними.
  *
- * **Не обновляет** `lastSelectedInstruments` (Coord реагирует на
- * [CardsRepository.identities] через A3) и **не вызывает**
- * `startPositionUpdates` (UI-оркестрация, KDoc в Composable — 12b, P4).
- *
- * **2c (фиксировано):** inject `SandboxPreferencesRepository`
- * (domain.api.repository) — не отклонение: интерфейс в domain-слое
- * после пакета B (H68).
- *
- * **M2 partial (clean-audit M013, L1):** `openBrokerDialog`
- * содержит orchestration (find `existingCard` + `savedAccountId`
- * fallback) — pre-existing M013, не новое (Coord делал то же
- * до 12a). **Правило Clean:** M2 — business-orchestration в VM,
- * не в UseCase. **Clean-альтернатива:** `OpenBrokerDialogUseCase
- * (ticker): AppResult<CardAccountsResult>` — findCard +
- * savedFallback + `LoadCardAccountsUseCase.execute(...)`.
- * **Выгоды:** 1:1 с Coord (минимальный diff 12a);
- * `loadCardAccountsUseCase` уже покрывает основную orchestration
- * (Q10/Q11, ROADMAP 12a); снижение diff-риска в 12b.
- * Чистая альтернатива — отдельная задача (эволюция M013).
+ * **Фаза 1b-11 (модель A):** `openBrokerDialog(instrument,
+ * currentAccountId, slot)` — `currentAccountId` = accountId слота;
+ * `slot` — для роутинга callback. `saveBrokerSettings` →
+ * `SaveCardSettingsUseCase.execute(instrument, new)` (ensure-add:
+ * `CardIdentity` — история, старая запись не удаляется).
  */
 @HiltViewModel
 class OrderDialogsViewModel
@@ -70,15 +46,20 @@ class OrderDialogsViewModel
         private val _state = MutableStateFlow(OrderDialogsState())
         val state: StateFlow<OrderDialogsState> = _state.asStateFlow()
 
-        fun openBrokerDialog(ticker: String) {
+        fun openBrokerDialog(
+            instrument: Instrument,
+            currentAccountId: String? = null,
+            slot: CardSlot = CardSlot.PRIMARY,
+        ) {
             viewModelScope.launch {
-                when (val outcome = openCardDialogUseCase.execute(ticker)) {
+                when (val outcome = openCardDialogUseCase.execute(instrument, currentAccountId)) {
                     is OpenCardDialogOutcome.Success -> {
                         val data = outcome.result
                         _state.update {
                             it.copy(
                                 showBrokerDialog = true,
-                                dialogInstrumentTicker = ticker,
+                                dialogInstrument = instrument,
+                                dialogSlot = slot,
                                 selectedBroker = data.broker,
                                 selectedAccountIdDialog = data.selectedAccountId,
                                 dialogAccounts = data.accounts,
@@ -94,7 +75,8 @@ class OrderDialogsViewModel
                         _state.update {
                             it.copy(
                                 showBrokerDialog = true,
-                                dialogInstrumentTicker = ticker,
+                                dialogInstrument = instrument,
+                                dialogSlot = slot,
                                 selectedBroker = outcome.broker,
                                 selectedAccountIdDialog = null,
                                 dialogAccounts = emptyList(),
@@ -109,7 +91,8 @@ class OrderDialogsViewModel
             _state.update {
                 it.copy(
                     showBrokerDialog = false,
-                    dialogInstrumentTicker = null,
+                    dialogInstrument = null,
+                    dialogSlot = CardSlot.PRIMARY,
                     swipeResetTrigger = !it.swipeResetTrigger,
                 )
             }
@@ -126,24 +109,27 @@ class OrderDialogsViewModel
             _state.update { it.copy(selectedAccountIdDialog = accountId) }
         }
 
-        fun saveBrokerSettings() {
-            val ticker = _state.value.dialogInstrumentTicker ?: return
-            val broker = _state.value.selectedBroker
-            val accountId = _state.value.selectedAccountIdDialog
+        fun saveBrokerSettings(onSaved: (CardSlot, String?) -> Unit = { _, _ -> }) {
+            val instrument = _state.value.dialogInstrument ?: return
+            val slot = _state.value.dialogSlot
+            val newAccountId = _state.value.selectedAccountIdDialog
             viewModelScope.launch {
-                when (val result = saveCardSettingsUseCase.execute(ticker, broker, accountId)) {
+                when (val result = saveCardSettingsUseCase.execute(instrument, newAccountId)) {
                     is AppResult.Success -> {
                         logger.d(
                             TAG,
-                            "saveBrokerSettings: ticker=$ticker, broker=$broker, accountId=$accountId",
+                            "saveBrokerSettings: uid=${instrument.tscalpInstrumentId}, " +
+                                "broker=${instrument.brokerName}, newAccountId=$newAccountId",
                         )
                         _state.update { state ->
                             state.copy(
                                 showBrokerDialog = false,
-                                dialogInstrumentTicker = null,
+                                dialogInstrument = null,
+                                dialogSlot = CardSlot.PRIMARY,
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }
+                        onSaved(slot, newAccountId)
                     }
                     is AppResult.Failure -> {
                         logger.e(
@@ -154,7 +140,8 @@ class OrderDialogsViewModel
                         _state.update { state ->
                             state.copy(
                                 showBrokerDialog = false,
-                                dialogInstrumentTicker = null,
+                                dialogInstrument = null,
+                                dialogSlot = CardSlot.PRIMARY,
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }

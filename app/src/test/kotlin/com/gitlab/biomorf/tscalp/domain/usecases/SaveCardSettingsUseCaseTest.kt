@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
+import com.gitlab.biomorf.tscalp.domain.models.Share
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -22,47 +23,114 @@ class SaveCardSettingsUseCaseTest {
     private val logger = mockk<Logger>(relaxed = true)
     private val useCase = SaveCardSettingsUseCase(cardsRepository, logger)
 
+    private val sber =
+        Share(
+            brokerName = BrokerName.TINVEST,
+            tscalpInstrumentId = "uid-sber",
+            ticker = "SBER",
+            name = "Сбербанк",
+            isin = "RU0009029540",
+        )
+
     @Test
-    fun `card exists updates brokerName and accountId`() =
+    fun `ensure adds card when missing`() =
         runBlocking {
-            val existing =
-                CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER", brokerName = BrokerName.TINVEST, accountId = "t-inv")
+            val existing = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
             every { cardsRepository.identities } returns flowOf(listOf(existing))
 
-            val r = useCase.execute("SBER", BrokerName.BCS, "bcs-acc")
+            val r = useCase.execute(sber, newAccountId = "B")
 
             assertTrue(r is AppResult.Success)
             coVerify(exactly = 1) {
                 cardsRepository.save(
                     match { cards ->
-                        cards.size == 1 &&
-                            cards[0].ticker == "SBER" &&
-                            cards[0].brokerName == BrokerName.BCS &&
-                            cards[0].accountId == "bcs-acc"
+                        cards.size == 2 &&
+                            cards.any { it.accountId == "A" } &&
+                            cards.any { it.accountId == "B" }
                     },
                 )
             }
         }
 
     @Test
-    fun `card not found is no-op success without save`() =
+    fun `ensure on empty list creates single card`() =
         runBlocking {
             every { cardsRepository.identities } returns flowOf(emptyList())
 
-            val r = useCase.execute("SBER", BrokerName.BCS, "bcs-acc")
+            val r = useCase.execute(sber, newAccountId = "A")
+
+            assertTrue(r is AppResult.Success)
+            coVerify(exactly = 1) {
+                cardsRepository.save(
+                    match { cards ->
+                        cards.size == 1 &&
+                            cards[0].tscalpInstrumentId == "uid-sber" &&
+                            cards[0].brokerName == BrokerName.TINVEST &&
+                            cards[0].accountId == "A"
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `ensure no-op when card already exists`() =
+        runBlocking {
+            val existing = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
+            every { cardsRepository.identities } returns flowOf(listOf(existing))
+
+            val r = useCase.execute(sber, newAccountId = "A")
 
             assertTrue(r is AppResult.Success)
             coVerify(exactly = 0) { cardsRepository.save(any()) }
         }
 
     @Test
+    fun `ensure adds null-account card when missing`() =
+        runBlocking {
+            every { cardsRepository.identities } returns flowOf(emptyList())
+
+            val r = useCase.execute(sber, newAccountId = null)
+
+            assertTrue(r is AppResult.Success)
+            coVerify(exactly = 1) {
+                cardsRepository.save(
+                    match { cards ->
+                        cards.size == 1 && cards[0].accountId == null
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `ensure does not remove stale accounts`() =
+        runBlocking {
+            // (SBER, A) и (SBER, B) в истории; ensure C — обе остаются.
+            val a = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
+            val b = CardIdentity("uid-sber", BrokerName.TINVEST, "B")
+            every { cardsRepository.identities } returns flowOf(listOf(a, b))
+
+            val r = useCase.execute(sber, newAccountId = "C")
+
+            assertTrue(r is AppResult.Success)
+            coVerify(exactly = 1) {
+                cardsRepository.save(
+                    match { cards ->
+                        cards.size == 3 &&
+                            cards.any { it.accountId == "A" } &&
+                            cards.any { it.accountId == "B" } &&
+                            cards.any { it.accountId == "C" }
+                    },
+                )
+            }
+        }
+
+    @Test
     fun `exception returns Failure Unknown`() =
         runBlocking {
-            every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER")))
+            every { cardsRepository.identities } returns flowOf(emptyList())
             coEvery { cardsRepository.save(any()) } throws RuntimeException("boom")
 
-            val r = useCase.execute("SBER", BrokerName.BCS, "bcs-acc")
+            val r = useCase.execute(sber, newAccountId = "A")
 
             assertTrue(r is AppResult.Failure)
             val err = (r as AppResult.Failure).error
@@ -72,12 +140,11 @@ class SaveCardSettingsUseCaseTest {
     @Test
     fun `cancellation rethrows`() =
         runBlocking {
-            every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER")))
+            every { cardsRepository.identities } returns flowOf(emptyList())
             coEvery { cardsRepository.save(any()) } throws CancellationException()
 
             try {
-                useCase.execute("SBER", BrokerName.BCS, "bcs-acc")
+                useCase.execute(sber, newAccountId = "A")
                 fail("expected CancellationException")
             } catch (expected: CancellationException) {
                 // OK

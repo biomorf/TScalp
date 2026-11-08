@@ -39,6 +39,7 @@ class PositionFlowManagerTest {
 
     private fun shareInstrument(uid: String): Share =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = uid,
             ticker = "T-$uid",
             name = "Name $uid",
@@ -69,6 +70,7 @@ class PositionFlowManagerTest {
         CurrencyPosition(
             instrument =
                 Currency(
+                    brokerName = BrokerName.TINVEST,
                     tscalpInstrumentId = uid,
                     ticker = currency.uppercase(),
                     name = currency.uppercase(),

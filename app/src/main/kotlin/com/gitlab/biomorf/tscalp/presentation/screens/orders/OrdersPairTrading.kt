@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -47,7 +48,7 @@ internal fun OrdersPairSection(
     onOpenPairSearchBrokerSettings: () -> Unit,
     onPairTradingEnabledChanged: (Boolean) -> Unit,
     onClearPairedInstrument: () -> Unit,
-    onOpenBrokerDialog: (String) -> Unit,
+    onOpenBrokerDialog: (Instrument, String?) -> Unit,
     onPairedMultiplierChanged: (String) -> Unit,
 ) {
     Row(
@@ -91,7 +92,7 @@ internal fun OrdersPairSection(
         }
     } else {
         formState.pairedInstrument.let { instrument: Instrument ->
-            val card = coordState.activePairedCardFor(formState.pairedInstrument)
+            val card = coordState.activePairedCardFor(formState.pairedInstrument, formState.pairedAccountId)
             val pairPrice =
                 formState.pairCurrentPrice
                     ?: card?.currentPrice
@@ -108,7 +109,7 @@ internal fun OrdersPairSection(
                 displayCurrentPrice = pairPrice,
                 priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearPairedInstrument,
-                onSettings = { onOpenBrokerDialog(instrument.ticker) },
+                onSettings = { onOpenBrokerDialog(instrument, formState.pairedAccountId) },
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,

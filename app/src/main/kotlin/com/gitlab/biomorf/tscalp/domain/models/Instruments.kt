@@ -35,6 +35,7 @@ import kotlin.time.Instant
  * @property blockedTcaFlag флаг блокировки TCA.
  */
 sealed interface Instrument {
+    val brokerName: BrokerName
     val tscalpInstrumentId: String
     val ticker: String
     val name: String
@@ -86,6 +87,7 @@ sealed interface Instrument {
  * @property kshort коэффициент риска short.
  */
 data class Future(
+    override val brokerName: BrokerName,
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val name: String,
@@ -139,6 +141,7 @@ data class Future(
  * @property liquidityFlag флаг ликвидности.
  */
 data class Share(
+    override val brokerName: BrokerName,
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val name: String,
@@ -181,6 +184,7 @@ data class Share(
  * @property creditRating кредитный рейтинг.
  */
 data class Bond(
+    override val brokerName: BrokerName,
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val name: String,
@@ -228,6 +232,7 @@ data class Bond(
  * @property lastTradeDate дата окончания торгов.
  */
 data class Option(
+    override val brokerName: BrokerName,
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val name: String,
@@ -261,6 +266,7 @@ data class Option(
 
 /** ETF. Только core + common (subtype-specific нет). */
 data class Etf(
+    override val brokerName: BrokerName,
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val name: String,
@@ -287,6 +293,7 @@ data class Etf(
 
 /** Валюта. Только core + common. */
 data class Currency(
+    override val brokerName: BrokerName,
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val name: String,
@@ -313,6 +320,7 @@ data class Currency(
 
 /** Прочее. Только core + common. */
 data class Other(
+    override val brokerName: BrokerName,
     override val tscalpInstrumentId: String,
     override val ticker: String,
     override val name: String,

@@ -3,7 +3,6 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -11,6 +10,7 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -27,7 +27,6 @@ class PlaceOrderUseCaseTest {
     private val postOrderUseCase = mockk<PostOrderUseCase>(relaxed = true)
     private val cardsRepository = mockk<CardsRepository>(relaxed = true)
     private val accountSelectionRepository = mockk<AccountSelectionRepository>(relaxed = true)
-    private val sandboxPreferencesRepository = mockk<SandboxPreferencesRepository>(relaxed = true)
     private val portfolioRepository = mockk<PortfolioRepository>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
 
@@ -36,7 +35,6 @@ class PlaceOrderUseCaseTest {
             postOrderUseCase = postOrderUseCase,
             cardsRepository = cardsRepository,
             accountSelectionRepository = accountSelectionRepository,
-            sandboxPreferencesRepository = sandboxPreferencesRepository,
             portfolioRepository = portfolioRepository,
             logger = logger,
         )
@@ -44,29 +42,36 @@ class PlaceOrderUseCaseTest {
     private val card =
         CardIdentity(
             tscalpInstrumentId = "uid-sber",
-            ticker = "SBER",
             brokerName = BrokerName.TINVEST,
             accountId = "acc-1",
         )
 
+    private val sber =
+        Share(
+            brokerName = BrokerName.TINVEST,
+            tscalpInstrumentId = "uid-sber",
+            ticker = "SBER",
+            name = "Сбербанк",
+            isin = "RU0009029540",
+        )
+
     private val request =
         PlaceOrderRequest(
-            ticker = "SBER",
-            tscalpInstrumentId = "uid-sber",
+            instrument = sber,
+            selectedAccountId = "acc-1",
             quantity = 1L,
             orderType = OrderTypeSelection.Market,
             limitPrice = "",
             stopPrice = "",
             expirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
-            pairedTscalpInstrumentId = null,
-            pairedTicker = null,
+            pairedInstrument = null,
+            pairedAccountId = null,
             pairedMultiplier = "1",
         )
 
     private fun stubHappyResolve() {
         every { cardsRepository.identities } returns flowOf(listOf(card))
         every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf("acc-1")
-        coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
     }
 
     @Test
@@ -89,7 +94,7 @@ class PlaceOrderUseCaseTest {
             coVerify(exactly = 1) {
                 postOrderUseCase.execute(
                     match { input ->
-                        input.ticker == "SBER" &&
+                        input.instrument.tscalpInstrumentId == "uid-sber" &&
                             input.accountId == "acc-1" &&
                             input.direction == OrderDirection.BUY
                     },
@@ -144,12 +149,16 @@ class PlaceOrderUseCaseTest {
         }
 
     @Test
-    fun `invalid when neither card nor selected account resolves`() =
+    fun `invalid when card request account and selection all null`() =
         runBlocking {
             every { cardsRepository.identities } returns flowOf(emptyList())
             every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf(null)
 
-            val r = useCase.execute(request, OrderDirection.BUY)
+            val r =
+                useCase.execute(
+                    request.copy(selectedAccountId = null),
+                    OrderDirection.BUY,
+                )
 
             assertTrue(r is PlaceOrderOutcome.InvalidRequest)
             coVerify(exactly = 0) { postOrderUseCase.execute(any()) }

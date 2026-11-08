@@ -40,7 +40,7 @@ import javax.inject.Singleton
  * - `quantity = pos?.quantity?.toLong() ?: 0L`;
  * - `profit = pos?.profit ?: 0.0`;
  * - `profitPercent = pos?.profitPercent ?: 0.0`;
- * - `position` ищется по `position.instrument.ticker == card.instrument.ticker`;
+ * - `position` ищется по composite `(tscalpInstrumentId, brokerName)`;
  * - `brokerName` позиции — `TINVEST` (жёстко, 1:1 с оригиналом).
  */
 @Singleton
@@ -59,7 +59,11 @@ class RefreshSelectedInstrumentsUseCase
                     accountId
                         ?.let { sheet.accounts[AccountKey(BrokerName.TINVEST, it)]?.positions }
                         .orEmpty()
-                val pos = positions.find { it.instrument.ticker == card.instrument.ticker }
+                val pos =
+                    positions.find { p ->
+                        p.instrument.tscalpInstrumentId == card.instrument.tscalpInstrumentId &&
+                            p.instrument.brokerName == card.instrument.brokerName
+                    }
                 card.copy(
                     quantity = pos?.quantity?.toLong() ?: 0L,
                     averagePrice = pos?.currentPrice ?: card.averagePrice,

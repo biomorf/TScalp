@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.Share
@@ -36,6 +37,7 @@ class CalculateTradeDetailsUseCaseTest {
 
     private fun share(ticker: String = "SBER"): Share =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid_$ticker",
             ticker = ticker,
             classCode = "TQBR",
@@ -51,6 +53,7 @@ class CalculateTradeDetailsUseCaseTest {
         priceStepCost: Double = 1.0,
     ): Future =
         Future(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid_$ticker",
             ticker = ticker,
             classCode = "SPBFUT",
@@ -268,6 +271,7 @@ class CalculateTradeDetailsUseCaseTest {
     fun `cost for futures without pointValue uses multiplier 1_0`() {
         val futureWithoutPoint =
             Future(
+                brokerName = BrokerName.TINVEST,
                 tscalpInstrumentId = "uid_f",
                 ticker = "F",
                 classCode = "SPBFUT",

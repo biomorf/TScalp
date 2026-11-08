@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
@@ -35,7 +36,7 @@ internal fun OrdersInstrumentSection(
     onRefreshSearch: () -> Unit,
     onOpenSearchSettings: () -> Unit,
     onClearSelected: () -> Unit,
-    onOpenBrokerDialog: (String) -> Unit,
+    onOpenBrokerDialog: (Instrument, String?) -> Unit,
 ) {
     if (formState.selectedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -63,7 +64,7 @@ internal fun OrdersInstrumentSection(
         }
     } else {
         formState.selectedInstrument.let { instrument: Instrument ->
-            val card = coordState.activeCardFor(formState.selectedInstrument)
+            val card = coordState.activeCardFor(formState.selectedInstrument, formState.selectedAccountId)
             val currentPrice = formState.currentPrice ?: card?.currentPrice ?: 0.0
             val position =
                 emptyPosition(
@@ -77,7 +78,7 @@ internal fun OrdersInstrumentSection(
                 displayCurrentPrice = currentPrice,
                 priceChangePercent = formState.selectedPriceChangePercent,
                 onDelete = onClearSelected,
-                onSettings = { onOpenBrokerDialog(instrument.ticker) },
+                onSettings = { onOpenBrokerDialog(instrument, formState.selectedAccountId) },
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,

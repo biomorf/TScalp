@@ -15,11 +15,15 @@ import javax.inject.Singleton
  * Реализация [CardsRepository] на DataStore.
  *
  * Формат хранения — plain, построчно:
- * `<brokerName.name>|<ticker>|<accountId>`, каждая карточка на
- * отдельной строке. Пустой `accountId` — пустая строка в третьей
- * позиции. `|` в полях невозможен (`ticker` — alphanumeric,
- * `accountId` — alphanumeric, `brokerName.name` — enum-имя),
- * экранирование не требуется.
+ * `<brokerName.name>|<tscalpInstrumentId>|<accountId>`, каждая
+ * карточка на отдельной строке. Пустой `accountId` — пустая
+ * строка в третьей позиции. `|` в полях невозможен
+ * (`tscalpInstrumentId` — alphanumeric, `accountId` —
+ * alphanumeric, `brokerName.name` — enum-имя), экранирование
+ * не требуется.
+ *
+ * **Legacy не поддерживается** (2026-11-08): пользователей нет,
+ * проект не в проде. Decode — только 3-польный формат.
  *
  * Почему plain, а не `@Serializable`: `CardIdentity` — 3 поля,
  * добавление `kotlinx-serialization-json` как прямой зависимости
@@ -33,8 +37,7 @@ class CardsRepositoryImpl
         private val dataStore: DataStore<Preferences>,
     ) : CardsRepository {
         private companion object {
-            private const val PARTS_COUNT_NEW = 4
-            private const val PARTS_COUNT_LEGACY = 3
+            private const val PARTS_COUNT = 3
         }
 
         override val identities: Flow<List<CardIdentity>> =
@@ -55,40 +58,21 @@ class CardsRepositoryImpl
             }
         }
 
-        private fun encode(id: CardIdentity): String = "${id.brokerName.name}|${id.tscalpInstrumentId}|${id.ticker}|${id.accountId ?: ""}"
+        private fun encode(id: CardIdentity): String = "${id.brokerName.name}|${id.tscalpInstrumentId}|${id.accountId ?: ""}"
 
         private fun decode(raw: String): List<CardIdentity> =
             raw.split("\n").filter { it.isNotBlank() }.mapNotNull { line ->
                 val parts = line.split("|")
-                when (parts.size) {
-                    PARTS_COUNT_NEW -> {
-                        val broker =
-                            runCatching { BrokerName.valueOf(parts[0]) }.getOrNull()
-                                ?: return@mapNotNull null
-                        val tscalpInstrumentId = parts[1].ifBlank { return@mapNotNull null }
-                        val ticker = parts[2].ifBlank { return@mapNotNull null }
-                        val accountId = parts[3].ifBlank { null }
-                        CardIdentity(
-                            tscalpInstrumentId = tscalpInstrumentId,
-                            ticker = ticker,
-                            brokerName = broker,
-                            accountId = accountId,
-                        )
-                    }
-                    PARTS_COUNT_LEGACY -> {
-                        val broker =
-                            runCatching { BrokerName.valueOf(parts[0]) }.getOrNull()
-                                ?: return@mapNotNull null
-                        val ticker = parts[1].ifBlank { return@mapNotNull null }
-                        val accountId = parts[2].ifBlank { null }
-                        CardIdentity(
-                            tscalpInstrumentId = ticker,
-                            ticker = ticker,
-                            brokerName = broker,
-                            accountId = accountId,
-                        )
-                    }
-                    else -> null
-                }
+                if (parts.size != PARTS_COUNT) return@mapNotNull null
+                val broker =
+                    runCatching { BrokerName.valueOf(parts[0]) }.getOrNull()
+                        ?: return@mapNotNull null
+                val tscalpInstrumentId = parts[1].ifBlank { return@mapNotNull null }
+                val accountId = parts[2].ifBlank { null }
+                CardIdentity(
+                    tscalpInstrumentId = tscalpInstrumentId,
+                    brokerName = broker,
+                    accountId = accountId,
+                )
             }
     }
