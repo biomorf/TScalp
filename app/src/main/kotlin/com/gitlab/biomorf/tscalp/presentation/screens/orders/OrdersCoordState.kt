@@ -54,7 +54,10 @@ data class OrdersCoordState(
  */
 fun OrdersCoordState.activeCardFor(instrument: Instrument?): SelectedInstrumentInfo? =
     instrument?.let { inst ->
-        lastSelectedInstruments.find { it.instrument.ticker == inst.ticker }
+        lastSelectedInstruments.find {
+            it.instrument.tscalpInstrumentId == inst.tscalpInstrumentId &&
+                it.instrument.brokerName == inst.brokerName
+        }
     }
 
 /**
@@ -63,5 +66,8 @@ fun OrdersCoordState.activeCardFor(instrument: Instrument?): SelectedInstrumentI
  */
 fun OrdersCoordState.activePairedCardFor(instrument: Instrument?): SelectedInstrumentInfo? =
     instrument?.let { inst ->
-        lastSelectedInstruments.find { it.instrument.ticker == inst.ticker }
+        lastSelectedInstruments.find {
+            it.instrument.tscalpInstrumentId == inst.tscalpInstrumentId &&
+                it.instrument.brokerName == inst.brokerName
+        }
     }

@@ -174,18 +174,51 @@ class SelectInstrumentUseCaseTest {
         }
 
     @Test
-    fun `existing card preserves brokerName and accountId`() =
+    fun `same-broker card preserves accountId, brokerName comes from instrument`() =
         runBlocking {
             stubDefaults()
             every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER", brokerName = BrokerName.BCS, accountId = "bcs-acc")))
+                flowOf(
+                    listOf(
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-1",
+                            ticker = "SBER",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = "t-inv",
+                        ),
+                    ),
+                )
 
             val r = useCase.execute(inputInstrument)
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
-            assertEquals(BrokerName.BCS, result.card.brokerName)
-            assertEquals("bcs-acc", result.card.accountId)
+            assertEquals(BrokerName.TINVEST, result.card.brokerName)
+            assertEquals("t-inv", result.card.accountId)
+        }
+
+    @Test
+    fun `card for different broker is ignored`() =
+        runBlocking {
+            stubDefaults()
+            every { cardsRepository.identities } returns
+                flowOf(
+                    listOf(
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-1",
+                            ticker = "SBER",
+                            brokerName = BrokerName.BCS,
+                            accountId = "bcs-acc",
+                        ),
+                    ),
+                )
+
+            val r = useCase.execute(inputInstrument)
+
+            assertTrue(r is AppResult.Success)
+            val result = (r as AppResult.Success<SelectInstrumentResult>).data
+            assertEquals(BrokerName.TINVEST, result.card.brokerName)
+            assertNull(result.card.accountId)
         }
 
     @Test
@@ -237,7 +270,7 @@ class SelectInstrumentUseCaseTest {
                 flowOf(
                     listOf(
                         CardIdentity(
-                            tscalpInstrumentId = "uid-sber",
+                            tscalpInstrumentId = "uid-1",
                             ticker = "SBER",
                             brokerName = BrokerName.TINVEST,
                             accountId = "card-acc",
