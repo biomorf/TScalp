@@ -467,6 +467,12 @@ class OrderFormViewModel
          */
         fun onAccountSaved(newAccountId: String?) {
             _state.update { it.copy(selectedAccountId = newAccountId) }
+            val s = _state.value
+            logger.d(
+                TAG,
+                "onAccountSaved: slot=PRIMARY, uid=${s.selectedInstrument?.tscalpInstrumentId}, " +
+                    "broker=${s.selectedBroker}, newAccountId=$newAccountId",
+            )
         }
 
         /**
@@ -475,6 +481,12 @@ class OrderFormViewModel
          */
         fun onPairedAccountSaved(newAccountId: String?) {
             _state.update { it.copy(pairedAccountId = newAccountId) }
+            val s = _state.value
+            logger.d(
+                TAG,
+                "onPairedAccountSaved: slot=PAIR, uid=${s.pairedInstrument?.tscalpInstrumentId}, " +
+                    "broker=${s.pairedBroker}, newAccountId=$newAccountId",
+            )
         }
 
         fun clearPairedInstrument() {
