@@ -68,12 +68,11 @@ class OrderDialogsViewModelTest {
                         emptyList(),
                         "acc-1",
                         oldAccountId = "old-acc",
-                        takenAccountIds = setOf("acc-2"),
                     ),
                 )
 
             val vm = createVm()
-            vm.openBrokerDialog(sber)
+            vm.openBrokerDialog(sber, otherSlotAccountId = "acc-2")
             advanceUntilIdle()
 
             val s = vm.state.value
@@ -92,7 +91,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, "old-A") } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A", takenAccountIds = emptySet()),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A"),
                 )
 
             val vm = createVm()
@@ -125,7 +124,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
                 )
 
             val vm = createVm()
@@ -147,7 +146,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
                 )
             coEvery { loadCardAccountsUseCase.execute(BrokerName.BCS, false, null) } returns
                 AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "bcs-acc"))
@@ -170,7 +169,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
                 )
             coEvery { saveCardSettingsUseCase.execute(sber, null, "acc-1") } returns
                 AppResult.Success(Unit)
@@ -196,7 +195,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, "old-A") } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A", takenAccountIds = emptySet()),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A"),
                 )
             coEvery { saveCardSettingsUseCase.execute(sber, "old-A", "new-B") } returns
                 AppResult.Success(Unit)
@@ -217,7 +216,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
                 )
             coEvery { saveCardSettingsUseCase.execute(sber, null, "acc-1") } returns
                 AppResult.Failure(AppError.Network("err", null))
@@ -234,5 +233,27 @@ class OrderDialogsViewModelTest {
             assertFalse(s.showBrokerDialog)
             assertNull(s.dialogInstrument)
             assertEquals(!before, s.swipeResetTrigger)
+        }
+
+    @Test
+    fun `otherSlotAccountId same as current is not disabled`() =
+        runTest {
+            coEvery { openCardDialogUseCase.execute(sber, "acc-1") } returns
+                OpenCardDialogOutcome.Success(
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
+                )
+
+            val vm = createVm()
+            vm.openBrokerDialog(
+                sber,
+                currentAccountId = "acc-1",
+                otherSlotAccountId = "acc-1",
+            )
+            advanceUntilIdle()
+
+            assertTrue(
+                vm.state.value.takenAccountIds
+                    .isEmpty(),
+            )
         }
 }

@@ -51,7 +51,15 @@ class OrderDialogsViewModel
             instrument: Instrument,
             currentAccountId: String? = null,
             slot: CardSlot = CardSlot.PRIMARY,
+            otherSlotAccountId: String? = null,
         ) {
+            // takenAccountIds — presentation-концепт: только счёт *другого*
+            // слота «занят» (stale-карточки в DataStore не блокируют).
+            // Тот же (uid, broker, accountId) можно посадить в слот повторно.
+            val takenAccountIds =
+                setOfNotNull(otherSlotAccountId)
+                    .filter { it != currentAccountId }
+                    .toSet()
             viewModelScope.launch {
                 when (val outcome = openCardDialogUseCase.execute(instrument, currentAccountId)) {
                     is OpenCardDialogOutcome.Success -> {
@@ -65,7 +73,7 @@ class OrderDialogsViewModel
                                 selectedBroker = data.broker,
                                 selectedAccountIdDialog = data.selectedAccountId,
                                 dialogAccounts = data.accounts,
-                                takenAccountIds = data.takenAccountIds,
+                                takenAccountIds = takenAccountIds,
                             )
                         }
                     }
@@ -84,7 +92,7 @@ class OrderDialogsViewModel
                                 selectedBroker = outcome.broker,
                                 selectedAccountIdDialog = null,
                                 dialogAccounts = emptyList(),
-                                takenAccountIds = emptySet(),
+                                takenAccountIds = takenAccountIds,
                             )
                         }
                     }

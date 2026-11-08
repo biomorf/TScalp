@@ -130,7 +130,12 @@ fun OrdersScreen() {
                         onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
                         onClearSelected = { formViewModel.clearSelectedInstrument() },
                         onOpenBrokerDialog = { inst, acc ->
-                            dialogsViewModel.openBrokerDialog(inst, acc, CardSlot.PRIMARY)
+                            dialogsViewModel.openBrokerDialog(
+                                instrument = inst,
+                                currentAccountId = acc,
+                                slot = CardSlot.PRIMARY,
+                                otherSlotAccountId = formState.pairedAccountId,
+                            )
                         },
                     )
 
@@ -191,7 +196,12 @@ fun OrdersScreen() {
                             formViewModel.clearPairedInstrument()
                         },
                         onOpenBrokerDialog = { inst, acc ->
-                            dialogsViewModel.openBrokerDialog(inst, acc, CardSlot.PAIR)
+                            dialogsViewModel.openBrokerDialog(
+                                instrument = inst,
+                                currentAccountId = acc,
+                                slot = CardSlot.PAIR,
+                                otherSlotAccountId = formState.selectedAccountId,
+                            )
                         },
                         onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
                     )
