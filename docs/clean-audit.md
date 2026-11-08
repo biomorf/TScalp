@@ -239,25 +239,6 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 
 **Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
 
-### M017. OrderFormViewModel.buildPlaceOrderRequest — presentation собирает domain-модель
-
-**Статус:** открыто (проблема, не 2c-принято).
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `OrderFormViewModel.buildPlaceOrderRequest(state: OrderFormState): PlaceOrderRequest?` (159) — private-функция VM собирает domain-модель `PlaceOrderRequest` (10 полей) из presentation-Form-полей. В 13d-C-A1 было зафиксировано в KDoc как 2c-фиксация (P11); пересмотр 2026-11-08 — это **проблема** (M1), нужна задача.
-
-**Нарушенное правило:** M1 — presentation конструирует domain-модель (dependency rule обратно).
-
-**Clean-альтернатива:** `BuildPlaceOrderRequestUseCase(state): AppResult<PlaceOrderRequest>` в `domain.usecases`; либо `PlaceOrderUseCase.execute(FormSnapshot, direction)` — build + orchestration в одном usecase. Плюсы: VM без domain-конструирования, usecase тестируется. Минусы: Form→domain→Form (presentation DTO в domain usecase) — компромисс; либо 20+ параметров (раздувание).
-
-**MVVM-альтернатива:** то же — build в UseCase.
-
-**Ссылка на задачу:** — (не заведена). Нужна задача `### BuildPlaceOrderRequestUseCase` в ROADMAP.
-
-**Сводный отчёт, 2026-11-06:** нет.
 
 ### Исправленные (L1)
 
@@ -330,6 +311,35 @@ Compose state read).
 passthrough / cancellation).
 
 **Ссылка на задачу:** `### OpenCardDialogUseCase (M2 partial + M013-таблица)` (ROADMAP, follow-up).
+
+**Сводный отчёт, 2026-11-06:** нет (создана 2026-11-08).
+
+### ✅ M017. OrderFormViewModel.buildPlaceOrderRequest — presentation собирает domain-модель
+
+**Статус:** исправлено (2026-11-08, M017, `4ee4174`).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `OrderFormViewModel.buildPlaceOrderRequest(state: OrderFormState): PlaceOrderRequest?` (159) — private-функция VM собирает domain-модель `PlaceOrderRequest` (10 полей) из presentation-Form-полей. В 13d-C-A1 было зафиксировано в KDoc как 2c-фиксация (P11); пересмотр 2026-11-08 — это **проблема** (M1), нужна задача.
+
+**Нарушенное правило:** M1 — presentation конструирует domain-модель (dependency rule обратно).
+
+**Clean-альтернатива:** `BuildPlaceOrderRequestUseCase(state): AppResult<PlaceOrderRequest>` в `domain.usecases`; либо `PlaceOrderUseCase.execute(FormSnapshot, direction)` — build + orchestration в одном usecase. Плюсы: VM без domain-конструирования, usecase тестируется. Минусы: Form→domain→Form (presentation DTO в domain usecase) — компромисс; либо 20+ параметров (раздувание).
+
+**MVVM-альтернатива:** то же — build в UseCase.
+
+**Ссылка на задачу:** — (задача не заводится). Решение — **вариант D** (boundary-mapper `OrderFormState.toPlaceOrderRequest()` в `presentation/util/`); `BuildPlaceOrderRequestUseCase` (вариант A) отклонён — use case без бизнес-правил (только перекладывание 10 полей), нарушает принцип «use case — сценарий, не маппер».
+
+**Что сделано:** `OrderFormViewModel.buildPlaceOrderRequest` удалён; маппинг
+вынесен в `presentation/util/OrderFormStateMapper.kt`
+(`fun OrderFormState.toPlaceOrderRequest(): PlaceOrderRequest?`, те же guards:
+ticker fallback to `selectedInstrument`, `quantityAsLong`, `tscalpInstrumentId`).
+`OrderFormViewModel.postOrder` вызывает `_state.value.toPlaceOrderRequest()`;
+import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 4 кейса
+(full map / blank ticker fallback / null quantity / null instrument). Коммит
+`4ee4174`.
 
 **Сводный отчёт, 2026-11-06:** нет (создана 2026-11-08).
 ### ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
