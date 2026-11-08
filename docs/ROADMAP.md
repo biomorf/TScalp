@@ -1721,13 +1721,29 @@ Test:
 - **1b-3** (~0.5 ч). `OrdersCoordState.activeCardFor` /
   `activePairedCardFor` — параметр `accountId`, `it.instrument.matches(inst,
   accountId)`; **убрать inline composite** (`:57, :69`). Гейт.
-- **1b-4** (~1–1.5 ч). `OrderDialogsState + takenAccountIds:
-  Set<String> = emptySet()` (для disabled в UI). `OrderDialogsViewModel
-  + openBrokerDialog(instrument, currentAccountId, takenAccountIds)`
-  — `openBrokerDialog` уже с `currentAccountId` (default `null` из 1b-1b),
-  добавить `takenAccountIds`; `dialogOldAccountId` из 1b-1b — заполняется
-  существующим `accountId` карточки. `BrokerAccountDialog` — disabled
-  занятых `(uid, broker, accountId)` другой карточкой. Гейт.
+- **1b-4** (~1.5–2 ч). `takenAccountIds` — из domain
+  (`CardsRepository.identities`), **не** из UI-кеша
+  (`lastSelectedInstruments` — внутреннее дело Coord, не источник).
+  - `OpenCardDialogResult + takenAccountIds: Set<String>` — usecase
+    читает `identities.first()`, фильтрует `(uid, broker)`, отдаёт
+    `accountId` всех карточек минус `currentAccountId` (свой счёт нельзя
+    «занять» самому себе).
+  - `openBrokerDialog` сигнатура **не меняется** (`instrument,
+    currentAccountId = null` из 1b-1b) — `takenAccountIds` приходят
+    из `OpenCardDialogOutcome.Success.result`.
+  - `OrderDialogsState + takenAccountIds: Set<String> = emptySet()`;
+    `openBrokerDialog` (success/failure) сохраняет/очищает.
+  - `OrderDialogsViewModel` pass-through.
+  - `BrokerAccountDialog + disabledAccountIds: Set<String> = emptySet()`
+    — `DropdownMenuItem(enabled = account.id !in disabledAccountIds)`.
+    Свой текущий `selectedAccountId` — не disabled (он `-` current в
+    usecase, но и UI-проверка: `account.id != selectedAccountId`).
+  - Тесты: `OpenCardDialogUseCaseTest` +2 (две карточки `(uid, broker, A/B)`
+    → `takenAccountIds = {B}` при `currentAccountId=A`; `currentAccountId=null`
+    → `takenAccountIds = {A, B}`); `OrderDialogsViewModelTest` +1
+    (`state.takenAccountIds` после open); `BrokerAccountDialog` — UI,
+    отдельный `@Preview` disabled.
+  - Гейт.
 - **1b-5** (~0.5–1 ч). `OrdersSearch` / `OrdersPairTrading` —
   `onSettings(instrument, currentAccountId)` — миграция UI на явный
   `currentAccountId` слота (1b-1b-сигнатура `openBrokerDialog` с default
@@ -1739,8 +1755,12 @@ Test:
 - **1b-7** (~0.5 ч). Удалить `@Deprecated` overloads (`matches(uid, broker)`
   / `findCard(uid, broker)` / `withUpdatedSettings(...)`) + мигрировать
   оставшиеся callsites. Гейт.
-- **1b-8** (~0.5–1 ч). Тесты VM + `OrderDialogsViewModelTest` (disabled,
-  old→new). Гейт.
+- **1b-8** (~0.5–1 ч). `OrderFormViewModelTest` с нуля (8 моков;
+  `onInstrumentSelected` / `onPairedInstrumentSelected` / `onAccountSaved` /
+  `onPairedAccountSaved` / `clearSelectedInstrument` / `clearPairedInstrument`
+  / `restoreOrderForm`). `OrderDialogsViewModelTest` — disabled-тесты
+  уже в 1b-4, old→new — в 1b-1b; добавить только `takenAccountIds`-кейс
+  (если не покрыт). Гейт.
 - **1b-9** (~0.5–1 ч). Live-test (sandbox T-Invest): 1) primary SBER(A) +
   pair SBER(B) → две независимые; смена счёта в одной не меняет другую;
   2) primary SBER(A) + pair SBER(A) → счёт A disabled; 3) покупка на
@@ -1758,8 +1778,13 @@ Test:
 
 **Тесты:** в коммитах 1b-1…1b-7. Live-test 1b-8 — обязателен.
 
-**Оценка Фазы 1b:** ~8–12 ч. Из них выполнено:
-1b-1a — ~2.5–3.5 ч (коммит `19a3b81`); осталось: 1b-1b..1b-10 (~6–9 ч).
+**Оценка Фазы 1b:** ~8–12 ч (уточнено: 1b-4 ~1.5–2 ч из-за
+`takenAccountIds` через domain, не через кеш). Из них выполнено:
+- 1b-1a — ~2.5–3.5 ч (`19a3b81`).
+- 1b-1b — ~1.5–2 ч (`9fff3e8`).
+- 1b-2 — ~0.5–1 ч (`7b596b6`).
+- 1b-3 — ~0.5 ч (`35e55f5`).
+Итого выполнено ~5–7 ч; осталось: 1b-4..1b-10 (~6–9 ч).
 
 **Критерий готовности:**
 
