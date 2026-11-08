@@ -62,22 +62,6 @@ fun List<CardIdentity>.findCard(
 ): CardIdentity? = findCard(instrument.tscalpInstrumentId, instrument.brokerName, accountId)
 
 /**
- * Возвращает копию списка, где карточка с `(uid, broker, oldAccountId)`
- * **удаляется**, а карточка с `(uid, broker, newAccountId)` **создаётся**
- * (с тем же `tscalpInstrumentId` / `brokerName`). Остальные карточки не
- * меняются.
- *
- * **Пересоздание identity**: `accountId` — часть ключа, менять его
- * «на месте» нельзя (иначе `(uid, broker, A)` и `(uid, broker, B)` слиплись
- * бы). Если `oldAccountId == null` — просто добавляется новая карточка
- * `(uid, broker, newAccountId)`.
- *
- * Pure, идемпотентна: повторный вызов с теми же аргументами даёт тот же
- * список. Коллизию (`newAccountId` уже занят другой карточкой) —
- * **не** разрешает; `SaveCardSettingsUseCase` проверяет её до вызова и
- * возвращает `Failure`.
- */
-/**
  * Возвращает копию списка, где карточка `(uid, broker, newAccountId)`
  * **гарантированно присутствует**. Если её нет — добавляется в конец;
  * если есть — список возвращается без изменений (idempotent add).
@@ -101,20 +85,5 @@ fun List<CardIdentity>.withEnsuredCard(
         this
     } else {
         this + CardIdentity(tscalpInstrumentId, brokerName, newAccountId)
-    }
-}
-
-fun List<CardIdentity>.withRecreatedSettings(
-    tscalpInstrumentId: String,
-    brokerName: BrokerName,
-    oldAccountId: String?,
-    newAccountId: String?,
-): List<CardIdentity> {
-    val withoutOld = filterNot { it.matches(tscalpInstrumentId, brokerName, oldAccountId) }
-    val alreadyHasNew = withoutOld.any { it.matches(tscalpInstrumentId, brokerName, newAccountId) }
-    return if (alreadyHasNew) {
-        withoutOld
-    } else {
-        withoutOld + CardIdentity(tscalpInstrumentId, brokerName, newAccountId)
     }
 }

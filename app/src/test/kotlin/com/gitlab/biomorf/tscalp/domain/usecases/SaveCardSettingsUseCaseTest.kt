@@ -33,27 +33,31 @@ class SaveCardSettingsUseCaseTest {
         )
 
     @Test
-    fun `recreate replaces old account with new`() =
+    fun `ensure adds card when missing`() =
         runBlocking {
             val existing = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
             every { cardsRepository.identities } returns flowOf(listOf(existing))
 
-            val r = useCase.execute(sber, oldAccountId = "A", newAccountId = "B")
+            val r = useCase.execute(sber, newAccountId = "B")
 
             assertTrue(r is AppResult.Success)
             coVerify(exactly = 1) {
                 cardsRepository.save(
-                    match { cards -> cards.size == 1 && cards[0].accountId == "B" },
+                    match { cards ->
+                        cards.size == 2 &&
+                            cards.any { it.accountId == "A" } &&
+                            cards.any { it.accountId == "B" }
+                    },
                 )
             }
         }
 
     @Test
-    fun `create when old is null`() =
+    fun `ensure on empty list creates single card`() =
         runBlocking {
             every { cardsRepository.identities } returns flowOf(emptyList())
 
-            val r = useCase.execute(sber, oldAccountId = null, newAccountId = "A")
+            val r = useCase.execute(sber, newAccountId = "A")
 
             assertTrue(r is AppResult.Success)
             coVerify(exactly = 1) {
@@ -69,44 +73,52 @@ class SaveCardSettingsUseCaseTest {
         }
 
     @Test
-    fun `same account is no-op`() =
+    fun `ensure no-op when card already exists`() =
         runBlocking {
             val existing = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
             every { cardsRepository.identities } returns flowOf(listOf(existing))
 
-            val r = useCase.execute(sber, oldAccountId = "A", newAccountId = "A")
+            val r = useCase.execute(sber, newAccountId = "A")
 
             assertTrue(r is AppResult.Success)
             coVerify(exactly = 0) { cardsRepository.save(any()) }
         }
 
     @Test
-    fun `collision returns Failure when new account taken`() =
+    fun `ensure adds null-account card when missing`() =
         runBlocking {
-            val taken = CardIdentity("uid-sber", BrokerName.TINVEST, "B")
-            every { cardsRepository.identities } returns flowOf(listOf(taken))
+            every { cardsRepository.identities } returns flowOf(emptyList())
 
-            val r = useCase.execute(sber, oldAccountId = "A", newAccountId = "B")
-
-            assertTrue(r is AppResult.Failure)
-            coVerify(exactly = 0) { cardsRepository.save(any()) }
-        }
-
-    @Test
-    fun `different broker card unaffected`() =
-        runBlocking {
-            val otherBroker = CardIdentity("uid-sber", BrokerName.BCS, "bcs-acc")
-            every { cardsRepository.identities } returns flowOf(listOf(otherBroker))
-
-            val r = useCase.execute(sber, oldAccountId = null, newAccountId = "A")
+            val r = useCase.execute(sber, newAccountId = null)
 
             assertTrue(r is AppResult.Success)
             coVerify(exactly = 1) {
                 cardsRepository.save(
                     match { cards ->
-                        cards.size == 2 &&
-                            cards.any { it.brokerName == BrokerName.BCS && it.accountId == "bcs-acc" } &&
-                            cards.any { it.brokerName == BrokerName.TINVEST && it.accountId == "A" }
+                        cards.size == 1 && cards[0].accountId == null
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `ensure does not remove stale accounts`() =
+        runBlocking {
+            // (SBER, A) и (SBER, B) в истории; ensure C — обе остаются.
+            val a = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
+            val b = CardIdentity("uid-sber", BrokerName.TINVEST, "B")
+            every { cardsRepository.identities } returns flowOf(listOf(a, b))
+
+            val r = useCase.execute(sber, newAccountId = "C")
+
+            assertTrue(r is AppResult.Success)
+            coVerify(exactly = 1) {
+                cardsRepository.save(
+                    match { cards ->
+                        cards.size == 3 &&
+                            cards.any { it.accountId == "A" } &&
+                            cards.any { it.accountId == "B" } &&
+                            cards.any { it.accountId == "C" }
                     },
                 )
             }
@@ -115,11 +127,10 @@ class SaveCardSettingsUseCaseTest {
     @Test
     fun `exception returns Failure Unknown`() =
         runBlocking {
-            every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity("uid-sber", BrokerName.TINVEST, null)))
+            every { cardsRepository.identities } returns flowOf(emptyList())
             coEvery { cardsRepository.save(any()) } throws RuntimeException("boom")
 
-            val r = useCase.execute(sber, oldAccountId = null, newAccountId = "A")
+            val r = useCase.execute(sber, newAccountId = "A")
 
             assertTrue(r is AppResult.Failure)
             val err = (r as AppResult.Failure).error
@@ -129,12 +140,11 @@ class SaveCardSettingsUseCaseTest {
     @Test
     fun `cancellation rethrows`() =
         runBlocking {
-            every { cardsRepository.identities } returns
-                flowOf(listOf(CardIdentity("uid-sber", BrokerName.TINVEST, null)))
+            every { cardsRepository.identities } returns flowOf(emptyList())
             coEvery { cardsRepository.save(any()) } throws CancellationException()
 
             try {
-                useCase.execute(sber, oldAccountId = null, newAccountId = "A")
+                useCase.execute(sber, newAccountId = "A")
                 fail("expected CancellationException")
             } catch (expected: CancellationException) {
                 // OK

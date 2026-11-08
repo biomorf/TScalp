@@ -134,7 +134,6 @@ fun OrdersScreen() {
                                 instrument = inst,
                                 currentAccountId = acc,
                                 slot = CardSlot.PRIMARY,
-                                otherSlotAccountId = formState.pairedAccountId,
                             )
                         },
                     )
@@ -200,7 +199,6 @@ fun OrdersScreen() {
                                 instrument = inst,
                                 currentAccountId = acc,
                                 slot = CardSlot.PAIR,
-                                otherSlotAccountId = formState.selectedAccountId,
                             )
                         },
                         onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },

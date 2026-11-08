@@ -26,12 +26,11 @@ import javax.inject.Inject
  * Вынесено из `OrdersViewModel` в рамках split `OrdersViewModel`
  * (M013 / A2, шаг 12a). Семантика Dialog-методов 1:1 с прежними.
  *
- * **Фаза 1b:** `openBrokerDialog(instrument, currentAccountId)` —
- * `currentAccountId` = accountId слота (какой счёт у карточки сейчас).
- * Default `null` — для обратной совместимости UI-callsites до 1b-5.
- * `dialogOldAccountId` заполняется из `OpenCardDialogResult.oldAccountId`;
- * `saveBrokerSettings` → `SaveCardSettingsUseCase.execute(instrument,
- * old, new)`.
+ * **Фаза 1b-11 (модель A):** `openBrokerDialog(instrument,
+ * currentAccountId, slot)` — `currentAccountId` = accountId слота;
+ * `slot` — для роутинга callback. `saveBrokerSettings` →
+ * `SaveCardSettingsUseCase.execute(instrument, new)` (ensure-add:
+ * `CardIdentity` — история, старая запись не удаляется).
  */
 @HiltViewModel
 class OrderDialogsViewModel
@@ -51,15 +50,7 @@ class OrderDialogsViewModel
             instrument: Instrument,
             currentAccountId: String? = null,
             slot: CardSlot = CardSlot.PRIMARY,
-            otherSlotAccountId: String? = null,
         ) {
-            // takenAccountIds — presentation-концепт: только счёт *другого*
-            // слота «занят» (stale-карточки в DataStore не блокируют).
-            // Тот же (uid, broker, accountId) можно посадить в слот повторно.
-            val takenAccountIds =
-                setOfNotNull(otherSlotAccountId)
-                    .filter { it != currentAccountId }
-                    .toSet()
             viewModelScope.launch {
                 when (val outcome = openCardDialogUseCase.execute(instrument, currentAccountId)) {
                     is OpenCardDialogOutcome.Success -> {
@@ -69,11 +60,9 @@ class OrderDialogsViewModel
                                 showBrokerDialog = true,
                                 dialogInstrument = instrument,
                                 dialogSlot = slot,
-                                dialogOldAccountId = data.oldAccountId,
                                 selectedBroker = data.broker,
                                 selectedAccountIdDialog = data.selectedAccountId,
                                 dialogAccounts = data.accounts,
-                                takenAccountIds = takenAccountIds,
                             )
                         }
                     }
@@ -88,11 +77,9 @@ class OrderDialogsViewModel
                                 showBrokerDialog = true,
                                 dialogInstrument = instrument,
                                 dialogSlot = slot,
-                                dialogOldAccountId = null,
                                 selectedBroker = outcome.broker,
                                 selectedAccountIdDialog = null,
                                 dialogAccounts = emptyList(),
-                                takenAccountIds = takenAccountIds,
                             )
                         }
                     }
@@ -106,8 +93,6 @@ class OrderDialogsViewModel
                     showBrokerDialog = false,
                     dialogInstrument = null,
                     dialogSlot = CardSlot.PRIMARY,
-                    dialogOldAccountId = null,
-                    takenAccountIds = emptySet(),
                     swipeResetTrigger = !it.swipeResetTrigger,
                 )
             }
@@ -127,24 +112,20 @@ class OrderDialogsViewModel
         fun saveBrokerSettings(onSaved: (CardSlot, String?) -> Unit = { _, _ -> }) {
             val instrument = _state.value.dialogInstrument ?: return
             val slot = _state.value.dialogSlot
-            val oldAccountId = _state.value.dialogOldAccountId
             val newAccountId = _state.value.selectedAccountIdDialog
             viewModelScope.launch {
-                when (val result = saveCardSettingsUseCase.execute(instrument, oldAccountId, newAccountId)) {
+                when (val result = saveCardSettingsUseCase.execute(instrument, newAccountId)) {
                     is AppResult.Success -> {
                         logger.d(
                             TAG,
                             "saveBrokerSettings: uid=${instrument.tscalpInstrumentId}, " +
-                                "broker=${instrument.brokerName}, " +
-                                "oldAccountId=$oldAccountId, newAccountId=$newAccountId",
+                                "broker=${instrument.brokerName}, newAccountId=$newAccountId",
                         )
                         _state.update { state ->
                             state.copy(
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
                                 dialogSlot = CardSlot.PRIMARY,
-                                dialogOldAccountId = null,
-                                takenAccountIds = emptySet(),
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }
@@ -161,8 +142,6 @@ class OrderDialogsViewModel
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
                                 dialogSlot = CardSlot.PRIMARY,
-                                dialogOldAccountId = null,
-                                takenAccountIds = emptySet(),
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }

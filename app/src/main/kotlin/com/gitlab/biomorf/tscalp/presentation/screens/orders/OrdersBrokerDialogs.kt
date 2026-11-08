@@ -27,7 +27,6 @@ internal fun TradingBrokerDialog(
         onAccountSelected = onAccountSelected,
         onDismiss = onDismiss,
         onSave = onSave,
-        disabledAccountIds = dialogsState.takenAccountIds,
     )
 }
 

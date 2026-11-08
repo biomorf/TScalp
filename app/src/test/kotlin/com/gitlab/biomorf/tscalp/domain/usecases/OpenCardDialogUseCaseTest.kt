@@ -53,7 +53,7 @@ class OpenCardDialogUseCaseTest {
         )
 
     @Test
-    fun `success with existing card uses its broker accountId and oldAccountId`() =
+    fun `success with existing card uses its broker and accountId`() =
         runBlocking {
             val card = CardIdentity("uid-sber", BrokerName.TINVEST, "acc-2")
             every { cardsRepository.identities } returns flowOf(listOf(card))
@@ -69,12 +69,11 @@ class OpenCardDialogUseCaseTest {
             assertEquals(BrokerName.TINVEST, data.broker)
             assertEquals(listOf(acc1, acc2), data.accounts)
             assertEquals("acc-2", data.selectedAccountId)
-            assertEquals("acc-2", data.oldAccountId)
             coVerify(exactly = 1) { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-2") }
         }
 
     @Test
-    fun `no card returns null oldAccountId and uses selected fallback`() =
+    fun `no card uses selected fallback`() =
         runBlocking {
             every { cardsRepository.identities } returns flowOf(emptyList())
             every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf("acc-1")
@@ -89,7 +88,6 @@ class OpenCardDialogUseCaseTest {
             val data = (r as OpenCardDialogOutcome.Success).result
             assertEquals(BrokerName.TINVEST, data.broker)
             assertEquals("acc-1", data.selectedAccountId)
-            assertNull(data.oldAccountId)
             coVerify(exactly = 1) { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") }
         }
 
@@ -109,7 +107,6 @@ class OpenCardDialogUseCaseTest {
 
             assertTrue(r is OpenCardDialogOutcome.Success)
             val data = (r as OpenCardDialogOutcome.Success).result
-            assertEquals("B", data.oldAccountId)
         }
 
     @Test

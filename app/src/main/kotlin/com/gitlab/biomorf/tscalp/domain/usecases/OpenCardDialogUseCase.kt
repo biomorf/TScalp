@@ -17,18 +17,16 @@ import javax.inject.Singleton
 
 /**
  * Результат [OpenCardDialogUseCase]: broker + accounts +
- * selectedAccountId + oldAccountId — всё, что нужно
- * `OrderDialogsState` для открытия диалога карточки.
+ * selectedAccountId — всё, что нужно `OrderDialogsState` для
+ * открытия диалога карточки.
  *
- * `oldAccountId` — accountId, который был у карточки `(uid, broker)`
- * на момент открытия (для пересоздания в `SaveCardSettingsUseCase`).
- * `null` — карточки не было или accountId не выбран.
+ * `oldAccountId` не нужен: модель A (1b-11) — ensure-add,
+ * старая карточка не удаляется.
  */
 data class OpenCardDialogResult(
     val broker: BrokerName,
     val accounts: List<BrokerAccount>,
     val selectedAccountId: String?,
-    val oldAccountId: String?,
 )
 
 /**
@@ -59,9 +57,7 @@ sealed interface OpenCardDialogOutcome {
  * **Composite-ключ (Фаза 1b):** `findCard(instrument, currentAccountId)`
  * — по полному `(uid, broker, accountId)` карточки слота. `currentAccountId`
  * — accountId, с которым карточка сейчас в слоте (может быть `null` —
- * карточка создана до выбора счёта). Возвращает `oldAccountId` в
- * [OpenCardDialogResult] — `existingCard?.accountId` (что было, чтобы
- * `SaveCardSettingsUseCase` удалил старое перед добавлением нового).
+ * карточка создана до выбора счёта).
  *
  * **Failure из [LoadCardAccountsUseCase]** — `OpenCardDialogOutcome.Failure(broker, error)`,
  * не `AppResult.Failure`: [broker] нужен VM для 1:1 `selectedBroker`.
@@ -112,7 +108,6 @@ class OpenCardDialogUseCase
                                 broker = broker,
                                 accounts = result.data.accounts,
                                 selectedAccountId = result.data.selectedAccountId,
-                                oldAccountId = existingCard?.accountId,
                             ),
                         )
                     is AppResult.Failure -> {
