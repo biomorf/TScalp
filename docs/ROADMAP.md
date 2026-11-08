@@ -249,6 +249,66 @@ ___
 
 
 
+### OrderSearchViewModel: reduce functions (снять @Suppress TooManyFunctions)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** в 11a-3 (split `OrdersViewModel`) `OrderSearchViewModel` получил 16 функций — 2 симметричных search-флоу (основной + парный) × 8 (query / refresh / clear / result / open-save-dismiss-брокер) + `getAvailableBrokerNames`. detekt `TooManyFunctions` (порог 11) — `@Suppress("TooManyFunctions")` с 2c-KDoc (коммит `eea0ec5`). Цель — снять `@Suppress`, не плодя cross-VM и M5.
+
+**Соответствие Clean:** отклонение по 2c (принято).
+
+**Нарушенное правило Clean:** SRP (1 VM — 2 флоу, M2-смежное: 2 бизнес-сценария в 1 VM).
+
+**Clean-альтернатива (split на 2 VM):** `OrderSearchViewModel` (8 методов: search / pair / refresh / clear / result × 2), `SearchBrokerSelectionViewModel` (6 методов: 2 диалога × open/save/dismiss) + `SearchBrokerRepository` (domain, StateFlow selectedSearchBroker / selectedPairSearchBroker). Search-VM читает из repo. **Плюсы:** оба VM ≤ 11, без `@Suppress`. **Минусы:** +1 VM, +1 repo, не 4-VM плана; cross-VM через `SearchBrokerRepository` (domain, не M5 — passthrough).
+
+**Clean-альтернатива (группировка):** 6 методов диалогов × 2 → 1 метод `onDialogAction(action: SearchDialogAction)` (sealed, 6 вариантов). **Плюсы:** 16 → 11, без +1 VM. **Минусы:** sealed-класс, читаемость хуже, UI-миграция сложнее.
+
+**Выгоды (2c):** 1 VM вместо 2, без +1 repo, без cross-VM; `@Suppress` — осознанный временный, KDoc на месте, задача закрывает.
+
+**Предусловия:** `### OrdersViewModel: разбить на несколько VM` (шаг 14b) закрыт — иначе конфликты в `OrdersScreen.kt` / `OrderSearchViewModel.kt`.
+
+**Файлы:**
+- `presentation/screens/orders/OrderSearchViewModel.kt` — split / группировка.
+- `presentation/screens/orders/OrderSearchState.kt` — split state (при split).
+- `presentation/screens/orders/OrdersScreen.kt` + `OrdersSearch.kt` + `OrdersPairTrading.kt` — UI-миграция.
+- `domain/api/repository/SearchBrokerRepository.kt` + `data/repository/SearchBrokerRepositoryImpl.kt` (при split) + `@Binds`.
+- Тесты: `OrderSearchViewModelTest`, `SearchBrokerSelectionViewModelTest` (при split) / обновить существующий (при группировке).
+
+**Шаги:**
+1. Решить: split (A) или группировка (B). A — если `SearchBrokerRepository` нужен и для других VM (Coord passthrough); B — если проще (без repo).
+2. Реализация A / B.
+3. Снять `@Suppress("TooManyFunctions")` + KDoc-2c (обновить).
+4. UI-миграция (3 файла).
+5. Тесты.
+6. Гейт (detekt без `@Suppress` — зелёный).
+
+**Тесты:** при A — `OrderSearchViewModelTest` (6, существующие) + `SearchBrokerSelectionViewModelTest` (4–5); при B — обновить существующий (6) + `onDialogAction` кейсы (3–4).
+
+**Референсы:** коммит `eea0ec5` (11a-3, `@Suppress` + 2c KDoc), `docs/clean-audit.md` M013.
+
+**Ограничения:**
+- Не плодить cross-VM через `_uiState` — только через domain (SearchBrokerRepository) или UI-оркестрацию (P4).
+- Не менять поведение search / pair search (1:1).
+- При A — `SearchBrokerRepository` не дублирует `SearchCacheRepository` (разные обязанности).
+
+**Критерий готовности:**
+- `@Suppress("TooManyFunctions")` снят.
+- Каждый VM ≤ 11 функций.
+- detekt зелёный без `@Suppress`.
+- Тесты покрывают search / pair / dialog-actions.
+- Live-test: поиск / парный поиск / смена брокера поиска.
+
+**Оценка:** A — ~3–4 ч; B — ~1.5–2 ч.
+
+**Зависимости:** `### OrdersViewModel: разбить на несколько VM` (14b).
+
+**Связано:** `### OrdersViewModel: разбить на несколько VM`, коммит `eea0ec5`.
+
+**Открытые вопросы:**
+- A или B? A — если `SearchBrokerRepository` переиспользуется (Coord passthrough); B — если проще. **Дефолт:** A (чище, без `@Suppress`).
+
 ### Orders: счёт из свойств карточки не применяется к акциям
 
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с одной бумагой).
@@ -2536,8 +2596,356 @@ ___
 
 
 
+___
+
+
+
+### 1. OrderSearchViewModel: reduce functions
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `OrderSearchViewModel` после 13d (11a) — 17 функций, `@Suppress("TooManyFunctions")` (2c, KDoc «17 функций = 2 симметричных search-флоу × 8. Split на 2 VM = +1 VM + cross-VM через selectedBroker (M5). Группировка (sealed SearchDialogAction) — хуже читаемость»). Снятие `@Suppress` — снизить число методов до ≤ 11 или разбить на 2 VM (`OrderSearchViewModel` + `OrderPairSearchViewModel`).
+
+**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `presentation/screens/orders/OrderSearchViewModel.kt` — 17 функций, `@Suppress("TooManyFunctions")`.
+- `presentation/screens/orders/OrderSearchState.kt` — 15 полей (13 плана + `statusMessage` / `isError`, M6 pre-existing).
+- (опционально) `OrderPairSearchViewModel.kt` + `OrderPairSearchState.kt` — split pair-search.
+- (опционально) `presentation/screens/orders/OrdersSearch.kt` / `OrdersPairTrading.kt` — callsites при split.
+
+**Шаги:**
+1. Решить форму: (a) снижение числа функций через группировку (sealed `SearchAction`) — без split; (b) split на 2 VM (основной / парный search).
+2. Диагностика: `grep -nE "^\s+fun " OrderSearchViewModel.kt` — 17 функций, какие симметричны.
+3. Реализация выбранного варианта + миграция UI-callsites.
+4. Снять `@Suppress("TooManyFunctions")` (если функция ≤ 11) или пересчитать порог.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. `OrderSearchViewModelTest` — обновить/расширить (текущие 6 кейсов).
+
+**Тесты:** `OrderSearchViewModelTest` — 6 кейсов (было), + регрессия на split (если B).
+
+**Референсы:** 13d KDoc `@Suppress("TooManyFunctions")` (2c); `OrderFormViewModel` (13d-B) — аналогичный `@Suppress`, задача ниже; closed `### ✅ OrderSearchViewModel` (ROADMAP-ARCHIVE, `7c4b5d9`/`7e1196c`/`eea0ec5`).
+
+**Ограничения:**
+- `statusMessage` / `isError` (M6 pre-existing) — **не трогать** в этой задаче (M6 — отдельная).
+- UI-санкция не требуется (только внутренняя структура VM).
+
+**Критерий готовности:**
+- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
+- `OrderSearchViewModelTest` зелёный.
+- Гейт зелёный.
+
+**Оценка:** ~2–3 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+
+**Связано:** `### OrderFormViewModel: reduce functions`, `### M6: one-shot events (StatusEvent)`.
+
+**Открытые вопросы:** вариант A (группировка) vs B (split) — решить при старте.
+
+
 
 ___
+
+
+
+### 2. OrderFormViewModel: reduce functions
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `OrderFormViewModel` после 13d (A–D) — 30 функций, `@Suppress("TooManyFunctions")` (2c, KDoc 13d-B «12 функций в 13d-B, 26+ в 13d-C/D. Split Form на sub-VM = +N VM + cross-VM (форма — единый сценарий: instrument + quantity + orderType + pair + confirm). Группировка — хуже читаемость»). Плюс P7 (M001): `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — presentation в VM. Снятие `@Suppress` — extract helpers / presentation-format в `presentation/util/`.
+
+**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `presentation/screens/orders/OrderFormViewModel.kt` — 30 функций, `@Suppress("TooManyFunctions")`, private `formatPostOrderSuccess` / `formatCostOverlay` / `formatMultiplierOverlay` (P7).
+- `presentation/util/` — новые helper'ы (format).
+- `presentation/screens/orders/OrderFormState.kt` — 29 полей.
+
+**Шаги:**
+1. Extract presentation-format (`formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess`) в `presentation/util/` (M001, P7) — это убирает 3 функции из VM.
+2. Пересчитать: `grep -cE "^\s+(fun|private fun|private suspend fun|override fun)" OrderFormViewModel.kt` — сколько после extract.
+3. Если всё ещё > 11 — extract private helpers в top-level `private fun OrderFormState.X(...)` (в `presentation/screens/orders/`, отдельный файл).
+4. Снять `@Suppress("TooManyFunctions")`.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. `OrderFormViewModelTest` (новый) — если ещё нет.
+
+**Тесты:** `OrderFormViewModelTest` — success / failure / exception / cancellation на `postOrder` + `onInstrumentSelected` / `onPairedInstrumentSelected` (или использовать существующие).
+
+**Референсы:** 13d-B KDoc (`@Suppress("TooManyFunctions")`, 2c); `### M001: formatting в presentation` (связана, P7); `OrderSearchViewModel: reduce functions` (аналог).
+
+**Ограничения:**
+- **`formatPostOrderSuccess`** — оставить как presentation (M001-задача, extract).
+- **`postOrder` / `buildPlaceOrderRequest`** — orchestration (форма), не presentation (не в M001).
+- UI-санкция не требуется (только внутренняя структура VM).
+
+**Критерий готовности:**
+- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
+- `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — в `presentation/util/` (M001).
+- `OrderFormViewModelTest` зелёный.
+- Гейт зелёный.
+
+**Оценка:** ~4–6 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+
+**Связано:** `### OrderSearchViewModel: reduce functions`, `### M001: formatting в presentation`, `### M6: one-shot events (StatusEvent)`.
+
+**Открытые вопросы:** какие функции extract'ить (формат / helpers) — решить при старте.
+
+
+
+___
+
+
+
+### 3. M001: formatting в presentation
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit **M001** (`### M001. OrdersViewModel форматирует overlay (формулы в VM)`, статус «открыто»). После 13d format-функции переехали в `OrderFormViewModel` (`formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess`); `withCard` (UI-конвертация `SelectedInstrumentInfo` → `Position`, 2c `33dd378` «временно до 13/15») — в `OrdersSearch.kt` / `OrdersPairTrading.kt`. VM строит строки отображения — M1 (presentation).
+
+**Соответствие Clean:** соответствует (M1-фикс: presentation в presentation).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `presentation/screens/orders/OrderFormViewModel.kt` — `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` (private, P7).
+- `presentation/util/CurrencyFormat.kt` (или новый `TradeDetailsFormat.kt`) — формат-функции.
+- `presentation/screens/orders/OrdersSearch.kt` / `OrdersPairTrading.kt` — `withCard` (2c `33dd378`).
+- `presentation/util/PositionFormat.kt` (или similar) — `withCard` вынос.
+
+**Шаги:**
+1. Диагностика: `grep -nE "fun (formatCostOverlay|formatMultiplierOverlay|formatPostOrderSuccess|withCard)" app/src/main/kotlin/.../orders/`.
+2. Extract `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` в `presentation/util/TradeDetailsFormat.kt` (чистые функции, параметры — `TradeDetails` + `OrderFormState`).
+3. Extract `withCard` (`SelectedInstrumentInfo → Position`) в `presentation/util/PositionFormat.kt`.
+4. Обновить callsites в `OrderFormViewModel` / `OrdersSearch.kt` / `OrdersPairTrading.kt`.
+5. Удалить private-format из Form-VM.
+6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+7. Тесты: `formatCostOverlay` / `formatMultiplierOverlay` / `withCard` — unit-тесты в `presentation/util/` (если ещё нет).
+
+**Тесты:** unit-тесты на format-функции (5–6 кейсов).
+
+**Референсы:** `docs/clean-audit.md` → **M001**; P7 в ROADMAP 13d (пересмотр); 2c `33dd378` («временно до 13/15» — сейчас после 15, переносим).
+
+**Ограничения:**
+- UI-визуально не меняется (только код-структура; `formatDomesticCurrency` / `formatPrice` — уже в `presentation/util/`).
+- Не трогать `formatPostOrderSuccess`-логику (1:1, только перенос).
+
+**Критерий готовности:**
+- `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` / `withCard` — в `presentation/util/`, не в VM/UI-секциях.
+- `OrderFormViewModel` — без private-format-функций.
+- Гейт зелёный; тесты на format-функции.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто), `OrderFormViewModel: reduce functions` (связана, можно вместе).
+
+**Связано:** `### OrderFormViewModel: reduce functions`, clean-audit M001, M013/M002 (format как часть orchestration-фиксов).
+
+**Открытые вопросы:** отдельный файл `TradeDetailsFormat.kt` vs дополнение `CurrencyFormat.kt` — решить при старте.
+
+
+
+___
+
+
+
+### 4. M6: one-shot events (StatusEvent)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit **M6** (`M6 — one-shot события через StateFlow`). После 13d `statusMessage` / `isError` живут в 4 state (`OrderSearchState`, `OrderFormState`, `OrdersCoordState` + `OrdersListViewModel`), UI читает через `collectAsState`, consume — `clearStatus()`. Проблема: `StateFlow` реплеит последнее значение (не one-shot) — при пересоздании Composable snackbar показывается повторно; `LaunchedEffect(uiState.statusMessage)` + `clearStatus` — workaround. M6-fix: `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в каждой VM.
+
+**Соответствие Clean:** соответствует (M6-фикс: one-shot event — стандартный паттерн).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `presentation/screens/orders/OrderSearchViewModel.kt` — `statusMessage` / `isError` (M6 pre-existing, P8).
+- `presentation/screens/orders/OrderFormViewModel.kt` — `statusMessage` / `isError`.
+- `presentation/screens/orders/OrdersViewModel.kt` — `statusMessage` / `isError` (Coord).
+- `presentation/screens/orders/OrdersListViewModel.kt` — `statusMessage` / `isError`.
+- `presentation/screens/orders/OrderSearchState.kt` — 2 поля.
+- `presentation/screens/orders/OrderFormState.kt` — 2 поля.
+- `presentation/screens/orders/OrdersCoordState.kt` — 2 поля.
+- `OrdersListState.kt` (или аналог) — 2 поля.
+- `presentation/screens/orders/OrdersScreen.kt` — `OrdersSnackbarEffects` (3 status-канала).
+
+**Шаги:**
+1. Ввести `sealed interface StatusEvent { data class Success(msg) / Error(msg) }` (или `StatusMessage(msg: String, isError: Boolean)`).
+2. В каждой VM: `private val _status = MutableSharedFlow<StatusEvent>(extraBufferCapacity = 1)`; `val status: SharedFlow<StatusEvent> = _status.asSharedFlow()`.
+3. Заменить `_state.update { it.copy(statusMessage = ..., isError = ...) }` на `_status.tryEmit(StatusEvent(...))`.
+4. Удалить `statusMessage` / `isError` из 4 state; удалить `clearStatus()` из state + VM.
+5. UI: `LaunchedEffect(Unit) { vm.status.collect { event -> showSnackbar(event) } }` — без `clearStatus`.
+6. `OrdersSnackbarEffects` — 3 канала через `status: SharedFlow`, без `statusMessage` state-чтения.
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+8. Тесты: `StatusEvent` emit + collect в каждой VM.
+
+**Тесты:** VM-тесты: `tryEmit` + collector видит event; no replay (collector после emit — не видит).
+
+**Референсы:** `docs/clean-audit.md` → **M6**; P8 в ROADMAP 13d (пересмотр); `OrderSearchState.kt` KDoc (M6 pre-existing, 13a).
+
+**Ограничения:**
+- UI-санкция (правило 1): snackbar поведение не меняется (только механизм — StateFlow → SharedFlow).
+- Не смешивать с `formatPostOrderSuccess` / M001.
+- 4 state — все 4 поля `statusMessage` / `isError` уходят.
+
+**Критерий готовности:**
+- `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в 4 VM.
+- `statusMessage` / `isError` — **0** в 4 state.
+- `clearStatus()` — удалён (или пустой).
+- UI snackbar — 1:1 (без регресса).
+- Гейт зелёный; тесты на `StatusEvent`.
+
+**Оценка:** ~2–3 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+
+**Анализ реализации (2026-11-08):**
+
+Диагностика кода после 13d/14a/15/17: 4 state с `statusMessage` / `isError` (Search 2, Form 2, Coord 2, OrdersList inline 2), ~12 writes, 3 UI-канала через `StatusEffect`, `clearStatus` в 3 VM + 2 state + UI (`OrdersScreen:219–221`). `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в проекте — нет.
+
+**Механизм — `Channel<StatusEvent>(BUFFERED)` + `receiveAsFlow()`, не `SharedFlow` (2c).**
+
+- `SharedFlow(replay = 0)` — событие теряется, если `tryEmit` случился до подписчика (`loadAccounts` / `postOrder` завершаются до `LaunchedEffect(Unit)`). M6 не решается.
+- `SharedFlow(replay = 1)` — реплеит последнее событие при пересоздании Composable; та же проблема, что у StateFlow. M6 не решается.
+- `SharedFlow(extraBufferCapacity = 1)` без replay — без подписчика `tryEmit` возвращает `false`, событие теряется молча.
+- `Channel(BUFFERED)` + `receiveAsFlow()` — событие буферизуется до подписчика, ровно один получатель. Минус: один потребитель (не broadcast); сейчас 1 `LaunchedEffect` на VM — не проблема.
+
+**Форма `StatusEvent`.** `data class StatusEvent(val message: String, val isError: Boolean = false)` — не sealed. Разница только в `isError`-флаге (`Snackbar` + `actionLabel` / `duration`); sealed `Success` / `Error` — избыточно.
+
+**Пилот — `OrderSearchViewModel`.** Самый простой: 15 state-полей → 13, 1 status-write, есть `OrderSearchViewModelTest` с 1 статус-кейсом. После — Coord (B), Form (C), OrdersList (D), UI (E), clean-audit (F).
+
+**Полный список файлов:**
+- `presentation/screens/orders/StatusEvent.kt` (новый) — `data class StatusEvent(message, isError)`.
+- `OrderSearchState.kt` — −2 поля; `clearStatus()` удалён из state.
+- `OrderSearchViewModel.kt` — `_status: Channel<StatusEvent>(BUFFERED)`, `status: Flow<StatusEvent>`, `trySend`; `clearStatus()` удалён.
+- `OrdersCoordState.kt` — −2 поля; `clearStatus()` удалён.
+- `OrdersViewModel.kt` — `_status`, `status`, `trySend` в `loadAccounts` (success + failure) и `checkApiInitialization` (если status пишется); `clearStatus()` удалён.
+- `OrderFormState.kt` — −2 поля; `clearStatus()` удалён.
+- `OrderFormViewModel.kt` — `_status`, `status`, `trySend` в `postOrder` (`handlePostOrderSuccess` / `Insufficient` / `Error`); `clearStatus()` удалён.
+- `OrdersListViewModel.kt` — inline `OrdersListState` −2 поля; `_status`, `status`; `trySend` в `loadOrders` / `cancelOrder`; inline reset без `statusMessage` / `isError`.
+- `OrdersScreen.kt` — `StatusEffect(status: Flow<StatusEvent>)` + `LaunchedEffect(Unit) { status.collect { … } }` для 3 каналов; параметры `onClear*Status` удалены.
+- Тесты: `OrderSearchViewModelTest` / `OrdersViewModelTest` / `OrderFormViewModelTest` / `OrdersListViewModelTest` — по 1–2 кейса на `status`-канал (emit + collect, no-replay не проверяется — `Channel` гарантирует).
+
+**Разбивка (6 подшагов, 6 коммитов):**
+
+| Шаг | Что | ~ч |
+|---|---|---|
+| **A** | `StatusEvent.kt` + Search-VM + Search-State + UI-канал search + тесты | 1–1.5 |
+| **B** | Coord-VM + Coord-State + UI-канал coord + тесты | 0.5 |
+| **C** | Form-VM + Form-State + UI-канал form + тесты | 0.75 |
+| **D** | OrdersList-VM + inline state + тесты (без UI) | 0.5 |
+| **E** | UI: `StatusEffect` → `Flow<StatusEvent>`, `OrdersScreenSnackbar` cleanup | 0.5 |
+| **F** | clean-audit M6 → `исправлено` + L1 | 0.15 |
+
+**Оценка (пересмотр):** ~3.5–4.5 ч (было 2–3 ч; +1 ч — 2c-фиксация `Channel` vs `SharedFlow`, полный список файлов, 6 подшагов).
+
+**Связано:** clean-audit M6, M001 (format), `OrderFormViewModel: reduce functions`, `OrderSearchViewModel: reduce functions`.
+
+**Открытые вопросы:** `SharedFlow` vs `Channel` — **решено:** `Channel(BUFFERED)` (2c-фиксация выше). `StatusEvent` — **решено:** data class. `OrdersListViewModel` UI — в M016 только API (`status`); UI-интеграция — при появлении отображения `statusMessage` в `OrdersListDialog` (сейчас не читается).
+
+
+
+___
+
+
+
+### OpenCardDialogUseCase (M2 partial + M013-таблица)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** clean-audit **M015** (open) — `OrderDialogsViewModel.openBrokerDialog` содержит M2 partial: `cardsRepository.identities.first().find { it.ticker == ticker }` (findCard) + `accountSelectionRepository.selected(BrokerName.TINVEST).first()` (selected fallback) в VM. `loadDialogAccounts` — thin delegate на `LoadCardAccountsUseCase` (M2-fixed in 12a); `saveBrokerSettings` — thin delegate на `SaveCardSettingsUseCase`. Задача закрывает M015 и обновляет M013-таблицу (`openBrokerDialog`: M2 partial -> M2-fixed).
+
+**Соответствие Clean:** соответствует (orchestration -> domain, dependency rule не нарушен).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `domain/usecases/OpenCardDialogUseCase.kt` (новый).
+- `presentation/screens/orders/OrderDialogsViewModel.kt` — `openBrokerDialog` -> thin.
+- `docs/clean-audit.md` — M015 -> `исправлено` + перенос в «Исправленные (L1)»; M013-таблица `openBrokerDialog` -> `M2-fixed`.
+
+**Шаги:**
+1. Создать `OpenCardDialogUseCase`: inject `CardsRepository`, `AccountSelectionRepository`, `LoadCardAccountsUseCase`, `SandboxPreferencesRepository`, `Logger`; `suspend fun execute(ticker: String): AppResult<CardAccountsResult>` — findCard по ticker -> broker / savedAccountId -> `loadCardAccountsUseCase.execute(brokerName, sandboxMode, savedAccountId)`.
+2. `OrderDialogsViewModel.openBrokerDialog` -> thin: `usecase.execute(ticker)` + `_state.update` (dialog state 1:1: showBrokerDialog / dialogInstrumentTicker / selectedBroker / selectedAccountIdDialog / dialogAccounts).
+3. Тест `OpenCardDialogUseCaseTest` (4 кейса: success / no card (saved fallback) / failure / cancellation).
+4. `docs/clean-audit.md`: M015 -> `исправлено (дата, hash)`; перенести в «Исправленные (L1)»; M013-таблица `openBrokerDialog` -> `M2-fixed (OpenCardDialogUseCase)`.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. Live-test: dialog карточки (open / change broker / save) — 1:1.
+
+**Тесты:** `OpenCardDialogUseCaseTest` — 4 кейса; live-test — диалог карточки.
+
+**Референсы:** clean-audit M015, M013 (таблица); `LoadCardAccountsUseCase` (`eb1f68b`); 12a (`7e2f717`); `OrderDialogsViewModelTest` (`7e2f717`, 6 кейсов).
+
+**Ограничения:**
+- Не менять `loadDialogAccounts` / `saveBrokerSettings` (thin delegates, не M2).
+- 1:1 поведение `openBrokerDialog` (порядок dialog state / загрузки).
+- Не смешивать с `### M6: one-shot events (StatusEvent)` (M016) и `### M001: formatting в presentation`.
+
+**Критерий готовности:**
+- `OpenCardDialogUseCase` создан; `openBrokerDialog` -> thin.
+- M015 -> `исправлено`; M013-таблица `openBrokerDialog` -> `M2-fixed`.
+- Гейт зелёный; live-test PASS.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+
+**Связано:** clean-audit M015, M013; `### M6: one-shot events (StatusEvent)` (M016); `### M001: formatting в presentation`; 12a (`7e2f717`).
+
+**Открытые вопросы:** `LoadCardAccountsUseCase` уже inject'ится в `OrderDialogsViewModel`; в usecase — тоже. Двойная инъекция — OK (оба через domain).
+
+
+
+___
+
+
 
 
 

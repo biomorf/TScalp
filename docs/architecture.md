@@ -84,9 +84,9 @@ partial-событий — в manager.
 **Окно отката:** polling раз в 10 сек может «откатить» свежее WS-обновление
 (≤10 сек). Приемлемо.
 
-### ViewModel
+### ViewModels
 
-`PortfolioViewModel`:
+#### `PortfolioViewModel`
 
 - Подписывается на `positionFlowManager.sheet` (`StateFlow<PortfolioSheet>`).
 - Читает `uiState.sheet.accounts` напрямую (per-account группировка —
@@ -95,6 +95,61 @@ partial-событий — в manager.
   (tick-to-tick, presentation-логика) — `uiState.prices` /
   `uiState.priceChangePercents`; day-change — задача
   `### Position: источники priceChangePercent и lockedQuantity`.
+
+#### `OrdersViewModel` split (4 VM)
+
+После 13d (split `OrdersViewModel`) — 4 VM:
+
+| VM | State | Use cases / domain API | Lifecycle |
+|---|---|---|---|
+| `OrdersViewModel` (Coord) | `OrdersCoordState` (8 полей: accounts, selectedAccountId, isApiInitialized, lastSelectedInstruments, portfolioPositions, isLoading, statusMessage, isError) + **passthrough** `tradingStatuses: StateFlow<Map>` = `tradingStatusRepository.statuses` | `LoadOrdersAccountsUseCase`, `CheckBrokerInitializationUseCase`, `UpdateTradingStatusesUseCase`, `RefreshSelectedInstrumentsUseCase`; `CardsRepository`; `PositionFlowManager` | `startPositionUpdates` / `stopPositionUpdates` / `onCleared` (stop) |
+| `OrderFormViewModel` | `OrderFormState` (29 полей: instrument / quantity / orderType / prices / pair / confirm / status) | `SelectInstrumentUseCase`, `SelectPairedInstrumentUseCase`, `RestoreOrderFormUseCase`, `PlaceOrderUseCase`, `CalculateTradeDetailsUseCase`, `CalculatePairExecUseCase`; `PriceFlowManager.setInterest`; `TradingStateRepository`, `TradingPreferencesRepository` | `onCleared` (clearInterest ORDERS) |
+| `OrderSearchViewModel` | `OrderSearchState` (15 полей: search / pair-search / broker dialogs / status) | `SearchInstrumentsUseCase`; `SearchCacheRepository`; `BrokerRegistry` | — (stateless) |
+| `OrderDialogsViewModel` | `OrderDialogsState` (6 полей: dialog flag / ticker / broker / account / swipe reset) | `LoadCardAccountsUseCase`, `SaveCardSettingsUseCase`; `CardsRepository`, `AccountSelectionRepository`, `SandboxPreferencesRepository` | — (stateless) |
+
+**Cross-VM — 5 связей, все через domain или UI-orchestration (не через `_uiState`):**
+
+1. **Search → Form** (user-intent, **UI оркестрирует**, P4 KDoc):
+   `onSearchResultSelected` + `formVM.onInstrumentSelected`;
+   `onPairedSearchResultSelected` + `formVM.onPairedInstrumentSelected`.
+2. **Dialogs → Coord** (domain): `saveBrokerSettings` →
+   `SaveCardSettingsUseCase` → `CardsRepository.identities` →
+   Coord подписан (A4-b-1).
+3. **Coord → Form** (data-flow, domain): `PositionFlowManager.sheet`
+   — оба читают.
+4. **Search → UI** (data-flow, domain): Coord passthrough
+   `TradingStatusRepository.statuses` (P1) — UI читает
+   `coordVM.tradingStatuses`.
+5. **Form → Form** (data-flow, domain): `PriceFlowManager.setInterest(
+   ORDERS, uids)` — Form-метод (`syncPriceInterest`).
+
+~~~mermaid
+flowchart LR
+    subgraph VM[4 ViewModels]
+        C[OrdersViewModel<br/>Coord: accounts + lifecycle]
+        F[OrderFormViewModel<br/>form + postOrder + prices]
+        S[OrderSearchViewModel<br/>search + pair-search]
+        D[OrderDialogsViewModel<br/>dialog state]
+    end
+    subgraph DOM[domain]
+        REPO[CardsRepository /<br/>TradingStateRepository /<br/>TradingStatusRepository]
+        MG[PositionFlowManager /<br/>PriceFlowManager]
+    end
+    UI[OrdersScreen<br/>+ OrdersSearch / OrdersPairTrading]
+    S -->|user-intent<br/>UI orchestrates| F
+    D -->|saveCard| REPO
+    REPO -->|identities<br/>reactive| C
+    MG -->|sheet<br/>reactive| C
+    MG -->|sheet / prices<br/>reactive| F
+    REPO -->|statuses<br/>passthrough| C
+    F -->|setInterest ORDERS| MG
+    C -->|coordState| UI
+    S -->|searchState| UI
+    F -->|formState| UI
+    D -->|dialogState| UI
+~~~
+
+Подпись: 4-VM структура `Orders` после split 13d — 4 state, 5 cross-VM связей через domain / UI-orchestration, ноль `_uiState`-чтений.
 
 ### Границы (dependency rule)
 
