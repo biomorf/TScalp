@@ -582,6 +582,14 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 4. `assert 'OrdersViewModelTest' not in text` — упоминание в другой (закрытой) задаче ROADMAP (9247).
 5. `assert '### H5.' not in text` — inline-ссылки на H5 в `**Связано:**` / `**Ревизия**`.
 
+**Продолжение (2026-11-09, 6-й случай):**
+
+6. `assert "### CardIdentity: persist broker" not in at` — header
+   `### CardIdentity: persist broker` встречается как подстрока в тексте
+   другой секции ARCHIVE (transform markdown-archiving); line-anchored
+   `re.findall(r"^### CardIdentity: persist broker", at, re.MULTILINE)` = 0,
+   подстрочный `in` = True.
+
 Формулировка 67 «line-anchored regex» была правильной, но узкой: говорила про `### X`, не про общий принцип. Расширение — после 5-го промаха.
 
 **Проверка (общая):** перед `assert X not in text` в скрипте правки `.md` — `grep -nE "^X$" file`. Если >0 — line-anchored проверка; если inline-вхождения — `assert X not in text` невозможен, использовать `re.findall(r"^X$", ...)`. Связано с уроком 79 (проверяй факт, не форму).
