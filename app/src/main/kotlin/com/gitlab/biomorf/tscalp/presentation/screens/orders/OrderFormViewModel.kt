@@ -167,6 +167,10 @@ class OrderFormViewModel
         private fun handlePostOrderSuccess(outcome: PlaceOrderOutcome.Success) {
             var message = formatPostOrderSuccess(outcome.primary, outcome.paired)
             val freeBalance = outcome.freeBalance
+            logger.d(
+                TAG,
+                "postOrder success: primary=${outcome.primary}, paired=${outcome.paired}, freeBalance=$freeBalance",
+            )
             if (freeBalance != null && freeBalance < 1000.0) {
                 message += "\n⚠️ Низкий свободный остаток: ${formatDomesticCurrency(freeBalance)}"
             }
@@ -184,6 +188,10 @@ class OrderFormViewModel
         }
 
         private fun handlePostOrderInsufficient(outcome: PlaceOrderOutcome.InsufficientFunds) {
+            logger.w(
+                TAG,
+                "postOrder insufficient: balance=${outcome.balance}, required=${outcome.required}",
+            )
             _state.update {
                 it.copy(
                     isLoading = false,
