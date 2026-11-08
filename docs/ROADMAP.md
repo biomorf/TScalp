@@ -3071,9 +3071,49 @@ ___
 
 **Зависимости:** «OrdersViewModel: разбить» (закрыто).
 
+**Анализ реализации (2026-11-08):**
+
+Диагностика кода после 13d/14a/15/17: 4 state с `statusMessage` / `isError` (Search 2, Form 2, Coord 2, OrdersList inline 2), ~12 writes, 3 UI-канала через `StatusEffect`, `clearStatus` в 3 VM + 2 state + UI (`OrdersScreen:219–221`). `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в проекте — нет.
+
+**Механизм — `Channel<StatusEvent>(BUFFERED)` + `receiveAsFlow()`, не `SharedFlow` (2c).**
+
+- `SharedFlow(replay = 0)` — событие теряется, если `tryEmit` случился до подписчика (`loadAccounts` / `postOrder` завершаются до `LaunchedEffect(Unit)`). M6 не решается.
+- `SharedFlow(replay = 1)` — реплеит последнее событие при пересоздании Composable; та же проблема, что у StateFlow. M6 не решается.
+- `SharedFlow(extraBufferCapacity = 1)` без replay — без подписчика `tryEmit` возвращает `false`, событие теряется молча.
+- `Channel(BUFFERED)` + `receiveAsFlow()` — событие буферизуется до подписчика, ровно один получатель. Минус: один потребитель (не broadcast); сейчас 1 `LaunchedEffect` на VM — не проблема.
+
+**Форма `StatusEvent`.** `data class StatusEvent(val message: String, val isError: Boolean = false)` — не sealed. Разница только в `isError`-флаге (`Snackbar` + `actionLabel` / `duration`); sealed `Success` / `Error` — избыточно.
+
+**Пилот — `OrderSearchViewModel`.** Самый простой: 15 state-полей → 13, 1 status-write, есть `OrderSearchViewModelTest` с 1 статус-кейсом. После — Coord (B), Form (C), OrdersList (D), UI (E), clean-audit (F).
+
+**Полный список файлов:**
+- `presentation/screens/orders/StatusEvent.kt` (новый) — `data class StatusEvent(message, isError)`.
+- `OrderSearchState.kt` — −2 поля; `clearStatus()` удалён из state.
+- `OrderSearchViewModel.kt` — `_status: Channel<StatusEvent>(BUFFERED)`, `status: Flow<StatusEvent>`, `trySend`; `clearStatus()` удалён.
+- `OrdersCoordState.kt` — −2 поля; `clearStatus()` удалён.
+- `OrdersViewModel.kt` — `_status`, `status`, `trySend` в `loadAccounts` (success + failure) и `checkApiInitialization` (если status пишется); `clearStatus()` удалён.
+- `OrderFormState.kt` — −2 поля; `clearStatus()` удалён.
+- `OrderFormViewModel.kt` — `_status`, `status`, `trySend` в `postOrder` (`handlePostOrderSuccess` / `Insufficient` / `Error`); `clearStatus()` удалён.
+- `OrdersListViewModel.kt` — inline `OrdersListState` −2 поля; `_status`, `status`; `trySend` в `loadOrders` / `cancelOrder`; inline reset без `statusMessage` / `isError`.
+- `OrdersScreen.kt` — `StatusEffect(status: Flow<StatusEvent>)` + `LaunchedEffect(Unit) { status.collect { … } }` для 3 каналов; параметры `onClear*Status` удалены.
+- Тесты: `OrderSearchViewModelTest` / `OrdersViewModelTest` / `OrderFormViewModelTest` / `OrdersListViewModelTest` — по 1–2 кейса на `status`-канал (emit + collect, no-replay не проверяется — `Channel` гарантирует).
+
+**Разбивка (6 подшагов, 6 коммитов):**
+
+| Шаг | Что | ~ч |
+|---|---|---|
+| **A** | `StatusEvent.kt` + Search-VM + Search-State + UI-канал search + тесты | 1–1.5 |
+| **B** | Coord-VM + Coord-State + UI-канал coord + тесты | 0.5 |
+| **C** | Form-VM + Form-State + UI-канал form + тесты | 0.75 |
+| **D** | OrdersList-VM + inline state + тесты (без UI) | 0.5 |
+| **E** | UI: `StatusEffect` → `Flow<StatusEvent>`, `OrdersScreenSnackbar` cleanup | 0.5 |
+| **F** | clean-audit M6 → `исправлено` + L1 | 0.15 |
+
+**Оценка (пересмотр):** ~3.5–4.5 ч (было 2–3 ч; +1 ч — 2c-фиксация `Channel` vs `SharedFlow`, полный список файлов, 6 подшагов).
+
 **Связано:** clean-audit M6, M001 (format), `OrderFormViewModel: reduce functions`, `OrderSearchViewModel: reduce functions`.
 
-**Открытые вопросы:** `SharedFlow` vs `Channel` — решить при старте (`SharedFlow` проще, `Channel` — one-shot гарантия).
+**Открытые вопросы:** `SharedFlow` vs `Channel` — **решено:** `Channel(BUFFERED)` (2c-фиксация выше). `StatusEvent` — **решено:** data class. `OrdersListViewModel` UI — в M016 только API (`status`); UI-интеграция — при появлении отображения `statusMessage` в `OrdersListDialog` (сейчас не читается).
 
 
 
