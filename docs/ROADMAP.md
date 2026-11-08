@@ -1223,7 +1223,9 @@ ___
 
 **Мобильная работа:** частичное (Фаза 1 — полное в proot; Фаза 2 — компилятор + unit-тесты через proot, live-тест T-Invest на эмуляторе на десктопе).
 
-**Статус:** в работе.
+**Статус:** в работе (код смержен в `dev`, PR #110, merge `a590122a`; ожидает live-test 1b-9).
+
+**Подтверждение:** ожидает (sandbox T-Invest + write-token, эмулятор/девайс; критерий: primary SBER(A) + pair SBER(B) → две независимые карточки; ensure no-op на существующем `(SBER, T, B)` — не Failure; BUY на per-card счёт; см. 1b-9).
 
 **Ветка:** `refactor/card-identity-tscalp-uid` (25 коммитов: Фазы 1a + 1b-код (1b-1a..1b-8) + 2 реализованы; ahead origin/feature на 15).
 
@@ -1788,14 +1790,14 @@ Test:
   (reset broker + account), `restoreOrderForm` (broker из instrument,
   accountId=null). `OrderDialogsViewModelTest` — disabled-тесты в 1b-4,
   old→new в 1b-1b; `takenAccountIds`-кейс там же. Гейт.
-- **1b-9** (~0.5–1 ч). Live-test (sandbox T-Invest): 1) primary SBER(A) +
+- **1b-9** — **ожидает** (deferred closure, см. `**Подтверждение:**`). Live-test (sandbox T-Invest): 1) primary SBER(A) +
   pair SBER(B) → две независимые; смена счёта в одной не меняет другую;
   2) primary SBER(A) + pair SBER(A) → счёт A disabled; 3) покупка на
   per-card счёт (из Фазы 1a); 4) опционально — SELL / stop-loss / парная
   (отложенные сценарии Фазы 2).
-- **1b-10** (~0.15 ч). Push + CI + PR.
+- **1b-10** ✅ (~0.15 ч). Push + CI + PR — `04b9da17` (unused assertNull), `79cc74ca` (KDoc fix + stale test drop), PR #110, merge `a590122a`.
 
-- **1b-11** (~2.5–3 ч). **Модель A: `CardIdentity` — история, ensure-add.**
+- **1b-11** ✅ (~3 ч). **Модель A: `CardIdentity` — история, ensure-add.** Реализовано: `f8f85324` (withEnsuredCard), `c004ebec` (ensure-add + no collision), `79cc74ca` (KDoc fix + stale test drop).
 
 **Модель A (утверждена 2026-11-08 после live-test регрессии).**
 
@@ -1934,8 +1936,10 @@ accountId)`; `PlaceOrderRequest` slot accountIds (1b-6a);
 - 1b-6a — `af072d1`; 1b-6b — `e510898`.
 - 1b-7 — `e9f41f0`.
 - 1b-8 — `7e52714`.
+- 1b-10 — `04b9da17`, `79cc74ca`; PR #110, merge `a590122a`.
+- 1b-11 — `f8f85324`, `c004ebec`, `79cc74ca`.
 
-**Осталось:** 1b-9 (live-test, ~0.5–1 ч) + 1b-10 (push + PR, ~0.15 ч) + 1b-11 (модель A: ensure-add, ~3–3.5 ч, уточнено после live-test регрессии).
+**Осталось:** 1b-9 (live-test, deferred closure — см. `**Подтверждение:**`).
 
 **Критерий готовности:**
 
