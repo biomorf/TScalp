@@ -77,4 +77,33 @@ class CardIdentityTest {
         assertEquals(1, result.size)
         assertEquals("B", result[0].accountId)
     }
+    // ---- withEnsuredCard (модель A, 1b-11) ----
+
+    @Test
+    fun `withEnsuredCard adds when missing`() {
+        val a = card(uid = "uid-sber", accountId = "A")
+        val result = listOf(a).withEnsuredCard("uid-sber", BrokerName.TINVEST, "B")
+        assertEquals(2, result.size)
+        assertTrue(result.any { it.tscalpInstrumentId == "uid-sber" && it.accountId == "A" })
+        assertTrue(result.any { it.tscalpInstrumentId == "uid-sber" && it.accountId == "B" })
+    }
+
+    @Test
+    fun `withEnsuredCard no-op when already exists`() {
+        val a = card(uid = "uid-sber", accountId = "A")
+        val b = card(uid = "uid-sber", accountId = "B")
+        val result = listOf(a, b).withEnsuredCard("uid-sber", BrokerName.TINVEST, "B")
+        assertEquals(2, result.size)
+        assertEquals("A", result[0].accountId)
+        assertEquals("B", result[1].accountId)
+    }
+
+    @Test
+    fun `withEnsuredCard adds null-account card when missing`() {
+        val a = card(uid = "uid-sber", accountId = "A")
+        val result = listOf(a).withEnsuredCard("uid-sber", BrokerName.TINVEST, null)
+        assertEquals(2, result.size)
+        assertTrue(result.any { it.tscalpInstrumentId == "uid-sber" && it.accountId == "A" })
+        assertTrue(result.any { it.tscalpInstrumentId == "uid-sber" && it.accountId == null })
+    }
 }

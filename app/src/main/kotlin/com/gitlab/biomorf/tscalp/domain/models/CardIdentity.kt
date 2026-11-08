@@ -77,6 +77,33 @@ fun List<CardIdentity>.findCard(
  * **не** разрешает; `SaveCardSettingsUseCase` проверяет её до вызова и
  * возвращает `Failure`.
  */
+/**
+ * Возвращает копию списка, где карточка `(uid, broker, newAccountId)`
+ * **гарантированно присутствует**. Если её нет — добавляется в конец;
+ * если есть — список возвращается без изменений (idempotent add).
+ *
+ * **Модель A (1b-11):** `CardIdentity` — запись истории «Последних
+ * просмотренных». Один `(uid, broker)` может иметь много записей
+ * (разные счета = разные карточки). Смена счёта в слоте — не
+ * «пересоздание» (delete old + add new), а «ensure target exists»:
+ * старая запись **остаётся** в истории.
+ *
+ * Pure, идемпотентна. `null` — валидный `newAccountId` (карточка без
+ * счёта); ensure с `null` тоже no-op, если `(uid, broker, null)` уже есть.
+ */
+fun List<CardIdentity>.withEnsuredCard(
+    tscalpInstrumentId: String,
+    brokerName: BrokerName,
+    newAccountId: String?,
+): List<CardIdentity> {
+    val alreadyHas = any { it.matches(tscalpInstrumentId, brokerName, newAccountId) }
+    return if (alreadyHas) {
+        this
+    } else {
+        this + CardIdentity(tscalpInstrumentId, brokerName, newAccountId)
+    }
+}
+
 fun List<CardIdentity>.withRecreatedSettings(
     tscalpInstrumentId: String,
     brokerName: BrokerName,
