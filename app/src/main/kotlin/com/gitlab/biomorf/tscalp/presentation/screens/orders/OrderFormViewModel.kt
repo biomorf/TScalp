@@ -19,7 +19,6 @@ import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderOutcome
-import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderRequest
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
@@ -30,6 +29,7 @@ import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
 import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
+import com.gitlab.biomorf.tscalp.presentation.util.toPlaceOrderRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -141,7 +141,7 @@ class OrderFormViewModel
         }
 
         private fun postOrder(direction: OrderDirection) {
-            val request = buildPlaceOrderRequest(_state.value) ?: return
+            val request = _state.value.toPlaceOrderRequest() ?: return
             viewModelScope.launch {
                 _state.update { it.copy(isLoading = true, statusMessage = null) }
                 when (val outcome = placeOrderUseCase.execute(request, direction)) {
@@ -154,24 +154,6 @@ class OrderFormViewModel
                     }
                 }
             }
-        }
-
-        private fun buildPlaceOrderRequest(state: OrderFormState): PlaceOrderRequest? {
-            val ticker = state.ticker.ifBlank { state.selectedInstrument?.ticker } ?: return null
-            val quantity = state.quantityAsLong ?: return null
-            val tscalpId = state.selectedInstrument?.tscalpInstrumentId ?: return null
-            return PlaceOrderRequest(
-                ticker = ticker,
-                tscalpInstrumentId = tscalpId,
-                quantity = quantity,
-                orderType = state.orderType,
-                limitPrice = state.limitPrice,
-                stopPrice = state.stopPrice,
-                expirationType = state.expirationType,
-                pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
-                pairedTicker = state.pairedInstrument?.ticker,
-                pairedMultiplier = state.pairedMultiplier,
-            )
         }
 
         /**
