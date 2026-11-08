@@ -36,6 +36,7 @@ class OrderSearchViewModelTest {
 
     private val sber =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-sber",
             ticker = "SBER",
             name = "Сбербанк",

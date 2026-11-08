@@ -54,6 +54,7 @@ class SelectInstrumentUseCaseTest {
 
     private val inputInstrument =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-1",
             ticker = "SBER",
             name = "Sberbank",
@@ -62,6 +63,7 @@ class SelectInstrumentUseCaseTest {
 
     private val actualInstrument =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-1",
             ticker = "SBER",
             name = "Sberbank",

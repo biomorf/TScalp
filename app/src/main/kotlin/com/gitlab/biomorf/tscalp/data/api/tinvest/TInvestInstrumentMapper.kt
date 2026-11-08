@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.models.Bond
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Currency
 import com.gitlab.biomorf.tscalp.domain.models.Etf
 import com.gitlab.biomorf.tscalp.domain.models.Future
@@ -49,6 +50,7 @@ object TInvestInstrumentMapper {
         priceStepCostOverride: Double?,
     ): Future =
         Future(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
             name = instrument.name,
@@ -75,6 +77,7 @@ object TInvestInstrumentMapper {
 
     private fun mapShare(instrument: ProtoInstrument): Share =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
             name = instrument.name,
@@ -101,6 +104,7 @@ object TInvestInstrumentMapper {
 
     private fun mapBond(instrument: ProtoInstrument): Bond =
         Bond(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
             name = instrument.name,
@@ -127,6 +131,7 @@ object TInvestInstrumentMapper {
 
     private fun mapOption(instrument: ProtoInstrument): Option =
         Option(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
             name = instrument.name,
@@ -153,6 +158,7 @@ object TInvestInstrumentMapper {
 
     private fun mapEtf(instrument: ProtoInstrument): Etf =
         Etf(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
             name = instrument.name,
@@ -179,6 +185,7 @@ object TInvestInstrumentMapper {
 
     private fun mapCurrency(instrument: ProtoInstrument): Currency =
         Currency(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
             name = instrument.name,
@@ -208,6 +215,7 @@ object TInvestInstrumentMapper {
         type: InstrumentType,
     ): Other =
         Other(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = instrument.uid,
             ticker = instrument.ticker,
             name = instrument.name,

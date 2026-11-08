@@ -41,13 +41,14 @@
 **Формула P&L фьючерса:** `(currentPrice - avgPrice) × quantity × moneyPerPointOfPrice`.
 Эквивалентно: `((currentPrice - avgPrice) / minPriceIncrement) × priceStepCost × quantity`.
 
-### 3. Core (обязательные, 4)
+### 3. Core (обязательные, 5)
 
 Без них инструмент не идентифицируется. Все — non-null.
 
 | Поле | T-Invest | BCS | Finam |
 |---|---|---|---|
 | `tscalpInstrumentId: String` | `uid` | `figi` | `id` |
+| `brokerName: BrokerName` | `TINVEST` (контекст) | `BCS` | `FINAM` |
 | `ticker: String` | `ticker` | `ticker` | `ticker` |
 | `name: String` | `name` | `displayName` | `name` |
 | `instrumentType: InstrumentType` | контекст маппера (см. ниже) | `type` | `type` |

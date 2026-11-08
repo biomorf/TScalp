@@ -427,6 +427,7 @@ private fun AssetPositionCardShareProfitPreview() {
                 SharePosition(
                     instrument =
                         Share(
+                            brokerName = BrokerName.TINVEST,
                             tscalpInstrumentId = "uid-1",
                             ticker = "SBER",
                             name = "Сбербанк",
@@ -458,6 +459,7 @@ private fun AssetPositionCardShareLossPreview() {
                 SharePosition(
                     instrument =
                         Share(
+                            brokerName = BrokerName.TINVEST,
                             tscalpInstrumentId = "uid-2",
                             ticker = "GAZP",
                             name = "Газпром",
@@ -489,6 +491,7 @@ private fun AssetPositionCardFuturesPreview() {
                 FuturePosition(
                     instrument =
                         Future(
+                            brokerName = BrokerName.TINVEST,
                             tscalpInstrumentId = "uid-3",
                             ticker = "SiU4",
                             name = "Фьючерс Si",

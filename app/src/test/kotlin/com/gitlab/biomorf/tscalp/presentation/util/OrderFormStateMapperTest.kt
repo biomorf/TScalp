@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.util
 
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
@@ -11,6 +12,7 @@ import org.junit.Test
 class OrderFormStateMapperTest {
     private val sber =
         Share(
+            brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-sber",
             ticker = "SBER",
             name = "Сбербанк",
