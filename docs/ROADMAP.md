@@ -317,74 +317,6 @@ ___
 
 
 
-### Orders: счёт из свойств карточки не применяется к акциям
-
-**Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с одной бумагой).
-
-**Статус:** запланировано.
-
-**Контекст:** Pre-existing bug (воспроизведён на `dev` при live-тесте 2026-11-03 после PR #89). При покупке **акции** из карточки «Последние просмотренные» после выбора счёта в диалоге свойств карточки (`AssetPositionCard.onSettings` → `openBrokerDialog` → `saveBrokerSettings`) заявка уходит на **глобальный** счёт (`OrdersUiState.selectedAccountId` — из Настроек), а не на выбранный в карточке. Для **фьючерсов** работает корректно. Если выбрать активный счёт в Настройках **и** в свойствах карточки — покупается правильно (потому что оба совпадают).
-
-**Соответствие Clean:** соответствует (баг-фикс, не рефакторинг).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды:** —.
-
-**Предусловия:** нет. (PR #89 не виноват — идентично `dev` до миграции.)
-
-**Файлы (ожидаемые):**
-- `presentation/screens/orders/OrdersViewModel.kt` — `openBrokerDialog`, `saveBrokerSettings`, `buildOrderInput`, `refreshLastSelectedInstruments`, `updatePositionsFromSheet`.
-- `presentation/screens/orders/OrdersScreen.kt` — `onSettings = { viewModel.openBrokerDialog(instrument.ticker) }`, `onClick` карточки.
-- `presentation/screens/orders/OrdersUiState.kt` — `lastSelectedInstruments: List<SelectedInstrumentInfo>` (поле `accountId`).
-- `presentation/components/BrokerAccountDialog.kt` — кнопка «Сохранить» / `onSave` callback.
-
-**Шаги:**
-
-0. **Диагностика (обязательно до фикса).** Воспроизвести: 2 счёта с SBER, выбрать в карточке SBER счёт `B`, купить — проверить, на какой счёт ушло. Добавить `logger.d` в `buildOrderInput` перед `PostOrderInput`: `activeCard`, `activeCard?.accountId`, `state.selectedAccountId`, `state.selectedInstrument?.ticker`, `state.ticker`, `state.lastSelectedInstruments.map { it.instrument.ticker to it.accountId }`. Собрать лог.
-1. **По результатам шага 0 — выбрать гипотезу и фикс.** Известные гипотезы:
-   1. `activeCard` = `null` (`ticker` mismatch: `state.ticker` ≠ `state.selectedInstrument.ticker` ≠ `card.instrument.ticker`). Фикс: нормализовать выбор — искать `activeCard` по `selectedInstrument.tscalpInstrumentId`, а не по `ticker`.
-   2. `activeCard.accountId` = `null` (не сохранился в `saveBrokerSettings`). Фикс: проверить `selectedAccountIdDialog` перед `saveBrokerSettings`; при `null` — fallback.
-   3. `saveBrokerSettings` не вызывается для акций (кнопка «Сохранить» / `onSave` не срабатывает). Фикс: проверить `BrokerAccountDialog` UI.
-   4. Гонка `loadOrders` (записывает `selectedAccountId` из настроек) с `saveBrokerSettings` — возможно, `lastSelectedInstruments` сбрасывается при `loadOrders`/`refresh`.
-   5. Разница акции/фьючерсы — в `updatePositionsFromSheet`: `portfolioPositions` фильтруются по `selectedAccountId` (глобальный), а карточка в UI показывает P&L этого счёта — визуально «на одном счёте». Тогда баг только в отображении, покупка на самом деле уходит правильно; проверить в брокере.
-2. **Расширить выбор счёта на карточку.** После выбора `accountId` в диалоге — `OrdersScreen` должен чётко показывать, какой счёт выбран для карточки (сейчас, вероятно, не визуализируется). UI-санкция (правило 1).
-3. Тесты: `OrdersViewModelTest` (если появится mock-инфра) — `buildOrderInput` берёт `activeCard.accountId` при `activeCard != null`, иначе `state.selectedAccountId`. Live-тест: 2 счёта × покупка акции из карточки с выбранным `B` — заявка уходит на `B`, P&L карточки — счёта `B`.
-4. Гейт.
-
-**Тесты:** unit — `buildOrderInput` (2 кейса); live — 2 счёта, покупка из карточки.
-
-**Референсы:** `docs/architecture.md` (Data flow: позиции); `### OrdersViewModel: миграция на PortfolioSheet` (закрыто, PR #89 — не виноват); PR #88 (Portfolio model).
-
-**Ограничения:**
-- Не менять поведение фьючерсов (работает).
-- UI-санкция (правило 1): если добавляем визуализацию выбранного счёта в карточке — согласовать.
-- Не менять `PostOrderUseCase` (orchestration корректна; проблема в резолве `accountId` выше).
-
-**Критерий готовности:**
-- Покупка акции из карточки с выбранным в свойствах счётом `B` уходит на `B` (при любом `selectedAccountId` в Настройках).
-- Фьючерсы — поведение не изменилось.
-- P&L карточки — с выбранного в карточке счёта (не с глобального).
-- Гейт зелёный; live-тест PASS.
-
-**Оценка:** ~2–3 ч (диагностика 30 мин, фикс 30 мин, live-тест 30 мин, гейт 15 мин, резерв 30 мин).
-
-**Зависимости:** нет.
-
-**Связано:** `### OrdersViewModel: миграция на PortfolioSheet` (закрыто, PR #89); `### Portfolio: модель портфеля` (закрыто, PR #88).
-
-**Открытые вопросы:** гипотезы 1–5 (см. шаг 1) — фикс определяется после диагностики шага 0.
-
-
-
-
-___
-
-
-
-
 ### Orders: P&L в песочнице (expectedYield)
 
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с SBER).
@@ -1346,20 +1278,64 @@ ___
 
 
 
-### Рефакторинг: tscalpInstrumentId в CardIdentity (ticker — legacy)
+### Рефакторинг: tscalpInstrumentId в CardIdentity + весь domain (ticker — только data-граница)
 
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+**Мобильная работа:** частичное (Фаза 1 — полное в proot; Фаза 2 — компилятор + unit-тесты через proot, live-тест T-Invest на эмуляторе на десктопе).
 
 **Статус:** запланировано.
 
-**Контекст:** в A4 (live-regression split `OrdersViewModel`) `CardIdentity` получил `tscalpInstrumentId` рядом с `ticker` (оба non-null). `tscalpInstrumentId` — канонический domain-идентификатор; `ticker` оставлен **временно** для:
-- `SaveCardSettingsUseCase` (ищет карточку по `card.ticker == ticker`);
-- `OrdersUiState.activeCard` / `activePairedCard` (сопоставление с `instrument.ticker`);
-- legacy DataStore-формата (3-польный, `tscalpInstrumentId = ticker` при decode).
+**Контекст:** в A4 (live-regression split `OrdersViewModel`) `CardIdentity` получил `tscalpInstrumentId` рядом с `ticker` (оба non-null). `tscalpInstrumentId` — канонический domain-идентификатор; `ticker` — legacy, временный.
 
-По канону AGENTS «domain и слои к UI — `tscalpInstrumentId`»; `ticker` — legacy. Задача — убрать `ticker` из `CardIdentity` и перевести потребителей на uid.
+**Триггер расширения scope (2026-11-08):** после live-теста
+`### Orders: счёт из свойств карточки не применяется к акциям`
+(fixed by 13d `PlaceOrderUseCase`, live PASS 2026-11-08) обнаружено:
+при выборе счёта в свойствах **основной** карточки одновременно меняется
+счёт на **парной** карточке (кейс primary SBER + pair SBER). Причина —
+`CardIdentity` keyed by `ticker`:
+- `SaveCardSettingsUseCase` обновляет **все** записи с этим `ticker`
+  (`currentCards.map { if (card.ticker == ticker) ... }`);
+- `activeCardFor` / `activePairedCardFor` ищут
+  `lastSelectedInstruments.find { it.instrument.ticker == inst.ticker }`;
+- `openBrokerDialog(ticker)` не различает роль (primary/pair).
 
-**Соответствие Clean:** соответствует (усиление правила «domain оперирует `tscalpInstrumentId`»).
+**Domain-модель (утверждена 2026-11-08):**
+- **`tscalpInstrumentId` — broker-specific**, паспорт инструмента
+  (`docs/domain_models.md` §3: `uid` T-Invest / `figi` BCS / `id` Finam).
+- **Уникальность инструмента в domain** = `CardIdentity(
+  tscalpInstrumentId, brokerName, accountId)` — composite key.
+- **`ticker` в domain запрещён** как ключ/persist. В `Instrument.ticker` —
+  вспомогательное поле (для BCS/Finam data-границы). В `PairedOutcome` —
+  display через `instrument.ticker`.
+- **Ролей (primary/pair) нет.** Один инструмент на одном счёте у одного
+  брокера = одна `CardIdentity`; primary + pair на одном счёте — одна
+  карточка (утверждено 2026-11-08).
+
+**Архитектурный принцип: `Instrument` как паспорт.**
+
+`Instrument` — SSoT паспорта инструмента (per `docs/domain_models.md` §3):
+содержит все broker-specific поля, нужные data-слою (`tscalpInstrumentId`,
+`ticker`, `classCode`, `exchange`, `figi`, `currency`, …). Значит,
+`BrokerOrderRequest` / `StopOrderRequest` / `PlaceOrderRequest`
+**несут `instrument: Instrument`** вместо разрозненных `ticker` /
+`tscalpInstrumentId` / `brokerName`. Data-слой (BCS/Finam) читает
+`instrument.ticker` / `classCode` / `exchange` из паспорта.
+
+**Почему не брокер-специфичные репозитории.** `Instrument` уже содержит
+все поля; отдельный `BcsInstrumentRepository` / `FinamInstrumentRepository`
+расширил бы domain-API без пользы. `InstrumentRepository.getInstrument(uid)`
+— broker-agnostic, остаётся для `SelectInstrumentUseCase`; в
+`BrokerOrderRequest`-flow не используется (нет circular DI).
+
+**Почему не presentation-функция для `SaveCardSettings`.** Use case
+содержит I/O (`CardsRepository.identities.first()` + `save`) + бизнес-правило
+(«нет карточки → no-op, не ошибка»). По критерию M017 (usecase только если
+есть сценарий с I/O / бизнес-правилом) — это usecase. Чистый map —
+pure extension в `CardIdentity.kt` (см. ниже), usecase тонкий.
+Presentation-функцией не делаем: нарушит Clean (presentation не имеет
+права на `CardsRepository`) и MVVM (VM оркестрирует repository).
+
+**Соответствие Clean:** соответствует (domain→domain reference;
+BCS/Finam-специфика — data-граница; Adapter).
 
 **Нарушенное правило Clean:** —.
 
@@ -1367,56 +1343,251 @@ ___
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия:** PR «OrdersViewModel split» смержен в `dev` (текущая feature-ветка). Иначе — конфликты.
+**2c-заметка (принято с обоснованием, 2026-11-08):**
+`BrokerOrderRequest` / `StopOrderRequest` становятся **heavyweight** —
+вложенный `Instrument` (20–40 полей). Альтернатива: резолвить `ticker`
+в data-слое через `InstrumentRepository` — **не работает** (Gap 1:
+`getInstrument(uid)` без `brokerName` неоднозначен между брокерами;
+BCS/Finam не имеют своего API для резолва до их реализации). Выгода
+heavyweight-запроса: одно поле-паспорт вместо 3+ разрозненных
+(`ticker` + `tscalpInstrumentId` + `brokerName`), data читает нужное;
+zero runtime-cost (data class — ссылка, не копия). Минус: сигнатура
+длиннее — приемлемо.
 
-**Файлы:**
+**Предусловия:**
+- PR `bugfix/order-card-account-diagnostic` смержен (diagnostic logs
+  `resolveContext` / `SaveCardSettings`). **Смержен** 2026-11-08 (`d1ec084`).
+- `docs/domain_models.md` §3 (`tscalpInstrumentId` — broker-specific) —
+  актуален.
 
-- `domain/models/CardIdentity.kt` — удалить `ticker`, оставить `(tscalpInstrumentId, brokerName, accountId)`.
-- `data/repository/CardsRepositoryImpl.kt` — encode 3 поля (`broker|uid|account`); decode: 4-польный (текущий) → uid (skip ticker); 3-польный legacy → `uid = ticker` (backward compat).
-- `domain/usecases/SaveCardSettingsUseCase.kt` — сигнатура `(tscalpInstrumentId: String, brokerName, accountId)`; поиск по uid.
-- `presentation/screens/orders/OrdersViewModel.kt` — `saveBrokerSettings`: передавать `state.selectedInstrument?.tscalpInstrumentId`.
-- `presentation/screens/orders/OrdersUiState.kt` — `activeCard` / `activePairedCard`: по `it.instrument.tscalpInstrumentId == inst.tscalpInstrumentId`.
-- Тесты: `CardsRepositoryImplTest` (4-польный decode), `SaveCardSettingsUseCaseTest` (uid).
+**Файлы (сводно):**
 
-**Шаги:**
+*Domain / models:*
+- `domain/models/Instruments.kt` — `sealed interface Instrument`:
+  добавить `val brokerName: BrokerName`; во всех 7 `data class`
+  (`Share`, `Future`, `Bond`, `Option`, `Etf`, `Currency`, `Other`) —
+  `override val brokerName: BrokerName`.
+- `domain/models/CardIdentity.kt` — удалить `ticker`; 3 поля
+  (`tscalpInstrumentId`, `brokerName`, `accountId`).
+  Pure extensions рядом с моделью (2c-фиксация M017):
+  - `fun CardIdentity.matches(tscalpInstrumentId: String, brokerName: BrokerName): Boolean`
+  - `fun List<CardIdentity>.findCard(tscalpInstrumentId: String, brokerName: BrokerName): CardIdentity?`
+  - `fun List<CardIdentity>.withUpdatedSettings(tscalpInstrumentId: String, brokerName: BrokerName, accountId: String?): List<CardIdentity>`
+- `domain/models/OrderModels.kt` — `BrokerOrderRequest`:
+  удалить `ticker: String`, `tscalpInstrumentId: String?`; добавить
+  `instrument: Instrument`. `StopOrderRequest`: то же.
+- `domain/usecases/PostOrderUseCase.kt` — `PairedOutcome.Regular` /
+  `PairedOutcome.Stop`: `ticker: String` → `instrument: Instrument`;
+  `postPaired` передаёт `req.instrument` (без резолва).
 
-1. `CardIdentity` — удалить `ticker`; KDoc убрать legacy-оговорку.
-2. `CardsRepositoryImpl.encode` — 3 поля (`broker|uid|account`).
-3. `CardsRepositoryImpl.decode` — 3 формата: 4-польный A4 (uid), 3-польный новый (uid), 3-польный legacy (`uid = ticker`). KDoc.
-4. `SaveCardSettingsUseCase` — параметр `tscalpInstrumentId`, поиск по uid.
-5. `OrdersViewModel.saveBrokerSettings` — `state.selectedInstrument?.tscalpInstrumentId ?: return`.
-6. `OrdersUiState.activeCard` / `activePairedCard` — по uid.
-7. `SelectInstrumentUseCase.persistIdentity` — `CardIdentity(tscalpInstrumentId, brokerName, accountId)`.
-8. Тесты: обновить constructions (без `ticker`), decode-кейсы (4-польный A4, 3-польный legacy).
-9. Live-test: поиск SBER → карточка → save счёт → force-stop → запуск → карточка восстановлена с per-card accountId.
+*Domain / usecases:*
+- `domain/usecases/SaveCardSettingsUseCase.kt` — `execute(instrument: Instrument, accountId: String?)`;
+  тонкий: read → `findCard` → `withUpdatedSettings` → save. KDoc: no-op
+  при отсутствии карточки.
+- `domain/usecases/OpenCardDialogUseCase.kt` — `execute(instrument: Instrument)`;
+  find card по composite (pure `findCard`).
+- `domain/usecases/SelectInstrumentUseCase.kt` — `persistIdentity`:
+  `brokerName = instrument.brokerName` (сейчас `?: TINVEST`);
+  `existingCard` find по composite; `findPortfolioPosition` —
+  по `(uid, brokerName, accountId)`.
+- `domain/usecases/PlaceOrderUseCase.kt` — `PlaceOrderRequest`:
+  удалить `ticker`, `tscalpInstrumentId`, `pairedTicker`,
+  `pairedTscalpInstrumentId`; добавить `instrument: Instrument`,
+  `pairedInstrument: Instrument?`; `resolveContext`: find `activeCard`
+  по `(request.instrument.tscalpInstrumentId, request.instrument.brokerName)`;
+  `pairedCard` — по composite; `buildInput` передаёт `instrument`.
+- `domain/usecases/PrepareOrderRequestUseCase.kt` — параметры
+  `instrument: Instrument`, `pairedInstrument: Instrument?`; без
+  `ticker` / `tscalpInstrumentId` / `pairedTicker` / `pairedTscalpInstrumentId`.
+- `domain/usecases/RefreshSelectedInstrumentsUseCase.kt` — find position
+  по `(instrument.tscalpInstrumentId, brokerName, accountId)`.
 
-**Тесты:** ~5 в `CardsRepositoryImplTest` (4-польный, 3-польный новый, 3-польный legacy, empty, roundtrip), 4 в `SaveCardSettingsUseCaseTest` (uid вместо ticker, no-op, exception, cancellation).
+*Data:*
+- `data/repository/CardsRepositoryImpl.kt` — encode/decode: 3 поля
+  (`broker|uid|account`); decode 4 формата:
+  - 4-польный A4 (uid, skip ticker) — legacy;
+  - 3-польный новый (uid) — целевой;
+  - 3-польный legacy (`uid = ticker`) — legacy до A4;
+  - 2-польный `broker|ticker` (если был) — `uid = ticker, accountId = null`.
+  KDoc-таблица форматов.
+- Мапперы `Instrument` — проставить `brokerName`:
+  - `data/api/tinvest/TInvestInstrumentMapper.kt` — `brokerName = TINVEST`;
+  - `data/api/tinvest/TInvestRestInstrumentMappers.kt` — `TINVEST`;
+  - `data/api/bcs/` (при появлении) — `BCS`;
+  - `data/api/finam/` (при появлении) — `FINAM`.
+- `data/api/bcs/BcsBrokerApi.kt` — **без** `InstrumentRepository`
+  inject. `postOrder(request: BrokerOrderRequest)`:
+  `val ticker = request.instrument.ticker`;
+  `val classCode = request.instrument.classCode ?: return Failure(...)`.
+- `data/api/finam/FinamBrokerApi.kt` — то же, `symbol = "${ticker}@${mic}"`.
+
+*Presentation:*
+- `presentation/screens/orders/OrdersCoordState.kt` — `activeCardFor(instrument)` /
+  `activePairedCardFor(instrument)`: find по
+  `(it.tscalpInstrumentId == inst.tscalpInstrumentId && it.brokerName == inst.brokerName)`.
+- `presentation/screens/orders/OrderDialogsState.kt` —
+  `dialogInstrumentTicker: String?` → `dialogInstrument: Instrument?`;
+  `selectedAccountIdDialog: String?` — остаётся.
+- `presentation/screens/orders/OrderDialogsViewModel.kt` —
+  `openBrokerDialog(instrument: Instrument)`;
+  `saveBrokerSettings` → `saveCardSettingsUseCase.execute(state.dialogInstrument!!, state.selectedAccountIdDialog)`.
+  VM не конструирует `CardIdentity` (M1 не нарушается).
+- `presentation/screens/orders/OrdersSearch.kt` / `OrdersPairTrading.kt` —
+  `onSettings = { onOpenBrokerDialog(instrument) }` (передаётся
+  `Instrument`, не `ticker`).
+- `presentation/util/OrderFormStateMapper.kt` — `toPlaceOrderRequest`:
+  `instrument = state.selectedInstrument!!`, `pairedInstrument =
+  state.pairedInstrument`; без `ticker` / `pairedTicker`.
+- `presentation/screens/orders/OrderFormViewModel.kt` —
+  `formatPostOrderSuccess`: `PairedOutcome.Regular/Stop` —
+  `p.instrument.ticker` для display-сообщения.
+- `presentation/screens/orders/OrderFormState.kt` — `ticker: String = ""`
+  остаётся как **display-only** (computed `selectedTicker`), KDoc-пометка.
+
+*Docs:*
+- `docs/domain_models.md` §3 — добавить `brokerName: BrokerName` в `Instrument`
+  (core или common — паспорт инструмента привязан к брокеру; уточнить
+  при правке).
+
+*Tests:*
+- `data/repository/CardsRepositoryImplTest` — 4 формата decode + roundtrip.
+- `domain/models/CardIdentityTest` (новый) — `matches` / `findCard` /
+  `withUpdatedSettings` (pure, без mock).
+- `domain/usecases/SaveCardSettingsUseCaseTest` — `execute(instrument, accountId)`,
+  no-op, exception → Failure, cancellation rethrow.
+- `domain/usecases/OpenCardDialogUseCaseTest` — composite find.
+- `domain/usecases/PlaceOrderUseCaseTest` — find по composite,
+  `instrument` в `PlaceOrderRequest`.
+- `domain/usecases/SelectInstrumentUseCaseTest` — `brokerName = instrument.brokerName`.
+- `presentation/util/OrderFormStateMapperTest` — `instrument` / `pairedInstrument`.
+- `data/api/bcs/BcsBrokerApiTest` (если есть) / `data/api/finam/FinamBrokerApiTest` —
+  `postOrder` читает `instrument.ticker` / `classCode`; компилятор + unit-тест.
+
+**Фазы:**
+
+**Фаза 1 — CardIdentity + domain-ключи + `Instrument` как паспорт в `PlaceOrderRequest` (~10–14 ч):**
+1. `Instrument.brokerName` + мапперы T-Invest main + REST.
+2. `CardIdentity` — 3 поля; pure extensions (`matches` / `findCard` /
+   `withUpdatedSettings`).
+3. `CardsRepositoryImpl` — encode/decode 3 поля + 4 формата.
+4. `SaveCardSettingsUseCase` — `execute(instrument, accountId)` тонкий.
+5. `OpenCardDialogUseCase` — `execute(instrument)`.
+6. `SelectInstrumentUseCase` — `brokerName = instrument.brokerName`;
+   composite find.
+7. `PlaceOrderRequest` — `instrument` / `pairedInstrument`;
+   `resolveContext` find по composite.
+8. `RefreshSelectedInstrumentsUseCase` — composite find.
+9. `OrdersCoordState.activeCardFor` / `activePairedCardFor` — composite.
+10. `OrderDialogsState.dialogInstrument: Instrument?`; VM — `openBrokerDialog(instrument)`,
+    `saveBrokerSettings` делегирует.
+11. `OrdersSearch` / `OrdersPairTrading` — `onSettings` передаёт `instrument`.
+12. `OrderFormStateMapper` — `instrument` / `pairedInstrument`.
+13. Тесты (Фаза-1 scope: CardIdentity, CardsRepository, SaveCard,
+    OpenCard, PlaceOrder, SelectInstrument, OrderFormStateMapper).
+14. Live-test: primary SBER + pair SBER на разных счетах → разные карточки;
+    primary + pair на одном счёте → одна карточка (смена счёта меняет обе — ожидаемо).
+15. `docs/domain_models.md` §3 — `brokerName`.
+
+**Фаза 2 — BCS/Finam ticker в data; `BrokerOrderRequest` / `StopOrderRequest` / `PairedOutcome` (~4–6 ч):**
+1. `BrokerOrderRequest` / `StopOrderRequest` — `instrument: Instrument`
+   вместо `ticker` / `tscalpInstrumentId`.
+2. `PrepareOrderRequestUseCase` — `instrument` / `pairedInstrument`.
+3. `PostOrderUseCase.postPaired` — `PairedOutcome(instrument, ...)`.
+4. `OrderFormViewModel.formatPostOrderSuccess` — display через
+   `instrument.ticker`.
+5. `BcsBrokerApi` — читает `request.instrument.ticker` / `classCode`
+   (без `InstrumentRepository` inject). Компилятор + unit-тест.
+6. `FinamBrokerApi` — `request.instrument.ticker` / `exchange`.
+7. Тесты Фазы 2.
+8. Live-test: T-Invest (единственный рабочий) — покупка/продажа проходит.
+   BCS/Finam — компилятор + unit; live — после реализации
+   `### Реализация BCS/Finam Broker API`.
+
+**Тесты:** перечислены в файлах выше. Фаза 1 — live обязателен.
+Фаза 2 — T-Invest live обязателен; BCS/Finam — unit + compile.
 
 **Референсы:**
 - AGENTS.md → «Идентификаторы инструментов» (domain → `tscalpInstrumentId`).
-- Коммиты A4: `593ebfe` (`CardIdentity` + uid), `6a74867` (persist-first), `015a279` (init-collect).
+- `docs/domain_models.md` §3 (`tscalpInstrumentId` — broker-specific) + §5
+  (subtype-specific поля — уже в `data class`).
+- `docs/architecture.md` → «Data flow: позиции» (модели).
+- A4: коммиты `593ebfe` (`CardIdentity` + uid), `6a74867` (persist-first),
+  `015a279` (init-collect).
+- `TInvestOrdersService.postOrder` (уже на `request.tscalpInstrumentId`) —
+  образец, что T-Invest не сломается.
+- `clean-audit` M017 (`OrderFormStateMapper` в `presentation/util`) —
+  образец pure-маппинга Form → domain.
+- `domain/models/Portfolio.kt` → `Position.mergeStreamItem` — образец
+  pure extension рядом с моделью.
 
 **Ограничения:**
-- Не ломать legacy: 3-польные старые карточки (`broker|ticker|account`) → `uid = ticker` (одноразовая потеря при `getInstrument(ticker) = null` — приемлемо).
-- Не менять `dialogInstrumentTicker` (остаётся для открытия диалога; только `save` по uid).
-- Не смешивать с Фазой 2 (порядок: Фаза 2 → merge → этот refactor).
+- Не ломать legacy DataStore: 3-польный старый (`broker|ticker|account`)
+  → `uid = ticker` (одноразовая потеря при `getInstrument(ticker) = null`
+  — приемлемо, документируется в KDoc).
+- `ticker` в `Instrument` — **оставить** (вспомогательное, для BCS/Finam
+  data). `ticker` в `CardIdentity` / `PlaceOrderRequest` /
+  `BrokerOrderRequest` — **удалить**. `ticker` в `PairedOutcome` —
+  **удалить** (display через `instrument.ticker`).
+- Не менять `InstrumentType` enum, `instrumentType` — вне scope.
+- Не смешивать с `### M6: one-shot events` / `### M001: formatting`.
+- BCS/Finam impl — заглушки; их `postOrder` — компилятор + unit-тест;
+  live — после `### Реализация BCS/Finam Broker API`.
+- `InstrumentRepository.getInstrument(uid)` — не трогать (broker-agnostic,
+  для `SelectInstrumentUseCase`); в `BrokerOrderRequest`-flow не использовать.
 
 **Критерий готовности:**
-- `CardIdentity` — 3 поля.
-- `grep -rn "ticker" .../CardIdentity.kt .../SaveCardSettingsUseCase.kt` — пусто.
-- `activeCard` — по uid.
-- Live-test PASS.
+
+*Фаза 1:*
+- `CardIdentity` — 3 поля, `ticker` отсутствует.
+- `CardIdentity` extensions (`matches` / `findCard` / `withUpdatedSettings`) —
+  pure, покрыты unit-тестами без mock.
+- `grep -rn "\.ticker" app/src/main/kotlin/.../domain/
+  app/src/main/kotlin/.../presentation/screens/orders/` — пусто
+  (кроме `Instrument.ticker` в данных и `OrderFormState.selectedTicker`
+  как display-поля).
+- `PlaceOrderRequest` содержит `instrument` / `pairedInstrument`.
+- Primary SBER + pair SBER на разных счетах → разные карточки;
+  на одном счёте — одна карточка.
+- Гейт зелёный; live-test PASS.
+
+*Фаза 2:*
+- `grep -rn "\.ticker" app/src/main/kotlin/.../domain/usecases/
+  app/src/main/kotlin/.../domain/models/OrderModels.kt` — пусто
+  (кроме display-логов).
+- `BrokerOrderRequest` / `StopOrderRequest` содержат `instrument`.
+- `BcsBrokerApi.postOrder` / `FinamBrokerApi.postOrder` читают
+  `request.instrument.ticker` / `classCode` / `exchange` — без
+  `InstrumentRepository`.
+- T-Invest live — PASS (purchase/sell).
 - Гейт зелёный.
 
-**Оценка:** ~2–3 ч.
+**Оценка:** Фаза 1 — ~10–14 ч; Фаза 2 — ~4–6 ч. **Итого ~14–20 ч.**
 
-**Зависимости:** PR «OrdersViewModel split» смержен.
+**Зависимости:** PR `bugfix/order-card-account-diagnostic` — **смержен**
+(`d1ec084`, 2026-11-08).
 
-**Связано:** A4 (`593ebfe`, `6a74867`, `015a279`), AGENTS-LESSONS → 90. При split `OrderDialogsViewModel` унаследует `saveBrokerSettings`.
+**Связано:** A4 (`593ebfe`, `6a74867`, `015a279`); AGENTS-LESSONS → 90;
+`### Реализация BCS Broker API` / `### Реализация Finam Broker API`
+(Фаза 2 live); `### Orders: счёт из свойств карточки не применяется к акциям`
+(архивирована, 2026-11-08, — симптом Фазы 1).
 
-**Открытые вопросы:**
-- `dialogInstrumentTicker` → uid? `openBrokerDialog(ticker)` вызывается из UI-клика, ticker доступен. Решить в задаче.
-- `TradingBrokerDialog.onSave` без параметра. Либо uid-параметр, либо VM читает из `_uiState` (текущий подход). Решить в задаче.
+**Открытые вопросы:** нет. Все архитектурные решения утверждены
+пользователем (2026-11-08):
+- модель 1 (`CardIdentity` composite: `tscalpInstrumentId, brokerName, accountId`);
+- `Instrument.brokerName` — добавить;
+- `Instrument` — паспорт в `PlaceOrderRequest` / `BrokerOrderRequest` /
+  `StopOrderRequest`; `PairedOutcome` — `instrument`;
+- ролей primary/pair нет;
+- `ticker` — только data-граница (BCS/Finam) + display (`Instrument.ticker`,
+  `PairedOutcome.instrument.ticker`);
+- 2 фазы одной umbrella-задачи;
+- pure extensions в `CardIdentity.kt` (`matches` / `findCard` /
+  `withUpdatedSettings`);
+- `SaveCardSettingsUseCase` / `OpenCardDialogUseCase` остаются usecase
+  (I/O + бизнес-правило), не presentation;
+- BCS/Finam — без `InstrumentRepository` inject (Gap 1: `getInstrument(uid)`
+  broker-agnostic неоднозначен; BCS/Finam читают паспорт напрямую);
+- `BrokerOrderRequest` heavyweight (2c, принято с обоснованием).
 
 
 

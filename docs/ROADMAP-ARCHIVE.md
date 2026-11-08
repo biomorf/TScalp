@@ -8662,3 +8662,38 @@ ___
 **Связано:** clean-audit M015, M013; `### M6: one-shot events (StatusEvent)` (M016); `### M001: formatting в presentation`; 12a (`7e2f717`).
 
 **Открытые вопросы:** `LoadCardAccountsUseCase` уже inject'ится в `OrderDialogsViewModel`; в usecase — тоже. Двойная инъекция — OK (оба через domain).
+
+
+
+___
+
+
+
+### ✅ Orders: счёт из свойств карточки не применяется к акциям
+
+**Дата закрытия:** 2026-11-08.
+
+**Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с одной бумагой).
+
+**Что сделано:** bug pre-existing, discovered 2026-11-03 live-test after PR #89.
+**Fixed by 13d**: `PlaceOrderUseCase.resolveContext` (`a793c38` + `9954877`, M002) —
+`activeCard` / `accountId` резолвятся внутри usecase (13d-C-A1); fallback
+на глобальный счёт — только если per-card `accountId == null`.
+
+**Подтверждение:** выполнено (2026-11-08, sandbox, live-test,
+`bugfix/order-card-account-diagnostic` + diagnostic logs `6d7f369`):
+- `SaveCardSettingsUseCase: execute: ... accountId=7de123c8-...`
+  (второй счёт записан в карточку SBER);
+- `PlaceOrderUseCase: resolveContext: ResolvedContext(activeCard=CardIdentity(
+  tscalpInstrumentId=e6123145-..., ticker=SBER, accountId=7de123c8-...),
+  accountId=7de123c8-..., sandboxMode=true)` — `activeCard != null`,
+  `accountId` = per-card, fallback не сработал;
+- `OrderFormViewModel: postOrder success` — заявка исполнена на выбранном
+  счёте.
+
+**Ссылка на задачу:** `bugfix/order-card-account-diagnostic` (PR,
+diagnostic logs — `6d7f369`); fix-код — `PlaceOrderUseCase`
+(13d, `a793c38` + `9954877`).
+
+**Связано:** `### Рефакторинг: tscalpInstrumentId в CardIdentity + весь domain`
+(открытая задача — pair/primary симптом).
