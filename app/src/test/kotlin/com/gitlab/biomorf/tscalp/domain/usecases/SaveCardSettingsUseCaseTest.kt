@@ -38,7 +38,6 @@ class SaveCardSettingsUseCaseTest {
             val existing =
                 CardIdentity(
                     tscalpInstrumentId = "uid-sber",
-                    ticker = "SBER",
                     brokerName = BrokerName.TINVEST,
                     accountId = "t-inv",
                 )
@@ -76,7 +75,6 @@ class SaveCardSettingsUseCaseTest {
             val other =
                 CardIdentity(
                     tscalpInstrumentId = "uid-sber",
-                    ticker = "SBER",
                     brokerName = BrokerName.BCS,
                     accountId = "bcs-acc",
                 )
@@ -96,7 +94,6 @@ class SaveCardSettingsUseCaseTest {
                     listOf(
                         CardIdentity(
                             tscalpInstrumentId = "uid-sber",
-                            ticker = "SBER",
                             brokerName = BrokerName.TINVEST,
                         ),
                     ),
@@ -118,7 +115,6 @@ class SaveCardSettingsUseCaseTest {
                     listOf(
                         CardIdentity(
                             tscalpInstrumentId = "uid-sber",
-                            ticker = "SBER",
                             brokerName = BrokerName.TINVEST,
                         ),
                     ),

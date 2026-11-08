@@ -11,7 +11,7 @@ class CardIdentityTest {
         broker: BrokerName = BrokerName.TINVEST,
         ticker: String = "SBER",
         accountId: String? = "acc-1",
-    ) = CardIdentity(tscalpInstrumentId = uid, ticker = ticker, brokerName = broker, accountId = accountId)
+    ) = CardIdentity(tscalpInstrumentId = uid, brokerName = broker, accountId = accountId)
 
     @Test
     fun `matches true on same uid and broker`() {
@@ -43,7 +43,7 @@ class CardIdentityTest {
 
     @Test
     fun `findCard returns matching card`() {
-        val target = card(uid = "uid-gazp", ticker = "GAZP")
+        val target = card(uid = "uid-gazp")
         val list = listOf(card(), target)
         assertEquals(target, list.findCard("uid-gazp", BrokerName.TINVEST))
     }
@@ -56,7 +56,7 @@ class CardIdentityTest {
     @Test
     fun `withUpdatedSettings updates matching card only`() {
         val a = card(uid = "uid-sber", ticker = "SBER")
-        val b = card(uid = "uid-gazp", ticker = "GAZP", accountId = "acc-2")
+        val b = card(uid = "uid-gazp", accountId = "acc-2")
         val updated = listOf(a, b).withUpdatedSettings("uid-sber", BrokerName.TINVEST, "acc-new")
         assertEquals("acc-new", updated[0].accountId)
         assertEquals("acc-2", updated[1].accountId)

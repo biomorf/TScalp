@@ -182,7 +182,6 @@ class SelectInstrumentUseCaseTest {
                     listOf(
                         CardIdentity(
                             tscalpInstrumentId = "uid-1",
-                            ticker = "SBER",
                             brokerName = BrokerName.TINVEST,
                             accountId = "t-inv",
                         ),
@@ -206,7 +205,6 @@ class SelectInstrumentUseCaseTest {
                     listOf(
                         CardIdentity(
                             tscalpInstrumentId = "uid-1",
-                            ticker = "SBER",
                             brokerName = BrokerName.BCS,
                             accountId = "bcs-acc",
                         ),
@@ -271,7 +269,6 @@ class SelectInstrumentUseCaseTest {
                     listOf(
                         CardIdentity(
                             tscalpInstrumentId = "uid-1",
-                            ticker = "SBER",
                             brokerName = BrokerName.TINVEST,
                             accountId = "card-acc",
                         ),

@@ -7,20 +7,18 @@ package com.gitlab.biomorf.tscalp.domain.models
  * вычисляется в Coordinator / VM из `InstrumentRepository` +
  * `PositionFlowManager.sheet` и **не хранится**.
  *
- * **`tscalpInstrumentId` — канонический идентификатор** (domain-
- * уровень). `ticker` — legacy-поле, нужно для:
- * - обратной совместимости DataStore (старые 3-польные строки);
- * - `SaveCardSettingsUseCase` (ищет карточку по ticker);
- * - `OrdersUiState.activeCard` (сопоставление с `instrument.ticker`).
+ * **Composite identity** — `(tscalpInstrumentId, brokerName)`.
+ * `tscalpInstrumentId` broker-specific (uid / figi / id), поэтому
+ * один `tscalpInstrumentId` между брокерами неоднозначен.
+ * `accountId` в ключ не входит: один инструмент на одном счёте
+ * у одного брокера — одна карточка.
  *
- * Планируемый рефакторинг (ROADMAP): domain и слои к UI
- * должны использовать `tscalpInstrumentId`; `ticker` —
- * временный legacy, удаляется после миграции `SaveCardSettings`
- * и `activeCard` на uid.
+ * `ticker` в identity **не хранится** (2026-11-08): domain везде
+ * оперирует `tscalpInstrumentId`; `ticker` — только data-граница
+ * с брокером (BCS/Finam).
  */
 data class CardIdentity(
     val tscalpInstrumentId: String,
-    val ticker: String,
     val brokerName: BrokerName = BrokerName.TINVEST,
     val accountId: String? = null,
 )

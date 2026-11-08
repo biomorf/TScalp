@@ -40,7 +40,7 @@ class CardsRepositoryImplTest {
     fun `identities returns saved card after save`() =
         runTest {
             val repo = createRepo(this)
-            val card = CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER", brokerName = BrokerName.TINVEST, accountId = "acc-1")
+            val card = CardIdentity(tscalpInstrumentId = "uid-sber", brokerName = BrokerName.TINVEST, accountId = "acc-1")
             repo.save(listOf(card))
             assertEquals(listOf(card), repo.identities.first())
         }
@@ -49,7 +49,7 @@ class CardsRepositoryImplTest {
     fun `identities returns empty after clear`() =
         runTest {
             val repo = createRepo(this)
-            repo.save(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER", brokerName = BrokerName.TINVEST)))
+            repo.save(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", brokerName = BrokerName.TINVEST)))
             assertTrue(repo.identities.first().isNotEmpty())
             repo.clear()
             assertTrue(repo.identities.first().isEmpty())
@@ -59,10 +59,10 @@ class CardsRepositoryImplTest {
     fun `save overwrites previous`() =
         runTest {
             val repo = createRepo(this)
-            repo.save(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", ticker = "SBER", brokerName = BrokerName.TINVEST)))
-            repo.save(listOf(CardIdentity(tscalpInstrumentId = "uid-gazp", ticker = "GAZP", brokerName = BrokerName.BCS)))
+            repo.save(listOf(CardIdentity(tscalpInstrumentId = "uid-sber", brokerName = BrokerName.TINVEST)))
+            repo.save(listOf(CardIdentity(tscalpInstrumentId = "uid-gazp", brokerName = BrokerName.BCS)))
             val result = repo.identities.first()
             assertEquals(1, result.size)
-            assertEquals("GAZP", result[0].ticker)
+            assertEquals("uid-gazp", result[0].tscalpInstrumentId)
         }
 }

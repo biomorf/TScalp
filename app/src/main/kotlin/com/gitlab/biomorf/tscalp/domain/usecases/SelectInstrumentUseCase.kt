@@ -150,7 +150,6 @@ class SelectInstrumentUseCase
             val newIdentity =
                 CardIdentity(
                     tscalpInstrumentId = instrument.tscalpInstrumentId,
-                    ticker = instrument.ticker,
                     brokerName = instrument.brokerName,
                     accountId = existingCard?.accountId,
                 )

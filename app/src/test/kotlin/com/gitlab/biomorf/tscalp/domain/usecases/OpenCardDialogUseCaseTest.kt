@@ -57,7 +57,6 @@ class OpenCardDialogUseCaseTest {
             val card =
                 CardIdentity(
                     tscalpInstrumentId = "uid-sber",
-                    ticker = "SBER",
                     brokerName = BrokerName.TINVEST,
                     accountId = "acc-2",
                 )
