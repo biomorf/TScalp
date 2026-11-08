@@ -7,11 +7,16 @@ package com.gitlab.biomorf.tscalp.domain.models
  * вычисляется в Coordinator / VM из `InstrumentRepository` +
  * `PositionFlowManager.sheet` и **не хранится**.
  *
- * **Composite identity** — `(tscalpInstrumentId, brokerName)`.
+ * **Composite identity** — `(tscalpInstrumentId, brokerName, accountId)`.
  * `tscalpInstrumentId` broker-specific (uid / figi / id), поэтому
  * один `tscalpInstrumentId` между брокерами неоднозначен.
- * `accountId` в ключ не входит: один инструмент на одном счёте
- * у одного брокера — одна карточка.
+ * `accountId` — часть ключа (Фаза 1b): `(uid, T, A)` и `(uid, T, B)` —
+ * **разные** карточки (один инструмент на разных счетах).
+ *
+ * `CardIdentity` — **история** «Последних просмотренных» (модель A,
+ * 1b-11): один `(uid, broker)` может иметь много записей. Смена
+ * счёта в слоте — ensure target exists; старая запись остаётся
+ * в истории.
  *
  * `ticker` в identity **не хранится** (2026-11-08): domain везде
  * оперирует `tscalpInstrumentId`; `ticker` — только data-граница

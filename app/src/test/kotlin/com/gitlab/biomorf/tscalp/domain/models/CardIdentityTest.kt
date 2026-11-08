@@ -47,36 +47,6 @@ class CardIdentityTest {
         assertNull(list.findCard("uid-sber", BrokerName.TINVEST, null))
     }
 
-    // ---- withRecreatedSettings ----
-
-    @Test
-    fun `withRecreatedSettings replaces old account with new`() {
-        val a = card(uid = "uid-sber", accountId = "A")
-        val b = card(uid = "uid-other", accountId = "X")
-        val result = listOf(a, b).withRecreatedSettings("uid-sber", BrokerName.TINVEST, "A", "B")
-        assertEquals(2, result.size)
-        assertTrue(result.any { it.tscalpInstrumentId == "uid-sber" && it.accountId == "B" })
-        assertTrue(result.none { it.tscalpInstrumentId == "uid-sber" && it.accountId == "A" })
-        assertTrue(result.any { it.tscalpInstrumentId == "uid-other" && it.accountId == "X" })
-    }
-
-    @Test
-    fun `withRecreatedSettings adds new when old is null`() {
-        val list = emptyList<CardIdentity>()
-        val result = list.withRecreatedSettings("uid-sber", BrokerName.TINVEST, null, "A")
-        assertEquals(1, result.size)
-        assertEquals("uid-sber", result[0].tscalpInstrumentId)
-        assertEquals("A", result[0].accountId)
-    }
-
-    @Test
-    fun `withRecreatedSettings keeps existing new and drops old`() {
-        val a = card(uid = "uid-sber", accountId = "A")
-        val b = card(uid = "uid-sber", accountId = "B")
-        val result = listOf(a, b).withRecreatedSettings("uid-sber", BrokerName.TINVEST, "A", "B")
-        assertEquals(1, result.size)
-        assertEquals("B", result[0].accountId)
-    }
     // ---- withEnsuredCard (модель A, 1b-11) ----
 
     @Test
