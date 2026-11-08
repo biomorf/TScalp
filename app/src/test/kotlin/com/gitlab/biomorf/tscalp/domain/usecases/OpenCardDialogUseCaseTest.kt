@@ -19,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -52,32 +53,28 @@ class OpenCardDialogUseCaseTest {
         )
 
     @Test
-    fun `success with existing card uses its broker and accountId`() =
+    fun `success with existing card uses its broker accountId and oldAccountId`() =
         runBlocking {
-            val card =
-                CardIdentity(
-                    tscalpInstrumentId = "uid-sber",
-                    brokerName = BrokerName.TINVEST,
-                    accountId = "acc-2",
-                )
+            val card = CardIdentity("uid-sber", BrokerName.TINVEST, "acc-2")
             every { cardsRepository.identities } returns flowOf(listOf(card))
             coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
             coEvery {
                 loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-2")
             } returns AppResult.Success(CardAccountsResult(accounts = listOf(acc1, acc2), selectedAccountId = "acc-2"))
 
-            val r = useCase.execute(sber)
+            val r = useCase.execute(sber, currentAccountId = "acc-2")
 
             assertTrue(r is OpenCardDialogOutcome.Success)
             val data = (r as OpenCardDialogOutcome.Success).result
             assertEquals(BrokerName.TINVEST, data.broker)
             assertEquals(listOf(acc1, acc2), data.accounts)
             assertEquals("acc-2", data.selectedAccountId)
+            assertEquals("acc-2", data.oldAccountId)
             coVerify(exactly = 1) { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-2") }
         }
 
     @Test
-    fun `no card uses instrument broker and selected fallback`() =
+    fun `no card returns null oldAccountId and uses selected fallback`() =
         runBlocking {
             every { cardsRepository.identities } returns flowOf(emptyList())
             every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf("acc-1")
@@ -86,13 +83,33 @@ class OpenCardDialogUseCaseTest {
                 loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1")
             } returns AppResult.Success(CardAccountsResult(accounts = listOf(acc1), selectedAccountId = "acc-1"))
 
-            val r = useCase.execute(sber)
+            val r = useCase.execute(sber, currentAccountId = null)
 
             assertTrue(r is OpenCardDialogOutcome.Success)
             val data = (r as OpenCardDialogOutcome.Success).result
             assertEquals(BrokerName.TINVEST, data.broker)
             assertEquals("acc-1", data.selectedAccountId)
+            assertNull(data.oldAccountId)
             coVerify(exactly = 1) { loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "acc-1") }
+        }
+
+    @Test
+    fun `findCard respects currentAccountId (composite key)`() =
+        runBlocking {
+            // Две карточки одного инструмента у одного брокера, разные счета.
+            val cardA = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
+            val cardB = CardIdentity("uid-sber", BrokerName.TINVEST, "B")
+            every { cardsRepository.identities } returns flowOf(listOf(cardA, cardB))
+            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
+            coEvery {
+                loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "B")
+            } returns AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "B"))
+
+            val r = useCase.execute(sber, currentAccountId = "B")
+
+            assertTrue(r is OpenCardDialogOutcome.Success)
+            val data = (r as OpenCardDialogOutcome.Success).result
+            assertEquals("B", data.oldAccountId)
         }
 
     @Test
@@ -114,7 +131,7 @@ class OpenCardDialogUseCaseTest {
                     isin = "RU0009029540",
                 )
 
-            val r = useCase.execute(bcsShare)
+            val r = useCase.execute(bcsShare, currentAccountId = null)
 
             assertTrue(r is OpenCardDialogOutcome.Success)
             val data = (r as OpenCardDialogOutcome.Success).result
@@ -132,7 +149,7 @@ class OpenCardDialogUseCaseTest {
                 loadCardAccountsUseCase.execute(BrokerName.TINVEST, true, null)
             } returns AppResult.Failure(AppError.Network("down", null))
 
-            val r = useCase.execute(sber)
+            val r = useCase.execute(sber, currentAccountId = null)
 
             assertTrue(r is OpenCardDialogOutcome.Failure)
             val failure = r as OpenCardDialogOutcome.Failure
@@ -148,7 +165,7 @@ class OpenCardDialogUseCaseTest {
             coEvery { sandboxPreferencesRepository.isSandboxMode() } throws CancellationException()
 
             try {
-                useCase.execute(sber)
+                useCase.execute(sber, currentAccountId = null)
                 fail("expected CancellationException")
             } catch (expected: CancellationException) {
                 // expected

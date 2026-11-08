@@ -10,18 +10,19 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
  * Вынесено из `OrdersUiState` в рамках split `OrdersViewModel`
  * (M013 / A2, шаг 12a). Семантика полей 1:1 с прежним `OrdersUiState`:
  * - [showBrokerDialog] — флаг открытия диалога;
- * - [dialogInstrument] — инструмент, для которого открыт диалог
- *   (composite identity — `tscalpInstrumentId` + `brokerName`);
+ * - [dialogInstrument] — инструмент, для которого открыт диалог;
+ * - [dialogOldAccountId] — accountId карточки на момент открытия
+ *   (Фаза 1b: передаётся в `SaveCardSettingsUseCase` как `oldAccountId`);
  * - [selectedBroker] — выбранный брокер в диалоге;
- * - [selectedAccountIdDialog] — выбранный счёт в диалоге;
+ * - [selectedAccountIdDialog] — выбранный счёт в диалоге
+ *   (= `newAccountId` при сохранении);
  * - [dialogAccounts] — счета для диалога;
- * - [swipeResetTrigger] — триггер сброса swipe на карточке после save
- *   (toggled в [OrderDialogsViewModel.closeBrokerDialog] /
- *   [OrderDialogsViewModel.saveBrokerSettings]).
+ * - [swipeResetTrigger] — триггер сброса swipe на карточке после save.
  */
 data class OrderDialogsState(
     val showBrokerDialog: Boolean = false,
     val dialogInstrument: Instrument? = null,
+    val dialogOldAccountId: String? = null,
     val selectedBroker: BrokerName = BrokerName.TINVEST,
     val selectedAccountIdDialog: String? = null,
     val dialogAccounts: List<BrokerAccount> = emptyList(),

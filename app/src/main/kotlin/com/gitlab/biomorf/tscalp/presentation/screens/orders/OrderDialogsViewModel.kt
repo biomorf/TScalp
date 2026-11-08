@@ -24,38 +24,14 @@ import javax.inject.Inject
  * ViewModel диалога выбора брокера и счёта для карточки инструмента.
  *
  * Вынесено из `OrdersViewModel` в рамках split `OrdersViewModel`
- * (M013 / A2, шаг 12a). Тела методов 1:1 с прежними Dialog-методами
- * Coord'а, кроме двух замен источников:
- * - `_uiState.value.lastSelectedInstruments` ->
- *   `cardsRepository.identities.first()` — эквивалент:
- *   `lastSelectedInstruments` — projection of [CardsRepository.identities]
- *   через A3/A4 [RefreshSelectedInstrumentsUseCase];
- * - `_uiState.value.selectedAccountId` ->
- *   `accountSelectionRepository.selected(TINVEST).first()` — эквивалент:
- *   Coord `selectedAccountId` приходит из `loadOrdersAccountsUseCase`,
- *   чей source — [AccountSelectionRepository.selected] + fallback
- *   `accounts.firstOrNull()?.id`; [LoadCardAccountsUseCase] при
- *   `savedAccountId = null` делает тот же fallback.
+ * (M013 / A2, шаг 12a). Семантика Dialog-методов 1:1 с прежними.
  *
- * **Не обновляет** `lastSelectedInstruments` (Coord реагирует на
- * [CardsRepository.identities] через A3) и **не вызывает**
- * `startPositionUpdates` (UI-оркестрация, KDoc в Composable — 12b, P4).
- *
- * **2c (фиксировано):** inject `SandboxPreferencesRepository`
- * (domain.api.repository) — не отклонение: интерфейс в domain-слое
- * после пакета B (H68).
- *
- * **M2 partial (clean-audit M013, L1):** `openBrokerDialog`
- * содержит orchestration (find `existingCard` + `savedAccountId`
- * fallback) — pre-existing M013, не новое (Coord делал то же
- * до 12a). **Правило Clean:** M2 — business-orchestration в VM,
- * не в UseCase. **Clean-альтернатива:** `OpenBrokerDialogUseCase
- * (instrument): AppResult<CardAccountsResult>` — findCard +
- * savedFallback + `LoadCardAccountsUseCase.execute(...)`.
- * **Выгоды:** 1:1 с Coord (минимальный diff 12a);
- * `loadCardAccountsUseCase` уже покрывает основную orchestration
- * (Q10/Q11, ROADMAP 12a); снижение diff-риска в 12b.
- * Чистая альтернатива — отдельная задача (эволюция M013).
+ * **Фаза 1b:** `openBrokerDialog(instrument, currentAccountId)` —
+ * `currentAccountId` = accountId слота (какой счёт у карточки сейчас).
+ * Default `null` — для обратной совместимости UI-callsites до 1b-5.
+ * `dialogOldAccountId` заполняется из `OpenCardDialogResult.oldAccountId`;
+ * `saveBrokerSettings` → `SaveCardSettingsUseCase.execute(instrument,
+ * old, new)`.
  */
 @HiltViewModel
 class OrderDialogsViewModel
@@ -71,15 +47,19 @@ class OrderDialogsViewModel
         private val _state = MutableStateFlow(OrderDialogsState())
         val state: StateFlow<OrderDialogsState> = _state.asStateFlow()
 
-        fun openBrokerDialog(instrument: Instrument) {
+        fun openBrokerDialog(
+            instrument: Instrument,
+            currentAccountId: String? = null,
+        ) {
             viewModelScope.launch {
-                when (val outcome = openCardDialogUseCase.execute(instrument)) {
+                when (val outcome = openCardDialogUseCase.execute(instrument, currentAccountId)) {
                     is OpenCardDialogOutcome.Success -> {
                         val data = outcome.result
                         _state.update {
                             it.copy(
                                 showBrokerDialog = true,
                                 dialogInstrument = instrument,
+                                dialogOldAccountId = data.oldAccountId,
                                 selectedBroker = data.broker,
                                 selectedAccountIdDialog = data.selectedAccountId,
                                 dialogAccounts = data.accounts,
@@ -96,6 +76,7 @@ class OrderDialogsViewModel
                             it.copy(
                                 showBrokerDialog = true,
                                 dialogInstrument = instrument,
+                                dialogOldAccountId = null,
                                 selectedBroker = outcome.broker,
                                 selectedAccountIdDialog = null,
                                 dialogAccounts = emptyList(),
@@ -111,6 +92,7 @@ class OrderDialogsViewModel
                 it.copy(
                     showBrokerDialog = false,
                     dialogInstrument = null,
+                    dialogOldAccountId = null,
                     swipeResetTrigger = !it.swipeResetTrigger,
                 )
             }
@@ -129,19 +111,22 @@ class OrderDialogsViewModel
 
         fun saveBrokerSettings() {
             val instrument = _state.value.dialogInstrument ?: return
-            val accountId = _state.value.selectedAccountIdDialog
+            val oldAccountId = _state.value.dialogOldAccountId
+            val newAccountId = _state.value.selectedAccountIdDialog
             viewModelScope.launch {
-                when (val result = saveCardSettingsUseCase.execute(instrument, accountId)) {
+                when (val result = saveCardSettingsUseCase.execute(instrument, oldAccountId, newAccountId)) {
                     is AppResult.Success -> {
                         logger.d(
                             TAG,
                             "saveBrokerSettings: uid=${instrument.tscalpInstrumentId}, " +
-                                "broker=${instrument.brokerName}, accountId=$accountId",
+                                "broker=${instrument.brokerName}, " +
+                                "oldAccountId=$oldAccountId, newAccountId=$newAccountId",
                         )
                         _state.update { state ->
                             state.copy(
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
+                                dialogOldAccountId = null,
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }
@@ -156,6 +141,7 @@ class OrderDialogsViewModel
                             state.copy(
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
+                                dialogOldAccountId = null,
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }

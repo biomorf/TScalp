@@ -6,27 +6,30 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.findCard
-import com.gitlab.biomorf.tscalp.domain.models.withUpdatedSettings
+import com.gitlab.biomorf.tscalp.domain.models.withRecreatedSettings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Сохранение настроек карточки (брокер + счёт) —
- * разбиение `OrdersViewModel` на 4 VM, шаг 7.
+ * Сохранение настроек карточки (счёт) — разбиение `OrdersViewModel`
+ * на 4 VM, шаг 7; пересмотрено в Фазе 1b.
  *
- * Вынесено из `OrdersViewModel.saveBrokerSettings` (clean-audit
- * M013, M2): обновление `CardsRepository` для composite identity
- * `(tscalpInstrumentId, brokerName)` — domain-orchestration.
+ * **Пересоздание identity** (Фаза 1b): `accountId` — часть ключа
+ * `CardIdentity` (см. `docs/architecture.md` → «CardIdentity и слоты»).
+ * Смена счёта = удалить `(uid, broker, oldAccountId)` + добавить
+ * `(uid, broker, newAccountId)`. Семантика «мутировать accountId
+ * существующей карточки» (Фаза 1a) — отменена.
  *
- * **UI-часть** (`_state.update` с `showBrokerDialog=false` /
- * `dialogInstrument=null` / `swipeResetTrigger` toggle)
- * остаётся в VM (Dialogs, 1:1).
+ * **Коллизия:** если `(uid, broker, newAccountId)` уже занята другой
+ * карточкой — `AppResult.Failure("account taken")`. UI не даёт выбрать
+ * занятый счёт (disabled в `BrokerAccountDialog`, Фаза 1b-4); это
+ * вторая защита от race.
  *
- * **No-op при отсутствии карточки** — `AppResult.Success(Unit)`,
- * `save` не вызывается (1:1 по эффекту с оригиналом; сценарий
- * «карточка удалена, диалог открыт» не должен ломаться).
+ * **No-op:** `oldAccountId == newAccountId` — ничего не меняется
+ * (пользователь нажал «Сохранить» без изменения). `Success(Unit)`,
+ * `save` не вызывается.
  */
 @Singleton
 class SaveCardSettingsUseCase
@@ -41,26 +44,35 @@ class SaveCardSettingsUseCase
 
         suspend fun execute(
             instrument: Instrument,
-            accountId: String?,
+            oldAccountId: String?,
+            newAccountId: String?,
         ): AppResult<Unit> {
             logger.d(
                 TAG,
-                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}, accountId=$accountId",
+                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}, " +
+                    "oldAccountId=$oldAccountId, newAccountId=$newAccountId",
             )
             return try {
-                val currentCards = cardsRepository.identities.first()
-                if (currentCards.findCard(instrument) == null) {
-                    logger.w(
-                        TAG,
-                        "card not found: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName} — no-op",
-                    )
+                if (oldAccountId == newAccountId) {
+                    logger.d(TAG, "same account — no-op")
                     return AppResult.Success(Unit)
                 }
+                val currentCards = cardsRepository.identities.first()
+                val collision = currentCards.findCard(instrument, newAccountId)
+                if (collision != null) {
+                    logger.w(
+                        TAG,
+                        "account taken: uid=${instrument.tscalpInstrumentId}, " +
+                            "broker=${instrument.brokerName}, accountId=$newAccountId",
+                    )
+                    return AppResult.Failure(AppError.Unknown("account taken: $newAccountId"))
+                }
                 val updated =
-                    currentCards.withUpdatedSettings(
+                    currentCards.withRecreatedSettings(
                         tscalpInstrumentId = instrument.tscalpInstrumentId,
                         brokerName = instrument.brokerName,
-                        accountId = accountId,
+                        oldAccountId = oldAccountId,
+                        newAccountId = newAccountId,
                     )
                 cardsRepository.save(updated)
                 AppResult.Success(Unit)

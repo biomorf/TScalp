@@ -17,15 +17,18 @@ import javax.inject.Singleton
 
 /**
  * Результат [OpenCardDialogUseCase]: broker + accounts +
- * selectedAccountId — всё, что нужно `OrderDialogsState` для
- * открытия диалога карточки. Инструмент VM уже знает (передаёт
- * `Instrument` в [OpenCardDialogUseCase.execute]); в результате
- * он не дублируется.
+ * selectedAccountId + oldAccountId — всё, что нужно
+ * `OrderDialogsState` для открытия диалога карточки.
+ *
+ * `oldAccountId` — accountId, который был у карточки `(uid, broker)`
+ * на момент открытия (для пересоздания в `SaveCardSettingsUseCase`).
+ * `null` — карточки не было или accountId не выбран.
  */
 data class OpenCardDialogResult(
     val broker: BrokerName,
     val accounts: List<BrokerAccount>,
     val selectedAccountId: String?,
+    val oldAccountId: String?,
 )
 
 /**
@@ -34,9 +37,7 @@ data class OpenCardDialogResult(
  * **Почему не `AppResult`:** `Failure` должен нести [broker] — иначе
  * VM не может выставить `selectedBroker` 1:1 (см. `openBrokerDialog`
  * в `OrderDialogsViewModel`: `selectedBroker = existingCard?.brokerName
- * ?: TINVEST` даже на failure). Если `broker` неизвестен (поток
- * `identities` / `selected` бросил до резолва) — fallback `TINVEST`
- * (совпадает с «нет карточки»).
+ * ?: TINVEST` даже на failure).
  */
 sealed interface OpenCardDialogOutcome {
     data class Success(
@@ -55,22 +56,15 @@ sealed interface OpenCardDialogOutcome {
  * `OrderDialogsViewModel.openBrokerDialog` (findCard + selected
  * fallback + `LoadCardAccountsUseCase.execute`).
  *
- * **Не путать с [LoadCardAccountsUseCase]:** тот делает только
- * getAccounts + savedFallback; здесь — findCard по composite
- * `(tscalpInstrumentId, brokerName)` из `CardsRepository.identities` +
- * selected fallback из `AccountSelectionRepository.selected(broker)` +
- * `sandboxMode` из `SandboxPreferencesRepository` + делегирование в
- * `LoadCardAccountsUseCase`.
- *
- * **Не путать с `loadDialogAccounts` (VM):** тот — thin delegate
- * на `LoadCardAccountsUseCase` (M2-fixed in 12a, не M2).
+ * **Composite-ключ (Фаза 1b):** `findCard(instrument, currentAccountId)`
+ * — по полному `(uid, broker, accountId)` карточки слота. `currentAccountId`
+ * — accountId, с которым карточка сейчас в слоте (может быть `null` —
+ * карточка создана до выбора счёта). Возвращает `oldAccountId` в
+ * [OpenCardDialogResult] — `existingCard?.accountId` (что было, чтобы
+ * `SaveCardSettingsUseCase` удалил старое перед добавлением нового).
  *
  * **Failure из [LoadCardAccountsUseCase]** — `OpenCardDialogOutcome.Failure(broker, error)`,
- * не `AppResult.Failure`: [broker] нужен VM для 1:1 `selectedBroker`
- * (см. `OrderDialogsViewModel.openBrokerDialog`). VM разбирает failure
- * 1:1: `showBrokerDialog = true`, `dialogInstrument = instrument`,
- * `selectedBroker = outcome.broker`, `dialogAccounts = emptyList()`,
- * `selectedAccountIdDialog = null`.
+ * не `AppResult.Failure`: [broker] нужен VM для 1:1 `selectedBroker`.
  *
  * Non-throwing (кроме `CancellationException` — rethrow).
  */
@@ -88,13 +82,17 @@ class OpenCardDialogUseCase
             private const val TAG = "OpenCardDialogUseCase"
         }
 
-        suspend fun execute(instrument: Instrument): OpenCardDialogOutcome {
+        suspend fun execute(
+            instrument: Instrument,
+            currentAccountId: String?,
+        ): OpenCardDialogOutcome {
             logger.d(
                 TAG,
-                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}",
+                "execute: uid=${instrument.tscalpInstrumentId}, " +
+                    "broker=${instrument.brokerName}, currentAccountId=$currentAccountId",
             )
             return try {
-                val existingCard = cardsRepository.identities.first().findCard(instrument)
+                val existingCard = cardsRepository.identities.first().findCard(instrument, currentAccountId)
                 val broker = existingCard?.brokerName ?: instrument.brokerName
                 val savedAccountId =
                     existingCard?.accountId
@@ -114,6 +112,7 @@ class OpenCardDialogUseCase
                                 broker = broker,
                                 accounts = result.data.accounts,
                                 selectedAccountId = result.data.selectedAccountId,
+                                oldAccountId = existingCard?.accountId,
                             ),
                         )
                     is AppResult.Failure -> {
