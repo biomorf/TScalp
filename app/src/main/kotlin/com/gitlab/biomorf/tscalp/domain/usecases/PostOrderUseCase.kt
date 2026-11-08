@@ -61,7 +61,7 @@ sealed interface PostOrderOutcome {
         val cause: Throwable?,
     ) : PostOrderOutcome
 
-    /** Validation-ошибка до API: не хватает ticker / accountId / tscalpInstrumentId. */
+    /** Validation-ошибка до API: не хватает tscalpInstrumentId / accountId. */
     data class InvalidRequest(
         val reason: String,
     ) : PostOrderOutcome
@@ -140,7 +140,7 @@ class PostOrderUseCase
         suspend fun execute(input: PostOrderInput): PostOrderOutcome {
             if (input.instrument.tscalpInstrumentId.isBlank() || input.accountId.isBlank()) {
                 return PostOrderOutcome.InvalidRequest(
-                    "Не хватает ticker / accountId / tscalpInstrumentId",
+                    "Не хватает tscalpInstrumentId / accountId",
                 )
             }
 
