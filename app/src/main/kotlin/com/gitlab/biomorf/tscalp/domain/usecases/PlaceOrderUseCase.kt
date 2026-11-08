@@ -161,12 +161,15 @@ class PlaceOrderUseCase
                 activeCard?.accountId
                     ?: accountSelectionRepository.selected(BrokerName.TINVEST).first()
                     ?: return null
-            return ResolvedContext(
-                activeCard = activeCard,
-                accountId = accountId,
-                brokerName = activeCard?.brokerName ?: BrokerName.TINVEST,
-                sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
-            )
+            val context =
+                ResolvedContext(
+                    activeCard = activeCard,
+                    accountId = accountId,
+                    brokerName = activeCard?.brokerName ?: BrokerName.TINVEST,
+                    sandboxMode = sandboxPreferencesRepository.isSandboxMode(),
+                )
+            logger.d(TAG, "resolveContext: $context")
+            return context
         }
 
         private fun buildInput(
