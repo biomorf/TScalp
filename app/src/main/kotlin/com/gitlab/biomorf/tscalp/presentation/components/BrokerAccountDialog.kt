@@ -61,6 +61,7 @@ private fun AccountSelector(
     accounts: List<BrokerAccount>,
     selectedAccountName: String,
     onAccountSelected: (String) -> Unit,
+    disabledAccountIds: Set<String>,
 ) {
     Spacer(modifier = Modifier.height(16.dp))
     Text("Счёт", style = MaterialTheme.typography.titleSmall)
@@ -87,12 +88,16 @@ private fun AccountSelector(
             onDismissRequest = { accountExpanded = false },
         ) {
             accounts.forEach { account ->
+                val isDisabled = account.id in disabledAccountIds
                 DropdownMenuItem(
                     text = { Text(account.name.ifBlank { "Счёт ${account.id.take(8)}…" }) },
                     onClick = {
-                        onAccountSelected(account.id)
-                        accountExpanded = false
+                        if (!isDisabled) {
+                            onAccountSelected(account.id)
+                            accountExpanded = false
+                        }
                     },
+                    enabled = !isDisabled,
                 )
             }
         }
@@ -111,6 +116,7 @@ fun BrokerAccountDialog(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     showAccountSelector: Boolean = true,
+    disabledAccountIds: Set<String> = emptySet(),
 ) {
     // Устойчивое сравнение с trim, fallback на первый счёт
     val selectedAccountName =
@@ -145,6 +151,7 @@ fun BrokerAccountDialog(
                         accounts = accounts,
                         selectedAccountName = selectedAccountName,
                         onAccountSelected = onAccountSelected,
+                        disabledAccountIds = disabledAccountIds,
                     )
                 }
             }

@@ -29,6 +29,7 @@ data class OpenCardDialogResult(
     val accounts: List<BrokerAccount>,
     val selectedAccountId: String?,
     val oldAccountId: String?,
+    val takenAccountIds: Set<String>,
 )
 
 /**
@@ -92,7 +93,14 @@ class OpenCardDialogUseCase
                     "broker=${instrument.brokerName}, currentAccountId=$currentAccountId",
             )
             return try {
-                val existingCard = cardsRepository.identities.first().findCard(instrument, currentAccountId)
+                val identities = cardsRepository.identities.first()
+                val existingCard = identities.findCard(instrument, currentAccountId)
+                val takenAccountIds =
+                    identities
+                        .filter { it.tscalpInstrumentId == instrument.tscalpInstrumentId && it.brokerName == instrument.brokerName }
+                        .mapNotNull { it.accountId }
+                        .filter { it != currentAccountId }
+                        .toSet()
                 val broker = existingCard?.brokerName ?: instrument.brokerName
                 val savedAccountId =
                     existingCard?.accountId
@@ -113,6 +121,7 @@ class OpenCardDialogUseCase
                                 accounts = result.data.accounts,
                                 selectedAccountId = result.data.selectedAccountId,
                                 oldAccountId = existingCard?.accountId,
+                                takenAccountIds = takenAccountIds,
                             ),
                         )
                     is AppResult.Failure -> {

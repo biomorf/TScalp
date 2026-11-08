@@ -171,4 +171,41 @@ class OpenCardDialogUseCaseTest {
                 // expected
             }
         }
+
+    @Test
+    fun `takenAccountIds with two cards same uid different accounts`() =
+        runBlocking {
+            val cardA = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
+            val cardB = CardIdentity("uid-sber", BrokerName.TINVEST, "B")
+            every { cardsRepository.identities } returns flowOf(listOf(cardA, cardB))
+            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
+            coEvery {
+                loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, "A")
+            } returns AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "A"))
+
+            val r = useCase.execute(sber, currentAccountId = "A")
+
+            assertTrue(r is OpenCardDialogOutcome.Success)
+            val data = (r as OpenCardDialogOutcome.Success).result
+            assertEquals(setOf("B"), data.takenAccountIds)
+        }
+
+    @Test
+    fun `takenAccountIds when currentAccountId is null`() =
+        runBlocking {
+            val cardA = CardIdentity("uid-sber", BrokerName.TINVEST, "A")
+            val cardB = CardIdentity("uid-sber", BrokerName.TINVEST, "B")
+            every { cardsRepository.identities } returns flowOf(listOf(cardA, cardB))
+            every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf(null)
+            coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
+            coEvery {
+                loadCardAccountsUseCase.execute(BrokerName.TINVEST, false, null)
+            } returns AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = null))
+
+            val r = useCase.execute(sber, currentAccountId = null)
+
+            assertTrue(r is OpenCardDialogOutcome.Success)
+            val data = (r as OpenCardDialogOutcome.Success).result
+            assertEquals(setOf("A", "B"), data.takenAccountIds)
+        }
 }

@@ -63,7 +63,13 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = "old-acc"),
+                    OpenCardDialogResult(
+                        BrokerName.TINVEST,
+                        emptyList(),
+                        "acc-1",
+                        oldAccountId = "old-acc",
+                        takenAccountIds = setOf("acc-2"),
+                    ),
                 )
 
             val vm = createVm()
@@ -77,6 +83,7 @@ class OrderDialogsViewModelTest {
             assertEquals(BrokerName.TINVEST, s.selectedBroker)
             assertEquals("acc-1", s.selectedAccountIdDialog)
             assertTrue(s.dialogAccounts.isEmpty())
+            assertEquals(setOf("acc-2"), s.takenAccountIds)
             coVerify(exactly = 1) { openCardDialogUseCase.execute(sber, null) }
         }
 
@@ -85,7 +92,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, "old-A") } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A"),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A", takenAccountIds = emptySet()),
                 )
 
             val vm = createVm()
@@ -118,7 +125,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
                 )
 
             val vm = createVm()
@@ -140,7 +147,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
                 )
             coEvery { loadCardAccountsUseCase.execute(BrokerName.BCS, false, null) } returns
                 AppResult.Success(CardAccountsResult(accounts = emptyList(), selectedAccountId = "bcs-acc"))
@@ -163,7 +170,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
                 )
             coEvery { saveCardSettingsUseCase.execute(sber, null, "acc-1") } returns
                 AppResult.Success(Unit)
@@ -189,7 +196,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, "old-A") } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A"),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "old-A", oldAccountId = "old-A", takenAccountIds = emptySet()),
                 )
             coEvery { saveCardSettingsUseCase.execute(sber, "old-A", "new-B") } returns
                 AppResult.Success(Unit)
@@ -210,7 +217,7 @@ class OrderDialogsViewModelTest {
         runTest {
             coEvery { openCardDialogUseCase.execute(sber, null) } returns
                 OpenCardDialogOutcome.Success(
-                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null),
+                    OpenCardDialogResult(BrokerName.TINVEST, emptyList(), "acc-1", oldAccountId = null, takenAccountIds = emptySet()),
                 )
             coEvery { saveCardSettingsUseCase.execute(sber, null, "acc-1") } returns
                 AppResult.Failure(AppError.Network("err", null))

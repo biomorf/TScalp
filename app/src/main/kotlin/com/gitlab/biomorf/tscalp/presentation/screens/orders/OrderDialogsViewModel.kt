@@ -63,6 +63,7 @@ class OrderDialogsViewModel
                                 selectedBroker = data.broker,
                                 selectedAccountIdDialog = data.selectedAccountId,
                                 dialogAccounts = data.accounts,
+                                takenAccountIds = data.takenAccountIds,
                             )
                         }
                     }
@@ -80,6 +81,7 @@ class OrderDialogsViewModel
                                 selectedBroker = outcome.broker,
                                 selectedAccountIdDialog = null,
                                 dialogAccounts = emptyList(),
+                                takenAccountIds = emptySet(),
                             )
                         }
                     }
@@ -93,6 +95,7 @@ class OrderDialogsViewModel
                     showBrokerDialog = false,
                     dialogInstrument = null,
                     dialogOldAccountId = null,
+                    takenAccountIds = emptySet(),
                     swipeResetTrigger = !it.swipeResetTrigger,
                 )
             }
@@ -127,6 +130,7 @@ class OrderDialogsViewModel
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
                                 dialogOldAccountId = null,
+                                takenAccountIds = emptySet(),
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }
@@ -142,6 +146,7 @@ class OrderDialogsViewModel
                                 showBrokerDialog = false,
                                 dialogInstrument = null,
                                 dialogOldAccountId = null,
+                                takenAccountIds = emptySet(),
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }

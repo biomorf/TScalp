@@ -17,6 +17,8 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
  * - [selectedAccountIdDialog] — выбранный счёт в диалоге
  *   (= `newAccountId` при сохранении);
  * - [dialogAccounts] — счета для диалога;
+ * - [takenAccountIds] — accountId, уже занятые другими карточками
+ *   того же `(uid, broker)` (для disabled в `BrokerAccountDialog`);
  * - [swipeResetTrigger] — триггер сброса swipe на карточке после save.
  */
 data class OrderDialogsState(
@@ -26,5 +28,6 @@ data class OrderDialogsState(
     val selectedBroker: BrokerName = BrokerName.TINVEST,
     val selectedAccountIdDialog: String? = null,
     val dialogAccounts: List<BrokerAccount> = emptyList(),
+    val takenAccountIds: Set<String> = emptySet(),
     val swipeResetTrigger: Boolean = false,
 )
