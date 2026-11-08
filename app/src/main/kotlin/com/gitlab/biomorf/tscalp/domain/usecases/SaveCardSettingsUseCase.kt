@@ -4,7 +4,9 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.findCard
+import com.gitlab.biomorf.tscalp.domain.models.withUpdatedSettings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -38,26 +40,28 @@ class SaveCardSettingsUseCase
         }
 
         suspend fun execute(
-            ticker: String,
-            brokerName: BrokerName,
+            instrument: Instrument,
             accountId: String?,
         ): AppResult<Unit> {
-            logger.d(TAG, "execute: ticker=$ticker, brokerName=$brokerName, accountId=$accountId")
+            logger.d(
+                TAG,
+                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}, accountId=$accountId",
+            )
             return try {
                 val currentCards = cardsRepository.identities.first()
-                val exists = currentCards.any { it.ticker == ticker }
-                if (!exists) {
-                    logger.w(TAG, "card not found: ticker=$ticker — no-op")
+                if (currentCards.findCard(instrument) == null) {
+                    logger.w(
+                        TAG,
+                        "card not found: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName} — no-op",
+                    )
                     return AppResult.Success(Unit)
                 }
                 val updated =
-                    currentCards.map { card ->
-                        if (card.ticker == ticker) {
-                            card.copy(brokerName = brokerName, accountId = accountId)
-                        } else {
-                            card
-                        }
-                    }
+                    currentCards.withUpdatedSettings(
+                        tscalpInstrumentId = instrument.tscalpInstrumentId,
+                        brokerName = instrument.brokerName,
+                        accountId = accountId,
+                    )
                 cardsRepository.save(updated)
                 AppResult.Success(Unit)
             } catch (e: CancellationException) {

@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SandboxPreferencesReposit
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadCardAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.OpenCardDialogUseCase
@@ -70,15 +71,15 @@ class OrderDialogsViewModel
         private val _state = MutableStateFlow(OrderDialogsState())
         val state: StateFlow<OrderDialogsState> = _state.asStateFlow()
 
-        fun openBrokerDialog(ticker: String) {
+        fun openBrokerDialog(instrument: Instrument) {
             viewModelScope.launch {
-                when (val outcome = openCardDialogUseCase.execute(ticker)) {
+                when (val outcome = openCardDialogUseCase.execute(instrument)) {
                     is OpenCardDialogOutcome.Success -> {
                         val data = outcome.result
                         _state.update {
                             it.copy(
                                 showBrokerDialog = true,
-                                dialogInstrumentTicker = ticker,
+                                dialogInstrument = instrument,
                                 selectedBroker = data.broker,
                                 selectedAccountIdDialog = data.selectedAccountId,
                                 dialogAccounts = data.accounts,
@@ -94,7 +95,7 @@ class OrderDialogsViewModel
                         _state.update {
                             it.copy(
                                 showBrokerDialog = true,
-                                dialogInstrumentTicker = ticker,
+                                dialogInstrument = instrument,
                                 selectedBroker = outcome.broker,
                                 selectedAccountIdDialog = null,
                                 dialogAccounts = emptyList(),
@@ -109,7 +110,7 @@ class OrderDialogsViewModel
             _state.update {
                 it.copy(
                     showBrokerDialog = false,
-                    dialogInstrumentTicker = null,
+                    dialogInstrument = null,
                     swipeResetTrigger = !it.swipeResetTrigger,
                 )
             }
@@ -127,20 +128,20 @@ class OrderDialogsViewModel
         }
 
         fun saveBrokerSettings() {
-            val ticker = _state.value.dialogInstrumentTicker ?: return
-            val broker = _state.value.selectedBroker
+            val instrument = _state.value.dialogInstrument ?: return
             val accountId = _state.value.selectedAccountIdDialog
             viewModelScope.launch {
-                when (val result = saveCardSettingsUseCase.execute(ticker, broker, accountId)) {
+                when (val result = saveCardSettingsUseCase.execute(instrument, accountId)) {
                     is AppResult.Success -> {
                         logger.d(
                             TAG,
-                            "saveBrokerSettings: ticker=$ticker, broker=$broker, accountId=$accountId",
+                            "saveBrokerSettings: uid=${instrument.tscalpInstrumentId}, " +
+                                "broker=${instrument.brokerName}, accountId=$accountId",
                         )
                         _state.update { state ->
                             state.copy(
                                 showBrokerDialog = false,
-                                dialogInstrumentTicker = null,
+                                dialogInstrument = null,
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }
@@ -154,7 +155,7 @@ class OrderDialogsViewModel
                         _state.update { state ->
                             state.copy(
                                 showBrokerDialog = false,
-                                dialogInstrumentTicker = null,
+                                dialogInstrument = null,
                                 swipeResetTrigger = !state.swipeResetTrigger,
                             )
                         }

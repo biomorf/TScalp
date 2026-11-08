@@ -8,6 +8,8 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.findCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -19,7 +21,6 @@ import javax.inject.Singleton
  * открытия диалога карточки.
  */
 data class OpenCardDialogResult(
-    val ticker: String,
     val broker: BrokerName,
     val accounts: List<BrokerAccount>,
     val selectedAccountId: String?,
@@ -85,15 +86,17 @@ class OpenCardDialogUseCase
             private const val TAG = "OpenCardDialogUseCase"
         }
 
-        suspend fun execute(ticker: String): OpenCardDialogOutcome {
-            logger.d(TAG, "execute: ticker=$ticker")
+        suspend fun execute(instrument: Instrument): OpenCardDialogOutcome {
+            logger.d(
+                TAG,
+                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}",
+            )
             return try {
-                val existingCard =
-                    cardsRepository.identities.first().find { it.ticker == ticker }
-                val broker = existingCard?.brokerName ?: BrokerName.TINVEST
+                val existingCard = cardsRepository.identities.first().findCard(instrument)
+                val broker = existingCard?.brokerName ?: instrument.brokerName
                 val savedAccountId =
                     existingCard?.accountId
-                        ?: accountSelectionRepository.selected(BrokerName.TINVEST).first()
+                        ?: accountSelectionRepository.selected(broker).first()
 
                 when (
                     val result =
@@ -106,7 +109,6 @@ class OpenCardDialogUseCase
                     is AppResult.Success ->
                         OpenCardDialogOutcome.Success(
                             OpenCardDialogResult(
-                                ticker = ticker,
                                 broker = broker,
                                 accounts = result.data.accounts,
                                 selectedAccountId = result.data.selectedAccountId,
@@ -115,7 +117,7 @@ class OpenCardDialogUseCase
                     is AppResult.Failure -> {
                         logger.e(
                             TAG,
-                            "loadCardAccounts failed: ticker=$ticker, " +
+                            "loadCardAccounts failed: uid=${instrument.tscalpInstrumentId}, " +
                                 "broker=${broker.displayName}: ${result.error.message}",
                             result.error.cause,
                         )
@@ -125,7 +127,7 @@ class OpenCardDialogUseCase
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                logger.e(TAG, "open card dialog exception: ticker=$ticker", e)
+                logger.e(TAG, "open card dialog exception: uid=${instrument.tscalpInstrumentId}", e)
                 OpenCardDialogOutcome.Failure(
                     broker = BrokerName.TINVEST,
                     error = AppError.Unknown("Ошибка открытия диалога карточки: ${e.message}", e),

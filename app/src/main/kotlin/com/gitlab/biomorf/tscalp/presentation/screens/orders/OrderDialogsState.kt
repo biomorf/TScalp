@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 
 /**
  * Состояние диалога выбора брокера и счёта для карточки инструмента.
@@ -9,7 +10,8 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
  * Вынесено из `OrdersUiState` в рамках split `OrdersViewModel`
  * (M013 / A2, шаг 12a). Семантика полей 1:1 с прежним `OrdersUiState`:
  * - [showBrokerDialog] — флаг открытия диалога;
- * - [dialogInstrumentTicker] — тикер инструмента, для которого открыт диалог;
+ * - [dialogInstrument] — инструмент, для которого открыт диалог
+ *   (composite identity — `tscalpInstrumentId` + `brokerName`);
  * - [selectedBroker] — выбранный брокер в диалоге;
  * - [selectedAccountIdDialog] — выбранный счёт в диалоге;
  * - [dialogAccounts] — счета для диалога;
@@ -19,7 +21,7 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
  */
 data class OrderDialogsState(
     val showBrokerDialog: Boolean = false,
-    val dialogInstrumentTicker: String? = null,
+    val dialogInstrument: Instrument? = null,
     val selectedBroker: BrokerName = BrokerName.TINVEST,
     val selectedAccountIdDialog: String? = null,
     val dialogAccounts: List<BrokerAccount> = emptyList(),
