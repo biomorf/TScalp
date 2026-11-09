@@ -2571,6 +2571,66 @@ ___
 
 
 
+### Settings: inline status card vs snackbar
+
+**Мобильная работа:** частичное (live-тест UI).
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** (2d) в M6 umbrella (`### ✅ M6: finish one-shot events`, PR #114) три Settings panel-VM (`TInvestSettingsViewModel`, `BcsSettingsViewModel`, `FinamSettingsViewModel`) **не** переведены на `Channel<StatusEvent>`. Причина: `SettingsScreen` рендерит `statusMessage` / `isError` как **inline `Card`** прямо в layout (`uiState.statusMessage?.let { Card { Text(message) } }`), а не как snackbar. У `SettingsScreen` нет `SnackbarHostState`. Это не M6-баг, а другой UI-паттерн. Umbrella закрыта по U0+U1+U2; U3/Settings вынесен отдельно.
+
+**Соответствие Clean:** отклонение по 2c (принято).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** оставить как есть (inline Card — нормальный state-паттерн для Settings: статус подключения — не transient event). Плюсы: просто, без Channel; Card видна, пока не закроют (в отличие от snackbar, который auto-dismiss). Минусы: UX отличается от Orders/Portfolio (там snackbar).
+
+**Выгоды (для «отклонение по 2c»):** Settings — «состояние подключения» (persistent, а не one-shot). Snackbar скроется через N секунд, пользователь может не успеть прочитать. Inline Card лучше подходит для такого контента. Смена на snackbar — **UX-регресс** для Settings.
+
+**Предусловия:** нет. `StatusEvent` + `StatusEventEffect` + `StatusSnackbarHost` — уже общие (`presentation/util|components`, PR #114).
+
+**Файлы:**
+- (вариант A: «оставить inline Card», 2c-принято) — ничего, только явная запись в clean-audit `### M6: Settings — inline Card, не M6`.
+- (вариант B: snackbar) — `presentation/screens/settings/{TInvest,Bcs,Finam}SettingsViewModel.kt` + `SettingsScreen.kt` + `StatusEventEffect` (общий).
+
+**Шаги (вариант B, если санкция «snackbar»):**
+1. UI-санкция (правило 1): согласовать «snackbar вместо inline Card» для 3 панелей — визуал меняется.
+2. Каждая panel-VM: `Channel<StatusEvent>` + `val status: Flow<StatusEvent>`.
+3. State (`TInvestUiState` / `BcsUiState` / `FinamUiState`): −`statusMessage`/`isError`.
+4. `SettingsScreen`: 3× `StatusEventEffect(viewModel.status)` + `StatusSnackbarHost`.
+5. Тесты: 1 кейс на панель (status Flow), если mock-инфра.
+6. Live-test UI (3 панели: подключение / ошибка / отключение).
+
+**Тесты:** 3 VM (1 кейс на панель), live-test UI 3 сценария.
+
+**Референсы:** M6 umbrella (PR #114), `OrderSearchViewModelTest` / `OrderFormViewModelTest` (pattern), `StatusEventEffect` / `StatusSnackbarHost` (`presentation/components/`).
+
+**Ограничения:**
+- UI-санкция обязательна (правило 1): меняется визуал (Card → snackbar).
+- Не смешивать с `### OrdersListDialog: empty-state` (тоже UI, отдельно).
+- Если «оставить inline Card» — задача закрывается как `accepted (2c)` с записью в clean-audit, без правок.
+
+**Критерий готовности:**
+- (вариант A: «оставить») — clean-audit `### M6: Settings — inline Card, не M6` (2c), задача → ARCHIVE.
+- (вариант B: snackbar) — 3 panel-VM на `Channel<StatusEvent>`, state −2 поля, `SettingsScreen` — 3× `StatusEventEffect`, live-test UI PASS, gate green.
+
+**Оценка:** вариант B — ~2 ч; вариант A — ~10 мин (запись в clean-audit).
+
+**Зависимости:** нет.
+
+**Связано:** M6 umbrella (`### ✅ M6: finish one-shot events`, PR #114).
+
+**Открытые вопросы:** нужен ли snackbar в Settings (единый UX с Orders/Portfolio) или inline Card — окончательный выбор? Решить на санкции.
+
+
+
+
+
+
+___
+
+
+
 ## Закрытые
 
 Задачи вынесены в [`ROADMAP-ARCHIVE.md`](ROADMAP-ARCHIVE.md).
