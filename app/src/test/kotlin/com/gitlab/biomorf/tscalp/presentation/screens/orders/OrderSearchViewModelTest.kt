@@ -88,7 +88,10 @@ class OrderSearchViewModelTest {
             vm.onSearchQueryChanged("SBER")
             advanceUntilIdle()
 
-            assertTrue(vm.state.value.searchResults.isEmpty())
+            assertTrue(
+                vm.state.value.searchResults
+                    .isEmpty(),
+            )
             assertFalse(vm.state.value.isSearching)
 
             val event =

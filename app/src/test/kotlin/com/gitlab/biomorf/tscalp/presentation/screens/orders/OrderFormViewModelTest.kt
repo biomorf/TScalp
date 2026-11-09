@@ -259,7 +259,15 @@ class OrderFormViewModelTest {
                 AppResult.Success(SelectInstrumentResult(card = info(sber, "A"), pointValue = 1.0))
             coEvery {
                 calculateTradeDetails.calculate(
-                    any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
                 )
             } returns TradeDetails(executionPrice = 100.0)
             coEvery { placeOrderUseCase.execute(any(), OrderDirection.BUY) } returns
