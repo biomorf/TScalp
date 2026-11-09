@@ -813,74 +813,6 @@ ___
 
 
 
-### CI: fast-ktlint job
-
-**Мобильная работа:** полное закрытие (правки `.yml` через proot; проверка PR — web).
-
-**Статус:** в работе.
-
-**Ветка:** feature/ci-fast-ktlint.
-
-**Контекст:** в M016 (PR #112) ktlint падал **4 CI-цикла подряд**. Цикл `gate` — ~2–3 мин: `fast-check` идёт `testDebugUnitTest → lintDebug → ktlintCheck → detekt`, ktlint падает только **после** компиляции и прогонки unit-тестов. `full-build` (`needs: fast-check`) добавляет kover + assembleDebug. Ktlint-специфика — чистый lint, компиляции не требует; отдельный job в параллель дал бы fail за ~30–60 сек (факт: `./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck` на warmed Gradle — 15–25 сек).
-
-**Замечание по кэшу:** в `ci.yml` оба job'а уже используют `gradle/actions/setup-gradle@v5` — он кэширует `~/.gradle/caches` и `~/.gradle/wrapper` по умолчанию. Отдельный `actions/cache` (вариант B изначально) — дублирование, отклонено. Acceptance — проверить, что кэш hits (лог `Cache restored from key: …`).
-
-**Соответствие Clean:** соответствует (организационный слой, 2b).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `.github/workflows/ci.yml` — новый job `fast-ktlint`; удалить `Run ktlint` + `Upload ktlint report` из `fast-check`; `gate.needs` + проверка.
-- `docs/repo-protection.md` → «Gate-job pattern» — обновить (новый upstream job).
-
-**Шаги:**
-1. `ci.yml`: добавить job `fast-ktlint`:
-   - `runs-on: ubuntu-latest`
-   - steps: `checkout@v6` → `setup-java@v5` (JDK 17) → `gradle/actions/setup-gradle@v5` → `chmod +x ./gradlew` → `./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck` → `upload-artifact@v7` (ktlint-report, `if: always()`).
-2. `fast-check`: удалить шаг `Run ktlint` и `Upload ktlint report`. Остальное (`testDebugUnitTest`, `lintDebug`, `detekt`) — без изменений.
-3. `gate.needs: [fast-ktlint, fast-check, full-build]`; в `Verify upstream jobs` — добавить проверку `needs.fast-ktlint.result == success`.
-4. `docs/repo-protection.md` → «Gate-job pattern» — обновить список `needs` + объяснение.
-5. Ветка `feature/ci-fast-ktlint`, PR в `dev`, дождаться зелёного `gate` на PR.
-6. **Verify:** в отдельной ветке намеренно сломать ktlint (например, лишний `import`), push → дождаться, что `fast-ktlint` красный **раньше** `fast-check`. Откатить.
-7. **Verify cache:** в логе `setup-gradle` — `Cache restored from key: gradle-…`. Если `Cache not found` — отдельный follow-up в `ci-roadmap`.
-
-**Тесты:** не требуются (yml).
-
-**Референсы:** `docs/repo-protection.md` (gate-job, picker 7-day window), `gradle/actions/setup-gradle@v5`, PR #112 (4 цикла — мотивация).
-
-**Ограничения:**
-- Не менять порядок остальных шагов в `fast-check`.
-- Не трогать `full-build` (kover + assembleDebug остаются после `fast-check`).
-- Не смешивать с задачей `Desktop: pre-push hook` (отдельный PR).
-- `paths-ignore` для `.md` — не трогать.
-
-**Критерий готовности:**
-- `fast-ktlint` — отдельный job, падает за <90 сек (PR с ktlint-ошибкой).
-- `fast-check` — без шага ktlint.
-- `gate` — зелёный на чистом PR; красный на PR с ktlint-ошибкой (через `fast-ktlint`).
-- В логе `setup-gradle` — `Cache restored from key: …`.
-- Гейт зелёный.
-
-**Оценка:** ~1–1.5 ч.
-
-**Зависимости:** нет.
-
-**Связано:** `### Desktop: pre-push hook (ktlintFormat + ktlintCheck)` (следующая), M016 (PR #112).
-
-**Открытые вопросы:** нет.
-
-
-
-___
-
-
-
 ### Desktop: pre-push hook (ktlintFormat + ktlintCheck)
 
 **Мобильная работа:** полное закрытие (desktop; на mobile hook не работает — Gradle в proot нестабилен).
@@ -953,4 +885,4 @@ ___
 
 ## Закрытые
 
-Вынесены в [`CI-ROADMAP-ARCHIVE.md`](CI-ROADMAP-ARCHIVE.md) (22 задачи).
+Вынесены в [`CI-ROADMAP-ARCHIVE.md`](CI-ROADMAP-ARCHIVE.md) (23 задачи).
