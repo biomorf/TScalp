@@ -1093,6 +1093,19 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 **Проверка:** перед коммитом `.kt`-теста — визуально: (а) в multiline-вызове `(` … `)` — все аргументы на своих строках; (б) в assert с `.foo()` — `)` и `.` не на одной строке. На desktop — `./gradlew :app:ktlintFormat` (урок 55).
 
+### 98. `advanceUntilIdle` + `while(isActive){delay}` в `init` = guaranteed hang
+
+**Правило:** в unit-тесте ViewModel, у которой `init { ... while (isActive) { delay(…) } }`, **запрещён** `advanceUntilIdle()`. Он гонит виртуальное время бесконечно: после `delay` корутина просыпается, перепланирует следующий `delay`, `runTest` никогда не станет idle → CI hang (не падение, а бесконечный run). Правильно:
+- `runCurrent()` вместо `advanceUntilIdle()` — выполняет задачи на **текущем** времени, не трогает `delay(5 * 60 * 1000)`.
+- `finally { vm.viewModelScope.cancel() }` — отменяет pending `delay` до `runTest` cleanup.
+- `Dispatchers.setMain(UnconfinedTestDispatcher())` — корутины стартуют сразу, `finally cancel` всё равно нужен.
+
+**Инцидент:** 2026-11-09, M6 umbrella (PR #114). `OrdersViewModelTest` с `advanceUntilIdle()`. `OrdersViewModel.init` — `while (isActive) { delay(5 * 60 * 1000L); … }`, фоновое обновление trading statuses. `fast-check` висел 1.5 часа. 5 CI-циклов: (1) `Expecting '->'`, (2) unused import, (3) `Unresolved reference 'viewModelScope'`, (4) `runCurrent + finally cancel` (этот урок), (5) зелёный.
+
+**Проверка:** перед `advanceUntilIdle()` — `grep 'while (isActive)' ViewModel.kt`. Есть — `runCurrent + finally cancel`. `viewModelScope` — extension из `androidx.lifecycle.viewModelScope`, нужен явный import.
+
+**Связано:** урок 78 (ktlint на mobile), урок 55 (`ktlintFormat` на desktop).
+
 ---
 
 ## Диагностика
