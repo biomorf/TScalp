@@ -2514,70 +2514,19 @@ ___
 
 
 
-### OrdersViewModel: status Flow<StatusEvent> test
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** в рамках M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) `OrdersViewModel` получил `_coordStatus: Channel<StatusEvent>(BUFFERED)` + `val coordStatus: Flow<StatusEvent>`; `loadAccounts` success/failure эмитят `StatusEvent`. Тест на эти два канала в PR #112 не добавлен. Form (postOrder) и OrdersList покрыты (`OrderFormViewModelTest`, `OrdersListViewModelTest`).
-
-**Соответствие Clean:** соответствует (presentation-test).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** M016 закрыт (PR #112). Pattern для мока — `OrderFormViewModelTest` (mockk relaxed + `MainDispatcherRule`).
-
-**Файлы:**
-- `app/src/test/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/orders/OrdersViewModelTest.kt` (новый).
-- (Reference) `OrderFormViewModelTest.kt`, `OrdersListViewModelTest.kt`.
-
-**Шаги:**
-1. Создать `OrdersViewModelTest`: mock'и по актуальному конструктору `OrdersViewModel` (`BrokerRegistry`, `PositionFlowManager`, `PriceConsumer`, `AccountSelectionRepository`, `CardsRepository`, `InstrumentRepository`, `PortfolioRepository`, `SandboxPreferencesRepository`, `TradingStatusRepository`, `Logger`, usecase'ы).
-2. Тест 1: `loadAccounts success → coordStatus.first()` — `StatusEvent(isError = false, message содержит «Загружено» или «Нет доступных счетов»)`.
-3. Тест 2: `loadAccounts failure → coordStatus.first()` — `StatusEvent(isError = true, message содержит «Ошибка загрузки счетов»)`.
-4. Гейт.
-
-**Тесты:** 2 кейса (success, failure) + существующие не трогать.
-
-**Референсы:** `OrderFormViewModelTest.kt`, `OrdersListViewModelTest.kt`, PR #112.
-
-**Ограничения:**
-- Не менять `OrdersViewModel` — только тест.
-- Много mock'ов — разрешено `mockk<T>(relaxed = true)`, кроме тех, что нужны в `coEvery`/`coVerify`.
-- Не смешивать с `### M6: Portfolio + Settings panels`.
-
-**Критерий готовности:**
-- 2 кейса (success/failure `loadAccounts` → `coordStatus.first()`).
-- Гейт зелёный.
-
-**Оценка:** ~1–1.5 ч.
-
-**Зависимости:** нет.
-
-**Связано:** M016 (PR #112), `### M6: Portfolio + Settings panels`.
-
-**Открытые вопросы:** можно ли `PricesFlowManager.prices` подменить на `MutableSharedFlow()` — при старте.
-
-
-
 ___
 
 
 
-### M6: Portfolio + Settings panels
+### M6: finish one-shot events (Coord test + Portfolio + Settings)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
 **Статус:** запланировано.
 
-**Контекст:** M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) закрыл M6 **только для Orders** (Search, Coord, Form, OrdersList). Другие экраны сохраняют `statusMessage`/`isError` в `StateFlow` — тот же M6-баг (replay: при пересоздании Composable snackbar показывается повторно): `PortfolioViewModel` + `PortfolioUiState` + `PortfolioScreen` (один канал); `TInvestSettingsViewModel` / `BcsSettingsViewModel` / `FinamSettingsViewModel` (по своему `statusMessage`/`isError`) + `SettingsScreen` (читает все). Это **umbrella**: один PR на всё — большой diff, разбить на подзадачи при старте.
+**Контекст:** M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) закрыл M6 только для Orders. Осталось два хвоста: (1) `OrdersViewModel` (Coord) получил `_coordStatus: Channel<StatusEvent>(BUFFERED)`, но тест не добавлен; (2) Portfolio и Settings panel-VM держат `statusMessage`/`isError` в `StateFlow` — тот же M6-баг (replay). **Один PR** (один feature-branch, один CI-цикл) — вместо трёх отдельных.
 
-**Соответствие Clean:** соответствует (M6-fix, presentation-only).
+**Соответствие Clean:** соответствует (M6-fix, presentation-only; общий `StatusEvent` в `presentation/util/`).
 
 **Нарушенное правило Clean:** —.
 
@@ -2585,40 +2534,46 @@ ___
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия:** M016 закрыт (PR #112). Механизм `StatusEvent` / `Channel(BUFFERED)` / `receiveAsFlow` / `StatusSnackbarVisuals` / `StatusEventEffect` — уже в `presentation/screens/orders/StatusEvent.kt` и `OrdersScreen.kt`; вынести в `presentation/util/` или `presentation/components/` (общий, 2+ экрана).
+**Предусловия:** M016 закрыт (PR #112). Pattern для моков — `OrderFormViewModelTest` / `OrdersListViewModelTest`.
 
-**Файлы (ожидаемые):**
-- Новый общий: `presentation/util/StatusEvent.kt` (перенос из `screens/orders/`).
-- Новый общий: `presentation/components/StatusSnackbarHost.kt` (host + visuals, перенос из `OrdersScreen.kt`).
+**Файлы:**
+- `presentation/util/StatusEvent.kt` (перенос из `presentation/screens/orders/StatusEvent.kt`).
+- `presentation/components/StatusSnackbarHost.kt` (host + `StatusSnackbarVisuals`, перенос из `OrdersScreen.kt`).
+- `presentation/screens/orders/OrdersScreen.kt` (migrate на общий компонент).
+- `presentation/screens/orders/OrdersViewModel.kt` + `OrdersViewModelTest.kt` (новый).
 - `presentation/screens/portfolio/PortfolioViewModel.kt`, `PortfolioUiState.kt`, `PortfolioScreen.kt`.
-- `presentation/screens/settings/{TInvest,Bcs,Finam}SettingsViewModel.kt` + `SettingsScreen.kt`.
+- `presentation/screens/settings/{TInvest,Bcs,Finam}SettingsViewModel.kt`, `SettingsScreen.kt`.
 
-**Шаги (на старте — разбить на подзадачи):**
-1. **U1 — общий `StatusEvent` + `StatusSnackbarHost`** (`presentation/util/` + `presentation/components/`). Migrate Orders. Отдельный PR.
-2. **U2 — Portfolio:** `PortfolioViewModel` на `Channel<StatusEvent>`, `PortfolioUiState` −2 поля, `PortfolioScreen` — `StatusEventEffect`. Отдельный PR.
-3. **U3 — Settings panel-VM (3+):** каждая на `Channel<StatusEvent>`, state −2 поля, `SettingsScreen` — N `StatusEventEffect`. Отдельный PR.
+**Шаги (всё в одном PR):**
+1. **U0 — общий вынос:** `StatusEvent` → `presentation/util/`, `StatusSnackbarVisuals` + `StatusEventEffect` → `presentation/components/StatusSnackbarHost.kt`. Migrate Orders. Гейт.
+2. **U1 — Coord test:** новый `OrdersViewModelTest.kt`. Кейсы: `loadAccounts` success → `coordStatus.first()` (`isError = false`), failure → `isError = true`. Гейт.
+3. **U2 — Portfolio:** `PortfolioViewModel` на `Channel<StatusEvent>` (`_portfolioStatus` + `portfolioStatus: Flow`), `PortfolioUiState` −2 поля, `PortfolioScreen` — `StatusEventEffect`. Гейт.
+4. **U3 — Settings (3 panel-VM):** `TInvestSettingsViewModel` / `BcsSettingsViewModel` / `FinamSettingsViewModel` — каждая на `Channel<StatusEvent>`, state −2 поля, `SettingsScreen` — N `StatusEventEffect`. Гейт.
+5. **Push + PR:** одна ветка `feature/m6-finish`, один PR, один CI-цикл. После merge — mark done этим же PR (5g.4).
 
-**Тесты:** по 1 кейсу на канал в существующих/новых VM-тестах.
+**Тесты:** 2 кейса (Coord). UI-каналы — 1 кейс на VM, если есть mock-инфра; иначе — live-test UI или deferred closure (`**Подтверждение:**`).
 
-**Референсы:** M016 (PR #112), `OrderSearchViewModelTest`/`OrderFormViewModelTest`/`OrdersListViewModelTest`.
+**Референсы:** M016 (PR #112), `OrderFormViewModelTest`, `OrdersListViewModelTest`.
 
 **Ограничения:**
-- UI-санкция не требуется (snackbar поведение 1:1 — визуал не меняется).
-- Не смешивать U1/U2/U3 в один PR.
+- **Один PR** (один CI-цикл) — не дробить.
+- UI-санкция не требуется (snackbar 1:1 — визуал не меняется).
 - `StatusSnackbarVisuals` переезд из `OrdersScreen.kt` — сделать `internal`/`public`.
+- Не смешивать с `### OrdersListDialog: empty-state` (отдельно).
 
 **Критерий готовности:**
-- Portfolio и все Settings panel-VM — на `Channel<StatusEvent>`, state без `statusMessage`/`isError`.
+- `OrdersViewModelTest` (2 кейса).
+- Portfolio + 3 Settings VM — на `Channel<StatusEvent>`, state без `statusMessage`/`isError`.
 - `StatusEvent` и `StatusSnackbarHost` — общие.
-- Гейт зелёный.
+- 1 PR, 1 CI-цикл, gate green.
 
-**Оценка:** ~3–5 ч (U1: 0.5 ч, U2: 1–1.5 ч, U3: 1.5–2 ч).
+**Оценка:** ~5–7 ч (U0: 0.5 ч, U1: 1–1.5 ч, U2: 1.5 ч, U3: 2 ч).
 
 **Зависимости:** нет.
 
-**Связано:** M016 (PR #112), `### OrdersViewModel: status Flow<StatusEvent> test`.
+**Связано:** M016 (PR #112), `### OrdersListDialog: empty-state`.
 
-**Открытые вопросы:** точный состав panel-VM (3 или 5) — проверить при старте; `PortfolioScreen` использует `SnackbarVisuals` локально (`object : SnackbarVisuals`) — заменить на общий `StatusSnackbarVisuals` или оставить.
+**Открытые вопросы:** точный состав panel-VM (3 или 5 — проверить при старте); `PortfolioScreen` использует `SnackbarVisuals` локально — заменить на общий или оставить.
 
 
 
