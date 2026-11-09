@@ -817,7 +817,9 @@ ___
 
 **Мобильная работа:** полное закрытие (правки `.yml` через proot; проверка PR — web).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/ci-fast-ktlint.
 
 **Контекст:** в M016 (PR #112) ktlint падал **4 CI-цикла подряд**. Цикл `gate` — ~2–3 мин: `fast-check` идёт `testDebugUnitTest → lintDebug → ktlintCheck → detekt`, ktlint падает только **после** компиляции и прогонки unit-тестов. `full-build` (`needs: fast-check`) добавляет kover + assembleDebug. Ktlint-специфика — чистый lint, компиляции не требует; отдельный job в параллель дал бы fail за ~30–60 сек (факт: `./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck` на warmed Gradle — 15–25 сек).
 
