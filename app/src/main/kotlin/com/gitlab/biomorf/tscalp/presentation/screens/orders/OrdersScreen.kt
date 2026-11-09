@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
+import com.gitlab.biomorf.tscalp.presentation.components.StatusEventEffect
+import com.gitlab.biomorf.tscalp.presentation.components.StatusSnackbarHost
+import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import kotlinx.coroutines.flow.Flow
 
 @Composable
@@ -292,7 +295,7 @@ private fun BoxScope.OrdersScreenSnackbar(
         formStatus = formStatus,
         searchStatus = searchStatus,
     )
-    OrdersSnackbarHost(snackbarHostState = snackbarHostState)
+    StatusSnackbarHost(snackbarHostState = snackbarHostState)
 }
 
 /**
@@ -310,90 +313,6 @@ private fun OrdersSnackbarEffects(
     StatusEventEffect(snackbarHostState = snackbarHostState, status = coordStatus)
     StatusEventEffect(snackbarHostState = snackbarHostState, status = formStatus)
     StatusEventEffect(snackbarHostState = snackbarHostState, status = searchStatus)
-}
-
-/**
- * One-shot status channel: `LaunchedEffect(Unit) { status.collect { … } }`.
- * `Channel(BUFFERED)` consume'ится ровно один раз; повторно snackbar не
- * показывается (M6 fix, clean-audit M6). Поведение 1:1 прежним трём
- * `StatusEffect`-блокам (удалены в M016) — actionLabel / duration по
- * `isError`, `OK`-кнопка при ошибке.
- */
-@Composable
-private fun StatusEventEffect(
-    snackbarHostState: SnackbarHostState,
-    status: Flow<StatusEvent>,
-) {
-    LaunchedEffect(Unit) {
-        status.collect { event ->
-            snackbarHostState.showSnackbar(
-                StatusSnackbarVisuals(
-                    message = event.message,
-                    actionLabel = if (event.isError) "OK" else null,
-                    withDismissAction = false,
-                    duration = if (event.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short,
-                    isError = event.isError,
-                ),
-            )
-        }
-    }
-}
-
-/**
- * `SnackbarVisuals` с флагом `isError`: `OrdersSnackbarHost` стилизует
- * контейнер по `data.visuals.isError`, без параметра/StateFlow (M6:
- * event → visuals → host).
- */
-private data class StatusSnackbarVisuals(
-    override val message: String,
-    override val actionLabel: String?,
-    override val withDismissAction: Boolean,
-    override val duration: SnackbarDuration,
-    val isError: Boolean,
-) : SnackbarVisuals
-
-/**
- * Snackbar host (Fase 2, 11b): `SnackbarHost` + `Snackbar`.
- * Контейнер / контент — error vs tertiary по `data.visuals.isError`
- * (`StatusSnackbarVisuals`, M016).
- */
-@Composable
-private fun BoxScope.OrdersSnackbarHost(
-    snackbarHostState: SnackbarHostState,
-) {
-    SnackbarHost(
-        hostState = snackbarHostState,
-        modifier =
-            Modifier
-                .align(Alignment.BottomCenter)
-                .padding(8.dp),
-    ) { data ->
-        val isError = (data.visuals as? StatusSnackbarVisuals)?.isError ?: false
-        Snackbar(
-            containerColor =
-                if (isError) {
-                    MaterialTheme.colorScheme.errorContainer
-                } else {
-                    MaterialTheme.colorScheme.tertiaryContainer
-                },
-            contentColor =
-                if (isError) {
-                    MaterialTheme.colorScheme.onErrorContainer
-                } else {
-                    MaterialTheme.colorScheme.onTertiaryContainer
-                },
-            action = {
-                val label = data.visuals.actionLabel
-                if (label != null) {
-                    TextButton(onClick = { data.dismiss() }) {
-                        Text(label)
-                    }
-                }
-            },
-        ) {
-            Text(data.visuals.message)
-        }
-    }
 }
 
 @Composable

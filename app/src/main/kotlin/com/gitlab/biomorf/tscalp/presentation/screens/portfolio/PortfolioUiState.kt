@@ -17,8 +17,6 @@ data class PortfolioUiState(
     val prices: Map<String, Double> = emptyMap(),
     val priceChangePercents: Map<String, Double> = emptyMap(),
     val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false,
     val isApiInitialized: Boolean = false,
     val sandboxMode: Boolean = false,
     val tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
