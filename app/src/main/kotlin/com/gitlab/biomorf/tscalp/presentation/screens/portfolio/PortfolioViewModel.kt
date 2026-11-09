@@ -247,13 +247,14 @@ class PortfolioViewModel
                         )
                 ) {
                     is AppResult.Success -> loadPortfolio()
-                    is AppResult.Failure ->
+                    is AppResult.Failure -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
                             )
                         }
                         _status.trySend(StatusEvent("Ошибка пополнения: ${result.error.message}", isError = true))
+                    }
                 }
             }
         }
