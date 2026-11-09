@@ -99,9 +99,11 @@ L4–L8 — не проверены, заполняются по мере инс
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
 
-### M016. One-shot events через StateFlow (M6) — statusMessage / isError
+### Исправленные (L1)
 
-**Статус:** открыто.
+### ✅ M016. One-shot events через StateFlow (M6) — statusMessage / isError
+
+**Статус:** исправлено (2026-11-09, PR #112, merge 967b28fb).
 
 **Серьёзность:** низко.
 
@@ -115,12 +117,9 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **MVVM-альтернатива:** то же — event stream.
 
-**Ссылка на задачу:** `### M6: one-shot events (StatusEvent)` (`d64e1be`).
+**Ссылка на задачу:** `### ✅ 4. M6: one-shot events (StatusEvent)` (`docs/ROADMAP-ARCHIVE.md`, PR #112, merge `967b28fb`).
 
 **Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
-
-
-### Исправленные (L1)
 
 ### ✅ M001. OrdersViewModel форматирует overlay (формулы в VM)
 
