@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
+import kotlinx.coroutines.flow.Flow
 
 @Composable
 private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
@@ -227,10 +228,9 @@ fun OrdersScreen() {
             snackbarHostState = snackbarHostState,
             coordState = coordState,
             formState = formState,
-            searchState = searchState,
+            searchStatus = searchViewModel.status,
             onClearCoordStatus = { viewModel.clearStatus() },
             onClearFormStatus = { formViewModel.clearStatus() },
-            onClearSearchStatus = { searchViewModel.clearStatus() },
         )
     }
 
@@ -286,19 +286,17 @@ private fun BoxScope.OrdersScreenSnackbar(
     snackbarHostState: SnackbarHostState,
     coordState: OrdersCoordState,
     formState: OrderFormState,
-    searchState: OrderSearchState,
+    searchStatus: Flow<StatusEvent>,
     onClearCoordStatus: () -> Unit,
     onClearFormStatus: () -> Unit,
-    onClearSearchStatus: () -> Unit,
 ) {
     OrdersSnackbarEffects(
         snackbarHostState = snackbarHostState,
         coordState = coordState,
         formState = formState,
-        searchState = searchState,
+        searchStatus = searchStatus,
         onClearCoordStatus = onClearCoordStatus,
         onClearFormStatus = onClearFormStatus,
-        onClearSearchStatus = onClearSearchStatus,
     )
     OrdersSnackbarHost(
         snackbarHostState = snackbarHostState,
@@ -321,10 +319,9 @@ private fun OrdersSnackbarEffects(
     snackbarHostState: SnackbarHostState,
     coordState: OrdersCoordState,
     formState: OrderFormState,
-    searchState: OrderSearchState,
+    searchStatus: Flow<StatusEvent>,
     onClearCoordStatus: () -> Unit,
     onClearFormStatus: () -> Unit,
-    onClearSearchStatus: () -> Unit,
 ) {
     StatusEffect(
         snackbarHostState = snackbarHostState,
@@ -338,12 +335,33 @@ private fun OrdersSnackbarEffects(
         isError = formState.isError,
         onClear = onClearFormStatus,
     )
-    StatusEffect(
+    StatusEventEffect(
         snackbarHostState = snackbarHostState,
-        message = searchState.statusMessage,
-        isError = searchState.isError,
-        onClear = onClearSearchStatus,
+        status = searchStatus,
     )
+}
+
+/**
+ * One-shot status channel: `LaunchedEffect(Unit) { status.collect { … } }`.
+ * `Channel(BUFFERED)` consume'ится ровно один раз; повторно snackbar не
+ * показывается (M6 fix, clean-audit M6). Поведение 1:1 прежнему
+ * `StatusEffect(message, isError, onClear)` — actionLabel / duration по
+ * `isError`, `OK`-кнопка при ошибке.
+ */
+@Composable
+private fun StatusEventEffect(
+    snackbarHostState: SnackbarHostState,
+    status: Flow<StatusEvent>,
+) {
+    LaunchedEffect(Unit) {
+        status.collect { event ->
+            snackbarHostState.showSnackbar(
+                message = event.message,
+                actionLabel = if (event.isError) "OK" else null,
+                duration = if (event.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short,
+            )
+        }
+    }
 }
 
 /**
