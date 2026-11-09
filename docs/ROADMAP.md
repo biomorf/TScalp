@@ -249,6 +249,105 @@ ___
 
 
 
+### Compose UI: test infra + 3 экрана (3 проходки)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
+
+**Статус:** запланировано.
+
+**Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
+
+**Соответствие Clean:** соответствует (presentation-only; тесты — presentation-test; infra — test-layer).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** нет.
+
+**Файлы (сводно):**
+- `app/build.gradle.kts` — testImplementation для U0.
+- `app/src/test/kotlin/.../presentation/` — Compose UI тесты (Robolectric).
+- `presentation/screens/orders/OrdersScreen.kt` (+ вынесенные `OrdersHeader.kt` / `Orders*Section.kt`).
+- `presentation/screens/portfolio/PortfolioScreen.kt`.
+- `presentation/screens/settings/SettingsScreen.kt`.
+- `docs/gradle-setup.md` (секция «Compose UI tests»).
+
+**Шаги:**
+
+#### U0 — Compose UI test infra (Robolectric-hosted)
+
+1. `app/build.gradle.kts`:
+   - `testImplementation`: `androidx.compose.ui:ui-test-junit4`, `org.robolectric:robolectric`, `androidx.test:runner`, `androidx.test.ext:junit`.
+   - `debugImplementation`: `androidx.compose.ui:ui-test-manifest`.
+   - `android { testOptions { unitTests.isIncludeAndroidResources = true } }`.
+2. Smoke-тест `OrderCardTest` (`@RunWith(AndroidJUnit4::class)`, `@Config(sdk = [34])`, `createAndroidComposeRule<ComponentActivity>()`): отображает текст, вызывает `onClick` на клик.
+3. CI: `fast-check` уже прогоняет `testDebugUnitTest` — smoke зелёный = инфра рабочая.
+4. Если JDK 17 в CI не хватает для Robolectric SDK 34/36 — `@Config(sdk = [34])`, либо bump JDK в `ci.yml` отдельным fix-коммитом.
+5. `docs/gradle-setup.md` — секция «Compose UI tests (Robolectric)»: как запустить локально, ограничения (нет RenderThread / accessibility / IME).
+
+**Оценка U0:** ~2 ч.
+
+#### U1 — OrdersScreen (3 проходки)
+
+**Pass-1 (mobile, extract без state):**
+- Вынести приватные `@Composable`: `OrdersHeader`, `OrdersFormSection`, `OrdersActionsSection`, `OrdersBottomSection` — по секциям. Всё состояние и эффекты остаются на уровне `OrdersScreen`.
+- Снять `@Suppress("CyclomaticComplexMethod")` на `OrdersScreen` (complexity 7 < 14 — уже сейчас; см. PR #92), `@file:Suppress("TooManyFunctions")` уже снят (PR #93). Проверить остальные `@Suppress` — снять, где detekt зелёный.
+- CI: compile + ktlint + detekt + unit.
+
+**Pass-2 (state hoisting + behavioral):**
+- **До:** `OrdersScreenBehaviorTest` (Robolectric): search → select → form, confirm dialog, pair slider, snackbar. Зафиксировать 5–7 ключевых сценариев.
+- Перенос `remember` / `LaunchedEffect` / `derivedStateOf` (если есть) в child / родителя.
+- **После:** тесты зелёные, diff поведения = 0.
+- CI: behavioral.
+
+**Pass-3 (cleanup):**
+- Снять оставшиеся `@Suppress("LongMethod")` (если extract довёл до <60 строк).
+- `@Preview` для извлечённых composables (со стабами).
+
+**Оценка U1:** ~4–6 ч.
+
+#### U2 — PortfolioScreen (3 проходки)
+
+**Pass-1:** extract `AccountHeaderCard` / `PortfolioAccountBlock` / `EmptyPortfolioCard` (частично уже есть).
+**Pass-2:** behavioral test (load / error / empty / sandbox pay-in) до/после; перенос `remember`/`LaunchedEffect` в child.
+**Pass-3:** снять `@Suppress` на `PortfolioScreen` (`LongMethod` + `CyclomaticComplexMethod`).
+
+**Оценка U2:** ~3–4 ч.
+
+#### U3 — SettingsScreen (3 проходки)
+
+**Pass-1:** extract внутри `TInvestSettingsPanel` (324 строки) / `BcsSettingsPanel` (182) / `FinamSettingsPanel` (149) — подсекции (token, sandbox-accounts, actions).
+**Pass-2:** behavioral test на «подключиться / отключиться / ошибка» (после `### Settings: inline status card vs snackbar`, если выбран snackbar — статус проверяется через snackbar; иначе inline Card).
+**Pass-3:** снять `@Suppress` на 4 панелях (`SettingsScreen` 65, `TInvestSettingsPanel` 356, `BcsSettingsPanel` 201, `FinamSettingsPanel` 164).
+
+**Оценка U3:** ~5–6 ч.
+
+**Тесты:** U0 smoke; U1–U3 pass-2 behavioral (Robolectric); unit (presentation VM) — как раньше.
+
+**Референсы:** Compose UI Test (developer.android.com), Robolectric, `docs/live-test.md`, `docs/gradle-setup.md`.
+
+**Ограничения:**
+- Pass-1 **не** переносит `remember` / `LaunchedEffect` / `derivedStateOf` (только extract).
+- Pass-2 — обязательный behavioral test **до** и **после** переноса.
+- Pass-3 — `@Suppress` снимается только при detekt-зелёном.
+- UI визуал не меняется (правило 1: только по санкции).
+- U0 отдельным PR; U1/U2/U3 — по одному PR каждый (один CI-цикл на экран).
+
+**Критерий готовности:** U0 smoke зелёный на CI; U1–U3 (Pass-1 + Pass-2 + Pass-3), behavioral-тесты зелёные, `@Suppress` сняты (где возможно), detekt зелёный.
+
+**Оценка:** ~14–18 ч.
+
+**Зависимости:** нет.
+
+**Связано:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (поглощено этой umbrella); `#### Compose-компоненты` (AssetPositionCard, BrokerAccountDialog) — отдельная задача; `### Settings: inline status card vs snackbar` (U3 Pass-2 зависит от выбора A/B).
+
+**Открытые вопросы:** JDK 17 vs Robolectric SDK 34/36 в CI — проверить первым PR U0. Paparazzi/Roborazzi (screenshot) — опционально, отдельная задача (не блокер).
+
+___
+
 ### Orders: P&L в песочнице (expectedYield)
 
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с SBER).
@@ -372,39 +471,7 @@ ___
 
 #### Compose-экраны
 
-**Файлы:**
-- `presentation/screens/orders/OrdersScreen.kt` — `OrdersScreen`
-  (646 строк, complexity 69), `InstrumentSearchField`
-  (130 строк, complexity 16).
-- `presentation/screens/portfolio/PortfolioScreen.kt` (161 строка,
-  complexity 19).
-- `presentation/screens/settings/SettingsScreen.kt` —
-  `TInvestSettingsPanel` (324 строки, complexity 35),
-  `BcsSettingsPanel` (182), `FinamSettingsPanel` (149).
-
-**Пути решения:** вынести секции экрана в приватные
-composables. Для `OrdersScreen` — отдельно форма заявки,
-список, поиск, диалоги.
-
-**Дополнительно — Compose Preview (вариант C):**
-после разделения экранов на wrapper + content добавить
-`@Preview` для каждого экрана во всех состояниях
-(loading / error / empty / data). Обёртка с `hiltViewModel()`
-остаётся без превью; чистый content принимает `uiState`
-и колбэки, для него — превью с моками. Это ускорит
-дальнейшие UI-итерации (см. ROADMAP → «Compose Preview
-для компонентов», варианты A/B).
-
-**Оценка:** ~6 часов на рефакторинг + ~1–2 часа на preview
-всех экранов (вариант C).
-
-
-
-
-___
-
-
-
+**Перенесено в umbrella** `### Compose UI: test infra + 3 экрана (3 проходки)` (см. выше по приоритету; подсекции U0–U3). Здесь оставлен только маркер — не дублировать. `#### Compose-компоненты` (AssetPositionCard, BrokerAccountDialog) остаются в этой секции как отдельная работа.
 
 #### Compose-компоненты
 
