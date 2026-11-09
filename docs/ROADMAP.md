@@ -2514,68 +2514,6 @@ ___
 
 
 
-### 3. M001: formatting в presentation
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** в работе.
-
-**Ветка:** feature/m001-format-presentation.
-
-**Контекст:** clean-audit **M001** (`### M001. OrdersViewModel форматирует overlay (формулы в VM)`, статус «открыто»). После 13d format-функции переехали в `OrderFormViewModel` (`formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess`); `withCard` (UI-конвертация `SelectedInstrumentInfo` → `Position`, 2c `33dd378` «временно до 13/15») — в `OrdersSearch.kt` / `OrdersPairTrading.kt`. VM строит строки отображения — M1 (presentation).
-
-**Соответствие Clean:** соответствует (M1-фикс: presentation в presentation).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
-
-**Файлы:**
-- `presentation/screens/orders/OrderFormViewModel.kt` — `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` (private, P7).
-- `presentation/util/CurrencyFormat.kt` (или новый `TradeDetailsFormat.kt`) — формат-функции.
-- `presentation/screens/orders/OrdersSearch.kt` / `OrdersPairTrading.kt` — `withCard` (2c `33dd378`).
-- `presentation/util/PositionFormat.kt` (или similar) — `withCard` вынос.
-
-**Шаги:**
-1. Диагностика: `grep -nE "fun (formatCostOverlay|formatMultiplierOverlay|formatPostOrderSuccess|withCard)" app/src/main/kotlin/.../orders/`.
-2. Extract `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` в `presentation/util/TradeDetailsFormat.kt` (чистые функции, параметры — `TradeDetails` + `OrderFormState`).
-3. Extract `withCard` (`SelectedInstrumentInfo → Position`) в `presentation/util/PositionFormat.kt`.
-4. Обновить callsites в `OrderFormViewModel` / `OrdersSearch.kt` / `OrdersPairTrading.kt`.
-5. Удалить private-format из Form-VM.
-6. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-7. Тесты: `formatCostOverlay` / `formatMultiplierOverlay` / `withCard` — unit-тесты в `presentation/util/` (если ещё нет).
-
-**Тесты:** unit-тесты на format-функции (5–6 кейсов).
-
-**Референсы:** `docs/clean-audit.md` → **M001**; P7 в ROADMAP 13d (пересмотр); 2c `33dd378` («временно до 13/15» — сейчас после 15, переносим).
-
-**Ограничения:**
-- UI-визуально не меняется (только код-структура; `formatDomesticCurrency` / `formatPrice` — уже в `presentation/util/`).
-- Не трогать `formatPostOrderSuccess`-логику (1:1, только перенос).
-
-**Критерий готовности:**
-- `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` / `withCard` — в `presentation/util/`, не в VM/UI-секциях.
-- `OrderFormViewModel` — без private-format-функций.
-- Гейт зелёный; тесты на format-функции.
-
-**Оценка:** ~1.5–2 ч.
-
-**Зависимости:** «OrdersViewModel: разбить» (закрыто), `OrderFormViewModel: reduce functions` (связана, можно вместе).
-
-**Связано:** `### OrderFormViewModel: reduce functions`, clean-audit M001, M013/M002 (format как часть orchestration-фиксов).
-
-**Открытые вопросы:** отдельный файл `TradeDetailsFormat.kt` vs дополнение `CurrencyFormat.kt` — решить при старте.
-
-
-
-___
-
-
-
 ### 4. M6: one-shot events (StatusEvent)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
