@@ -13,14 +13,14 @@ import com.gitlab.biomorf.tscalp.presentation.util.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -54,8 +54,8 @@ class OrderSearchViewModel
         private val logger: Logger,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderSearchState())
-    private val _status = Channel<StatusEvent>(Channel.BUFFERED)
-    val status: Flow<StatusEvent> = _status.receiveAsFlow()
+        private val _status = Channel<StatusEvent>(Channel.BUFFERED)
+        val status: Flow<StatusEvent> = _status.receiveAsFlow()
         val state: StateFlow<OrderSearchState> = _state.asStateFlow()
 
         private var searchJob: Job? = null
@@ -230,5 +230,4 @@ class OrderSearchViewModel
         }
 
         fun getAvailableBrokerNames(): List<BrokerName> = brokerRegistry.getAvailableBrokerNames()
-
     }

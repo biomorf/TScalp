@@ -26,13 +26,13 @@ import com.gitlab.biomorf.tscalp.domain.usecases.RefreshSelectedInstrumentsUseCa
 import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -58,8 +58,8 @@ class OrdersViewModel
     ) : ViewModel() {
         private val _coordState = MutableStateFlow(OrdersCoordState())
         val coordState: StateFlow<OrdersCoordState> = _coordState.asStateFlow()
-        private val _status = Channel<StatusEvent>(Channel.BUFFERED)
-        val coordStatus: Flow<StatusEvent> = _status.receiveAsFlow()
+        private val _coordStatus = Channel<StatusEvent>(Channel.BUFFERED)
+        val coordStatus: Flow<StatusEvent> = _coordStatus.receiveAsFlow()
 
         /**
          * Passthrough из [TradingStatusRepository] (SSoT, P1).
@@ -200,7 +200,7 @@ class OrdersViewModel
                                 isLoading = false,
                             )
                         }
-                        _status.trySend(
+                        _coordStatus.trySend(
                             StatusEvent(
                                 if (data.accounts.isEmpty()) {
                                     "Нет доступных счетов"
@@ -226,7 +226,7 @@ class OrdersViewModel
                             result.error.cause,
                         )
                         _coordState.update { it.copy(isLoading = false) }
-                        _status.trySend(
+                        _coordStatus.trySend(
                             StatusEvent(
                                 "Ошибка загрузки счетов: ${result.error.message}",
                                 isError = true,
