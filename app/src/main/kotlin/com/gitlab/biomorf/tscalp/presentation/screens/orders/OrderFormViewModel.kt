@@ -10,7 +10,6 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
-import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
@@ -18,18 +17,15 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
-import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
-import com.gitlab.biomorf.tscalp.presentation.util.DOMESTIC_CURRENCY
-import com.gitlab.biomorf.tscalp.presentation.util.formatCurrency
+import com.gitlab.biomorf.tscalp.presentation.util.formatCostOverlay
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
-import com.gitlab.biomorf.tscalp.presentation.util.formatPrice
+import com.gitlab.biomorf.tscalp.presentation.util.formatMultiplierOverlay
+import com.gitlab.biomorf.tscalp.presentation.util.formatPostOrderSuccess
 import com.gitlab.biomorf.tscalp.presentation.util.toPlaceOrderRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -212,29 +208,6 @@ class OrderFormViewModel
                     isError = true,
                 )
             }
-        }
-
-        private fun formatPostOrderSuccess(
-            primary: PrimaryOutcome,
-            paired: PairedOutcome?,
-        ): String {
-            val primaryText =
-                when (primary) {
-                    is PrimaryOutcome.Regular ->
-                        "✅ Заявка выполнена!\nID: ${primary.orderId}\nИсполнено: ${primary.executedLots}/${primary.totalLots} лотов"
-                    is PrimaryOutcome.Stop -> "✅ Стоп‑заявка выставлена, ID: ${primary.orderId.take(8)}…"
-                }
-            val pairedText =
-                paired?.let { p ->
-                    when (p) {
-                        is PairedOutcome.Regular ->
-                            "\n✅ Контрсделка: ${p.instrument.ticker} ${p.quantity} лотов, ID: ${p.orderId}"
-                        is PairedOutcome.Stop ->
-                            "\n✅ Контрсделка: ${p.instrument.ticker} ${p.quantity} лотов, ID: ${p.orderId.take(8)}…"
-                        is PairedOutcome.Failed -> "\n❌ Ошибка контрсделки: ${p.message}"
-                    }
-                } ?: ""
-            return primaryText + pairedText
         }
 
         private suspend fun restoreOrderForm() {
@@ -567,34 +540,6 @@ class OrderFormViewModel
                 )
             _state.update {
                 it.copy(pairExecPrice = result.pairExecPrice, pairedOrderType = result.pairedOrderType)
-            }
-        }
-
-        private fun formatCostOverlay(
-            details: TradeDetails,
-            state: OrderFormState,
-        ): String? {
-            val instrumentType = state.selectedInstrument?.instrumentType ?: InstrumentType.OTHER
-            val currency = state.selectedInstrument?.currency ?: DOMESTIC_CURRENCY
-            return when {
-                details.costPoints != null && details.costDomesticCurrency != null ->
-                    "${formatPrice(details.costPoints, instrumentType, currency)}  ·  ${formatDomesticCurrency(details.costDomesticCurrency)}"
-                details.costCurrency != null -> formatCurrency(details.costCurrency, currency)
-                else -> null
-            }
-        }
-
-        private fun formatMultiplierOverlay(
-            details: TradeDetails,
-            state: OrderFormState,
-        ): String? {
-            val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: InstrumentType.OTHER
-            val currency = state.pairedInstrument?.currency ?: DOMESTIC_CURRENCY
-            return when {
-                details.multiplierPoints != null && details.multiplierDomesticCurrency != null ->
-                    "${formatPrice(details.multiplierPoints, pairedInstrumentType, currency)}  ·  ${formatDomesticCurrency(details.multiplierDomesticCurrency)}"
-                details.multiplierCurrency != null -> formatCurrency(details.multiplierCurrency, currency)
-                else -> null
             }
         }
 
