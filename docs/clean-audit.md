@@ -99,28 +99,6 @@ L4–L8 — не проверены, заполняются по мере инс
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
 
-### M001. OrdersViewModel форматирует overlay (формулы в VM)
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `OrdersViewModel.formatCostOverlay` (1148) и `formatMultiplierOverlay` (1162) — private-функции VM строят строки `costOverlay`/`multiplierOverlay` через `formatPrice` / `formatCurrency` / `formatDomesticCurrency`. Форматирование — обязанность UI-слоя; VM должна отдавать `TradeDetails` (числа), а не строки отображения.
-
-**Нарушенное правило:** M1 — VM делает работу presentation (форматирование). Также M7 (конвертация domain↔presentation в VM).
-
-**Clean-альтернатива:** `formatCostOverlay`/`formatMultiplierOverlay` — в `presentation/util/` (рядом с `CurrencyFormat`), вызываются из Composable. Плюсы: VM отдаёт `TradeDetails`, UI форматирует. Минусы: правка `OrdersScreen` (2 callsites).
-
-**MVVM-альтернатива:** перенести форматирование в Composable (через `remember(details)`). Плюсы: VM — только состояние. Минусы: `OrdersScreen` уже 646 строк (см. detekt-группу 3 → Compose-экраны).
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### ViewModel-слой`.
-
-**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
-
 ### M016. One-shot events через StateFlow (M6) — statusMessage / isError
 
 **Статус:** открыто.
@@ -143,6 +121,28 @@ L4–L8 — не проверены, заполняются по мере инс
 
 
 ### Исправленные (L1)
+
+### ✅ M001. OrdersViewModel форматирует overlay (формулы в VM)
+
+**Статус:** исправлено (2026-11-09, PR #111, merge 7bef1808).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `OrdersViewModel.formatCostOverlay` (1148) и `formatMultiplierOverlay` (1162) — private-функции VM строят строки `costOverlay`/`multiplierOverlay` через `formatPrice` / `formatCurrency` / `formatDomesticCurrency`. Форматирование — обязанность UI-слоя; VM должна отдавать `TradeDetails` (числа), а не строки отображения.
+
+**Нарушенное правило:** M1 — VM делает работу presentation (форматирование). Также M7 (конвертация domain↔presentation в VM).
+
+**Clean-альтернатива:** `formatCostOverlay`/`formatMultiplierOverlay` — в `presentation/util/` (рядом с `CurrencyFormat`), вызываются из Composable. Плюсы: VM отдаёт `TradeDetails`, UI форматирует. Минусы: правка `OrdersScreen` (2 callsites).
+
+**MVVM-альтернатива:** перенести форматирование в Composable (через `remember(details)`). Плюсы: VM — только состояние. Минусы: `OrdersScreen` уже 646 строк (см. detekt-группу 3 → Compose-экраны).
+
+**Выгоды:** —.
+
+**Ссылка на задачу:** `### ✅ M001: formatting в presentation` (`docs/ROADMAP-ARCHIVE.md`, PR #111, merge `7bef1808`).
+
+**Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
 ### ✅ M013. Orchestration в Orders / Portfolio / OrdersList ViewModels (7 методов)
 
