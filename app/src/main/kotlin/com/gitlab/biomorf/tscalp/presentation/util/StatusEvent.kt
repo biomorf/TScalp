@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.presentation.screens.orders
+package com.gitlab.biomorf.tscalp.presentation.util
 
 /**
  * One-shot UI event (M6 fix, clean-audit M6): перенесено из

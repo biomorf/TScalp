@@ -24,6 +24,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCas
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RefreshSelectedInstrumentsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
+import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel

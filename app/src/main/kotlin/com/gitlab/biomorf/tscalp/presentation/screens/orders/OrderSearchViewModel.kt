@@ -9,6 +9,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.usecases.SearchInstrumentsUseCase
+import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import com.gitlab.biomorf.tscalp.presentation.util.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException

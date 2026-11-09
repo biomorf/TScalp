@@ -8,6 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.usecases.SearchInstrumentsUseCase
+import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import com.gitlab.biomorf.tscalp.testutil.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify

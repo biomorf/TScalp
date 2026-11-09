@@ -22,6 +22,7 @@ import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedResult
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
+import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import com.gitlab.biomorf.tscalp.testutil.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.every
