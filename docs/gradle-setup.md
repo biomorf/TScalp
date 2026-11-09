@@ -76,6 +76,57 @@
 **Связано:** `AGENTS.md` → «Unit-тесты: mockk для suspend-функций».
 
 
+## Compose UI tests (Robolectric)
+
+Инфраструктура для **Compose UI** тестов на JVM (без эмулятора), гоняются
+в `testDebugUnitTest` → CI `fast-check`.
+
+### Зависимости (app/build.gradle.kts)
+
+- `testImplementation("androidx.compose.ui:ui-test-junit4")` (BOM уже в проекте).
+- `testImplementation("org.robolectric:robolectric:4.14.1")`.
+- `testImplementation("androidx.test:runner:1.6.2")`.
+- `testImplementation("androidx.test.ext:junit:1.2.1")`.
+- `debugImplementation("androidx.compose.ui:ui-test-manifest")` — уже есть.
+- `testOptions { unitTests.isIncludeAndroidResources = true }` — обязательно для Robolectric.
+
+### Как писать тест
+
+~~~kotlin
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
+class XTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun `assert`() {
+        rule.setContent { TScalpTheme { XComposable(...) } }
+        rule.onNodeWithText("...").assertIsDisplayed()
+        rule.onNodeWithContentDescription("...").performClick()
+    }
+}
+~~~
+
+### Ограничения Robolectric
+
+- нет RenderThread, bitmap, accessibility-дерева;
+- нет реального IME, insets, edge-to-edge, WebView, камеры/биометрии;
+- для таких — instrumented (`androidTest` + эмулятор), у нас пока не требуется.
+
+### Полезные API
+
+- `onNodeWithText / onNodeWithContentDescription / onNode(hasTestTag(...))`;
+- `performClick / performTextInput / performScrollToIndex`;
+- `waitForIdle()` — дожать recomposition/animations;
+- `mainClock.autoAdvance = false` + `mainClock.advanceTimeBy(ms)` — кадровый контроль (`LaunchedEffect`-задержки).
+
+### Desktop
+
+На desktop `./gradlew :app:testDebugUnitTest` работает локально; на mobile
+(proot) — только CI (`fast-check`), локальный Gradle не поднимается.
+
+
 ## Замечания
 
 - **Configuration cache:** флаг `--no-configuration-cache` нельзя
