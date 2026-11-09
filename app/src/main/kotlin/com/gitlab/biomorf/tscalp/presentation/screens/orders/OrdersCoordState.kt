@@ -16,8 +16,9 @@ import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
  * - [lastSelectedInstruments] — cards identity; Coord реактивен через
  *   `CardsRepository.identities` + `RefreshSelectedInstrumentsUseCase`.
  * - [portfolioPositions] — активный счёт (Coord), для enrich карточек.
- * - [isLoading] / [statusMessage] / [isError] — Coord-level
- *   (`loadAccounts` / `retryLoadAccounts`); Form-level — в `OrderFormState`.
+ * - [isLoading] — Coord-level (`loadAccounts` / `retryLoadAccounts`);
+ *   статусные события — `OrdersViewModel.coordStatus: Flow<StatusEvent>`
+ *   (M6, clean-audit M6).
  *
  * **Не содержит** Form-полей (см. `OrderFormState`):
  * - instrument / quantity / orderType / prices / expiry / pair / confirm;
@@ -33,11 +34,7 @@ data class OrdersCoordState(
     val lastSelectedInstruments: List<SelectedInstrumentInfo> = emptyList(),
     val portfolioPositions: List<Position> = emptyList(),
     val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false,
-) {
-    fun clearStatus(): OrdersCoordState = copy(statusMessage = null, isError = false)
-}
+)
 
 /**
  * Per-card `SelectedInstrumentInfo` для основного инструмента.

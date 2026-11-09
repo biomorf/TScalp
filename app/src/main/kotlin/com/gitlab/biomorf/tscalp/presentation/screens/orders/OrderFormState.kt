@@ -30,10 +30,9 @@ import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
  *   `lastSelectedInstruments`; Form — `selectedInstrument`.
  * - `saveState()` — в Form-VM (не в Coord): все callsites —
  *   Form-методы; Coord-State после 13d-F не содержит Form-полей.
- * - `isLoading` / `statusMessage` / `isError` — **Form-level**
- *   (postOrder / confirm dialog); Coord-`isLoading` / `statusMessage` /
- *   `isError` — loadAccounts / checkApiInitialization (отдельный state).
- *   Это фактически разъезд M5 (два StateFlow в одной VM) по двум VM.
+ * - `isLoading` — **Form-level** (postOrder / confirm dialog);
+ *   статусные события — `OrderFormViewModel.status: Flow<StatusEvent>`
+ *   (M6, clean-audit M6).
  */
 data class OrderFormState(
     // Instrument / price
@@ -78,10 +77,8 @@ data class OrderFormState(
     val pendingDirection: OrderDirection? = null,
     /** M009: подтверждение заявок (Form владелец confirm-диалога, M009). */
     val confirmOrdersEnabled: Boolean = true,
-    // Status (Form-level; M6 pre-existing — отдельная задача)
+    // Status (Form-level; M6: статусные события — FormViewModel.status)
     val isLoading: Boolean = false,
-    val statusMessage: String? = null,
-    val isError: Boolean = false,
 ) {
     /**
      * Валидность формы: 1:1 с `OrdersUiState.isFormValid`, кроме
@@ -124,6 +121,4 @@ data class OrderFormState(
         }
 
     val quantityAsLong: Long? get() = quantity.toLongOrNull()
-
-    fun clearStatus(): OrderFormState = copy(statusMessage = null, isError = false)
 }

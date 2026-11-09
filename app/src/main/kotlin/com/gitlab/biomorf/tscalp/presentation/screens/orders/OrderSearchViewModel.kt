@@ -13,10 +13,13 @@ import com.gitlab.biomorf.tscalp.presentation.util.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -51,6 +54,8 @@ class OrderSearchViewModel
         private val logger: Logger,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderSearchState())
+        private val _status = Channel<StatusEvent>(Channel.BUFFERED)
+        val status: Flow<StatusEvent> = _status.receiveAsFlow()
         val state: StateFlow<OrderSearchState> = _state.asStateFlow()
 
         private var searchJob: Job? = null
@@ -81,15 +86,12 @@ class OrderSearchViewModel
                                 _state.update {
                                     it.copy(searchResults = r.data, isSearching = false)
                                 }
-                            is AppResult.Failure ->
+                            is AppResult.Failure -> {
                                 _state.update {
-                                    it.copy(
-                                        searchResults = emptyList(),
-                                        isSearching = false,
-                                        statusMessage = "Ошибка поиска: ${r.error.message}",
-                                        isError = true,
-                                    )
+                                    it.copy(searchResults = emptyList(), isSearching = false)
                                 }
+                                _status.trySend(StatusEvent("Ошибка поиска: ${r.error.message}", isError = true))
+                            }
                         }
                     } catch (ce: CancellationException) {
                         _state.update { it.copy(isSearching = false) }
@@ -97,13 +99,9 @@ class OrderSearchViewModel
                     } catch (e: Exception) {
                         logger.e(TAG, "search exception", e)
                         _state.update {
-                            it.copy(
-                                searchResults = emptyList(),
-                                isSearching = false,
-                                statusMessage = "Ошибка поиска: ${e.message}",
-                                isError = true,
-                            )
+                            it.copy(searchResults = emptyList(), isSearching = false)
                         }
+                        _status.trySend(StatusEvent("Ошибка поиска: ${e.message}", isError = true))
                     }
                 }
         }
@@ -131,15 +129,12 @@ class OrderSearchViewModel
                                 _state.update {
                                     it.copy(pairSearchResults = r.data, isPairSearching = false)
                                 }
-                            is AppResult.Failure ->
+                            is AppResult.Failure -> {
                                 _state.update {
-                                    it.copy(
-                                        pairSearchResults = emptyList(),
-                                        isPairSearching = false,
-                                        statusMessage = "Ошибка поиска: ${r.error.message}",
-                                        isError = true,
-                                    )
+                                    it.copy(pairSearchResults = emptyList(), isPairSearching = false)
                                 }
+                                _status.trySend(StatusEvent("Ошибка поиска: ${r.error.message}", isError = true))
+                            }
                         }
                     } catch (ce: CancellationException) {
                         _state.update { it.copy(isPairSearching = false) }
@@ -147,13 +142,9 @@ class OrderSearchViewModel
                     } catch (e: Exception) {
                         logger.e(TAG, "pair search exception", e)
                         _state.update {
-                            it.copy(
-                                pairSearchResults = emptyList(),
-                                isPairSearching = false,
-                                statusMessage = "Ошибка поиска: ${e.message}",
-                                isError = true,
-                            )
+                            it.copy(pairSearchResults = emptyList(), isPairSearching = false)
                         }
+                        _status.trySend(StatusEvent("Ошибка поиска: ${e.message}", isError = true))
                     }
                 }
         }
@@ -239,8 +230,4 @@ class OrderSearchViewModel
         }
 
         fun getAvailableBrokerNames(): List<BrokerName> = brokerRegistry.getAvailableBrokerNames()
-
-        fun clearStatus() {
-            _state.update { it.copy(statusMessage = null, isError = false) }
-        }
     }

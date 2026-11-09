@@ -56,7 +56,7 @@ class DisconnectBrokerUseCase
          *
          * @return `AppResult.Success(Unit)` — успех;
          *   `AppResult.Failure` — ошибка (в `message` готовая строка
-         *   для `statusMessage`).
+         *   для `StatusEvent.message`).
          */
         suspend fun execute(brokerName: BrokerName): AppResult<Unit> {
             logger.d(TAG, "execute: brokerName=$brokerName")

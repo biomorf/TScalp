@@ -11,10 +11,13 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.usecases.CancelOrderUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,12 +35,13 @@ class OrdersListViewModel
         data class OrdersListState(
             val orders: List<Order> = emptyList(),
             val isLoading: Boolean = false,
-            val statusMessage: String? = null,
-            val isError: Boolean = false,
         )
 
         private val _uiState = MutableStateFlow(OrdersListState())
         val uiState: StateFlow<OrdersListState> = _uiState.asStateFlow()
+
+        private val _status = Channel<StatusEvent>(Channel.BUFFERED)
+        val status: Flow<StatusEvent> = _status.receiveAsFlow()
 
         init {
             viewModelScope.launch {
@@ -47,17 +51,7 @@ class OrdersListViewModel
                     orderFlowManager.hasLoaded,
                 ) { orders, loaded -> orders to loaded }.collect { (orders, loaded) ->
                     _uiState.update { current ->
-                        current.copy(
-                            orders = orders,
-                            isLoading = !loaded,
-                            statusMessage =
-                                when {
-                                    !loaded -> null
-                                    orders.isNotEmpty() -> null
-                                    current.isError -> current.statusMessage
-                                    else -> "Нет активных заявок"
-                                },
-                        )
+                        current.copy(orders = orders, isLoading = !loaded)
                     }
                 }
             }
@@ -70,7 +64,7 @@ class OrdersListViewModel
         fun loadOrders() {
             viewModelScope.launch {
                 logger.d(TAG, "loadOrders: start")
-                _uiState.update { it.copy(isLoading = true, statusMessage = null, isError = false) }
+                _uiState.update { it.copy(isLoading = true) }
 
                 val sandboxMode = sandboxPreferencesRepository.isSandboxMode()
 
@@ -84,21 +78,15 @@ class OrdersListViewModel
                                 "loadOrders: getAccounts failed: ${result.error.message}",
                                 result.error.cause,
                             )
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    statusMessage = "Ошибка: ${result.error.message}",
-                                    isError = true,
-                                )
-                            }
+                            _uiState.update { it.copy(isLoading = false) }
+                            _status.trySend(StatusEvent("Ошибка: ${result.error.message}", isError = true))
                             return@launch
                         }
                     }
 
                 if (accounts.isEmpty()) {
-                    _uiState.update {
-                        it.copy(isLoading = false, statusMessage = "Нет доступных счетов", isError = true)
-                    }
+                    _uiState.update { it.copy(isLoading = false) }
+                    _status.trySend(StatusEvent("Нет доступных счетов", isError = true))
                     return@launch
                 }
                 val accountId = accounts.first().id
@@ -125,12 +113,9 @@ class OrdersListViewModel
                             "cancelOrder failed: ${result.error.message}",
                             result.error.cause,
                         )
-                        _uiState.update {
-                            it.copy(
-                                statusMessage = "Ошибка отмены: ${result.error.message}",
-                                isError = true,
-                            )
-                        }
+                        _status.trySend(
+                            StatusEvent("Ошибка отмены: ${result.error.message}", isError = true),
+                        )
                     }
                 }
             }

@@ -13,11 +13,11 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -78,7 +78,7 @@ class OrderSearchViewModelTest {
         }
 
     @Test
-    fun `query failure sets statusMessage and isError`() =
+    fun `query failure emits StatusEvent`() =
         runTest {
             coEvery {
                 searchInstrumentsUseCase.execute(BrokerName.TINVEST, "SBER")
@@ -93,8 +93,13 @@ class OrderSearchViewModelTest {
                     .isEmpty(),
             )
             assertFalse(vm.state.value.isSearching)
-            assertNotNull(vm.state.value.statusMessage)
-            assertTrue(vm.state.value.isError)
+
+            val event =
+                vm.status
+                    .first()
+            assertTrue(event.isError)
+            assertTrue(event.message.contains("Ошибка поиска"))
+            assertTrue(event.message.contains("down"))
         }
 
     @Test

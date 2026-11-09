@@ -32,7 +32,7 @@ class PayInSandboxUseCase
          *
          * @return `AppResult.Success(Unit)` — успех;
          *   `AppResult.Failure` — ошибка (в `message` уже готовая
-         *   строка для `statusMessage`).
+         *   строка для `StatusEvent.message`).
          */
         suspend fun execute(
             accountId: String,

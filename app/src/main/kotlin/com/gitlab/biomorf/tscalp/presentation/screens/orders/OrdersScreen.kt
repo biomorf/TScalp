@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
+import kotlinx.coroutines.flow.Flow
 
 @Composable
 private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
@@ -225,12 +226,9 @@ fun OrdersScreen() {
         // Snackbar (extracted, Fase 2 11b; 13d-E-A: coord + form channels)
         OrdersScreenSnackbar(
             snackbarHostState = snackbarHostState,
-            coordState = coordState,
-            formState = formState,
-            searchState = searchState,
-            onClearCoordStatus = { viewModel.clearStatus() },
-            onClearFormStatus = { formViewModel.clearStatus() },
-            onClearSearchStatus = { searchViewModel.clearStatus() },
+            coordStatus = viewModel.coordStatus,
+            formStatus = formViewModel.status,
+            searchStatus = searchViewModel.status,
         )
     }
 
@@ -284,106 +282,84 @@ fun OrdersScreen() {
 @Composable
 private fun BoxScope.OrdersScreenSnackbar(
     snackbarHostState: SnackbarHostState,
-    coordState: OrdersCoordState,
-    formState: OrderFormState,
-    searchState: OrderSearchState,
-    onClearCoordStatus: () -> Unit,
-    onClearFormStatus: () -> Unit,
-    onClearSearchStatus: () -> Unit,
+    coordStatus: Flow<StatusEvent>,
+    formStatus: Flow<StatusEvent>,
+    searchStatus: Flow<StatusEvent>,
 ) {
     OrdersSnackbarEffects(
         snackbarHostState = snackbarHostState,
-        coordState = coordState,
-        formState = formState,
-        searchState = searchState,
-        onClearCoordStatus = onClearCoordStatus,
-        onClearFormStatus = onClearFormStatus,
-        onClearSearchStatus = onClearSearchStatus,
+        coordStatus = coordStatus,
+        formStatus = formStatus,
+        searchStatus = searchStatus,
     )
-    OrdersSnackbarHost(
-        snackbarHostState = snackbarHostState,
-        isError = coordState.isError || formState.isError,
-    )
+    OrdersSnackbarHost(snackbarHostState = snackbarHostState)
 }
 
 /**
- * Эффекты Snackbar (Fase 2, 11b): автоочистка + показ.
- *
- * Two status channels after 13d-E-A: `coordState.statusMessage` (Coord:
- * `loadAccounts` / `checkApiInitialization`) and `formState.statusMessage`
- * (Form: postOrder flow). Plus `searchState.statusMessage` (Search).
- * Each channel: show + auto-dismiss by SnackbarResult -> onClear*.
- * Pre-existing N3-duplicate (`2 × LaunchedEffect(coordState.statusMessage)`)
- * is removed as part of this split.
+ * Три one-shot канала: Coord / Form / Search (`StatusEventEffect`).
+ * `Channel(BUFFERED)` в каждой VM consume'ится ровно один раз; M6,
+ * clean-audit M6.
  */
 @Composable
 private fun OrdersSnackbarEffects(
     snackbarHostState: SnackbarHostState,
-    coordState: OrdersCoordState,
-    formState: OrderFormState,
-    searchState: OrderSearchState,
-    onClearCoordStatus: () -> Unit,
-    onClearFormStatus: () -> Unit,
-    onClearSearchStatus: () -> Unit,
+    coordStatus: Flow<StatusEvent>,
+    formStatus: Flow<StatusEvent>,
+    searchStatus: Flow<StatusEvent>,
 ) {
-    StatusEffect(
-        snackbarHostState = snackbarHostState,
-        message = coordState.statusMessage,
-        isError = coordState.isError,
-        onClear = onClearCoordStatus,
-    )
-    StatusEffect(
-        snackbarHostState = snackbarHostState,
-        message = formState.statusMessage,
-        isError = formState.isError,
-        onClear = onClearFormStatus,
-    )
-    StatusEffect(
-        snackbarHostState = snackbarHostState,
-        message = searchState.statusMessage,
-        isError = searchState.isError,
-        onClear = onClearSearchStatus,
-    )
+    StatusEventEffect(snackbarHostState = snackbarHostState, status = coordStatus)
+    StatusEventEffect(snackbarHostState = snackbarHostState, status = formStatus)
+    StatusEventEffect(snackbarHostState = snackbarHostState, status = searchStatus)
 }
 
 /**
- * Один status-канал: `LaunchedEffect(message)` -> `showSnackbar` ->
- * `onClear` на `Dismissed` / `ActionPerformed`. 1:1 поведение прежних
- * трёх `LaunchedEffect`-блоков (coord / form / search).
- *
- * Split `OrdersSnackbarEffects` на 3 канала (13d-E-A fix): detekt
- * `CyclomaticComplexMethod` (16 > 14) на объединённой функции.
+ * One-shot status channel: `LaunchedEffect(Unit) { status.collect { … } }`.
+ * `Channel(BUFFERED)` consume'ится ровно один раз; повторно snackbar не
+ * показывается (M6 fix, clean-audit M6). Поведение 1:1 прежним трём
+ * `StatusEffect`-блокам (удалены в M016) — actionLabel / duration по
+ * `isError`, `OK`-кнопка при ошибке.
  */
 @Composable
-private fun StatusEffect(
+private fun StatusEventEffect(
     snackbarHostState: SnackbarHostState,
-    message: String?,
-    isError: Boolean,
-    onClear: () -> Unit,
+    status: Flow<StatusEvent>,
 ) {
-    LaunchedEffect(message) {
-        message?.let { text ->
-            val result =
-                snackbarHostState.showSnackbar(
-                    message = text,
-                    actionLabel = if (isError) "OK" else null,
-                    duration = if (isError) SnackbarDuration.Indefinite else SnackbarDuration.Short,
-                )
-            if (result == SnackbarResult.Dismissed || result == SnackbarResult.ActionPerformed) {
-                onClear()
-            }
+    LaunchedEffect(Unit) {
+        status.collect { event ->
+            snackbarHostState.showSnackbar(
+                StatusSnackbarVisuals(
+                    message = event.message,
+                    actionLabel = if (event.isError) "OK" else null,
+                    withDismissAction = false,
+                    duration = if (event.isError) SnackbarDuration.Indefinite else SnackbarDuration.Short,
+                    isError = event.isError,
+                ),
+            )
         }
     }
 }
 
 /**
+ * `SnackbarVisuals` с флагом `isError`: `OrdersSnackbarHost` стилизует
+ * контейнер по `data.visuals.isError`, без параметра/StateFlow (M6:
+ * event → visuals → host).
+ */
+private data class StatusSnackbarVisuals(
+    override val message: String,
+    override val actionLabel: String?,
+    override val withDismissAction: Boolean,
+    override val duration: SnackbarDuration,
+    val isError: Boolean,
+) : SnackbarVisuals
+
+/**
  * Snackbar host (Fase 2, 11b): `SnackbarHost` + `Snackbar`.
- * Контейнер / контент — error vs tertiary по [isError].
+ * Контейнер / контент — error vs tertiary по `data.visuals.isError`
+ * (`StatusSnackbarVisuals`, M016).
  */
 @Composable
 private fun BoxScope.OrdersSnackbarHost(
     snackbarHostState: SnackbarHostState,
-    isError: Boolean,
 ) {
     SnackbarHost(
         hostState = snackbarHostState,
@@ -392,6 +368,7 @@ private fun BoxScope.OrdersSnackbarHost(
                 .align(Alignment.BottomCenter)
                 .padding(8.dp),
     ) { data ->
+        val isError = (data.visuals as? StatusSnackbarVisuals)?.isError ?: false
         Snackbar(
             containerColor =
                 if (isError) {
