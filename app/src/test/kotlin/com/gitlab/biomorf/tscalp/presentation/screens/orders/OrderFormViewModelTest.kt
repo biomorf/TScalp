@@ -11,7 +11,9 @@ import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentResult
@@ -24,11 +26,13 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -244,5 +248,39 @@ class OrderFormViewModelTest {
             assertEquals(tmon, s.pairedInstrument)
             assertEquals(BrokerName.TINVEST, s.pairedBroker)
             assertNull(s.pairedAccountId)
+        }
+
+    @Test
+    fun `postOrder success emits StatusEvent`() =
+        runTest {
+            coEvery { selectInstrumentUseCase.execute(sber, null) } returns
+                AppResult.Success(SelectInstrumentResult(card = info(sber, "A"), pointValue = 1.0))
+            coEvery { calculateTradeDetails.calculate(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+                com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails(executionPrice = 100.0)
+            coEvery { placeOrderUseCase.execute(any(), com.gitlab.biomorf.tscalp.domain.models.OrderDirection.BUY) } returns
+                com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderOutcome.Success(
+                    primary = com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome.Regular(
+                        orderId = "order-1",
+                        executedLots = 3,
+                        totalLots = 3,
+                    ),
+                    paired = null,
+                    freeBalance = 100_000.0,
+                )
+
+            val vm = createVm()
+            vm.onInstrumentSelected(sber)
+            vm.onQuantityChanged("3")
+            advanceUntilIdle()
+
+            vm.onBuyClick()
+            advanceUntilIdle()
+            vm.onConfirmOrder()
+            advanceUntilIdle()
+
+            val event = vm.status.first()
+            assertEquals(false, event.isError)
+            assertTrue(event.message.contains("Заявка выполнена"))
+            assertTrue(event.message.contains("order-1"))
         }
 }
