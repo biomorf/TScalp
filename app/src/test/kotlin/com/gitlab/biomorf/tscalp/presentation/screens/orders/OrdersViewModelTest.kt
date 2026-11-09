@@ -25,10 +25,11 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -94,14 +95,18 @@ class OrdersViewModelTest {
                 )
 
             val vm = createVm()
-            vm.loadAccounts()
-            advanceUntilIdle()
+            try {
+                vm.loadAccounts()
+                runCurrent()
 
-            val event =
-                vm.coordStatus
-                    .first()
-            assertEquals(false, event.isError)
-            assertTrue(event.message.contains("Загружено"))
+                val event =
+                    vm.coordStatus
+                        .first()
+                assertEquals(false, event.isError)
+                assertTrue(event.message.contains("Загружено"))
+            } finally {
+                vm.viewModelScope.cancel()
+            }
         }
 
     @Test
@@ -112,13 +117,17 @@ class OrdersViewModelTest {
             } returns AppResult.Failure(AppError.Network("down", null))
 
             val vm = createVm()
-            vm.loadAccounts()
-            advanceUntilIdle()
+            try {
+                vm.loadAccounts()
+                runCurrent()
 
-            val event =
-                vm.coordStatus
-                    .first()
-            assertEquals(true, event.isError)
-            assertTrue(event.message.contains("Ошибка загрузки счетов"))
+                val event =
+                    vm.coordStatus
+                        .first()
+                assertEquals(true, event.isError)
+                assertTrue(event.message.contains("Ошибка загрузки счетов"))
+            } finally {
+                vm.viewModelScope.cancel()
+            }
         }
 }
