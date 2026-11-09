@@ -315,8 +315,8 @@ private fun OrdersSnackbarEffects(
 /**
  * One-shot status channel: `LaunchedEffect(Unit) { status.collect { … } }`.
  * `Channel(BUFFERED)` consume'ится ровно один раз; повторно snackbar не
- * показывается (M6 fix, clean-audit M6). Поведение 1:1 прежнему
- * `StatusEffect(message, isError, onClear)` — actionLabel / duration по
+ * показывается (M6 fix, clean-audit M6). Поведение 1:1 прежним трём
+ * `StatusEffect`-блокам (удалены в M016) — actionLabel / duration по
  * `isError`, `OK`-кнопка при ошибке.
  */
 @Composable
@@ -354,7 +354,8 @@ private data class StatusSnackbarVisuals(
 
 /**
  * Snackbar host (Fase 2, 11b): `SnackbarHost` + `Snackbar`.
- * Контейнер / контент — error vs tertiary по [isError].
+ * Контейнер / контент — error vs tertiary по `data.visuals.isError`
+ * (`StatusSnackbarVisuals`, M016).
  */
 @Composable
 private fun BoxScope.OrdersSnackbarHost(

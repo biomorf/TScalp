@@ -106,7 +106,7 @@ sealed interface PlaceOrderOutcome {
  *
  * **Не делает** (presentation, Form-VM / `### M001`):
  * `formatPostOrderSuccess` / `handlePostOrder*` / `_state.update`
- * (`statusMessage` / `isError` / `freeBalance` / cleared fields).
+ * (`StatusEvent` / `freeBalance` / cleared fields).
  *
  * **`refreshLastSelectedInstruments` не вызывается** — Coord
  * реактивен через `PositionFlowManager.sheet` →

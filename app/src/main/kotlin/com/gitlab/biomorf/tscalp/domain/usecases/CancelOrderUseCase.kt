@@ -20,7 +20,7 @@ import javax.inject.Singleton
  * orchestration, не presentation.
  *
  * VM-часть (Q2 + F3) остаётся в VM: `loadOrders()` при успехе и
- * `_uiState.update(statusMessage, isError)` при ошибке.
+ * `_status.trySend(StatusEvent(..., isError = true))` при ошибке.
  *
  * **Пустой accounts — не тихий return (Q9, 2026-11-07).** Раньше
  * `return@launch` без сообщения: пользователь нажимал «Отменить»,
@@ -52,7 +52,7 @@ class CancelOrderUseCase
          *
          * @return `AppResult.Success(Unit)` — заявка отменена;
          *   `AppResult.Failure` — ошибка (в `message` готовая строка
-         *   для `statusMessage`), включая пустой список счетов.
+         *   для `StatusEvent.message`), включая пустой список счетов.
          */
         suspend fun execute(
             brokerName: BrokerName,

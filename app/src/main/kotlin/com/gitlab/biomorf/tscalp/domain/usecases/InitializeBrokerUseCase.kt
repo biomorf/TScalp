@@ -45,7 +45,7 @@ class InitializeBrokerUseCase
          *
          * @return `AppResult.Success(true)` — успех;
          *   `AppResult.Failure` — ошибка (в `message` уже готовая строка
-         *   для `statusMessage`).
+         *   для `StatusEvent.message`).
          */
         suspend fun execute(credentials: BrokerCredentials): AppResult<Boolean> {
             logger.d(TAG, "execute: ${credentials::class.simpleName}")
