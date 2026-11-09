@@ -2522,7 +2522,9 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/m6-finish.
 
 **Контекст:** M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) закрыл M6 только для Orders. Осталось два хвоста: (1) `OrdersViewModel` (Coord) получил `_coordStatus: Channel<StatusEvent>(BUFFERED)`, но тест не добавлен; (2) Portfolio и Settings panel-VM держат `statusMessage`/`isError` в `StateFlow` — тот же M6-баг (replay). **Один PR** (один feature-branch, один CI-цикл) — вместо трёх отдельных.
 
