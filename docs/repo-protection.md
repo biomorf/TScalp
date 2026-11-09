@@ -113,12 +113,17 @@ checks → **Add checks** → начать печатать имя
 
 Обход 7-дневного окна picker'а. Job `gate` в `ci.yml`:
 
-- `needs: [fast-check, full-build]`
+- `needs: [fast-ktlint, fast-check, full-build]`
 - `if: always()` — запускается даже при падении upstream,
   иначе не создал бы статус, и required check завис бы.
-- Проверяет результат upstream: `fast-check` → `success`,
-  `full-build` → `success` или `skipped`.
+- Проверяет результат upstream: `fast-ktlint` → `success`,
+  `fast-check` → `success`, `full-build` → `success` или `skipped`.
 - Падает, если проверки не прошли.
+
+**fast-ktlint (2026-11-09):** отдельный job для ktlint (`:app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck`),
+параллельно `fast-check`. Причина: до этого ktlint падал
+только после `testDebugUnitTest` + `lintDebug` внутри `fast-check`
+(2–3 мин на цикл). Вынесение даёт fail за ~30–60 сек.
 
 **Почему работает:** `gate` присутствует в **каждом**
 запуске CI. Даже после паузы >7 дней первый же push/PR
