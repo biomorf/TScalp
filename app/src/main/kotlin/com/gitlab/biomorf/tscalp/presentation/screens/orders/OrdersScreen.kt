@@ -226,10 +226,9 @@ fun OrdersScreen() {
         // Snackbar (extracted, Fase 2 11b; 13d-E-A: coord + form channels)
         OrdersScreenSnackbar(
             snackbarHostState = snackbarHostState,
-            coordState = coordState,
+            coordStatus = viewModel.coordStatus,
             formState = formState,
             searchStatus = searchViewModel.status,
-            onClearCoordStatus = { viewModel.clearStatus() },
             onClearFormStatus = { formViewModel.clearStatus() },
         )
     }
@@ -284,23 +283,21 @@ fun OrdersScreen() {
 @Composable
 private fun BoxScope.OrdersScreenSnackbar(
     snackbarHostState: SnackbarHostState,
-    coordState: OrdersCoordState,
+    coordStatus: Flow<StatusEvent>,
     formState: OrderFormState,
     searchStatus: Flow<StatusEvent>,
-    onClearCoordStatus: () -> Unit,
     onClearFormStatus: () -> Unit,
 ) {
     OrdersSnackbarEffects(
         snackbarHostState = snackbarHostState,
-        coordState = coordState,
+        coordStatus = coordStatus,
         formState = formState,
         searchStatus = searchStatus,
-        onClearCoordStatus = onClearCoordStatus,
         onClearFormStatus = onClearFormStatus,
     )
     OrdersSnackbarHost(
         snackbarHostState = snackbarHostState,
-        isError = coordState.isError || formState.isError,
+        isError = formState.isError,
     )
 }
 
@@ -317,17 +314,14 @@ private fun BoxScope.OrdersScreenSnackbar(
 @Composable
 private fun OrdersSnackbarEffects(
     snackbarHostState: SnackbarHostState,
-    coordState: OrdersCoordState,
+    coordStatus: Flow<StatusEvent>,
     formState: OrderFormState,
     searchStatus: Flow<StatusEvent>,
-    onClearCoordStatus: () -> Unit,
     onClearFormStatus: () -> Unit,
 ) {
-    StatusEffect(
+    StatusEventEffect(
         snackbarHostState = snackbarHostState,
-        message = coordState.statusMessage,
-        isError = coordState.isError,
-        onClear = onClearCoordStatus,
+        status = coordStatus,
     )
     StatusEffect(
         snackbarHostState = snackbarHostState,

@@ -27,6 +27,9 @@ import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +58,8 @@ class OrdersViewModel
     ) : ViewModel() {
         private val _coordState = MutableStateFlow(OrdersCoordState())
         val coordState: StateFlow<OrdersCoordState> = _coordState.asStateFlow()
+        private val _status = Channel<StatusEvent>(Channel.BUFFERED)
+        val coordStatus: Flow<StatusEvent> = _status.receiveAsFlow()
 
         /**
          * Passthrough из [TradingStatusRepository] (SSoT, P1).
@@ -193,14 +198,18 @@ class OrdersViewModel
                                 accounts = data.accounts,
                                 selectedAccountId = data.selectedAccountId,
                                 isLoading = false,
-                                statusMessage =
-                                    if (data.accounts.isEmpty()) {
-                                        "Нет доступных счетов"
-                                    } else {
-                                        "Загружено ${data.accounts.size} счёт(ов)"
-                                    },
                             )
                         }
+                        _status.trySend(
+                            StatusEvent(
+                                if (data.accounts.isEmpty()) {
+                                    "Нет доступных счетов"
+                                } else {
+                                    "Загружено ${data.accounts.size} счёт(ов)"
+                                },
+                                isError = false,
+                            ),
+                        )
                         logger.i(
                             TAG,
                             "loadAccounts: success, accounts=${data.accounts.size}, selected=${data.selectedAccountId}",
@@ -216,13 +225,13 @@ class OrdersViewModel
                             "loadAccounts failed: ${result.error.message}",
                             result.error.cause,
                         )
-                        _coordState.update {
-                            it.copy(
-                                isLoading = false,
-                                statusMessage = "Ошибка загрузки счетов: ${result.error.message}",
+                        _coordState.update { it.copy(isLoading = false) }
+                        _status.trySend(
+                            StatusEvent(
+                                "Ошибка загрузки счетов: ${result.error.message}",
                                 isError = true,
-                            )
-                        }
+                            ),
+                        )
                     }
                 }
             }
@@ -257,10 +266,6 @@ class OrdersViewModel
                     sheet = sheet,
                 )
             _coordState.update { it.copy(lastSelectedInstruments = updatedList) }
-        }
-
-        fun clearStatus() {
-            _coordState.update { it.clearStatus() }
         }
 
         private suspend fun updateTradingStatuses(ids: List<String>) {
