@@ -2514,6 +2514,171 @@ ___
 
 
 
+### OrdersViewModel: status Flow<StatusEvent> test
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** в рамках M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) `OrdersViewModel` получил `_coordStatus: Channel<StatusEvent>(BUFFERED)` + `val coordStatus: Flow<StatusEvent>`; `loadAccounts` success/failure эмитят `StatusEvent`. Тест на эти два канала в PR #112 не добавлен. Form (postOrder) и OrdersList покрыты (`OrderFormViewModelTest`, `OrdersListViewModelTest`).
+
+**Соответствие Clean:** соответствует (presentation-test).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** M016 закрыт (PR #112). Pattern для мока — `OrderFormViewModelTest` (mockk relaxed + `MainDispatcherRule`).
+
+**Файлы:**
+- `app/src/test/kotlin/com/gitlab/biomorf/tscalp/presentation/screens/orders/OrdersViewModelTest.kt` (новый).
+- (Reference) `OrderFormViewModelTest.kt`, `OrdersListViewModelTest.kt`.
+
+**Шаги:**
+1. Создать `OrdersViewModelTest`: mock'и по актуальному конструктору `OrdersViewModel` (`BrokerRegistry`, `PositionFlowManager`, `PriceConsumer`, `AccountSelectionRepository`, `CardsRepository`, `InstrumentRepository`, `PortfolioRepository`, `SandboxPreferencesRepository`, `TradingStatusRepository`, `Logger`, usecase'ы).
+2. Тест 1: `loadAccounts success → coordStatus.first()` — `StatusEvent(isError = false, message содержит «Загружено» или «Нет доступных счетов»)`.
+3. Тест 2: `loadAccounts failure → coordStatus.first()` — `StatusEvent(isError = true, message содержит «Ошибка загрузки счетов»)`.
+4. Гейт.
+
+**Тесты:** 2 кейса (success, failure) + существующие не трогать.
+
+**Референсы:** `OrderFormViewModelTest.kt`, `OrdersListViewModelTest.kt`, PR #112.
+
+**Ограничения:**
+- Не менять `OrdersViewModel` — только тест.
+- Много mock'ов — разрешено `mockk<T>(relaxed = true)`, кроме тех, что нужны в `coEvery`/`coVerify`.
+- Не смешивать с `### M6: Portfolio + Settings panels`.
+
+**Критерий готовности:**
+- 2 кейса (success/failure `loadAccounts` → `coordStatus.first()`).
+- Гейт зелёный.
+
+**Оценка:** ~1–1.5 ч.
+
+**Зависимости:** нет.
+
+**Связано:** M016 (PR #112), `### M6: Portfolio + Settings panels`.
+
+**Открытые вопросы:** можно ли `PricesFlowManager.prices` подменить на `MutableSharedFlow()` — при старте.
+
+
+
+___
+
+
+
+### M6: Portfolio + Settings panels
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) закрыл M6 **только для Orders** (Search, Coord, Form, OrdersList). Другие экраны сохраняют `statusMessage`/`isError` в `StateFlow` — тот же M6-баг (replay: при пересоздании Composable snackbar показывается повторно): `PortfolioViewModel` + `PortfolioUiState` + `PortfolioScreen` (один канал); `TInvestSettingsViewModel` / `BcsSettingsViewModel` / `FinamSettingsViewModel` (по своему `statusMessage`/`isError`) + `SettingsScreen` (читает все). Это **umbrella**: один PR на всё — большой diff, разбить на подзадачи при старте.
+
+**Соответствие Clean:** соответствует (M6-fix, presentation-only).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** M016 закрыт (PR #112). Механизм `StatusEvent` / `Channel(BUFFERED)` / `receiveAsFlow` / `StatusSnackbarVisuals` / `StatusEventEffect` — уже в `presentation/screens/orders/StatusEvent.kt` и `OrdersScreen.kt`; вынести в `presentation/util/` или `presentation/components/` (общий, 2+ экрана).
+
+**Файлы (ожидаемые):**
+- Новый общий: `presentation/util/StatusEvent.kt` (перенос из `screens/orders/`).
+- Новый общий: `presentation/components/StatusSnackbarHost.kt` (host + visuals, перенос из `OrdersScreen.kt`).
+- `presentation/screens/portfolio/PortfolioViewModel.kt`, `PortfolioUiState.kt`, `PortfolioScreen.kt`.
+- `presentation/screens/settings/{TInvest,Bcs,Finam}SettingsViewModel.kt` + `SettingsScreen.kt`.
+
+**Шаги (на старте — разбить на подзадачи):**
+1. **U1 — общий `StatusEvent` + `StatusSnackbarHost`** (`presentation/util/` + `presentation/components/`). Migrate Orders. Отдельный PR.
+2. **U2 — Portfolio:** `PortfolioViewModel` на `Channel<StatusEvent>`, `PortfolioUiState` −2 поля, `PortfolioScreen` — `StatusEventEffect`. Отдельный PR.
+3. **U3 — Settings panel-VM (3+):** каждая на `Channel<StatusEvent>`, state −2 поля, `SettingsScreen` — N `StatusEventEffect`. Отдельный PR.
+
+**Тесты:** по 1 кейсу на канал в существующих/новых VM-тестах.
+
+**Референсы:** M016 (PR #112), `OrderSearchViewModelTest`/`OrderFormViewModelTest`/`OrdersListViewModelTest`.
+
+**Ограничения:**
+- UI-санкция не требуется (snackbar поведение 1:1 — визуал не меняется).
+- Не смешивать U1/U2/U3 в один PR.
+- `StatusSnackbarVisuals` переезд из `OrdersScreen.kt` — сделать `internal`/`public`.
+
+**Критерий готовности:**
+- Portfolio и все Settings panel-VM — на `Channel<StatusEvent>`, state без `statusMessage`/`isError`.
+- `StatusEvent` и `StatusSnackbarHost` — общие.
+- Гейт зелёный.
+
+**Оценка:** ~3–5 ч (U1: 0.5 ч, U2: 1–1.5 ч, U3: 1.5–2 ч).
+
+**Зависимости:** нет.
+
+**Связано:** M016 (PR #112), `### OrdersViewModel: status Flow<StatusEvent> test`.
+
+**Открытые вопросы:** точный состав panel-VM (3 или 5) — проверить при старте; `PortfolioScreen` использует `SnackbarVisuals` локально (`object : SnackbarVisuals`) — заменить на общий `StatusSnackbarVisuals` или оставить.
+
+
+
+___
+
+
+
+### OrdersListDialog: empty-state
+
+**Мобильная работа:** частичное (live-тест UI).
+
+**Статус:** запланировано. **UI — требует санкции.**
+
+**Контекст:** в `OrdersListViewModel` до M016 было сообщение `"Нет активных заявок"`, эмитившееся через `statusMessage` когда `orders.isEmpty() && hasLoaded`. При этом **никто это сообщение не читал**: `OrdersListDialog` подписан на `uiState.orders` и `uiState.isLoading`, но не на `statusMessage`. В рамках M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) `statusMessage` из `OrdersListState` удалён как dead code (2d — задача = этот follow-up). Теперь empty-state надо реализовать явно, если он нужен.
+
+**Соответствие Clean:** соответствует (UI-фича; empty-state — presentation).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** M016 закрыт (PR #112).
+
+**Файлы:**
+- `presentation/components/OrdersListDialog.kt` — empty-state.
+
+**Шаги:**
+1. **UI-санкция** (правило 1): согласовать текст («Нет активных заявок» / «Заявок нет» / иконка), размещение.
+2. UI: `if (orders.isEmpty() && !isLoading) { EmptyState() } else { LazyColumn { … } }` в `OrdersListDialog`.
+3. `@Preview` для empty-state (если превью уже есть — иначе отдельная задача).
+
+**Тесты:** UI-превью (по согласованию), unit-тестов нет.
+
+**Референсы:** `OrdersListDialog.kt`, M016 (PR #112) — где удалён dead-code `"Нет активных заявок"`.
+
+**Ограничения:**
+- Не менять `OrdersListState` (только UI-check `orders.isEmpty()`).
+- Не смешивать с другими UI-задачами.
+
+**Критерий готовности:**
+- В `OrdersListDialog` отображается пустое состояние, когда `orders.isEmpty() && !isLoading`.
+- Текст и стиль согласованы (UI-санкция).
+- Гейт зелёный; live-test UI PASS.
+
+**Оценка:** ~30–45 мин (с санкцией).
+
+**Зависимости:** нет.
+
+**Связано:** M016 (PR #112), `### M6: Portfolio + Settings panels`.
+
+**Открытые вопросы:** нужен ли empty-state в UI вообще? Решить на санкции.
+
+
+
+___
+
+
+
 ## Закрытые
 
 Задачи вынесены в [`ROADMAP-ARCHIVE.md`](ROADMAP-ARCHIVE.md).
