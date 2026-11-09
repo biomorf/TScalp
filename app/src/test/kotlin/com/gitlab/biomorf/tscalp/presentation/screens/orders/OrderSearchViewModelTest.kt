@@ -13,8 +13,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -91,7 +91,9 @@ class OrderSearchViewModelTest {
             assertTrue(vm.state.value.searchResults.isEmpty())
             assertFalse(vm.state.value.isSearching)
 
-            val event = vm.status.first()
+            val event =
+                vm.status
+                    .first()
             assertTrue(event.isError)
             assertTrue(event.message.contains("Ошибка поиска"))
             assertTrue(event.message.contains("down"))
