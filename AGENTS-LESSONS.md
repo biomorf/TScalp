@@ -592,6 +592,20 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 Формулировка 67 «line-anchored regex» была правильной, но узкой: говорила про `### X`, не про общий принцип. Расширение — после 5-го промаха.
 
+
+**Продолжение (2026-11-09, 7-й случай + namespace):**
+
+7. `assert "### ✅ M013." in at2` — ложно-упал после того, как файлы уже
+   были записаны (`write_text` до post-assert). `M013` — **clean-audit ID**;
+   в `ROADMAP-ARCHIVE.md` эта задача закрыта как
+   `### ✅ A2: orchestration out of Orders/Portfolio/OrdersList (M013)` —
+   header отличается. Проверка `"### ✅ M013." in at2` не могла пройти
+   никогда. **Правило:** post-assert на `### X` — (а) line-anchored
+   (`re.findall(r"^### X$", ...)`), (б) **namespace-aware**: брать точный
+   текст заголовка из того файла, куда пишешь, а не ID из другого
+   документа (clean-audit ID ≠ ROADMAP header). Диагностика после падения
+   post-assert при `write_text`-до-assert: `git diff`, не откат (урок 28).
+
 **Проверка (общая):** перед `assert X not in text` в скрипте правки `.md` — `grep -nE "^X$" file`. Если >0 — line-anchored проверка; если inline-вхождения — `assert X not in text` невозможен, использовать `re.findall(r"^X$", ...)`. Связано с уроком 79 (проверяй факт, не форму).
 
 ### 68. `Path.read_text()` возвращает trailing `\n`
@@ -1041,6 +1055,24 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 **Связано:** урок 78 (ktlint на mobile — «золотой» гейт), урок 55 (ktlintFormat на desktop).
 
+### 94. `.kt` file-level comment — `//`, не `/** */`, если у функций есть KDoc
+
+**Правило:** в `.kt` файле с KDoc у функций file-level описание делать
+через `//`-комментарий, не через `/** ... */`. ktlint
+`ktlintMainSourceSetCheck`: `a KDoc may not be preceded by a KDoc
+(cannot be auto-corrected)`.
+
+**Инцидент:** 2026-11-09, M001, PR #111. В
+`presentation/util/TradeDetailsFormat.kt` — file-level KDoc + KDoc
+функции через пустую строку → `:app:ktlintMainSourceSetCheck FAILED`
+на `TradeDetailsFormat.kt:18:1`. Fix `47729842` (file-level KDoc → `//`).
+
+**Проверка:** перед коммитом нового `.kt` с KDoc у функций —
+file-level header `//`. Механически: не должно быть двух `/** ... */`
+подряд без `fun`/`class`/`val`/`object`/`interface` между ними.
+
+---
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
@@ -1287,6 +1319,23 @@ compile → ktlint → detekt, не смешивать. Сначала «что�
 **Инцидент:** 2026-11-04, CI `detekt FAILED`: `AssetPositionCard.kt:58:5 The function AssetPositionCard appears to be too complex ... (complexity: 15). The maximum allowed complexity for methods is set to '14'`. Миграция на `Position` добавила `displayCurrentPrice ?: ...` и `position.instrument.*`.
 
 **Проверка:** `grep -nE "^@Suppress" file.kt` — все Compose-функции в файле; расширять `@Suppress` консистентно. `cyclomatic` (complexity) не входит в 4h pre-commit — ловится только detekt.
+
+---
+
+### 95. PR title — `<type>(<scope>): …`, как commit message
+
+**Правило:** заголовок PR/MR — `<type>(<scope>): <краткое описание>`,
+тот же формат, что и commit message (AGENTS 5, урок про commit — 43 / 77).
+Не свободный текст.
+
+**Инцидент:** 2026-11-09, M001, PR #111. Первая версия title —
+`M001: extract format* + withCard into presentation/util` (нет
+`type(scope)`). Пользователь поправил. Вторая — `refactor(m001):
+extract format* + withCard into presentation/util`.
+
+**Проверка:** перед открытием PR — `title` соответствует regex
+`^(feat|fix|refactor|chore|docs|test)\([a-z0-9_-]+\): .+$`
+(список типов — AGENTS 5).
 
 ---
 
