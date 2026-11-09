@@ -22,6 +22,7 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
+import com.gitlab.biomorf.tscalp.presentation.util.withCard
 
 @Composable
 internal fun OrdersInstrumentSection(
@@ -223,70 +224,5 @@ internal fun InstrumentSearchField(
                 }
             }
         }
-    }
-}
-
-/**
- * Применяет поля per-card [SelectedInstrumentInfo] (quantity,
- * averagePrice, profit) к базовой [Position] для отображения в
- * [com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard].
- *
- * **2c-фиксация (M1):** UI конвертирует `SelectedInstrumentInfo`
- * (identity + per-card счёт) в `Position` (domain) — формально
- * M1 (UI маппит domain). Временное: шаг 13/15 (Coord на
- * `PositionFlowManager.sheet` per-account) даст готовые
- * `Position`, extension и `activeCard` удаляются.
- *
- * `profitPercent` / `totalValue` — computed getters `Position`,
- * не передаются (считаются из `quantity` / `averagePrice` /
- * `profit` / `currentPrice` / `instrument.moneyPerPointOfPrice`).
- *
- * `null` card → `this` (no-op).
- */
-internal fun Position.withCard(card: SelectedInstrumentInfo?): Position {
-    if (card == null) return this
-    return when (this) {
-        is SharePosition ->
-            copy(
-                quantity = card.quantity.toDouble(),
-                averagePrice = card.averagePrice,
-                profit = card.profit,
-            )
-        is FuturePosition ->
-            copy(
-                quantity = card.quantity.toDouble(),
-                averagePrice = card.averagePrice,
-                profit = card.profit,
-            )
-        is BondPosition ->
-            copy(
-                quantity = card.quantity.toDouble(),
-                averagePrice = card.averagePrice,
-                profit = card.profit,
-            )
-        is OptionPosition ->
-            copy(
-                quantity = card.quantity.toDouble(),
-                averagePrice = card.averagePrice,
-                profit = card.profit,
-            )
-        is EtfPosition ->
-            copy(
-                quantity = card.quantity.toDouble(),
-                averagePrice = card.averagePrice,
-                profit = card.profit,
-            )
-        is CurrencyPosition ->
-            copy(
-                quantity = card.quantity.toDouble(),
-                averagePrice = card.averagePrice,
-                profit = card.profit,
-            )
-        is OtherPosition ->
-            copy(
-                quantity = card.quantity.toDouble(),
-                averagePrice = card.averagePrice,
-                profit = card.profit,
-            )
     }
 }

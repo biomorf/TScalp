@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.presentation.util.withCard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
