@@ -9792,3 +9792,68 @@ ___
 **Связано:** clean-audit M6, M001 (format), `OrderFormViewModel: reduce functions`, `OrderSearchViewModel: reduce functions`.
 
 **Открытые вопросы:** `SharedFlow` vs `Channel` — **решено:** `Channel(BUFFERED)` (2c-фиксация выше). `StatusEvent` — **решено:** data class. `OrdersListViewModel` UI — в M016 только API (`status`); UI-интеграция — при появлении отображения `statusMessage` в `OrdersListDialog` (сейчас не читается).
+
+
+
+___
+
+
+
+### ✅ M6: finish one-shot events (Coord test + Portfolio)
+
+**Дата закрытия:** 2026-11-09
+
+**Подтверждение:** выполнено (PR #114, merge `53a67dd7`; U0 + U1 + U2 done; U3/Settings — excluded, separate task; live-test snackbar 1:1 — not required).
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) закрыл M6 только для Orders. Осталось два хвоста: (1) `OrdersViewModel` (Coord) получил `_coordStatus: Channel<StatusEvent>(BUFFERED)`, но тест не добавлен; (2) Portfolio и Settings panel-VM держат `statusMessage`/`isError` в `StateFlow` — тот же M6-баг (replay). **Один PR** (один feature-branch, один CI-цикл) — вместо трёх отдельных.
+
+**Соответствие Clean:** соответствует (M6-fix, presentation-only; общий `StatusEvent` в `presentation/util/`).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** M016 закрыт (PR #112). Pattern для моков — `OrderFormViewModelTest` / `OrdersListViewModelTest`.
+
+**Файлы:**
+- `presentation/util/StatusEvent.kt` (перенос из `presentation/screens/orders/StatusEvent.kt`).
+- `presentation/components/StatusSnackbarHost.kt` (host + `StatusSnackbarVisuals`, перенос из `OrdersScreen.kt`).
+- `presentation/screens/orders/OrdersScreen.kt` (migrate на общий компонент).
+- `presentation/screens/orders/OrdersViewModel.kt` + `OrdersViewModelTest.kt` (новый).
+- `presentation/screens/portfolio/PortfolioViewModel.kt`, `PortfolioUiState.kt`, `PortfolioScreen.kt`.
+- `presentation/screens/settings/{TInvest,Bcs,Finam}SettingsViewModel.kt`, `SettingsScreen.kt`.
+
+**Шаги (всё в одном PR):**
+1. **U0 — общий вынос:** `StatusEvent` → `presentation/util/`, `StatusSnackbarVisuals` + `StatusEventEffect` → `presentation/components/StatusSnackbarHost.kt`. Migrate Orders. Гейт.
+2. **U1 — Coord test:** новый `OrdersViewModelTest.kt`. Кейсы: `loadAccounts` success → `coordStatus.first()` (`isError = false`), failure → `isError = true`. Гейт.
+3. **U2 — Portfolio:** `PortfolioViewModel` на `Channel<StatusEvent>` (`_status` + `status: Flow`), `PortfolioUiState` −2 поля, `PortfolioScreen` — `StatusEventEffect`. Гейт. ✅
+4. ~~**U3 — Settings (3 panel-VM)**~~ — **исключён (2d).** `SettingsScreen` рендерит `statusMessage` как inline `Card`, не snackbar; M6 (Channel) неприменим. Вынесено в `### Settings: inline status card vs snackbar` (UI — требует санкции).
+5. **Push + PR:** одна ветка `feature/m6-finish`, один PR, один CI-цикл. После merge — mark done этим же PR (5g.4).
+
+**Тесты:** 2 кейса (Coord). UI-каналы — 1 кейс на VM, если есть mock-инфра; иначе — live-test UI или deferred closure (`**Подтверждение:**`).
+
+**Референсы:** M016 (PR #112), `OrderFormViewModelTest`, `OrdersListViewModelTest`.
+
+**Ограничения:**
+- **Один PR** (один CI-цикл) — не дробить.
+- UI-санкция не требуется (snackbar 1:1 — визуал не меняется).
+- `StatusSnackbarVisuals` переезд из `OrdersScreen.kt` — сделать `internal`/`public`.
+- Не смешивать с `### OrdersListDialog: empty-state` (отдельно).
+
+**Критерий готовности:**
+- `OrdersViewModelTest` (2 кейса).
+- Portfolio + 3 Settings VM — на `Channel<StatusEvent>`, state без `statusMessage`/`isError`.
+- `StatusEvent` и `StatusSnackbarHost` — общие.
+- 1 PR, 1 CI-цикл, gate green.
+
+**Оценка:** ~5–7 ч (U0: 0.5 ч, U1: 1–1.5 ч, U2: 1.5 ч, U3: 2 ч).
+
+**Зависимости:** нет.
+
+**Связано:** M016 (PR #112), `### OrdersListDialog: empty-state`.
+
+**Открытые вопросы:** точный состав panel-VM (3 или 5 — проверить при старте); `PortfolioScreen` использует `SnackbarVisuals` локально — заменить на общий или оставить.
