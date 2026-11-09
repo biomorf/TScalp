@@ -28,6 +28,9 @@ import com.gitlab.biomorf.tscalp.presentation.util.formatMultiplierOverlay
 import com.gitlab.biomorf.tscalp.presentation.util.formatPostOrderSuccess
 import com.gitlab.biomorf.tscalp.presentation.util.toPlaceOrderRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -86,6 +89,8 @@ class OrderFormViewModel
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderFormState())
         val state: StateFlow<OrderFormState> = _state.asStateFlow()
+        private val _status = Channel<StatusEvent>(Channel.BUFFERED)
+        val status: Flow<StatusEvent> = _status.receiveAsFlow()
 
         init {
             viewModelScope.launch {
@@ -140,7 +145,7 @@ class OrderFormViewModel
         private fun postOrder(direction: OrderDirection) {
             val request = _state.value.toPlaceOrderRequest() ?: return
             viewModelScope.launch {
-                _state.update { it.copy(isLoading = true, statusMessage = null) }
+                _state.update { it.copy(isLoading = true) }
                 when (val outcome = placeOrderUseCase.execute(request, direction)) {
                     is PlaceOrderOutcome.Success -> handlePostOrderSuccess(outcome)
                     is PlaceOrderOutcome.InsufficientFunds -> handlePostOrderInsufficient(outcome)
@@ -174,14 +179,13 @@ class OrderFormViewModel
             _state.update {
                 it.copy(
                     isLoading = false,
-                    statusMessage = message,
-                    isError = false,
                     quantity = "",
                     limitPrice = "",
                     stopPrice = "",
                     freeBalance = freeBalance,
                 )
             }
+            _status.trySend(StatusEvent(message, isError = false))
         }
 
         private fun handlePostOrderInsufficient(outcome: PlaceOrderOutcome.InsufficientFunds) {
@@ -189,25 +193,19 @@ class OrderFormViewModel
                 TAG,
                 "postOrder insufficient: balance=${outcome.balance}, required=${outcome.required}",
             )
-            _state.update {
-                it.copy(
-                    isLoading = false,
-                    statusMessage =
-                        "❌ Недостаточно средств. Свободно: ${formatDomesticCurrency(outcome.balance)}, требуется: ~${formatDomesticCurrency(outcome.required)}",
+            _state.update { it.copy(isLoading = false) }
+            _status.trySend(
+                StatusEvent(
+                    "❌ Недостаточно средств. Свободно: ${formatDomesticCurrency(outcome.balance)}, требуется: ~${formatDomesticCurrency(outcome.required)}",
                     isError = true,
-                )
-            }
+                ),
+            )
         }
 
         private fun handlePostOrderError(outcome: PlaceOrderOutcome.Error) {
             logger.e(TAG, "postOrder failed: ${outcome.message}", outcome.cause)
-            _state.update {
-                it.copy(
-                    isLoading = false,
-                    statusMessage = "❌ ${outcome.message}",
-                    isError = true,
-                )
-            }
+            _state.update { it.copy(isLoading = false) }
+            _status.trySend(StatusEvent("❌ ${outcome.message}", isError = true))
         }
 
         private suspend fun restoreOrderForm() {
@@ -330,10 +328,6 @@ class OrderFormViewModel
             updateTradeDetails()
             updatePairExecDetails()
             viewModelScope.launch { saveState() }
-        }
-
-        fun clearStatus() {
-            _state.update { it.clearStatus() }
         }
 
         /**
