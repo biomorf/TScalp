@@ -6,14 +6,12 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
 
-/**
- * Formatting for trade details and post-order success messages —
- * extracted from `OrderFormViewModel` (M001, clean-audit: VM built
- * presentation strings, M1).
- *
- * Pure functions on domain + presentation-state parameters; no VM,
- * no Compose, no coroutines.
- */
+// Formatting for trade details and post-order success messages —
+// extracted from `OrderFormViewModel` (M001, clean-audit: VM built
+// presentation strings, M1).
+//
+// Pure functions on domain + presentation-state parameters; no VM,
+// no Compose, no coroutines.
 
 /**
  * Строка-подтверждение успешного поста заявки (primary + опциональная
