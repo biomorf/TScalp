@@ -315,26 +315,6 @@ private fun OrdersSnackbarEffects(
     StatusEventEffect(snackbarHostState = snackbarHostState, status = searchStatus)
 }
 
-/**
- * One-shot status channel: `LaunchedEffect(Unit) { status.collect { … } }`.
- * `Channel(BUFFERED)` consume'ится ровно один раз; повторно snackbar не
- * показывается (M6 fix, clean-audit M6). Поведение 1:1 прежним трём
- * `StatusEffect`-блокам (удалены в M016) — actionLabel / duration по
- * `isError`, `OK`-кнопка при ошибке.
- */
-
-/**
- * `SnackbarVisuals` с флагом `isError`: `OrdersSnackbarHost` стилизует
- * контейнер по `data.visuals.isError`, без параметра/StateFlow (M6:
- * event → visuals → host).
- */
-
-/**
- * Snackbar host (Fase 2, 11b): `SnackbarHost` + `Snackbar`.
- * Контейнер / контент — error vs tertiary по `data.visuals.isError`
- * (`StatusSnackbarVisuals`, M016).
- */
-
 @Composable
 fun ApiNotInitializedCard(modifier: Modifier = Modifier) {
     Card(
