@@ -2518,7 +2518,9 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/m016-status-event.
 
 **Контекст:** clean-audit **M6** (`M6 — one-shot события через StateFlow`). После 13d `statusMessage` / `isError` живут в 4 state (`OrderSearchState`, `OrderFormState`, `OrdersCoordState` + `OrdersListViewModel`), UI читает через `collectAsState`, consume — `clearStatus()`. Проблема: `StateFlow` реплеит последнее значение (не one-shot) — при пересоздании Composable snackbar показывается повторно; `LaunchedEffect(uiState.statusMessage)` + `clearStatus` — workaround. M6-fix: `SharedFlow<StatusEvent>` / `Channel<StatusEvent>` в каждой VM.
 
