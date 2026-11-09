@@ -23,6 +23,7 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadPortfolioUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PayInSandboxUseCase
+import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -32,6 +33,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import javax.inject.Inject
 
 // Архитектурный долг: 12 функций в классе. См. ROADMAP → «Рефакторинг ViewModel-слоя».
@@ -53,6 +57,8 @@ class PortfolioViewModel
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PortfolioUiState())
         val uiState: StateFlow<PortfolioUiState> = _uiState.asStateFlow()
+        private val _status = Channel<StatusEvent>(Channel.BUFFERED)
+        val status: Flow<StatusEvent> = _status.receiveAsFlow()
 
         private var positionStreamJob: Job? = null
 
@@ -121,7 +127,7 @@ class PortfolioViewModel
 
         fun loadPortfolio() {
             viewModelScope.launch {
-                _uiState.update { it.copy(isLoading = true, statusMessage = null) }
+                _uiState.update { it.copy(isLoading = true) }
                 val sandbox = sandboxPreferencesRepository.isSandboxMode()
 
                 when (val result = loadPortfolioUseCase.execute(BrokerName.TINVEST, sandbox)) {
@@ -141,10 +147,9 @@ class PortfolioViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                statusMessage = "Ошибка загрузки: ${result.error.message}",
-                                isError = true,
                             )
                         }
+                        _status.trySend(StatusEvent("Ошибка загрузки: ${result.error.message}", isError = true))
                     }
                 }
             }
@@ -246,19 +251,14 @@ class PortfolioViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                statusMessage = "Ошибка пополнения: ${result.error.message}",
-                                isError = true,
                             )
                         }
+                        _status.trySend(StatusEvent("Ошибка пополнения: ${result.error.message}", isError = true))
                 }
             }
         }
 
         fun refresh() {
             viewModelScope.launch { loadPortfolio() }
-        }
-
-        fun clearStatus() {
-            _uiState.update { it.copy(statusMessage = null, isError = false) }
         }
     }

@@ -19,7 +19,7 @@ import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import kotlinx.coroutines.flow.Flow
 
 @Composable
-private fun StatusEventEffect(
+internal fun StatusEventEffect(
     snackbarHostState: SnackbarHostState,
     status: Flow<StatusEvent>,
 ) {
@@ -47,7 +47,7 @@ private data class StatusSnackbarVisuals(
 ) : SnackbarVisuals
 
 @Composable
-private fun BoxScope.OrdersSnackbarHost(
+internal fun BoxScope.StatusSnackbarHost(
     snackbarHostState: SnackbarHostState,
 ) {
     SnackbarHost(
