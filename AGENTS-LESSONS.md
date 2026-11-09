@@ -606,6 +606,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
    документа (clean-audit ID ≠ ROADMAP header). Диагностика после падения
    post-assert при `write_text`-до-assert: `git diff`, не откат (урок 28).
 
+**Продолжение (2026-11-09, 8-й случай + wrong-suffix):**
+
+8. `assert "### ✅ M001." in at2` — ложно-упал после `write_text` (файлы уже корректны). В `ROADMAP-ARCHIVE.md` M001 (formatting) назван `### ✅ M001: formatting в presentation` (двоеточие), а не `### ✅ M001.` (точка). Line-anchored — да, но **не тот суффикс**: я «дописал» `.` к ID. **Правило:** post-assert на `### X` — брать **точную** строку заголовка из целевого файла (`grep -nF` / `re.findall(r"^### ✅ M001[:. ]", ...)`), а не конструировать «`M001.` + дописать». Если нужен «любой заголовок с этим ID» — явный regex по разделителям (`[:. ]`), а не «дописанный суффикс».
+
 **Проверка (общая):** перед `assert X not in text` в скрипте правки `.md` — `grep -nE "^X$" file`. Если >0 — line-anchored проверка; если inline-вхождения — `assert X not in text` невозможен, использовать `re.findall(r"^X$", ...)`. Связано с уроком 79 (проверяй факт, не форму).
 
 ### 68. `Path.read_text()` возвращает trailing `\n`
@@ -954,6 +958,16 @@ replacement). Если есть — заменить на raw-string или уб
 Дополнительно — Python при запуске печатает `SyntaxWarning` — **читать
 stderr**, не подавлять.
 
+---
+
+### 97. uniqueness pre-check до replace: `count == 1`, а не `new in text`
+
+**Правило:** в скрипте правки `.md`/`.kt` — **до** `text.replace(old, new, 1)` проверить `assert text.count(old) == 1, f"count={text.count(old)}"` (или `if old not in text: skip`). **Запрещено** `if new in text: print("already applied"); skip` для широких `old`/`new` (например, `.isEmpty()`, `StatusEffect`): они могут встретиться в **другом** контексте и дать ложное «уже применено», а целевое место — не тронуто.
+
+**Инцидент:** 2026-11-09, M016 (PR #112). `if NEW in t2: print("already fixed")` для `.isEmpty()` — сработало ложно: многострочная форма уже была в **другом** тесте (`line 54`), а целевой (`line 91`) — не тронут. CI упал снова, третий push на тот же ktlint (`1269cc28`). В том же скрипте для `StatusEvent` правило «SKIP, если new уже есть» — работало корректно (new был уникальным).
+
+**Проверка:** в скрипте правки перед `replace` — `assert text.count(old) == 1, f"count={text.count(old)}"`. Если `old` законно встречается N раз — `count == N`. «Already applied» — только при `if text.count(new) == 1 and text.count(old) == 0`, и только если `new` уникально.
+
 
 ## Kotlin / Compose
 
@@ -1067,9 +1081,17 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 функции через пустую строку → `:app:ktlintMainSourceSetCheck FAILED`
 на `TradeDetailsFormat.kt:18:1`. Fix `47729842` (file-level KDoc → `//`).
 
-**Проверка:** перед коммитом нового `.kt` с KDoc у функций —
-file-level header `//`. Механически: не должно быть двух `/** ... */`
-подряд без `fun`/`class`/`val`/`object`/`interface` между ними.
+
+### 96. ktlint multiline: аргументы и цепочки — по одному на строке
+
+**Правило:** на mobile (proot) `ktlintFormat` недоступен, поэтому при написании **нового** `.kt`/тестового кода:
+- вызов, разбитый на строки, — **каждый** аргумент на своей строке: `foo(\n    any(),\n    any(),\n    ...,\n)` (а не `foo(any(), any(), ..., any())` в одну строку);
+- assert с цепочкой — `.foo()` **с новой строки** после закрывающей `)`: `assertTrue(\n    x.y\n        .z(),\n)` (а не `assertTrue(x.y.z())`);
+- ktlint: `Argument should be on a separate line` и `Expected newline before '.'` — оба симптома этого.
+
+**Инцидент:** 2026-11-09, M016 (PR #112). `ktlintTestSourceSetCheck` упал 3 цикла подряд на `OrderFormViewModelTest.kt` (`calculate(...)`: 9× `any()` на одной строке → `Argument should be on a separate line`) и `OrderSearchViewModelTest.kt` (`vm.state.value.searchResults.isEmpty()` в одну строку → `Expected newline before '.'`). Fix `8aecbea6`/`1269cc28`.
+
+**Проверка:** перед коммитом `.kt`-теста — визуально: (а) в multiline-вызове `(` … `)` — все аргументы на своих строках; (б) в assert с `.foo()` — `)` и `.` не на одной строке. На desktop — `./gradlew :app:ktlintFormat` (урок 55).
 
 ---
 
