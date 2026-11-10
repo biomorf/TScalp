@@ -10,9 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.PrimaryTabRow
@@ -31,68 +28,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gitlab.biomorf.tscalp.BuildConfig
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 
-// Архитектурный долг: функция требует декомпозиции.
-// См. ROADMAP → «Рефакторинг Compose-экранов».
-@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun SettingsScreen() {
-    // Хаб: показываем список подразделов или содержимое подраздела
     var currentSection by remember { mutableStateOf<String?>(null) }
 
     if (currentSection == null) {
-        // Список подразделов
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "Настройки",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
-
-            // Пункт «Подключение»
-            ListItem(
-                headlineContent = { Text("Подключение") },
-                supportingContent = { Text("Выбор брокера, токены, режим песочницы") },
-                leadingContent = { Icon(Icons.Default.SwapHoriz, contentDescription = null) },
-                modifier = Modifier.clickable { currentSection = "broker" },
-            )
-            HorizontalDivider()
-
-            // Пункт «Торговля»
-            ListItem(
-                headlineContent = { Text("Торговля") },
-                supportingContent = { Text("Подтверждение сделок и другие параметры") },
-                leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
-                modifier = Modifier.clickable { currentSection = "trade" },
-            )
-            HorizontalDivider()
-
-            // Пункт «Информация»
-            ListItem(
-                headlineContent = { Text("Информация") },
-                supportingContent = { Text("Версия приложения, о разработчике") },
-                leadingContent = {
-                    Icon(Icons.Default.Info, contentDescription = null)
-                },
-                modifier = Modifier.clickable { currentSection = "info" },
-            )
-        }
+        SettingsHubList(onSelect = { currentSection = it })
     } else {
-        // Отображение выбранного подраздела
         when (currentSection) {
-            "broker" ->
-                BrokerSettingsContent(
-                    onBack = { currentSection = null },
-                )
-            "trade" ->
-                TradeSettingsContent(
-                    onBack = { currentSection = null },
-                )
+            "broker" -> BrokerSettingsContent(onBack = { currentSection = null })
+            "trade" -> TradeSettingsContent(onBack = { currentSection = null })
             "info" -> InfoSettingsContent(onBack = { currentSection = null })
         }
     }
