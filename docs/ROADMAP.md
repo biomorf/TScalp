@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2–U3 planned).
+**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 in progress; U3 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -323,6 +323,8 @@ ___
 **Оценка U1:** ~4–6 ч.
 
 #### U2 — PortfolioScreen (3 проходки)
+
+**Статус:** в работе. **Ветка:** feature/compose-ui-portfolio.
 
 **Pass-1:** extract `AccountHeaderCard` / `PortfolioAccountBlock` / `EmptyPortfolioCard` (частично уже есть).
 **Pass-2:** behavioral test (load / error / empty / sandbox pay-in) до/после; перенос `remember`/`LaunchedEffect` в child.
