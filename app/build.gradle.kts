@@ -136,6 +136,7 @@ android {
 
 // Теперь блок kotlin на верхнем уровне (вне android)
 kotlin {
+    jvmToolchain(17)
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
@@ -397,7 +398,7 @@ ktlint {
 tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
     buildUponDefaultConfig = true
     ignoreFailures = false
-    jvmTarget.set("25")
+    jvmTarget.set("17")
     config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
     baseline = file("detekt-baseline.xml")
     reports {
