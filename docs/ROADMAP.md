@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 Pass-1 done; U2–U3 planned).
+**Статус:** в работе (U0 done; U1 Pass-1 done; U1 Pass-2 in progress; U2–U3 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -296,7 +296,7 @@ ___
 
 #### U1 — OrdersScreen (3 проходки)
 
-**Статус:** в работе (Pass-1 done; Pass-2/Pass-3 planned). **Ветка:** — (PR #116 merged).
+**Статус:** в работе (Pass-1 done; Pass-2 in progress; Pass-3 planned). **Ветка:** feature/compose-ui-orders-pass2.
 
 **Pass-1:** ✅ (PR #116, merge `6140b66f`).
 - Вынесен `OrdersDialogsSection` (4 диалога: TradingBrokerDialog, OrdersListDialog, SearchBrokerDialog, PairSearchBrokerDialog): 49 строк → 1 вызов; `OrdersScreen` 332 → 304.
