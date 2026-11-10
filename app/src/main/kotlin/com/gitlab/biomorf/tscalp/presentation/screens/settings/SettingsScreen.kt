@@ -15,9 +15,6 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.runtime.*
@@ -240,66 +237,17 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
         }
 
         if (uiState.isConnected) {
-            ExposedDropdownMenuBox(
-                expanded = accountExpanded,
-                onExpandedChange = { accountExpanded = it },
-            ) {
-                val selectedAccount = uiState.availableAccounts.find { it.id == uiState.defaultAccountId }
-                TextField(
-                    value = selectedAccount?.let { "${it.name} (${it.id})" } ?: "Выберите счёт",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Счёт по умолчанию") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(
-                                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                enabled = true,
-                            ),
-                )
-                ExposedDropdownMenu(
-                    expanded = accountExpanded,
-                    onDismissRequest = { accountExpanded = false },
-                ) {
-                    uiState.availableAccounts.forEach { account ->
-                        DropdownMenuItem(
-                            text = { Text("${account.name} (${account.id})") },
-                            onClick = {
-                                viewModel.onAccountSelected(account.id)
-                                accountExpanded = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            if (uiState.sandboxMode) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { viewModel.openSandboxAccount() },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !uiState.isRefreshing,
-                ) {
-                    if (uiState.isRefreshing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                    } else {
-                        Text("Открыть новый счёт песочницы")
-                    }
-                }
-            }
-
-            if (uiState.sandboxMode && uiState.defaultAccountId.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { showCloseDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text("Закрыть счёт песочницы")
-                }
-            }
+            TInvestAccountSection(
+                availableAccounts = uiState.availableAccounts,
+                defaultAccountId = uiState.defaultAccountId,
+                sandboxMode = uiState.sandboxMode,
+                isRefreshing = uiState.isRefreshing,
+                accountExpanded = accountExpanded,
+                onAccountExpandedChange = { accountExpanded = it },
+                onAccountSelected = { viewModel.onAccountSelected(it) },
+                onOpenSandbox = { viewModel.openSandboxAccount() },
+                onCloseSandboxClick = { showCloseDialog = true },
+            )
         }
 
         TInvestTokenHelpCard()
@@ -310,30 +258,13 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
     }
 
     if (showCloseDialog) {
-        AlertDialog(
-            onDismissRequest = { showCloseDialog = false },
-            title = { Text("Закрытие счёта песочницы") },
-            text = {
-                Text(
-                    "Вы уверены, что хотите закрыть счёт «${uiState.availableAccounts.find { it.id == uiState.defaultAccountId }?.name}»? Это действие необратимо.",
-                )
+        CloseSandboxAccountDialog(
+            accountName = uiState.availableAccounts.find { it.id == uiState.defaultAccountId }?.name,
+            onConfirm = {
+                viewModel.closeSandboxAccount(uiState.defaultAccountId)
+                showCloseDialog = false
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.closeSandboxAccount(uiState.defaultAccountId)
-                        showCloseDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text("Закрыть")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCloseDialog = false }) {
-                    Text("Отмена")
-                }
-            },
+            onDismiss = { showCloseDialog = false },
         )
     }
 }
