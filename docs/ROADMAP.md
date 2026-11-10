@@ -332,7 +332,9 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** в работе. **Ветка:** feature/api-not-initialized-card.
+**Дата закрытия:** 2026-11-11
+
+**Подтверждение:** выполнено (PR #127, merge `3f0000e0`; CI green).
 
 **Контекст:** (2d) `ApiNotInitializedCard` реализован дважды:
 - `presentation/screens/orders/OrdersScreen.kt:220` — `fun ApiNotInitializedCard(modifier: Modifier = Modifier)`.
