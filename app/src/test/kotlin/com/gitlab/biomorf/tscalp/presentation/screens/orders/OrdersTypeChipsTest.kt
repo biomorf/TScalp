@@ -1,11 +1,11 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,7 +34,7 @@ class OrdersTypeChipsTest {
             }
         }
         rule.onNodeWithText("Рын.").performClick()
-        org.junit.Assert.assertEquals(OrderTypeSelection.Market, captured)
+        assertEquals(OrderTypeSelection.Market, captured)
     }
 
     @Test
@@ -49,6 +49,6 @@ class OrdersTypeChipsTest {
             }
         }
         rule.onNodeWithText("Лим.").performClick()
-        org.junit.Assert.assertEquals(OrderTypeSelection.Limit, captured)
+        assertEquals(OrderTypeSelection.Limit, captured)
     }
 }

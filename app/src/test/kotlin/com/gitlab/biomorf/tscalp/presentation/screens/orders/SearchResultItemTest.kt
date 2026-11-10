@@ -2,7 +2,6 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -21,7 +20,6 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @ConscryptMode(ConscryptMode.Mode.OFF)
-
 class SearchResultItemTest {
     @get:Rule
     val rule = createComposeRule()
