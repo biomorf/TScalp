@@ -851,6 +851,25 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 **Связано:** урок 13 (anchor в скрипте — grep перед написанием).
 
 
+### 100. `git stash push` no-op → `git stash pop` в том же блоке запрещён
+
+**Правило:** если `git stash push -u` вернул `No local changes to save` (или exit 0 без вывода) — `git stash pop` в том же блоке **запрещён**: применит чужой stash (например, WIP с другой ветки), и на неверной ветке. Правильно: `git stash push` + флаг `STASH_CREATED=1`; `git stash pop` — только если флаг установлен.
+
+**Инцидент:** 2026-10-27 (`SettingsViewModel` → `dev`); повтор 2026-11-10 (`feature/compose-ui-settings` → `dev`, post-PR чек-лист U3 Pass-3).
+
+**Проверка:** `if [ -n "$(git status --porcelain)" ]; then git stash push -u -m "..."; STASH_CREATED=1; fi` → `if [ "$STASH_CREATED" = "1" ]; then git stash pop; fi`. Перед pop: `git stash list | head -1` — проверить, что наш stash.
+---
+
+### 101. `grep -cE` с неэкранированной `(` — Unmatched; для unused-import — `grep -cF` + skip wildcards
+
+**Правило:** `grep -cE "Card("` → `Unmatched ( or \(`. Для проверки символов — `grep -cF` (literal, без regex). Для unused-import в pre-commit: `grep -cF "$sym"` + skip wildcard (`import x.*`) — символы из wildcard не ловятся ktlint как unused, но и literal-проверка их не находит.
+
+**Инцидент:** U3 Pass-1b (2026-11-11), pre-commit `CardDefaults` показал `count=0` → abort, хотя символ из wildcard `androidx.compose.material3.*`. Первая причина: `grep -cE "Card("` — unmatched `(`.
+
+**Проверка:** `grep -cF "$sym"`; wildcard-импорты скипать: `if echo "$sym" | grep -qE '^\*$'; then continue; fi`.
+
+---
+
 <!-- LESSONS_SECTION_END: scripts -->
 <!-- LESSONS_SECTION_BEGIN: kotlin -->
 
@@ -1044,6 +1063,19 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 **Инцидент:** 2026-11-05, `PositionFlowManager` (задача «Portfolio: баланс и пополнение в песочнице»). Добавил `applySeed` (12-я функция) → detekt `TooManyFunctions` (порог 11). `mergePartial` — pure (`when` по subtypes `Position`, без полей класса). Вынес в `private fun Position.mergeStreamItem(...)` top-level → 11 функций в классе, гейт зелёный, `@Suppress` не понадобился.
 
 **Проверка:** `grep -nE "^        (private )?(suspend )?fun [a-zA-Z]+\(" <file>` — count. Если > 11 — какая из функций pure (не читает поля класса)? → extension. Иначе — split (урок 60).
+
+### 103. Hilt-test infra pitfalls (Robolectric + Compose)
+
+**Правило:** 3 грабли на первом PR:
+1. `@HiltAndroidApp` в `test/` source set конфликтует с `@HiltAndroidTest` в том же compilation unit (`Cannot process test roots and app roots in the same compilation unit`). Fix: `robolectric.properties` → `application=dagger.hilt.android.testing.HiltTestApplication` (встроенный в `hilt-android-testing`).
+2. `HiltTestActivity` (`@AndroidEntryPoint`) — в `app/src/debug/kotlin/.../testutil/`, не `test/`; + `<activity>` в `app/src/debug/AndroidManifest.xml`. `test/AndroidManifest.xml` **не** мёржится в `debugUnitTest`; `test/` classes не участвуют в `lintDebug`; Activity нужна в variant (`debug`).
+3. Полный набор на smoke-тест: `@HiltAndroidTest` + `@RunWith(RobolectricTestRunner::class)` + `@Config(sdk = [34])` + `@GraphicsMode(NATIVE)` + `@ConscryptMode(OFF)` + `@get:Rule(order = 0) HiltAndroidRule(this)` + `@get:Rule(order = 1) createAndroidComposeRule<HiltTestActivity>()`.
+
+**Инцидент:** U4 step-1 (2026-11-11), 3 CI-цикла: `Cannot process test roots` → `RuntimeException at RoboMonitoringInstrumentation` (Activity не в manifest) → зелёный.
+
+**Проверка:** перед первым Hilt-smoke — все 3 условия; при `RuntimeException at RoboMonitoringInstrumentation` — `debug/AndroidManifest.xml`; при `Cannot process test roots` — `robolectric.properties` без custom `@HiltAndroidApp`.
+
+---
 
 <!-- LESSONS_SECTION_END: kotlin -->
 <!-- LESSONS_SECTION_BEGIN: diagnostics -->
@@ -1386,6 +1418,16 @@ extract format* + withCard into presentation/util`.
 **Проверка:** перед открытием PR — `title` соответствует regex
 `^(feat|fix|refactor|chore|docs|test)\([a-z0-9_-]+\): .+$`
 (список типов — AGENTS 5).
+
+---
+
+### 102. `--rerun-tasks` не обходит Gradle build-cache; новые тесты — `--no-build-cache`
+
+**Правило:** `./gradlew ... --rerun-tasks` **не** гарантирует перекомпиляцию, если build-cache содержит результат: `compileDebugUnitTestKotlin` может взять из кеша старую версию (до добавления новых файлов). Для локального gate, где добавлены новые тест-файлы — `--no-build-cache`.
+
+**Инцидент:** U4 step-1 (2026-11-11). `OrdersScreenBehaviourTest` добавлен, gate зелёный, но в `app/build/test-results` нового XML нет — `compileDebugUnitTestKotlin` UP-TO-DATE из cache. `--no-build-cache` — решил.
+
+**Проверка:** `./gradlew ... --rerun-tasks --no-build-cache`. Перед gate с новыми тест-файлами — `git status` показывает `??`, значит compile должен их видеть; если тест не появляется в test-results — cache.
 
 ---
 
