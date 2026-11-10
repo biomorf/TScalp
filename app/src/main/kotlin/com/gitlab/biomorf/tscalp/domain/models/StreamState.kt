@@ -9,7 +9,7 @@ package com.gitlab.biomorf.tscalp.domain.models
  * PriceFlowManager, OrderFlowManager), так как он агрегирует
  * источники и знает их состояние.
  *
- * Переходы и пороги — в [com.gitlab.biomorf.tscalp.domain.api.StreamStateTracker].
+ * Переходы и пороги — в [com.gitlab.biomorf.tscalp.domain.api.managers.StreamStateTracker].
  *
  * Значения:
  * - [INITIALIZING] — источники запущены, но данных ещё не было.
