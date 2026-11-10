@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 in progress; U3–U4 planned).
+**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 Pass-2 in progress; U3–U4 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -326,10 +326,10 @@ ___
 
 #### U2 — PortfolioScreen (3 проходки)
 
-**Статус:** в работе. **Ветка:** feature/compose-ui-portfolio.
+**Статус:** в работе (Pass-1 done (PR #119); Pass-2 in progress). **Ветка:** feature/compose-ui-portfolio-pass2.
 
-**Pass-1:** extract `AccountHeaderCard` / `PortfolioAccountBlock` / `EmptyPortfolioCard` (частично уже есть).
-**Pass-2:** behavioral test (load / error / empty / sandbox pay-in) до/после; перенос `remember`/`LaunchedEffect` в child.
+**Pass-1:** ✅ (PR #119, merge `3ae118a1`). Extract `AccountHeaderCard` / `PortfolioAccountBlock` / `EmptyPortfolioCard` (+ `ApiNotInitializedCard`) из `PortfolioScreen.kt` (278 → 119); visibility private → internal; `remember` / `LaunchedEffect` остались в `PortfolioScreen` (mobile-safe).
+**Pass-2:** в работе (feature/compose-ui-portfolio-pass2). Behavioral tests на извлечённых `AccountHeaderCard` / `PortfolioAccountBlock` / `EmptyPortfolioCard` / `ApiNotInitializedCard` через `createComposeRule()` (U0 infra, без Hilt). `remember` / `LaunchedEffect` — state корневого `PortfolioScreen`; child без scroll не существует (2c, не переносим). `PortfolioScreenBehaviourTest` — deferred U4 (Hilt 1-VM).
 **Pass-3:** снять `@Suppress` на `PortfolioScreen` (`LongMethod` + `CyclomaticComplexMethod`).
 
 **Оценка U2:** ~3–4 ч.
