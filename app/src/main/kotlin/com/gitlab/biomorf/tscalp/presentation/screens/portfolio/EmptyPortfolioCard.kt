@@ -62,7 +62,6 @@ fun EmptyPortfolioCard() {
     }
 }
 
-
 @Preview(name = "Empty portfolio", showBackground = true, widthDp = 360)
 @Composable
 private fun EmptyPortfolioCardPreview() {

@@ -55,7 +55,6 @@ internal fun PortfolioAccountBlock(
     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 }
 
-
 @Preview(name = "AccountBlock — one position", showBackground = true, widthDp = 360)
 @Composable
 private fun PortfolioAccountBlockPreview() {

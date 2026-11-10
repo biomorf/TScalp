@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.gitlab.biomorf.tscalp.domain.models.AccountBalance
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -71,7 +72,6 @@ private fun maskAccountId(id: String): String =
     } else {
         MASK_BULLET.repeat(MASK_VISIBLE_DIGITS) + id.takeLast(MASK_VISIBLE_DIGITS)
     }
-
 
 @Preview(name = "Header — balance", showBackground = true, widthDp = 360)
 @Composable
