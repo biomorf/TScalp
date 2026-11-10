@@ -1186,7 +1186,7 @@ Actions-минут, запись в origin. Перед ними — пауза:
 
 ```bash
 set -uo pipefail
-./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug   :app:ktlintCheck :app:detekt --rerun-tasks > /tmp/gate.log 2>&1
+./gradlew :app:clean :app:ktlintCheck :app:lintDebug :app:detekt :app:testDebugUnitTest --continue --rerun-tasks > /tmp/gate.log 2>&1
 GATE=$?
 set -e
 echo "exit=$GATE"
@@ -1534,7 +1534,7 @@ git-дефолты (адресат, файлы, ветка).
 
     bash << 'BASH_END'
     set -uo pipefail
-    ./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug :app:ktlintCheck :app:detekt --rerun-tasks > /tmp/gate.log 2>&1
+    ./gradlew :app:clean :app:ktlintCheck :app:lintDebug :app:detekt :app:testDebugUnitTest --continue --rerun-tasks > /tmp/gate.log 2>&1
     GATE=$?
     {
       set -euo pipefail
@@ -1780,8 +1780,8 @@ desktop push не после каждого коммита, а один раз �
 
 Команда:
 
-    ./gradlew :app:clean :app:testDebugUnitTest :app:lintDebug \
-      :app:ktlintCheck :app:detekt --rerun-tasks \
+    ./gradlew :app:clean :app:ktlintCheck :app:lintDebug \
+      :app:detekt :app:testDebugUnitTest --continue --rerun-tasks \
       2>&1 | grep -E '\[warn\]|\[error\]|^w:|^e:|FAILED|BUILD'
 
 Ожидаемо: `BUILD SUCCESSFUL`, все гейты зелёные, только
