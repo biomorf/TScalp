@@ -21,6 +21,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.gitlab.biomorf.tscalp.presentation.components.StatusEventEffect
 import com.gitlab.biomorf.tscalp.presentation.components.StatusSnackbarHost
 
+// 2c-fixation (U2 Pass-3): body ~91 lines > 60 (LongMethod), cycom 16 > 14 (CyclomaticComplexMethod).
+// Split forwards ~10 callbacks / 6 state fields (analog of OrdersScrollableContent); behaviour 1:1.
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
