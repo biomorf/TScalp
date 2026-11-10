@@ -1106,6 +1106,21 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 **Связано:** урок 78 (ktlint на mobile), урок 55 (`ktlintFormat` на desktop).
 
+### 99. Compose UI на Robolectric: runner + GraphicsMode NATIVE + ConscryptMode OFF
+
+**Правило:** Compose UI smoke-тест под Robolectric (JVM, без эмулятора) требует **всех четырёх**:
+- `@RunWith(RobolectricTestRunner::class)` — не `AndroidJUnit4` (без instrumentation);
+- `@Config(sdk = [34])` — иначе targetSdk может уйти в 36 и Robolectric не поднимется;
+- `@GraphicsMode(GraphicsMode.Mode.NATIVE)` — иначе Compose `waitForIdle` уходит в 5s `ComposeTimeoutException`;
+- `@ConscryptMode(ConscryptMode.Mode.OFF)` — иначе `java.lang.UnsatisfiedLinkError: no conscrypt_jni` в `AndroidTestEnvironment.setUpApplicationState`.
+Плюс `createComposeRule()` (не `createAndroidComposeRule<ComponentActivity>()`) — для plain composable не тянет `ActivityScenario` и `ui-test-manifest` в test-рантайм.
+
+**Инцидент:** 2026-11-09, U0 Compose UI infra (PR #115). `OrderCardTest`: 3 CI-цикла подряд (5s hang → `UnsatisfiedLinkError`), 4-й зелёный. Первый прогон: `createAndroidComposeRule<ComponentActivity>` + `@Config(sdk = [34])` без `@GraphicsMode` и без `@ConscryptMode` → `renders` 0.006s (`UnsatisfiedLinkError`), `onCancel` 5.016s (`ComposeTimeoutException`). Второй: `RobolectricTestRunner` + `@GraphicsMode(NATIVE)` + `createComposeRule()` → `onCancel` всё ещё 4.2s `UnsatisfiedLinkError`. Третий: `+@ConscryptMode(OFF)` → зелёный.
+
+**Проверка:** перед первым push нового Compose-test-класса — `grep -E '@(RunWith|Config|GraphicsMode|ConscryptMode)' file.kt` (должны быть все 4); `grep 'createComposeRule'` (не `createAndroidComposeRule<ComponentActivity>`). Если тест «висит» ~5s — `@GraphicsMode(NATIVE)`. Если `UnsatisfiedLinkError: no conscrypt_jni` — `@ConscryptMode(OFF)`.
+
+**Связано:** урок 98 (`advanceUntilIdle` + `while(isActive){delay}` hang), урок 96 (ktlint multiline), урок 78 (ktlint на mobile).
+
 ---
 
 ## Диагностика

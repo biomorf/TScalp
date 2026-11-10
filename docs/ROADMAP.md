@@ -253,9 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 — Compose UI test infra).
-
-**Ветка:** feature/compose-ui-test-infra.
+**Статус:** в работе (U0 done; U1–U3 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -279,7 +277,11 @@ ___
 
 **Шаги:**
 
-#### U0 — Compose UI test infra (Robolectric-hosted)
+#### ✅ U0 — Compose UI test infra (Robolectric-hosted, PR #115, merge 16bc3c99)
+
+**Дата закрытия:** 2026-11-09
+
+**Подтверждение:** выполнено (PR #115, merge `16bc3c99`; `OrderCardTest` 2 smoke-кейса в `fast-check` (Robolectric-hosted, JVM, без эмулятора); CI green).
 
 1. `app/build.gradle.kts`:
    - `testImplementation`: `androidx.compose.ui:ui-test-junit4`, `org.robolectric:robolectric`, `androidx.test:runner`, `androidx.test.ext:junit`.
