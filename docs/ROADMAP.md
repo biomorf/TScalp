@@ -2707,6 +2707,115 @@ ___
 
 
 
+### Compose UI: Hilt-test-infra для OrdersScreen
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (2d) U1 Pass-2 показал: `OrdersScreen` инжектит 4 VM через `hiltViewModel()` (`OrdersViewModel`, `OrderSearchViewModel`, `OrderDialogsViewModel`, `OrderFormViewModel`). `createComposeRule()` без Hilt-test-infra (`@HiltAndroidRule`, `TestApplication`, `@UninstallModules`) на таком composable не запускается — `OrdersScreenBehaviorTest` (search → select → form, confirm, pair slider, snackbar) **невозможен**. Вынесено из U1 Pass-2 как отдельная инфраструктура.
+
+**Соответствие Clean:** соответствует (test-layer, presentation-test).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** U0 Compose UI infra закрыт (PR #115, Robolectric + `@GraphicsMode` + `@ConscryptMode`). `OrderCardTest` — образец.
+
+**Файлы:**
+- `app/build.gradle.kts` — `testImplementation("com.google.dagger:hilt-android-testing:2.60.1")`, `kspTest("com.google.dagger:hilt-android-compiler:2.60.1")`.
+- `app/src/test/kotlin/.../testutil/TestApplication.kt` (Hilt).
+- `app/src/test/resources/robolectric.properties` — `application=...TestApplication`.
+- Новый `OrdersScreenBehaviorTest.kt`.
+
+**Шаги:**
+1. `app/build.gradle.kts`: + `hilt-android-testing` (test), `kspTest hilt-android-compiler`.
+2. `TestApplication` (Hilt): `@HiltAndroidApp` в test-source set; `robolectric.properties: application=...TestApplication`.
+3. Пилотный test с `@HiltAndroidRule` + `@Config(sdk = [34])` + `@GraphicsMode(NATIVE)` + `@ConscryptMode(OFF)` + `createAndroidComposeRule<ComponentActivity>()` (Activity обязательна для `@AndroidEntryPoint`).
+4. `OrdersScreenBehaviorTest`: search → select → form, confirm dialog, pair slider, snackbar (5–7 сценариев).
+5. Гейт: fast-check (JVM, Robolectric, без эмулятора).
+
+**Тесты:** 5–7 сценариев OrdersScreen (behavioral, JVM).
+
+**Референсы:** U0 (PR #115), `OrderCardTest` (робо-образец), Dagger Hilt testing docs, `androidx.hilt:hilt-navigation-compose`.
+
+**Ограничения:**
+- Robolectric-hosted (JVM), **не** instrumented (эмулятор) — как U0.
+- Не смешивать с U1 Pass-2 (это отдельная инфраструктура, без неё Pass-2 behavioural идёт на чистых composables).
+- `@AndroidEntryPoint` на `ComponentActivity` + Hilt rule — порядок rule важен (`@HiltAndroidRule` first).
+
+**Критерий готовности:** `OrdersScreenBehaviorTest` 5–7 сценариев зелёные на CI (fast-check), без эмулятора.
+
+**Оценка:** ~2–3 ч.
+
+**Зависимости:** U0 (PR #115) — done.
+
+**Связано:** `### Compose UI: test infra + 3 экрана (3 проходки)` (umbrella U0 done, U1 Pass-2 planned).
+
+**Открытые вопросы:** `createAndroidComposeRule<ComponentActivity>()` + `@AndroidEntryPoint` в Robolectric — совместимость проверить первым PR (если Activity-инъекция не поднимется, fallback — `createComposeRule()` + `hiltViewModel()` заменить на прямую инжекцию через `@Inject` в тесте).
+
+___
+
+### docs/live-test.md: mobile-ограничения (Robolectric vs device)
+
+**Мобильная работа:** полное закрытие (docs-only, proot).
+
+**Статус:** запланировано.
+
+**Контекст:** (2d) диагностика U1 Pass-2: `docs/live-test.md` не содержит секции о **mobile (proot)** ограничениях. Сейчас `Robolectric` + Compose UI tests дают JVM-поведение (semantics, callbacks, snapshot), но **не** заменяют live-test на устройстве (RenderThread, accessibility, IME, insets, edge-to-edge, WebView, камера/биометрия). Нужно явно зафиксировать границу, чтобы не путать «JVM behavioral PASS» с «device smoke PASS».
+
+**Соответствие Clean:** соответствует (docs-only).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** U0 Compose UI infra (PR #115) — done.
+
+**Файлы:**
+- `docs/live-test.md` — новая секция `## Mobile (proot): Robolectric vs device`.
+
+**Шаги:**
+1. Добавить секцию: что **покрывается** Robolectric (semantics, callbacks, `remember`/`LaunchedEffect` behaviour, mainClock), что **нет** (RenderThread/bitmap, accessibility, IME/insets, edge-to-edge, WebView, камера/биометрия).
+2. Явно: «JVM behavioral PASS ≠ device smoke PASS»; для последнего — `docs/live-test.md` режим A/B (desktop+adb).
+3. Обновить related `docs/gradle-setup.md` → «Compose UI tests (Robolectric)» (ссылка на границу).
+4. `git diff --check`.
+
+**Тесты:** нет (docs-only).
+
+**Референсы:** U0 (PR #115), `docs/gradle-setup.md` (Compose UI section), Robolectric limitations.
+
+**Ограничения:**
+- docs-only; не менять `Robolectric`-тесты.
+- Не дублировать `docs/gradle-setup.md` — там раздел про зависимости и setup, здесь — про границу JVM vs device.
+
+**Критерий готовности:** секция в `docs/live-test.md`; ссылка из `docs/gradle-setup.md`; `git diff --check` чистый.
+
+**Оценка:** ~20 мин.
+
+**Зависимости:** нет.
+
+**Связано:** U0 (PR #115).
+
+**Открытые вопросы:** нет.
+
+
+
+
+
+
+
+
+
+___
+
+
+
 ## Закрытые
 
 Задачи вынесены в [`ROADMAP-ARCHIVE.md`](ROADMAP-ARCHIVE.md).
