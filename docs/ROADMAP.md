@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 in progress; U2–U3 planned).
+**Статус:** в работе (U0 done; U1 Pass-1 done; U2–U3 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -296,18 +296,21 @@ ___
 
 #### U1 — OrdersScreen (3 проходки)
 
-**Статус:** в работе (Pass-1). **Ветка:** feature/compose-ui-orders.
+**Статус:** в работе (Pass-1 done; Pass-2/Pass-3 planned). **Ветка:** — (PR #116 merged).
 
-**Pass-1 (mobile, extract без state):**
-- Вынести приватные `@Composable`: `OrdersHeader`, `OrdersFormSection`, `OrdersActionsSection`, `OrdersBottomSection` — по секциям. Всё состояние и эффекты остаются на уровне `OrdersScreen`.
-- Снять `@Suppress("CyclomaticComplexMethod")` на `OrdersScreen` (complexity 7 < 14 — уже сейчас; см. PR #92), `@file:Suppress("TooManyFunctions")` уже снят (PR #93). Проверить остальные `@Suppress` — снять, где detekt зелёный.
-- CI: compile + ktlint + detekt + unit.
+**Pass-1:** ✅ (PR #116, merge `6140b66f`).
+- Вынесен `OrdersDialogsSection` (4 диалога: TradingBrokerDialog, OrdersListDialog, SearchBrokerDialog, PairSearchBrokerDialog): 49 строк → 1 вызов; `OrdersScreen` 332 → 304.
+- Mobile-safe extract: state/effects (`remember`, `LaunchedEffect`, `derivedStateOf`) **не** переносились; child принимает VMs + `showOrdersListDialog` + callback.
+- `OrdersHeader` / `OrdersBottomButtons` / `OrdersScreenSnackbar` уже были вынесены в PR #92/#93 — Pass-1 их не трогал.
+- `@Suppress("LongMethod")` остаётся (304 > 60); `@Suppress("CyclomaticComplexMethod")` уже снят в PR #92.
+- CI: fast-ktlint + fast-check зелёные.
 
-**Pass-2 (state hoisting + behavioral):**
-- **До:** `OrdersScreenBehaviorTest` (Robolectric): search → select → form, confirm dialog, pair slider, snackbar. Зафиксировать 5–7 ключевых сценариев.
-- Перенос `remember` / `LaunchedEffect` / `derivedStateOf` (если есть) в child / родителя.
-- **После:** тесты зелёные, diff поведения = 0.
-- CI: behavioral.
+**Pass-2:** (planned).
+- **Extract `OrdersScrollableContent`:** `rememberScrollState` + `rememberCoroutineScope` + `remember(derivedStateOf)` × 2 + ~15 callbacks — внутрь child (им там место, state наружу не hoist-ится).
+- **`OrdersScreenBehaviorTest` невозможен:** `OrdersScreen` инжектит 4 VM через `hiltViewModel()`, `createComposeRule()` без Hilt-test-infra (`@HiltAndroidRule`, `TestApplication`) не запустится. Вынесено в `### Compose UI: Hilt-test-infra для OrdersScreen` (2d).
+- **Behavioral тесты — на чистые извлечённые composables:** `OrdersDialogsSection` (showOrdersListDialog true/false), `InstrumentSearchField` (`inputText` / `expanded` / `onQueryChanged`), `OrdersTypeChips`, `OrdersQuantityRow`. Рендерятся через `createComposeRule()` (U0 infra), без Hilt.
+- `LaunchedEffect(Unit) { checkApiInitialization() }` — остаётся в `OrdersScreen` (side-effect VM, не UI-state).
+- CI: fast-check (behavioral).
 
 **Pass-3 (cleanup):**
 - Снять оставшиеся `@Suppress("LongMethod")` (если extract довёл до <60 строк).
