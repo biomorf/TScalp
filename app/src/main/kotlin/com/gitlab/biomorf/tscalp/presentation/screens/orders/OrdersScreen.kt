@@ -2,14 +2,11 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
@@ -95,34 +92,22 @@ fun OrdersScreen() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ========== СКРОЛЛИРУЕМЫЙ БЛОК с индикаторами прокрутки ==========
-            val scrollState = rememberScrollState()
-            val scope = rememberCoroutineScope()
-            val showTopShadow by remember { derivedStateOf { scrollState.value > 0 } }
-            val showBottomShadow by remember {
-                derivedStateOf { scrollState.maxValue > 0 && scrollState.value < scrollState.maxValue }
-            }
-
-            Box(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .verticalScroll(scrollState),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    // ========== ОСНОВНОЙ ПОИСК / КАРТОЧКА ==========
-                    OrdersInstrumentSection(
+            // ========== СКРОЛЛИРУЕМЫЙ БЛОК (OrdersScrollableContent) ==========
+            OrdersScrollableContent(
+                state =
+                    OrdersScrollableState(
                         coordState = coordState,
                         searchState = searchState,
                         formState = formState,
                         tradingStatuses = tradingStatuses,
                         resetSwipe = dialogsState.swipeResetTrigger,
+                    ),
+                callbacks =
+                    OrdersScrollableCallbacks(
                         onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
-                        onInstrumentSelected = {
-                            searchViewModel.onSearchResultSelected(it)
-                            formViewModel.onInstrumentSelected(it)
+                        onInstrumentSelected = { inst ->
+                            searchViewModel.onSearchResultSelected(inst)
+                            formViewModel.onInstrumentSelected(inst)
                             focusManager.clearFocus()
                         },
                         onClearSearch = {
@@ -132,61 +117,19 @@ fun OrdersScreen() {
                         onRefreshSearch = { searchViewModel.refreshSearch() },
                         onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
                         onClearSelected = { formViewModel.clearSelectedInstrument() },
-                        onOpenBrokerDialog = { inst, acc ->
-                            dialogsViewModel.openBrokerDialog(
-                                instrument = inst,
-                                currentAccountId = acc,
-                                slot = CardSlot.PRIMARY,
-                            )
+                        onOpenBrokerDialog = { inst, acc, slot ->
+                            dialogsViewModel.openBrokerDialog(inst, acc, slot)
                         },
-                    )
-
-                    // Spacer(modifier = Modifier.height(1.dp))
-
-                    // ========== Поле количества ==========
-                    // Определяем цену исполнения в зависимости от типа заявки
-                    OrdersConfirmDialogSection(
-                        formState = formState,
-                        onDismiss = { formViewModel.onDismissConfirmDialog() },
-                        onConfirm = { formViewModel.onConfirmOrder() },
-                    )
-
-                    OrdersQuantityRow(
-                        quantity = formState.quantity,
-                        costOverlay = formState.costOverlay,
-                        canDecrement = (formState.quantityAsLong ?: 0L) > 0 && formState.selectedInstrument != null,
-                        canIncrement = formState.selectedInstrument != null,
+                        onDismissConfirmDialog = { formViewModel.onDismissConfirmDialog() },
+                        onConfirmOrder = { formViewModel.onConfirmOrder() },
                         onQuantityChanged = { formViewModel.onQuantityChanged(it) },
-                    )
-
-                    // ========== Выбор типа заявки ==========
-                    OrdersTypeChips(
-                        orderType = formState.orderType,
                         onOrderTypeChanged = { formViewModel.onOrderTypeChanged(it) },
-                    )
-
-                    // ========== Ценовые поля (статическая высота) ==========
-                    OrdersPriceFields(
-                        orderType = formState.orderType,
-                        limitPrice = formState.limitPrice,
-                        stopPrice = formState.stopPrice,
                         onLimitPriceChanged = { formViewModel.onLimitPriceChanged(it) },
                         onStopPriceChanged = { formViewModel.onStopPriceChanged(it) },
-                    )
-
-                    // ========== СЕКЦИЯ ПАРНОЙ ТОРГОВЛИ (в скролле) ==========
-                    OrdersPairSection(
-                        coordState = coordState,
-                        searchState = searchState,
-                        formState = formState,
-                        tradingStatuses = tradingStatuses,
-                        resetSwipe = dialogsState.swipeResetTrigger,
-                        scrollState = scrollState,
-                        scope = scope,
                         onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },
-                        onPairedInstrumentSelected = {
-                            searchViewModel.onPairedSearchResultSelected(it)
-                            formViewModel.onPairedInstrumentSelected(it)
+                        onPairedInstrumentSelected = { inst ->
+                            searchViewModel.onPairedSearchResultSelected(inst)
+                            formViewModel.onPairedInstrumentSelected(inst)
                             focusManager.clearFocus()
                         },
                         onClearPairSearch = { searchViewModel.clearPairSearchQuery() },
@@ -197,23 +140,9 @@ fun OrdersScreen() {
                             searchViewModel.clearPairSearchQuery()
                             formViewModel.clearPairedInstrument()
                         },
-                        onOpenBrokerDialog = { inst, acc ->
-                            dialogsViewModel.openBrokerDialog(
-                                instrument = inst,
-                                currentAccountId = acc,
-                                slot = CardSlot.PAIR,
-                            )
-                        },
                         onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
-                    )
-                } // конец скроллируемой колонки
-
-                // === ИНДИКАТОРЫ ПРОКРУТКИ ===
-                OrdersScreenShadows(
-                    showTopShadow = showTopShadow,
-                    showBottomShadow = showBottomShadow,
-                )
-            }
+                    ),
+            )
 
             // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
             OrdersBottomButtons(
