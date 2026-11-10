@@ -191,50 +191,12 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start,
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor =
-                        if (uiState.isConnected) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.errorContainer
-                        },
-                ),
-        ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text("Статус API", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (uiState.isConnected) "✅ Подключено" else "❌ Не подключено",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                if (uiState.isConnected) {
-                    Button(
-                        onClick = { viewModel.disconnect() },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    ) {
-                        Text("Отключить")
-                    }
-                } else {
-                    Button(
-                        onClick = { viewModel.connect(uiState.token, uiState.sandboxMode) },
-                        enabled = uiState.token.isNotBlank(),
-                    ) {
-                        Text("Подключиться")
-                    }
-                }
-            }
-        }
+        TInvestStatusCard(
+            isConnected = uiState.isConnected,
+            canConnect = uiState.token.isNotBlank(),
+            onConnect = { viewModel.connect(uiState.token, uiState.sandboxMode) },
+            onDisconnect = { viewModel.disconnect() },
+        )
 
         OutlinedTextField(
             value = uiState.token,
@@ -340,29 +302,7 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
             }
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("📋 Как получить токен", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    """
-                    1. Управляйте токенами с компьютера — с телефона может перекинуть в приложение, где этого раздела нет.
-                    2. Откройте https://www.tbank.ru/invest/settings/ и войдите в личный кабинет Т-Инвестиций.
-                    3. Убедитесь, что функция «Подтверждение сделок кодом» отключена. Иначе API не сможет выставлять заявки. Крупные сделки (>30 млн ₽) через API недоступны в любом случае.
-                    4. Найдите подраздел «Токены T-Bank Invest API» и нажмите кнопку "Создать токен". Токен — это просто очень длинный специальный пароль для доступа к брокеру.
-                    5. Выберите тип, нажав кнопку в соответствующем разделе на странице: песочница (для тестов, безопасно) или биржа (реальная торговля). Для биржи настройте права: только чтение / торговля, и доступ: все счета / конкретный счёт. Рекомендуем сначала потренироваться в песочнице.
-                    6. Пройдите доп. авторизацию, если система попросит.
-                    7. Скопируйте токен сразу — он показывается только один раз. Сохраните в надёжном месте (менеджер паролей).
-                    8. Токен действует 3 месяца с последнего использования. Если перестал работать — выпустите новый.
-                    9. Отозвать старый токен можно на https://id.tbank.ru/account в подразделе "Приложения, у которых есть доступ к данным для входа".
-                    10. Никому не передавайте токен. Если он попал в логи или в публичные источники — немедленно отзовите и создайте новый.
-                    """.trimIndent(),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
+        TInvestTokenHelpCard()
 
         uiState.statusMessage?.let { message ->
             StatusMessageCard(message = message, isError = uiState.isError)
@@ -415,40 +355,10 @@ fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor =
-                        if (uiState.connected) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.errorContainer
-                        },
-                ),
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text("Статус API", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (uiState.connected) "✅ Подключено" else "❌ Не подключено",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                if (uiState.connected) {
-                    Button(
-                        onClick = { viewModel.disconnect() },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    ) {
-                        Text("Отключить")
-                    }
-                }
-            }
-        }
+        ConnectStatusCard(
+            isConnected = uiState.connected,
+            onDisconnect = { viewModel.disconnect() },
+        )
 
         OutlinedTextField(
             value = uiState.refreshToken,
@@ -509,30 +419,7 @@ fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
             }
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("📋 Как получить токен", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    """
-                    1. Зайдите в личный кабинет БКС Мир Инвестиций
-                    2. Перейдите в раздел «Настройки» → «API»
-                    3. Нажмите «Создать новый токен»
-                    4. Выберите права: чтение портфеля и совершение сделок
-                    5. Скопируйте полученный refresh‑токен
-                    6. Вставьте его в поле выше
-
-                    ⚠️ Рекомендации по безопасности:
-                    • Сначала тестируйте в режиме песочницы
-                    • Не передавайте токен третьим лицам
-                    • Токен хранится в зашифрованном виде
-                    """.trimIndent(),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
+        BcsTokenHelpCard()
 
         uiState.statusMessage?.let { message ->
             StatusMessageCard(message = message, isError = uiState.isError)
@@ -557,46 +444,10 @@ fun FinamSettingsPanel(viewModel: FinamSettingsViewModel = hiltViewModel()) {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor =
-                        if (uiState.connected) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.errorContainer
-                        },
-                ),
-        ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text("Статус API", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (uiState.connected) "✅ Подключено" else "❌ Не подключено",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                if (uiState.connected) {
-                    Button(
-                        onClick = { viewModel.disconnect() },
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                            ),
-                    ) {
-                        Text("Отключить")
-                    }
-                }
-            }
-        }
+        ConnectStatusCard(
+            isConnected = uiState.connected,
+            onDisconnect = { viewModel.disconnect() },
+        )
 
         OutlinedTextField(
             value = uiState.token,
@@ -629,31 +480,7 @@ fun FinamSettingsPanel(viewModel: FinamSettingsViewModel = hiltViewModel()) {
             }
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                ),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Как получить токен", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    """
-                    1. Зайдите в личный кабинет Finam
-                    2. Перейдите в раздел «Настройки» → «API»
-                    3. Создайте новый токен с правами на торговлю и чтение
-                    4. Скопируйте секретный токен
-                    5. Вставьте его в поле выше
-
-                    ⚠️ Рекомендации:
-                    • Храните токен в безопасном месте
-                    • Не передавайте третьим лицам
-                    """.trimIndent(),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
+        FinamTokenHelpCard()
 
         uiState.statusMessage?.let { message ->
             StatusMessageCard(message = message, isError = uiState.isError)
