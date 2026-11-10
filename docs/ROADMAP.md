@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 in progress; U3 planned).
+**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 in progress; U3–U4 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -268,8 +268,10 @@ ___
 **Предусловия:** нет.
 
 **Файлы (сводно):**
-- `app/build.gradle.kts` — testImplementation для U0.
-- `app/src/test/kotlin/.../presentation/` — Compose UI тесты (Robolectric).
+- `app/build.gradle.kts` — testImplementation для U0 и U4 (`hilt-android-testing`).
+- `app/src/test/kotlin/.../presentation/` — Compose UI тесты (Robolectric, U0–U4).
+- `app/src/test/kotlin/.../testutil/TestApplication.kt` — U4 (`@HiltAndroidApp`).
+- `app/src/test/resources/robolectric.properties` — U4 (`application=...TestApplication`).
 - `presentation/screens/orders/OrdersScreen.kt` (+ вынесенные `OrdersHeader.kt` / `Orders*Section.kt`).
 - `presentation/screens/portfolio/PortfolioScreen.kt`.
 - `presentation/screens/settings/SettingsScreen.kt`.
@@ -340,6 +342,58 @@ ___
 
 **Оценка U3:** ~5–6 ч.
 
+#### U4 — Hilt-test-infra + 3 screen behavioural (planned)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Порядок:** после U3 (Settings). Инфраструктура одна, стабы разные (4 VM / 1 VM / 5 panel-VM), по одному PR делать нецелесообразно — каждый ждёт предыдущего. Mobile/proot — ~2–3 ч + 5+ CI-циклов отладки Robolectric+Hilt. Не блокирует U2/U3 Pass-2 (тесты на чистых composables, без Hilt).
+
+**Контекст:** (2d) U1 Pass-2 показал: `OrdersScreen` инжектит 4 VM через `hiltViewModel()` (`OrdersViewModel`, `OrderSearchViewModel`, `OrderDialogsViewModel`, `OrderFormViewModel`). `createComposeRule()` без Hilt-test-infra (`@HiltAndroidRule`, `TestApplication`, `@UninstallModules`) на таком composable не запускается. Аналогично для `PortfolioScreen` (1 VM) и `SettingsScreen` (5 panel-VM). Три `*ScreenBehaviourTest`-сценария требуют одной инфраструктуры — объединены в U4.
+
+**Соответствие Clean:** соответствует (test-layer, presentation-test).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** U0 Compose UI infra закрыт (PR #115, Robolectric + `@GraphicsMode` + `@ConscryptMode`). `OrderCardTest` — образец. U2 и U3 должны быть хотя бы в Pass-2 (поведенческая база для `*ScreenBehaviourTest`).
+
+**Файлы:**
+- `app/build.gradle.kts` — `testImplementation("com.google.dagger:hilt-android-testing:2.60.1")`, `kspTest("com.google.dagger:hilt-android-compiler:2.60.1")`.
+- `app/src/test/kotlin/.../testutil/TestApplication.kt` (Hilt, `@HiltAndroidApp`).
+- `app/src/test/resources/robolectric.properties` — `application=...TestApplication`.
+- `OrdersScreenBehaviorTest.kt`, `PortfolioScreenBehaviorTest.kt`, `SettingsScreenBehaviorTest.kt` (новые).
+
+**Шаги:**
+1. `app/build.gradle.kts`: + `hilt-android-testing` (test), `kspTest hilt-android-compiler`.
+2. `TestApplication` (Hilt): `@HiltAndroidApp` в test-source set; `robolectric.properties: application=...TestApplication`.
+3. Пилотный test с `@HiltAndroidRule` + `@Config(sdk = [34])` + `@GraphicsMode(NATIVE)` + `@ConscryptMode(OFF)` + `createAndroidComposeRule<ComponentActivity>()` (Activity обязательна для `@AndroidEntryPoint`).
+4. `OrdersScreenBehaviorTest`: search → select → form, confirm dialog, pair slider, snackbar (5–7 сценариев).
+5. `PortfolioScreenBehaviorTest`: load / error / empty / sandbox pay-in (4–6 сценариев).
+6. `SettingsScreenBehaviorTest`: connect / disconnect / error (TInvest / Bcs / Finam, 6–9 сценариев).
+7. Гейт: fast-check (JVM, Robolectric, без эмулятора).
+
+**Тесты:** 15–22 сценария (3 экрана) — behavioral, JVM.
+
+**Референсы:** U0 (PR #115), `OrderCardTest` (робо-образец), Dagger Hilt testing docs, `androidx.hilt:hilt-navigation-compose`.
+
+**Ограничения:**
+- Robolectric-hosted (JVM), **не** instrumented (эмулятор) — как U0.
+- `@AndroidEntryPoint` на `ComponentActivity` + Hilt rule — порядок rule важен (`@HiltAndroidRule` first).
+- Не дублировать component-тесты Pass-2b; integration — здесь.
+
+**Критерий готовности:** `OrdersScreenBehaviorTest` 5–7 + `PortfolioScreenBehaviorTest` 4–6 + `SettingsScreenBehaviorTest` 6–9 сценариев зелёные на CI (fast-check), без эмулятора.
+
+**Оценка U4:** ~2–3 ч (Hilt-infra 1 ч, 3 behavioural 1–2 ч, отладка Robolectric 30 мин).
+
+**Связано:** U0 (PR #115), U1 Pass-2 (`OrdersScreenBehaviourTest` deferred), U2/U3 Pass-2 (component-level).
+
+**Открытые вопросы:** `createAndroidComposeRule<ComponentActivity>()` + `@AndroidEntryPoint` в Robolectric — совместимость проверить первым PR (если Activity-инъекция не поднимется, fallback — `createComposeRule()` + `hiltViewModel()` заменить на прямую инжекцию через `@Inject` в тесте).
+
 **Тесты:** U0 smoke; U1–U3 pass-2 behavioral (Robolectric); unit (presentation VM) — как раньше.
 
 **Референсы:** Compose UI Test (developer.android.com), Robolectric, `docs/live-test.md`, `docs/gradle-setup.md`.
@@ -351,9 +405,9 @@ ___
 - UI визуал не меняется (правило 1: только по санкции).
 - U0 отдельным PR; U1/U2/U3 — по одному PR каждый (один CI-цикл на экран).
 
-**Критерий готовности:** U0 smoke зелёный на CI; U1–U3 (Pass-1 + Pass-2 + Pass-3), behavioral-тесты зелёные, `@Suppress` сняты (где возможно), detekt зелёный.
+**Критерий готовности:** U0 smoke зелёный на CI; U1 done; U2/U3 (Pass-1 + Pass-2 + Pass-3), component-behavioural-тесты на чистых composables зелёные, `@Suppress` сняты (где возможно); U4 — Hilt-test-infra + `OrdersScreenBehaviourTest` + `PortfolioScreenBehaviourTest` + `SettingsScreenBehaviourTest` зелёные на CI; detekt зелёный. Umbrella → `ROADMAP-ARCHIVE.md`.
 
-**Оценка:** ~14–18 ч.
+**Оценка:** ~16–21 ч (U4 — Hilt-test-infra + 3 screen behavioural).
 
 **Зависимости:** нет.
 
@@ -2708,60 +2762,6 @@ ___
 
 
 
-
-___
-
-
-
-### Compose UI: Hilt-test-infra для OrdersScreen
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** (2d) U1 Pass-2 показал: `OrdersScreen` инжектит 4 VM через `hiltViewModel()` (`OrdersViewModel`, `OrderSearchViewModel`, `OrderDialogsViewModel`, `OrderFormViewModel`). `createComposeRule()` без Hilt-test-infra (`@HiltAndroidRule`, `TestApplication`, `@UninstallModules`) на таком composable не запускается — `OrdersScreenBehaviorTest` (search → select → form, confirm, pair slider, snackbar) **невозможен**. Вынесено из U1 Pass-2 как отдельная инфраструктура.
-
-**Соответствие Clean:** соответствует (test-layer, presentation-test).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** U0 Compose UI infra закрыт (PR #115, Robolectric + `@GraphicsMode` + `@ConscryptMode`). `OrderCardTest` — образец.
-
-**Файлы:**
-- `app/build.gradle.kts` — `testImplementation("com.google.dagger:hilt-android-testing:2.60.1")`, `kspTest("com.google.dagger:hilt-android-compiler:2.60.1")`.
-- `app/src/test/kotlin/.../testutil/TestApplication.kt` (Hilt).
-- `app/src/test/resources/robolectric.properties` — `application=...TestApplication`.
-- Новый `OrdersScreenBehaviorTest.kt`.
-
-**Шаги:**
-1. `app/build.gradle.kts`: + `hilt-android-testing` (test), `kspTest hilt-android-compiler`.
-2. `TestApplication` (Hilt): `@HiltAndroidApp` в test-source set; `robolectric.properties: application=...TestApplication`.
-3. Пилотный test с `@HiltAndroidRule` + `@Config(sdk = [34])` + `@GraphicsMode(NATIVE)` + `@ConscryptMode(OFF)` + `createAndroidComposeRule<ComponentActivity>()` (Activity обязательна для `@AndroidEntryPoint`).
-4. `OrdersScreenBehaviorTest`: search → select → form, confirm dialog, pair slider, snackbar (5–7 сценариев).
-5. Гейт: fast-check (JVM, Robolectric, без эмулятора).
-
-**Тесты:** 5–7 сценариев OrdersScreen (behavioral, JVM).
-
-**Референсы:** U0 (PR #115), `OrderCardTest` (робо-образец), Dagger Hilt testing docs, `androidx.hilt:hilt-navigation-compose`.
-
-**Ограничения:**
-- Robolectric-hosted (JVM), **не** instrumented (эмулятор) — как U0.
-- Не смешивать с U1 Pass-2 (это отдельная инфраструктура, без неё Pass-2 behavioural идёт на чистых composables).
-- `@AndroidEntryPoint` на `ComponentActivity` + Hilt rule — порядок rule важен (`@HiltAndroidRule` first).
-
-**Критерий готовности:** `OrdersScreenBehaviorTest` 5–7 сценариев зелёные на CI (fast-check), без эмулятора.
-
-**Оценка:** ~2–3 ч.
-
-**Зависимости:** U0 (PR #115) — done.
-
-**Связано:** `### Compose UI: test infra + 3 экрана (3 проходки)` (umbrella U0 done, U1 Pass-2 planned).
-
-**Открытые вопросы:** `createAndroidComposeRule<ComponentActivity>()` + `@AndroidEntryPoint` в Robolectric — совместимость проверить первым PR (если Activity-инъекция не поднимется, fallback — `createComposeRule()` + `hiltViewModel()` заменить на прямую инжекцию через `@Inject` в тесте).
 
 ___
 
