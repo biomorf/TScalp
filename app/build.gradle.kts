@@ -130,6 +130,7 @@ android {
     // Используется тестами flow-менеджеров (start() логирует через AppLogger).
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -183,6 +184,12 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("io.mockk:mockk:1.13.13")
+
+    // Compose UI tests (Robolectric-hosted, JVM, runs in fast-check)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:runner:1.6.2")
+    testImplementation("androidx.test.ext:junit:1.2.1")
 
     // AppMetrica SDK — crash reporting + analytics
     implementation("io.appmetrica.analytics:analytics:8.5.1")
