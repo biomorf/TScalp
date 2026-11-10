@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 Pass-1 done; U1 Pass-2 done (PR #117); U1 Pass-3 planned; U2–U3 planned).
+**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2–U3 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -294,9 +294,11 @@ ___
 
 **Оценка U0:** ~2 ч.
 
-#### U1 — OrdersScreen (3 проходки)
+#### ✅ U1 — OrdersScreen (3 проходки, PR #116, #117, #118)
 
-**Статус:** в работе (Pass-1 done; Pass-2 done (PR #117); Pass-3 planned). **Ветка:** — (merged, PR #117).
+**Дата закрытия:** 2026-11-10
+
+**Подтверждение:** выполнено (Pass-1 PR #116 `6140b66f`; Pass-2 PR #117 `54b97521`; Pass-3 PR #118 `fec1c670`; CI green).
 
 **Pass-1:** ✅ (PR #116, merge `6140b66f`).
 - Вынесен `OrdersDialogsSection` (4 диалога: TradingBrokerDialog, OrdersListDialog, SearchBrokerDialog, PairSearchBrokerDialog): 49 строк → 1 вызов; `OrdersScreen` 332 → 304.
@@ -312,9 +314,11 @@ ___
 - `LaunchedEffect(Unit) { checkApiInitialization() }` — остаётся в `OrdersScreen` (side-effect VM, не UI-state).
 - CI: fast-check (behavioral).
 
-**Pass-3 (cleanup):**
-- Снять оставшиеся `@Suppress("LongMethod")` (если extract довёл до <60 строк).
-- `@Preview` для извлечённых composables (со стабами).
+**Pass-3:** ✅ (PR #118, merge `fec1c670`).
+- `@Preview` добавлены для `OrdersQuantityRow` (enabled/disabled), `OrdersTypeChips` (Market/Limit), `SearchResultItem` (Share stub).
+- `OrdersScrollableContent` — skip (40-line stub anti-pattern в main-source); KDoc `Pass-3 skip` в `OrdersScrollableContent.kt`.
+- `@Suppress("LongMethod")` остаётся на `OrdersScreen` (140 > 60) и `OrdersScrollableContent` (82 > 60, 2c-fixation Pass-2a).
+- CI: fast-ktlint + fast-check зелёные (после fix-коммита `f8272a19` → blank lines).
 
 **Оценка U1:** ~4–6 ч.
 
