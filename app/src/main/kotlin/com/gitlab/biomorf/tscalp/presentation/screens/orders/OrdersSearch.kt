@@ -16,11 +16,13 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import com.gitlab.biomorf.tscalp.presentation.theme.getInstrumentTypeColor
 import com.gitlab.biomorf.tscalp.presentation.util.withCard
 
@@ -224,5 +226,26 @@ internal fun InstrumentSearchField(
                 }
             }
         }
+    }
+}
+
+
+@Preview(name = "SearchResultItem — Share", showBackground = true, widthDp = 400)
+@Composable
+private fun SearchResultItemSharePreview() {
+    TScalpTheme {
+        SearchResultItem(
+            instrument =
+                Share(
+                    brokerName = BrokerName.TINVEST,
+                    tscalpInstrumentId = "uid-preview",
+                    ticker = "SBER",
+                    name = "Сбербанк",
+                    isin = "BBG004730N88",
+                    classCode = "TQBR",
+                    currency = "rub",
+                ),
+            onClick = {},
+        )
     }
 }

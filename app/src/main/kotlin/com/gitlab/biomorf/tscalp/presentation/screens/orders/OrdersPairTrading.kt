@@ -22,10 +22,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import com.gitlab.biomorf.tscalp.presentation.util.withCard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -347,5 +349,59 @@ internal fun OrdersQuantityRow(
         ) {
             Icon(Icons.Default.Add, "Увеличить", modifier = Modifier.size(24.dp))
         }
+    }
+}
+
+
+@Preview(name = "QuantityRow — enabled", showBackground = true, widthDp = 300)
+@Composable
+private fun OrdersQuantityRowEnabledPreview() {
+    TScalpTheme {
+        OrdersQuantityRow(
+            quantity = "10",
+            costOverlay = "1 234,50 ₽",
+            canDecrement = true,
+            canIncrement = true,
+            onQuantityChanged = {},
+        )
+    }
+}
+
+
+@Preview(name = "QuantityRow — disabled", showBackground = true, widthDp = 300)
+@Composable
+private fun OrdersQuantityRowDisabledPreview() {
+    TScalpTheme {
+        OrdersQuantityRow(
+            quantity = "0",
+            costOverlay = null,
+            canDecrement = false,
+            canIncrement = true,
+            onQuantityChanged = {},
+        )
+    }
+}
+
+
+@Preview(name = "TypeChips — Market", showBackground = true, widthDp = 300)
+@Composable
+private fun OrdersTypeChipsMarketPreview() {
+    TScalpTheme {
+        OrdersTypeChips(
+            orderType = OrderTypeSelection.Market,
+            onOrderTypeChanged = {},
+        )
+    }
+}
+
+
+@Preview(name = "TypeChips — Limit", showBackground = true, widthDp = 300)
+@Composable
+private fun OrdersTypeChipsLimitPreview() {
+    TScalpTheme {
+        OrdersTypeChips(
+            orderType = OrderTypeSelection.Limit,
+            onOrderTypeChanged = {},
+        )
     }
 }

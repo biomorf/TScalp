@@ -73,6 +73,11 @@ internal data class OrdersScrollableCallbacks(
  * `Modifier.weight(1f)`.
  *
  * **2c-fixation (Pass-2a):** 82 строки > 60 (detekt `LongMethod`). Разбиение на `OrdersScrollableForm` + `OrdersScrollablePair` даёт 2 функции по ~50 строк, но forward 22 callbacks (каждый параметр — линия). Альтернатива — передавать `*ViewModel` (как `OrdersDialogsSection`), но тогда behavioral-тест снова требует Hilt. Выгоды текущего варианта: 1 `@Composable` с 2 параметрами (state, callbacks), поведение 1:1, тесты без Hilt. Минус: `@Suppress("LongMethod")` — явный маркер (как у `OrdersScreen` 123 и `OrdersPairSection` 127).
+ *
+ * **Pass-3 skip:** `@Preview` не добавлен — 22 callbacks + 5 state-полей ≈ 40 строк stub-кода;
+ * anti-pattern в main-source. Добавлены на чистые извлечённые composables
+ * (`OrdersQuantityRow` / `OrdersTypeChips` / `SearchResultItem`). Если понадобится — вынести
+ * stub в отдельный `preview/`-файл.
  */
 @Suppress("LongMethod")
 @Composable
