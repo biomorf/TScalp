@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 done (PR #119, #120, #121); U3 done (PR #123, #124, #125); U4 planned).
+**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 done (PR #119, #120, #121); U3 done (PR #123, #124, #125); U4 in progress).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -348,11 +348,11 @@ ___
 
 **Оценка U3:** ~5–6 ч.
 
-#### U4 — Hilt-test-infra + 3 screen behavioural (planned)
+#### U4 — Hilt-test-infra + 3 screen behavioural
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе. **Ветка:** feature/compose-ui-hilt-test-infra.
 
 **Порядок:** после U3 (Settings). Инфраструктура одна, стабы разные (4 VM / 1 VM / 5 panel-VM), по одному PR делать нецелесообразно — каждый ждёт предыдущего. Mobile/proot — ~2–3 ч + 5+ CI-циклов отладки Robolectric+Hilt. Не блокирует U2/U3 Pass-2 (тесты на чистых composables, без Hilt).
 
