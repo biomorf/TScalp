@@ -96,52 +96,52 @@ fun OrdersScreen() {
             OrdersScrollableContent(
                 state =
                     OrdersScrollableState(
-                    coordState = coordState,
-                    searchState = searchState,
-                    formState = formState,
-                    tradingStatuses = tradingStatuses,
-                    resetSwipe = dialogsState.swipeResetTrigger,
-                ),
+                        coordState = coordState,
+                        searchState = searchState,
+                        formState = formState,
+                        tradingStatuses = tradingStatuses,
+                        resetSwipe = dialogsState.swipeResetTrigger,
+                    ),
                 callbacks =
                     OrdersScrollableCallbacks(
-                    onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
-                    onInstrumentSelected = { inst ->
-                        searchViewModel.onSearchResultSelected(inst)
-                        formViewModel.onInstrumentSelected(inst)
-                        focusManager.clearFocus()
-                    },
-                    onClearSearch = {
-                        searchViewModel.clearSearchQuery()
-                        formViewModel.clearSelectedInstrument()
-                    },
-                    onRefreshSearch = { searchViewModel.refreshSearch() },
-                    onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
-                    onClearSelected = { formViewModel.clearSelectedInstrument() },
-                    onOpenBrokerDialog = { inst, acc, slot ->
-                        dialogsViewModel.openBrokerDialog(inst, acc, slot)
-                    },
-                    onDismissConfirmDialog = { formViewModel.onDismissConfirmDialog() },
-                    onConfirmOrder = { formViewModel.onConfirmOrder() },
-                    onQuantityChanged = { formViewModel.onQuantityChanged(it) },
-                    onOrderTypeChanged = { formViewModel.onOrderTypeChanged(it) },
-                    onLimitPriceChanged = { formViewModel.onLimitPriceChanged(it) },
-                    onStopPriceChanged = { formViewModel.onStopPriceChanged(it) },
-                    onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },
-                    onPairedInstrumentSelected = { inst ->
-                        searchViewModel.onPairedSearchResultSelected(inst)
-                        formViewModel.onPairedInstrumentSelected(inst)
-                        focusManager.clearFocus()
-                    },
-                    onClearPairSearch = { searchViewModel.clearPairSearchQuery() },
-                    onRefreshPairSearch = { searchViewModel.refreshPairSearch() },
-                    onOpenPairSearchBrokerSettings = { searchViewModel.openPairSearchBrokerSettings() },
-                    onPairTradingEnabledChanged = { formViewModel.setPairTradingEnabled(it) },
-                    onClearPairedInstrument = {
-                        searchViewModel.clearPairSearchQuery()
-                        formViewModel.clearPairedInstrument()
-                    },
-                    onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
-                ),
+                        onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
+                        onInstrumentSelected = { inst ->
+                            searchViewModel.onSearchResultSelected(inst)
+                            formViewModel.onInstrumentSelected(inst)
+                            focusManager.clearFocus()
+                        },
+                        onClearSearch = {
+                            searchViewModel.clearSearchQuery()
+                            formViewModel.clearSelectedInstrument()
+                        },
+                        onRefreshSearch = { searchViewModel.refreshSearch() },
+                        onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
+                        onClearSelected = { formViewModel.clearSelectedInstrument() },
+                        onOpenBrokerDialog = { inst, acc, slot ->
+                            dialogsViewModel.openBrokerDialog(inst, acc, slot)
+                        },
+                        onDismissConfirmDialog = { formViewModel.onDismissConfirmDialog() },
+                        onConfirmOrder = { formViewModel.onConfirmOrder() },
+                        onQuantityChanged = { formViewModel.onQuantityChanged(it) },
+                        onOrderTypeChanged = { formViewModel.onOrderTypeChanged(it) },
+                        onLimitPriceChanged = { formViewModel.onLimitPriceChanged(it) },
+                        onStopPriceChanged = { formViewModel.onStopPriceChanged(it) },
+                        onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },
+                        onPairedInstrumentSelected = { inst ->
+                            searchViewModel.onPairedSearchResultSelected(inst)
+                            formViewModel.onPairedInstrumentSelected(inst)
+                            focusManager.clearFocus()
+                        },
+                        onClearPairSearch = { searchViewModel.clearPairSearchQuery() },
+                        onRefreshPairSearch = { searchViewModel.refreshPairSearch() },
+                        onOpenPairSearchBrokerSettings = { searchViewModel.openPairSearchBrokerSettings() },
+                        onPairTradingEnabledChanged = { formViewModel.setPairTradingEnabled(it) },
+                        onClearPairedInstrument = {
+                            searchViewModel.clearPairSearchQuery()
+                            formViewModel.clearPairedInstrument()
+                        },
+                        onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
+                    ),
             )
 
             // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
