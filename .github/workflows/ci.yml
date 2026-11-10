@@ -23,7 +23,7 @@ env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
 
 jobs:
-  fast-ktlint:
+  fast-static:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -41,8 +41,8 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      - name: Run ktlint
-        run: ./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck
+      - name: Run static analysis
+        run: ./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck :app:lintDebug :app:detekt --continue
 
       - name: Upload ktlint report
         if: always()
@@ -50,6 +50,20 @@ jobs:
         with:
           name: ktlint-report
           path: app/build/reports/ktlint/
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-reports
+          path: app/build/reports/lint-results-debug.*
+
+      - name: Upload detekt report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: detekt-report
+          path: app/build/reports/detekt/
 
   fast-check:
     runs-on: ubuntu-latest
@@ -72,32 +86,12 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew :app:testDebugUnitTest
 
-      - name: Run Lint
-        run: ./gradlew :app:lintDebug
-
-      - name: Run detekt
-        run: ./gradlew :app:detekt
-
-      - name: Upload detekt report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: detekt-report
-          path: app/build/reports/detekt/
-
       - name: Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: app/build/reports/tests/
-
-      - name: Upload Lint Reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: lint-reports
-          path: app/build/reports/lint-results-debug.*
 
   full-build:
     needs: fast-check
@@ -142,14 +136,14 @@ jobs:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
   gate:
-      needs: [fast-ktlint, fast-check, full-build]
+      needs: [fast-static, fast-check, full-build]
       if: always()
       runs-on: ubuntu-latest
       steps:
           - name: Verify upstream jobs
             run: |
-                if [ "${{ needs.fast-ktlint.result }}" != "success" ]; then
-                  echo "fast-ktlint did not succeed: ${{ needs.fast-ktlint.result }}"
+                if [ "${{ needs.fast-static.result }}" != "success" ]; then
+                  echo "fast-static did not succeed: ${{ needs.fast-static.result }}"
                   exit 1
                 fi
                 if [ "${{ needs.fast-check.result }}" != "success" ]; then
