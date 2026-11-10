@@ -1,4 +1,4 @@
-package com.gitlab.biomorf.tscalp.presentation.screens.portfolio
+package com.gitlab.biomorf.tscalp.presentation.components
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText

@@ -10,10 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
+import com.gitlab.biomorf.tscalp.presentation.components.ApiNotInitializedCard
 import com.gitlab.biomorf.tscalp.presentation.components.StatusEventEffect
 import com.gitlab.biomorf.tscalp.presentation.components.StatusSnackbarHost
 import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
@@ -215,19 +215,5 @@ private fun OrdersSnackbarEffects(
     StatusEventEffect(snackbarHostState = snackbarHostState, status = formStatus)
     StatusEventEffect(snackbarHostState = snackbarHostState, status = searchStatus)
 }
-
-@Composable
-fun ApiNotInitializedCard(modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-    ) {
-        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("⚠️ API не подключен", style = MaterialTheme.typography.titleMedium)
-            Text("Перейдите в Настройки и введите токен доступа", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-        }
-    }
-}
-
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг OrdersScreen».
