@@ -255,6 +255,79 @@ ___
 
 ___
 
+### Hilt-test infra: test graph modules + full screen behavioural
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI; desktop preferred — локальный gate).
+
+**Статус:** запланировано.
+
+**Контекст:** U4 (PR #126) дал Hilt-test infra (Robolectric + `HiltTestApplication` + `HiltTestActivity`) и 6 smoke-тестов (1 Orders + 1 Portfolio + 4 Settings). Полное поведенческое покрытие экранов (15–22 сценария из U4-плана) требует управляемого Hilt-графа в тестах: `CheckBrokerInitializationUseCase` — `@Inject constructor` (не в модуле), `BrokerRegistry` — единственный `@Provides` в `DataModule`. `@UninstallModules(DataModule::class)` снимает **весь** модуль → DI падает на missing bindings. Нужен split `DataModule` на узкие модули (по SRP) + точечные `@BindValue` / fake-объекты в тестах.
+
+**Соответствие Clean:** соответствует (test-layer).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** U4 merged (PR #126, `74b68f24`; infra: `HiltTestApplication`, `HiltTestActivity`, `robolectric.properties`, `--no-build-cache` gate).
+
+**Файлы:**
+- `app/src/main/kotlin/.../di/DataModule.kt` — split.
+- `app/src/main/kotlin/.../di/BrokerModule.kt` (новый).
+- `app/src/main/kotlin/.../di/TransportModule.kt` (новый).
+- `app/src/main/kotlin/.../di/RegistryModule.kt` (новый).
+- `app/src/test/kotlin/.../testutil/FakeBrokerRegistry.kt` (новый).
+- `app/src/test/kotlin/.../presentation/screens/{orders,portfolio,settings}/*ScreenBehaviourTest.kt` — расширение.
+
+**Подзадачи (каждая — отдельный PR, самодостаточна):**
+
+1. **`### Hilt-test infra: split DataModule`**
+   - `DataModule` → `BrokerModule` + `TransportModule` + `RegistryModule`.
+   - Production поведение 1:1, gate зелёный.
+   - Не зависит от U4 (можно параллельно, но тематически — prerequisite).
+   - Оценка: ~1.5–2 ч.
+
+2. **`### Hilt-test infra: FakeBrokerRegistry + OrdersScreenBehaviourTest extended`**
+   - `FakeBrokerRegistry` в `testutil/` (`StateFlow<Boolean>` + fake brokers).
+   - `@UninstallModules(RegistryModule::class)` + `@BindValue val registry: BrokerRegistry`.
+   - `OrdersScreenBehaviourTest`: 5–7 сценариев (header, search field, pair toggle, buy/sell enabled/disabled, dialogs open/close, snackbar).
+   - Зависит от п.1.
+   - Оценка: ~2–3 ч.
+
+3. **`### Hilt-test infra: PortfolioScreenBehaviourTest extended`**
+   - `load / error / empty / sandbox pay-in` (4–6 сценариев).
+   - Зависит от п.1.
+   - Оценка: ~1.5–2 ч.
+
+4. **`### Hilt-test infra: SettingsScreenBehaviourTest extended`**
+   - TInvest / Bcs / Finam connect / disconnect / error; hub → tab (6–9 сценариев).
+   - Зависит от п.1 (параллелится с 2 и 3).
+   - Оценка: ~2–3 ч.
+
+**Тесты:** целевое покрытие 15–22 сценария (3 экрана), JVM/Robolectric.
+
+**Референсы:** U4 (PR #126), `dagger.hilt.android.testing` docs, `@UninstallModules` / `@TestInstallIn` / `@BindValue`, `docs/live-test.md` (границы JVM vs device), AGENTS-LESSONS → `Compose UI на Robolectric` (урок 99).
+
+**Ограничения:**
+- Каждая подзадача — **отдельный PR** (не смешивать). Цель: явно видно, что каждая подзадача рабочая сама по себе, даже без завершения умбреллы.
+- Подзадача 1 (`split DataModule`) — production refactor; отдельный PR, может идти **до/параллельно** остальным.
+- Не менять production-контракты (`BrokerRegistry`, `DataModule` API) без миграции потребителей.
+- Полный U4-критерий (15–22) закрывается только после всех 4 подзадач.
+
+**Критерий готовности:** все 4 подзадачи merged; суммарное покрытие 15–22 сценария; локальный gate и CI `gate` зелёные на каждой подзадаче и на итоговом merge.
+
+**Оценка:** ~7.5–10 ч (1.5–2 / 2–3 / 1.5–2 / 2–3).
+
+**Зависимости:** U4 merged (blocker для 2–4); подзадача 1 независима.
+
+**Связано:** `### Compose UI: test infra + 3 screens` (закрыта, `ROADMAP-ARCHIVE.md` → U0–U4); `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (закрыта).
+
+**Открытые вопросы:** `@TestInstallIn` (общий мок-модуль) или `@UninstallModules` + `@BindValue` per-test? **Дефолт:** `@UninstallModules` + `@BindValue` (точечно, без дублей test-graph модулей); fake-объекты в `testutil/` вместо mockk там, где громоздко.
+
+___
+
 ### UI: ApiNotInitializedCard — единая реализация в components
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
