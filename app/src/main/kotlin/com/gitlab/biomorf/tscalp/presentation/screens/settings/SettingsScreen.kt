@@ -365,20 +365,7 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
         }
 
         uiState.statusMessage?.let { message ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            if (uiState.isError) {
-                                MaterialTheme.colorScheme.errorContainer
-                            } else {
-                                MaterialTheme.colorScheme.tertiaryContainer
-                            },
-                    ),
-            ) {
-                Text(message, modifier = Modifier.padding(16.dp))
-            }
+            StatusMessageCard(message = message, isError = uiState.isError)
         }
     }
 
@@ -548,20 +535,7 @@ fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
         }
 
         uiState.statusMessage?.let { message ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            if (uiState.isError) {
-                                MaterialTheme.colorScheme.errorContainer
-                            } else {
-                                MaterialTheme.colorScheme.tertiaryContainer
-                            },
-                    ),
-            ) {
-                Text(message, modifier = Modifier.padding(16.dp))
-            }
+            StatusMessageCard(message = message, isError = uiState.isError)
         }
     }
 }
@@ -682,20 +656,7 @@ fun FinamSettingsPanel(viewModel: FinamSettingsViewModel = hiltViewModel()) {
         }
 
         uiState.statusMessage?.let { message ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            if (uiState.isError) {
-                                MaterialTheme.colorScheme.errorContainer
-                            } else {
-                                MaterialTheme.colorScheme.tertiaryContainer
-                            },
-                    ),
-            ) {
-                Text(message, modifier = Modifier.padding(16.dp))
-            }
+            StatusMessageCard(message = message, isError = uiState.isError)
         }
     }
 }
