@@ -253,7 +253,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Проходка 2 (state hoisting) верифицируется behavioral Compose-тестами на Robolectric; визуальная проверка на desktop — опционально, не блокер.
 
-**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 done (PR #119, #120, #121); U3 in progress; U4 planned).
+**Статус:** в работе (U0 done; U1 done (PR #116, #117, #118); U2 done (PR #119, #120, #121); U3 Pass-2 planned; U4 planned).
 
 **Контекст:** `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-экраны` (OrdersScreen, PortfolioScreen, SettingsScreen) требует декомпозиции god-composables под `@Suppress("LongMethod", "CyclomaticComplexMethod")`. Риск: перенос `remember` / `LaunchedEffect` / `derivedStateOf` / `Modifier`-порядка без behavioral-тестов = «только глазами» (live-тест с телефона не отработан, см. `docs/live-test.md`). Umbrella вводит **Compose UI test infra (Robolectric, JVM, без эмулятора)** и разбивает каждый экран на **3 проходки**: extract (mobile-safe) → state hoisting + behavioral tests → cleanup.
 
@@ -338,9 +338,9 @@ ___
 
 #### U3 — SettingsScreen (3 проходки)
 
-**Статус:** в работе. **Ветка:** feature/compose-ui-settings.
+**Статус:** в работе (Pass-1 done (PR #123); Pass-2 planned). **Ветка:** — (merged, PR #123).
 
-**Pass-1:** extract внутри `TInvestSettingsPanel` (324 строки) / `BcsSettingsPanel` (182) / `FinamSettingsPanel` (149) — подсекции (token, sandbox-accounts, actions).
+**Pass-1:** ✅ (PR #123, merge `22dab3f5`). 4 commits (1a–1d), 6 files: `StatusMessageCard` (32), `StatusCards` (111), `TokenHelpCards` (96), `TInvestAccountSection` (128), `SettingsHubList` (61); `SettingsScreen.kt` 852 → 516. `@Suppress` dropped from `SettingsScreen()` (13 < 60); TInvest/Bcs/Finam kept (body > 60).
 **Pass-2:** behavioral test на «подключиться / отключиться / ошибка» (после `### Settings: inline status card vs snackbar`, если выбран snackbar — статус проверяется через snackbar; иначе inline Card).
 **Pass-3:** снять `@Suppress` на панелях по факту (2026-11-10: `SettingsScreen` ~64, `TInvestSettingsPanel` ~245, `BcsSettingsPanel` ~153, `FinamSettingsPanel` ~130; числа в исходной постановке устарели после M006 — PR #103).
 
