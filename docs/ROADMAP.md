@@ -417,6 +417,61 @@ ___
 
 ___
 
+### UI: ApiNotInitializedCard — единая реализация в components
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (2d) `ApiNotInitializedCard` реализован дважды:
+- `presentation/screens/orders/OrdersScreen.kt:220` — `fun ApiNotInitializedCard(modifier: Modifier = Modifier)`.
+- `presentation/screens/portfolio/EmptyPortfolioCard.kt:12` (после U2 Pass-1, PR #119) — `fun ApiNotInitializedCard()` без параметра.
+
+Тело почти идентично (Card + Column + 2 Text: «⚠️ API не подключен» / «Перейдите в Настройки и введите токен доступа»). Найдено при U2 Pass-1 (2026-11-10).
+
+**Соответствие Clean:** соответствует (DRY, presentation-util).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** U2 Pass-1 merge (PR #119; файл `EmptyPortfolioCard.kt` существует).
+
+**Файлы:**
+- `presentation/components/ApiNotInitializedCard.kt` (новый) — единая `fun ApiNotInitializedCard(modifier: Modifier = Modifier)`.
+- `presentation/screens/orders/OrdersScreen.kt` — удалить локальную, импорт из components.
+- `presentation/screens/portfolio/EmptyPortfolioCard.kt` — удалить локальную; `PortfolioScreen.kt` — импорт из components.
+
+**Шаги:**
+1. Создать `presentation/components/ApiNotInitializedCard.kt` (сигнатура с `modifier` — гибче).
+2. `OrdersScreen.kt` — удалить локальную, импорт из components.
+3. `EmptyPortfolioCard.kt` — удалить локальную, `PortfolioScreen.kt` — импорт.
+4. UI не меняется (тот же Card/Text).
+5. Гейт.
+
+**Тесты:** нет (UI-функция, поведение 1:1).
+
+**Референсы:** U2 Pass-1 (PR #119, находка); `presentation/components/AssetPositionCard.kt` (образец).
+
+**Ограничения:**
+- UI-санкция не требуется (код-переезд).
+- Не менять тексты («⚠️ API не подключен», «Перейдите в Настройки и введите токен доступа»).
+- Не смешивать с другими UI-задачами.
+
+**Критерий готовности:** одна реализация в `presentation/components/`; оба экрана — импорт; визуально идентично; гейт зелёный.
+
+**Оценка:** ~20–30 мин.
+
+**Зависимости:** U2 Pass-1 merge (PR #119).
+
+**Связано:** U2 Pass-1 (PR #119, находка); `### Рефакторинг архитектурного долга (detekt-группа 3)` → `#### Compose-компоненты`.
+
+**Открытые вопросы:** нет.
+
+___
+
 ### Orders: P&L в песочнице (expectedYield)
 
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с SBER).
