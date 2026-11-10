@@ -17,7 +17,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.gitlab.biomorf.tscalp.domain.models.*
-import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
 import com.gitlab.biomorf.tscalp.presentation.components.StatusEventEffect
 import com.gitlab.biomorf.tscalp.presentation.components.StatusSnackbarHost
 import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
@@ -235,41 +234,14 @@ fun OrdersScreen() {
         )
     }
 
-    TradingBrokerDialog(
-        availableBrokers = dialogsViewModel.getAvailableBrokerNames(),
+    OrdersDialogsSection(
+        dialogsViewModel = dialogsViewModel,
+        searchViewModel = searchViewModel,
+        formViewModel = formViewModel,
         dialogsState = dialogsState,
-        onBrokerSelected = { dialogsViewModel.onBrokerSelected(it) },
-        onAccountSelected = { dialogsViewModel.onAccountSelectedDialog(it) },
-        onDismiss = { dialogsViewModel.closeBrokerDialog() },
-        onSave = {
-            dialogsViewModel.saveBrokerSettings { slot, newAccountId ->
-                when (slot) {
-                    CardSlot.PRIMARY -> formViewModel.onAccountSaved(newAccountId)
-                    CardSlot.PAIR -> formViewModel.onPairedAccountSaved(newAccountId)
-                }
-            }
-        },
-    )
-
-    if (showOrdersListDialog) {
-        OrdersListDialog(
-            onDismiss = { showOrdersListDialog = false },
-        )
-    }
-    // Диалог выбора брокера для основного поиска
-    SearchBrokerDialog(
-        availableBrokers = searchViewModel.getAvailableBrokerNames(),
         searchState = searchState,
-        onBrokerSelected = { searchViewModel.saveSearchBrokerSettings(it) },
-        onDismiss = { searchViewModel.dismissSearchBrokerDialog() },
-    )
-
-    // Диалог выбора брокера для парного поиска
-    PairSearchBrokerDialog(
-        availableBrokers = searchViewModel.getAvailableBrokerNames(),
-        searchState = searchState,
-        onBrokerSelected = { searchViewModel.savePairSearchBrokerSettings(it) },
-        onDismiss = { searchViewModel.dismissPairSearchBrokerDialog() },
+        showOrdersListDialog = showOrdersListDialog,
+        onShowOrdersListDialogChange = { showOrdersListDialog = it },
     )
 }
 
