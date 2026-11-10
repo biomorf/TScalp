@@ -169,6 +169,7 @@ dependencies {
     // Hilt
     implementation("com.google.dagger:hilt-android:2.60.1")
     ksp("com.google.dagger:hilt-android-compiler:2.60.1")
+    kspTest("com.google.dagger:hilt-android-compiler:2.60.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
 
     // DataStore (замена SharedPreferences)
@@ -191,6 +192,7 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:runner:1.6.2")
     testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("com.google.dagger:hilt-android-testing:2.60.1")
 
     // AppMetrica SDK — crash reporting + analytics
     implementation("io.appmetrica.analytics:analytics:8.5.1")
