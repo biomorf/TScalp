@@ -107,6 +107,8 @@ fun BrokerSettingsContent(onBack: () -> Unit) {
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-экранов».
+// 2c-fixation (U3 Pass-3): body ~102 lines > 60 (LongMethod), complexity > 14 (Cyclomatic).
+// Split forwards ~10 callbacks / 3 state fields; behaviour 1:1.
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -216,6 +218,8 @@ fun TInvestSettingsPanel(viewModel: TInvestSettingsViewModel = hiltViewModel()) 
 
 // Архитектурный долг: функция требует декомпозиции.
 // См. ROADMAP → «Рефакторинг Compose-экранов».
+// 2c-fixation (U3 Pass-3): body ~83 lines > 60 (LongMethod).
+// Split forwards ~8 callbacks; behaviour 1:1.
 @Suppress("LongMethod")
 @Composable
 fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
@@ -303,9 +307,6 @@ fun BcsSettingsPanel(viewModel: BcsSettingsViewModel = hiltViewModel()) {
     }
 }
 
-// Архитектурный долг: функция требует декомпозиции.
-// См. ROADMAP → «Рефакторинг Compose-экранов».
-@Suppress("LongMethod")
 @Composable
 fun FinamSettingsPanel(viewModel: FinamSettingsViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

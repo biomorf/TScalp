@@ -16,7 +16,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 
 @Composable
 internal fun SettingsHubList(onSelect: (String) -> Unit) {
@@ -57,5 +59,13 @@ internal fun SettingsHubList(onSelect: (String) -> Unit) {
             },
             modifier = Modifier.clickable { onSelect("info") },
         )
+    }
+}
+
+@Preview(name = "SettingsHub", showBackground = true, widthDp = 360)
+@Composable
+private fun SettingsHubListPreview() {
+    TScalpTheme {
+        SettingsHubList(onSelect = {})
     }
 }
