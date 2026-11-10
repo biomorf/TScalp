@@ -9,7 +9,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 
 @Composable
 internal fun TInvestTokenHelpCard() {
@@ -92,5 +94,29 @@ internal fun FinamTokenHelpCard() {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
+}
+
+@Preview(name = "TokenHelp — TInvest", showBackground = true, widthDp = 360)
+@Composable
+private fun TInvestTokenHelpCardPreview() {
+    TScalpTheme {
+        TInvestTokenHelpCard()
+    }
+}
+
+@Preview(name = "TokenHelp — Bcs", showBackground = true, widthDp = 360)
+@Composable
+private fun BcsTokenHelpCardPreview() {
+    TScalpTheme {
+        BcsTokenHelpCard()
+    }
+}
+
+@Preview(name = "TokenHelp — Finam", showBackground = true, widthDp = 360)
+@Composable
+private fun FinamTokenHelpCardPreview() {
+    TScalpTheme {
+        FinamTokenHelpCard()
     }
 }

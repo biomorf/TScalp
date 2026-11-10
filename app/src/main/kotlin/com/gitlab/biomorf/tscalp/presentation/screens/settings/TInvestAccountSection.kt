@@ -19,8 +19,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
+import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,4 +128,38 @@ internal fun CloseSandboxAccountDialog(
             }
         },
     )
+}
+
+@Preview(name = "AccountSection — expanded", showBackground = true, widthDp = 360)
+@Composable
+private fun TInvestAccountSectionExpandedPreview() {
+    TScalpTheme {
+        TInvestAccountSection(
+            availableAccounts =
+                listOf(
+                    BrokerAccount(id = "1", name = "Main Account", type = BrokerAccountType.BROKER),
+                    BrokerAccount(id = "2", name = "IIS Account", type = BrokerAccountType.IIS),
+                ),
+            defaultAccountId = "1",
+            sandboxMode = true,
+            isRefreshing = false,
+            accountExpanded = true,
+            onAccountExpandedChange = {},
+            onAccountSelected = {},
+            onOpenSandbox = {},
+            onCloseSandboxClick = {},
+        )
+    }
+}
+
+@Preview(name = "CloseSandboxDialog", showBackground = true, widthDp = 360)
+@Composable
+private fun CloseSandboxAccountDialogPreview() {
+    TScalpTheme {
+        CloseSandboxAccountDialog(
+            accountName = "Main Account",
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
 }
