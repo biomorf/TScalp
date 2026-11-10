@@ -6,10 +6,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.gitlab.biomorf.tscalp.domain.models.AccountBalance
 import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
 
 @Composable
@@ -69,3 +72,38 @@ private fun maskAccountId(id: String): String =
     } else {
         MASK_BULLET.repeat(MASK_VISIBLE_DIGITS) + id.takeLast(MASK_VISIBLE_DIGITS)
     }
+
+@Preview(name = "Header — balance", showBackground = true, widthDp = 360)
+@Composable
+private fun AccountHeaderCardBalancePreview() {
+    TScalpTheme {
+        AccountHeaderCard(
+            accountKey = AccountKey(brokerName = BrokerName.TINVEST, accountId = "2309452027"),
+            accountPortfolio =
+                AccountPortfolio(
+                    accountId = "2309452027",
+                    brokerName = BrokerName.TINVEST,
+                    positions = emptyList(),
+                    balances =
+                        listOf(
+                            AccountBalance(currency = "rub", money = 100.0, blocked = 0.0),
+                        ),
+                ),
+            sandboxMode = false,
+            onPayIn = {},
+        )
+    }
+}
+
+@Preview(name = "Header — sandbox pay-in", showBackground = true, widthDp = 360)
+@Composable
+private fun AccountHeaderCardSandboxPreview() {
+    TScalpTheme {
+        AccountHeaderCard(
+            accountKey = AccountKey(brokerName = BrokerName.TINVEST, accountId = "2309452027"),
+            accountPortfolio = null,
+            sandboxMode = true,
+            onPayIn = {},
+        )
+    }
+}
