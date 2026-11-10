@@ -94,14 +94,16 @@ fun OrdersScreen() {
 
             // ========== СКРОЛЛИРУЕМЫЙ БЛОК (OrdersScrollableContent) ==========
             OrdersScrollableContent(
-                state = OrdersScrollableState(
+                state =
+                    OrdersScrollableState(
                     coordState = coordState,
                     searchState = searchState,
                     formState = formState,
                     tradingStatuses = tradingStatuses,
                     resetSwipe = dialogsState.swipeResetTrigger,
                 ),
-                callbacks = OrdersScrollableCallbacks(
+                callbacks =
+                    OrdersScrollableCallbacks(
                     onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
                     onInstrumentSelected = { inst ->
                         searchViewModel.onSearchResultSelected(inst)

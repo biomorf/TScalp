@@ -71,7 +71,10 @@ internal data class OrdersScrollableCallbacks(
  * / `rememberCoroutineScope` / `showTopShadow` / `showBottomShadow` —
  * **внутри** child, наружу не hoist-ятся. `ColumnScope` — для
  * `Modifier.weight(1f)`.
+ *
+ * **2c-fixation (Pass-2a):** 82 строки > 60 (detekt `LongMethod`). Разбиение на `OrdersScrollableForm` + `OrdersScrollablePair` даёт 2 функции по ~50 строк, но forward 22 callbacks (каждый параметр — линия). Альтернатива — передавать `*ViewModel` (как `OrdersDialogsSection`), но тогда behavioral-тест снова требует Hilt. Выгоды текущего варианта: 1 `@Composable` с 2 параметрами (state, callbacks), поведение 1:1, тесты без Hilt. Минус: `@Suppress("LongMethod")` — явный маркер (как у `OrdersScreen` 123 и `OrdersPairSection` 127).
  */
+@Suppress("LongMethod")
 @Composable
 internal fun ColumnScope.OrdersScrollableContent(
     state: OrdersScrollableState,
