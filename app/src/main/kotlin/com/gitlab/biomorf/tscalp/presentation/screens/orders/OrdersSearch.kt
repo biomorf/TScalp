@@ -229,7 +229,6 @@ internal fun InstrumentSearchField(
     }
 }
 
-
 @Preview(name = "SearchResultItem — Share", showBackground = true, widthDp = 400)
 @Composable
 private fun SearchResultItemSharePreview() {

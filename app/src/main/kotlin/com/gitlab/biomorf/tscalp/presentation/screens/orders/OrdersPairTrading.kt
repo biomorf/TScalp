@@ -352,7 +352,6 @@ internal fun OrdersQuantityRow(
     }
 }
 
-
 @Preview(name = "QuantityRow — enabled", showBackground = true, widthDp = 300)
 @Composable
 private fun OrdersQuantityRowEnabledPreview() {
@@ -366,7 +365,6 @@ private fun OrdersQuantityRowEnabledPreview() {
         )
     }
 }
-
 
 @Preview(name = "QuantityRow — disabled", showBackground = true, widthDp = 300)
 @Composable
@@ -382,7 +380,6 @@ private fun OrdersQuantityRowDisabledPreview() {
     }
 }
 
-
 @Preview(name = "TypeChips — Market", showBackground = true, widthDp = 300)
 @Composable
 private fun OrdersTypeChipsMarketPreview() {
@@ -393,7 +390,6 @@ private fun OrdersTypeChipsMarketPreview() {
         )
     }
 }
-
 
 @Preview(name = "TypeChips — Limit", showBackground = true, widthDp = 300)
 @Composable
