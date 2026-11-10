@@ -18,6 +18,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.gitlab.biomorf.tscalp.presentation.components.ApiNotInitializedCard
 import com.gitlab.biomorf.tscalp.presentation.components.StatusEventEffect
 import com.gitlab.biomorf.tscalp.presentation.components.StatusSnackbarHost
 
