@@ -1460,6 +1460,80 @@ ___
 
 
 
+### Н37b: usecases без DI-аннотаций (2e → KMP → DI)
+
+**Мобильная работа:** частичное (CI gate; live-тест не требуется — pure refactoring).
+
+**Статус:** запланировано.
+
+**Контекст:** (2e, clean-audit Н37) `domain/usecases/*` содержит **24 файла** с `javax.inject.Inject` / `@Singleton` — DI-аннотации в domain, что нарушает 2e → KMP → DI (domain не знает про DI-фреймворк). Блокирует перевод `domain` в `:shared/commonMain`: `javax.inject` недоступен в `commonMain`. Чистых (без `@Inject`, через `@Provides`) — 2: `CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`.
+
+**Соответствие Clean:** соответствует (refactoring к Clean: domain не зависит от DI).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо, domain).
+
+**KMP:** блокер — DI: 24 файла с `@Inject`/`@Singleton`; снятие разблокирует domain → `commonMain`.
+
+**Предусловия:** принцип 2e зафиксирован (AGENTS 2e, `47bbecaa`). Rename `RepositoryModule.kt → UseCaseModule.kt` (Н37) — не строгий блокер (удобство, имя файла = имя модуля).
+
+**Файлы:**
+- `domain/usecases/*.kt` — 24 файла: удалить `import javax.inject.Inject` / `import javax.inject.Singleton`, `@Inject` на конструкторе, `@Singleton` на классе.
+- `di/UseCaseModule.kt` — добавить `@Provides @Singleton fun provide<Name>(<deps>): <Name> = <Name>(<deps>)` для каждого из 24.
+- `docs/architecture.md` → «KMP readiness» → «Чисто (KMP-safe)» — обновить запись про `domain/usecases/*`.
+- `docs/clean-audit.md` → Н37b-запись (завести) — или связать с Н37.
+
+**Шаги:**
+1. Инвентарь 24 файлов: `grep -rln "javax.inject" domain/usecases/`; параметры конструкторов.
+2. Убрать `javax.inject` / `@Inject` / `@Singleton` из 24 файлов (механически, без правок логики).
+3. Для каждого — `@Provides @Singleton` в `di/UseCaseModule.kt` с параметрами конструктора.
+4. CI gate (mobile: только CI).
+5. `docs/architecture.md` → «Чисто (KMP-safe)» — `domain/usecases/*` без DI-аннотаций.
+
+**Тесты:** существующие unit-тесты usecases — не меняются. Новых не требуется (поведение 1:1).
+
+**Референсы:**
+- AGENTS 2e (триада Clean + MVVM + KMP).
+- `docs/architecture.md` → «KMP readiness» → «Принцип (2e → KMP → DI)».
+- `docs/clean-audit.md` → Н37 (родительская).
+- Образец чистого usecase: `CalculateTradeDetailsUseCase` (`UseCaseModule.kt:16`).
+
+**Ограничения:**
+- Поведение usecases 1:1 — никаких правок логики.
+- Не менять конструкторы usecases — только убрать DI-аннотации.
+- `BcsBrokerApi` / `FinamBrokerApi` — **не в scope** (`data/`, KMP не блокируют; отдельной задачей при необходимости).
+- `@Singleton` на `@Provides` — сохранять (по образцу `UseCaseModule`).
+
+**Критерий готовности:**
+- `grep -rln "javax.inject" domain/usecases/` = 0.
+- `grep -rn "@Inject\|@Singleton" domain/usecases/` = 0.
+- `@Provides` в `di/UseCaseModule.kt` для каждого из 24.
+- CI green; domain unit-тесты зелёные.
+- `docs/architecture.md` — `domain/usecases/*` в «Чисто (KMP-safe)».
+
+**Оценка:** ~3–4 ч (refactoring 1.5–2 ч, PR-циклы 1–1.5 ч, docs 30 мин).
+
+**Зависимости:** нет строгих. `Н37` (rename) — удобство, не блокер.
+
+**Связано:** Н37 (rename RepositoryModule → UseCaseModule, merge pending), AGENTS 2e, `docs/architecture.md` → «KMP readiness» → «Принцип (2e → KMP → DI)».
+
+**Открытые вопросы:**
+- Один PR (все 24) или 4 батча по 6? **Дефолт:** один PR — атомарное изменение; промежуточное «часть с `@Inject`, часть без» — источник путаницы.
+- Заводить запись в `clean-audit.md` (новый ID) или Н37 расширить? **Дефолт:** Н37 расширить — одна ось «DI в domain», два аспекта (rename + 24 usecases).
+
+
+
+
+___
+
+
+
+
 ### UI: показать executedPrice / executedQuantity на карточке
 
 **Мобильная работа:** частичное (live-тест UI).
