@@ -85,15 +85,19 @@ clean-audit.
 
 
 
-### PrepareOrderRequestUseCase: decompose (92 строки, complexity 20)
+### PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)
 
-**Мобильная работа:** частичное (CI gate; live-тест не требуется — pure refactoring).
+**Мобильная работа:** полное закрытие (proot + CI gate; live-smoke на stop-заявке).
 
 **Статус:** запланировано.
 
-**Контекст:** (detekt-группа 3, `#### UseCase-слой`) `PrepareOrderRequestUseCase.prepare` — 92 строки (класс 122), `@Suppress("LongMethod", "CyclomaticComplexMethod")`, complexity 20. Внутри — валидация, сборка `BrokerOrderRequest` / `StopOrderRequest`, разрешение uid (`tscalpInstrumentId` → broker-specific), pair-order orchestration (`PairOrderMapper`). Снятие `@Suppress` — вынести валидацию, сборку request, разрешение uid, pair-сборку в отдельные функции.
+**Контекст:** (clean-audit, detekt-группа 3) `PrepareOrderRequestUseCase.prepare` (122 строки, `@Suppress("LongMethod", "CyclomaticComplexMethod")`) возвращает `PreparedOrders(primaryRequest: Any, pairedRequest: Any?, isPrimaryStop: Boolean, isPairedStop: Boolean?)`.
 
-**Соответствие Clean:** соответствует (refactoring в domain, dependency rule не затронута).
+**Латентный баг (критично):** `StopLoss` / `TakeProfit` / `StopLimit` без валидного `stopPrice` → market-fallback с `isPrimaryStop = true` (строки 58–71). `PostOrderUseCase.postPrimary` (строка 234): `if (isPrimaryStop) postStopOrderResult(primaryRequest as StopOrderRequest)` → `ClassCastException` (actual type — `BrokerOrderRequest`). **UI валидирует** (`OrderFormState.isStopPriceValid`), из UI недостижимо; public domain-API — достижимо. Вторично: `isPrimaryStop` / `isPairedStop` — тень типа (дублирует `is StopOrderRequest`); silent drop pair (`pairedSpec.stopPrice == null` → `pairedRequest = null`, строки 104).
+
+**Атомарность парной сделки:** идеально — 2 заявки одной транзакцией, но брокеры (T-Invest / BCS / Finam) не поддерживают batch. Сейчас primary уходит → paired отдельно → `PairedOutcome.Failed` не откатывает primary. **Вне scope** (ограничение брокеров), зафиксировано для контекста.
+
+**Соответствие Clean:** соответствует (внутренняя типизация domain; dependency rule не затронута).
 
 **Нарушенное правило Clean:** —.
 
@@ -103,49 +107,63 @@ clean-audit.
 
 **MVVM:** — (не применимо, domain).
 
-**KMP:** соответствует (не добавляет DI-аннотаций, не вводит platform).
+**KMP:** соответствует (sealed interface — pure Kotlin, без platform/DI).
 
-**Предусловия:** нет. (Симметрично `CalculateTradeDetailsUseCase: decompose` — можно параллельно.)
+**Предусловия:** нет.
 
 **Файлы:**
-- `domain/usecases/PrepareOrderRequestUseCase.kt` — разбить `prepare` на валидацию / сборку request / разрешение uid / pair-сборку.
-- `app/src/test/kotlin/.../PrepareOrderRequestUseCaseTest.kt` — регрессия (если есть).
+- `domain/models/OrderModels.kt` — `sealed interface OrderRequest { Broker(BrokerOrderRequest); Stop(StopOrderRequest) }`.
+- `domain/usecases/PrepareOrderRequestUseCase.kt` — `sealed interface PrepareResult { Prepared(primary: OrderRequest, paired: OrderRequest?); Invalid(reason: String) }`; `prepare(...): PrepareResult`; удалить `PreparedOrders`, `isPrimaryStop` / `isPairedStop`, market-fallback, silent drop pair.
+- `domain/usecases/PostOrderUseCase.kt` — `when (prepareResult)`; `postPrimary` / `postPaired` через `when (OrderRequest)`, без `as`.
+- `app/src/test/.../PostOrderUseCaseTest.kt` — helper `marketPrepared()` → `PrepareResult.Prepared(OrderRequest.Broker, null)`; копи-кейсы.
+- `app/src/test/.../PrepareOrderRequestUseCaseTest.kt` (новый, B2) — ~8 кейсов.
+- `docs/ISSUES.md` — entry `ClassCastException…` (перевести в `решён` после B1).
 
 **Шаги:**
-1. `prepare` → диспетчер по `orderType` + `isPaired`.
-2. Валидация (quantity / price / stop-price / expirationType) — private `validate...`.
-3. Разрешение uid — `resolveInstrumentUid(instrument, broker)` (в data, если ещё не вынесено).
-4. Сборка request — `buildBrokerOrderRequest(...)` / `buildStopOrderRequest(...)`.
-5. Pair-сборка — через `PairOrderMapper.map(...)` (уже вынесен).
-6. Снять `@Suppress("LongMethod", "CyclomaticComplexMethod")`.
-7. Гейт + тесты.
 
-**Тесты:** `PrepareOrderRequestUseCaseTest` — существующие зелёные; регрессия на stop / pair / ошибки валидации.
+**Phase 1 — structural fix (B1):**
+1. `OrderRequest` sealed interface (в `OrderModels.kt`).
+2. `PrepareResult` sealed interface (внутри `PrepareOrderRequestUseCase`).
+3. `prepare(...): PrepareResult`:
+   - market / limit → `Prepared(OrderRequest.Broker(...), ...)`.
+   - StopLoss / TakeProfit / StopLimit с `stopPrice == null || ≤ 0` → `Invalid("stopPrice required for <orderType>")` (market-fallback удалён).
+   - pair: при `pairedInstrument != null && pairedAccountId != null`; `pairedSpec.stopPrice == null` для stop-pair → `Invalid("paired stopPrice required")` (silent drop удалён).
+4. `PostOrderUseCase`: `when (prepareResult) { Invalid → PostOrderOutcome.InvalidRequest(reason); Prepared → postPrimary / postPaired }`. `postPrimary` / `postPaired` — `when (OrderRequest)` без cast.
+5. `PostOrderUseCaseTest` — helper + копи-кейсы.
+6. CI gate.
 
-**Референсы:** detekt-группа 3 `#### UseCase-слой` (закрыта 2026-11-11, `ROADMAP-ARCHIVE.md`); `PairOrderMapper` (уже вынесен); detekt `CyclomaticComplexMethod` / `LongMethod`.
+**Phase 2 — decompose (B2):**
+7. `prepare` — orchestrator + `buildPrimaryRequest` / `buildPairedRequest` / `primaryPriceForPair`; `@Suppress` снять.
+8. `PrepareOrderRequestUseCaseTest` — 8 кейсов (market / limit / stop-loss-no-stopPrice → Invalid / stop-loss-valid / stop-limit / pair-market / pair-limit / pair-stop-invalid → Invalid).
+9. CI gate.
+
+**Тесты:** B1 — `PostOrderUseCaseTest` (регрессия, ~15 существующих кейсов); B2 — новый `PrepareOrderRequestUseCaseTest` (8). Покрытие `prepare` до B2 = 0 → B1 первым.
+
+**Референсы:** `OrderFormState.isStopPriceValid` (UI-валидация); `PostOrderUseCase.execute` (существующий `InvalidRequest`-паттерн); `docs/ISSUES.md` → `ClassCastException…`; `docs/ROADMAP-ARCHIVE.md` → `#### UseCase-слой` (закрыта).
 
 **Ограничения:**
-- Поведение 1:1 — никаких правок логики.
-- Не менять сигнатуры `prepare` / `PreparedOrders` (публичный контракт).
-- Не менять конструктор `PrepareOrderRequestUseCase(pairOrderMapper: PairOrderMapper = PairOrderMapper)` — `@Provides` в `di/UseCaseModule.kt` (2e → KMP → DI).
-- UI-санкции нет.
+- **Поведение меняется:** StopLoss без stopPrice → `InvalidRequest` вместо crash / market. UI не затронут (`isFormValid` блокирует submit), public-API теперь честный.
+- **Поведение меняется:** pair-stop без stopPrice → `InvalidRequest` вместо silent drop.
+- **Не** менять порядок `PostOrderUseCase.execute`: `checkAvailability` → `prepare` → `postPrimary` → `postPaired`.
+- **Не** делать парную сделку атомарной (ограничение брокеров; отдельной задачей — `cancelOnPairedFailure` rollback, если понадобится).
+- `PairOrderMapper` — **не трогать** (отдельная задача, «Временно отключены» с TODO — там своя история).
+- `UseCaseModule` — не трогать (2e, `@Provides`).
 
 **Критерий готовности:**
-- `@Suppress("LongMethod", "CyclomaticComplexMethod")` снят с `prepare`.
-- detekt зелёный без `@Suppress`.
-- `PrepareOrderRequestUseCaseTest` зелёный.
-- Гейт зелёный.
+- `OrderRequest` sealed, `PrepareResult` sealed, `Any` в `PreparedOrders` отсутствует (тип удалён).
+- `prepare(StopLoss, stopPrice=null)` → `Invalid("stopPrice required…")`.
+- `postPrimary` / `postPaired` — exhaustive `when`, 0 `as`-cast.
+- `@Suppress` снят.
+- CI green; `PostOrderUseCaseTest` + `PrepareOrderRequestUseCaseTest` зелёные.
+- Live-smoke (sandbox): stop-loss без стоп-цены → статус «Введите стоп-цену», не crash.
 
-**Оценка:** ~1 ч.
+**Оценка:** B1 ~1.5 ч; B2 ~1 ч; итого ~2.5 ч.
 
 **Зависимости:** нет.
 
-**Связано:** `#### UseCase-слой` (закрыта в этой сессии); `### CalculateTradeDetailsUseCase: decompose` (симметричная).
+**Связано:** `docs/ISSUES.md` → `ClassCastException…`; `#### UseCase-слой` (закрыта); `### ✅ CalculateTradeDetailsUseCase: decompose` (закрыта PR #131, тот же паттерн).
 
-**Открытые вопросы:** нет.
-
-
-
+**Открытые вопросы:** нет (дефолты зафиксированы 2026-11-11: Variant 4 sealed `PrepareResult`; Pair-invalid → `Invalid`; no atomic pair — broker limitation).
 
 ___
 

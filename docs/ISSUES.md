@@ -1375,3 +1375,24 @@ DisconnectBrokerUseCase» (та же область — lifecycle disconnect).
 **Когда вернуться:** при следующей правке `TInvestBrokerApi.deinitialize`
 / `TInvestWsService.stop` / `TInvestOrchestrator`, или при появлении
 жалоб на утечку ресурсов / battery drain после logout.
+
+## ClassCastException в PostOrderUseCase при StopLoss без stopPrice
+
+**Статус:** открыт (исправляется в B1).
+
+**Симптом:** `PrepareOrderRequestUseCase.prepare(StopLoss, stopPrice=null)`
+возвращает `PreparedOrders(primaryRequest=BrokerOrderRequest(MARKET),
+isPrimaryStop=true)`. `PostOrderUseCase.postPrimary`: `if (isPrimaryStop)
+{ postStopOrderResult(primaryRequest as StopOrderRequest) }` → `ClassCastException`.
+
+**Причина:** market-fallback на строках 58–71 `prepare` с ошибочным
+`isPrimaryStop = true` (копипаст из market-ветки). UI валидирует
+(`OrderFormState.isStopPriceValid`), поэтому из UI недостижимо; public
+domain-API достижимо (прямой вызов из тестов/скриптов/будущей автоматизации).
+
+**Решение:** B1 — `sealed OrderRequest` + `sealed PrepareResult`;
+StopLoss без `stopPrice` → `Invalid("stopPrice required…")`; `isPrimaryStop`
+удалён (тип несёт `OrderRequest.Stop`). Silent drop pair — тоже `Invalid`.
+См. `docs/ROADMAP.md` → `### PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
+
+**Когда вернуться:** после merge B1 — перевести в `решён`.
