@@ -1076,9 +1076,11 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена).
 
-### Н30. BrokerSnapshotApi KDoc — устарел после #9
+### Исправленные (L4)
 
-**Статус:** открыто.
+### ✅ Н30. BrokerSnapshotApi KDoc — устарел после #9
+
+**Статус:** исправлено (2026-11-11, commit `decc4ea9`).
 
 **Серьёзность:** средне.
 
@@ -1092,9 +1094,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `BrokerSnapshotApi.kt`.
+**Что сделано:** KDoc `positionsSnapshot` переформулирован: `BrokerApi.fetchPortfolioPositions` → `PortfolioApi.fetchPortfolioPositions` (фат-часть удалена в H25), `PortfolioPosition` → `AccountPortfolio` (легаси-модель удалена в H5, merge `d04ecc4`), добавлено пояснение «partial для merge со stream в `PositionFlowManager`». Commit `decc4ea9`.
 
-### Исправленные (L4)
+**Ссылка на задачу:** commit `decc4ea9` (2026-11-11). Правилась как п.5 ревизии `### Ревизия ссылок на PortfolioPosition после H5`.
 
 ### ✅ Н25. BrokerApi fat дублирует nullable-val роли
 
