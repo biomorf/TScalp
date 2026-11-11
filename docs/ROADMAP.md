@@ -1260,6 +1260,81 @@ ___
 
 
 
+### TradingStateSnapshot: domain-neutral refactor (2e → KMP-ready)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** (clean-audit Н15) `domain/models/TradingState.kt` содержит `TradingStateSnapshot` с presentation-полями (`quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`). `quantity`/`pairedMultiplier` — сырые значения TextField, невалидированные. `orderType` — presentation-выбор. `pairTradingEnabled` — UI-тумблер. Это снимок UI-состояния в domain — нарушение Clean (domain не знает про presentation) и 2e (MVVM: M1 — domain делает работу presentation).
+
+Ранее было `принято 2c` (2026-11-11, `e351b0ac`) как компромисс. **Снято 2026-11-11:** закрываем технический долг, не оставляем компромисс.
+
+**Соответствие Clean:** отклонение (открыто) — domain держит presentation-снимок.
+
+**Нарушенное правило Clean:** Domain не знает про presentation-выбор пользователя и сырые строки TextField.
+
+**Clean-альтернатива:** `presentation/screens/orders/OrdersUiStateSnapshot` для UI + нейтральный domain-снимок с валидированными типами (`quantity: Long?`, `pairedMultiplier: Double?`). Плюсы: domain чист. Минусы: переезд + правка `TradingStateRepository` (data) + `OrderFormViewModel`.
+
+**Выгоды (для «отклонение по 2c»):** — (отклонение снято, не принято).
+
+**MVVM:** M1 — domain держит presentation-снимок (обратное M1).
+
+**KMP:** соответствует (нет platform; presentation-типы — Clean-долг, не KMP-блокер).
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/models/TradingState.kt` — `TradingStateSnapshot` → нейтральный domain-снимок.
+- `domain/api/repository/TradingStateRepository.kt` — контракт `save(snapshot)` / `load()` / `clear()`.
+- `data/repository/TradingStateRepositoryImpl.kt` — encode/decode в DataStore.
+- `presentation/screens/orders/OrderFormViewModel.kt` — `saveState` / `restoreOrderForm`.
+- `presentation/screens/orders/OrdersUiStateSnapshot.kt` (новый, если вариант B) — presentation-снимок.
+- `app/src/test/kotlin/.../TradingStateRepositoryImplTest.kt` — roundtrip.
+- `app/src/test/kotlin/.../RestoreOrderFormUseCaseTest.kt` — если затрагивает.
+
+**Шаги:**
+1. Выбрать вариант: (A) `TradingStateSnapshot` → валидированные типы в domain (presentation-снимок не нужен); (B) `OrdersUiStateSnapshot` в presentation + domain-снимок с числами. **Дефолт:** B.
+2. `TradingStateSnapshot`: `quantity: String` → `quantity: Long?`; `pairedMultiplier: String` → `pairedMultiplier: Double?`. `orderType: OrderTypeSelection` (уже domain-модель), `pairTradingEnabled: Boolean` — без изменений.
+3. `TradingStateRepositoryImpl` — encode/decode; DataStore-ключи те же. **Миграция:** legacy-строка «1O» → `toLongOrNull()` → `null` + `logger.w`.
+4. `OrderFormViewModel.saveState` — `state.quantity.toLongOrNull()`, `state.pairedMultiplier.toDoubleOrNull()`.
+5. `OrderFormViewModel.restoreOrderForm` — обратная конвертация (`Long?` → `String`, `Double?` → `String`).
+6. Тесты: roundtrip (null / valid / legacy-строка).
+7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** `TradingStateRepositoryImplTest` (roundtrip: null / valid / legacy); `RestoreOrderFormUseCaseTest` (null / valid). Live-test не требуется (чистая логика).
+
+**Референсы:** `docs/clean-audit.md` → Н15; `docs/architecture.md` → «CardIdentity и слоты».
+
+**Ограничения:**
+- Legacy-формат (строка «1O») → `null` + `logger.w` (видно в логах, не ломает restore).
+- Не менять `CardIdentity` (это `### CardIdentity: persist broker + account в TradingStateSnapshot` — расширение полей, не refactor).
+- UI-санкция не требуется (внутренняя структура; внешний вид 1:1).
+
+**Критерий готовности:**
+- `TradingStateSnapshot` не содержит presentation-полей (сырых строк TextField).
+- `grep -nE "quantity: String|pairedMultiplier: String" TradingState.kt` = 0.
+- Roundtrip-тесты зелёные (null / valid / legacy).
+- Гейт зелёный.
+
+**Оценка:** ~2–2.5 ч.
+
+**Зависимости:** нет.
+
+**Связано:** `### CardIdentity: persist broker + account в TradingStateSnapshot` (соседняя; расширение, не refactor); `docs/clean-audit.md` → Н15.
+
+**Открытые вопросы:**
+- Вариант A / B — **Дефолт:** B (UI-snapshot в presentation + domain-снимок). Пересмотреть при старте.
+- Legacy-формат: молча → null, или `logger.w`? **Дефолт:** `logger.w`.
+
+
+
+
+___
+
+
+
+
 ### CardIdentity: persist broker + account в TradingStateSnapshot
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).

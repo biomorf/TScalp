@@ -878,11 +878,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` | - |
 | Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` | - |
 
-### Принятые (2c)
+### Н15. TradingStateSnapshot — presentation в domain
 
-### Н15. TradingStateSnapshot — presentation в domain (принято 2c)
-
-**Статус:** принято 2c.
+**Статус:** открыто.
 
 **Серьёзность:** средне.
 
@@ -894,9 +892,13 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Clean-альтернатива:** `presentation/screens/orders/OrdersUiStateSnapshot` для UI + нейтральный domain-снимок с валидированными типами (`quantity: Long?`, `orderType: OrderTypeSelection`). Плюсы: domain чист. Минусы: переезд + правка `TradingStateRepository` (data) + `OrdersViewModel`.
 
-**Выгоды (по 2c):** простая сериализация в DataStore без маппинга, экономит ~1 ч (один DTO — 4 поля, DataStore-ключи 1:1). `quantity: String` — технический долг (можно сохранить «1O» вместо «10»), но: refactor → ~1–1.5 ч + миграция формата DataStore (бэкап-совместимость, 4 поля) — overhead > текущей выгоды. Пока `expectedYield`/`profit` не требуется валидировать на этом уровне (presentation валидирует при отправке).
+**Выгоды:** —.
 
-**Ссылка на задачу:** `### ✅ 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (`docs/ROADMAP-ARCHIVE.md`, merge `eb2db6a8`, 2026-11-11).
+**MVVM:** M1 — domain держит presentation-снимок (обратное M1).
+
+**KMP:** соответствует (нет platform; presentation-типы — Clean-долг, не KMP-блокер).
+
+**Ссылка на задачу:** `### TradingStateSnapshot: domain-neutral refactor (2e → KMP-ready)` (`docs/ROADMAP.md`); 2c снято 2026-11-11 (решение: закрыть техдолг).
 
 ### Исправленные (L3)
 
