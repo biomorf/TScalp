@@ -89,7 +89,8 @@ clean-audit.
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/order-search-slot-param
 
 **Контекст:** `OrderSearchViewModel` — 234 строки, 16 функций (8 пар симметричных search / pairSearch + `setSearchActive` + `getAvailableBrokerNames`), `@Suppress("TooManyFunctions")` (порог 11). KDoc обосновывает `@Suppress` тремя аргументами: (1) split на 2 VM = +1 VM (не 4-VM плана); (2) cross-VM через `selectedBroker` (M5); (3) группировка (sealed `SearchDialogAction`) — хуже читаемость.
 
