@@ -37,10 +37,10 @@ internal fun SearchBrokerDialog(
     onBrokerSelected: (BrokerName) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    if (!searchState.showSearchBrokerDialog) return
+    if (!searchState.primary.showBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = searchState.selectedSearchBroker,
+        selectedBroker = searchState.primary.selectedBroker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,
@@ -58,10 +58,10 @@ internal fun PairSearchBrokerDialog(
     onBrokerSelected: (BrokerName) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    if (!searchState.showPairSearchBrokerDialog) return
+    if (!searchState.pair.showBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = searchState.selectedPairSearchBroker,
+        selectedBroker = searchState.pair.selectedBroker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,

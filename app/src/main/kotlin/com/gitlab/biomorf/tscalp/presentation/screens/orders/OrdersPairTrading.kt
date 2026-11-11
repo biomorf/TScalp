@@ -73,17 +73,17 @@ internal fun OrdersPairSection(
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
-                    query = searchState.pairSearchQuery,
+                    query = searchState.pair.query,
                     onQueryChanged = onPairSearchQueryChanged,
-                    isSearching = searchState.isPairSearching,
-                    searchResults = searchState.pairSearchResults,
+                    isSearching = searchState.pair.isSearching,
+                    searchResults = searchState.pair.results,
                     onInstrumentSelected = onPairedInstrumentSelected,
                     onClear = onClearPairSearch,
                     recentInstruments = coordState.lastSelectedInstruments.map { it.instrument },
                     tradingStatuses = tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
-                if (searchState.pairSearchQuery.length >= 2 && !searchState.isPairSearching) {
+                if (searchState.pair.query.length >= 2 && !searchState.pair.isSearching) {
                     IconButton(onClick = onRefreshPairSearch) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
                     }

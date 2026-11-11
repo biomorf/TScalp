@@ -45,17 +45,17 @@ internal fun OrdersInstrumentSection(
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
-                    query = searchState.searchQuery,
+                    query = searchState.primary.query,
                     onQueryChanged = onSearchQueryChanged,
-                    isSearching = searchState.isSearching,
-                    searchResults = searchState.searchResults,
+                    isSearching = searchState.primary.isSearching,
+                    searchResults = searchState.primary.results,
                     onInstrumentSelected = onInstrumentSelected,
                     onClear = onClearSearch,
                     recentInstruments = coordState.lastSelectedInstruments.map { it.instrument },
                     tradingStatuses = tradingStatuses,
                     modifier = Modifier.weight(1f),
                 )
-                if (searchState.searchQuery.length >= 2 && !searchState.isSearching) {
+                if (searchState.primary.query.length >= 2 && !searchState.primary.isSearching) {
                     IconButton(onClick = onRefreshSearch) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить поиск")
                     }

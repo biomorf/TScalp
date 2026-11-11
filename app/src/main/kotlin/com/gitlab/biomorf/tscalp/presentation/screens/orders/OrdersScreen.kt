@@ -104,18 +104,18 @@ fun OrdersScreen() {
                     ),
                 callbacks =
                     OrdersScrollableCallbacks(
-                        onSearchQueryChanged = { searchViewModel.onSearchQueryChanged(it) },
+                        onSearchQueryChanged = { searchViewModel.onQueryChanged(SearchSlot.PRIMARY, it) },
                         onInstrumentSelected = { inst ->
-                            searchViewModel.onSearchResultSelected(inst)
+                            searchViewModel.onResultSelected(SearchSlot.PRIMARY, inst)
                             formViewModel.onInstrumentSelected(inst)
                             focusManager.clearFocus()
                         },
                         onClearSearch = {
-                            searchViewModel.clearSearchQuery()
+                            searchViewModel.clearQuery(SearchSlot.PRIMARY)
                             formViewModel.clearSelectedInstrument()
                         },
-                        onRefreshSearch = { searchViewModel.refreshSearch() },
-                        onOpenSearchSettings = { searchViewModel.openSearchBrokerSettings() },
+                        onRefreshSearch = { searchViewModel.refresh(SearchSlot.PRIMARY) },
+                        onOpenSearchSettings = { searchViewModel.openBrokerDialog(SearchSlot.PRIMARY) },
                         onClearSelected = { formViewModel.clearSelectedInstrument() },
                         onOpenBrokerDialog = { inst, acc, slot ->
                             dialogsViewModel.openBrokerDialog(inst, acc, slot)
@@ -126,18 +126,18 @@ fun OrdersScreen() {
                         onOrderTypeChanged = { formViewModel.onOrderTypeChanged(it) },
                         onLimitPriceChanged = { formViewModel.onLimitPriceChanged(it) },
                         onStopPriceChanged = { formViewModel.onStopPriceChanged(it) },
-                        onPairSearchQueryChanged = { searchViewModel.onPairSearchQueryChanged(it) },
+                        onPairSearchQueryChanged = { searchViewModel.onQueryChanged(SearchSlot.PAIR, it) },
                         onPairedInstrumentSelected = { inst ->
-                            searchViewModel.onPairedSearchResultSelected(inst)
+                            searchViewModel.onResultSelected(SearchSlot.PAIR, inst)
                             formViewModel.onPairedInstrumentSelected(inst)
                             focusManager.clearFocus()
                         },
-                        onClearPairSearch = { searchViewModel.clearPairSearchQuery() },
-                        onRefreshPairSearch = { searchViewModel.refreshPairSearch() },
-                        onOpenPairSearchBrokerSettings = { searchViewModel.openPairSearchBrokerSettings() },
+                        onClearPairSearch = { searchViewModel.clearQuery(SearchSlot.PAIR) },
+                        onRefreshPairSearch = { searchViewModel.refresh(SearchSlot.PAIR) },
+                        onOpenPairSearchBrokerSettings = { searchViewModel.openBrokerDialog(SearchSlot.PAIR) },
                         onPairTradingEnabledChanged = { formViewModel.setPairTradingEnabled(it) },
                         onClearPairedInstrument = {
-                            searchViewModel.clearPairSearchQuery()
+                            searchViewModel.clearQuery(SearchSlot.PAIR)
                             formViewModel.clearPairedInstrument()
                         },
                         onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },

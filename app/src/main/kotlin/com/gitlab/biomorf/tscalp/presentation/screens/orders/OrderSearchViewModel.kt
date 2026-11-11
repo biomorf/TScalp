@@ -33,18 +33,16 @@ import javax.inject.Inject
  * `onInstrumentSelected` / `onPairedInstrumentSelected` (Form-VM),
  * `tradingStatuses` (Coord passthrough, P1).
  *
- * **`onSearchResultSelected`** — только Search-часть
- * (`searchQuery = displayName`, results = [], isSearchActive = false).
+ * **`onResultSelected`** — только Search-часть (`query = displayName`,
+ * `results = []`, для PRIMARY — `isSearchActive = false`).
  * Form-триггер (`formVM.onInstrumentSelected`) — UI (P4).
  *
- * **2c (clean-audit M2, 2026-11-07):** 17 функций = 2 симметричных
- * search-флоу (search / pairSearch) x 8. Split на 2 VM = +1 VM
- * (не 4-VM плана) + cross-VM через selectedBroker (M5).
- * Группировка (sealed SearchDialogAction) - хуже читаемость.
- * Снятие - задача `### OrderSearchViewModel: reduce functions`
- * (ROADMAP, после 14b).
+ * **Slot-параметр (2026-11-12):** 9 функций с `slot: SearchSlot` вместо
+ * 16 симметричных `on*` / `onPair*` пар. Одна реализация
+ * debounce/usecase/error для обоих слотов. Split на 2 VM отвергнут
+ * (дублирование логики); общий кеш `SearchCacheRepository` —
+ * сохраняется (ключ `"brokerName:query"`, слот не входит).
  */
-@Suppress("TooManyFunctions")
 @HiltViewModel
 class OrderSearchViewModel
     @Inject
@@ -59,175 +57,136 @@ class OrderSearchViewModel
         val status: Flow<StatusEvent> = _status.receiveAsFlow()
         val state: StateFlow<OrderSearchState> = _state.asStateFlow()
 
-        private var searchJob: Job? = null
-        private var pairSearchJob: Job? = null
+        private val searchJobs = mutableMapOf<SearchSlot, Job>()
 
         companion object {
             private const val TAG = "OrderSearchViewModel"
             private const val DEBOUNCE_MS = 500L
         }
 
-        fun onSearchQueryChanged(query: String) {
-            _state.update { it.copy(searchQuery = query) }
-            searchJob?.cancel()
+        private fun updateSlot(
+            slot: SearchSlot,
+            block: (SlotSearchState) -> SlotSearchState,
+        ) {
+            _state.update {
+                when (slot) {
+                    SearchSlot.PRIMARY -> it.copy(primary = block(it.primary))
+                    SearchSlot.PAIR -> it.copy(pair = block(it.pair))
+                }
+            }
+        }
+
+        fun onQueryChanged(
+            slot: SearchSlot,
+            query: String,
+        ) {
+            updateSlot(slot) { it.copy(query = query) }
+            searchJobs[slot]?.cancel()
             if (query.length < 2) {
-                _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+                updateSlot(slot) { it.copy(results = emptyList(), isSearching = false) }
                 return
             }
-            searchJob =
+            searchJobs[slot] =
                 viewModelScope.launch {
                     try {
                         delay(DEBOUNCE_MS)
-                        _state.update { it.copy(isSearching = true) }
-                        when (
-                            val r =
-                                searchInstrumentsUseCase.execute(_state.value.searchBroker, query)
-                        ) {
+                        updateSlot(slot) { it.copy(isSearching = true) }
+                        val broker =
+                            when (slot) {
+                                SearchSlot.PRIMARY -> _state.value.primary.broker
+                                SearchSlot.PAIR -> _state.value.pair.broker
+                            }
+                        when (val r = searchInstrumentsUseCase.execute(broker, query)) {
                             is AppResult.Success ->
-                                _state.update {
-                                    it.copy(searchResults = r.data, isSearching = false)
-                                }
+                                updateSlot(slot) { it.copy(results = r.data, isSearching = false) }
                             is AppResult.Failure -> {
-                                _state.update {
-                                    it.copy(searchResults = emptyList(), isSearching = false)
-                                }
+                                updateSlot(slot) { it.copy(results = emptyList(), isSearching = false) }
                                 _status.trySend(StatusEvent("Ошибка поиска: ${r.error.message}", isError = true))
                             }
                         }
                     } catch (ce: CancellationException) {
-                        _state.update { it.copy(isSearching = false) }
+                        updateSlot(slot) { it.copy(isSearching = false) }
                         throw ce
                     } catch (e: Exception) {
-                        logger.e(TAG, "search exception", e)
-                        _state.update {
-                            it.copy(searchResults = emptyList(), isSearching = false)
-                        }
+                        logger.e(TAG, "search exception (slot=$slot)", e)
+                        updateSlot(slot) { it.copy(results = emptyList(), isSearching = false) }
                         _status.trySend(StatusEvent("Ошибка поиска: ${e.message}", isError = true))
                     }
                 }
         }
 
-        fun onPairSearchQueryChanged(query: String) {
-            _state.update { it.copy(pairSearchQuery = query) }
-            pairSearchJob?.cancel()
-            if (query.length < 2) {
-                _state.update { it.copy(pairSearchResults = emptyList(), isPairSearching = false) }
-                return
-            }
-            pairSearchJob =
-                viewModelScope.launch {
-                    try {
-                        delay(DEBOUNCE_MS)
-                        _state.update { it.copy(isPairSearching = true) }
-                        when (
-                            val r =
-                                searchInstrumentsUseCase.execute(
-                                    _state.value.pairSearchBroker,
-                                    query,
-                                )
-                        ) {
-                            is AppResult.Success ->
-                                _state.update {
-                                    it.copy(pairSearchResults = r.data, isPairSearching = false)
-                                }
-                            is AppResult.Failure -> {
-                                _state.update {
-                                    it.copy(pairSearchResults = emptyList(), isPairSearching = false)
-                                }
-                                _status.trySend(StatusEvent("Ошибка поиска: ${r.error.message}", isError = true))
-                            }
-                        }
-                    } catch (ce: CancellationException) {
-                        _state.update { it.copy(isPairSearching = false) }
-                        throw ce
-                    } catch (e: Exception) {
-                        logger.e(TAG, "pair search exception", e)
-                        _state.update {
-                            it.copy(pairSearchResults = emptyList(), isPairSearching = false)
-                        }
-                        _status.trySend(StatusEvent("Ошибка поиска: ${e.message}", isError = true))
-                    }
+        fun refresh(slot: SearchSlot) {
+            val s =
+                when (slot) {
+                    SearchSlot.PRIMARY -> _state.value.primary
+                    SearchSlot.PAIR -> _state.value.pair
                 }
-        }
-
-        fun refreshSearch() {
-            val s = _state.value
-            if (s.searchQuery.length >= 2) {
-                searchCacheRepository.invalidate(s.searchBroker, s.searchQuery)
-                onSearchQueryChanged(s.searchQuery)
+            if (s.query.length >= 2) {
+                searchCacheRepository.invalidate(s.broker, s.query)
+                onQueryChanged(slot, s.query)
             }
         }
 
-        fun refreshPairSearch() {
-            val s = _state.value
-            if (s.pairSearchQuery.length >= 2) {
-                searchCacheRepository.invalidate(s.pairSearchBroker, s.pairSearchQuery)
-                onPairSearchQueryChanged(s.pairSearchQuery)
+        fun onResultSelected(
+            slot: SearchSlot,
+            instrument: Instrument,
+        ) {
+            when (slot) {
+                SearchSlot.PRIMARY ->
+                    _state.update {
+                        it.copy(
+                            primary = it.primary.copy(query = instrument.displayName(), results = emptyList()),
+                            isSearchActive = false,
+                        )
+                    }
+                SearchSlot.PAIR ->
+                    updateSlot(slot) {
+                        it.copy(query = instrument.displayName(), results = emptyList())
+                    }
+            }
+        }
+
+        fun clearQuery(slot: SearchSlot) {
+            when (slot) {
+                SearchSlot.PRIMARY ->
+                    _state.update {
+                        it.copy(
+                            primary = it.primary.copy(query = "", results = emptyList()),
+                            isSearchActive = false,
+                        )
+                    }
+                SearchSlot.PAIR ->
+                    updateSlot(slot) { it.copy(query = "", results = emptyList()) }
             }
         }
 
         fun setSearchActive(active: Boolean) {
-            _state.update { it.copy(isSearchActive = active) }
-            if (active) {
-                _state.update { it.copy(searchResults = emptyList(), searchQuery = "") }
-            }
-        }
-
-        fun onSearchResultSelected(instrument: Instrument) {
             _state.update {
                 it.copy(
-                    searchQuery = instrument.displayName(),
-                    searchResults = emptyList(),
-                    isSearchActive = false,
+                    isSearchActive = active,
+                    primary =
+                        if (active) {
+                            it.primary.copy(query = "", results = emptyList())
+                        } else {
+                            it.primary
+                        },
                 )
             }
         }
 
-        fun onPairedSearchResultSelected(instrument: Instrument) {
-            _state.update {
-                it.copy(
-                    pairSearchQuery = instrument.displayName(),
-                    pairSearchResults = emptyList(),
-                )
-            }
+        fun openBrokerDialog(slot: SearchSlot) {
+            updateSlot(slot) { it.copy(showBrokerDialog = true) }
         }
 
-        fun clearSearchQuery() {
-            _state.update {
-                it.copy(searchQuery = "", searchResults = emptyList(), isSearchActive = false)
-            }
+        fun saveBroker(
+            slot: SearchSlot,
+            broker: BrokerName,
+        ) {
+            updateSlot(slot) { it.copy(selectedBroker = broker, showBrokerDialog = false) }
         }
 
-        fun clearPairSearchQuery() {
-            _state.update { it.copy(pairSearchQuery = "", pairSearchResults = emptyList()) }
-        }
-
-        fun openSearchBrokerSettings() {
-            _state.update { it.copy(showSearchBrokerDialog = true) }
-        }
-
-        fun openPairSearchBrokerSettings() {
-            _state.update { it.copy(showPairSearchBrokerDialog = true) }
-        }
-
-        fun saveSearchBrokerSettings(broker: BrokerName) {
-            _state.update {
-                it.copy(selectedSearchBroker = broker, showSearchBrokerDialog = false)
-            }
-        }
-
-        fun savePairSearchBrokerSettings(broker: BrokerName) {
-            _state.update {
-                it.copy(selectedPairSearchBroker = broker, showPairSearchBrokerDialog = false)
-            }
-        }
-
-        fun dismissSearchBrokerDialog() {
-            _state.update { it.copy(showSearchBrokerDialog = false) }
-        }
-
-        fun dismissPairSearchBrokerDialog() {
-            _state.update { it.copy(showPairSearchBrokerDialog = false) }
+        fun dismissBrokerDialog(slot: SearchSlot) {
+            updateSlot(slot) { it.copy(showBrokerDialog = false) }
         }
 
         fun getAvailableBrokerNames(): List<BrokerName> = brokerRegistry.getAvailableBrokerNames()
