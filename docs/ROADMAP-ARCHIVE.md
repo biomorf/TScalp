@@ -10283,3 +10283,32 @@ ___
 
 ___
 
+
+
+### ✅ ViewModel-слой: split 13d + M006
+
+**Дата закрытия:** 2026-11-11
+
+**Что сделано:**
+- `OrdersViewModel` → 4 VM (Coord / Form / Search / Dialogs), 13d split.
+  `postOrder` orchestration → `PlaceOrderUseCase` (13d-C, `a793c38`).
+  Было: 49 функций / LargeClass / `postOrder` 172 строки.
+  Факт: `OrdersViewModel` — 8 функций.
+- `SettingsViewModel` → 5 panel-VM + 6 usecase (M006, PR #103).
+  Было: 20 функций. Факт: 1 функция.
+- `PortfolioViewModel`: 12 → 10 функций.
+
+**Остаток (отдельные задачи, не здесь):**
+- `OrderFormViewModel` — 29 функций, `@Suppress("TooManyFunctions")` →
+  `### 2. OrderFormViewModel: reduce functions`.
+- `OrderSearchViewModel` — 17 функций, `@Suppress("TooManyFunctions")` →
+  `### OrderSearchViewModel: reduce functions` (см. ниже).
+- `OrdersViewModel` — 8 функций, `@Suppress("TooManyFunctions")` остаточный
+  (over-suppress после split; 8 ≤ 11) → chore-коммит без задачи.
+
+**Оценка:** ~5 часов (было; выполнено в 13d + M006).
+
+
+
+___
+

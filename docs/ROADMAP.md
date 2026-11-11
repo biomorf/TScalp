@@ -463,31 +463,6 @@ ___
 
 **Перенесено в umbrella** `### Compose UI: test infra + 3 экрана (3 проходки)` (см. выше по приоритету; подсекции U0–U3). Здесь оставлен только маркер — не дублировать. `#### Compose-компоненты` — закрыта (2026-11-11, `ROADMAP-ARCHIVE.md`); остаток — Н94 (`clean-audit.md`).
 
-#### ViewModel-слой
-
-**Статус:** выполнено (13d split, 2026-11-07; M006, 2026-11-06).
-
-**Что сделано:**
-- `OrdersViewModel` → 4 VM (Coord / Form / Search / Dialogs), 13d split.
-  `postOrder` orchestration → `PlaceOrderUseCase` (13d-C, `a793c38`).
-  Было: 49 функций / LargeClass / `postOrder` 172 строки.
-  Факт: `OrdersViewModel` — 8 функций.
-- `SettingsViewModel` → 5 panel-VM + 6 usecase (M006, PR #103).
-  Было: 20 функций. Факт: 1 функция.
-- `PortfolioViewModel`: 12 → 10 функций.
-
-**Остаток (отдельные задачи, не здесь):**
-- `OrderFormViewModel` — 29 функций, `@Suppress("TooManyFunctions")` →
-  `### OrderFormViewModel: reduce functions`.
-- `OrderSearchViewModel` — 17 функций, `@Suppress("TooManyFunctions")` →
-  `### OrderSearchViewModel: reduce functions` (см. ниже).
-- `OrdersViewModel` — 8 функций, `@Suppress("TooManyFunctions")` остаточный
-  (over-suppress после split; 8 ≤ 11) → chore-коммит без задачи.
-
-**Оценка:** ~5 часов (было; выполнено в 13d + M006).
-
-
-
 ___
 
 
