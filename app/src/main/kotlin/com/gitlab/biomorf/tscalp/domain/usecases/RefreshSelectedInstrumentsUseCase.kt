@@ -4,8 +4,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Обогащение карточек «Последние просмотренные» из портфеля
@@ -26,8 +24,8 @@ import javax.inject.Singleton
  * Не выбрана: usecase единообразно тестируется и консистентен с
  * остальными 13x (`SelectInstrumentUseCase`, `RestoreOrderFormUseCase`).
  *
- * **`@Inject constructor()` без зависимостей** — для Hilt-инъекции в
- * VM; логика внутри pure (не suspend, deterministic).
+ * **Stateless, без зависимостей** — DI через `@Provides` в `OrderSearchUseCaseModule`.
+ * Логика внутри pure (не suspend, deterministic).
  *
  * **Поведение 1:1** с `OrdersViewModel.refreshLastSelectedInstruments`:
  * - `cards` пустой -> `emptyList` (в VM-обёртке — early return до
@@ -43,9 +41,7 @@ import javax.inject.Singleton
  * - `position` ищется по composite `(tscalpInstrumentId, brokerName)`;
  * - `brokerName` позиции — `TINVEST` (жёстко, 1:1 с оригиналом).
  */
-@Singleton
 class RefreshSelectedInstrumentsUseCase
-    @Inject
     constructor() {
         fun execute(
             cards: List<SelectedInstrumentInfo>,

@@ -2,7 +2,6 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
-import javax.inject.Inject
 
 /**
  * Входные данные для расчёта параметров парной заявки.
@@ -36,7 +35,6 @@ data class PairExecResult(
  * иначе `pairCurrentPrice`.
  */
 class CalculatePairExecUseCase
-    @Inject
     constructor() {
         fun execute(input: PairExecInput): PairExecResult {
             if (!input.pairTradingEnabled || !input.hasPairedInstrument) {

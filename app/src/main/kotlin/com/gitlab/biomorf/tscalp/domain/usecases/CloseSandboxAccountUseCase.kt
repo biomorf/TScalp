@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Закрытие счёта в песочнице + сброс счёта по умолчанию
@@ -27,9 +25,7 @@ import javax.inject.Singleton
  * если сброс дефолта в DataStore не удался, дефолт остаётся указывать
  * на закрытый счёт — это UI-проблема, не операция. Лог `w`.
  */
-@Singleton
 class CloseSandboxAccountUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val accountPreferencesRepository: AccountPreferencesRepository,

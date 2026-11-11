@@ -10,8 +10,6 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Результат восстановления формы заявки — снимок для `OrderFormState`.
@@ -58,9 +56,7 @@ data class RestoredFormState(
  *   `AppResult.Failure(AppError.Unknown)` на исключении
  *   DataStore / repository. `CancellationException` пробрасывается.
  */
-@Singleton
 class RestoreOrderFormUseCase
-    @Inject
     constructor(
         private val tradingStateRepository: TradingStateRepository,
         private val instrumentRepository: InstrumentRepository,

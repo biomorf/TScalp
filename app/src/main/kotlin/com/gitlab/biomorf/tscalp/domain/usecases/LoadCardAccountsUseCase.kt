@@ -7,8 +7,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Загрузка счетов для диалога карточки (`openBrokerDialog` /
@@ -37,9 +35,7 @@ import javax.inject.Singleton
  * **Failure:** VM очищает `dialogAccounts` и
  * `selectedAccountIdDialog` (общее поведение для обоих callsites).
  */
-@Singleton
 class LoadCardAccountsUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val logger: Logger,

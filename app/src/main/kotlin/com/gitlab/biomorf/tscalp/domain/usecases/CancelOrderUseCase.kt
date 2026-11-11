@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Отмена заявки: получить счета → первый счёт → dispatch по типу
@@ -33,9 +31,7 @@ import javax.inject.Singleton
  * выравнивание — при `### Реализация BCS/Finam Broker API`
  * (мультиброкерный рефакторинг `OrdersRepository`).
  */
-@Singleton
 class CancelOrderUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val ordersRepository: OrdersRepository,

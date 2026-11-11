@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Загрузка счетов для экрана «Заявки» + выбор счёта по умолчанию
@@ -40,9 +38,7 @@ import javax.inject.Singleton
  * VM-часть (Q2 + F3) остаётся в VM: `startPositionUpdates()` при
  * непустом selectedAccountId.
  */
-@Singleton
 class LoadOrdersAccountsUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val accountPreferencesRepository: AccountPreferencesRepository,

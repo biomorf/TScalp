@@ -20,8 +20,6 @@ import com.gitlab.biomorf.tscalp.domain.models.matches
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Выбор инструмента (основного) + обогащение карточки
@@ -54,9 +52,7 @@ import javax.inject.Singleton
  * (Q: источник per-card settings). `null` → позиция не ищется
  * (`quantity = 0L`, 1:1).
  */
-@Singleton
 class SelectInstrumentUseCase
-    @Inject
     constructor(
         private val instrumentRepository: InstrumentRepository,
         private val marketDataRepository: MarketDataRepository,
