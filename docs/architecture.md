@@ -3,6 +3,10 @@
 Справочник архитектурных решений TScalp. Читается вместе с `AGENTS.md`
 (правила) и `docs/clean-audit.md` (отклонения).
 
+Архитектурные решения и планы проверяются по триаде Clean + MVVM +
+KMP-ready — `AGENTS.md` → 2e. Три поля фиксации в задаче:
+`**Соответствие Clean:**`, `**MVVM:**`, `**KMP:**`.
+
 ## Data flow: позиции (portfolio positions)
 
 ### Модели
@@ -273,6 +277,13 @@ presentation-функции.
 |---|---|---|---|
 | 2 | `javax.inject.Inject` / `Singleton` | 4 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
 
+**Принцип (2e → KMP → DI):** `domain` не содержит DI-аннотаций
+(`javax.inject.Inject` / `Singleton`, `@HiltViewModel`). DI-граф —
+снаружи (`di/` сейчас, Koin потом). `domain/usecases/*` — без
+`@Inject`: DI через `@Provides` в `di/UseCaseModule.kt`. Известный
+долг — 4 менеджера в `domain/api/managers/` (строка #2): там нужен
+Koin, не `@Provides` (многослойные зависимости).
+
 **`javax.inject` — 4 файла** в `domain/api/managers/`: `PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`, `BrokerLifecycleManager`. Аудит 2026-10-29 зафиксировал 3; `BrokerLifecycleManager` добавлен позже (PR #77, H50, 2026-10-31). Строка #4 (PR #74) — 3 менеджера, потому что `BrokerLifecycleManager` тогда ещё не существовал.
 
 **Исправлено (PR #73, `dev`, 2026-10-30):**
@@ -290,7 +301,8 @@ presentation-функции.
 - `domain/api/repository/*` (8 интерфейсов) — ноль platform.
 - `domain/api/roles/*` — чисто.
 - `domain/log/Logger` — pure Kotlin interface.
-- `domain/usecases/*` — не аудировано (проверить при первом касании).
+- `domain/usecases/*` — без DI-аннотаций (принцип 2e → KMP → DI);
+  время / dispatcher — через инжект, не константы.
 
 ### Не в этой фазе
 
