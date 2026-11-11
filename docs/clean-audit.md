@@ -878,24 +878,6 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` | - |
 | Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` | - |
 
-### Н15. TradingStateSnapshot — presentation в domain
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `domain/models/TradingState.kt` содержит `TradingStateSnapshot` с полями `quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`. `quantity`/`pairedMultiplier` — сырые значения TextField, невалидированные. `orderType` — presentation-выбор. `pairTradingEnabled` — UI-тумблер. Это снимок UI-состояния.
-
-**Нарушенное правило:** Domain не знает про presentation-выбор пользователя и сырые строки TextField.
-
-**Clean-альтернатива:** `presentation/screens/orders/OrdersUiStateSnapshot` для UI + нейтральный domain-снимок с валидированными типами (`quantity: Long?`, `orderType: OrderTypeSelection`). Плюсы: domain чист. Минусы: переезд + правка `TradingStateRepository` (data) + `OrdersViewModel`.
-
-**Выгоды:** простая сериализация в DataStore без маппинга, экономит ~1 ч. Но `quantity: String` — технический долг (можно сохранить «1O» вместо «10»).
-
-**Ссылка на задачу:** — (не заведена).
-
 ### Н13. KDoc StreamState — устаревший пакет
 
 **Статус:** открыто.
@@ -913,6 +895,26 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 **Выгоды:** —
 
 **Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `StreamState.kt`.
+
+### Принятые (2c)
+
+### Н15. TradingStateSnapshot — presentation в domain (принято 2c)
+
+**Статус:** принято 2c.
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `domain/models/TradingState.kt` содержит `TradingStateSnapshot` с полями `quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`. `quantity`/`pairedMultiplier` — сырые значения TextField, невалидированные. `orderType` — presentation-выбор. `pairTradingEnabled` — UI-тумблер. Это снимок UI-состояния.
+
+**Нарушенное правило:** Domain не знает про presentation-выбор пользователя и сырые строки TextField.
+
+**Clean-альтернатива:** `presentation/screens/orders/OrdersUiStateSnapshot` для UI + нейтральный domain-снимок с валидированными типами (`quantity: Long?`, `orderType: OrderTypeSelection`). Плюсы: domain чист. Минусы: переезд + правка `TradingStateRepository` (data) + `OrdersViewModel`.
+
+**Выгоды (по 2c):** простая сериализация в DataStore без маппинга, экономит ~1 ч (один DTO — 4 поля, DataStore-ключи 1:1). `quantity: String` — технический долг (можно сохранить «1O» вместо «10»), но: refactor → ~1–1.5 ч + миграция формата DataStore (бэкап-совместимость, 4 поля) — overhead > текущей выгоды. Пока `expectedYield`/`profit` не требуется валидировать на этом уровне (presentation валидирует при отправке).
+
+**Ссылка на задачу:** `### 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (ROADMAP, docs-only, merge pending).
 
 ### Исправленные (L3)
 
@@ -1058,9 +1060,11 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена). Может быть частью Н25.
 
-### Н28. AccountsApi.getAccounts(sandboxMode)
+### Принятые (2c)
 
-**Статус:** открыто.
+### Н28. AccountsApi.getAccounts(sandboxMode) (принято 2c)
+
+**Статус:** принято 2c.
 
 **Серьёзность:** средне.
 
@@ -1072,9 +1076,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Clean-альтернатива:** вынести `sandboxMode` в `TInvestAccountsApi : AccountsApi` (T-Invest-специфика). Или `AccountsApi` без параметра, sandbox-специфика — в реализации. Плюсы: чистый общий контракт. Минусы: переделка TInvest + `InvestRepository`.
 
-**Выгоды:** —.
+**Выгоды (по 2c):** 1 callsite (`AccountsRepositoryImpl:49`), 2 impl (`TInvestBrokerApi`, `BcsBrokerApi`/`FinamBrokerApi` — через `accounts = null`). Refactor (`TInvestAccountsApi : AccountsApi`) → правка 2 impl + 1 callsite + новый интерфейс — overhead > текущей выгоды. Параметр `sandboxMode` отражает реальность: у T-Invest sandbox есть, у BCS/Finam — нет (игнорируется). Domain-контракт терпит это как «общий параметр, иногда не применим».
 
-**Ссылка на задачу:** — (не заведена).
+**Ссылка на задачу:** `### 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (ROADMAP, docs-only, merge pending).
 
 ### Исправленные (L4)
 
