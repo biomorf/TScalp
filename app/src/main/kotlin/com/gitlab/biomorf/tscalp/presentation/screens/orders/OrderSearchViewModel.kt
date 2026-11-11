@@ -76,7 +76,10 @@ class OrderSearchViewModel
             }
         }
 
-        fun onQueryChanged(slot: SearchSlot, query: String) {
+        fun onQueryChanged(
+            slot: SearchSlot,
+            query: String,
+        ) {
             updateSlot(slot) { it.copy(query = query) }
             searchJobs[slot]?.cancel()
             if (query.length < 2) {
@@ -124,7 +127,10 @@ class OrderSearchViewModel
             }
         }
 
-        fun onResultSelected(slot: SearchSlot, instrument: Instrument) {
+        fun onResultSelected(
+            slot: SearchSlot,
+            instrument: Instrument,
+        ) {
             when (slot) {
                 SearchSlot.PRIMARY ->
                     _state.update {
@@ -172,7 +178,10 @@ class OrderSearchViewModel
             updateSlot(slot) { it.copy(showBrokerDialog = true) }
         }
 
-        fun saveBroker(slot: SearchSlot, broker: BrokerName) {
+        fun saveBroker(
+            slot: SearchSlot,
+            broker: BrokerName,
+        ) {
             updateSlot(slot) { it.copy(selectedBroker = broker, showBrokerDialog = false) }
         }
 

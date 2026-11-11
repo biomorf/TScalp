@@ -158,7 +158,10 @@ class OrderSearchViewModelTest {
 
             assertEquals(listOf(sber), vm.state.value.pair.results)
             assertFalse(vm.state.value.pair.isSearching)
-            assertTrue(vm.state.value.primary.results.isEmpty())
+            assertTrue(
+                vm.state.value.primary.results
+                    .isEmpty(),
+            )
             assertFalse(vm.state.value.primary.isSearching)
         }
 
@@ -171,7 +174,10 @@ class OrderSearchViewModelTest {
             vm.onResultSelected(SearchSlot.PAIR, sber)
 
             assertEquals("SBER - Сбербанк", vm.state.value.pair.query)
-            assertTrue(vm.state.value.pair.results.isEmpty())
+            assertTrue(
+                vm.state.value.pair.results
+                    .isEmpty(),
+            )
             // isSearchActive — primary-only; pair-слот его не трогает
             assertTrue(vm.state.value.isSearchActive)
         }
@@ -186,7 +192,10 @@ class OrderSearchViewModelTest {
             vm.clearQuery(SearchSlot.PAIR)
 
             assertEquals("", vm.state.value.pair.query)
-            assertTrue(vm.state.value.pair.results.isEmpty())
+            assertTrue(
+                vm.state.value.pair.results
+                    .isEmpty(),
+            )
             // primary не задет
             assertEquals("SBER - Сбербанк", vm.state.value.primary.query)
         }
@@ -205,5 +214,4 @@ class OrderSearchViewModelTest {
             assertEquals(BrokerName.TINVEST, vm.state.value.primary.selectedBroker)
             assertFalse(vm.state.value.primary.showBrokerDialog)
         }
-
 }
