@@ -35,23 +35,23 @@ data class PairExecResult(
  * иначе `pairCurrentPrice`.
  */
 class CalculatePairExecUseCase {
-        fun execute(input: PairExecInput): PairExecResult {
-            if (!input.pairTradingEnabled || !input.hasPairedInstrument) {
-                return PairExecResult(pairExecPrice = 0.0, pairedOrderType = null)
-            }
-            val primaryPrice =
-                when (input.orderType) {
-                    OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> input.limitPrice?.toDoubleOrNull()
-                    OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> input.stopPrice?.toDoubleOrNull()
-                    else -> null
-                }
-            val direction = input.pendingDirection ?: OrderDirection.BUY
-            val pairedSpec = PairOrderMapper.map(input.orderType, direction, primaryPrice)
-            val pairExecPrice =
-                when (input.orderType) {
-                    OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> input.executionPrice
-                    else -> input.pairCurrentPrice ?: 0.0
-                }
-            return PairExecResult(pairExecPrice = pairExecPrice, pairedOrderType = pairedSpec.orderType)
+    fun execute(input: PairExecInput): PairExecResult {
+        if (!input.pairTradingEnabled || !input.hasPairedInstrument) {
+            return PairExecResult(pairExecPrice = 0.0, pairedOrderType = null)
         }
+        val primaryPrice =
+            when (input.orderType) {
+                OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> input.limitPrice?.toDoubleOrNull()
+                OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> input.stopPrice?.toDoubleOrNull()
+                else -> null
+            }
+        val direction = input.pendingDirection ?: OrderDirection.BUY
+        val pairedSpec = PairOrderMapper.map(input.orderType, direction, primaryPrice)
+        val pairExecPrice =
+            when (input.orderType) {
+                OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> input.executionPrice
+                else -> input.pairCurrentPrice ?: 0.0
+            }
+        return PairExecResult(pairExecPrice = pairExecPrice, pairedOrderType = pairedSpec.orderType)
     }
+}

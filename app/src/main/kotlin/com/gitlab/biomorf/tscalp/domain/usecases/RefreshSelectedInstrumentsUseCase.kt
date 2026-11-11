@@ -42,29 +42,29 @@ import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
  * - `brokerName` позиции — `TINVEST` (жёстко, 1:1 с оригиналом).
  */
 class RefreshSelectedInstrumentsUseCase {
-        fun execute(
-            cards: List<SelectedInstrumentInfo>,
-            globalAccountId: String?,
-            sheet: PortfolioSheet,
-        ): List<SelectedInstrumentInfo> {
-            if (cards.isEmpty()) return emptyList()
-            return cards.map { card ->
-                val accountId = card.accountId ?: globalAccountId
-                val positions =
-                    accountId
-                        ?.let { sheet.accounts[AccountKey(BrokerName.TINVEST, it)]?.positions }
-                        .orEmpty()
-                val pos =
-                    positions.find { p ->
-                        p.instrument.tscalpInstrumentId == card.instrument.tscalpInstrumentId &&
-                            p.instrument.brokerName == card.instrument.brokerName
-                    }
-                card.copy(
-                    quantity = pos?.quantity?.toLong() ?: 0L,
-                    averagePrice = pos?.currentPrice ?: card.averagePrice,
-                    profit = pos?.profit ?: 0.0,
-                    profitPercent = pos?.profitPercent ?: 0.0,
-                )
-            }
+    fun execute(
+        cards: List<SelectedInstrumentInfo>,
+        globalAccountId: String?,
+        sheet: PortfolioSheet,
+    ): List<SelectedInstrumentInfo> {
+        if (cards.isEmpty()) return emptyList()
+        return cards.map { card ->
+            val accountId = card.accountId ?: globalAccountId
+            val positions =
+                accountId
+                    ?.let { sheet.accounts[AccountKey(BrokerName.TINVEST, it)]?.positions }
+                    .orEmpty()
+            val pos =
+                positions.find { p ->
+                    p.instrument.tscalpInstrumentId == card.instrument.tscalpInstrumentId &&
+                        p.instrument.brokerName == card.instrument.brokerName
+                }
+            card.copy(
+                quantity = pos?.quantity?.toLong() ?: 0L,
+                averagePrice = pos?.currentPrice ?: card.averagePrice,
+                profit = pos?.profit ?: 0.0,
+                profitPercent = pos?.profitPercent ?: 0.0,
+            )
         }
     }
+}
