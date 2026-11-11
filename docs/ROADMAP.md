@@ -93,7 +93,8 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/ordersearch-broker-merge
 
 **Контекст:** (ISSUES → «OrderSearchViewModel: selectedBroker не влияет на API поиска») В `SlotSearchState` два независимых поля на слот: `broker` (читается `SearchInstrumentsUseCase.execute` в `onQueryChanged`) и `selectedBroker` (читается UI `SearchBrokerDialog` / `PairSearchBrokerDialog`). `saveBroker(slot, broker)` обновляет только `selectedBroker`; `broker` никогда не меняется (default `TINVEST`). Выбор брокера в диалоге **не влияет** на то, к какому брокеру идёт поиск. Pre-existing баг, обнаружен при slot-рефакторинге; `SlotSearchState` сохранил оба поля 1:1 (поведение не менялось).
 
