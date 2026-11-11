@@ -708,7 +708,7 @@ ___
 
 **Что нужно отревизовать:**
 
-1. **`### UI: отображение blocked на валютной карточке`** (`docs/ROADMAP.md`) — после `Portfolio: модель портфеля` деньги (`money` / `blocked`) переехали в `AccountBalance`, а не в `PortfolioPosition.money` / `.blocked`. Валютная карточка `RUB000UTSTOM` удалена с `PortfolioScreen`, баланс — в `AccountHeaderCard` (шапка счёта). Задача **пересматривается**: либо закрыть как выполненную в `Portfolio: модель портфеля` (шапка счёта с `AccountBalance.total`), либо переформулировать под остаток (если есть).
+1. **`### UI: отображение blocked на валютной карточке`** (`docs/ROADMAP.md`) — **решено (B, 2026-11-11): переформулировано** в `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`. Старая формулировка (блок `blocked` на карточке `RUB000UTSTOM`) устарела — валютная карточка удалена в `Portfolio: модель портфеля`, `money`/`blocked` переехали в `AccountBalance`. Новая задача — про разбивку `total` в `AccountHeaderCard`.
 
 2. **`### P&L: client-side fallback для PortfolioPosition`** (`docs/ROADMAP.md`) — все упоминания `PortfolioPosition` в KDoc / формулировке устареют после H5. Fallback (`clientProfit()`) теперь применяется к `Position` (domain) / `PositionStreamItem` (в менеджере), а не к `PortfolioPosition`. Требуется переименовать задачу (`### P&L: client-side fallback для Position`), обновить ссылки в теле.
 
@@ -729,7 +729,7 @@ ___
 **Предусловия:** `### H5. PortfolioPosition: разделение domain/presentation` — закрыта (merge в `dev`).
 
 **Файлы:**
-- `docs/ROADMAP.md` — `### UI: отображение blocked...`, `### P&L: client-side fallback...`.
+- `docs/ROADMAP.md` — `### UI: разбивка AccountBalance.total...`, `### P&L: client-side fallback...`.
 - `docs/architecture.md` — «Data flow: позиции».
 - `docs/clean-audit.md` — Н5 (закрытие), связанные упоминания.
 - KDoc в `app/src/**/*.kt` — если есть ссылки на удалённые `PortfolioPosition`-функции.
@@ -763,10 +763,10 @@ ___
 
 **Зависимости:** `### H5. PortfolioPosition: разделение domain/presentation` (blocker).
 
-**Связано:** `### H5. PortfolioPosition...`, `### ✅ Portfolio: модель портфеля`, `### UI: отображение blocked...`, `### P&L: client-side fallback...`. История: merge `d04ecc4`, PR #90.
+**Связано:** `### H5. PortfolioPosition...`, `### ✅ Portfolio: модель портфеля`, `### UI: разбивка AccountBalance.total...`, `### P&L: client-side fallback...`. История: merge `d04ecc4`, PR #90.
 
 **Открытые вопросы:**
-- `### UI: отображение blocked...` — закрыть как выполненную в Portfolio (шапка счёта) или переформулировать под остаток (например, детализация по валютам)? Решить при ревизии, по факту UI.
+- ~~`### UI: отображение blocked...`~~ — **решено (B, 2026-11-11): переформулировано** в `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`.
 - `### P&L: client-side fallback...` — переименовать в `... для Position`? Решить при ревизии, зависит от того, где сейчас применяется fallback (PositionStreamItem? Position?).
 
 
@@ -1014,7 +1014,7 @@ ___
 **Ограничения:**
 - **UI-санкция** (правило 1): `PortfolioViewModel` перестаёт считать tick-to-tick `priceChangePercent`; `AssetPositionCard` считает локально. Визуально — оба элемента (карточка и P&L-секция) сохраняют цветовую индикацию, но карточка — от `dailyYieldRelative` (стабильно в течение дня, без мигания при каждом тике), P&L-секция — от `profitPercent`.
 - `lockedQuantity` — `Double?`, как и в модели.
-- Не смешивать с `### UI: отображение blocked на валютной карточке` (там `money`/`blocked` валюты) — это про позиции бумаг.
+- Не смешивать с `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта` (там `money`/`blocked` валюты) — это про позиции бумаг.
 - Не трогать `PortfolioPosition` (legacy) — миграция в `### OrdersViewModel: миграция на PortfolioSheet`.
 
 **Критерий готовности:**
@@ -1028,7 +1028,7 @@ ___
 
 **Зависимости:** `### Portfolio: модель портфеля` (blocker).
 
-**Связано:** `### Portfolio: модель портфеля`; `### OrdersViewModel: миграция на PortfolioSheet`; `### UI: отображение blocked на валютной карточке` (разные `blocked`); `docs/domain_models.md` §4.
+**Связано:** `### Portfolio: модель портфеля`; `### OrdersViewModel: миграция на PortfolioSheet`; `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта` (разные `blocked`); `docs/domain_models.md` §4.
 
 **Открытые вопросы:**
 - `AssetPositionCard` сейчас принимает `priceChangePercent: Double?` параметром. После задачи — брать из `position.priceChangePercent`? Или оставить параметром (гибче для тестов)? **Рекомендация:** из `position` (модель знает, UI читает).
@@ -1662,122 +1662,104 @@ ___
 
 
 
-### UI: отображение blocked на валютной карточке
+### UI: разбивка AccountBalance.total на money/blocked в шапке счёта
 
 **Мобильная работа:** частичное (live-тест UI).
 
 **Статус:** запланировано. **UI — требует санкции.**
-Сейчас задача — план, не реализация: как именно показывать
-`blocked` на карточке, не решено.
 
-**Контекст:** валютная позиция (ticker `RUB000UTSTOM`)
-отображается обычной `AssetPositionCard`. После WS-интеграции
-в `PositionStreamItem` появились `money` (свободные) и
-`blocked` (заблокированные) — но до UI они не доходят,
-`PortfolioPosition` этих полей не имеет, а `toPortfolioPosition()`
-их отбрасывает. Пользователь видит только `quantity` (в
-polling — рубли), без разбивки на свободные/заблокированные.
+**Контекст:** в `AccountHeaderCard` (шапка счёта на `PortfolioScreen`) сейчас
+показывается `AccountBalance.total` (= `money + blocked`) через
+`formatDomesticCurrency(total)` или «нет данных». Пользователь не видит
+разбивку: сколько свободно (`money`), сколько заблокировано (`blocked`).
+Для валютных счетов с ненулевым `blocked` (например, средства под
+заявками) эта информация важна. Изначальная задача «UI: отображение
+blocked на валютной карточке» устарела: валютная карточка
+`RUB000UTSTOM` удалена в `Portfolio: модель портфеля`, `money`/`blocked`
+переехали в `AccountBalance`, а не в `PortfolioPosition`.
+
+**Соответствие Clean:** соответствует (presentation-изменение, dependency rule не затронута).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
 
 **Предусловия:**
-- WS-интеграция money/blocked в `PositionFlowManager`
-  закрыта (сделано, коммит `0167c03`).
-- Формула связи `money`, `blocked`, `quantity` — не
-  подтверждена (`docs/ROADMAP.md` → «Оркестратор стримов
-  и Ktor WS transport»). До выяснения показывать `money`
-  и `blocked` как **отдельные значения**, а не производные.
+- `AccountBalance.money` / `.blocked` заполняются в `PositionFlowManager` /
+  `PortfolioRepository` (проверить WS + polling + seed-путь;
+  `docs/architecture.md` → «Data flow: позиции»).
+- Формула связи `money` ↔ `blocked` ↔ `quantity` для валютных счетов —
+  не подтверждена (`docs/ISSUES.md` → «T-Invest WebSocket: решён — канал
+  должен быть в URL path»). До выяснения показывать `money` и `blocked`
+  как **отдельные значения**, не производные.
 
 **Файлы:**
-- `app/src/main/kotlin/.../domain/models/Portfolio.kt` —
-  добавить `money: Double? = null`, `blocked: Double? = null`
-  в `PortfolioPosition`; пробросить в
-  `PositionStreamItem.toPortfolioPosition()`.
-- `app/src/main/kotlin/.../domain/models/Portfolio.kt` —
-  `PortfolioPosition.mergeWith` (копирование полей при обновлении,
-  `old.copy(...)` не переносит `money`/`blocked`; вызывается из
-  `PortfolioViewModel:242` и `OrdersViewModel:1081`).
-  `PortfolioViewModel.updatePortfolioItem` — посредник, правок
-  не требует.
-- `app/src/main/kotlin/.../ui/components/AssetPositionCard.kt` —
-  отображение (варианты ниже).
-- `app/src/main/kotlin/.../presentation/screens/portfolio/PortfolioScreen.kt` —
-  проброс параметров, если добавляются отдельными аргументами.
+- `presentation/screens/portfolio/AccountHeaderCard.kt` — отображение
+  (варианты ниже).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — если нужен
+  `AccountBalance` целиком (сейчас в `AccountHeaderCard` только `rubBalance`).
 
 **Варианты отображения (требуют санкции):**
 
-- **A. Дополнительная строка в карточке.** Под текущей суммой
-  — «Свободно: X ₽ · Заблокировано: Y ₽». Появляется только
-  для `instrumentType == "currency"` и при непустом
-  `blocked`. Минимум правок, явно.
-- **B. Развёрнутая карточка по тапу.** Обычный вид —
-  `quantity`; по тапу раскрывается детализация с `money` /
-  `blocked`. Не засоряет список, но требует состояния
-  «раскрыта» в `AssetPositionCard` (сейчас такого нет).
-- **C. Badge с суммой блокировки.** Маленький бейдж в углу
-  карточки при `blocked != null && blocked > 0`. Минимум
-  текста, но неочевидно без подсказки.
+- **A. Дополнительная строка в шапке.** Под `total` — «Свободно: X ₽ ·
+  Заблокировано: Y ₽». Появляется только при `blocked != null && blocked > 0`.
+  Минимум правок, явно.
+- **B. Развёрнутая шапка по тапу.** Обычный вид — `total`; по тапу
+  детализация `money` / `blocked`. Требует состояния «раскрыта» в
+  `AccountHeaderCard`.
+- **C. Замена `total` на композицию.** `total` → «Свободно: X ₽ ·
+  Заблокировано: Y ₽» в одной строке без отдельной. Сильнее меняет вид.
 
-Рекомендация: **A**. Самое прозрачное, без новых состояний
-в composable, легко тестируется превью.
+Рекомендация: **A**.
 
 **Шаги:**
-1. Добавить `money`/`blocked` в `PortfolioPosition` (domain).
-2. Пробросить в `PositionStreamItem.toPortfolioPosition()`.
-3. Обновить `PortfolioPosition.mergeWith` (domain) — при
-   обновлении переносить `money`/`blocked` (по аналогии с
-   `expectedYield`). `updatePortfolioItem` не трогать: он
-   делегирует в `mergeWith` / `toPortfolioPosition`.
-4. **Санкция на UI** — согласовать вариант (A/B/C) и тексты.
-5. Реализовать отображение в `AssetPositionCard`.
-6. Compose Preview для трёх состояний: `blocked == null`,
-   `blocked == 0.0`, `blocked > 0.0`.
-7. Unit-тест на `toPortfolioPosition()` (money/blocked
-   доходят).
-8. Сборка, 84+ теста зелёные, ручная проверка на устройстве.
+1. **Санкция на UI** — вариант (A/B/C), тексты, место в шапке,
+   мультивалютность (только RUB или все `AccountBalance`).
+2. `AccountHeaderCard`: принять `money` / `blocked` (или `AccountBalance`),
+   отобразить по выбранному варианту.
+3. `PortfolioViewModel` / `PortfolioUiState`: убедиться, что `money`/
+   `blocked` доступны для выбранного счёта.
+4. Compose Preview: `blocked == null`, `blocked == 0.0`, `blocked > 0.0`.
+5. Гейт + live-тест UI.
+
+**Тесты:** Compose Preview на 3 состояния. Unit-тестов на formatting — нет
+(используется существующий `formatDomesticCurrency`).
 
 **Референсы:**
-- `docs/ROADMAP.md` → «Оркестратор стримов и Ktor WS transport»
-  (фаза 2, money/blocked merge).
-- `docs/ISSUES.md` → «PositionsStream over WS не отдаёт
-  данные в песочнице» (prod-only поведение).
-- `TInvestPositionsWsMapperTest`, `PositionFlowManagerTest` —
-  образец тестов на доменный merge.
+- `docs/architecture.md` → «Data flow: позиции» (источники `money`/`blocked`).
+- `docs/domain_models.md` §4 `AccountBalance`.
+- `docs/ISSUES.md` → «T-Invest WebSocket: решён» (ограничение sandbox).
 
 **Ограничения:**
-- Не менять UI без санкции (правило 1 AGENTS.md) — вариант
-  и тексты согласуются до правки.
-- Не показывать `blocked` для не-валютных инструментов.
-- Не выводить `money + blocked` как «итог», пока формула
-  не подтверждена — только отдельные значения.
-- Не трогать `OrdersScreen` — карточка там используется в
-  контексте заявок, к заблокированным средствам отношения
-  не имеет.
+- UI-санкция (правило 1) — вариант и тексты до правки.
+- Не показывать `blocked` для не-денежных позиций (только `AccountBalance`).
+- Не выводить `money + blocked` как «итог», пока формула не подтверждена —
+  только отдельные значения.
+- Не трогать `OrdersScreen` — карточка там в контексте заявок.
+- Мультивалютность — отдельный вопрос (сейчас только `rubBalance`).
 
 **Критерий готовности:**
-- `PortfolioPosition.money` / `.blocked` заполняются из
-  WS-события.
-- На карточке `RUB000UTSTOM` видно `blocked` (по варианту,
-  согласованному с пользователем).
-- Для не-валютных инструментов внешний вид не изменился.
-- Тесты на `toPortfolioPosition` добавлены.
-- Сборка и тесты зелёные.
+- `AccountHeaderCard` показывает разбивку `money` / `blocked` (по варианту).
+- Не-денежные позиции / не-счета — без изменений.
+- Compose Preview 3 состояния.
+- Гейт зелёный; live-тест UI PASS.
 
-**Оценка:** ~2–2.5 часа (domain: `PortfolioPosition` + 2 функции
-в `Portfolio.kt` — 30 мин; UI — 1 ч; превью+тесты — 1 ч).
+**Оценка:** ~1.5–2 ч (санкция 10 мин, UI 1 ч, превью+тесты 30 мин, live-тест 30 мин).
 
-**Зависимости:** нет. **Блокирует** отображение полной
-картины валютной позиции (свободные + заблокированные).
+**Зависимости:** нет.
+
+**Связано:** `### ✅ Portfolio: модель портфеля` (money/blocked → `AccountBalance`);
+`### Ревизия ссылок на PortfolioPosition после H5` (п.1 ревизии);
+`docs/domain_models.md` §4.
 
 **Открытые вопросы:**
-- Как именно пользователь хочет видеть `blocked`? Вариант
-  A/B/C — нужно решение.
-- Формула `money` ↔ `blocked` ↔ `quantity` — проверить на
-  реальном счёте с ненулевым `blocked`. До этого показывать
-  раздельно.
-- Показывать ли `money` отдельно от `quantity`, или
-  заменить текущее значение? Зависит от формулы.
-- Нужно ли отображать `blocked` в `OrdersScreen` (карточка
-  позиции в контексте заявки) — сейчас нет, но при
-  блокировке инструмента биржей может быть полезно.
+- Вариант A/B/C — нужно решение.
+- Формула `money` ↔ `blocked` ↔ `quantity` — проверить на реальном счёте
+  с ненулевым `blocked`.
+- Мультивалютность: только RUB или все `AccountBalance`?
+- `blocked` в `OrdersScreen` — отдельной задачей при необходимости.
 
 
 
