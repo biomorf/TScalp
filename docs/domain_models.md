@@ -572,7 +572,7 @@
 - `otcLimit` (BCS) — внебиржевые, не поддерживаем, пропускать.
 - `futuresLimit` (BCS) — открытый вопрос §10.
 
-**UI-шапка счёта с балансом** — **предстоит сделать**, графических элементов на `PortfolioScreen` сейчас нет (зафиксировано в задаче `### UI: отображение blocked на валютной карточке`).
+**UI-шапка счёта с балансом** — реализована (`AccountHeaderCard`, `AccountBalance.total`). Разбивка `total` на `money` / `blocked` — задача `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`.
 
 ### 8. Этапы
 
@@ -659,7 +659,7 @@
 
 - `docs/architecture.md` — «Data flow: позиции» (текущее состояние, `PortfolioPosition`, `PositionFlowManager`).
 - `docs/clean-audit.md` — Н5 (`PortfolioPosition` — presentation-поля, пересматривается), Н15 (`TradingStateSnapshot`).
-- `docs/ROADMAP.md` — `### H5. PortfolioPosition: разделение domain/presentation` (реализация), `### UI: отображение blocked на валютной карточке`, `### Обогащение name в PortfolioPosition (вариант C)` (отменяется как подзадача — `name` в `Instrument`), `### Margin/risk → TradeCheckResult`, `### Instrument: C-min → sealed interface` (предусловие).
+- `docs/ROADMAP.md` — `### H5. PortfolioPosition: разделение domain/presentation` (реализация), `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`, `### Обогащение name в PortfolioPosition (вариант C)` (отменяется как подзадача — `name` в `Instrument`), `### Margin/risk → TradeCheckResult`, `### Instrument: C-min → sealed interface` (предусловие).
 - `docs/domain_models.md` → `## Instruments` (связь через `Position.instrument: Instrument`).
 - **Источники брокеров:**
   - T-Invest: `docs/brokers.md`, `docs/streams.md`, `docs/rate-limits.md`.
