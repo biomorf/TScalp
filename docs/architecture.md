@@ -249,7 +249,7 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
 
 ### Связанные документы
 
-- `docs/ROADMAP.md` → `### PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
+- `docs/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
 - `docs/ISSUES.md` → `ClassCastException в PostOrderUseCase при StopLoss без stopPrice` (решён, PR #132).
 - `docs/clean-audit.md` → M017 (`buildPlaceOrderRequest`), M013 / A2 (orchestration) — контекст оркестрации заявок.
 
