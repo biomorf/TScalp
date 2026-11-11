@@ -238,8 +238,8 @@ ticker).
 `money` и `blocked` хранятся на `PositionStreamItem`
 **раздельно**. Формула связи `money` ↔ `blocked` ↔ `quantity`
 не подтверждена по документации — интерпретация отложена до
-UI-задачи (см. `docs/ROADMAP.md` → «UI: отображение blocked
-на валютной карточке»).
+UI-задачи (см. `docs/ROADMAP.md` → «UI: разбивка
+AccountBalance.total на money/blocked в шапке счёта»).
 
 ### Связанные документы
 
