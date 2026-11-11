@@ -1393,7 +1393,7 @@ domain-API достижимо (прямой вызов из тестов/скр�
 **Решение:** B1 — `sealed OrderRequest` + `sealed PrepareResult`;
 StopLoss без `stopPrice` → `Invalid("stopPrice required…")`; `isPrimaryStop`
 удалён (тип несёт `OrderRequest.Stop`). Silent drop pair — тоже `Invalid`.
-См. `docs/ROADMAP.md` → `### PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
+См. `docs/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
 
 **Что сделано:** PR #132 (merge `718d108c`). `sealed interface OrderRequest`
 (`Broker` / `Stop`) заменяет `Any` в `PreparedOrders`; `PrepareResult`
