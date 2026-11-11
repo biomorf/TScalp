@@ -27,6 +27,49 @@
 **Когда вернуться:** ...
 ```
 
+## OrderSearchViewModel: selectedBroker не влияет на API поиска
+
+**Статус:** открыт.
+
+**Симптом:** в UI диалога свойств поиска (`OrdersBrokerDialogs.kt` →
+`SearchBrokerDialog` / `PairSearchBrokerDialog`) пользователь выбирает
+брокера (`selectedSearchBroker` / `selectedPairSearchBroker`), но
+`SearchInstrumentsUseCase.execute` в `OrderSearchViewModel.onSearchQueryChanged`
+/ `onPairSearchQueryChanged` использует **другое** поле — `searchBroker`
+/ `pairSearchBroker` (default `TINVEST`). Выбор брокера в диалоге
+**не влияет** на то, к какому брокеру идёт запрос поиска.
+
+**Причина:** в `OrderSearchState` два независимых поля на слот —
+`searchBroker` (читается usecase'ом) и `selectedSearchBroker` (читается
+UI диалога). `saveSearchBrokerSettings` обновляет только
+`selectedSearchBroker`; `searchBroker` не меняется никогда (остаётся
+default `TINVEST`). Pre-existing баг. В slot-рефакторинге
+(`### OrderSearchViewModel: slot-параметр`, ROADMAP) `SlotSearchState`
+сохранил оба поля 1:1 — поведение не менялось.
+
+**Решение:** объединить `broker` и `selectedBroker` в `SlotSearchState`
+в одно поле `broker`. `saveBroker(slot, broker)` обновляет `broker`;
+`onQueryChanged` читает `broker`; UI (`OrdersBrokerDialogs.kt`) читает
+`broker`. Аналогично — для pair-слота.
+
+**Файлы:**
+- `presentation/screens/orders/OrderSearchState.kt` —
+  `SlotSearchState`: `broker` + `selectedBroker` → один `broker`.
+- `presentation/screens/orders/OrderSearchViewModel.kt` — `saveBroker`
+  / `onQueryChanged` / `refresh`.
+- `presentation/screens/orders/OrdersBrokerDialogs.kt` —
+  `SearchBrokerDialog` / `PairSearchBrokerDialog`.
+- `app/src/test/kotlin/.../OrderSearchViewModelTest.kt` — кейсы
+  `saveBroker` → влияет на `execute`-брокера (1 unit).
+
+**Связано:** `docs/ROADMAP.md` → `### OrderSearchViewModel: slot-параметр
+(reduce functions, без split)` — текущая задача; баг обнаружен при
+рефакторинге.
+
+**Когда вернуться:** сразу после merge `### OrderSearchViewModel:
+slot-параметр` (баг — в той же VM; объединять поля удобнее после
+slot-рефакторинга, чтобы не смешивать два refactor'а в одном PR).
+
 ## Race в start/stop *FlowManager — дублирование стримов
 
 **Статус:** открыт (частично, live-test 2026-11-08, шаг 16b).
