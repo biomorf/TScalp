@@ -21,21 +21,17 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object OrdersUseCaseModule {
+    @Provides
+    @Singleton
+    fun provideCalculateTradeDetailsUseCase(): CalculateTradeDetailsUseCase = CalculateTradeDetailsUseCase()
 
     @Provides
     @Singleton
-    fun provideCalculateTradeDetailsUseCase(): CalculateTradeDetailsUseCase =
-        CalculateTradeDetailsUseCase()
+    fun providePrepareOrderRequestUseCase(): PrepareOrderRequestUseCase = PrepareOrderRequestUseCase()
 
     @Provides
     @Singleton
-    fun providePrepareOrderRequestUseCase(): PrepareOrderRequestUseCase =
-        PrepareOrderRequestUseCase()
-
-    @Provides
-    @Singleton
-    fun provideCalculatePairExecUseCase(): CalculatePairExecUseCase =
-        CalculatePairExecUseCase()
+    fun provideCalculatePairExecUseCase(): CalculatePairExecUseCase = CalculatePairExecUseCase()
 
     @Provides
     @Singleton

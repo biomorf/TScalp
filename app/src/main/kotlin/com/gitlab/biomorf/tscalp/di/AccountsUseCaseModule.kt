@@ -17,7 +17,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AccountsUseCaseModule {
-
     @Provides
     @Singleton
     fun provideLoadBrokerAccountsUseCase(

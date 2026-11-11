@@ -16,7 +16,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object OrderSearchUseCaseModule {
-
     @Provides
     @Singleton
     fun provideSearchInstrumentsUseCase(
@@ -45,6 +44,5 @@ object OrderSearchUseCaseModule {
 
     @Provides
     @Singleton
-    fun provideRefreshSelectedInstrumentsUseCase(): RefreshSelectedInstrumentsUseCase =
-        RefreshSelectedInstrumentsUseCase()
+    fun provideRefreshSelectedInstrumentsUseCase(): RefreshSelectedInstrumentsUseCase = RefreshSelectedInstrumentsUseCase()
 }

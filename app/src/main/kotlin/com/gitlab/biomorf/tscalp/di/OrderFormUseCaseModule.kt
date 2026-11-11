@@ -24,7 +24,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object OrderFormUseCaseModule {
-
+    /**
+     * 2c-фиксация: `LongParameterList` (7 > 6, detekt default). 7 зависимостей —
+     * DI-wiring одного usecase. Альтернатива: `data class SelectInstrumentDeps`
+     * (grouping) — overengineering для одной функции. Выгоды: одна функция
+     * DI-wiring — стандартный паттерн Hilt.
+     */
     @Suppress("LongParameterList")
     @Provides
     @Singleton

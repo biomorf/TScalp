@@ -41,8 +41,7 @@ import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
  * - `position` ищется по composite `(tscalpInstrumentId, brokerName)`;
  * - `brokerName` позиции — `TINVEST` (жёстко, 1:1 с оригиналом).
  */
-class RefreshSelectedInstrumentsUseCase
-    constructor() {
+class RefreshSelectedInstrumentsUseCase {
         fun execute(
             cards: List<SelectedInstrumentInfo>,
             globalAccountId: String?,

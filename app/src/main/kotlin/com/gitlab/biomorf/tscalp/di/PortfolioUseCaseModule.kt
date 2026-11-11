@@ -17,7 +17,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object PortfolioUseCaseModule {
-
     @Provides
     @Singleton
     fun provideLoadPortfolioUseCase(
