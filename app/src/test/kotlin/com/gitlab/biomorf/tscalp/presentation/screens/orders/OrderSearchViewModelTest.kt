@@ -134,14 +134,14 @@ class OrderSearchViewModelTest {
         }
 
     @Test
-    fun `saveSearchBrokerSettings updates broker and closes dialog`() =
+    fun `saveBroker updates broker and closes dialog`() =
         runTest {
             val vm = createVm()
             vm.openBrokerDialog(SearchSlot.PRIMARY)
 
             vm.saveBroker(SearchSlot.PRIMARY, BrokerName.BCS)
 
-            assertEquals(BrokerName.BCS, vm.state.value.primary.selectedBroker)
+            assertEquals(BrokerName.BCS, vm.state.value.primary.broker)
             assertFalse(vm.state.value.primary.showBrokerDialog)
         }
 
@@ -201,17 +201,34 @@ class OrderSearchViewModelTest {
         }
 
     @Test
-    fun `pair saveBroker updates selectedBroker and closes dialog`() =
+    fun `pair saveBroker updates broker and closes dialog`() =
         runTest {
             val vm = createVm()
             vm.openBrokerDialog(SearchSlot.PAIR)
 
             vm.saveBroker(SearchSlot.PAIR, BrokerName.BCS)
 
-            assertEquals(BrokerName.BCS, vm.state.value.pair.selectedBroker)
+            assertEquals(BrokerName.BCS, vm.state.value.pair.broker)
             assertFalse(vm.state.value.pair.showBrokerDialog)
             // primary не задет
-            assertEquals(BrokerName.TINVEST, vm.state.value.primary.selectedBroker)
+            assertEquals(BrokerName.TINVEST, vm.state.value.primary.broker)
             assertFalse(vm.state.value.primary.showBrokerDialog)
+        }
+
+    @Test
+    fun `saveBroker updates broker used by execute`() =
+        runTest {
+            coEvery {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "SBER")
+            } returns AppResult.Success(listOf(sber))
+            val vm = createVm()
+
+            vm.saveBroker(SearchSlot.PRIMARY, BrokerName.BCS)
+            vm.onQueryChanged(SearchSlot.PRIMARY, "SBER")
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "SBER")
+            }
         }
 }

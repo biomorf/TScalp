@@ -40,7 +40,7 @@ internal fun SearchBrokerDialog(
     if (!searchState.primary.showBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = searchState.primary.selectedBroker,
+        selectedBroker = searchState.primary.broker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,
@@ -61,7 +61,7 @@ internal fun PairSearchBrokerDialog(
     if (!searchState.pair.showBrokerDialog) return
     BrokerAccountDialog(
         availableBrokers = availableBrokers,
-        selectedBroker = searchState.pair.selectedBroker,
+        selectedBroker = searchState.pair.broker,
         onBrokerSelected = onBrokerSelected,
         accounts = emptyList(),
         selectedAccountId = null,
