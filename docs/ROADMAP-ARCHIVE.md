@@ -10336,3 +10336,69 @@ ___
 
 ___
 
+
+
+### ✅ CalculateTradeDetailsUseCase: decompose (complexity 25)
+
+**Дата закрытия:** 2026-11-11
+
+**Мобильная работа:** частичное (CI gate; live-тест не требуется — pure refactoring).
+
+**Контекст:** (detekt-группа 3, `#### UseCase-слой`) `CalculateTradeDetailsUseCase.calculate` — 101 строка, `@Suppress("CyclomaticComplexMethod", "LongMethod")`, complexity 25. Внутри — ветвление по типу заявки (market / limit / stop), расчёт executionPrice / cost / multiplier с учётом `moneyPerPointOfPrice`. Снятие `@Suppress` — разбить `calculate` на приватные функции по типу заявки (диспетчер + 3 ветки), вынести общий расчёт cost/multiplier.
+
+**Соответствие Clean:** соответствует (refactoring в domain, dependency rule не затронута).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо, domain).
+
+**KMP:** соответствует (не добавляет DI-аннотаций, не вводит platform).
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/usecases/CalculateTradeDetailsUseCase.kt` — разбить `calculate` на диспетчер + 3 приватные функции (market / limit / stop).
+- `app/src/test/kotlin/.../CalculateTradeDetailsUseCaseTest.kt` — регрессия.
+
+**Шаги:**
+1. `calculate` → диспетчер: `when (orderType) { Market -> calcMarket(...); Limit -> calcLimit(...); is Stop -> calcStop(...) }`.
+2. Общий расчёт cost/multiplier (`executionPrice * quantity * moneyPerPointOfPrice`) — вынести в private helper.
+3. Снять `@Suppress("CyclomaticComplexMethod", "LongMethod")`.
+4. Тесты: существующие + регрессия на каждый тип.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** `CalculateTradeDetailsUseCaseTest` — существующие зелёные; +3 кейса (market / limit / stop) для явной проверки ветвей.
+
+**Референсы:** detekt-группа 3 `#### UseCase-слой` (закрыта 2026-11-11, `ROADMAP-ARCHIVE.md`); detekt `CyclomaticComplexMethod` / `LongMethod` в `config/detekt/detekt.yml`.
+
+**Ограничения:**
+- Поведение 1:1 — никаких правок логики, только декомпозиция.
+- Не менять конструктор `CalculateTradeDetailsUseCase()` — класс stateless, остаётся `@Provides` в `di/UseCaseModule.kt` (2e → KMP → DI).
+- UI-санкции нет (поведение не меняется).
+
+**Критерий готовности:**
+- `@Suppress("CyclomaticComplexMethod", "LongMethod")` снят с `calculate`.
+- detekt зелёный без `@Suppress`.
+- `CalculateTradeDetailsUseCaseTest` зелёный.
+- Гейт зелёный.
+
+**Оценка:** ~45 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `#### UseCase-слой` (закрыта в этой сессии); `### PrepareOrderRequestUseCase: decompose` (симметричная задача).
+
+**Открытые вопросы:** нет.
+
+**Что сделано:** `@Suppress("CyclomaticComplexMethod", "LongMethod")` снят: `calculate` — orchestrator (`exec` + `cost` + `mult` → `TradeDetails`); 5 private helper (`executionPrice` / `pairExecutionPrice` / `priceFor` / `calculateCost` / `calculateMultiplier`) + 2 private data class (`CostDetails` / `MultiplierDetails`); публичная сигнатура `calculate(...)` 1:1; 19 тестов без изменений. PR #131 (merge `e0941d83`).
+
+**Ссылка на задачу:** PR #131 (merge `e0941d83`, 2026-11-11).
+
+
+
+___
+
