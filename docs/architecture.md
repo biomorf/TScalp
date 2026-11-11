@@ -127,7 +127,7 @@ partial-событий — в manager.
 5. **Form → Form** (data-flow, domain): `PriceFlowManager.setInterest(
    ORDERS, uids)` — Form-метод (`syncPriceInterest`).
 
-~~~mermaid
+```mermaid
 flowchart LR
     subgraph VM[4 ViewModels]
         C[OrdersViewModel<br/>Coord: accounts + lifecycle]
@@ -151,7 +151,7 @@ flowchart LR
     S -->|searchState| UI
     F -->|formState| UI
     D -->|dialogState| UI
-~~~
+```
 
 Подпись: 4-VM структура `Orders` после split 13d — 4 state, 5 cross-VM связей через domain / UI-orchestration, ноль `_uiState`-чтений.
 
@@ -181,6 +181,77 @@ presentation → domain ← data
   `### Position: источники priceChangePercent и lockedQuantity`
   (day-change, lockedQuantity, balances),
   `### P&L: sandbox client-side fallback для Position` (отдельная задача).
+
+## Data flow: заявки (orders)
+
+### Модели и контракт
+
+**`OrderRequest` (`domain/models/OrderModels.kt`)** — sealed interface для
+готовой к отправке заявки. Два подтипа: `Broker(BrokerOrderRequest)` и
+`Stop(StopOrderRequest)`. Заменяет `Any`-поля в `PreparedOrders` (B1, PR #132).
+
+**`PrepareResult`** (внутри `PrepareOrderRequestUseCase`) — sealed interface:
+- `Prepared(primary: OrderRequest, paired: OrderRequest?)` — обе заявки готовы.
+- `Invalid(reason: String)` — валидационная ошибка (StopLoss без `stopPrice`,
+  pair-stop без `stopPrice`). Маппится в `PostOrderOutcome.InvalidRequest(reason)`.
+
+**`PrepareOrderRequestUseCase.prepare(...)`** — собирает `primary` и (если pair
+включена) `paired`. Внутри: `buildPrimaryRequest` → `buildPairedRequest`
+(только если `pairedInstrument != null && pairedAccountId != null`) → `PrepareResult`.
+
+**`PostOrderUseCase.execute(input)`** — orchestration: `checkAvailability` →
+`prepare` → `postPrimary` → (если `paired != null`) `postPaired`. Все `when`
+по `OrderRequest` — exhaustive, 0 `as`-cast.
+
+### Диаграмма — поток заявки
+
+```mermaid
+flowchart LR
+    FVM["OrderFormViewModel<br/>presentation"]
+    PO["PostOrderUseCase<br/>domain"]
+    PR["PrepareOrderRequestUseCase<br/>domain"]
+    PRM["PairOrderMapper<br/>domain"]
+    OR["OrderRequest<br/>sealed: Broker / Stop"]
+    PRR["PrepareResult<br/>sealed: Prepared / Invalid"]
+    OREP["OrdersRepository<br/>data"]
+
+    FVM -->|"execute(input)"| PO
+    PO -->|"prepare(...)"| PR
+    PR -.->|"uses"| PRM
+    PR -->|"returns"| PRR
+    PRR -.->|"Prepared.primary / .paired"| OR
+    PO -->|"postPrimary / postPaired"| OREP
+    OREP -->|"AppResult"| PO
+    PO -->|"PostOrderOutcome"| FVM
+```
+
+Подпись: `OrderFormViewModel` вызывает `PostOrderUseCase`, который внутри
+разделяет «проверка» (checkAvailability), «подготовка» (prepare →
+PrepareResult) и «отправка» (postPrimary / postPaired по sealed OrderRequest).
+`PrepareResult.Invalid` — единственная точка валидации до API.
+
+### Границы (dependency rule)
+
+- **`domain`** — `OrderRequest`, `PrepareResult`, `BrokerOrderRequest`,
+  `StopOrderRequest`.
+- **`data`** — `OrdersRepository.postOrderResult(BrokerOrderRequest)` /
+  `postStopOrderResult(StopOrderRequest)`. Адаптер — в `PostOrderUseCase`
+  (`when (OrderRequest) { is Broker -> ...; is Stop -> ... }`).
+- **`presentation`** — `PostOrderOutcome` (Success / InsufficientFunds /
+  Error / InvalidRequest); сообщения и форматирование — в `OrderFormViewModel`.
+
+### Atomicity парной сделки
+
+Идеально — 2 заявки одной транзакцией. T-Invest / BCS / Finam **не
+поддерживают batch**: primary уходит → paired отдельно; `PairedOutcome.Failed`
+не откатывает primary. **Вне scope** (broker limitation). При появлении
+потребности — `cancelOnPairedFailure` rollback отдельной задачей.
+
+### Связанные документы
+
+- `docs/ROADMAP.md` → `### PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
+- `docs/ISSUES.md` → `ClassCastException в PostOrderUseCase при StopLoss без stopPrice` (решён, PR #132).
+- `docs/clean-audit.md` → M017 (`buildPlaceOrderRequest`), M013 / A2 (orchestration) — контекст оркестрации заявок.
 
 ## CardIdentity и слоты
 
