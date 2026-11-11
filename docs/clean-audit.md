@@ -1933,31 +1933,31 @@ InvestRepository split` (ROADMAP).
 | Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` | - |
 | Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` | - |
 
-### Н37. Конвенции DI-файлов
+### Исправленные (L7)
 
-**Статус:** частично исправлено (H21b, PR #57, `dev`, 2026-10-27). Два `@Module` в
-`RepositoryModule.kt` → один (`UseCaseModule`): `RepositoryModule`
-object удалён после переноса его `@Provides` в `RepositoryBindingModule`
-(H21b). Осталось: `@Provides` для stateless-классов
-(`CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`) без
-`@Inject constructor()` — отдельной задачей (ROADMAP → «RepositoryModule
-→ UseCaseModule.kt», не заведена).
+### ✅ Н37. Конвенции DI-файлов
+
+**Статус:** исправлено (2026-11-11, PR #129, merge `bef308e2`). Rename
+`RepositoryModule.kt` → `UseCaseModule.kt` (file-convention aspect);
+`@Provides` для stateless usecases — по 2e → KMP → DI. Остаток
+(24 usecases с `@Inject`/`@Singleton`) → задача
+`### Н37b: usecases без DI-аннотаций`.
 
 **Серьёзность:** низко.
 
 **Live тест:** -
 
-**Описание:** `RepositoryModule.kt` содержит **два** `@Module` (`RepositoryModule` + `UseCaseModule`). По конвенции — отдельные файлы. `@Provides` для stateless-классов без зависимостей (`CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`, `FinamBrokerApi`, `BcsBrokerApi`) — при наличии `@Inject constructor()` на самом классе `@Provides` не нужен (Hilt сам создаст).
+**Описание:** `RepositoryModule.kt` содержит **два** `@Module` (`RepositoryModule` + `UseCaseModule`). По конвенции — отдельные файлы. `@Provides` для stateless-классов (`CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`) — корректен по 2e → KMP → DI (domain без DI-аннотаций); `@Inject constructor()` на usecases — не применять (шаг назад от KMP). `BcsBrokerApi` / `FinamBrokerApi` — отдельная задача (`data/`, KMP не блокирует).
 
 **Нарушенное правило Clean:** конвенция DI-файлов (не Clean-инвариант).
 
-**Clean-альтернатива (чисто):** `UseCaseModule.kt` отдельным файлом; `@Inject constructor()` на stateless-классах вместо `@Provides`. Плюсы: конвенция, меньше boilerplate. Минусы: —.
+**Clean-альтернатива (чисто):** `UseCaseModule.kt` отдельным файлом; `@Provides` для usecases (без `@Inject constructor()` — по 2e → KMP → DI). Плюсы: конвенция; domain без DI-аннотаций (KMP-ready). Минусы: boilerplate в `@Provides`.
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** — (не заведена). Мелочь конвенции, фиксится при следующем касании `RepositoryModule`/`DataModule`.
+**Что сделано:** `di/RepositoryModule.kt` → `di/UseCaseModule.kt` (git mv, 100% rename, content 1:1). `@Provides` для `CalculateTradeDetailsUseCase` / `PrepareOrderRequestUseCase` в `UseCaseModule.kt` — сохранены (2e → KMP → DI). `RepositoryModule` object (H21b) уже был удалён ранее. CI green `9e6d37ee`.
 
-### Исправленные (L7)
+**Ссылка на задачу:** PR #129 (merge `bef308e2`). 24 usecases с `@Inject` — задача `### Н37b: usecases без DI-аннотаций` (`docs/ROADMAP.md`).
 
 ### ✅ Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
 
