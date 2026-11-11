@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
+import com.gitlab.biomorf.tscalp.domain.models.OrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.OrderResult
 import com.gitlab.biomorf.tscalp.domain.models.OrderStatus
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -57,21 +58,21 @@ class PostOrderUseCaseTest {
             paired = null,
         )
 
-    private fun marketPrepared(quantity: Long = 2L): PrepareOrderRequestUseCase.PreparedOrders =
-        PrepareOrderRequestUseCase.PreparedOrders(
-            primaryRequest =
-                BrokerOrderRequest(
-                    instrument = sber,
-                    quantity = quantity,
-                    direction = OrderDirection.BUY,
-                    accountId = "acc-1",
+    private fun marketPrepared(quantity: Long = 2L): PrepareOrderRequestUseCase.PrepareResult.Prepared =
+        PrepareOrderRequestUseCase.PrepareResult.Prepared(
+            primary =
+                OrderRequest.Broker(
+                    BrokerOrderRequest(
+                        instrument = sber,
+                        quantity = quantity,
+                        direction = OrderDirection.BUY,
+                        accountId = "acc-1",
+                    ),
                 ),
-            pairedRequest = null,
-            isPrimaryStop = false,
-            isPairedStop = null,
+            paired = null,
         )
 
-    private fun stubPrepare(prepared: PrepareOrderRequestUseCase.PreparedOrders) {
+    private fun stubPrepare(prepared: PrepareOrderRequestUseCase.PrepareResult) {
         coEvery {
             prepareOrderRequest.prepare(
                 any(),
@@ -165,15 +166,17 @@ class PostOrderUseCaseTest {
                     multiplier = "2",
                 )
             val preparedWithPair =
-                marketPrepared().copy(
-                    pairedRequest =
-                        BrokerOrderRequest(
-                            instrument = tmon,
-                            quantity = 4,
-                            direction = OrderDirection.SELL,
-                            accountId = "acc-1",
+                PrepareOrderRequestUseCase.PrepareResult.Prepared(
+                    primary = marketPrepared().primary,
+                    paired =
+                        OrderRequest.Broker(
+                            BrokerOrderRequest(
+                                instrument = tmon,
+                                quantity = 4,
+                                direction = OrderDirection.SELL,
+                                accountId = "acc-1",
+                            ),
                         ),
-                    isPairedStop = false,
                 )
             coEvery { ordersRepository.checkTradeAvailabilityResult(any(), any(), any(), any(), any()) } returns
                 AppResult.Success(TradeCheckResult.Success)
@@ -200,15 +203,17 @@ class PostOrderUseCaseTest {
                     multiplier = "1",
                 )
             val preparedWithPair =
-                marketPrepared().copy(
-                    pairedRequest =
-                        BrokerOrderRequest(
-                            instrument = tmon,
-                            quantity = 2,
-                            direction = OrderDirection.SELL,
-                            accountId = "acc-1",
+                PrepareOrderRequestUseCase.PrepareResult.Prepared(
+                    primary = marketPrepared().primary,
+                    paired =
+                        OrderRequest.Broker(
+                            BrokerOrderRequest(
+                                instrument = tmon,
+                                quantity = 2,
+                                direction = OrderDirection.SELL,
+                                accountId = "acc-1",
+                            ),
                         ),
-                    isPairedStop = false,
                 )
             coEvery { ordersRepository.checkTradeAvailabilityResult(any(), any(), any(), any(), any()) } returns
                 AppResult.Success(TradeCheckResult.Success)
@@ -223,5 +228,20 @@ class PostOrderUseCaseTest {
             val s = r as PostOrderOutcome.Success
             assertTrue(s.paired is PairedOutcome.Failed)
             assertEquals("paired failed", (s.paired as PairedOutcome.Failed).message)
+        }
+
+    @Test
+    fun `prepare invalid returns InvalidRequest`() =
+        runBlocking {
+            coEvery { ordersRepository.checkTradeAvailabilityResult(any(), any(), any(), any(), any()) } returns
+                AppResult.Success(TradeCheckResult.Success)
+            stubPrepare(
+                PrepareOrderRequestUseCase.PrepareResult.Invalid("stopPrice required for StopLoss"),
+            )
+
+            val r = useCase.execute(baseInput.copy(orderType = OrderTypeSelection.StopLoss))
+
+            assertTrue(r is PostOrderOutcome.InvalidRequest)
+            assertEquals("stopPrice required for StopLoss", (r as PostOrderOutcome.InvalidRequest).reason)
         }
 }
