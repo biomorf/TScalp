@@ -839,28 +839,6 @@ ___
 
 
 
-#### UseCase-слой
-
-**Файлы:**
-- `domain/usecases/CalculateTradeDetailsUseCase.kt` —
-  `calculate` (complexity 25).
-- `domain/usecases/PrepareOrderRequestUseCase.kt` —
-  `prepare` (92 строки, complexity 20).
-
-**Пути решения:** разбить `calculate` на отдельные функции
-по типу заявки (market/limit/stop). `prepare` — вынести
-валидацию, сборку request, разрешение uid в отдельные шаги.
-
-**Оценка:** ~2 часа.
-
-
-
-
-___
-
-
-
-
 #### Data-слой T-Invest
 
 **Файлы:**

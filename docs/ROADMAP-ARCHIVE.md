@@ -10312,3 +10312,27 @@ ___
 
 ___
 
+
+
+### ✅ UseCase-слой: tasks extracted (detekt-group-3)
+
+**Дата закрытия:** 2026-11-11
+
+**Подтверждение:** выполнено — задачи заведены в `docs/ROADMAP.md`: `### CalculateTradeDetailsUseCase: decompose`, `### PrepareOrderRequestUseCase: decompose` (commit `ea6abdaf`).
+
+**Файлы:**
+- `domain/usecases/CalculateTradeDetailsUseCase.kt` —
+  `calculate` (complexity 25).
+- `domain/usecases/PrepareOrderRequestUseCase.kt` —
+  `prepare` (92 строки, complexity 20).
+
+**Пути решения:** разбить `calculate` на отдельные функции
+по типу заявки (market/limit/stop). `prepare` — вынести
+валидацию, сборку request, разрешение uid в отдельные шаги.
+
+**Оценка:** ~2 часа.
+
+
+
+___
+
