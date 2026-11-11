@@ -10035,3 +10035,85 @@ ___
 **Открытые вопросы:** JDK 17 vs Robolectric SDK 34/36 в CI — проверить первым PR U0. Paparazzi/Roborazzi (screenshot) — опционально, отдельная задача (не блокер).
 
 ___
+
+
+
+___
+
+
+
+### ✅ Ревизия ссылок на PortfolioPosition после H5
+
+**Дата закрытия:** 2026-11-11
+
+**Мобильная работа:** полное закрытие (docs-only, proot).
+
+**Контекст:** после закрытия `### H5. PortfolioPosition: разделение domain/presentation` (удаление legacy `PortfolioPosition`) несколько записей в `docs/` содержат устаревшие ссылки / формулировки. Их нужно актуализировать или закрыть — иначе следующая сессия будет введена в заблуждение.
+
+**Что нужно отревизовать:**
+
+1. **`### UI: отображение blocked на валютной карточке`** (`docs/ROADMAP.md`) — **решено (B, 2026-11-11): переформулировано** в `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`. Старая формулировка (блок `blocked` на карточке `RUB000UTSTOM`) устарела — валютная карточка удалена в `Portfolio: модель портфеля`, `money`/`blocked` переехали в `AccountBalance`. Новая задача — про разбивку `total` в `AccountHeaderCard`.
+
+2. **`### P&L: client-side fallback для PortfolioPosition`** (`docs/ROADMAP.md`) — **решено (Q2, 2026-11-11)**: переименовано в `### P&L: sandbox client-side fallback для Position`, тело переписано под текущую реальность (H5: `Position` — единственная модель), fallback ограничен `sandboxMode == true` (в prod — лог, не подмена).
+
+3. **`docs/architecture.md` → «Data flow: позиции»** — упоминает `PortfolioPosition` как legacy (актуально сейчас). После H5 — устареет: `Position` — единственная модель, `PortfolioPosition` нет. Обновить раздел «Модели» / «Legacy `flow`» / «ViewModel».
+
+4. **`docs/clean-audit.md` → Н5** — после H5 статус → `исправлено`, запись переносится в `### Исправленные (L3)`. Проверить связанные упоминания (`toPortfolioPosition`, `mergeWith` в других записях — уже удалены, ссылки устарели).
+
+5. **KDoc в коде** — после H5 `grep -rn "PortfolioPosition" app/src` = 0 (это критерий H5), но KDoc-ссылки на удалённые функции (`toPortfolioPosition` и т.п.) в других файлах могут остаться. Проверить `grep -rn "toPortfolioPosition\|mergeWith\|PortfolioPosition" app/src` и почистить.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** `### H5. PortfolioPosition: разделение domain/presentation` — закрыта (merge в `dev`).
+
+**Файлы:**
+- `docs/ROADMAP.md` — `### UI: разбивка AccountBalance.total...`, `### P&L: client-side fallback...`.
+- `docs/architecture.md` — «Data flow: позиции».
+- `docs/clean-audit.md` — Н5 (закрытие), связанные упоминания.
+- KDoc в `app/src/**/*.kt` — если есть ссылки на удалённые `PortfolioPosition`-функции.
+
+**Шаги:**
+1. `grep -rn "PortfolioPosition\|toPortfolioPosition\|mergeWith" app/src docs/` — собрать фактический список ссылок.
+2. Пройти по 5 пунктам выше, для каждого — решить: закрыть / переформулировать / обновить.
+3. Правки — docs-only в `dev` (категория 2 по 5g), каждый документ — отдельный коммит (5b).
+4. KDoc — правка в feature-ветке (если есть) или отдельным `chore(docs)` в `dev`.
+5. Проверка: `grep -rn "PortfolioPosition" app/src docs/ROADMAP.md docs/architecture.md` — пусто (кроме исторических KDoc в `docs/clean-audit.md` → `### Исправленные`).
+
+**Тесты:** не требуются (docs-only + KDoc).
+
+**Референсы:**
+- `### H5. PortfolioPosition: разделение domain/presentation` — источник.
+- История H5: merge `d04ecc4`, PR #90.
+- `docs/clean-audit.md` → Н5.
+
+**Ограничения:**
+- Не менять код (только docs + KDoc).
+- Не создавать дубли задач — обновлять существующие.
+- Каждый документ — отдельным коммитом (5b, атомарная пара).
+
+**Критерий готовности:**
+- Все 5 пунктов выше обработаны (закрыто / переформулировано / обновлено).
+- `grep -rn "PortfolioPosition" docs/ROADMAP.md docs/architecture.md` — пусто (кроме записей в `### Исправленные` / исторических).
+- `grep -rn "PortfolioPosition" app/src` — пусто (критерий H5).
+- `docs/clean-audit.md` Н5 → `исправлено`.
+
+**Оценка:** ~30–45 мин (docs-only, 3–4 коммита).
+
+**Зависимости:** `### H5. PortfolioPosition: разделение domain/presentation` (blocker).
+
+**Связано:** `### H5. PortfolioPosition...`, `### ✅ Portfolio: модель портфеля`, `### UI: разбивка AccountBalance.total...`, `### P&L: client-side fallback...`. История: merge `d04ecc4`, PR #90.
+
+**Открытые вопросы:**
+- ~~`### UI: отображение blocked...`~~ — **решено (B, 2026-11-11): переформулировано** в `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`.
+- ~~`### P&L: client-side fallback...` — переименовать в `... для Position`?~~ — **решено (Q2, 2026-11-11): переименовано в `### P&L: sandbox client-side fallback для Position`**; fallback ограничен `sandboxMode == true`.
+
+
+
+___
+
