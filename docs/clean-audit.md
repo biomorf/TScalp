@@ -918,7 +918,7 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 ### ✅ Н5. PortfolioPosition — presentation-поля
 
-**Статус:** исправлено (merge pending H5 — ветка `feature/h5-clean-final`, коммит `4a0e785`; после merge — обновить до `исправлено`).
+**Статус:** исправлено (merge `d04ecc4`, PR #90; коммит `4a0e785`).
 
 **Серьёзность:** высоко.
 
@@ -932,9 +932,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Выгоды (по 2c):** `toPortfolioPosition()` — одна точка конвертации в `InvestRepository`; UI работает с одной моделью, без дублирования `profitPercent`/`totalValue` в presentation. Экономия на маппинге ~1 ч.
 
-**Что сделано:** `PortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`, `toLegacyPortfolioPosition` удалены из `domain/models/Portfolio.kt`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`. `emptyPosition(instrument, currentPrice, accountId, brokerName, lockedQuantity)` — dispatcher по `Instrument` (7 subtypes). `PortfolioUiState.positions` удалён; `PortfolioViewModel` на `sheet` + `prices`/`priceChangePercents` overlay; `sheetState`/`pricesMap`/`priceChangePercentsMap` удалены. `OrdersUiState.portfolioPositions → List<Position>`; `toLegacyPortfolioPosition` adapter убран. `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`. `PositionFormatter` — чистые функции с примитивами. `PositionFormatterTest` переписан (26 тестов); `PortfolioConvertersTest` +7 кейсов `emptyPosition`; `CalculateProfitPercentTest` удалён. Коммит `4a0e785` (PR pending merge).
+**Что сделано:** `PortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`, `toLegacyPortfolioPosition` удалены из `domain/models/Portfolio.kt`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`. `emptyPosition(instrument, currentPrice, accountId, brokerName, lockedQuantity)` — dispatcher по `Instrument` (7 subtypes). `PortfolioUiState.positions` удалён; `PortfolioViewModel` на `sheet` + `prices`/`priceChangePercents` overlay; `sheetState`/`pricesMap`/`priceChangePercentsMap` удалены. `OrdersUiState.portfolioPositions → List<Position>`; `toLegacyPortfolioPosition` adapter убран. `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`. `PositionFormatter` — чистые функции с примитивами. `PositionFormatterTest` переписан (26 тестов); `PortfolioConvertersTest` +7 кейсов `emptyPosition`; `CalculateProfitPercentTest` удалён. Коммит `4a0e785`, merge `d04ecc4`, PR #90.
 
-**Ссылка на задачу:** `### ✅ H5. PortfolioPosition removed` (`docs/ROADMAP.md`, merge pending). Связано с закрытой `### Рефакторинг расчёта P&L для PortfolioPosition` (PR #81, `dev`).
+**Ссылка на задачу:** `### ✅ H5. PortfolioPosition removed` (`docs/ROADMAP-ARCHIVE.md`, merge `d04ecc4`, PR #90). Связано с закрытой `### Рефакторинг расчёта P&L для PortfolioPosition` (PR #81, `dev`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
