@@ -85,6 +85,333 @@ clean-audit.
 
 
 
+### CalculateTradeDetailsUseCase: decompose (complexity 25)
+
+**Мобильная работа:** частичное (CI gate; live-тест не требуется — pure refactoring).
+
+**Статус:** запланировано.
+
+**Контекст:** (detekt-группа 3, `#### UseCase-слой`) `CalculateTradeDetailsUseCase.calculate` — 101 строка, `@Suppress("CyclomaticComplexMethod", "LongMethod")`, complexity 25. Внутри — ветвление по типу заявки (market / limit / stop), расчёт executionPrice / cost / multiplier с учётом `moneyPerPointOfPrice`. Снятие `@Suppress` — разбить `calculate` на приватные функции по типу заявки (диспетчер + 3 ветки), вынести общий расчёт cost/multiplier.
+
+**Соответствие Clean:** соответствует (refactoring в domain, dependency rule не затронута).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо, domain).
+
+**KMP:** соответствует (не добавляет DI-аннотаций, не вводит platform).
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `domain/usecases/CalculateTradeDetailsUseCase.kt` — разбить `calculate` на диспетчер + 3 приватные функции (market / limit / stop).
+- `app/src/test/kotlin/.../CalculateTradeDetailsUseCaseTest.kt` — регрессия.
+
+**Шаги:**
+1. `calculate` → диспетчер: `when (orderType) { Market -> calcMarket(...); Limit -> calcLimit(...); is Stop -> calcStop(...) }`.
+2. Общий расчёт cost/multiplier (`executionPrice * quantity * moneyPerPointOfPrice`) — вынести в private helper.
+3. Снять `@Suppress("CyclomaticComplexMethod", "LongMethod")`.
+4. Тесты: существующие + регрессия на каждый тип.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:** `CalculateTradeDetailsUseCaseTest` — существующие зелёные; +3 кейса (market / limit / stop) для явной проверки ветвей.
+
+**Референсы:** detekt-группа 3 `#### UseCase-слой` (закрыта 2026-11-11, `ROADMAP-ARCHIVE.md`); detekt `CyclomaticComplexMethod` / `LongMethod` в `config/detekt/detekt.yml`.
+
+**Ограничения:**
+- Поведение 1:1 — никаких правок логики, только декомпозиция.
+- Не менять конструктор `CalculateTradeDetailsUseCase()` — класс stateless, остаётся `@Provides` в `di/UseCaseModule.kt` (2e → KMP → DI).
+- UI-санкции нет (поведение не меняется).
+
+**Критерий готовности:**
+- `@Suppress("CyclomaticComplexMethod", "LongMethod")` снят с `calculate`.
+- detekt зелёный без `@Suppress`.
+- `CalculateTradeDetailsUseCaseTest` зелёный.
+- Гейт зелёный.
+
+**Оценка:** ~45 мин.
+
+**Зависимости:** нет.
+
+**Связано:** `#### UseCase-слой` (закрыта в этой сессии); `### PrepareOrderRequestUseCase: decompose` (симметричная задача).
+
+**Открытые вопросы:** нет.
+
+
+
+
+___
+
+
+
+### PrepareOrderRequestUseCase: decompose (92 строки, complexity 20)
+
+**Мобильная работа:** частичное (CI gate; live-тест не требуется — pure refactoring).
+
+**Статус:** запланировано.
+
+**Контекст:** (detekt-группа 3, `#### UseCase-слой`) `PrepareOrderRequestUseCase.prepare` — 92 строки (класс 122), `@Suppress("LongMethod", "CyclomaticComplexMethod")`, complexity 20. Внутри — валидация, сборка `BrokerOrderRequest` / `StopOrderRequest`, разрешение uid (`tscalpInstrumentId` → broker-specific), pair-order orchestration (`PairOrderMapper`). Снятие `@Suppress` — вынести валидацию, сборку request, разрешение uid, pair-сборку в отдельные функции.
+
+**Соответствие Clean:** соответствует (refactoring в domain, dependency rule не затронута).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо, domain).
+
+**KMP:** соответствует (не добавляет DI-аннотаций, не вводит platform).
+
+**Предусловия:** нет. (Симметрично `CalculateTradeDetailsUseCase: decompose` — можно параллельно.)
+
+**Файлы:**
+- `domain/usecases/PrepareOrderRequestUseCase.kt` — разбить `prepare` на валидацию / сборку request / разрешение uid / pair-сборку.
+- `app/src/test/kotlin/.../PrepareOrderRequestUseCaseTest.kt` — регрессия (если есть).
+
+**Шаги:**
+1. `prepare` → диспетчер по `orderType` + `isPaired`.
+2. Валидация (quantity / price / stop-price / expirationType) — private `validate...`.
+3. Разрешение uid — `resolveInstrumentUid(instrument, broker)` (в data, если ещё не вынесено).
+4. Сборка request — `buildBrokerOrderRequest(...)` / `buildStopOrderRequest(...)`.
+5. Pair-сборка — через `PairOrderMapper.map(...)` (уже вынесен).
+6. Снять `@Suppress("LongMethod", "CyclomaticComplexMethod")`.
+7. Гейт + тесты.
+
+**Тесты:** `PrepareOrderRequestUseCaseTest` — существующие зелёные; регрессия на stop / pair / ошибки валидации.
+
+**Референсы:** detekt-группа 3 `#### UseCase-слой` (закрыта 2026-11-11, `ROADMAP-ARCHIVE.md`); `PairOrderMapper` (уже вынесен); detekt `CyclomaticComplexMethod` / `LongMethod`.
+
+**Ограничения:**
+- Поведение 1:1 — никаких правок логики.
+- Не менять сигнатуры `prepare` / `PreparedOrders` (публичный контракт).
+- Не менять конструктор `PrepareOrderRequestUseCase(pairOrderMapper: PairOrderMapper = PairOrderMapper)` — `@Provides` в `di/UseCaseModule.kt` (2e → KMP → DI).
+- UI-санкции нет.
+
+**Критерий готовности:**
+- `@Suppress("LongMethod", "CyclomaticComplexMethod")` снят с `prepare`.
+- detekt зелёный без `@Suppress`.
+- `PrepareOrderRequestUseCaseTest` зелёный.
+- Гейт зелёный.
+
+**Оценка:** ~1 ч.
+
+**Зависимости:** нет.
+
+**Связано:** `#### UseCase-слой` (закрыта в этой сессии); `### CalculateTradeDetailsUseCase: decompose` (симметричная).
+
+**Открытые вопросы:** нет.
+
+
+
+
+___
+
+
+
+### Н37b: usecases без DI-аннотаций (2e → KMP → DI)
+
+**Мобильная работа:** частичное (CI gate; live-тест не требуется — pure refactoring).
+
+**Статус:** запланировано.
+
+**Контекст:** (2e, clean-audit Н37) `domain/usecases/*` содержит **24 файла** с `javax.inject.Inject` / `@Singleton` — DI-аннотации в domain, что нарушает 2e → KMP → DI (domain не знает про DI-фреймворк). Блокирует перевод `domain` в `:shared/commonMain`: `javax.inject` недоступен в `commonMain`. Чистых (без `@Inject`, через `@Provides`) — 2: `CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`.
+
+**Соответствие Clean:** соответствует (refactoring к Clean: domain не зависит от DI).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо, domain).
+
+**KMP:** блокер — DI: 24 файла с `@Inject`/`@Singleton`; снятие разблокирует domain → `commonMain`.
+
+**Предусловия:** принцип 2e зафиксирован (AGENTS 2e, `47bbecaa`). Rename `RepositoryModule.kt → UseCaseModule.kt` (Н37) — не строгий блокер (удобство, имя файла = имя модуля).
+
+**Файлы:**
+- `domain/usecases/*.kt` — 24 файла: удалить `import javax.inject.Inject` / `import javax.inject.Singleton`, `@Inject` на конструкторе, `@Singleton` на классе.
+- `di/UseCaseModule.kt` — добавить `@Provides @Singleton fun provide<Name>(<deps>): <Name> = <Name>(<deps>)` для каждого из 24.
+- `docs/architecture.md` → «KMP readiness» → «Чисто (KMP-safe)» — обновить запись про `domain/usecases/*`.
+- `docs/clean-audit.md` → Н37b-запись (завести) — или связать с Н37.
+
+**Шаги:**
+1. Инвентарь 24 файлов: `grep -rln "javax.inject" domain/usecases/`; параметры конструкторов.
+2. Убрать `javax.inject` / `@Inject` / `@Singleton` из 24 файлов (механически, без правок логики).
+3. Для каждого — `@Provides @Singleton` в `di/UseCaseModule.kt` с параметрами конструктора.
+4. CI gate (mobile: только CI).
+5. `docs/architecture.md` → «Чисто (KMP-safe)» — `domain/usecases/*` без DI-аннотаций.
+
+**Тесты:** существующие unit-тесты usecases — не меняются. Новых не требуется (поведение 1:1).
+
+**Референсы:**
+- AGENTS 2e (триада Clean + MVVM + KMP).
+- `docs/architecture.md` → «KMP readiness» → «Принцип (2e → KMP → DI)».
+- `docs/clean-audit.md` → Н37 (родительская).
+- Образец чистого usecase: `CalculateTradeDetailsUseCase` (`UseCaseModule.kt:16`).
+
+**Ограничения:**
+- Поведение usecases 1:1 — никаких правок логики.
+- Не менять конструкторы usecases — только убрать DI-аннотации.
+- `BcsBrokerApi` / `FinamBrokerApi` — **не в scope** (`data/`, KMP не блокируют; отдельной задачей при необходимости).
+- `@Singleton` на `@Provides` — сохранять (по образцу `UseCaseModule`).
+
+**Критерий готовности:**
+- `grep -rln "javax.inject" domain/usecases/` = 0.
+- `grep -rn "@Inject\|@Singleton" domain/usecases/` = 0.
+- `@Provides` в `di/UseCaseModule.kt` для каждого из 24.
+- CI green; domain unit-тесты зелёные.
+- `docs/architecture.md` — `domain/usecases/*` в «Чисто (KMP-safe)».
+
+**Оценка:** ~3–4 ч (refactoring 1.5–2 ч, PR-циклы 1–1.5 ч, docs 30 мин).
+
+**Зависимости:** нет строгих. `Н37` (rename) — удобство, не блокер.
+
+**Связано:** Н37 (rename RepositoryModule → UseCaseModule, merge pending), AGENTS 2e, `docs/architecture.md` → «KMP readiness» → «Принцип (2e → KMP → DI)».
+
+**Открытые вопросы:**
+- Один PR (все 24) или 4 батча по 6? **Дефолт:** один PR — атомарное изменение; промежуточное «часть с `@Inject`, часть без» — источник путаницы.
+- Заводить запись в `clean-audit.md` (новый ID) или Н37 расширить? **Дефолт:** Н37 расширить — одна ось «DI в domain», два аспекта (rename + 24 usecases).
+
+
+
+
+___
+
+
+
+### OrderSearchViewModel: reduce functions
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `OrderSearchViewModel` после 13d (11a) — 17 функций, `@Suppress("TooManyFunctions")` (2c, KDoc «17 функций = 2 симметричных search-флоу × 8. Split на 2 VM = +1 VM + cross-VM через selectedBroker (M5). Группировка (sealed SearchDialogAction) — хуже читаемость»). Снятие `@Suppress` — снизить число методов до ≤ 11 или разбить на 2 VM (`OrderSearchViewModel` + `OrderPairSearchViewModel`).
+
+**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `presentation/screens/orders/OrderSearchViewModel.kt` — 17 функций, `@Suppress("TooManyFunctions")`.
+- `presentation/screens/orders/OrderSearchState.kt` — 15 полей (13 плана + `statusMessage` / `isError`, M6 pre-existing).
+- (опционально) `OrderPairSearchViewModel.kt` + `OrderPairSearchState.kt` — split pair-search.
+- (опционально) `presentation/screens/orders/OrdersSearch.kt` / `OrdersPairTrading.kt` — callsites при split.
+
+**Шаги:**
+1. Решить форму: (a) снижение числа функций через группировку (sealed `SearchAction`) — без split; (b) split на 2 VM (основной / парный search).
+2. Диагностика: `grep -nE "^\s+fun " OrderSearchViewModel.kt` — 17 функций, какие симметричны.
+3. Реализация выбранного варианта + миграция UI-callsites.
+4. Снять `@Suppress("TooManyFunctions")` (если функция ≤ 11) или пересчитать порог.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. `OrderSearchViewModelTest` — обновить/расширить (текущие 6 кейсов).
+
+**Тесты:** `OrderSearchViewModelTest` — 6 кейсов (было), + регрессия на split (если B).
+
+**Референсы:** 13d KDoc `@Suppress("TooManyFunctions")` (2c); `OrderFormViewModel` (13d-B) — аналогичный `@Suppress`, задача ниже; closed `### ✅ OrderSearchViewModel` (ROADMAP-ARCHIVE, `7c4b5d9`/`7e1196c`/`eea0ec5`).
+
+**Ограничения:**
+- `statusMessage` / `isError` (M6 pre-existing) — **не трогать** в этой задаче (M6 — отдельная).
+- UI-санкция не требуется (только внутренняя структура VM).
+- **Связанная M001** (`### M001: formatting в presentation`) — если правка
+  не усложняет, можно заодно: `formatCostOverlay` /
+  `formatMultiplierOverlay` / `formatPostOrderSuccess` из Form-VM в
+  `presentation/util/`. Формально не часть этой задачи — приоритет M001
+  отдельно, но по 2c-долгу — можно.
+
+**Критерий готовности:**
+- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
+- `OrderSearchViewModelTest` зелёный.
+- Гейт зелёный.
+
+**Оценка:** ~2–3 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+
+**Связано:** `### OrderFormViewModel: reduce functions`, `### M6: one-shot events (StatusEvent)`.
+
+**Открытые вопросы:** вариант A (группировка) vs B (split) — решить при старте.
+
+
+
+___
+
+
+
+### 2. OrderFormViewModel: reduce functions
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `OrderFormViewModel` после 13d (A–D) — 30 функций, `@Suppress("TooManyFunctions")` (2c, KDoc 13d-B «12 функций в 13d-B, 26+ в 13d-C/D. Split Form на sub-VM = +N VM + cross-VM (форма — единый сценарий: instrument + quantity + orderType + pair + confirm). Группировка — хуже читаемость»). Плюс P7 (M001): `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — presentation в VM. Снятие `@Suppress` — extract helpers / presentation-format в `presentation/util/`.
+
+**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+
+**Файлы:**
+- `presentation/screens/orders/OrderFormViewModel.kt` — 30 функций, `@Suppress("TooManyFunctions")`, private `formatPostOrderSuccess` / `formatCostOverlay` / `formatMultiplierOverlay` (P7).
+- `presentation/util/` — новые helper'ы (format).
+- `presentation/screens/orders/OrderFormState.kt` — 29 полей.
+
+**Шаги:**
+1. Extract presentation-format (`formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess`) в `presentation/util/` (M001, P7) — это убирает 3 функции из VM.
+2. Пересчитать: `grep -cE "^\s+(fun|private fun|private suspend fun|override fun)" OrderFormViewModel.kt` — сколько после extract.
+3. Если всё ещё > 11 — extract private helpers в top-level `private fun OrderFormState.X(...)` (в `presentation/screens/orders/`, отдельный файл).
+4. Снять `@Suppress("TooManyFunctions")`.
+5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+6. `OrderFormViewModelTest` (новый) — если ещё нет.
+
+**Тесты:** `OrderFormViewModelTest` — success / failure / exception / cancellation на `postOrder` + `onInstrumentSelected` / `onPairedInstrumentSelected` (или использовать существующие).
+
+**Референсы:** 13d-B KDoc (`@Suppress("TooManyFunctions")`, 2c); `### M001: formatting в presentation` (связана, P7); `OrderSearchViewModel: reduce functions` (аналог).
+
+**Ограничения:**
+- **`formatPostOrderSuccess`** — оставить как presentation (M001-задача, extract).
+- **`postOrder` / `buildPlaceOrderRequest`** — orchestration (форма), не presentation (не в M001).
+- UI-санкция не требуется (только внутренняя структура VM).
+
+**Критерий готовности:**
+- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
+- `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — в `presentation/util/` (M001).
+- `OrderFormViewModelTest` зелёный.
+- Гейт зелёный.
+
+**Оценка:** ~4–6 ч.
+
+**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+
+**Связано:** `### OrderSearchViewModel: reduce functions`, `### M001: formatting в presentation`, `### M6: one-shot events (StatusEvent)`.
+
+**Открытые вопросы:** какие функции extract'ить (формат / helpers) — решить при старте.
+
+
+
+___
+
+
+
+
 ### Архитектурный документ (docs/architecture.md)
 
 **Мобильная работа:** полное закрытие (правки .md — через proot;
@@ -1304,80 +1631,6 @@ ___
 
 
 
-### Н37b: usecases без DI-аннотаций (2e → KMP → DI)
-
-**Мобильная работа:** частичное (CI gate; live-тест не требуется — pure refactoring).
-
-**Статус:** запланировано.
-
-**Контекст:** (2e, clean-audit Н37) `domain/usecases/*` содержит **24 файла** с `javax.inject.Inject` / `@Singleton` — DI-аннотации в domain, что нарушает 2e → KMP → DI (domain не знает про DI-фреймворк). Блокирует перевод `domain` в `:shared/commonMain`: `javax.inject` недоступен в `commonMain`. Чистых (без `@Inject`, через `@Provides`) — 2: `CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`.
-
-**Соответствие Clean:** соответствует (refactoring к Clean: domain не зависит от DI).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**MVVM:** — (не применимо, domain).
-
-**KMP:** блокер — DI: 24 файла с `@Inject`/`@Singleton`; снятие разблокирует domain → `commonMain`.
-
-**Предусловия:** принцип 2e зафиксирован (AGENTS 2e, `47bbecaa`). Rename `RepositoryModule.kt → UseCaseModule.kt` (Н37) — не строгий блокер (удобство, имя файла = имя модуля).
-
-**Файлы:**
-- `domain/usecases/*.kt` — 24 файла: удалить `import javax.inject.Inject` / `import javax.inject.Singleton`, `@Inject` на конструкторе, `@Singleton` на классе.
-- `di/UseCaseModule.kt` — добавить `@Provides @Singleton fun provide<Name>(<deps>): <Name> = <Name>(<deps>)` для каждого из 24.
-- `docs/architecture.md` → «KMP readiness» → «Чисто (KMP-safe)» — обновить запись про `domain/usecases/*`.
-- `docs/clean-audit.md` → Н37b-запись (завести) — или связать с Н37.
-
-**Шаги:**
-1. Инвентарь 24 файлов: `grep -rln "javax.inject" domain/usecases/`; параметры конструкторов.
-2. Убрать `javax.inject` / `@Inject` / `@Singleton` из 24 файлов (механически, без правок логики).
-3. Для каждого — `@Provides @Singleton` в `di/UseCaseModule.kt` с параметрами конструктора.
-4. CI gate (mobile: только CI).
-5. `docs/architecture.md` → «Чисто (KMP-safe)» — `domain/usecases/*` без DI-аннотаций.
-
-**Тесты:** существующие unit-тесты usecases — не меняются. Новых не требуется (поведение 1:1).
-
-**Референсы:**
-- AGENTS 2e (триада Clean + MVVM + KMP).
-- `docs/architecture.md` → «KMP readiness» → «Принцип (2e → KMP → DI)».
-- `docs/clean-audit.md` → Н37 (родительская).
-- Образец чистого usecase: `CalculateTradeDetailsUseCase` (`UseCaseModule.kt:16`).
-
-**Ограничения:**
-- Поведение usecases 1:1 — никаких правок логики.
-- Не менять конструкторы usecases — только убрать DI-аннотации.
-- `BcsBrokerApi` / `FinamBrokerApi` — **не в scope** (`data/`, KMP не блокируют; отдельной задачей при необходимости).
-- `@Singleton` на `@Provides` — сохранять (по образцу `UseCaseModule`).
-
-**Критерий готовности:**
-- `grep -rln "javax.inject" domain/usecases/` = 0.
-- `grep -rn "@Inject\|@Singleton" domain/usecases/` = 0.
-- `@Provides` в `di/UseCaseModule.kt` для каждого из 24.
-- CI green; domain unit-тесты зелёные.
-- `docs/architecture.md` — `domain/usecases/*` в «Чисто (KMP-safe)».
-
-**Оценка:** ~3–4 ч (refactoring 1.5–2 ч, PR-циклы 1–1.5 ч, docs 30 мин).
-
-**Зависимости:** нет строгих. `Н37` (rename) — удобство, не блокер.
-
-**Связано:** Н37 (rename RepositoryModule → UseCaseModule, merge pending), AGENTS 2e, `docs/architecture.md` → «KMP readiness» → «Принцип (2e → KMP → DI)».
-
-**Открытые вопросы:**
-- Один PR (все 24) или 4 батча по 6? **Дефолт:** один PR — атомарное изменение; промежуточное «часть с `@Inject`, часть без» — источник путаницы.
-- Заводить запись в `clean-audit.md` (новый ID) или Н37 расширить? **Дефолт:** Н37 расширить — одна ось «DI в domain», два аспекта (rename + 24 usecases).
-
-
-
-
-___
-
-
-
-
 ### UI: показать executedPrice / executedQuantity на карточке
 
 **Мобильная работа:** частичное (live-тест UI).
@@ -2324,134 +2577,6 @@ ___
 - Дополнять T-Invest таблицу новыми кодами по мере появления в логах.
 
 **Оценка:** 15 минут на нового брокера + 5 минут на новый код.
-
-
-
-___
-
-
-
-### OrderSearchViewModel: reduce functions
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** `OrderSearchViewModel` после 13d (11a) — 17 функций, `@Suppress("TooManyFunctions")` (2c, KDoc «17 функций = 2 симметричных search-флоу × 8. Split на 2 VM = +1 VM + cross-VM через selectedBroker (M5). Группировка (sealed SearchDialogAction) — хуже читаемость»). Снятие `@Suppress` — снизить число методов до ≤ 11 или разбить на 2 VM (`OrderSearchViewModel` + `OrderPairSearchViewModel`).
-
-**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
-
-**Файлы:**
-- `presentation/screens/orders/OrderSearchViewModel.kt` — 17 функций, `@Suppress("TooManyFunctions")`.
-- `presentation/screens/orders/OrderSearchState.kt` — 15 полей (13 плана + `statusMessage` / `isError`, M6 pre-existing).
-- (опционально) `OrderPairSearchViewModel.kt` + `OrderPairSearchState.kt` — split pair-search.
-- (опционально) `presentation/screens/orders/OrdersSearch.kt` / `OrdersPairTrading.kt` — callsites при split.
-
-**Шаги:**
-1. Решить форму: (a) снижение числа функций через группировку (sealed `SearchAction`) — без split; (b) split на 2 VM (основной / парный search).
-2. Диагностика: `grep -nE "^\s+fun " OrderSearchViewModel.kt` — 17 функций, какие симметричны.
-3. Реализация выбранного варианта + миграция UI-callsites.
-4. Снять `@Suppress("TooManyFunctions")` (если функция ≤ 11) или пересчитать порог.
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-6. `OrderSearchViewModelTest` — обновить/расширить (текущие 6 кейсов).
-
-**Тесты:** `OrderSearchViewModelTest` — 6 кейсов (было), + регрессия на split (если B).
-
-**Референсы:** 13d KDoc `@Suppress("TooManyFunctions")` (2c); `OrderFormViewModel` (13d-B) — аналогичный `@Suppress`, задача ниже; closed `### ✅ OrderSearchViewModel` (ROADMAP-ARCHIVE, `7c4b5d9`/`7e1196c`/`eea0ec5`).
-
-**Ограничения:**
-- `statusMessage` / `isError` (M6 pre-existing) — **не трогать** в этой задаче (M6 — отдельная).
-- UI-санкция не требуется (только внутренняя структура VM).
-- **Связанная M001** (`### M001: formatting в presentation`) — если правка
-  не усложняет, можно заодно: `formatCostOverlay` /
-  `formatMultiplierOverlay` / `formatPostOrderSuccess` из Form-VM в
-  `presentation/util/`. Формально не часть этой задачи — приоритет M001
-  отдельно, но по 2c-долгу — можно.
-
-**Критерий готовности:**
-- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
-- `OrderSearchViewModelTest` зелёный.
-- Гейт зелёный.
-
-**Оценка:** ~2–3 ч.
-
-**Зависимости:** «OrdersViewModel: разбить» (закрыто).
-
-**Связано:** `### OrderFormViewModel: reduce functions`, `### M6: one-shot events (StatusEvent)`.
-
-**Открытые вопросы:** вариант A (группировка) vs B (split) — решить при старте.
-
-
-
-___
-
-
-
-### 2. OrderFormViewModel: reduce functions
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** `OrderFormViewModel` после 13d (A–D) — 30 функций, `@Suppress("TooManyFunctions")` (2c, KDoc 13d-B «12 функций в 13d-B, 26+ в 13d-C/D. Split Form на sub-VM = +N VM + cross-VM (форма — единый сценарий: instrument + quantity + orderType + pair + confirm). Группировка — хуже читаемость»). Плюс P7 (M001): `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — presentation в VM. Снятие `@Suppress` — extract helpers / presentation-format в `presentation/util/`.
-
-**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
-
-**Файлы:**
-- `presentation/screens/orders/OrderFormViewModel.kt` — 30 функций, `@Suppress("TooManyFunctions")`, private `formatPostOrderSuccess` / `formatCostOverlay` / `formatMultiplierOverlay` (P7).
-- `presentation/util/` — новые helper'ы (format).
-- `presentation/screens/orders/OrderFormState.kt` — 29 полей.
-
-**Шаги:**
-1. Extract presentation-format (`formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess`) в `presentation/util/` (M001, P7) — это убирает 3 функции из VM.
-2. Пересчитать: `grep -cE "^\s+(fun|private fun|private suspend fun|override fun)" OrderFormViewModel.kt` — сколько после extract.
-3. Если всё ещё > 11 — extract private helpers в top-level `private fun OrderFormState.X(...)` (в `presentation/screens/orders/`, отдельный файл).
-4. Снять `@Suppress("TooManyFunctions")`.
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-6. `OrderFormViewModelTest` (новый) — если ещё нет.
-
-**Тесты:** `OrderFormViewModelTest` — success / failure / exception / cancellation на `postOrder` + `onInstrumentSelected` / `onPairedInstrumentSelected` (или использовать существующие).
-
-**Референсы:** 13d-B KDoc (`@Suppress("TooManyFunctions")`, 2c); `### M001: formatting в presentation` (связана, P7); `OrderSearchViewModel: reduce functions` (аналог).
-
-**Ограничения:**
-- **`formatPostOrderSuccess`** — оставить как presentation (M001-задача, extract).
-- **`postOrder` / `buildPlaceOrderRequest`** — orchestration (форма), не presentation (не в M001).
-- UI-санкция не требуется (только внутренняя структура VM).
-
-**Критерий готовности:**
-- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
-- `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — в `presentation/util/` (M001).
-- `OrderFormViewModelTest` зелёный.
-- Гейт зелёный.
-
-**Оценка:** ~4–6 ч.
-
-**Зависимости:** «OrdersViewModel: разбить» (закрыто).
-
-**Связано:** `### OrderSearchViewModel: reduce functions`, `### M001: formatting в presentation`, `### M6: one-shot events (StatusEvent)`.
-
-**Открытые вопросы:** какие функции extract'ить (формат / helpers) — решить при старте.
-
-
-
-___
 
 
 
