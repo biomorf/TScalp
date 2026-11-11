@@ -167,11 +167,13 @@ presentation → domain ← data
 
 - `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 —
   проектный мастер-план.
-- `docs/clean-audit.md` → Н5 (исправлено, PR #90: legacy `PortfolioPosition`
-  удалён), Н24 (mergeWith SSoT).
+- `docs/clean-audit.md` → Н5 (исправлено, merge `d04ecc4`, PR #90: legacy
+  `PortfolioPosition` удалён), Н24 (SSoT; `mergeWith` удалён в H5,
+  SSoT — `PositionFlowManager.sheet` + `mergeStreamItem`).
 - `AGENTS.md` → 2c (отклонения), 2d (временные решения).
 - `docs/ROADMAP.md` → `### ✅ OrdersViewModel: миграция на PortfolioSheet`,
-  `### ✅ H5. PortfolioPosition removed` (legacy `PortfolioPosition`),
+  `### ✅ H5. PortfolioPosition removed` (`ROADMAP-ARCHIVE.md`,
+  legacy `PortfolioPosition`),
   `### Position: источники priceChangePercent и lockedQuantity`
   (day-change, lockedQuantity, balances), `### P&L: client-side fallback`
   (отдельная задача).
