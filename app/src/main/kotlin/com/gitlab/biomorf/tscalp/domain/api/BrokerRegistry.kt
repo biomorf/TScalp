@@ -56,7 +56,8 @@ interface BrokerRegistry {
     companion object {
         /**
          * Брокер по умолчанию — domain-константа (clean-audit Н35).
-         * Раньше жила в `di/DataModule.provideBrokerRegistry`.
+         * Раньше жила в `di/DataModule.provideBrokerRegistry`
+         * (сейчас — `di/RegistryModule.provideBrokerRegistry`).
          */
         val defaultBroker: BrokerName = BrokerName.TINVEST
     }
