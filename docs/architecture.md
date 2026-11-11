@@ -175,8 +175,8 @@ presentation → domain ← data
   `### ✅ H5. PortfolioPosition removed` (`ROADMAP-ARCHIVE.md`,
   legacy `PortfolioPosition`),
   `### Position: источники priceChangePercent и lockedQuantity`
-  (day-change, lockedQuantity, balances), `### P&L: client-side fallback`
-  (отдельная задача).
+  (day-change, lockedQuantity, balances),
+  `### P&L: sandbox client-side fallback для Position` (отдельная задача).
 
 ## CardIdentity и слоты
 
