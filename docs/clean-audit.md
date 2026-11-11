@@ -914,7 +914,7 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Выгоды (по 2c):** простая сериализация в DataStore без маппинга, экономит ~1 ч (один DTO — 4 поля, DataStore-ключи 1:1). `quantity: String` — технический долг (можно сохранить «1O» вместо «10»), но: refactor → ~1–1.5 ч + миграция формата DataStore (бэкап-совместимость, 4 поля) — overhead > текущей выгоды. Пока `expectedYield`/`profit` не требуется валидировать на этом уровне (presentation валидирует при отправке).
 
-**Ссылка на задачу:** `### 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (ROADMAP, docs-only, merge pending).
+**Ссылка на задачу:** `### ✅ 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (`docs/ROADMAP-ARCHIVE.md`, merge `eb2db6a8`, 2026-11-11).
 
 ### Исправленные (L3)
 
@@ -1078,7 +1078,7 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Выгоды (по 2c):** 1 callsite (`AccountsRepositoryImpl:49`), 2 impl (`TInvestBrokerApi`, `BcsBrokerApi`/`FinamBrokerApi` — через `accounts = null`). Refactor (`TInvestAccountsApi : AccountsApi`) → правка 2 impl + 1 callsite + новый интерфейс — overhead > текущей выгоды. Параметр `sandboxMode` отражает реальность: у T-Invest sandbox есть, у BCS/Finam — нет (игнорируется). Domain-контракт терпит это как «общий параметр, иногда не применим».
 
-**Ссылка на задачу:** `### 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (ROADMAP, docs-only, merge pending).
+**Ссылка на задачу:** `### ✅ 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (`docs/ROADMAP-ARCHIVE.md`, merge `eb2db6a8`, 2026-11-11).
 
 ### Исправленные (L4)
 
