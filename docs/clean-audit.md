@@ -878,24 +878,6 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` | - |
 | Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` | - |
 
-### Н13. KDoc StreamState — устаревший пакет
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `domain/models/StreamState.kt` — KDoc ссылается на `[com.gitlab.biomorf.tscalp.domain.api.StreamStateTracker]`. После Move `StreamStateTracker` живёт в `com.gitlab.biomorf.tscalp.domain.api.managers.StreamStateTracker` (package `domain.api.managers`). Ссылка битая (в KDoc, не в коде).
-
-**Нарушенное правило:** Не Clean — актуальность документации.
-
-**Clean-альтернатива:** поправить ссылку в KDoc. Плюсы: актуально. Минусы: — (~2 мин).
-
-**Выгоды:** —
-
-**Ссылка на задачу:** — (не заведена). Мелочь, правится при следующем касании `StreamState.kt`.
-
 ### Принятые (2c)
 
 ### Н15. TradingStateSnapshot — presentation в domain (принято 2c)
@@ -917,6 +899,26 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 **Ссылка на задачу:** `### ✅ 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (`docs/ROADMAP-ARCHIVE.md`, merge `eb2db6a8`, 2026-11-11).
 
 ### Исправленные (L3)
+
+### ✅ Н13. KDoc StreamState — устаревший пакет
+
+**Статус:** исправлено (2026-11-11, commit `2f476dc6`).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `domain/models/StreamState.kt` — KDoc ссылается на `[com.gitlab.biomorf.tscalp.domain.api.StreamStateTracker]`. После Move `StreamStateTracker` живёт в `com.gitlab.biomorf.tscalp.domain.api.managers.StreamStateTracker` (package `domain.api.managers`). Ссылка битая (в KDoc, не в коде).
+
+**Нарушенное правило:** Не Clean — актуальность документации.
+
+**Clean-альтернатива:** поправить ссылку в KDoc. Плюсы: актуально. Минусы: — (~2 мин).
+
+**Выгоды:** —
+
+**Что сделано:** KDoc `StreamState.kt` обновлён — ссылка `[com.gitlab.biomorf.tscalp.domain.api.StreamStateTracker]` → `[com.gitlab.biomorf.tscalp.domain.api.managers.StreamStateTracker]` (commit `2f476dc6`). Одна строка, без изменений кода.
+
+**Ссылка на задачу:** commit `2f476dc6` (2026-11-11). Правка в рамках сессии по очереди clean-audit.
 
 ### ✅ Н5. PortfolioPosition — presentation-поля
 
