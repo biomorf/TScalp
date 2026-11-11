@@ -289,3 +289,18 @@ internal fun OrderState.toOrder(): Order.Regular =
         executedPrice = executedPrice,
         executedQuantity = executedQuantity,
     )
+
+/**
+ * Готовая к отправке заявка. Заменяет `Any`-поля (`BrokerOrderRequest` /
+ * `StopOrderRequest`) — типобезопасный контракт между
+ * `PrepareOrderRequestUseCase` и `PostOrderUseCase` (clean-audit / 2e).
+ */
+sealed interface OrderRequest {
+    data class Broker(
+        val request: BrokerOrderRequest,
+    ) : OrderRequest
+
+    data class Stop(
+        val request: StopOrderRequest,
+    ) : OrderRequest
+}

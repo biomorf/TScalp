@@ -2,12 +2,11 @@ package com.gitlab.biomorf.tscalp.domain.usecases
 
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
-import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
+import com.gitlab.biomorf.tscalp.domain.models.OrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
-import com.gitlab.biomorf.tscalp.domain.models.StopOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
@@ -182,15 +181,24 @@ class PostOrderUseCase
                     )
                 }
 
+            return when (prepared) {
+                is PrepareOrderRequestUseCase.PrepareResult.Invalid ->
+                    PostOrderOutcome.InvalidRequest(prepared.reason)
+                is PrepareOrderRequestUseCase.PrepareResult.Prepared ->
+                    executePrepared(prepared)
+            }
+        }
+
+        private suspend fun executePrepared(
+            prepared: PrepareOrderRequestUseCase.PrepareResult.Prepared,
+        ): PostOrderOutcome {
             val primary =
-                when (val r = postPrimary(prepared)) {
+                when (val r = postPrimary(prepared.primary)) {
                     is PostOrderOutcome.Error -> return r
                     is PostOrderOutcome.Success -> r.primary
                     else -> return PostOrderOutcome.Error("Unexpected primary outcome", null)
                 }
-
-            val paired = if (prepared.pairedRequest != null) postPaired(prepared) else null
-
+            val paired = if (prepared.paired != null) postPaired(prepared.paired) else null
             return PostOrderOutcome.Success(primary = primary, paired = paired)
         }
 
@@ -229,25 +237,26 @@ class PostOrderUseCase
         }
 
         /** Отправляет основную заявку. */
-        private suspend fun postPrimary(prepared: PrepareOrderRequestUseCase.PreparedOrders): PostOrderOutcome =
+        private suspend fun postPrimary(request: OrderRequest): PostOrderOutcome =
             try {
-                if (prepared.isPrimaryStop) {
-                    when (val r = ordersRepository.postStopOrderResult(prepared.primaryRequest as StopOrderRequest)) {
-                        is AppResult.Success ->
-                            PostOrderOutcome.Success(PrimaryOutcome.Stop(r.data), null)
-                        is AppResult.Failure ->
-                            PostOrderOutcome.Error(r.error.message, r.error.cause)
-                    }
-                } else {
-                    when (val r = ordersRepository.postOrderResult(prepared.primaryRequest as BrokerOrderRequest)) {
-                        is AppResult.Success ->
-                            PostOrderOutcome.Success(
-                                PrimaryOutcome.Regular(r.data.orderId, r.data.executedLots, r.data.totalLots),
-                                null,
-                            )
-                        is AppResult.Failure ->
-                            PostOrderOutcome.Error(r.error.message, r.error.cause)
-                    }
+                when (request) {
+                    is OrderRequest.Broker ->
+                        when (val r = ordersRepository.postOrderResult(request.request)) {
+                            is AppResult.Success ->
+                                PostOrderOutcome.Success(
+                                    PrimaryOutcome.Regular(r.data.orderId, r.data.executedLots, r.data.totalLots),
+                                    null,
+                                )
+                            is AppResult.Failure ->
+                                PostOrderOutcome.Error(r.error.message, r.error.cause)
+                        }
+                    is OrderRequest.Stop ->
+                        when (val r = ordersRepository.postStopOrderResult(request.request)) {
+                            is AppResult.Success ->
+                                PostOrderOutcome.Success(PrimaryOutcome.Stop(r.data), null)
+                            is AppResult.Failure ->
+                                PostOrderOutcome.Error(r.error.message, r.error.cause)
+                        }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -256,24 +265,31 @@ class PostOrderUseCase
             }
 
         /** Отправляет парную заявку. Failure → `PairedOutcome.Failed` (не блокирует основную). */
-        private suspend fun postPaired(prepared: PrepareOrderRequestUseCase.PreparedOrders): PairedOutcome =
+        private suspend fun postPaired(request: OrderRequest): PairedOutcome =
             try {
-                if (prepared.isPairedStop == true) {
-                    val req = prepared.pairedRequest as StopOrderRequest
-                    when (val r = ordersRepository.postStopOrderResult(req)) {
-                        is AppResult.Success ->
-                            PairedOutcome.Stop(instrument = req.instrument, orderId = r.data, quantity = req.quantity)
-                        is AppResult.Failure ->
-                            PairedOutcome.Failed(r.error.message, r.error.cause)
-                    }
-                } else {
-                    val req = prepared.pairedRequest as BrokerOrderRequest
-                    when (val r = ordersRepository.postOrderResult(req)) {
-                        is AppResult.Success ->
-                            PairedOutcome.Regular(instrument = req.instrument, orderId = r.data.orderId, quantity = req.quantity)
-                        is AppResult.Failure ->
-                            PairedOutcome.Failed(r.error.message, r.error.cause)
-                    }
+                when (request) {
+                    is OrderRequest.Broker ->
+                        when (val r = ordersRepository.postOrderResult(request.request)) {
+                            is AppResult.Success ->
+                                PairedOutcome.Regular(
+                                    instrument = request.request.instrument,
+                                    orderId = r.data.orderId,
+                                    quantity = request.request.quantity,
+                                )
+                            is AppResult.Failure ->
+                                PairedOutcome.Failed(r.error.message, r.error.cause)
+                        }
+                    is OrderRequest.Stop ->
+                        when (val r = ordersRepository.postStopOrderResult(request.request)) {
+                            is AppResult.Success ->
+                                PairedOutcome.Stop(
+                                    instrument = request.request.instrument,
+                                    orderId = r.data,
+                                    quantity = request.request.quantity,
+                                )
+                            is AppResult.Failure ->
+                                PairedOutcome.Failed(r.error.message, r.error.cause)
+                        }
                 }
             } catch (e: CancellationException) {
                 throw e
