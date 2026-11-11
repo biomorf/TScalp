@@ -351,9 +351,11 @@ presentation-функции.
 **Принцип (2e → KMP → DI):** `domain` не содержит DI-аннотаций
 (`javax.inject.Inject` / `Singleton`, `@HiltViewModel`). DI-граф —
 снаружи (`di/` сейчас, Koin потом). `domain/usecases/*` — без
-`@Inject`: DI через `@Provides` в `di/UseCaseModule.kt`. Известный
-долг — 4 менеджера в `domain/api/managers/` (строка #2): там нужен
-Koin, не `@Provides` (многослойные зависимости).
+`@Inject`: DI через `@Provides` в 6 доменных `*UseCaseModule.kt`
+(Orders / OrderForm / OrderSearch / Broker / Accounts / Portfolio;
+split одного `UseCaseModule.kt` — detekt `TooManyFunctions`).
+Известный долг — 4 менеджера в `domain/api/managers/` (строка #2):
+там нужен Koin, не `@Provides` (многослойные зависимости).
 
 **`javax.inject` — 4 файла** в `domain/api/managers/`: `PositionFlowManager`, `PriceFlowManager`, `OrderFlowManager`, `BrokerLifecycleManager`. Аудит 2026-10-29 зафиксировал 3; `BrokerLifecycleManager` добавлен позже (PR #77, H50, 2026-10-31). Строка #4 (PR #74) — 3 менеджера, потому что `BrokerLifecycleManager` тогда ещё не существовал.
 
@@ -372,9 +374,11 @@ Koin, не `@Provides` (многослойные зависимости).
 - `domain/api/repository/*` (8 интерфейсов) — ноль platform.
 - `domain/api/roles/*` — чисто.
 - `domain/log/Logger` — pure Kotlin interface.
-- `domain/usecases/*` — **24 файла с `@Inject`/`@Singleton`** —
-  известный долг по 2e → KMP → DI. Refactoring to `@Provides` —
-  задача `### Н37 (rename RepositoryModule + domain without DI)`.
+- `domain/usecases/*` — **без DI-аннотаций** (24 файла очищены,
+  задача `### ✅ Н37b: usecases без DI-аннотаций (2e → KMP → DI)`).
+  DI через `@Provides` в 6 доменных `*UseCaseModule.kt`.
+  `CalculateTradeDetailsUseCase` / `PrepareOrderRequestUseCase` —
+  уже были чистыми.
 
 ### Не в этой фазе
 
