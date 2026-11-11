@@ -85,15 +85,24 @@ clean-audit.
 
 
 
-### OrderSearchViewModel: reduce functions
+### OrderSearchViewModel: slot-параметр (reduce functions, без split)
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
 **Статус:** запланировано.
 
-**Контекст:** `OrderSearchViewModel` после 13d (11a) — 17 функций, `@Suppress("TooManyFunctions")` (2c, KDoc «17 функций = 2 симметричных search-флоу × 8. Split на 2 VM = +1 VM + cross-VM через selectedBroker (M5). Группировка (sealed SearchDialogAction) — хуже читаемость»). Снятие `@Suppress` — снизить число методов до ≤ 11 или разбить на 2 VM (`OrderSearchViewModel` + `OrderPairSearchViewModel`).
+**Контекст:** `OrderSearchViewModel` — 234 строки, 16 функций (8 пар симметричных search / pairSearch + `setSearchActive` + `getAvailableBrokerNames`), `@Suppress("TooManyFunctions")` (порог 11). KDoc обосновывает `@Suppress` тремя аргументами: (1) split на 2 VM = +1 VM (не 4-VM плана); (2) cross-VM через `selectedBroker` (M5); (3) группировка (sealed `SearchDialogAction`) — хуже читаемость.
 
-**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
+**Пересмотр (2026-11-12, 2a):**
+- (1) 4-VM план — не приговор. После H37b (split `UseCaseModule` на 6) проект принял «дробить по SRP».
+- (2) cross-VM **не возникает**: каждый слот владеет своим state, общих полей нет.
+- (3) **согласен** — группировка хуже читаемость (вариант grouping отклонён).
+
+**Решение — slot-параметр, не split.** Основной и парный поиск **идентичны по логике** (debounce 500ms, `SearchInstrumentsUseCase`, error → `StatusEvent`), разница — только в слот, куда пишутся результаты. Вариант split на 2 VM отвергнут: **дублирование логики** (2 класса с одинаковым кодом, разница только в именах полей).
+
+**Общий кеш последних найденных — уже реализован, сохранить.** `SearchCacheImpl` — `@Singleton`, ключ `"brokerName:query"` (slot не входит). Оба слота используют один `SearchCacheRepository` instance. **Следствие:** одинаковый `(broker, query)` в primary и pair → cache-hit (второй слот получает результат без обращения к брокеру). В плане refactor **это поведение сохраняется** (не менять ключ кеша, не делать per-slot кеш).
+
+**Соответствие Clean:** соответствует (presentation; dependency rule не затронута).
 
 **Нарушенное правило Clean:** —.
 
@@ -101,47 +110,81 @@ clean-audit.
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
+**MVVM:** соответствует (одна VM, один `StateFlow`, 9 функций ≤ 11; нет M5; slot-параметр = явная диспетчеризация, не скрытая).
+
+**KMP:** — (не применимо, presentation).
+
+**Предусловия:** нет.
 
 **Файлы:**
-- `presentation/screens/orders/OrderSearchViewModel.kt` — 17 функций, `@Suppress("TooManyFunctions")`.
-- `presentation/screens/orders/OrderSearchState.kt` — 15 полей (13 плана + `statusMessage` / `isError`, M6 pre-existing).
-- (опционально) `OrderPairSearchViewModel.kt` + `OrderPairSearchState.kt` — split pair-search.
-- (опционально) `presentation/screens/orders/OrdersSearch.kt` / `OrdersPairTrading.kt` — callsites при split.
+- `presentation/screens/orders/OrderSearchState.kt` — `enum class SearchSlot { PRIMARY, PAIR }`, `data class SlotSearchState(...)`, `OrderSearchState(primary, pair, isSearchActive)`.
+- `presentation/screens/orders/OrderSearchViewModel.kt` — 9 функций с `slot`; снять `@Suppress("TooManyFunctions")`.
+- `presentation/screens/orders/OrdersScreen.kt` — 16 callsites с `SearchSlot.*`.
+- `presentation/screens/orders/OrdersSearch.kt` — `searchState.primary.*`.
+- `presentation/screens/orders/OrdersPairTrading.kt` — `searchState.pair.*`.
+- `presentation/screens/orders/OrdersBrokerDialogs.kt` — `SearchBrokerDialog(slot)`.
+- `app/src/test/kotlin/.../OrderSearchViewModelTest.kt` — 6 → 10 кейсов.
 
-**Шаги:**
-1. Решить форму: (a) снижение числа функций через группировку (sealed `SearchAction`) — без split; (b) split на 2 VM (основной / парный search).
-2. Диагностика: `grep -nE "^\s+fun " OrderSearchViewModel.kt` — 17 функций, какие симметричны.
-3. Реализация выбранного варианта + миграция UI-callsites.
-4. Снять `@Suppress("TooManyFunctions")` (если функция ≤ 11) или пересчитать порог.
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-6. `OrderSearchViewModelTest` — обновить/расширить (текущие 6 кейсов).
+**Состав state:**
+- `SlotSearchState(query, results, isSearching, broker, showBrokerDialog, selectedBroker)` — 6 полей на слот.
+- `OrderSearchState(primary: SlotSearchState, pair: SlotSearchState, isSearchActive: Boolean)` — `isSearchActive` только для primary (presentation-флаг «поиск открыт»).
 
-**Тесты:** `OrderSearchViewModelTest` — 6 кейсов (было), + регрессия на split (если B).
+**9 функций VM (было 16):**
+1. `onQueryChanged(slot, query)` — debounce + usecase + slot-error.
+2. `refresh(slot)` — invalidate + onQueryChanged.
+3. `onResultSelected(slot, instrument)` — `primary`: displayName + results=[] + isSearchActive=false; `pair`: displayName + results=[].
+4. `clearQuery(slot)` — `primary` сбрасывает `isSearchActive`, `pair` — нет.
+5. `openBrokerDialog(slot)`.
+6. `saveBroker(slot, broker)`.
+7. `dismissBrokerDialog(slot)`.
+8. `setSearchActive(active)` — только PRIMARY (presentation-флаг).
+9. `getAvailableBrokerNames()` — общий для обоих диалогов.
 
-**Референсы:** 13d KDoc `@Suppress("TooManyFunctions")` (2c); `OrderFormViewModel` (13d-B) — аналогичный `@Suppress`, задача ниже; closed `### ✅ OrderSearchViewModel` (ROADMAP-ARCHIVE, `7c4b5d9`/`7e1196c`/`eea0ec5`).
+Helper: `private fun updateSlot(slot, block: (SlotSearchState) -> SlotSearchState)` — обновление через `_state.update { copy(primary = ..., pair = ...) }`.
+
+**Шаги (компиляция между):**
+1. `OrderSearchState.kt`: `SearchSlot` + `SlotSearchState` + новый `OrderSearchState`.
+2. `OrderSearchViewModel.kt`: 9 функций с `slot`, helper `updateSlot`.
+3. CI gate (компиляция state + VM).
+4. `OrdersScreen.kt`: 16 callsites с `slot`.
+5. `OrdersSearch.kt`: 4 поля → `searchState.primary.*`.
+6. `OrdersPairTrading.kt`: 4 поля → `searchState.pair.*`.
+7. `OrdersBrokerDialogs.kt`: `SearchBrokerDialog(slot)`.
+8. `OrderSearchViewModelTest.kt`: 6 primary → адаптировать (slot = PRIMARY) + 4 pair.
+9. CI gate.
+
+**Тесты:** 6 существующих → 6 primary (slot = PRIMARY) + 4 pair (slot = PAIR): `onQueryChanged PAIR`, `onResultSelected PAIR`, `clearQuery PAIR`, `saveBroker PAIR`. **Главная гарантия:** одна реализация debounce/usecase/error-handling для обоих слотов — pair получает ту же защиту, что primary (было 0 pair-тестов).
+
+**Референсы:**
+- clean-audit M002 / M009 / M010 / M012 (SearchVM split 13d, PR #89).
+- AGENTS 2e.
+- `SearchCacheImpl` — shared cache, slot не входит в ключ; сохранить.
+- H37b (split UseCaseModule, PR #134) — прецедент split DI по SRP.
 
 **Ограничения:**
-- `statusMessage` / `isError` (M6 pre-existing) — **не трогать** в этой задаче (M6 — отдельная).
-- UI-санкция не требуется (только внутренняя структура VM).
-- **Связанная M001** (`### M001: formatting в presentation`) — если правка
-  не усложняет, можно заодно: `formatCostOverlay` /
-  `formatMultiplierOverlay` / `formatPostOrderSuccess` из Form-VM в
-  `presentation/util/`. Формально не часть этой задачи — приоритет M001
-  отдельно, но по 2c-долгу — можно.
+- Общий кеш: **не** менять ключ `"brokerName:query"`, **не** per-slot кеш.
+- `@Suppress("TooManyFunctions")` — снять; новых `@Suppress` не добавлять.
+- UI-санкция не требуется (внешний вид не меняется).
+- `isSearchActive` — только PRIMARY (presentation-флаг).
+- `getAvailableBrokerNames` — общий, оставить в VM.
+- Не смешивать с M001 (formatting), M013 (orchestration) — отдельные задачи.
 
 **Критерий готовности:**
-- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
-- `OrderSearchViewModelTest` зелёный.
-- Гейт зелёный.
+- `grep -cE "^\s+fun " OrderSearchViewModel.kt` = 9.
+- `grep -c "@Suppress" OrderSearchViewModel.kt` = 0.
+- `SlotSearchState` + `SearchSlot` в `OrderSearchState.kt`.
+- `grep "slot" SearchCacheImpl.kt` = 0 (ключ не изменился).
+- `OrderSearchViewModelTest` — 10 кейсов; CI green.
+- `OrdersScreen` / `OrdersSearch` / `OrdersPairTrading` / `OrdersBrokerDialogs` — компилируются.
 
-**Оценка:** ~2–3 ч.
+**Оценка:** ~2–2.5 ч (state 20 мин, VM 40, UI 1 ч, тесты 30).
 
-**Зависимости:** «OrdersViewModel: разбить» (закрыто).
+**Зависимости:** нет.
 
-**Связано:** `### OrderFormViewModel: reduce functions`, `### M6: one-shot events (StatusEvent)`.
+**Связано:** clean-audit M002/M009/M010/M012 (закрыты PR #89); `### OrderFormViewModel: reduce functions` (соседняя, тот же паттерн); H37b (PR #134).
 
-**Открытые вопросы:** вариант A (группировка) vs B (split) — решить при старте.
+**Открытые вопросы:** нет (вариант slot выбран 2026-11-12; split на 2 VM отвергнут — дублирование; общий кеш — сохранить, не менять).
+
 
 
 
@@ -182,7 +225,7 @@ ___
 
 **Тесты:** `OrderFormViewModelTest` — success / failure / exception / cancellation на `postOrder` + `onInstrumentSelected` / `onPairedInstrumentSelected` (или использовать существующие).
 
-**Референсы:** 13d-B KDoc (`@Suppress("TooManyFunctions")`, 2c); `### M001: formatting в presentation` (связана, P7); `OrderSearchViewModel: reduce functions` (аналог).
+**Референсы:** 13d-B KDoc (`@Suppress("TooManyFunctions")`, 2c); `### M001: formatting в presentation` (связана, P7); `### OrderSearchViewModel: slot-параметр (reduce functions, без split)` (аналог).
 
 **Ограничения:**
 - **`formatPostOrderSuccess`** — оставить как presentation (M001-задача, extract).
@@ -199,7 +242,7 @@ ___
 
 **Зависимости:** «OrdersViewModel: разбить» (закрыто).
 
-**Связано:** `### OrderSearchViewModel: reduce functions`, `### M001: formatting в presentation`, `### M6: one-shot events (StatusEvent)`.
+**Связано:** `### OrderSearchViewModel: slot-параметр (reduce functions, без split)`, `### M001: formatting в presentation`, `### M6: one-shot events (StatusEvent)`.
 
 **Открытые вопросы:** какие функции extract'ить (формат / helpers) — решить при старте.
 
