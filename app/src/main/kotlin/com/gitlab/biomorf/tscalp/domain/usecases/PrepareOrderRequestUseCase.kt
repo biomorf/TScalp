@@ -28,9 +28,6 @@ class PrepareOrderRequestUseCase(
         ) : PrepareResult
     }
 
-    // Архитектурный долг: функция требует декомпозиции.
-    // См. ROADMAP → «PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)».
-    @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun prepare(
         instrument: Instrument,
         quantity: Long,
@@ -44,9 +41,60 @@ class PrepareOrderRequestUseCase(
         pairedAccountId: String?,
         pairedMultiplier: String?,
     ): PrepareResult {
-        val primaryRequest: OrderRequest =
-            when (orderType) {
-                OrderTypeSelection.Market, OrderTypeSelection.Limit -> {
+        val primary =
+            when (
+                val step =
+                    buildPrimaryRequest(
+                        instrument = instrument,
+                        quantity = quantity,
+                        direction = direction,
+                        accountId = accountId,
+                        orderType = orderType,
+                        limitPrice = limitPrice,
+                        stopPrice = stopPrice,
+                        expirationType = expirationType,
+                    )
+            ) {
+                is Step.Invalid -> return PrepareResult.Invalid(step.reason)
+                is Step.Ok -> step.request
+            }
+
+        if (pairedInstrument == null || pairedAccountId == null) {
+            return PrepareResult.Prepared(primary, null)
+        }
+
+        return when (
+            val step =
+                buildPairedRequest(
+                    quantity = quantity,
+                    direction = direction,
+                    orderType = orderType,
+                    limitPrice = limitPrice,
+                    stopPrice = stopPrice,
+                    expirationType = expirationType,
+                    pairedInstrument = pairedInstrument,
+                    pairedAccountId = pairedAccountId,
+                    pairedMultiplier = pairedMultiplier,
+                )
+        ) {
+            is Step.Invalid -> PrepareResult.Invalid(step.reason)
+            is Step.Ok -> PrepareResult.Prepared(primary, step.request)
+        }
+    }
+
+    private fun buildPrimaryRequest(
+        instrument: Instrument,
+        quantity: Long,
+        direction: OrderDirection,
+        accountId: String,
+        orderType: OrderTypeSelection,
+        limitPrice: String?,
+        stopPrice: String?,
+        expirationType: StopOrderExpirationType,
+    ): Step =
+        when (orderType) {
+            OrderTypeSelection.Market, OrderTypeSelection.Limit ->
+                Step.Ok(
                     OrderRequest.Broker(
                         BrokerOrderRequest(
                             instrument = instrument,
@@ -56,12 +104,13 @@ class PrepareOrderRequestUseCase(
                             type = if (orderType == OrderTypeSelection.Market) BrokerOrderType.MARKET else BrokerOrderType.LIMIT,
                             price = limitPrice?.toDoubleOrNull(),
                         ),
-                    )
-                }
-                else -> {
-                    val parsedStop =
-                        stopPrice?.toDoubleOrNull()?.takeIf { it > 0.0 }
-                            ?: return PrepareResult.Invalid("stopPrice required for ${orderTypeName(orderType)}")
+                    ),
+                )
+            else -> {
+                val parsedStop =
+                    stopPrice?.toDoubleOrNull()?.takeIf { it > 0.0 }
+                        ?: return Step.Invalid("stopPrice required for ${orderTypeName(orderType)}")
+                Step.Ok(
                     OrderRequest.Stop(
                         StopOrderRequest(
                             instrument = instrument,
@@ -73,29 +122,31 @@ class PrepareOrderRequestUseCase(
                             stopOrderType = orderType.stopOrderType ?: StopOrderType.STOP_LOSS,
                             expirationType = expirationType,
                         ),
-                    )
-                }
+                    ),
+                )
             }
-
-        if (pairedInstrument == null || pairedAccountId == null) {
-            return PrepareResult.Prepared(primaryRequest, null)
         }
 
+    private fun buildPairedRequest(
+        quantity: Long,
+        direction: OrderDirection,
+        orderType: OrderTypeSelection,
+        limitPrice: String?,
+        stopPrice: String?,
+        expirationType: StopOrderExpirationType,
+        pairedInstrument: Instrument,
+        pairedAccountId: String,
+        pairedMultiplier: String?,
+    ): Step {
         val pairedDirection = if (direction == OrderDirection.BUY) OrderDirection.SELL else OrderDirection.BUY
-        val primaryPrice =
-            when (orderType) {
-                OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> limitPrice?.toDoubleOrNull()
-                OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> stopPrice?.toDoubleOrNull()
-                else -> null
-            }
-        val pairedSpec = pairOrderMapper.map(orderType, direction, primaryPrice)
+        val pairedSpec = pairOrderMapper.map(orderType, direction, primaryPriceForPair(orderType, limitPrice, stopPrice))
         val pairedQuantity = (quantity * (pairedMultiplier?.toDoubleOrNull() ?: 1.0)).toLong()
 
-        val pairedRequest: OrderRequest =
-            if (pairedSpec.isStopOrder) {
-                val parsedPairedStop =
-                    pairedSpec.stopPrice
-                        ?: return PrepareResult.Invalid("paired stopPrice required")
+        return if (pairedSpec.isStopOrder) {
+            val parsedPairedStop =
+                pairedSpec.stopPrice
+                    ?: return Step.Invalid("paired stopPrice required")
+            Step.Ok(
                 OrderRequest.Stop(
                     StopOrderRequest(
                         instrument = pairedInstrument,
@@ -107,8 +158,10 @@ class PrepareOrderRequestUseCase(
                         stopOrderType = pairedSpec.stopOrderType ?: StopOrderType.STOP_LOSS,
                         expirationType = expirationType,
                     ),
-                )
-            } else {
+                ),
+            )
+        } else {
+            Step.Ok(
                 OrderRequest.Broker(
                     BrokerOrderRequest(
                         instrument = pairedInstrument,
@@ -118,11 +171,21 @@ class PrepareOrderRequestUseCase(
                         type = pairedSpec.brokerOrderType ?: BrokerOrderType.MARKET,
                         price = pairedSpec.price,
                     ),
-                )
-            }
-
-        return PrepareResult.Prepared(primaryRequest, pairedRequest)
+                ),
+            )
+        }
     }
+
+    private fun primaryPriceForPair(
+        orderType: OrderTypeSelection,
+        limitPrice: String?,
+        stopPrice: String?,
+    ): Double? =
+        when (orderType) {
+            OrderTypeSelection.Limit, OrderTypeSelection.StopLimit -> limitPrice?.toDoubleOrNull()
+            OrderTypeSelection.StopLoss, OrderTypeSelection.TakeProfit -> stopPrice?.toDoubleOrNull()
+            else -> null
+        }
 
     private fun orderTypeName(orderType: OrderTypeSelection): String =
         when (orderType) {
@@ -132,4 +195,15 @@ class PrepareOrderRequestUseCase(
             OrderTypeSelection.TakeProfit -> "TakeProfit"
             OrderTypeSelection.StopLimit -> "StopLimit"
         }
+
+    /** Внутренний шаг построения одной заявки: результат или причина отказа. */
+    private sealed interface Step {
+        data class Ok(
+            val request: OrderRequest,
+        ) : Step
+
+        data class Invalid(
+            val reason: String,
+        ) : Step
+    }
 }
