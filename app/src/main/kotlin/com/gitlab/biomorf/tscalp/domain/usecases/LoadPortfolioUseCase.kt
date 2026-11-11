@@ -12,8 +12,6 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Загрузка портфеля: счета + seed `PortfolioSheet` (позиции + балансы).
@@ -30,9 +28,7 @@ import javax.inject.Singleton
  * не в scope M013; нормализация ISO 4217 — ROADMAP →
  * `### Currency format: normalize ISO 4217 case`.
  */
-@Singleton
 class LoadPortfolioUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val portfolioRepository: PortfolioRepository,

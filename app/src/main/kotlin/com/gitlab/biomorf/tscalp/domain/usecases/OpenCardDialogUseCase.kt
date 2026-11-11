@@ -12,8 +12,6 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.findCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Результат [OpenCardDialogUseCase]: broker + accounts +
@@ -64,9 +62,7 @@ sealed interface OpenCardDialogOutcome {
  *
  * Non-throwing (кроме `CancellationException` — rethrow).
  */
-@Singleton
 class OpenCardDialogUseCase
-    @Inject
     constructor(
         private val cardsRepository: CardsRepository,
         private val accountSelectionRepository: AccountSelectionRepository,

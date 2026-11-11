@@ -10,8 +10,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Отключение брокера: очистка credentials + деинициализация +
@@ -36,9 +34,7 @@ import javax.inject.Singleton
  * `_uiState.update` (`*Connected = false`, `defaultAccountId = ""`)
  * — presentation, остаётся в panel-VM.
  */
-@Singleton
 class DisconnectBrokerUseCase
-    @Inject
     constructor(
         private val brokerCredentialsRepository: BrokerCredentialsRepository,
         private val tradingStateRepository: TradingStateRepository,

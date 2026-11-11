@@ -5,8 +5,6 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.OrderFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.log.Logger
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Диагностический флаг транспорта. Один кейс = один тумблер в UI.
@@ -39,9 +37,7 @@ enum class DebugFlag {
  * тонких метода в `InfoSettingsViewModel` — фасады над
  * `execute(GRPC/WS/REST, enabled)`.
  */
-@Singleton
 class ToggleDebugFlagUseCase
-    @Inject
     constructor(
         private val debugFlagsRepository: DebugFlagsRepository,
         private val priceFlowManager: PriceFlowManager,

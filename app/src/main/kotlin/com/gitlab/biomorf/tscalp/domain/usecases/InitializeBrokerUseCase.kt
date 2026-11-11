@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Подключение к брокеру: сохранение credentials + инициализация через
@@ -28,9 +26,7 @@ import javax.inject.Singleton
  * и `LifecycleApi.initialize` — suspend / dispatch-safe. Если live-test
  * покажет ANR — отдельная задача (clean-audit M005).
  */
-@Singleton
 class InitializeBrokerUseCase
-    @Inject
     constructor(
         private val brokerRegistry: BrokerRegistry,
         private val credentialsRepository: BrokerCredentialsRepository,

@@ -9,8 +9,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerInitState
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Проверка инициализации брокеров + cleanup при `NotInitialized`.
@@ -25,9 +23,7 @@ import javax.inject.Singleton
  * `loadAccounts()` / `loadPortfolio()` / `syncPriceInterest()`; при
  * `NotInitialized` — `stopPositionUpdates()` и очистка `UiState`.
  */
-@Singleton
 class CheckBrokerInitializationUseCase
-    @Inject
     constructor(
         private val brokerRegistry: BrokerRegistry,
         private val priceFlowManager: PriceFlowManager,

@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Обновление trading availability по списку `tscalpInstrumentId`
@@ -26,9 +24,7 @@ import javax.inject.Singleton
  * **Empty ids** — `AppResult.Success(Unit)` без вызова repo
  * (1:1 `if (ids.isEmpty()) return`).
  */
-@Singleton
 class UpdateTradingStatusesUseCase
-    @Inject
     constructor(
         private val marketDataRepository: MarketDataRepository,
         private val tradingStatusRepository: TradingStatusRepository,

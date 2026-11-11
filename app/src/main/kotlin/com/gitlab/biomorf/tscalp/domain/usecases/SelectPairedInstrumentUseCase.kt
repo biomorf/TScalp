@@ -7,8 +7,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Выбор парного инструмента — разбиение `OrdersViewModel` на 4 VM, шаг 13c.
@@ -36,9 +34,7 @@ import javax.inject.Singleton
  *   `AppResult.Failure(AppError.Unknown)` на исключении
  *   `getLastPricesResult`. `CancellationException` пробрасывается.
  */
-@Singleton
 class SelectPairedInstrumentUseCase
-    @Inject
     constructor(
         private val marketDataRepository: MarketDataRepository,
         private val logger: Logger,

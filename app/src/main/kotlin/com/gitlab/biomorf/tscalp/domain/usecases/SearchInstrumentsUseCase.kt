@@ -7,8 +7,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Поиск инструментов + обновление trading availability — разбиение
@@ -28,9 +26,7 @@ import javax.inject.Singleton
  * всё равно пусты, поэтому запрос пропускается (skip для не-TINVEST).
  * Функционально эквивалентно старому поведению, меньше лишних вызовов.
  */
-@Singleton
 class SearchInstrumentsUseCase
-    @Inject
     constructor(
         private val searchCacheRepository: SearchCacheRepository,
         private val updateTradingStatusesUseCase: UpdateTradingStatusesUseCase,

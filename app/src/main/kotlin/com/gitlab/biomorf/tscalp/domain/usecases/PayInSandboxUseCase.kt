@@ -6,8 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.SandboxMoney
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Пополнение счёта в песочнице.
@@ -16,9 +14,7 @@ import javax.inject.Singleton
  * VM больше не оркестрирует вызов репозитория и разбор `AppResult` —
  * только делегирует и обновляет `UiState` (presentation).
  */
-@Singleton
 class PayInSandboxUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val logger: Logger,

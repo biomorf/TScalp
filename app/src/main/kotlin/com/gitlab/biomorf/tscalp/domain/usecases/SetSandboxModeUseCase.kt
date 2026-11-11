@@ -6,8 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Переключение режима песочницы T-Invest + перезагрузка счетов
@@ -24,9 +22,7 @@ import javax.inject.Singleton
  * новый счёт; этот — только меняет режим (видимость sandbox /
  * prod счетов).
  */
-@Singleton
 class SetSandboxModeUseCase
-    @Inject
     constructor(
         private val sandboxPreferencesRepository: SandboxPreferencesRepository,
         private val loadBrokerAccountsUseCase: LoadBrokerAccountsUseCase,

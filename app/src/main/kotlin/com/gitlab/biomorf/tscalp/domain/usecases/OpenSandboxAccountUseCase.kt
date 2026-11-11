@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Открытие счёта в песочнице + сохранение его как счёта по умолчанию
@@ -26,9 +24,7 @@ import javax.inject.Singleton
  * **saveDefaultAccountId failure — не fatal.** Счёт уже открыт; save
  * в DataStore — best-effort (лог `w`), результат операции — успех.
  */
-@Singleton
 class OpenSandboxAccountUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val accountPreferencesRepository: AccountPreferencesRepository,

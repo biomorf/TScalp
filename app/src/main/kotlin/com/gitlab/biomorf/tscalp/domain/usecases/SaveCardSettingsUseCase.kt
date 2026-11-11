@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.withEnsuredCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Сохранение настроек карточки (счёт) — разбиение `OrdersViewModel`
@@ -30,9 +28,7 @@ import javax.inject.Singleton
  * **`newAccountId = null`** — валидный кейс (карточка без счёта).
  * ensure с `null` тоже идемпотентен.
  */
-@Singleton
 class SaveCardSettingsUseCase
-    @Inject
     constructor(
         private val cardsRepository: CardsRepository,
         private val logger: Logger,

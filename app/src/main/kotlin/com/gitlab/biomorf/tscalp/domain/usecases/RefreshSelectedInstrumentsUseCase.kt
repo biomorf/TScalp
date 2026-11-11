@@ -4,8 +4,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AccountKey
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Обогащение карточек «Последние просмотренные» из портфеля
@@ -26,8 +24,8 @@ import javax.inject.Singleton
  * Не выбрана: usecase единообразно тестируется и консистентен с
  * остальными 13x (`SelectInstrumentUseCase`, `RestoreOrderFormUseCase`).
  *
- * **`@Inject constructor()` без зависимостей** — для Hilt-инъекции в
- * VM; логика внутри pure (не suspend, deterministic).
+ * **Stateless, без зависимостей** — DI через `@Provides` в `OrderSearchUseCaseModule`.
+ * Логика внутри pure (не suspend, deterministic).
  *
  * **Поведение 1:1** с `OrdersViewModel.refreshLastSelectedInstruments`:
  * - `cards` пустой -> `emptyList` (в VM-обёртке — early return до
@@ -43,33 +41,30 @@ import javax.inject.Singleton
  * - `position` ищется по composite `(tscalpInstrumentId, brokerName)`;
  * - `brokerName` позиции — `TINVEST` (жёстко, 1:1 с оригиналом).
  */
-@Singleton
-class RefreshSelectedInstrumentsUseCase
-    @Inject
-    constructor() {
-        fun execute(
-            cards: List<SelectedInstrumentInfo>,
-            globalAccountId: String?,
-            sheet: PortfolioSheet,
-        ): List<SelectedInstrumentInfo> {
-            if (cards.isEmpty()) return emptyList()
-            return cards.map { card ->
-                val accountId = card.accountId ?: globalAccountId
-                val positions =
-                    accountId
-                        ?.let { sheet.accounts[AccountKey(BrokerName.TINVEST, it)]?.positions }
-                        .orEmpty()
-                val pos =
-                    positions.find { p ->
-                        p.instrument.tscalpInstrumentId == card.instrument.tscalpInstrumentId &&
-                            p.instrument.brokerName == card.instrument.brokerName
-                    }
-                card.copy(
-                    quantity = pos?.quantity?.toLong() ?: 0L,
-                    averagePrice = pos?.currentPrice ?: card.averagePrice,
-                    profit = pos?.profit ?: 0.0,
-                    profitPercent = pos?.profitPercent ?: 0.0,
-                )
-            }
+class RefreshSelectedInstrumentsUseCase {
+    fun execute(
+        cards: List<SelectedInstrumentInfo>,
+        globalAccountId: String?,
+        sheet: PortfolioSheet,
+    ): List<SelectedInstrumentInfo> {
+        if (cards.isEmpty()) return emptyList()
+        return cards.map { card ->
+            val accountId = card.accountId ?: globalAccountId
+            val positions =
+                accountId
+                    ?.let { sheet.accounts[AccountKey(BrokerName.TINVEST, it)]?.positions }
+                    .orEmpty()
+            val pos =
+                positions.find { p ->
+                    p.instrument.tscalpInstrumentId == card.instrument.tscalpInstrumentId &&
+                        p.instrument.brokerName == card.instrument.brokerName
+                }
+            card.copy(
+                quantity = pos?.quantity?.toLong() ?: 0L,
+                averagePrice = pos?.currentPrice ?: card.averagePrice,
+                profit = pos?.profit ?: 0.0,
+                profitPercent = pos?.profitPercent ?: 0.0,
+            )
         }
     }
+}

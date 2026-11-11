@@ -8,8 +8,6 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Загрузка счетов брокера + выбор счёта по умолчанию.
@@ -18,9 +16,7 @@ import javax.inject.Singleton
  * «если счёт по умолчанию пуст и есть счета — взять первый» был
  * business-правилом в Composable. Теперь — в usecase.
  */
-@Singleton
 class LoadBrokerAccountsUseCase
-    @Inject
     constructor(
         private val accountsRepository: AccountsRepository,
         private val accountPreferencesRepository: AccountPreferencesRepository,

@@ -9,7 +9,6 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import com.gitlab.biomorf.tscalp.domain.models.TradeCheckResult
 import kotlinx.coroutines.CancellationException
-import javax.inject.Inject
 
 /**
  * Входные данные торговой операции: всё, что VM получает из `OrdersUiState`
@@ -127,7 +126,6 @@ internal sealed interface CheckResult {
  * на PortfolioSheet`).
  */
 class PostOrderUseCase
-    @Inject
     constructor(
         private val ordersRepository: OrdersRepository,
         private val prepareOrderRequest: PrepareOrderRequestUseCase,

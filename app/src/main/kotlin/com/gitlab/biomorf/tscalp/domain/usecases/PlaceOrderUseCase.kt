@@ -13,8 +13,6 @@ import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
 import com.gitlab.biomorf.tscalp.domain.models.matches
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Параметры торговой операции, которые Form-VM получает из
@@ -116,9 +114,7 @@ sealed interface PlaceOrderOutcome {
  *
  * Non-throwing (кроме `CancellationException` — rethrow).
  */
-@Singleton
 class PlaceOrderUseCase
-    @Inject
     constructor(
         private val postOrderUseCase: PostOrderUseCase,
         private val cardsRepository: CardsRepository,
