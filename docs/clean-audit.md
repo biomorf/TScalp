@@ -1933,24 +1933,6 @@ InvestRepository split` (ROADMAP).
 | Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` | - |
 | Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` | - |
 
-### Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `DataModule.provideTInvestWsHttpClient` содержит конфигурацию `HttpClient` (CIO engine, WebSockets, ContentNegotiation, trustManager). Транспортная конфигурация в сборочном слое. При появлении второго клиента (например, для REST) — дублирование конфига.
-
-**Нарушенное правило Clean:** транспортная конфигурация в di-слое.
-
-**Clean-альтернатива (чисто):** `data/transport/TInvestHttpClientFactory` (data) — `fun create(context: Context): HttpClient`. `DataModule.provideHttpClient(factory: TInvestHttpClientFactory): HttpClient = factory.create(context)` — тонкий DI. Плюсы: конфиг в data, DI чистый. Минусы: переезд.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). **Решение — чисто** (архитектурный стиль, не приоритет; когда к месту). Связано с отменённой `### Миграция BCS на Ktor` (удалена из ROADMAP).
-
 ### Н37. Конвенции DI-файлов
 
 **Статус:** частично исправлено (H21b, PR #57, `dev`, 2026-10-27). Два `@Module` в
@@ -1977,7 +1959,25 @@ object удалён после переноса его `@Provides` в `Repositor
 
 ### Исправленные (L7)
 
-[пусто]
+### ✅ Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
+
+**Статус:** исправлено (merge `9f352bbe`, PR #128).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `DataModule.provideTInvestWsHttpClient` содержит конфигурацию `HttpClient` (CIO engine, WebSockets, ContentNegotiation, trustManager). Транспортная конфигурация в сборочном слое. При появлении второго клиента (например, для REST) — дублирование конфига.
+
+**Нарушенное правило Clean:** транспортная конфигурация в di-слое.
+
+**Clean-альтернатива (чисто):** `data/transport/TInvestHttpClientFactory` (data) — `fun create(context: Context): HttpClient`. `DataModule.provideHttpClient(factory: TInvestHttpClientFactory): HttpClient = factory.create(context)` — тонкий DI. Плюсы: конфиг в data, DI чистый. Минусы: переезд.
+
+**Выгоды:** —.
+
+**Что сделано:** `data/transport/TInvestHttpClientFactory.kt` (новый) — top-level `createTInvestWsHttpClient(context, logger): HttpClient` с CIO engine, WebSockets, ContentNegotiation, `CustomTrustManager`. `DataModule.provideTInvestWsHttpClient` → 1-line delegate; удалены неиспользуемые импорты (`CIO`, `WebSockets`, `ContentNegotiation`, `json`, `Json`, `CustomTrustManager`). `HttpClient`-импорт сохранён (return type + `provideTInvestBrokerAPI`). CI green `bc28cf8a`.
+
+**Ссылка на задачу:** PR #128 (merge `9f352bbe`). Закрывает clean-audit H36 (когда-то «не приоритет», взято в работу 2026-11-11).
 
 ---
 
