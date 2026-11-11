@@ -156,6 +156,87 @@ ___
 
 
 
+### OrderSearchViewModel: re-search on broker change (follow-up to broker merge)
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** После merge `broker` + `selectedBroker` (задача `### OrderSearchViewModel: объединить broker + selectedBroker`) `saveBroker(slot, broker)` пишет `broker` в `SlotSearchState`, но **не триггерит повторный поиск**. Сценарий: query = "SBER", результаты — от TINVEST; пользователь в диалоге меняет broker на BCS → `slot.broker = BCS`, но `results` остаются **от TINVEST** до следующего `onQueryChanged`. Пользователь кликает старый результат → `instrument.brokerName == TINVEST` → карточка получит TINVEST, хотя слот настроен на BCS. Рассинхронизация.
+
+Per-broker результаты уже хранятся: `SearchCacheImpl` (`@Singleton`, ключ `"brokerName:query"`) — это и есть per-broker store (data-layer). Presentation `SlotSearchState.results` — «текущий вид», не «хранилище по брокерам». Задача — при смене broker: сбросить `results` (не относятся к новому брокеру) + триггернуть `onQueryChanged(slot, query)`. `onQueryChanged` → `SearchInstrumentsUseCase.execute(broker, query)` → `SearchCacheImpl.get("BCS:SBER")` — cache-hit (если раньше искали у BCS) или network-call. Presentation state **не** меняется (вариант B, не Map).
+
+**Соответствие Clean:** соответствует (fix presentation; dependency rule не затронута; `SearchCacheImpl` — data-layer per-broker store уже есть).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** соответствует (устранение скрытой дивергенции state; presentation `results` = «текущий view», не «хранилище по брокерам»; per-broker store — в data-layer `SearchCacheImpl`, SSoT сохранён).
+
+**KMP:** — (не применимо, presentation).
+
+**Предусловия:** `### OrderSearchViewModel: объединить broker + selectedBroker (fix selectedBroker not wired)` — merged (без merge полей `saveBroker` не пишет в `broker`; re-search уйдёт в `broker` = TINVEST, не в новый).
+
+**Файлы:**
+- `presentation/screens/orders/OrderSearchViewModel.kt` — `saveBroker`: после state-записи (сброс `results` + `isSearching = true`) — `onQueryChanged(slot, currentQuery)` если `query.length >= 2`.
+- `app/src/test/kotlin/.../OrderSearchViewModelTest.kt` — новый кейс: `saveBroker(PRIMARY, BCS)` при `query = "SBER"` → `coVerify { execute(BCS, "SBER") }`.
+- (не трогаем) `SearchCacheImpl` — per-broker store уже работает, ключ `"brokerName:query"`.
+
+**Шаги:**
+1. `saveBroker(slot, broker)`:
+   1.1 `val currentQuery = <query текущего слота>`.
+   1.2 `updateSlot(slot) { it.copy(broker = broker, showBrokerDialog = false, results = emptyList(), isSearching = false) }` — сброс результатов, т.к. они от старого брокера.
+   1.3 `if (currentQuery.length >= 2) onQueryChanged(slot, currentQuery)` — `onQueryChanged` сам выставит `isSearching = true` внутри launch (после debounce 500ms) и обновит `results` результатом нового брокера.
+2. Тест `saveBroker re-searches with new broker`: `setUp` (через `onQueryChanged(PRIMARY, "SBER")` + `advanceUntilIdle`), затем `saveBroker(PRIMARY, BCS)` → `advanceUntilIdle()` → `coVerify { execute(BCS, "SBER") }`.
+3. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+
+**Тесты:**
+- `saveBroker re-searches with new broker` — `saveBroker(PRIMARY, BCS)` при `query = "SBER"` → `coVerify { execute(BCS, "SBER") }` (exactly 1).
+- `saveBroker without query does not re-search` — `saveBroker(PRIMARY, BCS)` при `query = ""` → `coVerify(exactly = 0) { execute(any(), any()) }`.
+- `saveBroker for pair slot uses pair query` — `saveBroker(PAIR, BCS)` при `pair.query = "GAZP"` → `coVerify { execute(BCS, "GAZP") }`.
+- (Существующий `saveBroker updates broker and closes dialog` — не трогаем, он проверяет state; новый тест — поведение.)
+
+**Референсы:**
+- `SearchCacheImpl` — `@Singleton`, ключ `"brokerName:query"` (per-broker cache уже есть).
+- ISSUES → «OrderSearchViewModel: selectedBroker не влияет на API поиска» (исходный баг; merge полей — его фикс).
+- `### OrderSearchViewModel: объединить broker + selectedBroker` (predecessor).
+- `docs/architecture.md` → «Data flow: заявки» (`SearchInstrumentsUseCase` — single entry).
+
+**Ограничения:**
+- Presentation state **не** меняется (`results: List<Instrument>`, не `Map<Broker, List>`). Per-broker хранение — в `SearchCacheImpl`.
+- `query` при смене broker — **сохраняется** (не очищать).
+- `saveBroker` при `query.length < 2` — re-search **не** запускается (нечего искать), но `results` сбрасывается (старые не относятся к новому broker).
+- Не менять публичный контракт `SearchInstrumentsUseCase.execute(broker, query)`.
+- Не менять `SearchCacheImpl` (per-broker store уже корректен).
+- Не смешивать с merge полей (разные PR).
+- Не трогать `OrderDialogsState.selectedBroker` / `OrderFormState.selectedBroker` — другие сущности.
+- UI-санкция **требуется** (правило 1): при смене broker на мгновение — spinner `isSearching = true`, `results = empty[]`. Визуально: «список исчез, идёт загрузка». Согласовать.
+
+**Критерий готовности:**
+- `saveBroker(PRIMARY, BCS)` при `query = "SBER"` → `execute(BCS, "SBER")` (unit PASS).
+- `saveBroker` при `query = ""` → `execute` не вызывается (unit PASS).
+- `saveBroker(PAIR, BCS)` при `pair.query = "GAZP"` → `execute(BCS, "GAZP")` (unit PASS).
+- В UI: смена broker в диалоге → результаты от старого broker'а исчезают, появляется индикатор загрузки, приходят результаты нового broker'а. Live-test UI PASS (согласовать до старта).
+- Гейт зелёный.
+
+**Оценка:** ~1.5–2 ч (правка `saveBroker` 20 мин, 3 теста 30 мин, UI-санкция + согласование 20 мин, live-test UI 20 мин, гейт 15 мин).
+
+**Зависимости:** `### OrderSearchViewModel: объединить broker + selectedBroker (fix selectedBroker not wired)` — merged.
+
+**Связано:** `docs/ISSUES.md` → «OrderSearchViewModel: selectedBroker не влияет на API поиска» (исходный баг; здесь — follow-up поведение); `SearchCacheImpl` (per-broker store); `### OrderSearchViewModel: объединить broker + selectedBroker` (predecessor).
+
+**Открытые вопросы:** нет (вариант B — re-search через существующий per-broker cache; query сохраняется; presentation state — одна структура `List<Instrument>`; UI-санкция обязательна — согласовать до старта).
+
+
+
+
+___
+
+
+
 ### 2. OrderFormViewModel: reduce functions
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
