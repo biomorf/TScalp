@@ -10234,3 +10234,52 @@ ___
 
 ___
 
+
+
+### ✅ Compose-компоненты: extract (Н94 остаток)
+
+**Дата закрытия:** 2026-11-11
+
+**Подтверждение:** выполнено (пакеты A+B, H5; `@Suppress` остаток — Н94 в `clean-audit.md`).
+
+**Контекст:** подсекция `### Рефакторинг архитектурного долга (detekt-группа 3)` — группа extract-работ по Compose-компонентам (Н94). Заявлено: `AssetPositionCard` (109), `AssetCardContent` (136, complexity 20), `BrokerAccountDialog` (105), `OrdersListViewModel.loadOrders` (62).
+
+**Соответствие Clean:** соответствует (extract composables, presentation-only).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо, UI-composables).
+
+**KMP:** — (не применимо, presentation).
+
+**Предусловия:** нет.
+
+**Что сделано:**
+- `AssetPositionCard.kt` — пакет B: `SwipeActionButtons` (`BoxScope`), `DraggableCardContent`, `AssetCardHeader` (68), `AssetCardLowerSection` (72) извлечены. `AssetCardContent` — 48 строк (≤60). `@Suppress("LongMethod")` на `AssetPositionCard` / `AssetCardHeader` / `AssetCardLowerSection` — остаётся (KDoc «Н94», остаток).
+- `BrokerAccountDialog.kt` — пакет A: `BrokerSelector` + `AccountSelector` извлечены, `@Suppress` снят. 219 строк после extract (3 Preview).
+- `OrdersListViewModel.loadOrders` (62) — по M013 Q3/F3 manager-lifecycle, осознанно остаётся в VM; не architectural debt.
+- `AssetPositionCard` миграция на `Position` (H5, PR #90) — signature `(position: Position, displayCurrentPrice, priceChangePercent)`.
+
+**Остаток (вне scope):** `@Suppress` на `AssetPositionCard` / `AssetCardHeader` / `AssetCardLowerSection` — `clean-audit.md` → Н94 «частично исправлено»; доведение до 0 `@Suppress` — отдельная задача.
+
+**Оценка:** ~2 ч (закрыта).
+
+**Зависимости:** нет.
+
+**Связано:** `### ✅ UI: extract composables — пакет A` (PR #91), `### ✅ UI: extract composables — пакет B` (PR #91, merge `aa06690`), `docs/clean-audit.md` → Н94.
+
+**Открытые вопросы:** доведение до 0 `@Suppress` — Н94, отдельная задача (не здесь).
+
+
+
+
+___
+
+
+
+___
+

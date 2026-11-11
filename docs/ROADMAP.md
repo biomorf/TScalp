@@ -461,26 +461,7 @@ ___
 
 #### Compose-экраны
 
-**Перенесено в umbrella** `### Compose UI: test infra + 3 экрана (3 проходки)` (см. выше по приоритету; подсекции U0–U3). Здесь оставлен только маркер — не дублировать. `#### Compose-компоненты` (AssetPositionCard, BrokerAccountDialog) остаются в этой секции как отдельная работа.
-
-#### Compose-компоненты
-
-**Файлы:**
-- `ui/components/AssetPositionCard.kt` — `AssetPositionCard`
-  (109 строк), `AssetCardContent` (136 строк, complexity 20).
-- `ui/components/BrokerAccountDialog.kt` (105 строк).
-- `ui/components/OrdersListViewModel.kt` — `loadOrders`
-  (62 строки).
-
-**Оценка:** ~2 часа.
-
-
-
-
-___
-
-
-
+**Перенесено в umbrella** `### Compose UI: test infra + 3 экрана (3 проходки)` (см. выше по приоритету; подсекции U0–U3). Здесь оставлен только маркер — не дублировать. `#### Compose-компоненты` — закрыта (2026-11-11, `ROADMAP-ARCHIVE.md`); остаток — Н94 (`clean-audit.md`).
 
 #### ViewModel-слой
 
