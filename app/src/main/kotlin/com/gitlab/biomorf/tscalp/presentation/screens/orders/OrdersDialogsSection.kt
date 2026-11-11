@@ -50,14 +50,14 @@ internal fun OrdersDialogsSection(
     SearchBrokerDialog(
         availableBrokers = searchViewModel.getAvailableBrokerNames(),
         searchState = searchState,
-        onBrokerSelected = { searchViewModel.saveSearchBrokerSettings(it) },
-        onDismiss = { searchViewModel.dismissSearchBrokerDialog() },
+        onBrokerSelected = { searchViewModel.saveBroker(SearchSlot.PRIMARY, it) },
+        onDismiss = { searchViewModel.dismissBrokerDialog(SearchSlot.PRIMARY) },
     )
 
     PairSearchBrokerDialog(
         availableBrokers = searchViewModel.getAvailableBrokerNames(),
         searchState = searchState,
-        onBrokerSelected = { searchViewModel.savePairSearchBrokerSettings(it) },
-        onDismiss = { searchViewModel.dismissPairSearchBrokerDialog() },
+        onBrokerSelected = { searchViewModel.saveBroker(SearchSlot.PAIR, it) },
+        onDismiss = { searchViewModel.dismissBrokerDialog(SearchSlot.PAIR) },
     )
 }

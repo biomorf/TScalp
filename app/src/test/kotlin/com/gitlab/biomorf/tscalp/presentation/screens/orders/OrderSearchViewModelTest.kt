@@ -48,14 +48,14 @@ class OrderSearchViewModelTest {
         runTest {
             val vm = createVm()
 
-            vm.onSearchQueryChanged("S")
+            vm.onQueryChanged(SearchSlot.PRIMARY, "S")
             advanceUntilIdle()
 
             assertTrue(
-                vm.state.value.searchResults
+                vm.state.value.primary.results
                     .isEmpty(),
             )
-            assertFalse(vm.state.value.isSearching)
+            assertFalse(vm.state.value.primary.isSearching)
             coVerify(exactly = 0) { searchInstrumentsUseCase.execute(any(), any()) }
         }
 
@@ -67,11 +67,11 @@ class OrderSearchViewModelTest {
             } returns AppResult.Success(listOf(sber))
             val vm = createVm()
 
-            vm.onSearchQueryChanged("SBER")
+            vm.onQueryChanged(SearchSlot.PRIMARY, "SBER")
             advanceUntilIdle()
 
-            assertEquals(listOf(sber), vm.state.value.searchResults)
-            assertFalse(vm.state.value.isSearching)
+            assertEquals(listOf(sber), vm.state.value.primary.results)
+            assertFalse(vm.state.value.primary.isSearching)
             coVerify(exactly = 1) {
                 searchInstrumentsUseCase.execute(BrokerName.TINVEST, "SBER")
             }
@@ -85,14 +85,14 @@ class OrderSearchViewModelTest {
             } returns AppResult.Failure(AppError.Network("down", null))
             val vm = createVm()
 
-            vm.onSearchQueryChanged("SBER")
+            vm.onQueryChanged(SearchSlot.PRIMARY, "SBER")
             advanceUntilIdle()
 
             assertTrue(
-                vm.state.value.searchResults
+                vm.state.value.primary.results
                     .isEmpty(),
             )
-            assertFalse(vm.state.value.isSearching)
+            assertFalse(vm.state.value.primary.isSearching)
 
             val event =
                 vm.status
@@ -107,11 +107,11 @@ class OrderSearchViewModelTest {
         runTest {
             val vm = createVm()
 
-            vm.onSearchResultSelected(sber)
+            vm.onResultSelected(SearchSlot.PRIMARY, sber)
 
-            assertEquals("SBER - Сбербанк", vm.state.value.searchQuery)
+            assertEquals("SBER - Сбербанк", vm.state.value.primary.query)
             assertTrue(
-                vm.state.value.searchResults
+                vm.state.value.primary.results
                     .isEmpty(),
             )
             assertFalse(vm.state.value.isSearchActive)
@@ -121,13 +121,13 @@ class OrderSearchViewModelTest {
     fun `clearSearchQuery resets search fields`() =
         runTest {
             val vm = createVm()
-            vm.onSearchResultSelected(sber)
+            vm.onResultSelected(SearchSlot.PRIMARY, sber)
 
-            vm.clearSearchQuery()
+            vm.clearQuery(SearchSlot.PRIMARY)
 
-            assertEquals("", vm.state.value.searchQuery)
+            assertEquals("", vm.state.value.primary.query)
             assertTrue(
-                vm.state.value.searchResults
+                vm.state.value.primary.results
                     .isEmpty(),
             )
             assertFalse(vm.state.value.isSearchActive)
@@ -137,11 +137,73 @@ class OrderSearchViewModelTest {
     fun `saveSearchBrokerSettings updates broker and closes dialog`() =
         runTest {
             val vm = createVm()
-            vm.openSearchBrokerSettings()
+            vm.openBrokerDialog(SearchSlot.PRIMARY)
 
-            vm.saveSearchBrokerSettings(BrokerName.BCS)
+            vm.saveBroker(SearchSlot.PRIMARY, BrokerName.BCS)
 
-            assertEquals(BrokerName.BCS, vm.state.value.selectedSearchBroker)
-            assertFalse(vm.state.value.showSearchBrokerDialog)
+            assertEquals(BrokerName.BCS, vm.state.value.primary.selectedBroker)
+            assertFalse(vm.state.value.primary.showBrokerDialog)
         }
+
+    @Test
+    fun `pair onQueryChanged updates results without touching primary`() =
+        runTest {
+            coEvery {
+                searchInstrumentsUseCase.execute(BrokerName.TINVEST, "SBER")
+            } returns AppResult.Success(listOf(sber))
+            val vm = createVm()
+
+            vm.onQueryChanged(SearchSlot.PAIR, "SBER")
+            advanceUntilIdle()
+
+            assertEquals(listOf(sber), vm.state.value.pair.results)
+            assertFalse(vm.state.value.pair.isSearching)
+            assertTrue(vm.state.value.primary.results.isEmpty())
+            assertFalse(vm.state.value.primary.isSearching)
+        }
+
+    @Test
+    fun `pair onResultSelected sets displayName without touching isSearchActive`() =
+        runTest {
+            val vm = createVm()
+            vm.setSearchActive(true)
+
+            vm.onResultSelected(SearchSlot.PAIR, sber)
+
+            assertEquals("SBER - Сбербанк", vm.state.value.pair.query)
+            assertTrue(vm.state.value.pair.results.isEmpty())
+            // isSearchActive — primary-only; pair-слот его не трогает
+            assertTrue(vm.state.value.isSearchActive)
+        }
+
+    @Test
+    fun `pair clearQuery resets pair fields only`() =
+        runTest {
+            val vm = createVm()
+            vm.onResultSelected(SearchSlot.PRIMARY, sber)
+            vm.onResultSelected(SearchSlot.PAIR, sber)
+
+            vm.clearQuery(SearchSlot.PAIR)
+
+            assertEquals("", vm.state.value.pair.query)
+            assertTrue(vm.state.value.pair.results.isEmpty())
+            // primary не задет
+            assertEquals("SBER - Сбербанк", vm.state.value.primary.query)
+        }
+
+    @Test
+    fun `pair saveBroker updates selectedBroker and closes dialog`() =
+        runTest {
+            val vm = createVm()
+            vm.openBrokerDialog(SearchSlot.PAIR)
+
+            vm.saveBroker(SearchSlot.PAIR, BrokerName.BCS)
+
+            assertEquals(BrokerName.BCS, vm.state.value.pair.selectedBroker)
+            assertFalse(vm.state.value.pair.showBrokerDialog)
+            // primary не задет
+            assertEquals(BrokerName.TINVEST, vm.state.value.primary.selectedBroker)
+            assertFalse(vm.state.value.primary.showBrokerDialog)
+        }
+
 }
