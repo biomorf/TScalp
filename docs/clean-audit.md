@@ -1965,7 +1965,7 @@ InvestRepository split` (ROADMAP).
 
 **Что сделано:** `di/RepositoryModule.kt` → `di/UseCaseModule.kt` (git mv, 100% rename, content 1:1). `@Provides` для `CalculateTradeDetailsUseCase` / `PrepareOrderRequestUseCase` в `UseCaseModule.kt` — сохранены (2e → KMP → DI). `RepositoryModule` object (H21b) уже был удалён ранее. CI green `9e6d37ee`.
 
-**Ссылка на задачу:** PR #129 (merge `bef308e2`). 24 usecases с `@Inject` — задача `### Н37b: usecases без DI-аннотаций` (`docs/ROADMAP.md`).
+**Ссылка на задачу:** PR #129 (merge `bef308e2`). 24 usecases с `@Inject` — задача `### ✅ Н37b: usecases без DI-аннотаций (2e → KMP → DI)` (`docs/ROADMAP-ARCHIVE.md`, PR #134, merge `1fe8a869`).
 
 ### ✅ Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
 
