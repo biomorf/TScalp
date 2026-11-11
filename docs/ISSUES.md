@@ -1378,7 +1378,7 @@ DisconnectBrokerUseCase» (та же область — lifecycle disconnect).
 
 ## ClassCastException в PostOrderUseCase при StopLoss без stopPrice
 
-**Статус:** открыт (исправляется в B1).
+**Статус:** решён (PR #132, merge `718d108c`, 2026-11-11).
 
 **Симптом:** `PrepareOrderRequestUseCase.prepare(StopLoss, stopPrice=null)`
 возвращает `PreparedOrders(primaryRequest=BrokerOrderRequest(MARKET),
@@ -1395,4 +1395,15 @@ StopLoss без `stopPrice` → `Invalid("stopPrice required…")`; `isPrimarySt
 удалён (тип несёт `OrderRequest.Stop`). Silent drop pair — тоже `Invalid`.
 См. `docs/ROADMAP.md` → `### PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
 
-**Когда вернуться:** после merge B1 — перевести в `решён`.
+**Что сделано:** PR #132 (merge `718d108c`). `sealed interface OrderRequest`
+(`Broker` / `Stop`) заменяет `Any` в `PreparedOrders`; `PrepareResult`
+(`Prepared` / `Invalid`) — новый контракт `prepare(...)`. `isPrimaryStop` /
+`isPairedStop` удалены (тип `OrderRequest.Stop` несёт семантику). `postPrimary`
+/ `postPaired` — exhaustive `when`, 0 `as`-cast. StopLoss без `stopPrice` →
+`Invalid("stopPrice required…")` → `PostOrderOutcome.InvalidRequest`. Silent
+drop pair-stop без `stopPrice` → `Invalid`. `execute` complexity 15 → 8
+(extract `executePrepared`). `PostOrderUseCaseTest` — 8 тестов (было 7, +1
+`prepare invalid → InvalidRequest`). B2 (decompose `prepare` + `@Suppress`
+removal + `PrepareOrderRequestUseCaseTest`) — следующий PR.
+
+**Когда вернуться:** — (закрыто; B2 — отдельная фаза umbrella-задачи).
