@@ -301,8 +301,9 @@ Koin, не `@Provides` (многослойные зависимости).
 - `domain/api/repository/*` (8 интерфейсов) — ноль platform.
 - `domain/api/roles/*` — чисто.
 - `domain/log/Logger` — pure Kotlin interface.
-- `domain/usecases/*` — без DI-аннотаций (принцип 2e → KMP → DI);
-  время / dispatcher — через инжект, не константы.
+- `domain/usecases/*` — **24 файла с `@Inject`/`@Singleton`** —
+  известный долг по 2e → KMP → DI. Refactoring to `@Provides` —
+  задача `### Н37 (rename RepositoryModule + domain without DI)`.
 
 ### Не в этой фазе
 
