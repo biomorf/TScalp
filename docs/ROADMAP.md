@@ -417,7 +417,7 @@ ___
 0. **Диагностика (обязательно до фикса).** В песочнице: 2 счёта, SBER, купить, `logger.d` в `TInvestPortfolioService` (raw `pos.expectedYield` от `GetPortfolio`), `PositionFlowManager.mergePartial` (profit), `updatePositionsFromSheet` (profit/profitPercent), `refreshLastSelectedInstruments` (pos?.profit). Собрать лог. **Гипотеза для проверки:** `GetPortfolio.expectedYield == null` в sandbox.
 1. **По результатам шага 0 — выбрать вариант:**
    - **A (минимальный, если `expectedYield = null`).** `refreshLastSelectedInstruments`: убрать `?: 0.0` для `profit` / `profitPercent` (сохранять `null`). UI показывает «—» вместо «0». `profitPercent` в `SelectedInstrumentInfo` — `Double?` (если сейчас `Double` — миграция типа). Плюс: P&L не врёт (0 ≠ «неизвестно»). Минус: правка `SelectedInstrumentInfo` (тип) + UI.
-   - **B (client-side fallback).** При `expectedYield == null` и `averagePrice > 0`: `profit = (currentPrice - avgPrice) * quantity * moneyPerPointOfPrice`. Это пересекается с `### P&L: client-side fallback для PortfolioPosition` (низкий приоритет в ROADMAP). Возможно, объединить — «sandbox P&L» = частный случай client-side fallback.
+   - **B (client-side fallback).** При `expectedYield == null` и `averagePrice > 0`: `profit = (currentPrice - avgPrice) * quantity * moneyPerPointOfPrice`. Это пересекается с `### P&L: sandbox client-side fallback для Position` (низкий приоритет в ROADMAP). Возможно, объединить — «sandbox P&L» = частный случай client-side fallback.
    - **C (не чинить).** Признать sandbox-ограничение, документировать в `docs/ISSUES.md` («P&L в песочнице: expectedYield = null, UI показывает 0»). Боевой счёт работает — не блокер.
 
    **Рекомендация:** **A** + запись в `docs/ISSUES.md` про sandbox-ограничение. B — отдельная задача (`P&L: client-side fallback`).
@@ -428,7 +428,7 @@ ___
 
 **Тесты:** live-тест sandbox + prod.
 
-**Референсы:** `### P&L: client-side fallback для PortfolioPosition` (B-вариант, low priority); `### Position: источники priceChangePercent и lockedQuantity` (`GetPositions` — альтернативный источник P&L); `docs/ISSUES.md`.
+**Референсы:** `### P&L: sandbox client-side fallback для Position` (B-вариант, low priority); `### Position: источники priceChangePercent и lockedQuantity` (`GetPositions` — альтернативный источник P&L); `docs/ISSUES.md`.
 
 **Ограничения:**
 - Не чинить B в этой задаче (отдельная `P&L: client-side fallback`).
@@ -444,7 +444,7 @@ ___
 
 **Зависимости:** нет.
 
-**Связано:** `### P&L: client-side fallback для PortfolioPosition` (B-вариант, отдельная задача); `### Position: источники priceChangePercent и lockedQuantity`.
+**Связано:** `### P&L: sandbox client-side fallback для Position` (B-вариант, отдельная задача); `### Position: источники priceChangePercent и lockedQuantity`.
 
 **Открытые вопросы:** `expectedYield` в sandbox — `null` или `0`? Определить шагом 0. Если `0` — возможно, UI показывает 0 корректно (нет P&L), но это не отличимо от «реальный ноль»; тогда — отдельный `ISSUES.md` без фикса.
 
@@ -710,7 +710,7 @@ ___
 
 1. **`### UI: отображение blocked на валютной карточке`** (`docs/ROADMAP.md`) — **решено (B, 2026-11-11): переформулировано** в `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`. Старая формулировка (блок `blocked` на карточке `RUB000UTSTOM`) устарела — валютная карточка удалена в `Portfolio: модель портфеля`, `money`/`blocked` переехали в `AccountBalance`. Новая задача — про разбивку `total` в `AccountHeaderCard`.
 
-2. **`### P&L: client-side fallback для PortfolioPosition`** (`docs/ROADMAP.md`) — все упоминания `PortfolioPosition` в KDoc / формулировке устареют после H5. Fallback (`clientProfit()`) теперь применяется к `Position` (domain) / `PositionStreamItem` (в менеджере), а не к `PortfolioPosition`. Требуется переименовать задачу (`### P&L: client-side fallback для Position`), обновить ссылки в теле.
+2. **`### P&L: client-side fallback для PortfolioPosition`** (`docs/ROADMAP.md`) — **решено (Q2, 2026-11-11)**: переименовано в `### P&L: sandbox client-side fallback для Position`, тело переписано под текущую реальность (H5: `Position` — единственная модель), fallback ограничен `sandboxMode == true` (в prod — лог, не подмена).
 
 3. **`docs/architecture.md` → «Data flow: позиции»** — упоминает `PortfolioPosition` как legacy (актуально сейчас). После H5 — устареет: `Position` — единственная модель, `PortfolioPosition` нет. Обновить раздел «Модели» / «Legacy `flow`» / «ViewModel».
 
@@ -767,7 +767,7 @@ ___
 
 **Открытые вопросы:**
 - ~~`### UI: отображение blocked...`~~ — **решено (B, 2026-11-11): переформулировано** в `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`.
-- `### P&L: client-side fallback...` — переименовать в `... для Position`? Решить при ревизии, зависит от того, где сейчас применяется fallback (PositionStreamItem? Position?).
+- ~~`### P&L: client-side fallback...` — переименовать в `... для Position`?~~ — **решено (Q2, 2026-11-11): переименовано в `### P&L: sandbox client-side fallback для Position`**; fallback ограничен `sandboxMode == true`.
 
 
 
@@ -1910,15 +1910,17 @@ ___
 
 
 
-### P&L: client-side fallback для PortfolioPosition (низкий приоритет)
+### P&L: sandbox client-side fallback для Position (низкий приоритет)
 
-**Мобильная работа:** частичное (live-тест данных).
+**Мобильная работа:** частичное (live-тест данных в песочнице).
 
 **Статус:** запланировано.
 
-**Контекст:** сейчас `PortfolioPosition.profit = expectedYield` (серверный P&L от брокера). Если сервер не прислал `expectedYield` (изменение API, bug, первый partial-event до polling), `profit = null`, UI показывает прочерк. Клиентский расчёт `(currentPrice - averagePrice) * quantity * pointValue` мог бы дать ненулевую цифру.
+**Контекст:** в **песочнице** T-Invest `GetPortfolio.expectedYield` для ряда позиций приходит `null` (серверное ограничение sandbox — P&L не считается). `Position.profit = expectedYield` в этом случае `null`, UI показывает прочерк вместо расчётного P&L. В **prod** `expectedYield` приходит — там fallback **не нужен и вреден** (маскирует брокерские баги).
 
-`PositionFlowManager.enrichAndCache` уже подставляет `expectedYield` из кеша для partial-событий, когда polling пришёл. Но если сервер не прислал его в самом polling — fallback отсутствует.
+Клиентский расчёт `(currentPrice - averagePrice) * quantity * moneyPerPointOfPrice` может дать корректную цифру для sandbox-счетов.
+
+`PositionFlowManager.enrichAndCache` уже подставляет `expectedYield` из кеша для partial-событий, когда polling пришёл. Но если сервер не прислал его в самом polling (sandbox) — fallback отсутствует.
 
 **Соответствие Clean:** соответствует.
 
@@ -1928,46 +1930,52 @@ ___
 
 **Выгоды (для «отклонение по 2c»):** —.
 
-**Предусловия:** нет.
+**Предусловия:** H5 закрыт (`PortfolioPosition`, `toPortfolioPosition()`, `mergeWith()`, `calculateProfitPercent` удалены; `Position` — единственная модель, `PositionFlowManager.sheet` — SSoT).
 
 **Файлы:**
-- `domain/models/Portfolio.kt` — новая `fun PositionStreamItem.clientProfit(): Double?` (pure); использовать в `toPortfolioPosition()` и `mergeWith()` как fallback.
+- `domain/models/Portfolio.kt` — новая `fun PositionStreamItem.clientProfit(): Double?` (pure).
+- `domain/api/managers/PositionFlowManager.kt` — при построении `Position` из `PositionStreamItem` применять fallback **только при `sandboxMode == true`**; `sandboxMode` уже доступен в `start(accountKeys, sandboxMode, …)`.
 - `app/src/test/kotlin/com/gitlab/biomorf/tscalp/domain/models/PortfolioTest.kt` (новый) — unit-тесты.
+- `app/src/test/kotlin/.../domain/api/managers/PositionFlowManagerTest.kt` — кейс sandbox vs prod.
 
 **Шаги:**
-1. Реализовать `fun PositionStreamItem.clientProfit(): Double?`: `val avg = averagePositionPrice ?: return null`; `val price = currentPrice ?: return null`; `if (avg <= 0.0 || quantity == 0L) return null`; `val point = pointValue?.takeIf { it > 0.0 } ?: 1.0`; `return (price - avg) * quantity * point`.
-2. `toPortfolioPosition()`: `val profitValue = expectedYield ?: clientProfit()`; `profit = profitValue`, `profitPercent = calculateProfitPercent(profitValue, ...)`.
-3. `mergeWith()`: то же (не затирать `profit` в null, если `expectedYield == null`, но `clientProfit()` возвращает значение).
-4. Тесты (5–6 кейсов): server (non-null), client (expectedYield == null), futures (pointValue), avgPrice == null -> null, quantity == 0 -> null, убыток (negative client).
+1. `fun PositionStreamItem.clientProfit(): Double?`: `val avg = averagePrice ?: return null`; `val price = currentPrice ?: return null`; `if (avg <= 0.0 || quantity == 0.0) return null`; `val point = moneyPerPointOfPrice.takeIf { it > 0.0 } ?: 1.0`; `return (price - avg) * quantity * point`.
+2. `PositionFlowManager`: в пути конструирования `Position` из `PositionStreamItem` (polling + stream merge) — `if (sandboxMode && expectedYield == null) profit = clientProfit() else profit = expectedYield`.
+3. В prod, если `expectedYield == null` — `logger.w("prod: expectedYield == null, fallback disabled")` (аномалия, не подменять).
+4. Тесты:
+   - `clientProfit()`: server (non-null), futures (`moneyPerPointOfPrice`), `averagePrice == null` → null, `quantity == 0.0` → null, убыток (negative client) — 5 кейсов.
+   - `PositionFlowManager`: sandbox + `expectedYield == null` → клиентский P&L; **prod** + `expectedYield == null` → `profit = null`, лог — 2 кейса.
 5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
 
-**Тесты:** 5–6 unit-кейсов.
+**Тесты:** 5 unit-кейсов `clientProfit()` + 2 кейса `PositionFlowManager` (sandbox vs prod).
 
 **Референсы:**
+- `### Orders: P&L в песочнице (expectedYield)` — исходная диагностика sandbox-ограничения.
 - Закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
-- `data/api/tinvest/TInvestPortfolioService.kt` — passthrough
-  `expectedYield` в `fetchPortfolioPositions`.
+- `data/api/tinvest/TInvestPortfolioService.kt` — passthrough `expectedYield` в `fetchPortfolioPositions`.
 - `domain/api/managers/PositionFlowManager.enrichAndCache` — заполнение из кеша.
+- `docs/architecture.md` → «Data flow: позиции» (`Position`, `PositionStreamItem`).
 
 **Ограничения:**
-- Не менять поведение, когда `expectedYield != null` — серверный приоритет.
-- Не менять модель `PortfolioPosition` (только вычисление `profit`).
-- Не трогать `profitPercent` — унифицирован (`calculateProfitPercent`).
+- **Fallback — только `sandboxMode == true`.** В prod `expectedYield` авторитетен.
+- В prod при `expectedYield == null` — **лог, не подмена** (не маскировать брокерские баги клиентским расчётом).
+- Не менять модель `Position` (только вычисление `profit` при конструировании).
+- `profitPercent` — computed getter на `Position` (не трогать).
 - Fallback только при `expectedYield == null` (не при `0.0`).
 
 **Критерий готовности:**
-- `expectedYield == null && avgPrice != null && currentPrice != null` -> profit клиентски.
-- `expectedYield != null` -> server (поведение 1:1).
-- Тесты 5–6, гейт зелёный.
+- **Sandbox:** `expectedYield == null && averagePrice != null && currentPrice != null` → `profit` клиентски (UI показывает цифру вместо прочерка).
+- **Prod:** `expectedYield == null` → `profit = null` + `logger.w`; `expectedYield != null` → server (поведение 1:1, без изменений).
+- Тесты 5 + 2, гейт зелёный.
 
-**Оценка:** ~1.5 ч.
+**Оценка:** ~1.5–2 ч (добавлено 0.5 ч на прокидывание `sandboxMode` в путь конструирования и кейсы sandbox/prod).
 
 **Зависимости:** нет.
 
-**Связано:** закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
+**Связано:** `### Orders: P&L в песочнице (expectedYield)` (диагностика, отдельная задача); `### ✅ H5. PortfolioPosition removed` (базовая модель); закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
 
 **Открытые вопросы:**
-- Если `expectedYield != null`, но клиентский расчёт расходится > 5% — логировать для аналитики? Отложено.
+- В sandbox, если `expectedYield != null` (пришёл), но клиентский расчёт расходится > 5% — логировать? Отложено.
 - Если `averagePrice` устарел — проверка «свежести» отдельная задача.
 
 
