@@ -10938,3 +10938,36 @@ ___
 
 
 ___
+
+
+
+
+### ✅ Currency format: normalize ISO 4217 case
+
+**Дата закрытия:** 2026-11-12
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** `formatCurrency(value, currency)` использовал `Currency.getInstance(currency)` без нормализации регистра. `Currency.getInstance("rub")` бросает `IllegalArgumentException` (ISO 4217 требует uppercase). Латентно: если `Instrument.currency` от брокера приходит lowercase (BCS / Finam потенциально), UI падал. Pre-existing (PR #90 H5).
+
+**Соответствие Clean:** соответствует (правка в presentation-слое, dependency rule не затронута).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**MVVM:** соответствует.
+
+**KMP:** — (не применимо — presentation).
+
+**Что сделано:** `formatCurrency` нормализует `currency.uppercase(Locale.ROOT)` перед `Currency.getInstance(...)` (PR #143, merge `10b138f6`). 4 unit-теста (`CurrencyFormatTest`): lowercase == uppercase, mixed case == uppercase, uppercase non-empty, USD lowercase == uppercase. Сигнатура не изменилась; `formatPrice` проксирует `formatCurrency` для non-FUTURES.
+
+**Ссылка на задачу:** PR #143 (merge `10b138f6`).
+
+**Связано:** `docs/ISSUES.md` → «Currency format: lowercase iso-code в `Currency.getInstance`» (решён).
+
+**Открытые вопросы:** нет.
+
+
+
+___
