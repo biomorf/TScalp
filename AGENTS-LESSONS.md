@@ -1637,6 +1637,19 @@ origin/dev перед PR).
 **Связано:** AGENTS 5a (docs-only исключение), 4f (push в feature — батч перед PR), 5g (категории документации), `docs/git-flow.md` (dev — только PR), `docs/repo-protection.md` (bypass — для восстановления), урок 104 (5f-freeze).
 
 
+---
+
+### 107. 4h mobile pre-commit check — до commit, не после
+
+**Правило:** на mobile (proot) 4h pre-commit check (import order, unused imports, test function names, multiline wrapping, trailing ws) — строго **до** `git commit`. Post-push check — не замена, только sanity. Пропуск = нарушение 4h, коммит запрещён (даже если CI потом зелёный).
+
+**Инцидент:** 2026-11-12, property-based tests (`0c6a4d6b`). Сделал commit+push, проверку запустил post-push. Проверка прошла (все OK), но сам факт — нарушение. Повторение паттерна «сначала код, потом проверка» после Step 4 (Settings extended). Пользователь: «Import order ты по правилам должен сам проверять сам при mobile workflow перед коммитом».
+
+**Проверка:** перед `git commit` — 5 grep-ов (import order, unused, test names, multiline wrapping, trailing ws) + `cat -A` + `git diff --check`. Только после `OK` — `git commit`.
+
+**Связано:** AGENTS 4h (mobile pre-commit checklist), 5a (mobile gate = CI), урок 78 (ktlint на mobile — «золотой» гейт).
+
+
 ## Применение уроков
 
 Механизм — `AGENTS.md` → 4h «Проверка правок на соответствие
