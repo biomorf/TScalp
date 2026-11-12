@@ -20,7 +20,7 @@ import java.io.IOException
  *
  * Happy path (all 5 CAs loaded -> acceptedIssuers.size >= 5) is
  * covered by [CustomTrustManagerHappyPathTest] (Robolectric +
- * `unitTests.isIncludeAndroidResources = true`, real `res/raw/*.cer`).
+ * `unitTests.isIncludeAndroidResources = true`, real `res/raw .cer files`).
  */
 class CustomTrustManagerTest {
     private val logger = mockk<Logger>(relaxed = true)
