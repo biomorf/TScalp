@@ -10971,3 +10971,36 @@ ___
 
 
 ___
+
+
+
+
+### ✅ CustomTrustManager: fail-fast + 5 CA (Н79+Н80)
+
+**Дата закрытия:** 2026-11-13
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI). Live-тест не требуется (fail-fast виден в логах; unit-тест покрывает).
+
+**Контекст:** (clean-audit Н79 + Н80) `CustomTrustManager.loadCertificateToKeyStore` — `catch (e: Exception) { logger.w(...) }`. Если сертификат не загрузился — тихо пропускаем, TLS работает с усечённым набором. Нет проверки `acceptedIssuers.size == 5`. Риск: молчаливая деградация. Security, латентный.
+
+**Соответствие Clean:** соответствует (resilience, fail-fast).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**MVVM:** — (не применимо — data-слой).
+
+**KMP:** — (не применимо — data-слой).
+
+**Что сделано:** `loadCertificateToKeyStore` бросает `IllegalStateException` на любой ошибке (было: `logger.w` и продолжить). `init` проверяет `customTrustManager.acceptedIssuers.size >= EXPECTED_CA_COUNT` (5). Тесты: `CustomTrustManagerTest` (2 fail-fast: IOException, corrupt cert stream) + `CustomTrustManagerHappyPathTest` (Robolectric, реальные `res/raw .cer files`, все 5 CA загружены). KDoc расширен: rationale custom вместо NNC (ban protection + GOST NNC gaps + fail-fast). Коммиты `447d8df2`, `160090fe`, `af180818`, `7951e27d`, `071d989f`. PR #144 (merge `f3d3d916`).
+
+**Ссылка на задачу:** PR #144 (merge `f3d3d916`).
+
+**Связано:** `docs/clean-audit.md` → Н79 (исправлено), Н80 (исправлено), Н81 (принято 2c; rationale усилен ban-protection). `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
+
+**Открытые вопросы:** нет.
+
+
+
+___
