@@ -6,10 +6,9 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
-import com.gitlab.biomorf.tscalp.domain.models.orderTypeFromStorageKey
-import com.gitlab.biomorf.tscalp.domain.models.toStorageKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +30,7 @@ class TradingStateRepositoryImpl
     @Inject
     constructor(
         private val dataStore: DataStore<Preferences>,
+        private val logger: Logger,
     ) : TradingStateRepository {
         private val _state = MutableStateFlow<TradingStateSnapshot?>(null)
         override val state: StateFlow<TradingStateSnapshot?> = _state.asStateFlow()
@@ -46,8 +46,8 @@ class TradingStateRepositoryImpl
                 } ?: prefs.remove(PAIRED_INSTRUMENT_UID)
 
                 prefs[PAIR_TRADING_ENABLED] = snapshot.pairTradingEnabled
-                prefs[QUANTITY] = snapshot.quantity
-                prefs[PAIRED_MULTIPLIER] = snapshot.pairedMultiplier
+                prefs[QUANTITY] = snapshot.quantity.toString()
+                prefs[PAIRED_MULTIPLIER] = snapshot.pairedMultiplier.toString()
                 prefs[ORDER_TYPE] = snapshot.orderType.toStorageKey()
             }
             _state.value = snapshot
@@ -60,8 +60,14 @@ class TradingStateRepositoryImpl
                     selectedTscalpInstrumentId = prefs[SELECTED_INSTRUMENT_UID],
                     pairedTscalpInstrumentId = prefs[PAIRED_INSTRUMENT_UID],
                     pairTradingEnabled = prefs[PAIR_TRADING_ENABLED] ?: false,
-                    quantity = prefs[QUANTITY] ?: "",
-                    pairedMultiplier = prefs[PAIRED_MULTIPLIER] ?: "10",
+                    quantity =
+                        prefs[QUANTITY]?.let { raw ->
+                            raw.toLongOrNull() ?: invalidValue("quantity", raw)
+                        } ?: 1L,
+                    pairedMultiplier =
+                        prefs[PAIRED_MULTIPLIER]?.let { raw ->
+                            raw.toLongOrNull() ?: invalidValue("paired_multiplier", raw)
+                        } ?: 10L,
                     orderType =
                         prefs[ORDER_TYPE]?.let { orderTypeFromStorageKey(it) }
                             ?: OrderTypeSelection.Market,
@@ -82,7 +88,39 @@ class TradingStateRepositoryImpl
             _state.value = null
         }
 
+        private fun invalidValue(
+            key: String,
+            raw: String,
+        ): Nothing {
+            logger.e(TAG, "invalid $key in DataStore: '$raw'")
+            throw IllegalStateException("invalid $key in DataStore: '$raw'")
+        }
+
+        private fun OrderTypeSelection.toStorageKey(): String =
+            when (this) {
+                OrderTypeSelection.Market -> "Market"
+                OrderTypeSelection.Limit -> "Limit"
+                OrderTypeSelection.StopLoss -> "StopLoss"
+                OrderTypeSelection.TakeProfit -> "TakeProfit"
+                OrderTypeSelection.StopLimit -> "StopLimit"
+            }
+
+        private fun orderTypeFromStorageKey(key: String): OrderTypeSelection =
+            when (key) {
+                "Market" -> OrderTypeSelection.Market
+                "Limit" -> OrderTypeSelection.Limit
+                "StopLoss" -> OrderTypeSelection.StopLoss
+                "TakeProfit" -> OrderTypeSelection.TakeProfit
+                "StopLimit" -> OrderTypeSelection.StopLimit
+                else ->
+                    invalidValue(
+                        "order_type",
+                        key,
+                    )
+            }
+
         private companion object {
+            private const val TAG = "TradingStateRepositoryImpl"
             val SELECTED_INSTRUMENT_UID = stringPreferencesKey("selected_instrument_uid")
             val PAIRED_INSTRUMENT_UID = stringPreferencesKey("paired_instrument_uid")
             val PAIR_TRADING_ENABLED = booleanPreferencesKey("pair_trading_enabled")

@@ -24,7 +24,7 @@ class CalculateTradeDetailsUseCase {
         instrument: Instrument?,
         pairedInstrument: Instrument?,
         quantity: Long,
-        pairedMultiplier: String?,
+        pairedMultiplier: Long?,
         pairCurrentPrice: Double?,
     ): TradeDetails {
         val exec = executionPrice(orderType, currentPrice, limitPrice, stopPrice)
@@ -93,13 +93,13 @@ class CalculateTradeDetailsUseCase {
 
     private fun calculateMultiplier(
         quantity: Long,
-        pairedMultiplier: String?,
+        pairedMultiplier: Long?,
         pairedInstrument: Instrument?,
         pairExecPrice: Double,
     ): MultiplierDetails {
         if (pairedInstrument == null || pairedMultiplier == null) return MultiplierDetails(null, null, null)
-        val totalQty = quantity * (pairedMultiplier.toDoubleOrNull() ?: 1.0)
-        if (totalQty <= 0.0 || pairExecPrice <= 0.0) return MultiplierDetails(null, null, null)
+        val totalQty = quantity * pairedMultiplier
+        if (totalQty <= 0L || pairExecPrice <= 0.0) return MultiplierDetails(null, null, null)
         return if (pairedInstrument.instrumentType == InstrumentType.FUTURES) {
             val points = pairExecPrice * totalQty
             MultiplierDetails(points, null, points * pairedInstrument.moneyPerPointOfPrice)

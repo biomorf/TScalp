@@ -25,7 +25,7 @@ fun ConfirmOrderDialog(
     pairTradingEnabled: Boolean,
     pairedInstrumentTicker: String?,
     pairedInstrumentType: InstrumentType?,
-    pairedMultiplier: String?,
+    pairedQuantity: Long?,
     pairExecPrice: Double, // новое: цена исполнения контрсделки
     pairedOrderType: OrderTypeSelection?, // новое: тип контрсделки (может быть null, если парная отключена)
     onDismiss: () -> Unit,
@@ -59,7 +59,7 @@ fun ConfirmOrderDialog(
                     Text("и парную сделку:", fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val pairedQty = (quantity * (pairedMultiplier?.toDoubleOrNull() ?: 1.0)).toLong()
+                    val pairedQty = pairedQuantity ?: 0L
                     val pairDirection = if (direction == "BUY") "SELL" else "BUY"
 
                     OrderCard(
@@ -104,7 +104,7 @@ private fun ConfirmOrderDialogMarketPreview() {
             pairTradingEnabled = false,
             pairedInstrumentTicker = null,
             pairedInstrumentType = null,
-            pairedMultiplier = null,
+            pairedQuantity = null,
             pairExecPrice = 0.0,
             pairedOrderType = null,
             onDismiss = {},
@@ -128,7 +128,7 @@ private fun ConfirmOrderDialogLimitPreview() {
             pairTradingEnabled = false,
             pairedInstrumentTicker = null,
             pairedInstrumentType = null,
-            pairedMultiplier = null,
+            pairedQuantity = null,
             pairExecPrice = 0.0,
             pairedOrderType = null,
             onDismiss = {},
@@ -152,7 +152,7 @@ private fun ConfirmOrderDialogPairedPreview() {
             pairTradingEnabled = true,
             pairedInstrumentTicker = "SBER",
             pairedInstrumentType = InstrumentType.SHARE,
-            pairedMultiplier = "10",
+            pairedQuantity = 10L,
             pairExecPrice = 250.5,
             pairedOrderType = OrderTypeSelection.Market,
             onDismiss = {},

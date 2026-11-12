@@ -126,6 +126,7 @@ internal fun ColumnScope.OrdersScrollableContent(
 
             OrdersQuantityRow(
                 quantity = state.formState.quantity,
+                quantityAsLong = state.formState.quantityAsLong ?: 0L,
                 costOverlay = state.formState.costOverlay,
                 canDecrement = (state.formState.quantityAsLong ?: 0L) > 0 && state.formState.selectedInstrument != null,
                 canIncrement = state.formState.selectedInstrument != null,

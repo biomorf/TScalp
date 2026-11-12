@@ -163,7 +163,7 @@ class PostOrderUseCaseTest {
                 PairedOrderInput(
                     instrument = tmon,
                     accountId = "acc-1",
-                    multiplier = "2",
+                    multiplier = 2L,
                 )
             val preparedWithPair =
                 PrepareOrderRequestUseCase.PrepareResult.Prepared(
@@ -200,7 +200,7 @@ class PostOrderUseCaseTest {
                 PairedOrderInput(
                     instrument = tmon,
                     accountId = "acc-1",
-                    multiplier = "1",
+                    multiplier = 1L,
                 )
             val preparedWithPair =
                 PrepareOrderRequestUseCase.PrepareResult.Prepared(

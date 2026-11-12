@@ -74,8 +74,8 @@ class RestoreOrderFormUseCaseTest {
             assertNull(data.currentPointValue)
             assertNull(data.pairedPointValue)
             assertEquals(false, data.pairTradingEnabled)
-            assertEquals("", data.quantity)
-            assertEquals("10", data.pairedMultiplier)
+            assertEquals(1L, data.quantity)
+            assertEquals(10L, data.pairedMultiplier)
             assertEquals(OrderTypeSelection.Market, data.orderType)
             coVerify(exactly = 0) { instrumentRepository.getInstrument(any()) }
         }
@@ -107,8 +107,8 @@ class RestoreOrderFormUseCaseTest {
                     selectedTscalpInstrumentId = "uid-sber",
                     pairedTscalpInstrumentId = "uid-gazp",
                     pairTradingEnabled = true,
-                    quantity = "3",
-                    pairedMultiplier = "5",
+                    quantity = 3L,
+                    pairedMultiplier = 5L,
                     orderType = OrderTypeSelection.Limit,
                 )
             coEvery { instrumentRepository.getInstrument("uid-sber") } returns sber
@@ -121,8 +121,8 @@ class RestoreOrderFormUseCaseTest {
             assertEquals(sber, data.selectedInstrument)
             assertEquals(gazp, data.pairedInstrument)
             assertEquals(true, data.pairTradingEnabled)
-            assertEquals("3", data.quantity)
-            assertEquals("5", data.pairedMultiplier)
+            assertEquals(3L, data.quantity)
+            assertEquals(5L, data.pairedMultiplier)
             assertEquals(OrderTypeSelection.Limit, data.orderType)
             assertEquals(sber.moneyPerPointOfPrice, data.currentPointValue!!, 0.0)
             assertEquals(gazp.moneyPerPointOfPrice, data.pairedPointValue!!, 0.0)
@@ -153,8 +153,8 @@ class RestoreOrderFormUseCaseTest {
                     selectedTscalpInstrumentId = "uid-sber",
                     pairedTscalpInstrumentId = "uid-gazp",
                     pairTradingEnabled = true,
-                    quantity = "7",
-                    pairedMultiplier = "2",
+                    quantity = 7L,
+                    pairedMultiplier = 2L,
                     orderType = OrderTypeSelection.StopLoss,
                 )
 
@@ -165,8 +165,8 @@ class RestoreOrderFormUseCaseTest {
             assertNull(data.selectedInstrument)
             assertNull(data.pairedInstrument)
             assertEquals(true, data.pairTradingEnabled)
-            assertEquals("7", data.quantity)
-            assertEquals("2", data.pairedMultiplier)
+            assertEquals(7L, data.quantity)
+            assertEquals(2L, data.pairedMultiplier)
             assertEquals(OrderTypeSelection.StopLoss, data.orderType)
             coVerify(exactly = 0) { instrumentRepository.getInstrument(any()) }
         }

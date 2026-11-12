@@ -314,7 +314,7 @@ class CalculateTradeDetailsUseCaseTest {
                 instrument = share(),
                 pairedInstrument = null,
                 quantity = 5,
-                pairedMultiplier = "2.0",
+                pairedMultiplier = 2L,
                 pairCurrentPrice = 50.0,
             )
         assertNull(result.multiplierPoints)
@@ -352,7 +352,7 @@ class CalculateTradeDetailsUseCaseTest {
                 instrument = share("SBER"),
                 pairedInstrument = share("GAZP"),
                 quantity = 5,
-                pairedMultiplier = "2.0",
+                pairedMultiplier = 2L,
                 pairCurrentPrice = 50.0,
             )
         assertNull(result.multiplierPoints)
@@ -372,7 +372,7 @@ class CalculateTradeDetailsUseCaseTest {
                 instrument = share("SBER"),
                 pairedInstrument = share("GAZP"),
                 quantity = 5,
-                pairedMultiplier = "2.0",
+                pairedMultiplier = 2L,
                 pairCurrentPrice = 50.0,
             )
         assertNull(result.multiplierPoints)
@@ -392,7 +392,7 @@ class CalculateTradeDetailsUseCaseTest {
                 instrument = share("SBER"),
                 pairedInstrument = future(minPriceIncrement = 0.5, priceStepCost = 10.0),
                 quantity = 2,
-                pairedMultiplier = "3.0",
+                pairedMultiplier = 3L,
                 pairCurrentPrice = 100.0,
             )
         assertNull(result.multiplierCurrency)
@@ -400,26 +400,6 @@ class CalculateTradeDetailsUseCaseTest {
         assertEquals(600.0, result.multiplierPoints!!, 0.0001)
         assertNotNull(result.multiplierDomesticCurrency)
         assertEquals(12000.0, result.multiplierDomesticCurrency!!, 0.0001)
-    }
-
-    @Test
-    fun `multiplier with invalid multiplier falls back to 1_0`() {
-        val result =
-            useCase.calculate(
-                currentPrice = 100.0,
-                limitPrice = null,
-                stopPrice = null,
-                orderType = OrderTypeSelection.Market,
-                instrument = share("SBER"),
-                pairedInstrument = share("GAZP"),
-                quantity = 5,
-                pairedMultiplier = "abc",
-                pairCurrentPrice = 50.0,
-            )
-        assertNull(result.multiplierPoints)
-        assertNotNull(result.multiplierCurrency)
-        assertEquals(250.0, result.multiplierCurrency!!, 0.0001)
-        assertNull(result.multiplierDomesticCurrency)
     }
 
     @Test
@@ -433,7 +413,7 @@ class CalculateTradeDetailsUseCaseTest {
                 instrument = share("SBER"),
                 pairedInstrument = share("GAZP"),
                 quantity = 5,
-                pairedMultiplier = "2.0",
+                pairedMultiplier = 2L,
                 pairCurrentPrice = null, // для Market → 0.0
             )
         assertNull(result.multiplierPoints)

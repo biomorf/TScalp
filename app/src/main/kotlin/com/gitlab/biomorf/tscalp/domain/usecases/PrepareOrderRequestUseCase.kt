@@ -39,7 +39,7 @@ class PrepareOrderRequestUseCase(
         expirationType: StopOrderExpirationType,
         pairedInstrument: Instrument?,
         pairedAccountId: String?,
-        pairedMultiplier: String?,
+        pairedMultiplier: Long?,
     ): PrepareResult {
         val primary =
             when (
@@ -136,11 +136,11 @@ class PrepareOrderRequestUseCase(
         expirationType: StopOrderExpirationType,
         pairedInstrument: Instrument,
         pairedAccountId: String,
-        pairedMultiplier: String?,
+        pairedMultiplier: Long?,
     ): Step {
         val pairedDirection = if (direction == OrderDirection.BUY) OrderDirection.SELL else OrderDirection.BUY
         val pairedSpec = pairOrderMapper.map(orderType, direction, primaryPriceForPair(orderType, limitPrice, stopPrice))
-        val pairedQuantity = (quantity * (pairedMultiplier?.toDoubleOrNull() ?: 1.0)).toLong()
+        val pairedQuantity = quantity * (pairedMultiplier ?: 1L)
 
         return if (pairedSpec.isStopOrder) {
             val parsedPairedStop =

@@ -24,7 +24,7 @@ internal fun OrdersConfirmDialogSection(
         pairTradingEnabled = formState.pairTradingEnabled,
         pairedInstrumentTicker = formState.pairedInstrument?.ticker,
         pairedInstrumentType = formState.pairedInstrument?.instrumentType,
-        pairedMultiplier = formState.pairedMultiplier,
+        pairedQuantity = formState.pairedQuantity,
         pairExecPrice = formState.pairExecPrice,
         pairedOrderType = formState.pairedOrderType,
         onDismiss = onDismiss,

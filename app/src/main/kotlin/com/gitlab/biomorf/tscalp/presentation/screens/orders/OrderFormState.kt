@@ -45,7 +45,7 @@ data class OrderFormState(
     val currentPointValue: Double? = null,
     val pairedPointValue: Double? = null,
     // Quantity / price / order type
-    val quantity: String = "",
+    val quantity: String = "1",
     val limitPrice: String = "",
     val stopPrice: String = "",
     val orderType: OrderTypeSelection = OrderTypeSelection.Market,
@@ -63,7 +63,7 @@ data class OrderFormState(
     // Pair
     val pairTradingEnabled: Boolean = false,
     val pairedInstrument: Instrument? = null,
-    val pairedMultiplier: String = "1",
+    val pairedMultiplier: String = "10",
     val pairExecPrice: Double = 0.0,
     val pairedOrderType: OrderTypeSelection? = null,
     // Trade details
@@ -114,10 +114,17 @@ data class OrderFormState(
     private fun isPairValid(): Boolean =
         if (pairTradingEnabled) {
             pairedInstrument != null &&
-                pairedMultiplier.toDoubleOrNull()?.let { it > 0.0 } == true
+                pairedMultiplier.toLongOrNull()?.let { it > 0L } == true
         } else {
             true
         }
 
     val quantityAsLong: Long? get() = quantity.toLongOrNull()
+
+    /** G1: парная партия = quantity * pairedMultiplier (обе стороны Long, парсинг — на границе). */
+    val pairedQuantity: Long?
+        get() =
+            quantityAsLong?.let { q ->
+                pairedMultiplier.toLongOrNull()?.let { m -> q * m }
+            }
 }

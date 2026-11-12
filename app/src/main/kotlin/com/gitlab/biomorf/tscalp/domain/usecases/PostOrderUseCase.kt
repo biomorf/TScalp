@@ -33,7 +33,7 @@ data class PostOrderInput(
 data class PairedOrderInput(
     val instrument: Instrument,
     val accountId: String,
-    val multiplier: String?,
+    val multiplier: Long?,
 )
 
 /**

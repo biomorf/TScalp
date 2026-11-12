@@ -80,7 +80,7 @@ class SelectInstrumentUseCaseTest {
         every { positionFlowManager.sheet } returns MutableStateFlow(PortfolioSheet(emptyMap()))
         every { cardsRepository.identities } returns flowOf(emptyList())
         every { tradingStateRepository.state } returns
-            MutableStateFlow(TradingStateSnapshot(quantity = "1"))
+            MutableStateFlow(TradingStateSnapshot(quantity = 1L))
     }
 
     @Test
@@ -224,7 +224,7 @@ class SelectInstrumentUseCaseTest {
         runBlocking {
             stubDefaults()
             every { tradingStateRepository.state } returns MutableStateFlow<TradingStateSnapshot?>(null)
-            coEvery { tradingStateRepository.load() } returns TradingStateSnapshot(quantity = "7")
+            coEvery { tradingStateRepository.load() } returns TradingStateSnapshot(quantity = 7L)
 
             useCase.execute(inputInstrument)
 

@@ -25,6 +25,7 @@ import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
 fun OrderFormState.toPlaceOrderRequest(): PlaceOrderRequest? {
     val instrument = selectedInstrument ?: return null
     val quantity = quantityAsLong ?: return null
+    val pairedMultiplierLong = pairedMultiplier.toLongOrNull() ?: return null
     return PlaceOrderRequest(
         instrument = instrument,
         selectedAccountId = selectedAccountId,
@@ -35,6 +36,6 @@ fun OrderFormState.toPlaceOrderRequest(): PlaceOrderRequest? {
         expirationType = expirationType,
         pairedInstrument = pairedInstrument,
         pairedAccountId = pairedAccountId,
-        pairedMultiplier = pairedMultiplier,
+        pairedMultiplier = pairedMultiplierLong,
     )
 }

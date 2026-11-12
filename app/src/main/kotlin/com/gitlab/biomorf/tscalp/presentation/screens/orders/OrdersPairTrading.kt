@@ -285,12 +285,12 @@ internal fun OrdersTypeChips(
 @Composable
 internal fun OrdersQuantityRow(
     quantity: String,
+    quantityAsLong: Long,
     costOverlay: String?,
     canDecrement: Boolean,
     canIncrement: Boolean,
     onQuantityChanged: (String) -> Unit,
 ) {
-    val quantityAsLong = quantity.toLongOrNull() ?: 0L
     Row(
         modifier =
             Modifier
@@ -358,6 +358,7 @@ private fun OrdersQuantityRowEnabledPreview() {
     TScalpTheme {
         OrdersQuantityRow(
             quantity = "10",
+            quantityAsLong = 10L,
             costOverlay = "1 234,50 ₽",
             canDecrement = true,
             canIncrement = true,
@@ -372,6 +373,7 @@ private fun OrdersQuantityRowDisabledPreview() {
     TScalpTheme {
         OrdersQuantityRow(
             quantity = "0",
+            quantityAsLong = 0L,
             costOverlay = null,
             canDecrement = false,
             canIncrement = true,
