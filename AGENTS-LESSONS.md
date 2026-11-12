@@ -1620,6 +1620,22 @@ stash — не коммитить.
 **Связано:** AGENTS 5f-freeze, 4f (порядок шага), урок 89 (merge
 origin/dev перед PR).
 
+---
+
+### 106. Test-код → feature-ветка + PR, не push в dev
+
+**Правило:** коммиты с изменением `.kt` / `.kts` / `.gradle` (test / feat / fix / refactor / chore) — только через `feature/<name>` → PR → merge. Прямой push в `dev` через admin bypass — только `docs(...)` (5g категория 2, 5a docs-only). `test(...)` — код, не документация.
+
+**Инцидент:** 2026-11-12, сессия Hilt-test infra Step 2. Я запушил `1e1cc845` (`test(orders): migrate OrdersScreenBehaviourTest to @UninstallModules + add FakeBrokerRegistry`) прямо в `dev` через admin bypass. Пользователь: «только почему в dev. а не в feature?». Нарушение: git-flow (`dev` — интеграция через PR), 4f (feature (desktop) — батч перед PR), repo-protection (`dev` защищён: PR + required gate; bypass — для восстановления, не для нового test-кода). Revert не делал (test-only, gate локально зелёный — по решению пользователя 2026-11-12).
+
+**Проверка:** перед `git push origin dev` — что за коммит? `git diff --stat HEAD~1 HEAD -- '*.kt' '*.kts' '*.gradle'`:
+- **пусто** → docs-only, bypass допустим (5a);
+- **непусто** → код, нужен feature-ветка + PR.
+
+Плюс проверить `git log --oneline -1` — тип: `docs(...)` = OK для `dev`; `test(...)` / `feat(...)` / `fix(...)` / `refactor(...)` / `chore(...)` = feature.
+
+**Связано:** AGENTS 5a (docs-only исключение), 4f (push в feature — батч перед PR), 5g (категории документации), `docs/git-flow.md` (dev — только PR), `docs/repo-protection.md` (bypass — для восстановления), урок 104 (5f-freeze).
+
 
 ## Применение уроков
 
