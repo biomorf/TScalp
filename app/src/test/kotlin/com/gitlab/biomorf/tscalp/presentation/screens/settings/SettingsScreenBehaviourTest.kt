@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.settings
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
@@ -73,5 +74,64 @@ class SettingsScreenBehaviourTest {
         composeRule.onNodeWithText("Информация").performClick()
         composeRule.onNodeWithText("TScalp").assertExists()
         composeRule.onNodeWithText("Версия:", substring = true).assertExists()
+    }
+
+    @Test
+    fun `connection shows all three broker tabs`() {
+        composeRule.setContent {
+            TScalpTheme {
+                SettingsScreen()
+            }
+        }
+        composeRule.onNodeWithText("Подключение").performClick()
+        composeRule.onNodeWithText("Т-Инвестиции").assertExists()
+        composeRule.onNodeWithText("БКС").assertExists()
+        composeRule.onNodeWithText("Финам").assertExists()
+    }
+
+    @Test
+    fun `bcs tab renders access rights section`() {
+        composeRule.setContent {
+            TScalpTheme {
+                SettingsScreen()
+            }
+        }
+        composeRule.onNodeWithText("Подключение").performClick()
+        composeRule.onNodeWithText("БКС").performClick()
+        composeRule.onNodeWithText("Права доступа").assertExists()
+    }
+
+    @Test
+    fun `finam tab renders finam token placeholder`() {
+        composeRule.setContent {
+            TScalpTheme {
+                SettingsScreen()
+            }
+        }
+        composeRule.onNodeWithText("Подключение").performClick()
+        composeRule.onNodeWithText("Финам").performClick()
+        composeRule.onNodeWithText("Введите секретный токен Finam", substring = true).assertExists()
+    }
+
+    @Test
+    fun `tinvest panel has sandbox toggle`() {
+        composeRule.setContent {
+            TScalpTheme {
+                SettingsScreen()
+            }
+        }
+        composeRule.onNodeWithText("Подключение").performClick()
+        composeRule.onNodeWithText("Режим песочницы").assertExists()
+    }
+
+    @Test
+    fun `connection shows back navigation button`() {
+        composeRule.setContent {
+            TScalpTheme {
+                SettingsScreen()
+            }
+        }
+        composeRule.onNodeWithText("Подключение").performClick()
+        composeRule.onNodeWithContentDescription("Назад").assertExists()
     }
 }
