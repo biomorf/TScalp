@@ -11004,3 +11004,40 @@ ___
 
 
 ___
+
+
+
+### ✅ Domain: pairedMultiplier/quantity → Long (SSoT на границе presentation → domain)
+
+**Дата закрытия:** 2026-11-13.
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI; single commit).
+
+**Контекст:** (clean-audit Н15, расширено по диагностике 2026-11-13) `TradingStateSnapshot` содержал 2 сырых поля (`quantity: String`, `pairedMultiplier: String`). Диагностика показала, что болезнь шире snapshot: `String` протекал через 5 domain-моделей и 3 usecase'а, domain парсил одну и ту же строку трижды.
+
+**Цель (SSoT):** парсинг `String → Long` один раз на границе слоёв:
+- presentation → domain — `OrderFormStateMapper.toPlaceOrderRequest`
+- domain ↔ persistence — `TradingStateRepositoryImpl` (encode/decode)
+
+Внутри domain — только валидированный `Long`.
+
+**Бизнес-правило:** множитель — целое число (нельзя купить половину лота). `Double` — артефакт; `Long` — канон.
+
+**Соответствие Clean:** соответствует.
+
+**MVVM:** соответствует (M1 — расчёт в Composable — устранён).
+
+**KMP:** соответствует (`Long` — KMP-safe).
+
+**Что сделано:** 13 main + 6 test (26 файлов, +252/-107). Типы `String → Long` в: `TradingStateSnapshot`, `RestoredFormState`, `PairedOrderInput`, `PlaceOrderRequest`, `CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`, `TradingStateRepositoryImpl` (encode/decode + fail-fast: `logger.e` + `IllegalStateException` на невалидной DataStore-строке). Presentation: computed `OrderFormState.pairedQuantity`, `onPairedMultiplierChanged` (только цифры), `DEFAULT_PAIRED_MULTIPLIER = 10L`, `ConfirmOrderDialog.pairedQuantity: Long?` (M1 — нет парсинга в Composable), `OrdersQuantityRow.quantityAsLong: Long` (G2). D-перенос: `orderTypeFromStorageKey`/`toStorageKey` из `domain/models/OrderModels.kt` в `private companion object` `TradingStateRepositoryImpl` (fail-fast на неизвестном ключе). Удалён `"abc"`-тест (`CalculateTradeDetailsUseCaseTest`): silent 1.0 fallback устранён. Новые тесты: `TradingStateRepositoryImplTest` (roundtrip 5 значений enum + fail-fast × 3) и `OrderFormStateTest` (computed `pairedQuantity` × 6). Коммиты в ветке `feature/paired-multiplier-long`: `795b57e4` (main refactor), `57f8ea57` (fix: OrdersQuantityRowTest + ktlint), `8234abfb` (fix: multiline `invalidValue`). Merge `f9dc5596`.
+
+**Оценка:** ~8–10 ч (факт ~сессия).
+
+**Ссылка на задачу:** PR #145 (merge `f9dc5596`).
+
+**Связано:** `docs/clean-audit.md` → Н15 (исправлено), Н96 (исправлено, D); `AGENTS.md` → 2e (SSoT); `docs/architecture.md` → «Data flow: заявки».
+
+**Открытые вопросы:** нет.
+
+
+___

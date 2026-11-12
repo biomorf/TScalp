@@ -902,29 +902,47 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` | - |
 | Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` | - |
 
-### Н15. TradingStateSnapshot — presentation в domain
+### Исправленные (L3)
 
-**Статус:** открыто.
+### ✅ Н15. TradingStateSnapshot — presentation в domain
+
+**Статус:** исправлено (2026-11-13, PR #145, merge `f9dc5596`).
 
 **Серьёзность:** средне.
 
 **Live тест:** -
 
-**Описание:** `domain/models/TradingState.kt` содержит `TradingStateSnapshot` с полями `quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`. `quantity`/`pairedMultiplier` — сырые значения TextField, невалидированные. `orderType` — presentation-выбор. `pairTradingEnabled` — UI-тумблер. Это снимок UI-состояния.
+**Описание:** `domain/models/TradingState.kt` содержал `TradingStateSnapshot` с полями `quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`. `quantity`/`pairedMultiplier` — сырые значения TextField, невалидированные. `orderType` — domain-модель (`sealed interface` в `OrderModels.kt`, не presentation); `pairTradingEnabled` — флаг состояния сессии, не тумблер. Реальное нарушение — 2 сырые строки. Диагностика расширила: `String` протекал через 5 domain-моделей и 3 usecase'а.
 
-**Нарушенное правило:** Domain не знает про presentation-выбор пользователя и сырые строки TextField.
+**Нарушенное правило:** domain не доверяет своему входу — парсит сырые `String` трижды на разных уровнях. SSoT нарушен.
 
-**Clean-альтернатива:** `presentation/screens/orders/OrdersUiStateSnapshot` для UI + нейтральный domain-снимок с валидированными типами (`quantity: Long?`, `orderType: OrderTypeSelection`). Плюсы: domain чист. Минусы: переезд + правка `TradingStateRepository` (data) + `OrdersViewModel`.
+**Clean-альтернатива:** парсинг один раз на границе слоёв.
 
-**Выгоды:** —.
+**Что сделано:** `quantity: Long = 1L`, `pairedMultiplier: Long = 10L` в `TradingStateSnapshot` и `RestoredFormState`; `PairedOrderInput.multiplier: Long?`; `PlaceOrderRequest.pairedMultiplier: Long`; `CalculateTradeDetailsUseCase` и `PrepareOrderRequestUseCase` принимают `Long?`; `TradingStateRepositoryImpl` encode/decode + fail-fast; presentation — `OrderFormState.pairedQuantity` (computed), `OrderFormStateMapper` (парсинг на границе), `DEFAULT_PAIRED_MULTIPLIER = 10L`; M1 — `ConfirmOrderDialog` больше не парсит (принимает `pairedQuantity: Long?`); G2 — `OrdersQuantityRow` принимает `quantityAsLong: Long`. `"abc"`-тест удалён. PR #145 (merge `f9dc5596`).
 
-**MVVM:** M1 — domain держит presentation-снимок (обратное M1).
+**Ссылка на задачу:** PR #145 (merge `f9dc5596`).
 
-**KMP:** соответствует (нет platform; presentation-типы — Clean-долг, не KMP-блокер).
+**Связано:** `docs/clean-audit.md` → Н96 (D, исправлено в том же PR); `docs/ROADMAP-ARCHIVE.md` → `### ✅ Domain: pairedMultiplier/quantity → Long`.
 
-**Ссылка на задачу:** `### TradingStateSnapshot: domain-neutral refactor (2e → KMP-ready)` (`docs/ROADMAP.md`); 2c снято 2026-11-11 (решение: закрыть техдолг).
+### ✅ Н96. DataStore-специфика в domain-модели (orderTypeFromStorageKey/toStorageKey)
 
-### Исправленные (L3)
+**Статус:** исправлено (2026-11-13, PR #145, merge `f9dc5596`).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `domain/models/OrderModels.kt` содержал `fun OrderTypeSelection.toStorageKey(): String` и `fun orderTypeFromStorageKey(key: String): OrderTypeSelection` — строковые ключи DataStore (persistence-специфика) как top-level extension в domain-модели. Единственный потребитель — `TradingStateRepositoryImpl` (data). Замечено при диагностике задачи «pairedMultiplier/quantity → Long» (находка D), не в scope исходного текста.
+
+**Нарушенное правило:** persistence-специфика в domain-модели.
+
+**Clean-альтернатива:** private helper в data-слое (`TradingStateRepositoryImpl`).
+
+**Что сделано:** обе функции перенесены в `private companion object` `TradingStateRepositoryImpl` как private. `orderTypeFromStorageKey` теперь fail-fast на неизвестном ключе (`invalidValue("order_type", key)` → `IllegalStateException`), а не fallback `Market`. Roundtrip всех 5 значений `OrderTypeSelection` покрыт в `TradingStateRepositoryImplTest`. PR #145 (merge `f9dc5596`).
+
+**Ссылка на задачу:** PR #145 (merge `f9dc5596`).
+
+**Связано:** `docs/clean-audit.md` → Н15 (исправлено в том же PR).
 
 ### ✅ Н13. KDoc StreamState — устаревший пакет
 
