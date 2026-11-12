@@ -10865,6 +10865,36 @@ Per-broker результаты уже хранятся: `SearchCacheImpl` (`@Si
 
 
 
-
 ___
 
+
+
+### ✅ OrderFormViewModel: @Suppress accepted (2c)
+
+**Дата закрытия:** 2026-11-12
+
+**Мобильная работа:** невозможно (desktop; крупный рефакторинг presentation-слоя + live-тест 7 сценариев).
+
+**Контекст:** задача «OrderFormViewModel: reduce functions» закрыта как 2c-accepted. Проверено (диагностика 2026-11-12): 27 fun (17 public/override — UI-API; 10 private — мутируют state / async). Extract-helpers не даёт снятия `@Suppress("TooManyFunctions")` (порог detekt = 11): даже merge 3× `handlePostOrder*` + `updateTradeDetails`/`updatePairExecDetails` = −3 fun → 24 ≫ 11. Pure-extraction private в top-level невозможен — все 10 private используют `_state`/`_status`/async. Split VM отклонён 2c 2026-11-07 (KDoc 13d-B), но после M001/M017/A2/13d обоснование устарело — split стал **отдельной целевой задачей** (C2, умбрелла `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs`).
+
+**Соответствие Clean:** соответствует (внутри presentation; dependency rule не нарушается).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**MVVM:** соответствует.
+
+**KMP:** — (не применимо — presentation).
+
+**Что сделано:** умбрелла C2 заведена в ROADMAP (`e1f62ffc`) с 2 предзадачами (Roborazzi + property-based) и требованием Extended behavioural (Hilt-test этап 2). `@Suppress("TooManyFunctions")` в `OrderFormViewModel.kt:75` **остаётся** с обновлённым 2c KDoc до закрытия C2. OrderFormViewModel — 27 fun, 544 строки.
+
+**Ссылка на задачу:** `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`); reduce-задача закрыта как accepted (2c).
+
+**Связано:** `docs/clean-audit.md` → M001 (закрыт), M017 (закрыт), M013 (закрыт); `### ✅ OrderSearchViewModel: slot-параметр (reduce functions, без split)` (аналог).
+
+**Открытые вопросы:** нет.
+
+
+
+___
