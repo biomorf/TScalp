@@ -88,7 +88,10 @@ class TradingStateRepositoryImpl
             _state.value = null
         }
 
-        private fun invalidValue(key: String, raw: String): Nothing {
+        private fun invalidValue(
+            key: String,
+            raw: String,
+        ): Nothing {
             logger.e(TAG, "invalid $key in DataStore: '$raw'")
             throw IllegalStateException("invalid $key in DataStore: '$raw'")
         }
