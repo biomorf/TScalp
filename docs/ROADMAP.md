@@ -118,15 +118,17 @@ Per-broker результаты уже хранятся: `SearchCacheImpl` (`@Si
 **Предусловия:** `### OrderSearchViewModel: объединить broker + selectedBroker (fix selectedBroker not wired)` — merged (без merge полей `saveBroker` не пишет в `broker`; re-search уйдёт в `broker` = TINVEST, не в новый).
 
 **Файлы:**
-- `presentation/screens/orders/OrderSearchViewModel.kt` — `saveBroker`: после state-записи (сброс `results` + `isSearching = true`) — `onQueryChanged(slot, currentQuery)` если `query.length >= 2`.
+- `presentation/screens/orders/OrderSearchViewModel.kt` — `saveBroker`: после state-записи (сброс `results` + `isSearching = currentQuery.length >= 2`) — `onQueryChanged(slot, currentQuery)` если `query.length >= 2`.
+- `presentation/screens/orders/OrderSearchViewModel.kt` — `onQueryChanged`: удалить `isSearching = false` из `catch (ce: CancellationException)` (race, см. шаг 1.4).
 - `app/src/test/kotlin/.../OrderSearchViewModelTest.kt` — новый кейс: `saveBroker(PRIMARY, BCS)` при `query = "SBER"` → `coVerify { execute(BCS, "SBER") }`.
 - (не трогаем) `SearchCacheImpl` — per-broker store уже работает, ключ `"brokerName:query"`.
 
 **Шаги:**
 1. `saveBroker(slot, broker)`:
    1.1 `val currentQuery = <query текущего слота>`.
-   1.2 `updateSlot(slot) { it.copy(broker = broker, showBrokerDialog = false, results = emptyList(), isSearching = false) }` — сброс результатов, т.к. они от старого брокера.
-   1.3 `if (currentQuery.length >= 2) onQueryChanged(slot, currentQuery)` — `onQueryChanged` сам выставит `isSearching = true` внутри launch (после debounce 500ms) и обновит `results` результатом нового брокера.
+   1.2 `updateSlot(slot) { it.copy(broker = broker, showBrokerDialog = false, results = emptyList(), isSearching = currentQuery.length >= 2) }` — сброс результатов + `isSearching` **сразу** (spinner с первой миллисекунды, не после 500ms debounce).
+   1.3 `if (currentQuery.length >= 2) onQueryChanged(slot, currentQuery)` — `onQueryChanged` **не перезаписывает** `isSearching` (уже выставлен в 1.2); после `delay(500)` обновит `results` результатом нового брокера.
+   1.4 `onQueryChanged`: удалить `updateSlot { it.copy(isSearching = false) }` из `catch (ce: CancellationException)`. Причина (race): старый `searchJobs[slot]` может быть отменён **после** `saveBroker` (список `results` уже сброшен, `isSearching = true`); `Cancel`-ветка перезаписывает `true → false` → 500ms пустого списка без спиннера. `false` уже ставится: `query.length < 2` (sync, до `delay`), `Success`/`Failure` нового job, `Exception` нового job. Удаление `isSearching = false` из Cancel-ветки безопасно и устраняет существующий UX-баг.
 2. Тест `saveBroker re-searches with new broker`: `setUp` (через `onQueryChanged(PRIMARY, "SBER")` + `advanceUntilIdle`), затем `saveBroker(PRIMARY, BCS)` → `advanceUntilIdle()` → `coVerify { execute(BCS, "SBER") }`.
 3. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
 
@@ -134,6 +136,7 @@ Per-broker результаты уже хранятся: `SearchCacheImpl` (`@Si
 - `saveBroker re-searches with new broker` — `saveBroker(PRIMARY, BCS)` при `query = "SBER"` → `coVerify { execute(BCS, "SBER") }` (exactly 1).
 - `saveBroker without query does not re-search` — `saveBroker(PRIMARY, BCS)` при `query = ""` → `coVerify(exactly = 0) { execute(any(), any()) }`.
 - `saveBroker for pair slot uses pair query` — `saveBroker(PAIR, BCS)` при `pair.query = "GAZP"` → `coVerify { execute(BCS, "GAZP") }`.
+- `saveBroker keeps isSearching true while old search is cancelled` — `onQueryChanged(PRIMARY, "SBER")` (in-flight, без `advanceUntilIdle`) → `saveBroker(PRIMARY, BCS)` → `assertTrue(state.primary.isSearching)` **до** `advanceUntilIdle` (race-защита) → `advanceUntilIdle` → `assertFalse(isSearching)`, `coVerify(exactly = 1) { execute(BCS, "SBER") }`, `coVerify(exactly = 0) { execute(TINVEST, "SBER") }`.
 - (Существующий `saveBroker updates broker and closes dialog` — не трогаем, он проверяет state; новый тест — поведение.)
 
 **Референсы:**
@@ -147,6 +150,7 @@ Per-broker результаты уже хранятся: `SearchCacheImpl` (`@Si
 - `query` при смене broker — **сохраняется** (не очищать).
 - `saveBroker` при `query.length < 2` — re-search **не** запускается (нечего искать), но `results` сбрасывается (старые не относятся к новому broker).
 - Не менять публичный контракт `SearchInstrumentsUseCase.execute(broker, query)`.
+- `onQueryChanged` — только удалить `isSearching = false` из Cancel-ветки; контракт (debounce, execute, status) не трогать.
 - Не менять `SearchCacheImpl` (per-broker store уже корректен).
 - Не смешивать с merge полей (разные PR).
 - Не трогать `OrderDialogsState.selectedBroker` / `OrderFormState.selectedBroker` — другие сущности.
@@ -159,7 +163,7 @@ Per-broker результаты уже хранятся: `SearchCacheImpl` (`@Si
 - В UI: смена broker в диалоге → результаты от старого broker'а исчезают, появляется индикатор загрузки, приходят результаты нового broker'а. Live-test UI PASS (согласовать до старта).
 - Гейт зелёный.
 
-**Оценка:** ~1.5–2 ч (правка `saveBroker` 20 мин, 3 теста 30 мин, UI-санкция + согласование 20 мин, live-test UI 20 мин, гейт 15 мин).
+**Оценка:** ~2–2.5 ч (правка `saveBroker` + `onQueryChanged` 30 мин, 4 теста 40 мин, UI-санкция + согласование 20 мин, live-test UI 20 мин, гейт 15 мин).
 
 **Зависимости:** `### OrderSearchViewModel: объединить broker + selectedBroker (fix selectedBroker not wired)` — merged.
 
