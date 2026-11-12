@@ -97,62 +97,6 @@ ___
 
 
 
-### 2. OrderFormViewModel: reduce functions
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** `OrderFormViewModel` после 13d (A–D) — 30 функций, `@Suppress("TooManyFunctions")` (2c, KDoc 13d-B «12 функций в 13d-B, 26+ в 13d-C/D. Split Form на sub-VM = +N VM + cross-VM (форма — единый сценарий: instrument + quantity + orderType + pair + confirm). Группировка — хуже читаемость»). Плюс P7 (M001): `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — presentation в VM. Снятие `@Suppress` — extract helpers / presentation-format в `presentation/util/`.
-
-**Соответствие Clean:** соответствует (SRP / `TooManyFunctions` — долг по 2c, не нарушение).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** «OrdersViewModel: разбить» закрыто (13d/14b/15/17 — сделаны).
-
-**Файлы:**
-- `presentation/screens/orders/OrderFormViewModel.kt` — 30 функций, `@Suppress("TooManyFunctions")`, private `formatPostOrderSuccess` / `formatCostOverlay` / `formatMultiplierOverlay` (P7).
-- `presentation/util/` — новые helper'ы (format).
-- `presentation/screens/orders/OrderFormState.kt` — 29 полей.
-
-**Шаги:**
-1. Extract presentation-format (`formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess`) в `presentation/util/` (M001, P7) — это убирает 3 функции из VM.
-2. Пересчитать: `grep -cE "^\s+(fun|private fun|private suspend fun|override fun)" OrderFormViewModel.kt` — сколько после extract.
-3. Если всё ещё > 11 — extract private helpers в top-level `private fun OrderFormState.X(...)` (в `presentation/screens/orders/`, отдельный файл).
-4. Снять `@Suppress("TooManyFunctions")`.
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-6. `OrderFormViewModelTest` (новый) — если ещё нет.
-
-**Тесты:** `OrderFormViewModelTest` — success / failure / exception / cancellation на `postOrder` + `onInstrumentSelected` / `onPairedInstrumentSelected` (или использовать существующие).
-
-**Референсы:** 13d-B KDoc (`@Suppress("TooManyFunctions")`, 2c); `### M001: formatting в presentation` (связана, P7); `### OrderSearchViewModel: slot-параметр (reduce functions, без split)` (аналог).
-
-**Ограничения:**
-- **`formatPostOrderSuccess`** — оставить как presentation (M001-задача, extract).
-- **`postOrder` / `buildPlaceOrderRequest`** — orchestration (форма), не presentation (не в M001).
-- UI-санкция не требуется (только внутренняя структура VM).
-
-**Критерий готовности:**
-- `@Suppress("TooManyFunctions")` снят или функция ≤ 11.
-- `formatCostOverlay` / `formatMultiplierOverlay` / `formatPostOrderSuccess` — в `presentation/util/` (M001).
-- `OrderFormViewModelTest` зелёный.
-- Гейт зелёный.
-
-**Оценка:** ~4–6 ч.
-
-**Зависимости:** «OrdersViewModel: разбить» (закрыто).
-
-**Связано:** `### OrderSearchViewModel: slot-параметр (reduce functions, без split)`, `### M001: formatting в presentation`, `### M6: one-shot events (StatusEvent)`.
-
-**Открытые вопросы:** какие функции extract'ить (формат / helpers) — решить при старте. `selectedTicker` — dead field (2026-11-12, 0 reads/writes в main, кроме declaration в `OrderFormState.kt:41` + KDoc-упоминания в `OrdersCoordState.kt:26`); не дивергенция (урок 105 проверен grep'ом — писатель и читатель отсутствуют); удалить при reduce.
-
-
-
 ___
 
 
@@ -411,6 +355,205 @@ ___
 
 ___
 
+
+
+
+___
+
+
+
+### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs
+
+**Умбрелла.** Основная задача (C2) + 2 предзадачи (Roborazzi, property-based). Плюс требование: `### Hilt-test infra: Extended OrdersScreenBehaviourTest` (Hilt-test этап 2) merged **до** основной C2 — как safety net против UI-reгрессий. C2 — целевой (coord исчезает / минимальный lifecycle, UI читает sub-state напрямую, `@Suppress` снимается). C1 (compromise) отклонён 2026-11-12: «столько тестовой infra ради неснятия @Suppress явно излишне».
+
+**Мобильная работа:** невозможно (desktop; крупный рефакторинг presentation-слоя + 6 UI-файлов + live-тест 7 сценариев; локальный gate на desktop обязателен).
+
+**Статус:** запланировано.
+
+**Контекст:** 2c-фиксация 2026-11-07 (KDoc `OrderFormViewModel.kt`, §13d-B) отклоняла split Form на sub-VM с обоснованием «+N VM + cross-VM». После закрытия M001 (`TradeDetailsFormat.kt`), M017 (`OrderFormStateMapper.kt`), A2, 13d — обоснование устарело: формат/мапперы вынесены; cross-state reads в VM минимальны (4 поля: `confirmOrdersEnabled` ×2, `selectedAccountId`, `pendingDirection`, `toPlaceOrderRequest`); extract-helpers не даёт снятия `@Suppress` (10 private мутируют state/async; merge 3× `handlePostOrder*` + `updateTradeDetails`/`updatePairExecDetails` = −3 fun → 24 ≫ 11).
+
+**C2 — целевой.** Coord исчезает (или минимальный lifecycle: 2 fun). UI читает 4 sub-VM state напрямую. API `formState` удаляется → 6 UI-файлов переписать (`OrdersScreen`, `OrdersPairTrading`, `OrdersConfirmDialog`, `OrdersScrollableContent`, `OrdersSearch`, `OrdersDialogsSection`). Coord ≤ 11 fun → `@Suppress("TooManyFunctions")` **снимается**.
+
+**Соответствие Clean:** соответствует (внутри presentation; dependency rule не нарушается).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** соответствует (после split — по одному `StateFlow` на sub-VM; M5-инвариант усилен).
+
+**KMP:** — (не применимо — presentation).
+
+**Предусловия:**
+- A2 / M001 / M017 / 13d закрыты (merged; `TradeDetailsFormat.kt`, `OrderFormStateMapper.kt` есть).
+- `selectedTicker` удалён (Q2, `8a4cce16` + `02830f4c`).
+- **`### Test infra: Roborazzi screenshot tests`** merged (предзадача 1).
+- **`### Test infra: property-based tests`** merged (предзадача 2).
+- **`### Hilt-test infra: Extended OrdersScreenBehaviourTest (Hilt-test этап 2)`** merged — safety net против UI-wiring/effect-регрессий C2. Не отдельная предзадача этой умбреллы, а требование: покрытие 5–7 сценариев baseline до C2, повторный прогон после Фазы 6.
+- **UI-санкция (правило 1)** на 6 файлов — обязательна до Фазы 6.
+
+**Файлы:**
+
+Coord / state:
+- `presentation/screens/orders/OrderFormViewModel.kt` (544 строки, 27 fun, `@Suppress`) — после C2: ≤ 2 fun (lifecycle) или исчезает.
+- `presentation/screens/orders/OrderFormState.kt` (32 поля) — расщепляется на 4 sub-state, файл удаляется.
+
+Новые sub-VM (4):
+- `OrderInstrumentViewModel.kt` (~11 fun) + `OrderInstrumentState.kt` (~15 полей).
+- `OrderInputViewModel.kt` (~4 fun) + `OrderInputState.kt` (~7 полей).
+- `OrderTradeDetailsViewModel.kt` (~2–3 fun) + `OrderTradeDetailsState.kt` (6 полей).
+- `OrderExecutionViewModel.kt` (~8 fun) + `OrderExecutionState.kt` (3 поля) + `_status: Channel<StatusEvent>` + `val status: Flow<StatusEvent>`.
+
+UI (переписать, C2):
+- `OrdersScreen.kt`, `OrdersPairTrading.kt`, `OrdersConfirmDialog.kt`, `OrdersScrollableContent.kt`, `OrdersSearch.kt`, `OrdersDialogsSection.kt`.
+
+Тесты:
+- `OrderFormViewModelTest.kt` (10 `@Test`) — реструктуризация по sub-VM.
+- 4 новых `*ViewModelTest`.
+
+Документация:
+- `docs/architecture.md` → «Data flow: заявки» (C2: 4 sub-state, coord — lifecycle).
+- `docs/clean-audit.md` — запись `### Нxxx. OrderFormViewModel: split выполнен (C2, @Suppress снят)`.
+
+**Предзадачи (2, каждая — отдельный PR, baseline до C2).**
+
+**1. `### Test infra: Roborazzi screenshot tests для Orders-экранов`**
+
+**Мобильная работа:** частичное (правки `app/build.gradle.kts` + test-код + PR — proot; запись baseline через `./gradlew recordRoborazziDebug` — desktop; CI verify — каждый PR).
+**Статус:** запланировано.
+**Контекст:** rendering-регрессии C2 (layout, шрифты, overlay-строки, 6 UI-файлов переписываются) не ловятся semantic/unit-тестами. Roborazzi — screenshot на Robolectric, pixel-diff в CI.
+**Файлы:** `app/build.gradle.kts` (+roborazzi plugin), `app/src/test/.../screenshot/OrdersScreensScreenshotTest.kt` (новый), `app/src/test/screenshots/` (baseline PNGs).
+**Шаги:**
+- 1.1 Зависимости `roborazzi` + `roborazzi-compose` + `robolectric`.
+- 1.2 Golden baseline на текущий Orders: `OrdersScreen` (empty / with instrument / with pair), `OrdersConfirmDialog` (buy / sell), `OrdersPairTrading`, `OrdersScrollableContent`, `OrdersSearch` — 8 скриншотов.
+- 1.3 CI-job `screenshot-test` (не в required `gate` на первом этапе; отдельный job).
+- 1.4 Документация в `docs/gradle-setup.md` (как обновить baseline).
+**Тесты:** 8 golden PNG. CI-job зелёный.
+**Оценка:** ~3 ч.
+**Зависимости:** U4 (merged — `HiltTestApplication`, `HiltTestActivity`).
+**Критерий готовности:** golden-изображения в репо; CI-джоб зелёный на `dev`; baseline воспроизводится `./gradlew recordRoborazziDebug`.
+
+**2. `### Test infra: property-based tests для OrderFormStateMapper + TradeDetailsFormat`**
+
+**Мобильная работа:** полное закрытие (proot + PR; kotest-property — pure JVM, локальная Gradle-сборка не нужна; гейт на CI).
+**Статус:** запланировано.
+**Контекст:** unit-тесты покрывают «эти 3 кейса», property — «для любых валидных input» (нули, NaN, Inf, overflow, огромные строки, Unicode). `OrderFormState` расщепляется — property-тесты `OrderFormStateMapper.toPlaceOrderRequest` ловят edge-кейсы, которые unit пропустит.
+**Файлы:** `app/build.gradle.kts` (+kotest-property), `app/src/test/.../OrderFormStateMapperPropertyTest.kt`, `app/src/test/.../TradeDetailsFormatPropertyTest.kt`.
+**Шаги:**
+- 2.1 Зависимость `kotest-property` + `kotest-runner-junit5`.
+- 2.2 `OrderFormStateMapper`: для любых валидных `OrderFormState` — `toPlaceOrderRequest()` либо null (невалидный), либо `PlaceOrderRequest` со всеми non-null полями.
+- 2.3 `TradeDetailsFormat`: `formatCostOverlay` / `formatMultiplierOverlay` — либо null, либо непустая строка; не падает на 0/NaN/Inf.
+- 2.4 100+ итераций на property.
+**Оценка:** ~1.5 ч.
+**Зависимости:** нет.
+**Критерий готовности:** property-тесты зелёные, гейт зелёный.
+
+**Основная задача (C2).**
+
+**Фаза 0 — Подготовка (1 ч).**
+- 0.1 C2 подтверждён (не C1) — решено 2026-11-12.
+- 0.2 `OrderFormState` — расщепить на 4 sub-state.
+- 0.3 Coord: **исчезает** или **минимальный lifecycle (2 fun)**. **Дефолт:** минимальный lifecycle (2 fun: `init { restoreOrderForm() }` + `onCleared { clearInterest(ORDERS) }`) — coord ≤ 11 → `@Suppress` снимается.
+- 0.4 **UI-санкция** (правило 1): смена `formState.X` → `subState.X` в 6 UI-файлах.
+
+**Фаза 1 — `OrderTradeDetailsViewModel` (1.5–2 ч).**
+- 1.1 `OrderTradeDetailsState` (6 полей: executionPrice, costOverlay, multiplierOverlay, freeBalance, pairExecPrice, pairedOrderType).
+- 1.2 VM: 2 public fun + private. Зависимости: `calculateTradeDetails`, `calculatePairExecUseCase`.
+- 1.3 Coord: убрать `updateTradeDetails` / `updatePairExecDetails` (−2 fun).
+- 1.4 UI: `OrdersScrollableContent` (`costOverlay`), `OrdersPairTrading` (`multiplierOverlay`) — из sub-state.
+- 1.5 `OrderTradeDetailsViewModelTest` — 4–5 кейсов.
+- 1.6 Гейт + Roborazzi diff (0).
+
+**Фаза 2 — `OrderInputViewModel` (1.5–2 ч).**
+- 2.1 `OrderInputState` (7 полей: quantity, limitPrice, stopPrice, orderType, expirationType, expireDate, computed quantityAsLong).
+- 2.2 VM: 4 fun. Без зависимостей.
+- 2.3 Coord: −4 делегата.
+- 2.4 UI: `OrdersScrollableContent`, `OrdersConfirmDialog` — из sub-state.
+- 2.5 `OrderInputViewModelTest` — 4–5 кейсов.
+- 2.6 Гейт + Roborazzi.
+
+**Фаза 3 — `OrderInstrumentViewModel` (3–4 ч).**
+- 3.1 `OrderInstrumentState` (~15 полей: primary slot — selectedInstrument, selectedBroker, selectedAccountId, currentPrice, selectedPriceChangePercent, currentPointValue; pair slot — pairedInstrument, pairedBroker, pairedAccountId, pairedMultiplier, pairCurrentPrice, pairedPointValue, pairTradingEnabled).
+- 3.2 VM: 11 fun. Зависимости: `selectInstrumentUseCase`, `selectPairedInstrumentUseCase`, `priceFlowManager`.
+- 3.3 `init { priceFlowManager.prices.collect { ... } }` — в sub-VM.
+- 3.4 Coord: −9 делегатов.
+- 3.5 UI: `OrdersScreen`, `OrdersSearch`, `OrdersPairTrading`, `OrdersDialogsSection` — из sub-state.
+- 3.6 `OrderInstrumentViewModelTest` — 6–8 кейсов.
+- 3.7 Гейт + Roborazzi.
+
+**Фаза 4 — `OrderExecutionViewModel` (2–3 ч).**
+- 4.1 `OrderExecutionState` (3 поля: showConfirmDialog, pendingDirection, isLoading) + `_status: Channel<StatusEvent>`.
+- 4.2 VM: 8 fun. Зависимости: `placeOrderUseCase`.
+- 4.3 `postOrder` принимает `PlaceOrderRequest` из coord/UI (не читает весь state).
+- 4.4 Coord: −5 делегатов.
+- 4.5 UI: `OrdersScreen`, `OrdersConfirmDialog` — из sub-state; `StatusSnackbarHost` читает `executionVM.status`.
+- 4.6 `OrderExecutionViewModelTest` — 8–10 кейсов.
+- 4.7 Гейт + Roborazzi.
+
+**Фаза 5 — Lifecycle / Persistence (1.5–2 ч).**
+- 5.1 Coord: 2 fun (`init { restoreOrderForm(); subscribe confirmOrdersEnabled }` + `onCleared { clearInterest(ORDERS) }`).
+- 5.2 `saveState` / `restoreOrderForm` — в coord (2 fun) или usecase.
+- 5.3 Тесты.
+- 5.4 Гейт + Roborazzi.
+
+**Фаза 6 — Финализация (2–3 ч).**
+- 6.1 Coord: **≤ 2 fun** (lifecycle). Проверить: `grep -cE "^[[:space:]]+(private |internal |override )?(suspend )?fun " OrderFormViewModel.kt` ≤ 11.
+- 6.2 **`@Suppress("TooManyFunctions")` снять**, KDoc обновить: «coord = lifecycle-контейнер, sub-VM — 4, `@Suppress` не нужен».
+- 6.3 UI: 6 файлов на 4 sub-state, `formState` API удалить (заменить на `instrumentVM.state` / `inputVM.state` / `tradeDetailsVM.state` / `executionVM.state`).
+- 6.4 Live-тест 7 сценариев: instrument select (primary/pair), quantity/limit/stop/orderType, confirm (buy/sell), success snackbar, restore after restart, pair trade.
+- 6.5 `docs/architecture.md` → «Data flow: заявки» — обновить (C2: 4 sub-state, coord — lifecycle).
+- 6.6 Гейт.
+
+**Тесты:** 4 новых `*ViewModelTest` (26–33 кейса); `OrderFormViewModelTest` — реструктуризация (10 существующих по sub-VM); test infra (Roborazzi 8 screenshots + property-based 2 файла); Extended OrdersScreenBehaviourTest 5–7 сценариев (требование, вне этой умбреллы); live-тест 7 сценариев.
+
+**Референсы:**
+- `### ✅ OrdersViewModel: разбить на несколько VM` (закрыта — 4-VM, образец cross-VM связей).
+- `### ✅ OrderSearchViewModel: slot-параметр (reduce functions, без split)` (закрыта — образец «reduce без split», 10 fun — реально).
+- `OrderSearchViewModel` (205 строк / 10 fun) — образец VM ≤ 11.
+- `docs/architecture.md` → «4-VM структура после split 13d».
+- `docs/clean-audit.md` → M001, M017, M013.
+- `### Hilt-test infra: test graph modules + full screen behavioural` (U4 merged + подзадачи, включая Extended behavioural — требование).
+
+**Ограничения:**
+- **UI-санкция (правило 1)** — обязательна на 6 файлов.
+- Не смешивать с `### CardIdentity: persist broker + account`.
+- `@Suppress` **снимается** (C2 — целевой).
+- Live-тест 7 сценариев обязателен.
+- Test infra (2 предзадачи) — **до** основных фаз. Не смешивать infra с C2 в одном PR.
+- Extended behavioural (Hilt-test этап 2) — **требование** (блокер), не предзадача этой умбреллы. Часть `### Hilt-test infra`.
+- `architecture.md` — в этой же задаче (Фаза 6.5).
+- Coord не удаляется до live-теста всех 7 сценариев — C2 с возможностью отката.
+
+**Критерий готовности (C2):**
+- 2 предзадачи merged (Roborazzi + property).
+- Extended behavioural (Hilt-test этап 2) merged (требование).
+- Coord `OrderFormViewModel` ≤ 11 fun (или исчез).
+- 4 sub-VM ≤ 11 fun каждый.
+- `formState` API удалён; 6 UI-файлов читают 4 sub-state напрямую.
+- **`@Suppress("TooManyFunctions")` снят**.
+- 26–33 новых тестов + 10 старых переехали в sub-VM.
+- Roborazzi diff = 0 на 8 baseline; property-тесты зелёные; Extended OrdersScreenBehaviourTest 5–7 сценариев зелёные.
+- Live-тест 7 сценариев PASS.
+- Гейт зелёный.
+
+**Оценка (C2 умбрелла):** ~17–21 ч (предзадачи ~4.5 + C2 ~12–16; Extended behavioural ~2–3 ч — в составе `### Hilt-test infra`, не здесь).
+
+**Зависимости:**
+- Предзадача 1 (Roborazzi) — независима (U4 merged).
+- Предзадача 2 (property) — независима.
+- Extended behavioural (требование) — зависит от `### Hilt-test infra: split DataModule` (часть `### Hilt-test infra`).
+- Основная C2 — зависит от всех: 2 предзадач + Extended behavioural + UI-санкции.
+
+**Связано:** `### ✅ OrderFormViewModel: @Suppress accepted (2c)` (ARCHIVE); `### ✅ OrdersViewModel: разбить на несколько VM`; `### ✅ OrderSearchViewModel: slot-параметр`; `### Hilt-test infra: test graph modules + full screen behavioural` (Extended behavioural — требование); `docs/clean-audit.md` → Н94.
+
+**Открытые вопросы:**
+- Coord исчезает полностью или остаётся lifecycle (2 fun) — **Дефолт:** lifecycle остаётся (2 fun).
+- `OrderFormState` расщепляется на 4 sub-state — **Дефолт:** да (C2).
+- `formState` API удаляется — **Дефолт:** да (C2).
+- Roborazzi baseline: 8 или 10 скриншотов — **Дефолт:** 8.
+- CI-job `screenshot-test` — не в required `gate` на первом этапе — **Дефолт:** отдельный job.
 
 
 
@@ -2555,6 +2698,10 @@ ___
 
 
 
+
+
+
+___
 
 
 
