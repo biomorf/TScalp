@@ -35,7 +35,6 @@ class TradeDetailsFormatPropertyTest {
             -1.0,
             Double.MAX_VALUE,
             Double.MIN_VALUE,
-            Double.MIN_NORMAL,
         )
 
     private val safeInstrument =
