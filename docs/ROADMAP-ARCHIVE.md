@@ -10898,3 +10898,43 @@ ___
 
 
 ___
+
+
+
+
+### ✅ Hilt-test infra: test graph modules + full screen behavioural
+
+**Дата закрытия:** 2026-11-12
+
+**Мобильная работа:** частичное (Orders/Portfolio/Settings extended — mobile+CI; split DataModule — desktop, локальный gate).
+
+**Контекст:** U4 (PR #126) дал базовую infra (Robolectric + `HiltTestApplication` + `HiltTestActivity`) и 6 smoke (1 Orders + 1 Portfolio + 4 Settings). Задача — расширить покрытие до 15–22 сценариев через управляемый Hilt-граф: split `DataModule`, `@UninstallModules` + `@BindValue`, `FakeBrokerRegistry` + `FakeBrokerApi`.
+
+**Соответствие Clean:** соответствует (test-layer).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**MVVM:** — (не применимо — test-layer).
+
+**KMP:** — (не применимо).
+
+**Что сделано:** 4 подзадачи merged:
+
+- **split DataModule** (PR #130, `9a6a5405`): `DataModule` → `BrokerModule` + `TransportModule` + `RegistryModule` + `DataModule` (только `provideDataStore`); production 1:1, gate зелёный.
+- **FakeBrokerRegistry + OrdersScreenBehaviourTest** (PR #138, `dea60516`): `FakeBrokerRegistry` (mutable `anyInitialized` + `setAnyInitialized`) + `FakeBrokerApi` (`override var isInitialized`); `@UninstallModules(RegistryModule::class)` + `@BindValue`; Orders extended 1 → 6 сценариев.
+- **PortfolioScreenBehaviourTest** (PR #139, `c03dd55b`): 1 → 5 сценариев (header, empty state, refresh button, negative `ApiNotInitializedCard`).
+- **SettingsScreenBehaviourTest** (PR #140, `a2096977`): 4 → 9 сценариев (all 3 tabs, BCS/Finam panel-specific texts, back nav).
+
+Итого: **20 сценариев** (было 6 smoke) на 3 экранах. `Extended OrdersScreenBehaviourTest (Hilt-test этап 2)` закрыт (был требованием C2-умбреллы).
+
+**Ссылка на задачу:** `### Hilt-test infra: test graph modules + full screen behavioural` (ROADMAP, merged PRs: #130, #138, #139, #140).
+
+**Связано:** `### ✅ Compose UI: test infra + 3 screens` (U0–U4, ARCHIVE); `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`) — Extended behavioural был предусловием C2.
+
+**Открытые вопросы:** нет.
+
+
+
+___
