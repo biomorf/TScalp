@@ -8,6 +8,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.ConscryptMode
 
 /**
  * Happy-path for [CustomTrustManager] (clean-audit H80).
@@ -27,6 +28,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@ConscryptMode(ConscryptMode.Mode.OFF)
 class CustomTrustManagerHappyPathTest {
     private val logger = mockk<Logger>(relaxed = true)
 
