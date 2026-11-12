@@ -106,7 +106,10 @@ class TradingStateRepositoryImpl
         ): CardIdentity {
             val parts = raw.split("|")
             if (parts.size != CARDS_PART_COUNT) invalidValue(key, raw)
-            val broker = BrokerName.valueOf(parts[0])
+            val broker =
+                BrokerName.entries
+                    .firstOrNull { it.name == parts[0] }
+                    ?: invalidValue(key, raw)
             if (parts[1].isBlank()) invalidValue(key, raw)
             return CardIdentity(
                 tscalpInstrumentId = parts[1],
