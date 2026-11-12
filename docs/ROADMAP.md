@@ -97,7 +97,8 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+**Ветка:** feature/ordersearch-research-broker
 
 **Контекст:** После merge `broker` + `selectedBroker` (задача `### OrderSearchViewModel: объединить broker + selectedBroker`) `saveBroker(slot, broker)` пишет `broker` в `SlotSearchState`, но **не триггерит повторный поиск**. Сценарий: query = "SBER", результаты — от TINVEST; пользователь в диалоге меняет broker на BCS → `slot.broker = BCS`, но `results` остаются **от TINVEST** до следующего `onQueryChanged`. Пользователь кликает старый результат → `instrument.brokerName == TINVEST` → карточка получит TINVEST, хотя слот настроен на BCS. Рассинхронизация.
 
