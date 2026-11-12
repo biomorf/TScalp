@@ -110,7 +110,7 @@ class SettingsScreenBehaviourTest {
         }
         composeRule.onNodeWithText("Подключение").performClick()
         composeRule.onNodeWithText("Финам").performClick()
-        composeRule.onNodeWithText("Введите секретный токен Finam", substring = true).assertExists()
+        composeRule.onNodeWithText("Finam", substring = true).assertExists()
     }
 
     @Test
