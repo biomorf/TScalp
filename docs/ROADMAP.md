@@ -149,7 +149,7 @@ ___
 
 **Связано:** `### OrderSearchViewModel: slot-параметр (reduce functions, без split)`, `### M001: formatting в presentation`, `### M6: one-shot events (StatusEvent)`.
 
-**Открытые вопросы:** какие функции extract'ить (формат / helpers) — решить при старте.
+**Открытые вопросы:** какие функции extract'ить (формат / helpers) — решить при старте. `selectedTicker` — dead field (2026-11-12, 0 reads/writes в main, кроме declaration в `OrderFormState.kt:41` + KDoc-упоминания в `OrdersCoordState.kt:26`); не дивергенция (урок 105 проверен grep'ом — писатель и читатель отсутствуют); удалить при reduce.
 
 
 
