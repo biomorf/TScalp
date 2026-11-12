@@ -19,8 +19,8 @@ import java.io.IOException
  * setup in a degraded state. Now it throws `IllegalStateException`.
  *
  * Happy path (all 5 CAs loaded -> acceptedIssuers.size >= 5) is
- * covered by instrumented runs where the real raw resources are
- * bundled; unit-level would need cert fixtures + Robolectric.
+ * covered by [CustomTrustManagerHappyPathTest] (Robolectric +
+ * `unitTests.isIncludeAndroidResources = true`, real `res/raw/*.cer`).
  */
 class CustomTrustManagerTest {
     private val logger = mockk<Logger>(relaxed = true)

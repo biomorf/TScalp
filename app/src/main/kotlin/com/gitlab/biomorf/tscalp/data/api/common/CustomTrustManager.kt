@@ -10,6 +10,38 @@ import java.security.cert.X509Certificate
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
+/**
+ * X509TrustManager for brokers using Russian Trusted Root CA
+ * (T-Invest; potential for BCS / Finam if they switch to Russian CA).
+ *
+ * **Why custom, not Network Security Config (NNC).** NNC `<trust-anchors>`
+ * is the "canonical" Android mechanism for adding a CA, but is
+ * deliberately not used here. Two concrete reasons:
+ *
+ * 1. **Ban protection.** Google Play Store / Android OS can restrict
+ *    NNC `<trust-anchors>` for non-standard CA (policy change,
+ *    targetSdk bump, Play Integrity gates). If that happens, NNC
+ *    would silently drop Russian CA and TLS to T-Invest would break
+ *    on the next app update. Custom `X509TrustManager` is OS-policy-
+ *    agnostic: `KeyStore` + `TrustManagerFactory` are stable public
+ *    APIs with no equivalent restriction lever.
+ * 2. **GOST 2025 / sub-CA 2024/2025 may not parse in NNC.** NNC uses
+ *    the system `Conscrypt` XML parser; GOST chains / non-RSA CAs in
+ *    `<trust-anchors>` have known gaps (Android 10+ rejects some).
+ *    The custom path goes through `CertificateFactory` +
+ *    `TrustManagerFactory`, which accept any valid X.509.
+ *
+ * **Trade-off.** Lint `CustomX509TrustManager` warning is present;
+ * tracked in `lint-baseline.xml` (clean-audit Н81, accepted 2c). The
+ * warning is generic ("custom trust manager may be insecure") and
+ * does not analyse [checkServerTrusted]: it delegates to the system
+ * trust manager first, and only falls back to the custom manager
+ * (5 Russian CA) on `CertificateException`.
+ *
+ * **Fail-fast.** [loadCertificateToKeyStore] throws
+ * `IllegalStateException` on any failure; the `init` block checks
+ * `acceptedIssuers.size >= EXPECTED_CA_COUNT` (clean-audit Н79 / Н80).
+ */
 class CustomTrustManager(
     context: Context,
     private val logger: Logger,
