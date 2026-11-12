@@ -1641,11 +1641,11 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Нарушенное правило Clean:** не Clean в строгом смысле — нарушение общего lint-правила.
 
-**Clean-альтернатива:** перейти на системный `Network Security Config` с `trust-anchors` (XML-конфигурация дополнительных CA). Плюсы: без кастомного `X509TrustManager`, lint-warning уходит, конфигурация декларативна. Минусы: требует проверки, что Android принимает все 5 российских CA через `network_security_config.xml` (GOST 2025 может не поддерживаться). Решение — при следующем касании TLS.
+**Clean-альтернатива:** перейти на системный `Network Security Config` с `trust-anchors` (XML-конфигурация дополнительных CA). Плюсы: без кастомного `X509TrustManager`, lint-warning уходит, конфигурация декларативна. Минусы: **ban protection** — Google Play / Android OS могут ограничить `<trust-anchors>` для нестандартных CA (policy, targetSdk bump, Play Integrity gates); custom-путь не зависит от NNC policy. **GOST 2025 / sub-CA 2024/2025 могут не парситься в NNC** (Conscrypt XML parser gaps); custom принимает любой валидный X.509.
 
-**Выгоды (по 2c):** работает сейчас, `CustomX509TrustManager` полностью контролирует fallback (system → custom); NNC может не принять GOST-сертификаты. Baseline зафиксировал предупреждение.
+**Выгоды (по 2c):** **ban protection** — custom-путь не зависит от NNC policy (Play Store / Android OS могут ограничить `<trust-anchors>`); NNC может не принять GOST 2025 / sub-CA 2024/2025 (Conscrypt XML parser gaps); fail-fast Н79/Н80 в коде — degraded state невозможен; baseline зафиксировал generic lint-warning как точку контроля (при изменении `CustomTrustManager` baseline не совпадёт → lint упадёт).
 
-**Ссылка на задачу:** — (не заведена). Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
+**Ссылка на задачу:** PR #144 (merge `f3d3d916`); `CustomTrustManager.kt` class KDoc — ban-protection rationale; `CustomTrustManagerHappyPathTest` — 5 CA happy path. Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
 
 ### Исправленные (L6)
 
