@@ -1155,6 +1155,18 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 ---
 
+### 105. `data class *State`: два поля на одно значение — красный флаг
+
+**Правило:** при ревью `data class *State` в presentation — проверять, что два похожих поля не описывают одно логическое значение. Признак дивергенции: один код пишет в `x`, другой читает `selectedX`, значения никогда не синхронизируются. Легитимные пары: primary/pair слоты (`x` + `pairedX`), флаг + значение (`showXDialog` + `selectedX`), разные сущности (`selectedBroker` + `selectedAccountId`).
+
+**Инцидент:** 2026-11-12. `OrderSearchState` (создан в `eea0ec5f`, Fase 2, 11a-3) содержал `searchBroker` (читался `SearchInstrumentsUseCase.execute` в `onQueryChanged`) и `selectedSearchBroker` (писался `saveSearchBrokerSettings`, читался UI `SearchBrokerDialog`). Выбор брокера в диалоге не влиял на API поиска. Баг переехал 1:1 через 6+ сессий: `OrdersUiState` → M012 → M013 → 11a → 11b → slot-рефакторинг (PR #135) → всплыл только при ручном чтении кода в сессии slot-рефакторинга. Fix — PR #136 (merge `58b8233b`): одно поле `broker` в `SlotSearchState`.
+
+**Проверка:** `grep -nE '^\s+val ' <file>State.kt` — на пары похожих имён. Для каждой пары: (а) кто пишет, (б) кто читает, (в) синхронизируются ли. Если писатель одного и читатель другого не совпадают — дивергенция. Пример: `OrderSearchState` до PR #136 — `searchBroker` (писатель: никто) + `selectedSearchBroker` (писатель: `saveSearchBrokerSettings`) → расхождение. После: одно поле `broker`. Кандидат на проверку: `OrderFormState.selectedTicker: String? = selectedInstrument?.ticker` (default из другого поля).
+
+**Связано:** AGENTS 2c, урок 29 (не по памяти), `docs/ISSUES.md` → «OrderSearchViewModel: selectedBroker не влияет на API поиска (решён)».
+
+---
+
 ## Диагностика
 
 ### 17. KDoc vs код — grep фактическое использование
