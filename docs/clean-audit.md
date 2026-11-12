@@ -1629,42 +1629,6 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager».
 
-### Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception
-
-**Статус:** открыто.
-
-**Серьёзность:** средне.
-
-**Live тест:** -
-
-**Описание:** `CustomTrustManager.loadCertificateToKeyStore` — `catch (Exception) { AppLogger.w(TAG, "Не удалось загрузить сертификат из ресурса $resId", e) }`. Если CA-сертификат не загрузился — тихо пропускаем. При подключении к T-Invest: systemTrustManager не знает Russian CA, customTrustManager без сертификата → неинформативная TLS-ошибка. Причина (не загрузился конкретный ресурс) теряется.
-
-**Нарушенное правило Clean:** не строго Clean — resilience-логика молча деградирует.
-
-**Clean-альтернатива:** различать «ресурс отсутствует» (binding-ошибка, не должна случаться) от «сертификат битый» (runtime). При битом — `throw IllegalStateException("CA load failed: res=$resId", e)` (fail-fast), не продолжать с усечённым набором. Плюсы: TLS-проблемы видны сразу. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена).
-
-### Н80. CustomTrustManager — нет проверки загрузки всех 5 CA
-
-**Статус:** открыто.
-
-**Серьёзность:** низко.
-
-**Live тест:** -
-
-**Описание:** `CustomTrustManager.init` загружает 5 CA (`russian_trusted_root_ca`, `_ca_gost_2025`, `_sub_ca`, `_sub_ca_2024`, `_sub_ca_gost_2025`). Если один упал — `customTrustManager` работает с 4/5. `getAcceptedIssuers` вернёт усечённый набор. Индикации нет.
-
-**Нарушенное правило Clean:** не строго Clean — молчаливая деградация.
-
-**Clean-альтернатива:** после загрузки проверить `customTrustManager.acceptedIssuers.size == 5`; если меньше — `throw IllegalStateException` или `AppLogger.e` (громкий). Плюсы: известно, что все CA активны. Минусы: —.
-
-**Выгоды:** —.
-
-**Ссылка на задачу:** — (не заведена). Связано с Н79.
-
 ### Н81. CustomTrustManager — CustomX509TrustManager lint-warning (принято 2c)
 
 **Статус:** принято 2c.
@@ -1684,6 +1648,46 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 **Ссылка на задачу:** — (не заведена). Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
 
 ### Исправленные (L6)
+
+### ✅ Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception
+
+**Статус:** исправлено (2026-11-13, PR #144).
+
+**Серьёзность:** средне.
+
+**Live тест:** -
+
+**Описание:** `CustomTrustManager.loadCertificateToKeyStore` — `catch (Exception) { AppLogger.w(TAG, "Не удалось загрузить сертификат из ресурса $resId", e) }`. Если CA-сертификат не загрузился — тихо пропускаем. При подключении к T-Invest: systemTrustManager не знает Russian CA, customTrustManager без сертификата → неинформативная TLS-ошибка. Причина (не загрузился конкретный ресурс) теряется.
+
+**Нарушенное правило Clean:** не строго Clean — resilience-логика молча деградирует.
+
+**Clean-альтернатива:** различать «ресурс отсутствует» (binding-ошибка, не должна случаться) от «сертификат битый» (runtime). При битом — `throw IllegalStateException("CA load failed: res=$resId", e)` (fail-fast), не продолжать с усечённым набором. Плюсы: TLS-проблемы видны сразу. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** `loadCertificateToKeyStore` после `logger.w` бросает `IllegalStateException("CA load failed: res=$resId", e)` — fail-fast при битом/отсутствующем CA. Коммит `447d8df2`, PR #144.
+
+**Ссылка на задачу:** PR #144 (merge `f3d3d916`).
+
+### ✅ Н80. CustomTrustManager — нет проверки загрузки всех 5 CA
+
+**Статус:** исправлено (2026-11-13, PR #144).
+
+**Серьёзность:** низко.
+
+**Live тест:** -
+
+**Описание:** `CustomTrustManager.init` загружает 5 CA (`russian_trusted_root_ca`, `_ca_gost_2025`, `_sub_ca`, `_sub_ca_2024`, `_sub_ca_gost_2025`). Если один упал — `customTrustManager` работает с 4/5. `getAcceptedIssuers` вернёт усечённый набор. Индикации нет.
+
+**Нарушенное правило Clean:** не строго Clean — молчаливая деградация.
+
+**Clean-альтернатива:** после загрузки проверить `customTrustManager.acceptedIssuers.size == 5`; если меньше — `throw IllegalStateException` или `AppLogger.e` (громкий). Плюсы: известно, что все CA активны. Минусы: —.
+
+**Выгоды:** —.
+
+**Что сделано:** В `init` после `customTmf.init` — `check(customTrustManager.acceptedIssuers.size >= EXPECTED_CA_COUNT)` (5). При недоборе — `IllegalStateException`. Коммит `447d8df2`, PR #144.
+
+**Ссылка на задачу:** PR #144 (merge `f3d3d916`). Связано с Н79.
 
 ### ✅ Н68. SettingsRepository — @Suppress("TooManyFunctions")
 
