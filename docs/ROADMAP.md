@@ -477,75 +477,119 @@ UI (переписать, C2):
 
 
 
-### TradingStateSnapshot: domain-neutral refactor (2e → KMP-ready)
+### Domain: pairedMultiplier/quantity → Long (SSoT на границе presentation → domain)
 
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI; single commit).
 
 **Статус:** запланировано.
 
-**Контекст:** (clean-audit Н15) `domain/models/TradingState.kt` содержит `TradingStateSnapshot` с presentation-полями (`quantity: String`, `pairedMultiplier: String`, `orderType: OrderTypeSelection`, `pairTradingEnabled: Boolean`). `quantity`/`pairedMultiplier` — сырые значения TextField, невалидированные. `orderType` — presentation-выбор. `pairTradingEnabled` — UI-тумблер. Это снимок UI-состояния в domain — нарушение Clean (domain не знает про presentation) и 2e (MVVM: M1 — domain делает работу presentation).
+**Контекст:** (clean-audit Н15, расширено по диагностике 2026-11-13) `TradingStateSnapshot` содержит 2 сырых поля (`quantity: String`, `pairedMultiplier: String`). Диагностика показала, что болезнь **шире snapshot**: `String` протекает через 5 domain-моделей и 3 usecase'а, domain парсит одну и ту же строку трижды.
 
-Ранее было `принято 2c` (2026-11-11, `e351b0ac`) как компромисс. **Снято 2026-11-11:** закрываем технический долг, не оставляем компромисс.
+**Где `String` протекает (13 main + 6 test):**
+- `TradingStateSnapshot.quantity: String` / `.pairedMultiplier: String` (модель)
+- `RestoredFormState.quantity: String` / `.pairedMultiplier: String` (модель)
+- `PairedOrderInput.multiplier: String?` (модель)
+- `PlaceOrderRequest.pairedMultiplier: String` (модель)
+- `PrepareOrderRequestUseCase` (2 сигнатуры) — `(quantity * (pairedMultiplier?.toDoubleOrNull() ?: 1.0)).toLong()`
+- `CalculateTradeDetailsUseCase.calculateMultiplier` — `quantity * (pairedMultiplier.toDoubleOrNull() ?: 1.0)`
+- `ConfirmOrderDialog:62` (Composable) — `(quantity * (pairedMultiplier?.toDoubleOrNull() ?: 1.0)).toLong()` — **расчёт в UI (M1)**
+- `OrdersPairTrading:293` (Composable) — локальный `quantity.toLongOrNull() ?: 0L` (DRY)
+- `OrderFormStateMapper` — транзит `String → String`
+- `OrderFormViewModel` — save/restore `String → String`
+- `TradingStateRepositoryImpl` — encode/decode `String`
 
-**Соответствие Clean:** отклонение (открыто) — domain держит presentation-снимок.
+**Цель (SSoT):** парсинг `String → Long` **один раз на границе слоёв**:
+- presentation → domain — `OrderFormStateMapper.toPlaceOrderRequest`
+- domain ↔ persistence — `TradingStateRepositoryImpl` (encode/decode)
 
-**Нарушенное правило Clean:** Domain не знает про presentation-выбор пользователя и сырые строки TextField.
+Внутри domain — только валидированный `Long`.
 
-**Clean-альтернатива:** `presentation/screens/orders/OrdersUiStateSnapshot` для UI + нейтральный domain-снимок с валидированными типами (`quantity: Long?`, `pairedMultiplier: Double?`). Плюсы: domain чист. Минусы: переезд + правка `TradingStateRepository` (data) + `OrderFormViewModel`.
+**Бизнес-правило:** множитель — целое число (нельзя купить половину лота). `Double` — артефакт; `Long` — канон.
 
-**Выгоды (для «отклонение по 2c»):** — (отклонение снято, не принято).
+**Соответствие Clean:** соответствует. `TradingStateRepositoryImpl` уже живёт с encode/decode (data); presentation — `OrderFormState` — TextField (`String`), парсинг — в `OrderFormStateMapper` (граница, 2c M017 уже зафиксировал).
 
-**MVVM:** M1 — domain держит presentation-снимок (обратное M1).
+**Нарушенное правило Clean:** domain не доверяет своему входу — парсит сырые `String` трижды на разных уровнях (`CalculateTradeDetailsUseCase:101`, `PrepareOrderRequestUseCase:143`, `ConfirmOrderDialog:62`). SSoT нарушен.
 
-**KMP:** соответствует (нет platform; presentation-типы — Clean-долг, не KMP-блокер).
+**Clean-альтернатива:** см. «Цель» — парсинг один раз на границе.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** M1 — `ConfirmOrderDialog:62` расчёт `pairedQty` в Composable (чинится в scope: computed `OrderFormState.pairedQuantity`).
+
+**KMP:** соответствует (`Long` — KMP-safe). Заголовок старой задачи «2e → KMP-ready» снят: KMP-блокера в snapshot нет; реальный блокер — `javax.inject` в 4 менеджерах (задача про Koin).
 
 **Предусловия:** нет.
 
-**Файлы:**
-- `domain/models/TradingState.kt` — `TradingStateSnapshot` → нейтральный domain-снимок.
-- `domain/api/repository/TradingStateRepository.kt` — контракт `save(snapshot)` / `load()` / `clear()`.
-- `data/repository/TradingStateRepositoryImpl.kt` — encode/decode в DataStore.
-- `presentation/screens/orders/OrderFormViewModel.kt` — `saveState` / `restoreOrderForm`.
-- `presentation/screens/orders/OrdersUiStateSnapshot.kt` (новый, если вариант B) — presentation-снимок.
-- `app/src/test/kotlin/.../TradingStateRepositoryImplTest.kt` — roundtrip.
-- `app/src/test/kotlin/.../RestoreOrderFormUseCaseTest.kt` — если затрагивает.
+**Файлы (13 main + 6 test):**
 
-**Шаги:**
-1. Выбрать вариант: (A) `TradingStateSnapshot` → валидированные типы в domain (presentation-снимок не нужен); (B) `OrdersUiStateSnapshot` в presentation + domain-снимок с числами. **Дефолт:** B.
-2. `TradingStateSnapshot`: `quantity: String` → `quantity: Long?`; `pairedMultiplier: String` → `pairedMultiplier: Double?`. `orderType: OrderTypeSelection` (уже domain-модель), `pairTradingEnabled: Boolean` — без изменений.
-3. `TradingStateRepositoryImpl` — encode/decode; DataStore-ключи те же. **Миграция:** legacy-строка «1O» → `toLongOrNull()` → `null` + `logger.w`.
-4. `OrderFormViewModel.saveState` — `state.quantity.toLongOrNull()`, `state.pairedMultiplier.toDoubleOrNull()`.
-5. `OrderFormViewModel.restoreOrderForm` — обратная конвертация (`Long?` → `String`, `Double?` → `String`).
-6. Тесты: roundtrip (null / valid / legacy-строка).
-7. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
+Main:
+- `domain/models/TradingState.kt` — `quantity: Long = 1L`, `pairedMultiplier: Long = 10L`.
+- `domain/usecases/CalculateTradeDetailsUseCase.kt` — `pairedMultiplier: Long?` (nullable, `null` → нет расчёта; сейчас так через `pairedMultiplier == null`); `quantity * pairedMultiplier` — `Long * Long`.
+- `domain/usecases/PrepareOrderRequestUseCase.kt` — 2 сигнатуры → `Long?`; `pairedQuantity = quantity * (pairedMultiplier ?: 1L)`.
+- `domain/usecases/PostOrderUseCase.kt` — `PairedOrderInput.multiplier: Long`; проброс `pairedMultiplier = input.paired?.multiplier`.
+- `domain/usecases/PlaceOrderUseCase.kt` — `PlaceOrderRequest.pairedMultiplier: Long`; проброс `multiplier = request.pairedMultiplier`.
+- `domain/usecases/RestoreOrderFormUseCase.kt` — `RestoredFormState.quantity: Long = 1L`, `pairedMultiplier: Long = 10L`.
+- `data/repository/TradingStateRepositoryImpl.kt` — encode `Long.toString()`; decode `toLongOrNull()`; fail-fast (`logger.e` + `IllegalStateException`) на невалидной строке; **D-перенос**: `orderTypeFromStorageKey`/`toStorageKey` из `domain/models/OrderModels.kt:239,249` в private companion, с fail-fast на неизвестном ключе.
+- `presentation/screens/orders/OrderFormState.kt` — computed `pairedQuantity: Long?` (G1); `isPairValid` на `Long`; `pairedMultiplier = "10"` (F); `quantity = "1"` (Q6).
+- `presentation/util/OrderFormStateMapper.kt` — `pairedMultiplier = pairedMultiplier.toLongOrNull() ?: return null` (парсинг на границе).
+- `presentation/screens/orders/OrderFormViewModel.kt` — save/restore; `onPairedMultiplierChanged` — фильтр только цифры; `private const val DEFAULT_PAIRED_MULTIPLIER = 10L`; `setPairTradingEnabled(false) → pairedMultiplier = DEFAULT_PAIRED_MULTIPLIER.toString()`.
+- `presentation/components/ConfirmOrderDialog.kt` — параметр `pairedQuantity: Long?` (вместо `pairedMultiplier: String?`); расчёт в Composable убран (G1).
+- `presentation/screens/orders/OrdersConfirmDialog.kt` — передача `pairedQuantity = formState.pairedQuantity`.
+- `presentation/screens/orders/OrdersPairTrading.kt` — G2: локальный `quantityAsLong` → `formState.quantityAsLong` (проброс параметром). Убрать `:293`.
 
-**Тесты:** `TradingStateRepositoryImplTest` (roundtrip: null / valid / legacy); `RestoreOrderFormUseCaseTest` (null / valid). Live-test не требуется (чистая логика).
+Test:
+- `CalculateTradeDetailsUseCaseTest` — 19 литералов `"2.0"/"3.0"` → `2L/3L`; `"abc"`-тест (`:406-416`) **удалить** (нельзя передать невалид).
+- `PrepareOrderRequestUseCaseTest` — `"2"/"1"` → `2L/1L` (3 места).
+- `PlaceOrderUseCaseTest` — `"1"` → `1L`.
+- `RestoreOrderFormUseCaseTest` — `"3"/"5"/"7"/"2"` → `Long`; `assertEquals("10", ...)` → `assertEquals(10L, ...)`.
+- `OrderFormStateMapperTest` — `assertEquals("2", r.pairedMultiplier)` → `assertEquals(2L, ...)`.
+- `OrderFormViewModelTest` — `RestoredFormState(pairedMultiplier = "2")` → `2L`.
 
-**Референсы:** `docs/clean-audit.md` → Н15; `docs/architecture.md` → «CardIdentity и слоты».
+Новые:
+- `TradingStateRepositoryImplTest` — roundtrip `OrderTypeSelection` (5 значений) + fail-fast (невалидная строка → `IllegalStateException`).
+- `OrderFormStateTest` (новый или расширение) — computed `pairedQuantity` (0/валид/невалид/null).
+
+**Шаги:** один коммит (типы связаны, промежуточные не компилируются).
+
+1. Domain-модели: `TradingStateSnapshot`, `RestoredFormState`, `PairedOrderInput`, `PlaceOrderRequest`.
+2. 3 usecase'а (`CalculateTradeDetailsUseCase`, `PrepareOrderRequestUseCase`, `PostOrderUseCase`, `PlaceOrderUseCase`, `RestoreOrderFormUseCase`).
+3. `TradingStateRepositoryImpl` — encode/decode + fail-fast + D-перенос.
+4. `OrderFormState` — computed `pairedQuantity`, `isPairValid` на `Long`, F/Q6.
+5. `OrderFormStateMapper` — парсинг один раз.
+6. `OrderFormViewModel` — save/restore + const + фильтр цифр.
+7. `OrdersPairTrading` — G2.
+8. `ConfirmOrderDialog` + `OrdersConfirmDialog` — `pairedQuantity: Long?`.
+9. Тесты — 6 файлов, типы; удалить `"abc"`-тест.
+10. Новые тесты — `TradingStateRepositoryImplTest` (roundtrip + fail-fast) + `OrderFormStateTest` (computed).
+11. Single push → CI `gate`.
+
+**Тесты:** 6 файлов правятся, 2 новых. Удалён 1 (`"abc"`). Всего ~50 тестов.
+
+**Референсы:** `docs/clean-audit.md` → Н15, M1; `docs/architecture.md` → «Data flow: заявки»; `AGENTS.md` → 2e (SSoT).
 
 **Ограничения:**
-- Legacy-формат (строка «1O») → `null` + `logger.w` (видно в логах, не ломает restore).
-- Не менять `CardIdentity` (это `### CardIdentity: persist broker + account в TradingStateSnapshot` — расширение полей, не refactor).
-- UI-санкция не требуется (внутренняя структура; внешний вид 1:1).
+- Один коммит, single push — типы связаны, промежуточные не компилируются.
+- UI-санкция (правило 1) **не требуется** (визуально: `pairedMultiplier` при первом запуске `"10"` вместо `"1"` — согласовано с бизнес-правилом; `setPairTradingEnabled(false)` → `"10"` — согласовано; G1 не меняет вид карточки, только расчёт).
+- `"abc"`-тест удаляется: поведение улучшается (нельзя «молча 1.0»).
+- `onPairedMultiplierChanged` — только цифры (UX: `"2.5"` → `"25"`, невалидно, но целое; по бизнес-правилу — правильно).
+- `orderTypeFromStorageKey` fail-fast на неизвестном ключе — безопасно: при `save()` пишем только валидные; при первом `load()` ключа нет → `null` → fallback `Market`.
+- Не смешивать с `CardIdentity` (следующий PR).
 
 **Критерий готовности:**
-- `TradingStateSnapshot` не содержит presentation-полей (сырых строк TextField).
-- `grep -nE "quantity: String|pairedMultiplier: String" TradingState.kt` = 0.
-- Roundtrip-тесты зелёные (null / valid / legacy).
-- Гейт зелёный.
+- `grep -rn "pairedMultiplier: String\|multiplier: String" app/src/main` = 0.
+- `grep -rn "quantity: String" app/src/main/kotlin/com/gitlab/biomorf/tscalp/domain` = 0.
+- `grep -n "orderTypeFromStorageKey\|toStorageKey" app/src/main/kotlin/com/gitlab/biomorf/tscalp/domain/models/OrderModels.kt` = 0.
+- `grep -rn "toDoubleOrNull" app/src/main | grep -i "multiplier\|quantity"` = 0.
+- CI `gate` зелёный.
+- Live-тест (после релиза).
 
-**Оценка:** ~2–2.5 ч.
+**Оценка:** ~8–10 ч (расширено с ~2–2.5 ч по исходной формулировке).
 
-**Зависимости:** нет.
+**Зависимости:** нет. `### CardIdentity: persist broker + account в TradingStateSnapshot` — **после** этой, отдельный PR.
 
-**Связано:** `### CardIdentity: persist broker + account в TradingStateSnapshot` (соседняя; расширение, не refactor); `docs/clean-audit.md` → Н15.
+**Связано:** `### CardIdentity: persist broker + account в TradingStateSnapshot`; `docs/clean-audit.md` → Н15, M1; `AGENTS.md` → 2e.
 
-**Открытые вопросы:**
-- Вариант A / B — **Дефолт:** B (UI-snapshot в presentation + domain-снимок). Пересмотреть при старте.
-- Legacy-формат: молча → null, или `logger.w`? **Дефолт:** `logger.w`.
-
-
-
+**Открытые вопросы:** нет.
 
 ___
 
