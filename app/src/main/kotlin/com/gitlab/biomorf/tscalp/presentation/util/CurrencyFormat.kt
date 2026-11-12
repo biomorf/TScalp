@@ -16,7 +16,7 @@ fun formatCurrency(
     currency: String,
 ): String {
     val format = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("ru-RU"))
-    format.currency = Currency.getInstance(currency)
+    format.currency = Currency.getInstance(currency.uppercase(Locale.ROOT))
     return format.format(value)
 }
 
