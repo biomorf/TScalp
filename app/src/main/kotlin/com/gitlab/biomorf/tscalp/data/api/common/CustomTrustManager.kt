@@ -16,6 +16,7 @@ class CustomTrustManager(
 ) : X509TrustManager {
     private companion object {
         private const val TAG = "CustomTrustManager"
+        private const val EXPECTED_CA_COUNT = 5
     }
 
     private val systemTrustManager: X509TrustManager
@@ -47,6 +48,9 @@ class CustomTrustManager(
         customTrustManager =
             customTmf.trustManagers
                 .first { it is X509TrustManager } as X509TrustManager
+        check(customTrustManager.acceptedIssuers.size >= EXPECTED_CA_COUNT) {
+            "Expected $EXPECTED_CA_COUNT Russian CAs, got ${customTrustManager.acceptedIssuers.size}"
+        }
     }
 
     private fun loadCertificateToKeyStore(
@@ -61,7 +65,8 @@ class CustomTrustManager(
                 keyStore.setCertificateEntry("cert_$resId", cert)
             }
         } catch (e: Exception) {
-            logger.w(TAG, "Не удалось загрузить сертификат из ресурса $resId", e)
+            logger.w(TAG, "CA load failed: res=$resId", e)
+            throw IllegalStateException("CA load failed: res=$resId", e)
         }
     }
 
