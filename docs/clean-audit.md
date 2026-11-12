@@ -95,9 +95,33 @@ L4–L8 — не проверены, заполняются по мере инс
 | Н4. UI конвертирует String → domain-модель | средне | L1, L3 | `OrdersListDialog.kt` | - |
 | Н24. Дублирование обогащения в двух VM | средне | L1, L3 | `OrdersViewModel.updatePositionPnl`, `PortfolioViewModel.updatePortfolioItem` | - |
 | Н3. OrdersListViewModel в `ui.components` | низко | L1 | `ui/components/OrdersListViewModel.kt` | - |
+| Н95. OrderFormViewModel — `@Suppress("TooManyFunctions")` (принято 2c) | средне | L1 | `OrderFormViewModel.kt` (75) | - |
 | M001. OrdersViewModel форматирует overlay | средне | L1 | `OrdersViewModel.formatCostOverlay` (1148), `formatMultiplierOverlay` (1162) | - |
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
+
+### Принятые (2c)
+
+### Н95. OrderFormViewModel — @Suppress("TooManyFunctions") (принято 2c)
+
+**Статус:** принято 2c.
+
+**Серьёзность:** средне.
+
+**Live тест:** -.
+
+**Описание:** `OrderFormViewModel` — 27 fun (16 public + 1 override `onCleared` + 10 private) в 544 строках, `@Suppress("TooManyFunctions")` на строке 75 (порог detekt = 11). Extract-helpers не даёт снятия: pure top-level extraction невозможен (все 10 private мутируют `_state` / `_status` / async), merge 3× `handlePostOrder*` + `updateTradeDetails`/`updatePairExecDetails` = −3 fun → 24 ≫ 11. Split VM отклонён 2c 2026-11-07 (KDoc 13d-B), но после закрытия M001 (`TradeDetailsFormat.kt`), M017 (`OrderFormStateMapper.kt`), A2, 13d обоснование устарело: формат/мапперы вынесены, cross-state reads в VM минимальны (4 поля).
+
+**Нарушенное правило Clean:** `@Suppress("TooManyFunctions")` как постоянный маркер долга (god-класс 544 строки / 27 fun).
+
+**Clean-альтернатива:** split на 4 sub-VM (`OrderInstrumentViewModel`, `OrderInputViewModel`, `OrderTradeDetailsViewModel`, `OrderExecutionViewModel`), coord → lifecycle-контейнер ≤ 2 fun, `@Suppress` снят. Плюсы: coord ≤ 11 fun, M5-инвариант усилен, god-класс устранён. Минусы: ~12–16 ч + 6 UI-файлов переписать (API `formState` → 4 sub-state) + test infra (Roborazzi, property-based, Extended behavioural).
+
+**Выгоды (по 2c):** работает сейчас, god-класс ограничен presentation-слоем, cross-state reads в VM минимальны (4 поля). `@Suppress` остаётся до закрытия C2 umbrella — reduce-task закрыта как accepted (`cf911ae8`), C2 — целевая задача с явным триггером.
+
+**MVVM-альтернатива:** — (не нарушение MVVM).
+
+**Ссылка на задачу:** `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`); reduce-task closed accepted — `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: @Suppress accepted (2c)` (`cf911ae8`). Связано: M001 (закрыт PR #111), M017 (закрыт `4ee4174`), M013 (закрыт PR #110).
+
 
 ### Исправленные (L1)
 
