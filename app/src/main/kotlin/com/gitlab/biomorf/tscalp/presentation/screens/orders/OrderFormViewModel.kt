@@ -65,12 +65,21 @@ import javax.inject.Inject
  *   Coord `onCleared` — только `stopPositionUpdates()`. Добавляется
  *   в 13d-D.
  *
- * **2c (clean-audit A2 / OrderFormViewModel, 2026-11-07):**
- * `@Suppress("TooManyFunctions")` — 12 функций в 13d-B, 26+ в
- * 13d-C/D. Split Form на sub-VM = +N VM + cross-VM (форма —
- * единый сценарий: instrument + quantity + orderType + pair +
- * confirm). Группировка — хуже читаемость. Снятие — задача
- * `### OrderFormViewModel: reduce functions` (ROADMAP, после 14b).
+ * **2c (clean-audit A2 / OrderFormViewModel, 2026-11-07; refreshed 2026-11-12):**
+ * `@Suppress("TooManyFunctions")` — 27 функций (16 public + 1
+ * override `onCleared` + 10 private), 544 строки. Порог detekt
+ * `TooManyFunctions` = 11; extract-helpers не даёт снятия (все
+ * 10 private мутируют `_state` / `_status` / async). Split Form
+ * на sub-VM = +N VM + cross-VM (форма — единый сценарий:
+ * instrument + quantity + orderType + pair + confirm).
+ * Группировка — хуже читаемость.
+ *
+ * **Статус 2026-11-12:** reduce-task закрыта как accepted (2c,
+ * clean-audit Н95, `98a533a0`); `docs/ROADMAP-ARCHIVE.md` →
+ * `### ✅ OrderFormViewModel: @Suppress accepted (2c)`. Split —
+ * отдельная целевая задача `### OrderFormViewModel: split на
+ * sub-VM (C2, снятие @Suppress) + 2 test infra prereqs`
+ * (ROADMAP, `e1f62ffc`). `@Suppress` остаётся до закрытия C2.
  */
 @Suppress("TooManyFunctions")
 @HiltViewModel
