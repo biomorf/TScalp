@@ -232,8 +232,8 @@ class OrderFormViewModel
                             pairedBroker = data.pairedInstrument?.brokerName ?: BrokerName.TINVEST,
                             pairedAccountId = null,
                             pairTradingEnabled = data.pairTradingEnabled,
-                            quantity = data.quantity,
-                            pairedMultiplier = data.pairedMultiplier,
+                            quantity = data.quantity.toString(),
+                            pairedMultiplier = data.pairedMultiplier.toString(),
                             orderType = data.orderType,
                             currentPointValue = data.currentPointValue,
                             pairedPointValue = data.pairedPointValue,
@@ -292,7 +292,7 @@ class OrderFormViewModel
         }
 
         fun onPairedMultiplierChanged(value: String) {
-            val filtered = value.filter { it.isDigit() || it == '.' }
+            val filtered = value.filter { it.isDigit() }
             _state.update { it.copy(pairedMultiplier = filtered) }
             viewModelScope.launch { saveState() }
         }
@@ -306,7 +306,7 @@ class OrderFormViewModel
                         pairTradingEnabled = false,
                         pairCurrentPrice = null,
                         pairedInstrument = null,
-                        pairedMultiplier = "10",
+                        pairedMultiplier = DEFAULT_PAIRED_MULTIPLIER.toString(),
                     )
                 }
             }
@@ -485,8 +485,8 @@ class OrderFormViewModel
                     selectedTscalpInstrumentId = state.selectedInstrument?.tscalpInstrumentId,
                     pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
                     pairTradingEnabled = state.pairTradingEnabled,
-                    quantity = state.quantity,
-                    pairedMultiplier = state.pairedMultiplier,
+                    quantity = state.quantityAsLong ?: 1L,
+                    pairedMultiplier = state.pairedMultiplier.toLongOrNull() ?: DEFAULT_PAIRED_MULTIPLIER,
                     orderType = state.orderType,
                 ),
             )
@@ -513,7 +513,7 @@ class OrderFormViewModel
                     instrument = state.selectedInstrument,
                     pairedInstrument = state.pairedInstrument,
                     quantity = state.quantityAsLong ?: 0L,
-                    pairedMultiplier = state.pairedMultiplier,
+                    pairedMultiplier = state.pairedMultiplier.toLongOrNull(),
                     pairCurrentPrice = state.pairCurrentPrice,
                 )
             val costOverlay = formatCostOverlay(details, state)
@@ -549,5 +549,6 @@ class OrderFormViewModel
 
         companion object {
             private const val TAG = "OrderFormViewModel"
+            private const val DEFAULT_PAIRED_MULTIPLIER = 10L
         }
     }

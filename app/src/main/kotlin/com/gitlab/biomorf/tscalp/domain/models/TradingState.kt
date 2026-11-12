@@ -11,7 +11,7 @@ data class TradingStateSnapshot(
     val selectedTscalpInstrumentId: String? = null,
     val pairedTscalpInstrumentId: String? = null,
     val pairTradingEnabled: Boolean = false,
-    val quantity: String = "",
-    val pairedMultiplier: String = "10",
+    val quantity: Long = 1L,
+    val pairedMultiplier: Long = 10L,
     val orderType: OrderTypeSelection = OrderTypeSelection.Market,
 )

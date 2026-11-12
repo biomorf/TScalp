@@ -66,7 +66,7 @@ class PlaceOrderUseCaseTest {
             expirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
             pairedInstrument = null,
             pairedAccountId = null,
-            pairedMultiplier = "1",
+            pairedMultiplier = 1L,
         )
 
     private fun stubHappyResolve() {

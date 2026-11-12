@@ -40,7 +40,7 @@ data class PlaceOrderRequest(
     val pairedInstrument: Instrument?,
     /** accountId слота pair (null — parный счёт совпадает с primary). */
     val pairedAccountId: String?,
-    val pairedMultiplier: String,
+    val pairedMultiplier: Long,
 )
 
 /**

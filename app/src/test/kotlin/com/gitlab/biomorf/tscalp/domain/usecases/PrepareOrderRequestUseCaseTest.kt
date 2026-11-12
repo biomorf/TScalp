@@ -167,7 +167,7 @@ class PrepareOrderRequestUseCaseTest {
                 expirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
                 pairedInstrument = tmon,
                 pairedAccountId = "acc-1",
-                pairedMultiplier = "2",
+                pairedMultiplier = 2L,
             )
         assertTrue(result is PrepareOrderRequestUseCase.PrepareResult.Prepared)
         val r = result as PrepareOrderRequestUseCase.PrepareResult.Prepared
@@ -193,7 +193,7 @@ class PrepareOrderRequestUseCaseTest {
                 expirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
                 pairedInstrument = tmon,
                 pairedAccountId = "acc-1",
-                pairedMultiplier = "1",
+                pairedMultiplier = 1L,
             )
         assertTrue(result is PrepareOrderRequestUseCase.PrepareResult.Prepared)
         val r = result as PrepareOrderRequestUseCase.PrepareResult.Prepared
@@ -218,7 +218,7 @@ class PrepareOrderRequestUseCaseTest {
                 expirationType = StopOrderExpirationType.GOOD_TILL_CANCEL,
                 pairedInstrument = tmon,
                 pairedAccountId = "acc-1",
-                pairedMultiplier = "1",
+                pairedMultiplier = 1L,
             )
         assertTrue(result is PrepareOrderRequestUseCase.PrepareResult.Prepared)
         val r = result as PrepareOrderRequestUseCase.PrepareResult.Prepared

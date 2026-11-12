@@ -237,8 +237,8 @@ class OrderFormViewModelTest {
                         selectedInstrument = sber,
                         pairedInstrument = tmon,
                         pairTradingEnabled = true,
-                        quantity = "1",
-                        pairedMultiplier = "2",
+                        quantity = 1L,
+                        pairedMultiplier = 2L,
                     ),
                 )
             advanceUntilIdle()

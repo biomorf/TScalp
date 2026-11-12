@@ -49,7 +49,7 @@ class OrderFormStateMapperTest {
         assertEquals(StopOrderExpirationType.GOOD_TILL_DATE, r.expirationType)
         assertEquals("uid-sber", r.pairedInstrument?.tscalpInstrumentId)
         assertEquals("SBER", r.pairedInstrument?.ticker)
-        assertEquals("2", r.pairedMultiplier)
+        assertEquals(2L, r.pairedMultiplier)
     }
 
     @Test
