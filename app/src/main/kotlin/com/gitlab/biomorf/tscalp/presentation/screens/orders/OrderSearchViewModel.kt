@@ -105,7 +105,6 @@ class OrderSearchViewModel
                             }
                         }
                     } catch (ce: CancellationException) {
-                        updateSlot(slot) { it.copy(isSearching = false) }
                         throw ce
                     } catch (e: Exception) {
                         logger.e(TAG, "search exception (slot=$slot)", e)
@@ -182,7 +181,20 @@ class OrderSearchViewModel
             slot: SearchSlot,
             broker: BrokerName,
         ) {
-            updateSlot(slot) { it.copy(broker = broker, showBrokerDialog = false) }
+            val currentQuery =
+                when (slot) {
+                    SearchSlot.PRIMARY -> _state.value.primary.query
+                    SearchSlot.PAIR -> _state.value.pair.query
+                }
+            updateSlot(slot) {
+                it.copy(
+                    broker = broker,
+                    showBrokerDialog = false,
+                    results = emptyList(),
+                    isSearching = currentQuery.length >= 2,
+                )
+            }
+            if (currentQuery.length >= 2) onQueryChanged(slot, currentQuery)
         }
 
         fun dismissBrokerDialog(slot: SearchSlot) {

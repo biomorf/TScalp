@@ -231,4 +231,83 @@ class OrderSearchViewModelTest {
                 searchInstrumentsUseCase.execute(BrokerName.BCS, "SBER")
             }
         }
+
+    @Test
+    fun `saveBroker re-searches with new broker`() =
+        runTest {
+            coEvery {
+                searchInstrumentsUseCase.execute(BrokerName.TINVEST, "SBER")
+            } returns AppResult.Success(listOf(sber))
+            coEvery {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "SBER")
+            } returns AppResult.Success(listOf(sber))
+            val vm = createVm()
+
+            vm.onQueryChanged(SearchSlot.PRIMARY, "SBER")
+            advanceUntilIdle()
+
+            vm.saveBroker(SearchSlot.PRIMARY, BrokerName.BCS)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "SBER")
+            }
+        }
+
+    @Test
+    fun `saveBroker without query does not re-search`() =
+        runTest {
+            val vm = createVm()
+
+            vm.saveBroker(SearchSlot.PRIMARY, BrokerName.BCS)
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { searchInstrumentsUseCase.execute(any(), any()) }
+        }
+
+    @Test
+    fun `saveBroker for pair slot uses pair query`() =
+        runTest {
+            coEvery {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "GAZP")
+            } returns AppResult.Success(emptyList())
+            val vm = createVm()
+
+            vm.onQueryChanged(SearchSlot.PAIR, "GAZP")
+            advanceUntilIdle()
+
+            vm.saveBroker(SearchSlot.PAIR, BrokerName.BCS)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "GAZP")
+            }
+        }
+
+    @Test
+    fun `saveBroker keeps isSearching true while old search is cancelled`() =
+        runTest {
+            coEvery {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "SBER")
+            } returns AppResult.Success(listOf(sber))
+            val vm = createVm()
+
+            // старый поиск (TINVEST) запущен, но debounce ещё не прошёл
+            vm.onQueryChanged(SearchSlot.PRIMARY, "SBER")
+
+            vm.saveBroker(SearchSlot.PRIMARY, BrokerName.BCS)
+
+            // race-защита: isSearching = true сразу после saveBroker
+            assertTrue(vm.state.value.primary.isSearching)
+
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.primary.isSearching)
+            coVerify(exactly = 1) {
+                searchInstrumentsUseCase.execute(BrokerName.BCS, "SBER")
+            }
+            coVerify(exactly = 0) {
+                searchInstrumentsUseCase.execute(BrokerName.TINVEST, "SBER")
+            }
+        }
 }
