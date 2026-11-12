@@ -45,5 +45,6 @@ class FakeBrokerRegistry(
 
     fun setAnyInitialized(value: Boolean) {
         _anyInitialized.value = value
+        brokers.values.filterIsInstance<FakeBrokerApi>().forEach { it.isInitialized = value }
     }
 }
