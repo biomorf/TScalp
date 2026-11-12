@@ -23,8 +23,7 @@ import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
  * **Не содержит** Form-полей (см. `OrderFormState`):
  * - instrument / quantity / orderType / prices / expiry / pair / confirm;
  * - `tradingStatuses` (passthrough в `OrdersViewModel.tradingStatuses`);
- * - `selectedTicker` / `isFormValid` / `quantityAsLong` (computed в
- *   `OrderFormState`);
+ * - `isFormValid` / `quantityAsLong` (computed в `OrderFormState`);
  * - `activeCard` / `activePairedCard` (extensions ниже, 2c-фиксация).
  */
 data class OrdersCoordState(

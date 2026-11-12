@@ -38,7 +38,6 @@ data class OrderFormState(
     // Instrument / price
     val ticker: String = "",
     val selectedInstrument: Instrument? = null,
-    val selectedTicker: String? = selectedInstrument?.ticker,
     val currentPrice: Double? = null,
     val pairCurrentPrice: Double? = null,
     val isPriceLoading: Boolean = false,
