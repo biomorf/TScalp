@@ -98,15 +98,14 @@ class TradingStateRepositoryImpl
             throw IllegalStateException("invalid $key in DataStore: '$raw'")
         }
 
-        private fun encodeCard(card: CardIdentity): String =
-            "${card.brokerName.name}|${card.tscalpInstrumentId}|${card.accountId ?: ""}"
+        private fun encodeCard(card: CardIdentity): String = "${card.brokerName.name}|${card.tscalpInstrumentId}|${card.accountId ?: ""}"
 
         private fun decodeCard(
             key: String,
             raw: String,
         ): CardIdentity {
             val parts = raw.split("|")
-            if (parts.size != 3) invalidValue(key, raw)
+            if (parts.size != CARDS_PART_COUNT) invalidValue(key, raw)
             val broker = BrokerName.valueOf(parts[0])
             if (parts[1].isBlank()) invalidValue(key, raw)
             return CardIdentity(
@@ -141,6 +140,7 @@ class TradingStateRepositoryImpl
 
         private companion object {
             private const val TAG = "TradingStateRepositoryImpl"
+            private const val CARDS_PART_COUNT = 3
             val SELECTED_CARD = stringPreferencesKey("selected_card")
             val PAIRED_CARD = stringPreferencesKey("paired_card")
             val PAIR_TRADING_ENABLED = booleanPreferencesKey("pair_trading_enabled")

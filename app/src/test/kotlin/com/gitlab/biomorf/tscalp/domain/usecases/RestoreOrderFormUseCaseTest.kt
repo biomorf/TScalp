@@ -87,11 +87,12 @@ class RestoreOrderFormUseCaseTest {
             stubBrokerReady(true)
             coEvery { tradingStateRepository.load() } returns
                 TradingStateSnapshot(
-                    selectedCard = CardIdentity(
-                        tscalpInstrumentId = "uid-sber",
-                        brokerName = BrokerName.TINVEST,
-                        accountId = null,
-                    ),
+                    selectedCard =
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-sber",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = null,
+                        ),
                 )
             coEvery { instrumentRepository.getInstrument("uid-sber") } returns sber
 
@@ -151,11 +152,12 @@ class RestoreOrderFormUseCaseTest {
             stubBrokerReady(true)
             coEvery { tradingStateRepository.load() } returns
                 TradingStateSnapshot(
-                    selectedCard = CardIdentity(
-                        tscalpInstrumentId = "uid-missing",
-                        brokerName = BrokerName.TINVEST,
-                        accountId = null,
-                    ),
+                    selectedCard =
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-missing",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = null,
+                        ),
                 )
             coEvery { instrumentRepository.getInstrument("uid-missing") } returns null
 
