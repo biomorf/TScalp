@@ -23,7 +23,6 @@ data class SlotSearchState(
     val isSearching: Boolean = false,
     val broker: BrokerName = BrokerName.TINVEST,
     val showBrokerDialog: Boolean = false,
-    val selectedBroker: BrokerName = BrokerName.TINVEST,
 )
 
 /**

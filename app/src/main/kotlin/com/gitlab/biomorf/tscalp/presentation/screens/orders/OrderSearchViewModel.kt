@@ -182,7 +182,7 @@ class OrderSearchViewModel
             slot: SearchSlot,
             broker: BrokerName,
         ) {
-            updateSlot(slot) { it.copy(selectedBroker = broker, showBrokerDialog = false) }
+            updateSlot(slot) { it.copy(broker = broker, showBrokerDialog = false) }
         }
 
         fun dismissBrokerDialog(slot: SearchSlot) {
