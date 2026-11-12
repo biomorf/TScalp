@@ -27,9 +27,9 @@
 **Когда вернуться:** ...
 ```
 
-## OrderSearchViewModel: selectedBroker не влияет на API поиска
+## OrderSearchViewModel: selectedBroker не влияет на API поиска (решён)
 
-**Статус:** открыт.
+**Статус:** решён (PR #136, merge `58b8233b`).
 
 **Симптом:** в UI диалога свойств поиска (`OrdersBrokerDialogs.kt` →
 `SearchBrokerDialog` / `PairSearchBrokerDialog`) пользователь выбирает
@@ -63,12 +63,21 @@ default `TINVEST`). Pre-existing баг. В slot-рефакторинге
   `saveBroker` → влияет на `execute`-брокера (1 unit).
 
 **Связано:** `docs/ROADMAP.md` → `### OrderSearchViewModel: slot-параметр
-(reduce functions, без split)` — текущая задача; баг обнаружен при
-рефакторинге.
+(reduce functions, без split)` (баг обнаружен при рефакторинге, PR #135);
+`### OrderSearchViewModel: объединить broker + selectedBroker` (fix, PR #136);
+`### OrderSearchViewModel: re-search on broker change` (follow-up, PR #137).
 
-**Когда вернуться:** сразу после merge `### OrderSearchViewModel:
-slot-параметр` (баг — в той же VM; объединять поля удобнее после
-slot-рефакторинга, чтобы не смешивать два refactor'а в одном PR).
+**Что сделано:** PR #136 (merge `58b8233b`). `SlotSearchState.selectedBroker`
+удалён, оставлен один `broker`. `OrderSearchViewModel.saveBroker(slot, broker)`
+пишет в `broker`; `onQueryChanged` / `refresh` читают `broker` (не менялись);
+`OrdersBrokerDialogs` — `primary.broker` / `pair.broker`. Тест: 3 assertion →
+`.broker`, 2 rename, +1 новый `saveBroker updates broker used by execute`
+(10 → 11). Follow-up: PR #137 (merge `c53aaa51`) — `saveBroker` теперь
+re-search при смене брокера (`onQueryChanged(slot, currentQuery)`), результаты
+сразу от нового брокера; stale-результаты не остаются.
+
+**Когда вернуться:** не требуется. Открыть заново, если появится похожая
+дивергенция state (два поля на одно логическое значение в одном `data class`).
 
 ## Race в start/stop *FlowManager — дублирование стримов
 
