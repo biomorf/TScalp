@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
@@ -85,7 +86,13 @@ class RestoreOrderFormUseCaseTest {
         runBlocking {
             stubBrokerReady(true)
             coEvery { tradingStateRepository.load() } returns
-                TradingStateSnapshot(selectedTscalpInstrumentId = "uid-sber")
+                TradingStateSnapshot(
+                    selectedCard = CardIdentity(
+                        tscalpInstrumentId = "uid-sber",
+                        brokerName = BrokerName.TINVEST,
+                        accountId = null,
+                    ),
+                )
             coEvery { instrumentRepository.getInstrument("uid-sber") } returns sber
 
             val r = useCase.execute()
@@ -104,8 +111,18 @@ class RestoreOrderFormUseCaseTest {
             stubBrokerReady(true)
             coEvery { tradingStateRepository.load() } returns
                 TradingStateSnapshot(
-                    selectedTscalpInstrumentId = "uid-sber",
-                    pairedTscalpInstrumentId = "uid-gazp",
+                    selectedCard =
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-sber",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = null,
+                        ),
+                    pairedCard =
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-gazp",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = null,
+                        ),
                     pairTradingEnabled = true,
                     quantity = 3L,
                     pairedMultiplier = 5L,
@@ -133,7 +150,13 @@ class RestoreOrderFormUseCaseTest {
         runBlocking {
             stubBrokerReady(true)
             coEvery { tradingStateRepository.load() } returns
-                TradingStateSnapshot(selectedTscalpInstrumentId = "uid-missing")
+                TradingStateSnapshot(
+                    selectedCard = CardIdentity(
+                        tscalpInstrumentId = "uid-missing",
+                        brokerName = BrokerName.TINVEST,
+                        accountId = null,
+                    ),
+                )
             coEvery { instrumentRepository.getInstrument("uid-missing") } returns null
 
             val r = useCase.execute()
@@ -142,6 +165,7 @@ class RestoreOrderFormUseCaseTest {
             val data = (r as AppResult.Success).data
             assertNull(data.selectedInstrument)
             assertNull(data.currentPointValue)
+            assertEquals("uid-missing", data.selectedCard!!.tscalpInstrumentId)
         }
 
     @Test
@@ -150,8 +174,18 @@ class RestoreOrderFormUseCaseTest {
             stubBrokerReady(false)
             coEvery { tradingStateRepository.load() } returns
                 TradingStateSnapshot(
-                    selectedTscalpInstrumentId = "uid-sber",
-                    pairedTscalpInstrumentId = "uid-gazp",
+                    selectedCard =
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-sber",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = null,
+                        ),
+                    pairedCard =
+                        CardIdentity(
+                            tscalpInstrumentId = "uid-gazp",
+                            brokerName = BrokerName.TINVEST,
+                            accountId = null,
+                        ),
                     pairTradingEnabled = true,
                     quantity = 7L,
                     pairedMultiplier = 2L,
@@ -164,6 +198,8 @@ class RestoreOrderFormUseCaseTest {
             val data = (r as AppResult.Success).data
             assertNull(data.selectedInstrument)
             assertNull(data.pairedInstrument)
+            assertEquals("uid-sber", data.selectedCard!!.tscalpInstrumentId)
+            assertEquals("uid-gazp", data.pairedCard!!.tscalpInstrumentId)
             assertEquals(true, data.pairTradingEnabled)
             assertEquals(7L, data.quantity)
             assertEquals(2L, data.pairedMultiplier)

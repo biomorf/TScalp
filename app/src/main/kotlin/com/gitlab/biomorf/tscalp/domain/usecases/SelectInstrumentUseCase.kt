@@ -88,7 +88,13 @@ class SelectInstrumentUseCase
                 val currentCards = cardsRepository.identities.first()
                 val existingCard = currentCards.findCard(instrument, currentAccountId)
                 persistIdentity(instrument, currentCards, existingCard, currentAccountId)
-                saveSelectedToSession(instrument.tscalpInstrumentId)
+                saveSelectedToSession(
+                    CardIdentity(
+                        tscalpInstrumentId = instrument.tscalpInstrumentId,
+                        brokerName = instrument.brokerName,
+                        accountId = existingCard?.accountId,
+                    ),
+                )
                 val price = fetchPrice(instrument.tscalpInstrumentId)
                 val accountId = accountSelectionRepository.selected(BrokerName.TINVEST).first()
                 val portfolioPos =
@@ -162,10 +168,10 @@ class SelectInstrumentUseCase
             cardsRepository.save(updatedIdentities)
         }
 
-        private suspend fun saveSelectedToSession(tscalpInstrumentId: String) {
+        private suspend fun saveSelectedToSession(card: CardIdentity) {
             val snapshot = tradingStateRepository.state.value ?: tradingStateRepository.load()
             tradingStateRepository.save(
-                snapshot.copy(selectedTscalpInstrumentId = tscalpInstrumentId),
+                snapshot.copy(selectedCard = card),
             )
         }
 

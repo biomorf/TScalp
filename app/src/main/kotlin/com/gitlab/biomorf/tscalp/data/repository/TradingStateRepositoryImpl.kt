@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,13 +39,13 @@ class TradingStateRepositoryImpl
 
         override suspend fun save(snapshot: TradingStateSnapshot) {
             dataStore.edit { prefs ->
-                snapshot.selectedTscalpInstrumentId?.let {
-                    prefs[SELECTED_INSTRUMENT_UID] = it
-                } ?: prefs.remove(SELECTED_INSTRUMENT_UID)
+                snapshot.selectedCard?.let {
+                    prefs[SELECTED_CARD] = encodeCard(it)
+                } ?: prefs.remove(SELECTED_CARD)
 
-                snapshot.pairedTscalpInstrumentId?.let {
-                    prefs[PAIRED_INSTRUMENT_UID] = it
-                } ?: prefs.remove(PAIRED_INSTRUMENT_UID)
+                snapshot.pairedCard?.let {
+                    prefs[PAIRED_CARD] = encodeCard(it)
+                } ?: prefs.remove(PAIRED_CARD)
 
                 prefs[PAIR_TRADING_ENABLED] = snapshot.pairTradingEnabled
                 prefs[QUANTITY] = snapshot.quantity.toString()
@@ -57,8 +59,8 @@ class TradingStateRepositoryImpl
             val prefs = dataStore.data.first()
             val snapshot =
                 TradingStateSnapshot(
-                    selectedTscalpInstrumentId = prefs[SELECTED_INSTRUMENT_UID],
-                    pairedTscalpInstrumentId = prefs[PAIRED_INSTRUMENT_UID],
+                    selectedCard = prefs[SELECTED_CARD]?.let { decodeCard("selected_card", it) },
+                    pairedCard = prefs[PAIRED_CARD]?.let { decodeCard("paired_card", it) },
                     pairTradingEnabled = prefs[PAIR_TRADING_ENABLED] ?: false,
                     quantity =
                         prefs[QUANTITY]?.let { raw ->
@@ -78,8 +80,8 @@ class TradingStateRepositoryImpl
 
         override suspend fun clear() {
             dataStore.edit { prefs ->
-                prefs.remove(SELECTED_INSTRUMENT_UID)
-                prefs.remove(PAIRED_INSTRUMENT_UID)
+                prefs.remove(SELECTED_CARD)
+                prefs.remove(PAIRED_CARD)
                 prefs.remove(PAIR_TRADING_ENABLED)
                 prefs.remove(QUANTITY)
                 prefs.remove(PAIRED_MULTIPLIER)
@@ -94,6 +96,24 @@ class TradingStateRepositoryImpl
         ): Nothing {
             logger.e(TAG, "invalid $key in DataStore: '$raw'")
             throw IllegalStateException("invalid $key in DataStore: '$raw'")
+        }
+
+        private fun encodeCard(card: CardIdentity): String =
+            "${card.brokerName.name}|${card.tscalpInstrumentId}|${card.accountId ?: ""}"
+
+        private fun decodeCard(
+            key: String,
+            raw: String,
+        ): CardIdentity {
+            val parts = raw.split("|")
+            if (parts.size != 3) invalidValue(key, raw)
+            val broker = BrokerName.valueOf(parts[0])
+            if (parts[1].isBlank()) invalidValue(key, raw)
+            return CardIdentity(
+                tscalpInstrumentId = parts[1],
+                brokerName = broker,
+                accountId = parts[2].ifBlank { null },
+            )
         }
 
         private fun OrderTypeSelection.toStorageKey(): String =
@@ -121,8 +141,8 @@ class TradingStateRepositoryImpl
 
         private companion object {
             private const val TAG = "TradingStateRepositoryImpl"
-            val SELECTED_INSTRUMENT_UID = stringPreferencesKey("selected_instrument_uid")
-            val PAIRED_INSTRUMENT_UID = stringPreferencesKey("paired_instrument_uid")
+            val SELECTED_CARD = stringPreferencesKey("selected_card")
+            val PAIRED_CARD = stringPreferencesKey("paired_card")
             val PAIR_TRADING_ENABLED = booleanPreferencesKey("pair_trading_enabled")
             val QUANTITY = stringPreferencesKey("quantity")
             val PAIRED_MULTIPLIER = stringPreferencesKey("paired_multiplier")

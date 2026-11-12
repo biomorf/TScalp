@@ -125,7 +125,7 @@ class SelectInstrumentUseCaseTest {
             assertEquals(5.0, result.pointValue, 0.001)
             coVerify(exactly = 1) {
                 tradingStateRepository.save(
-                    match { it.selectedTscalpInstrumentId == "uid-1" },
+                    match { it.selectedCard?.tscalpInstrumentId == "uid-1" },
                 )
             }
         }

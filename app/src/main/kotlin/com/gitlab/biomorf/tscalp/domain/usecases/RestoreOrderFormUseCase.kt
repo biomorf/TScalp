@@ -6,6 +6,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
@@ -19,6 +20,8 @@ import kotlinx.coroutines.CancellationException
  * [moneyPerPointOfPrice] найденного [Instrument]).
  */
 data class RestoredFormState(
+    val selectedCard: CardIdentity? = null,
+    val pairedCard: CardIdentity? = null,
     val selectedInstrument: Instrument? = null,
     val pairedInstrument: Instrument? = null,
     val pairTradingEnabled: Boolean = false,
@@ -80,21 +83,25 @@ class RestoreOrderFormUseCase
 
                 val snapshot = tradingStateRepository.load()
 
+                val selectedCard = snapshot.selectedCard
+                val pairedCard = snapshot.pairedCard
                 val selectedInstrument =
-                    if (snapshot.selectedTscalpInstrumentId != null && brokerReady) {
-                        instrumentRepository.getInstrument(snapshot.selectedTscalpInstrumentId)
+                    if (selectedCard != null && brokerReady) {
+                        instrumentRepository.getInstrument(selectedCard.tscalpInstrumentId)
                     } else {
                         null
                     }
                 val pairedInstrument =
-                    if (snapshot.pairedTscalpInstrumentId != null && brokerReady) {
-                        instrumentRepository.getInstrument(snapshot.pairedTscalpInstrumentId)
+                    if (pairedCard != null && brokerReady) {
+                        instrumentRepository.getInstrument(pairedCard.tscalpInstrumentId)
                     } else {
                         null
                     }
 
                 AppResult.Success(
                     RestoredFormState(
+                        selectedCard = selectedCard,
+                        pairedCard = pairedCard,
                         selectedInstrument = selectedInstrument,
                         pairedInstrument = pairedInstrument,
                         pairTradingEnabled = snapshot.pairTradingEnabled,

@@ -4,6 +4,8 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 import io.mockk.mockk
@@ -147,6 +149,79 @@ class TradingStateRepositoryImplTest {
                 )
             dataStore.edit { prefs ->
                 prefs[stringPreferencesKey("order_type")] = "UnknownKey"
+            }
+            assertThrows(IllegalStateException::class.java) {
+                kotlinx.coroutines.runBlocking { repo.load() }
+            }
+        }
+
+    @Test
+    fun `roundtrip preserves selected and paired CardIdentity`() =
+        runTest {
+            val repo = createRepo(this)
+            val selected =
+                CardIdentity(
+                    tscalpInstrumentId = "uid-sber",
+                    brokerName = BrokerName.TINVEST,
+                    accountId = "A",
+                )
+            val paired =
+                CardIdentity(
+                    tscalpInstrumentId = "uid-gazp",
+                    brokerName = BrokerName.BCS,
+                    accountId = null,
+                )
+            repo.save(TradingStateSnapshot(selectedCard = selected, pairedCard = paired))
+            val loaded = repo.load()
+            assertEquals(selected, loaded.selectedCard)
+            assertEquals(paired, loaded.pairedCard)
+        }
+
+    @Test
+    fun `load throws on malformed selected_card (not 3 parts)`() =
+        runTest {
+            val dataStore =
+                PreferenceDataStoreFactory.create(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    produceFile = { tempFolder.newFile("test-bad-card-parts.preferences_pb") },
+                )
+            val repo = TradingStateRepositoryImpl(dataStore, mockk<Logger>(relaxed = true))
+            dataStore.edit { prefs ->
+                prefs[stringPreferencesKey("selected_card")] = "TINVEST|uid"
+            }
+            assertThrows(IllegalStateException::class.java) {
+                kotlinx.coroutines.runBlocking { repo.load() }
+            }
+        }
+
+    @Test
+    fun `load throws on unknown broker in paired_card`() =
+        runTest {
+            val dataStore =
+                PreferenceDataStoreFactory.create(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    produceFile = { tempFolder.newFile("test-bad-card-broker.preferences_pb") },
+                )
+            val repo = TradingStateRepositoryImpl(dataStore, mockk<Logger>(relaxed = true))
+            dataStore.edit { prefs ->
+                prefs[stringPreferencesKey("paired_card")] = "UNKNOWN|uid|"
+            }
+            assertThrows(IllegalStateException::class.java) {
+                kotlinx.coroutines.runBlocking { repo.load() }
+            }
+        }
+
+    @Test
+    fun `load throws on blank tscalpInstrumentId in selected_card`() =
+        runTest {
+            val dataStore =
+                PreferenceDataStoreFactory.create(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    produceFile = { tempFolder.newFile("test-bad-card-uid.preferences_pb") },
+                )
+            val repo = TradingStateRepositoryImpl(dataStore, mockk<Logger>(relaxed = true))
+            dataStore.edit { prefs ->
+                prefs[stringPreferencesKey("selected_card")] = "TINVEST||A"
             }
             assertThrows(IllegalStateException::class.java) {
                 kotlinx.coroutines.runBlocking { repo.load() }
