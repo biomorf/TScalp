@@ -29,6 +29,7 @@ class OrdersQuantityRowTest {
             TScalpTheme {
                 OrdersQuantityRow(
                     quantity = "5",
+                    quantityAsLong = 5L,
                     costOverlay = null,
                     canDecrement = true,
                     canIncrement = true,
@@ -47,6 +48,7 @@ class OrdersQuantityRowTest {
             TScalpTheme {
                 OrdersQuantityRow(
                     quantity = "5",
+                    quantityAsLong = 5L,
                     costOverlay = null,
                     canDecrement = true,
                     canIncrement = true,
@@ -64,6 +66,7 @@ class OrdersQuantityRowTest {
             TScalpTheme {
                 OrdersQuantityRow(
                     quantity = "5",
+                    quantityAsLong = 5L,
                     costOverlay = null,
                     canDecrement = true,
                     canIncrement = false,

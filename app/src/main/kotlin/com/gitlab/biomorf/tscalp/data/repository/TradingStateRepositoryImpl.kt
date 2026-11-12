@@ -93,7 +93,6 @@ class TradingStateRepositoryImpl
             throw IllegalStateException("invalid $key in DataStore: '$raw'")
         }
 
-
         private fun OrderTypeSelection.toStorageKey(): String =
             when (this) {
                 OrderTypeSelection.Market -> "Market"
@@ -110,7 +109,11 @@ class TradingStateRepositoryImpl
                 "StopLoss" -> OrderTypeSelection.StopLoss
                 "TakeProfit" -> OrderTypeSelection.TakeProfit
                 "StopLimit" -> OrderTypeSelection.StopLimit
-                else -> invalidValue("order_type", key)
+                else ->
+                    invalidValue(
+                        "order_type",
+                        key,
+                    )
             }
 
         private companion object {

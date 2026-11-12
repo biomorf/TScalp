@@ -69,6 +69,7 @@ class TradingStateRepositoryImplTest {
             repo.clear()
             assertNull(repo.state.value)
         }
+
     @Test
     fun `roundtrip preserves all OrderTypeSelection values`() =
         runTest {
@@ -151,5 +152,4 @@ class TradingStateRepositoryImplTest {
                 kotlinx.coroutines.runBlocking { repo.load() }
             }
         }
-
 }
