@@ -1300,7 +1300,7 @@ live-тесте #2 задержки почти не было видно — View
 
 ## Currency format: lowercase iso-code в `Currency.getInstance`
 
-**Статус:** открыт.
+**Статус:** решён (PR #143, merge `10b138f6`).
 
 **Симптом:** `formatCurrency(1234.5, "rub")` бросает `java.lang.IllegalArgumentException` из `java.util.Currency.getInstance("rub")` — ISO 4217 требует uppercase (`"RUB"`). Латентно: срабатывает, только если `Instrument.currency` приходит lowercase. Сейчас в проекте `DOMESTIC_CURRENCY = "RUB"` (uppercase) — fallback работает; для USD / EUR / BCS / Finam регистр не проверен live. На T-Invest RUB — uppercase (по логам, live не подтверждён).
 
@@ -1313,6 +1313,9 @@ live-тесте #2 задержки почти не было видно — View
 - `presentation/util/CurrencyFormatTest.kt` (новый) — 4 теста.
 
 **Связано:** `docs/ROADMAP.md` → `### Currency format: normalize ISO 4217 case`; контекст PR #90 (H5) — при миграции `AssetPositionCard` / `PositionFormatter` на `Position` callsite не изменился.
+
+
+**Что сделано:** `formatCurrency` теперь нормализует `currency.uppercase(Locale.ROOT)` перед `Currency.getInstance(...)`. 4 unit-теста (`CurrencyFormatTest`): lowercase == uppercase, mixed case == uppercase, uppercase non-empty, USD lowercase == uppercase. Сигнатура не изменилась; `formatPrice` проксирует `formatCurrency` для non-FUTURES.
 
 **Когда вернуться:** при выполнении задачи `### Currency format: normalize ISO 4217 case` (ROADMAP). Или — при первом live-кейсе с USD / EUR / BCS / Finam, где `Instrument.currency` придёт lowercase.
 
