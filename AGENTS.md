@@ -1927,17 +1927,23 @@ ktlintCheck, detekt) `.md` не валидирует — прогон 40–50
 перед docs-коммитом, один shell-блок, ~5 секунд):
 
     F="docs/ROADMAP.md"   # ← путь к правленому файлу
-    git diff --check && echo "OK: trailing ws"
-    awk 'prev=="---" && $0=="---" {print "DOUBLE --- at " NR; bad=1} {prev=$0} END{exit bad+0}' "$F"
+    git diff --check || { echo "FAIL: trailing ws"; exit 1; }
+    echo "OK: trailing ws"
+    awk 'prev=="---" && $0=="---" {print "DOUBLE --- at " NR; bad=1} {prev=$0} END{exit bad+0}' "$F" \
+      || { echo "FAIL: double ---"; exit 1; }
+    echo "OK: no double ---"
     N=$(grep -cE '^(```|~~~)' "$F") || N=0
-    test $((N % 2)) -eq 0 && echo "OK: fence parity ($N)"
+    test $((N % 2)) -eq 0 || { echo "FAIL: fence parity ($N)"; exit 1; }
+    echo "OK: fence parity ($N)"
     for d in $(grep -oE 'docs/[a-zA-Z0-9_./-]+\.md' "$F" | sort -u); do
-      test -f "$d" || echo "BROKEN: $d"
+      test -f "$d" || { echo "BROKEN: $d"; exit 1; }
     done
+    echo "OK: all docs/*.md exist"
 
 Четыре пункта markdown-чек-листа, механически: trailing ws,
 двойные `---`, fence parity, битые ссылки на `docs/*.md`.
-Красный вывод любого пункта = коммит запрещён; фикс —
+**Все четыре abort'ят** группу (`|| { echo "FAIL: ..."; exit 1; }`):
+красный вывод любого пункта = коммит запрещён. Фикс —
 отдельным шагом, повтор mini-gate.
 
 Если правок несколько файлов — `F` по одному, mini-gate
