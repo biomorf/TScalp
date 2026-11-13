@@ -309,7 +309,7 @@ ___
 **Предусловия:**
 - A2 / M001 / M017 / 13d закрыты (merged; `TradeDetailsFormat.kt`, `OrderFormStateMapper.kt` есть).
 - `selectedTicker` удалён (Q2, `8a4cce16` + `02830f4c`).
-- **`### Test infra: Roborazzi screenshot tests`** merged (предзадача 1).
+- **`### Test infra: Roborazzi screenshot tests`** — ✅ merged (PR #147, `b9f5a1a7`; baseline 8 screenshots, CI job `screenshot-test`, v2 API).
 - **`### Test infra: property-based tests`** — ✅ merged (PR #141, `0c6a4d6b` + `6161536e`; 6 properties: 2 mapper + 4 format).
 - **Hilt-test infra merged** (`9a6a5405` split DataModule, `dea60516` Orders extended, `c03dd55b` Portfolio extended, `a2096977` Settings extended) — `Extended OrdersScreenBehaviourTest (Hilt-test этап 2)` готов как safety net против UI-wiring/effect-регрессий C2. Не отдельная предзадача этой умбреллы, а требование: покрытие 5–7 сценариев baseline (факт: 6 Orders + 5 Portfolio + 9 Settings = 20 суммарно) до C2, повторный прогон после Фазы 6.
 - **UI-санкция (правило 1)** на 6 файлов — обязательна до Фазы 6.
@@ -342,7 +342,7 @@ UI (переписать, C2):
 **1. `### Test infra: Roborazzi screenshot tests для Orders-экранов`**
 
 **Мобильная работа:** частичное (правки `app/build.gradle.kts` + test-код + PR — proot; запись baseline через `./gradlew recordRoborazziDebug` — desktop; CI verify — каждый PR).
-**Статус:** запланировано.
+**Статус:** ✅ merged (PR #147, `b9f5a1a7`).
 **Контекст:** rendering-регрессии C2 (layout, шрифты, overlay-строки, 6 UI-файлов переписываются) не ловятся semantic/unit-тестами. Roborazzi — screenshot на Robolectric, pixel-diff в CI.
 **Файлы:** `app/build.gradle.kts` (+roborazzi plugin), `app/src/test/.../screenshot/OrdersScreensScreenshotTest.kt` (новый), `app/src/test/screenshots/` (baseline PNGs).
 **Шаги:**
