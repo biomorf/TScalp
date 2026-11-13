@@ -819,7 +819,7 @@ ___
 
 **Статус:** запланировано.
 
-**Контекст:** на desktop `./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck` — ~10 сек. В CI — 2–3 мин на цикл. `pre-push` hook запускает ktlint **до** push, экономит цикл CI на чисто-стилевых ошибках. На mobile (proot) hook не работает — там CI остаётся единственным гейтом.
+**Контекст:** на desktop `./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck` — ~10 сек. В CI — 2–3 мин на цикл. `pre-push` hook запускает ktlint **до** push, экономит цикл CI на чисто-стилевых ошибках. На mobile (proot) hook не работает — там CI остаётся единственным гейтом. Для docs-only изменений hook запускает `.md` mini-gate из `AGENTS.md` 5a (trailing ws, double `---`, fence parity, broken `docs/*.md`) — ~5 сек вместо полного Gradle-гейта.
 
 **Соответствие Clean:** соответствует (организационный слой, 2b).
 
@@ -847,10 +847,17 @@ ___
    - bypass: `git push --no-verify` (редко, осознанно).
 4. Тест: на desktop, `git push` с намеренной ktlint-ошибкой → hook блокирует. `git push --no-verify` — проходит.
 5. Commit script + docs.
+6. `.md` mini-gate в `scripts/pre-push.sh` — **только когда в staged есть `.md`** (по 5a, Gradle ktlint для docs бесполезен):
+   - `git diff --cached --check` (trailing ws);
+   - `awk` double `---`;
+   - `grep -cE '^(```|~~~)'` parity;
+   - broken `docs/*.md` loop (по extract'у каждого файла, не глобально).
+   - Источник: `AGENTS.md` 5a mini-gate.
+   - bypass: `git push --no-verify` (тот же, что для ktlint).
 
 **Тесты:** shell-hook (не unit).
 
-**Референсы:** M016 (PR #112) — 4 push-цикла, мотивация; AGENTS 4f; `gradle/actions/setup-gradle@v5`.
+**Референсы:** M016 (PR #112) — 4 push-цикла, мотивация; AGENTS 4f; `gradle/actions/setup-gradle@v5`; **`AGENTS.md` 5a — mini-gate (4 команды, источник для `.md`)**.
 
 **Ограничения:**
 - Не заменяет CI (mobile не покрывает).
@@ -862,6 +869,7 @@ ___
 - `scripts/pre-push.sh` коммитится, исполняемый.
 - `docs/gradle-setup.md` — инструкция + bypass.
 - На desktop: push с ktlint-ошибкой блокируется; `--no-verify` проходит.
+- На desktop: push с docs-изменением + broken link → hook блокирует (mini-gate).
 - CI `fast-ktlint` — окончательный гейт (как раньше).
 
 **Оценка:** ~1 ч.
