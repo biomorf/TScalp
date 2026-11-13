@@ -1929,7 +1929,8 @@ ktlintCheck, detekt) `.md` не валидирует — прогон 40–50
     F="docs/ROADMAP.md"   # ← путь к правленому файлу
     git diff --check && echo "OK: trailing ws"
     awk 'prev=="---" && $0=="---" {print "DOUBLE --- at " NR; bad=1} {prev=$0} END{exit bad+0}' "$F"
-    N=$(grep -cE '^(```|~~~)' "$F"); test $((N % 2)) -eq 0 && echo "OK: fence parity ($N)"
+    N=$(grep -cE '^(```|~~~)' "$F") || N=0
+    test $((N % 2)) -eq 0 && echo "OK: fence parity ($N)"
     for d in $(grep -oE 'docs/[a-zA-Z0-9_./-]+\.md' "$F" | sort -u); do
       test -f "$d" || echo "BROKEN: $d"
     done
