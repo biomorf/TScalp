@@ -43,6 +43,7 @@ plugins {
     id("org.jetbrains.kotlinx.kover")
     id("org.jlleitschuh.gradle.ktlint")
     id("dev.detekt")
+    id("io.github.takahirom.roborazzi")
 }
 
 android {
@@ -194,6 +195,11 @@ dependencies {
     testImplementation("androidx.test:runner:1.6.2")
     testImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation("com.google.dagger:hilt-android-testing:2.60.1")
+
+    // Roborazzi: screenshot-тесты (Robolectric-hosted)
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.79.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.79.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-junit-rule:1.79.0")
 
     // AppMetrica SDK — crash reporting + analytics
     implementation("io.appmetrica.analytics:analytics:8.5.1")
