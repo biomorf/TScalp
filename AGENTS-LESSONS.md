@@ -1011,6 +1011,43 @@ Bash-guard `if grep -qF "$NEW" "$F"; then ...` — **запрещён**, есл�
 
 ---
 
+### 109. `grep -c` при 0 совпадениях возвращает exit 1 — убивает `set -e`
+
+**Правило:** при `N=$(grep -cE '<pattern>' file)` под `set -e` — **всегда** дописывать `|| N=0`. GNU grep `-c` печатает `0` в stdout, но возвращает **exit 1**, когда совпадений нет (POSIX: «exit > 0 means no lines selected»). Assignment наследует exit 1 → `set -e` убивает группу **до** следующей команды. Правильно:
+
+```bash
+N=$(grep -cE '^(```|~~~)' "$F") || N=0
+test $((N % 2)) -eq 0 || { echo "FAIL: fence parity ($N)"; exit 1; }
+echo "OK: fence parity ($N)"
+```
+
+`|| N=0` перехватывает exit 1 от `grep`; `N` остаётся `0` из stdout — перезапись no-op. Не `|| true` — маскирует **любой** exit (включая 2 = битый regex).
+
+**Инцидент:** 2026-11-14, mini-gate на `docs/ci-roadmap.md` (0 fences). `N=$(grep -cE ...)` → exit 1 → `set -e` убил группу на assignment. `docs/ci-roadmap.md` остался unstaged, коммит не создан. Тот же mini-gate на `AGENTS.md` (18 fences) и `AGENTS-LESSONS.md` (2) проходил — баг проявлялся только на 0-fence файлах, что составляет **большинство** docs.
+
+**Проверка:** перед `N=$(grep -cE ...)` под `set -e` — `|| N=0`. Или `set +e` вокруг, или `grep -cE ... >/dev/null || true; N=$(grep -cE ...)` (двойной вызов, не нужно). Родственно 94/101 (grep в скриптах).
+
+---
+
+### 110. `cmd && echo OK` под `set -e` не abort'ит — только левая часть как statement
+
+**Правило:** `test … && echo "OK"` **не** abort'ит группу под `set -e`, даже когда `test` вернул 1 — POSIX `set -e` **не применяется к левой части** `a && b`. Аборт произойдёт только если `a && b` — последняя команда в списке (проверка всей конструкцией). Внутри `{ …; }` — `a && b` не последняя (дальше `;`), `set -e` не срабатывает. Симптом: `OK:` не напечатано, но группа **продолжилась** к следующей команде (commit, push). Правильно — все четыре пункта mini-gate через `|| { …; exit 1; }`:
+
+```bash
+git diff --check || { echo "FAIL: trailing ws"; exit 1; }
+echo "OK: trailing ws"
+test $((N % 2)) -eq 0 || { echo "FAIL: fence parity ($N)"; exit 1; }
+echo "OK: fence parity ($N)"
+```
+
+**Инцидент:** 2026-11-14, mini-gate на `docs/ci-roadmap.md`. Broken link (`docs/ci-cd.md`) — `BROKEN:` напечатан, `test -f "$d" || echo "BROKEN: $d"` exit 1 — но **группа продолжилась** → commit `57908178` + push. Mini-gate прошёл как «информационный», а не как abort-гейт. Найдено вручную при разборе обрезанного вывода.
+
+**Проверка:** grep по mini-gate-скриптам — `grep -nE ' && (echo|test)' script.sh` (левая часть `&&`). Если это guard — заменить на ` || { echo "FAIL: …"; exit 1; }`. Дополнительно — при добавлении нового пункта в mini-gate: **red test** (намеренно сломать и убедиться, что abort'ит).
+
+**Связано:** 109 (частный случай, `grep -c` exit 1); POSIX `set -e` — `a && b` exemption.
+
+---
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
