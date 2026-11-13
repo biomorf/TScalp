@@ -11040,4 +11040,29 @@ ___
 **Открытые вопросы:** нет.
 
 
+
+___
+
+
+
+### ✅ TradingStateSnapshot: CardIdentity? на слот (persist broker + account + tscalpInstrumentId)
+
+**Дата закрытия:** 2026-11-13.
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Контекст:** `TradingStateSnapshot` содержал `selectedTscalpInstrumentId` / `pairedTscalpInstrumentId` без broker/account. После перезапуска слоты восстанавливались с `TINVEST` / `null` — потеря счёта. Диагностика 2026-11-13: `onAccountSaved` / `onPairedAccountSaved` не вызывали `saveState()` — account change жил только до process death.
+
+**Что сделано:** `selectedCard` / `pairedCard: CardIdentity?` заменили uid-поля. Кодирование `|`-строкой (`brokerName.name|tscalpInstrumentId|accountId`) — тот же канон, что в `CardsRepositoryImpl`; 2 DataStore-ключа (`selected_card`, `paired_card`); fail-fast на битом формате (не 3 части / неизвестный broker / пустой uid). `SelectInstrumentUseCase.saveSelectedToSession(card: CardIdentity)`. `RestoreOrderFormUseCase.RestoredFormState + selectedCard / pairedCard`; broker/account восстанавливаются даже при `instrument == null` (slot на reconnect). `OrderFormViewModel.saveState` собирает `CardIdentity` на слот; `restoreOrderForm` читает broker/account из card; `onAccountSaved` / `onPairedAccountSaved` персистят через `saveState()`. Коммиты `c80bfe74` (main), `563f2a16` (ktlint+detekt), `dee9aada` (fail-fast на unknown broker). Merge `071e7f3c`. PR #146.
+
+**Оценка:** ~3.5–4 ч (факт ~сессия, с 2 CI-фиксами).
+
+**Ссылка на задачу:** PR #146 (merge `071e7f3c`).
+
+**Связано:** `docs/architecture.md` → «CardIdentity и слоты»; `docs/clean-audit.md` → Н15 (закрыто PR #145), Н96 (закрыто PR #145); `docs/ROADMAP.md` → `### UX-flow Variant D: broker + account до поиска` (follow-up).
+
+**Открытые вопросы:** UX-flow Variant D — отдельная задача.
+
+
+
 ___

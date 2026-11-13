@@ -481,21 +481,21 @@ ___
 
 
 
-### TradingStateSnapshot: CardIdentity? на слот (persist broker + account + tscalpInstrumentId)
+### UX-flow Variant D: broker + account до поиска
 
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+**Мобильная работа:** невозможно (desktop; UI-ревизия диалога свойств слота + 6+ файлов + live-test).
 
-**Статус:** запланировано.
+**Статус:** запланировано. **UI — требует санкции.**
 
-**Контекст:** Фаза 1b вводит `selectedBroker` / `selectedAccountId` / `pairedBroker` / `pairedAccountId` в `OrderFormState`. `saveState()` их не сохраняет: `TradingStateSnapshot` содержит `selectedTscalpInstrumentId` / `pairedTscalpInstrumentId` / `pairTradingEnabled` / `quantity` / `pairedMultiplier` / `orderType` — без broker/account. После перезапуска слоты восстановятся с `TINVEST` / `null` — потеря счёта.
+**Контекст:** follow-up к `### ✅ TradingStateSnapshot: CardIdentity? на слот` (PR #146, merge `071e7f3c`). Сейчас broker слота = `instrument.brokerName` (устанавливается при выборе инструмента), account выбирается **после** создания карточки (`onAccountSaved` / `onPairedAccountSaved`). Коллизия: «broker из инструмента vs broker слота» — если пользователь сменит broker в свойствах слота после выбора, состояние разъедется (сейчас broker после создания не меняется, но семантически — не выражено).
 
-**Диагностика 2026-11-13 (почему B2, не A):**
-- `CardIdentity(tscalpInstrumentId, brokerName, accountId)` — уже канон composite (`docs/architecture.md` → «CardIdentity и слоты»). Хранить `(uid, broker, account)` разложенными по полям — дублирование семантики + неявные инварианты (`account != null → broker != null` и т.п.).
-- Вариант A (+4 nullable поля) отклонён: дублирует `CardIdentity`, 6 DataStore-ключей вместо 2, не заставит компилятор пересмотреть потребителей `selectedTscalpInstrumentId`.
-- Вариант B2 (выбран): `selectedCard: CardIdentity?` / `pairedCard: CardIdentity?` заменяют `selectedTscalpInstrumentId` / `pairedTscalpInstrumentId`. Кодирование — `|`-строка как в `CardsRepositoryImpl` (единый канон), 2 DataStore-ключа.
-- Конвенция проекта: в domain — только `tscalpInstrumentId` (не «uid»). `CardIdentity.tscalpInstrumentId` — правильное имя, `uid` живёт только в data на границе с T-Invest.
+**Variant D:** broker + account задаются в диалоге свойств слота **до** поиска. Поиск — у выбранного брокера. Выбор инструмента → `CardIdentity(broker, account, tscalpInstrumentId)` создаётся целиком. После создания — можно менять **только счёт** (broker зафиксирован).
 
-**Соответствие Clean:** соответствует. `TradingStateSnapshot` — domain-DTO; `CardIdentity` — domain-модель; `TradingStateRepositoryImpl` — data-слой (encode/decode — его обязанность, как в `CardsRepositoryImpl`).
+**Плюсы D:** SSoT (card атомарна), `onAccountSaved` / `onPairedAccountSaved` исчезают, usecase упрощаются, UX яснее.
+
+**Минусы D:** UI-санкция (AccountSelector в `SearchBrokerDialog`); поиск блокируется без инициализированного брокера; `restoreOrderForm` при неинициализированном брокере — «половинчатое» восстановление; scope ~3.5–4 ч.
+
+**Соответствие Clean:** соответствует.
 
 **Нарушенное правило Clean:** —.
 
@@ -505,67 +505,42 @@ ___
 
 **MVVM:** соответствует.
 
-**KMP:** соответствует (`CardIdentity` — pure domain; `String`-поля, KMP-safe).
+**KMP:** — (не применимо, presentation).
 
-**Предусловия:** Фаза 1b закрыта (PR #145).
+**Предусловия:** PR #146 merged.
 
-**Файлы:**
-
-Main:
-- `domain/models/TradingState.kt` — `TradingStateSnapshot`: удалить `selectedTscalpInstrumentId` / `pairedTscalpInstrumentId`; добавить `selectedCard: CardIdentity? = null`, `pairedCard: CardIdentity? = null`. Остальные поля без изменений.
-- `domain/api/repository/TradingStateRepository.kt` — без изменений (контракт `save` / `load` / `clear`).
-- `data/repository/TradingStateRepositoryImpl.kt` — encode/decode `CardIdentity` через `|`-строку (по образцу `CardsRepositoryImpl.encode/decode`); DataStore-ключи `selected_card`, `paired_card` (вместо `selected_instrument_uid`, `paired_instrument_uid`); fail-fast на битом формате (`invalidValue`); `clear()` — remove 2 новых ключей.
-- `domain/usecases/SelectInstrumentUseCase.kt` — `saveSelectedToSession(tscalpInstrumentId: String)` → `saveSelectedToSession(card: CardIdentity)`; внутри — `snapshot.copy(selectedCard = card)`.
-- `domain/usecases/SelectPairedInstrumentUseCase.kt` — аналогично `savePairedToSession(card: CardIdentity)`.
-- `domain/usecases/RestoreOrderFormUseCase.kt` — `RestoredFormState` + `selectedCard: CardIdentity? = null`, `pairedCard: CardIdentity? = null`. Читает `snapshot.selectedCard`, `getInstrument(card.tscalpInstrumentId)`. Broker/account — из `card`; если `instrument == null` (не найден / broker не готов) — card сохраняется, instrument = null.
-- `presentation/screens/orders/OrderFormViewModel.kt` — `saveState`: собирает `CardIdentity(tscalpInstrumentId = instrument.tscalpInstrumentId, brokerName = state.selectedBroker, accountId = state.selectedAccountId)` для каждого слота (или `null`, если `selectedInstrument == null`). `restoreOrderForm`: `selectedBroker = data.selectedCard?.brokerName ?: TINVEST`, `selectedAccountId = data.selectedCard?.accountId`, `selectedInstrument = data.selectedInstrument`.
-
-Test:
-- `TradingStateRepositoryImplTest` — roundtrip `CardIdentity`: оба слота, `null` account, `null` card (пустой слот); fail-fast на битом `|`-формате (не 3 части, неизвестный `BrokerName`).
-- `RestoreOrderFormUseCaseTest` — fixtures: `TradingStateSnapshot(selectedTscalpInstrumentId = ...)` → `TradingStateSnapshot(selectedCard = CardIdentity(...))`. +кейс «card есть, instrument == null → broker/account восстановлены»; +кейс «card == null → fallback TINVEST/null».
-- `OrderFormViewModelTest` — restore с `CardIdentity`; `saveState` (проверить, что в repository уходит `CardIdentity`, не только uid).
-- `SelectInstrumentUseCaseTest` — fixtures `TradingStateSnapshot(selectedCard = CardIdentity(...))`; verify `saveSelectedToSession` вызывается с `CardIdentity`.
+**Файлы:** `OrderSearchState`, `OrderSearchViewModel`, `OrdersBrokerDialogs`, `OrderDialogsViewModel`, `OrdersDialogsSection`, `OrderFormViewModel`, `SelectInstrumentUseCase`, `SelectPairedInstrumentUseCase`.
 
 **Шаги:**
+1. **UI-санкция** (правило 1).
+2. `OrderSearchState` + `accountId` per slot.
+3. `OrderDialogsViewModel.saveSlotSettings(slot, broker, account)`.
+4. `SearchBrokerDialog` + AccountSelector.
+5. `OrderFormViewModel.onInstrumentSelected(instrument, cardIdentity)`.
+6. Удалить `onAccountSaved` / `onPairedAccountSaved` + callbacks.
+7. `SelectInstrumentUseCase` / `SelectPairedInstrumentUseCase` — упростить.
+8. Тесты.
+9. Live-test 7 сценариев.
 
-1. `TradingStateSnapshot`: удалить 2 поля, добавить `selectedCard` / `pairedCard`.
-2. `TradingStateRepositoryImpl`: encode/decode `|`-строка, 2 ключа, fail-fast.
-3. `SelectInstrumentUseCase.saveSelectedToSession` — принять `CardIdentity`; caller (`OrderFormViewModel.onInstrumentSelected`) передаёт `CardIdentity(instrument.tscalpInstrumentId, instrument.brokerName, card.accountId)`.
-4. `SelectPairedInstrumentUseCase` — аналогично.
-5. `RestoreOrderFormUseCase` — читать `selectedCard` / `pairedCard`, `getInstrument(card.tscalpInstrumentId)`; `RestoredFormState` + `selectedCard` / `pairedCard`.
-6. `OrderFormViewModel.saveState` / `restoreOrderForm` — `CardIdentity` на слот.
-7. Тесты — типы, fixtures, +2 новых кейса (`card есть, instrument null`; `saveState → CardIdentity в repository`).
-8. Single push → CI `gate`.
+**Тесты:** ~10 новых + правки существующих.
 
-**Тесты:** 4 файла правятся, +2 кейса. Всего ~55 тестов.
+**Референсы:** `docs/architecture.md` → «CardIdentity и слоты»; PR #146; `### ✅ TradingStateSnapshot: CardIdentity? на слот`.
 
-**Референсы:** `docs/architecture.md` → «CardIdentity и слоты»; `data/repository/CardsRepositoryImpl.kt` — образец encode/decode `|`; `AGENTS.md` → «Идентификаторы инструментов» (`tscalpInstrumentId`, не `uid`).
+**Ограничения:** UI-санкция; `TradingStateSnapshot` не трогать (PR #146); не смешивать с `### UI: кнопка swap слотов`; broker после создания disabled.
 
-**Ограничения:**
-
-- Не смешивать с D (UX-поток слот: broker+account до поиска). D — отдельная задача после merge этой.
-- UI-санкция (правило 1) **не требуется**: внешний вид не меняется; меняется только persist-формат и семантика restore при `instrument == null` (slot восстанавливается с broker+account, инструмент загрузится при подключении).
-- Невалидное значение в DataStore → fail-fast (`logger.e` + `IllegalStateException`), по аналогии с PR #145.
-- Не менять `CardIdentity`, `CardsRepositoryImpl`, `AccountSelectionRepository`.
-- `AccountSelectionRepository` (per-broker default) — не заменяет snapshot; используется только как fallback при первом открытии слота (вне scope этой задачи, отдельная задача `### Restore: fallback на AccountSelectionRepository при пустом snapshot` — если понадобится).
-
-**Критерий готовности:**
-
-- `grep -rn "selectedTscalpInstrumentId\|pairedTscalpInstrumentId" app/src/main` = 0 (кроме KDoc-истории — проверить глазами).
-- `grep -n "selected_card\|paired_card" app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/repository/TradingStateRepositoryImpl.kt` = 2 (ключи).
-- Roundtrip `CardIdentity` (с/без account, оба слота, null) — тесты зелёные.
-- Fail-fast на битом `|`-формате — тесты зелёные.
-- `restoreOrderForm` с `CardIdentity`, `instrument == null` → broker/account восстановлены — тест зелёный.
-- CI `gate` зелёный.
-- Live-test: primary SBER(TINVEST/A) + pair GAZP(TINVEST/B) → force-stop → запуск → слоты восстановлены с broker/account.
+**Критерий готовности:** broker+account до поиска; `CardIdentity` атомарна; `onAccountSaved` удалены; смена счёта работает; смена broker disabled; live-test PASS.
 
 **Оценка:** ~3.5–4 ч.
 
-**Зависимости:** PR #145 (Фаза 1b + сквозная правка `pairedMultiplier/quantity → Long`) — merged `f9dc5596`.
+**Зависимости:** PR #146 merged (yes).
 
-**Связано:** `docs/architecture.md` → «CardIdentity и слоты»; `data/repository/CardsRepositoryImpl.kt` (образец); `AGENTS.md` → «Идентификаторы инструментов»; `### UI: кнопка swap слотов`; `### Restore: fallback на AccountSelectionRepository при пустом snapshot` (отдельная, если понадобится).
+**Связано:** `### ✅ TradingStateSnapshot: CardIdentity? на слот` (PR #146); `### UI: кнопка swap слотов`.
 
-**Открытые вопросы:** нет.
+**Открытые вопросы:**
+1. Account selector без брокера — disabled или fallback?
+2. `restoreOrderForm` при неинициализированном брокере — ок или retry?
+3. `OrderSearchState` — плоский или `SlotSearchState(broker, account, query)`?
+
 
 ### Рефакторинг архитектурного долга (detekt-группа 3)
 
