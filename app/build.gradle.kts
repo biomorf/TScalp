@@ -414,3 +414,7 @@ tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
         html.required.set(true)
     }
 }
+
+roborazzi {
+    outputDir = file("src/test/screenshots")
+}
