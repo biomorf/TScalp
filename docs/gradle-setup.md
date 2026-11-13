@@ -121,6 +121,37 @@ class XTest {
 - `waitForIdle()` — дожать recomposition/animations;
 - `mainClock.autoAdvance = false` + `mainClock.advanceTimeBy(ms)` — кадровый контроль (`LaunchedEffect`-задержки).
 
+### Screenshot tests (Roborazzi)
+
+Rendering-regression guard для UI: PNG-baseline в git, pixel-diff в CI.
+Плагин `io.github.takahirom.roborazzi:1.79.0` (root + app), baseline в
+`app/src/test/screenshots/`, `outputDir` в `app/build.gradle.kts`.
+
+**Запись/обновление baseline** (только на desktop, после осознанного
+UI-изменения):
+
+    ./gradlew :app:recordRoborazziDebug
+
+PNG кладутся в `app/src/test/screenshots/` (FQN-префикс класса + имя
+теста + `.png`). Проверить `git status`, закоммитить PNG вместе с
+правкой.
+
+**Проверка** (локально или в CI):
+
+    ./gradlew :app:verifyRoborazziDebug
+
+Падение = pixel-diff > порога. Diff-изображения в
+`app/build/outputs/roborazzi/`; в CI job `screenshot-test` уходят в
+artifact `roborazzi-results`.
+
+**v2 API.** Новые screenshot-тесты используют
+`androidx.compose.ui.test.junit4.v2.createComposeRule` (v1 deprecated).
+Полная миграция Behaviour-тестов на v2 — отдельная задача
+(`docs/ci-roadmap.md` → «Compose UI tests: миграция на v2»).
+
+**Связано:** `docs/ROADMAP.md` → `### OrderFormViewModel: split на sub-VM`
+(предзадача «Roborazzi screenshot tests»).
+
 ### Desktop
 
 На desktop `./gradlew :app:testDebugUnitTest` работает локально; на mobile
