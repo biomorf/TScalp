@@ -358,7 +358,7 @@ UI (переписать, C2):
 **2. `### Test infra: property-based tests для OrderFormStateMapper + TradeDetailsFormat`**
 
 **Мобильная работа:** полное закрытие (proot + PR; kotest-property — pure JVM, локальная Gradle-сборка не нужна; гейт на CI).
-**Статус:** запланировано.
+**Статус:** ✅ merged (PR #141, `0c6a4d6b` + `6161536e`).
 **Контекст:** unit-тесты покрывают «эти 3 кейса», property — «для любых валидных input» (нули, NaN, Inf, overflow, огромные строки, Unicode). `OrderFormState` расщепляется — property-тесты `OrderFormStateMapper.toPlaceOrderRequest` ловят edge-кейсы, которые unit пропустит.
 **Файлы:** `app/build.gradle.kts` (+kotest-property), `app/src/test/.../OrderFormStateMapperPropertyTest.kt`, `app/src/test/.../TradeDetailsFormatPropertyTest.kt`.
 **Шаги:**
