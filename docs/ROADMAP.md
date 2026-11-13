@@ -317,8 +317,8 @@ ___
 **Файлы:**
 
 Coord / state:
-- `presentation/screens/orders/OrderFormViewModel.kt` (544 строки, 27 fun, `@Suppress`) — после C2: ≤ 2 fun (lifecycle) или исчезает.
-- `presentation/screens/orders/OrderFormState.kt` (32 поля) — расщепляется на 4 sub-state, файл удаляется.
+- `presentation/screens/orders/OrderFormViewModel.kt` (571 строка, 27 fun, `@Suppress`) — после C2: ≤ 2 fun (lifecycle) или исчезает.
+- `presentation/screens/orders/OrderFormState.kt` (33 поля) — расщепляется на 4 sub-state, файл удаляется.
 
 Новые sub-VM (4):
 - `OrderInstrumentViewModel.kt` (~11 fun) + `OrderInstrumentState.kt` (~15 полей).
@@ -330,7 +330,7 @@ UI (переписать, C2):
 - `OrdersScreen.kt`, `OrdersPairTrading.kt`, `OrdersConfirmDialog.kt`, `OrdersScrollableContent.kt`, `OrdersSearch.kt`, `OrdersDialogsSection.kt`.
 
 Тесты:
-- `OrderFormViewModelTest.kt` (10 `@Test`) — реструктуризация по sub-VM.
+- `OrderFormViewModelTest.kt` (11 `@Test`) — реструктуризация по sub-VM.
 - 4 новых `*ViewModelTest`.
 
 Документация:
