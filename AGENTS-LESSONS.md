@@ -988,6 +988,29 @@ stderr**, не подавлять.
 **Проверка:** в скрипте правки перед `replace` — `assert text.count(old) == 1, f"count={text.count(old)}"`. Если `old` законно встречается N раз — `count == N`. «Already applied» — только при `if text.count(new) == 1 and text.count(old) == 0`, и только если `new` уникально.
 
 
+### 108. Idempotency guard — в extract'е блока, не глобальный `grep` по файлу
+
+**Правило:** идемпотентность-guard для правки `.md` (по 88) проверять **в extract'е целевого блока** (`start_marker` … `end_marker`), не глобально по файлу. Глобальный `grep -qF "marker"` / `if NEW in text: skip` даёт **false positive**, когда `NEW` уже есть в **другой** секции файла — guard абортит правку, файл остаётся нетронутым, лишний round-trip. Правильно:
+
+```python
+START = "**<уникальный якорь начала блока>**"
+END = "**<уникальный якорь конца блока>**"
+assert t.count(START) == 1 and t.count(END) == 1
+si, ei = t.index(START), t.index(END)
+block = t[si:ei]
+if NEW in block: print("already applied — skip"); return
+assert block.count(OLD) == 1, f"count={block.count(OLD)}"
+t = t[:si] + block.replace(OLD, NEW, 1) + t[ei:]
+```
+
+Bash-guard `if grep -qF "$NEW" "$F"; then ...` — **запрещён**, если `NEW` может встретиться в другой секции (пример: `✅ merged (PR #141)` уже есть в Предусловиях и во втором prereq-блоке).
+
+**Инцидент:** 2026-11-14, prereq 2 status в ROADMAP. Bash-guard `grep -qF "✅ merged (PR #141"` (глобально по `docs/ROADMAP.md`) сработал ложно: маркер уже стоял в **Предусловиях** (строка 313) — guard абортил правку в **другой** строке (361, prereq 2 `**Статус:**`). Файл не тронут (аборт до `python3`), но потрачен round-trip.
+
+**Проверка:** перед bash-guard `grep -qF "$MARKER" "$F"` — `grep -cF "$MARKER" "$F"`. Если > 1 — guard должен быть scoped: extract блока (python) или `awk`-по-номерам-строк (start…end). Для `**Статус:** запланировано.` в ROADMAP — 24 вхождения, глобальный replace запрещён (см. 56а/67).
+
+---
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
