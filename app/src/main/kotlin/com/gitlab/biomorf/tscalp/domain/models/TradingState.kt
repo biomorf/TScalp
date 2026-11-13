@@ -8,8 +8,8 @@ package com.gitlab.biomorf.tscalp.domain.models
  * что пользователь настраивает, а то, что приложение запоминает о ходе работы.
  */
 data class TradingStateSnapshot(
-    val selectedTscalpInstrumentId: String? = null,
-    val pairedTscalpInstrumentId: String? = null,
+    val selectedCard: CardIdentity? = null,
+    val pairedCard: CardIdentity? = null,
     val pairTradingEnabled: Boolean = false,
     val quantity: Long = 1L,
     val pairedMultiplier: Long = 10L,

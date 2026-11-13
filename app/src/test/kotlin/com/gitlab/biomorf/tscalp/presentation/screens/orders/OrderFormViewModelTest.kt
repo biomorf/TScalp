@@ -7,6 +7,7 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
 import com.gitlab.biomorf.tscalp.domain.models.Share
@@ -250,6 +251,32 @@ class OrderFormViewModelTest {
             assertEquals(tmon, s.pairedInstrument)
             assertEquals(BrokerName.TINVEST, s.pairedBroker)
             assertNull(s.pairedAccountId)
+        }
+
+    @Test
+    fun `restoreOrderForm sets broker and account from card`() =
+        runTest {
+            val vm = createVm()
+            val card =
+                CardIdentity(
+                    tscalpInstrumentId = "uid-sber",
+                    brokerName = BrokerName.TINVEST,
+                    accountId = "A",
+                )
+            coEvery { restoreOrderFormUseCase.execute() } returns
+                AppResult.Success(
+                    RestoredFormState(
+                        selectedCard = card,
+                        selectedInstrument = sber,
+                        pairTradingEnabled = false,
+                    ),
+                )
+            advanceUntilIdle()
+
+            val s = vm.state.value
+            assertEquals(sber, s.selectedInstrument)
+            assertEquals(BrokerName.TINVEST, s.selectedBroker)
+            assertEquals("A", s.selectedAccountId)
         }
 
     @Test

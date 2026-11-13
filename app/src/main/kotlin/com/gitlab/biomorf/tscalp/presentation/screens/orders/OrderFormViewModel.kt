@@ -9,6 +9,7 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -226,11 +227,11 @@ class OrderFormViewModel
                         it.copy(
                             selectedInstrument = data.selectedInstrument,
                             ticker = data.selectedInstrument?.ticker ?: "",
-                            selectedBroker = data.selectedInstrument?.brokerName ?: BrokerName.TINVEST,
-                            selectedAccountId = null,
+                            selectedBroker = data.selectedCard?.brokerName ?: BrokerName.TINVEST,
+                            selectedAccountId = data.selectedCard?.accountId,
                             pairedInstrument = data.pairedInstrument,
-                            pairedBroker = data.pairedInstrument?.brokerName ?: BrokerName.TINVEST,
-                            pairedAccountId = null,
+                            pairedBroker = data.pairedCard?.brokerName ?: BrokerName.TINVEST,
+                            pairedAccountId = data.pairedCard?.accountId,
                             pairTradingEnabled = data.pairTradingEnabled,
                             quantity = data.quantity.toString(),
                             pairedMultiplier = data.pairedMultiplier.toString(),
@@ -444,6 +445,7 @@ class OrderFormViewModel
          */
         fun onAccountSaved(newAccountId: String?) {
             _state.update { it.copy(selectedAccountId = newAccountId) }
+            viewModelScope.launch { saveState() }
             val s = _state.value
             logger.d(
                 TAG,
@@ -458,6 +460,7 @@ class OrderFormViewModel
          */
         fun onPairedAccountSaved(newAccountId: String?) {
             _state.update { it.copy(pairedAccountId = newAccountId) }
+            viewModelScope.launch { saveState() }
             val s = _state.value
             logger.d(
                 TAG,
@@ -482,8 +485,22 @@ class OrderFormViewModel
             val state = _state.value
             tradingStateRepository.save(
                 TradingStateSnapshot(
-                    selectedTscalpInstrumentId = state.selectedInstrument?.tscalpInstrumentId,
-                    pairedTscalpInstrumentId = state.pairedInstrument?.tscalpInstrumentId,
+                    selectedCard =
+                        state.selectedInstrument?.let { inst ->
+                            CardIdentity(
+                                tscalpInstrumentId = inst.tscalpInstrumentId,
+                                brokerName = state.selectedBroker,
+                                accountId = state.selectedAccountId,
+                            )
+                        },
+                    pairedCard =
+                        state.pairedInstrument?.let { inst ->
+                            CardIdentity(
+                                tscalpInstrumentId = inst.tscalpInstrumentId,
+                                brokerName = state.pairedBroker,
+                                accountId = state.pairedAccountId,
+                            )
+                        },
                     pairTradingEnabled = state.pairTradingEnabled,
                     quantity = state.quantityAsLong ?: 1L,
                     pairedMultiplier = state.pairedMultiplier.toLongOrNull() ?: DEFAULT_PAIRED_MULTIPLIER,
