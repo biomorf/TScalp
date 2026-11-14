@@ -58,15 +58,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BODY="ktlint-gradle issue #944 (JLLeitschuh/ktlint-gradle) is now CLOSED (was: ${{ needs.check.outputs.title }}).
+          cat > body.txt <<EOF
+          ktlint-gradle issue #944 (JLLeitschuh/ktlint-gradle) is now CLOSED (was: ${{ needs.check.outputs.title }}).
 
-Next steps:
-1. Check the latest ktlint-gradle release notes for #944 / 'Unsafe' / Kotlin compiler upgrade.
-2. If the fix is in the release — remove --sun-misc-unsafe-memory-access=allow from gradle.properties (org.gradle.jvmargs) and from tasks.withType<Test>() jvmArgs in app/build.gradle.kts.
-3. Run ./gradlew :app:ktlintCheck :app:detekt and grep for sun.misc.Unsafe::objectFieldOffset — should be empty.
-4. Close this issue."
+          Next steps:
+          1. Check the latest ktlint-gradle release notes for #944 / 'Unsafe' / Kotlin compiler upgrade.
+          2. If the fix is in the release — remove --sun-misc-unsafe-memory-access=allow from gradle.properties (org.gradle.jvmargs) and from tasks.withType<Test>() jvmArgs in app/build.gradle.kts.
+          3. Run ./gradlew :app:ktlintCheck :app:detekt and grep for sun.misc.Unsafe::objectFieldOffset — should be empty.
+          4. Close this issue.
+          EOF
           gh issue create \
             --repo ${{ github.repository }} \
             --title "ktlint-gradle #944 closed — try unmuting --sun-misc-unsafe-memory-access" \
-            --body "$BODY" \
+            --body-file body.txt \
             --label "ktlint-gradle-944"
