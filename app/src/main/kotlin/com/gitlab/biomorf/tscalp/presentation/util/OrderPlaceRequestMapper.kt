@@ -6,16 +6,13 @@ import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderInstrumentStat
 
 /**
  * Boundary-маппер 4 sub-state (presentation) -> `PlaceOrderRequest`
- * (domain-DTO). Параллель [toPlaceOrderRequest] для `OrderFormState`
- * (M017), но на sub-state C2 (PR-4b, Phase 5f-a).
- *
- * **2d (временное решение, 2026-11-14):** две функции сосуществуют —
- * [toPlaceRequest] для sub-state (используется в `OrdersScreen` после
- * Phase 5f-b), `OrderFormState.toPlaceOrderRequest` для Coord (живёт до
- * Phase 7). Удаление legacy - Phase 7 вместе с `OrderFormStateMapper.kt`.
+ * (domain-DTO). Заменил legacy `OrderFormState.toPlaceOrderRequest`
+ * (M017) в Phase 5f-a; legacy удалён в Phase 7.1 вместе с
+ * `OrderFormStateMapper.kt`.
  *
  * **2c (fixation):** marshalling на границе presentation -> domain,
- * не use case (обоснование - `OrderFormStateMapper.kt` KDoc).
+ * не use case (см. `docs/clean-audit.md` -> M017: обоснование
+ * варианта D - boundary-mapper, не use case).
  *
  * @return `PlaceOrderRequest?` - `null`, если не хватает обязательных
  *   sub-state полей: `selectedInstrument`, `quantity`, `pairedMultiplier`.

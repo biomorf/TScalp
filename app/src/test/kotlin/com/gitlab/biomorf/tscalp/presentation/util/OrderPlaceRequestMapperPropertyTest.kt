@@ -16,7 +16,7 @@ import org.junit.Test
 
 /**
  * Property-based tests for [toPlaceRequest] (kotest-property).
- * Replaces OrderFormStateMapperPropertyTest (Phase 7).
+ * Successor of the removed `OrderFormStateMapperPropertyTest` (Phase 7.1).
  *
  * Invariants:
  * - null in any guard (selectedInstrument / quantityAsLong) -> null result.
