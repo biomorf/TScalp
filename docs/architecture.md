@@ -247,6 +247,32 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
 не откатывает primary. **Вне scope** (broker limitation). При появлении
 потребности — `cancelOnPairedFailure` rollback отдельной задачей.
 
+### Валидация и нормализация: по слоям
+
+Валидация рассредоточена по трём слоям, с чётким разделением ролей.
+
+**Presentation — нормализация ввода (TextField):**
+- `OrderFormViewModel` мутаторы: `quantity.filter { it.isDigit() }`, `limitPrice`/`stopPrice.filter { it.isDigit() || it == '.' }`.
+- Presentation-обязанность: не пустить в state символы, которые TextField не должен принимать. Не бизнес-правило.
+
+**Presentation — UI-фидбэк (disabled кнопки):**
+- `OrderFormValidation.kt` (PR-1): `isFormValid(instrument, input, isApiInitialized)` → `isBasicValid` + `isLimitPriceValid` + `isStopPriceValid` + `isPairValid`.
+- Роль: **предварительная** проверка для UI (disabled кнопки «Купить»/«Продать»). Финальное решение — domain.
+- `OrderFormState.isFormValid` (строки 86–119) — **дубль** `OrderFormValidation.kt`. Удаляется в PR-4 (фаза 7) вместе с `OrderFormState.kt`.
+
+**Presentation — guard на границе presentation→domain:**
+- `OrderFormStateMapper.toPlaceOrderRequest()`: `instrument ?: return null`, `quantityAsLong ?: return null`, `pairedMultiplier.toLongOrNull() ?: return null`.
+- Роль: не отдавать в domain неполный `PlaceOrderRequest`. Null → `PostOrderOutcome.InvalidRequest` / no-op.
+
+**Domain — настоящая бизнес-валидация:**
+- `PrepareOrderRequestUseCase` → `PrepareResult.Invalid(reason)`: StopLoss/TakeProfit/StopLimit без `stopPrice` → `Step.Invalid`; парная stop-заявка без `stopPrice` → `Invalid`.
+- `PostOrderUseCase.checkAvailability` → `TradeCheckResult.Error` / `InsufficientFunds`.
+- Роль: **окончательное** решение.
+
+**Что НЕ переезжает в PR-4:** нормализация — в `OrderInputViewModel`; `isFormValid` — pure extension (уже в PR-1); `toPlaceOrderRequest()` — по месту; `PrepareOrderRequestUseCase` / `PostOrderUseCase` — не трогаются.
+
+**Связанные:** `docs/clean-audit.md` → M017, M013, M018. PR-4 план — `docs/ROADMAP.md` → «PR-4 (big-bang) — план для отдельной сессии».
+
 ### Связанные документы
 
 - `docs/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
