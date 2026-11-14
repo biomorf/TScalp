@@ -79,6 +79,22 @@ class OrderExecutionViewModel
             _state.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
         }
 
+        /**
+         * Прямой путь (без confirm dialog): UI вызывает при `confirmOrdersEnabled = false`.
+         * Не открывает диалог; сразу запускает postOrder(BUY).
+         */
+        fun onBuyClickDirect(request: PlaceOrderRequest) {
+            viewModelScope.launch { postOrder(request, OrderDirection.BUY) }
+        }
+
+        /**
+         * Прямой путь (без confirm dialog): UI вызывает при `confirmOrdersEnabled = false`.
+         * Не открывает диалог; сразу запускает postOrder(SELL).
+         */
+        fun onSellClickDirect(request: PlaceOrderRequest) {
+            viewModelScope.launch { postOrder(request, OrderDirection.SELL) }
+        }
+
         private suspend fun postOrder(
             request: PlaceOrderRequest,
             direction: OrderDirection,

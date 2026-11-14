@@ -178,4 +178,39 @@ class OrderExecutionViewModelTest {
             advanceUntilIdle()
             coVerify(exactly = 0) { placeOrderUseCase.execute(any(), any()) }
         }
+
+    @Test
+    fun `onBuyClickDirect posts BUY without dialog`() =
+        runTest {
+            coEvery { placeOrderUseCase.execute(any(), any()) } returns
+                PlaceOrderOutcome.Success(
+                    primary = PrimaryOutcome.Regular(orderId = "ord-1", executedLots = 10L, totalLots = 10L),
+                    paired = null,
+                    freeBalance = 5000.0,
+                )
+            val vm = viewModel()
+            advanceUntilIdle()
+            vm.onBuyClickDirect(request)
+            advanceUntilIdle()
+            assertEquals(false, vm.state.value.showConfirmDialog)
+            assertNull(vm.state.value.pendingDirection)
+            coVerify { placeOrderUseCase.execute(request, OrderDirection.BUY) }
+        }
+
+    @Test
+    fun `onSellClickDirect posts SELL without dialog`() =
+        runTest {
+            coEvery { placeOrderUseCase.execute(any(), any()) } returns
+                PlaceOrderOutcome.Success(
+                    primary = PrimaryOutcome.Regular(orderId = "ord-2", executedLots = 10L, totalLots = 10L),
+                    paired = null,
+                    freeBalance = 5000.0,
+                )
+            val vm = viewModel()
+            advanceUntilIdle()
+            vm.onSellClickDirect(request)
+            advanceUntilIdle()
+            assertEquals(false, vm.state.value.showConfirmDialog)
+            coVerify { placeOrderUseCase.execute(request, OrderDirection.SELL) }
+        }
 }
