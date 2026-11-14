@@ -38,7 +38,7 @@ import kotlinx.coroutines.CoroutineScope
  * legacy-форма собирается adapter'ом `toLegacyFormState()` только для
  * 3 дочерних (`OrdersInstrumentSection` / `OrdersConfirmDialogSection` /
  * `OrdersPairSection`), которые переедут на sub-state в Phase 5d/5e.
- * См. [toLegacyFormState] — 2d, удаляется в 5d/5e.
+ * Adapter `toLegacyFormState` удалён в Phase 5d (все 3 дочерних на sub-state).
  */
 internal data class OrdersScrollableState(
     val coordState: OrdersCoordState,
@@ -116,7 +116,7 @@ internal fun ColumnScope.OrdersScrollableContent(
             OrdersInstrumentSection(
                 coordState = state.coordState,
                 searchState = state.searchState,
-                formState = state.toLegacyFormState(),
+                instrumentState = state.instrumentState,
                 tradingStatuses = state.tradingStatuses,
                 resetSwipe = state.resetSwipe,
                 onSearchQueryChanged = callbacks.onSearchQueryChanged,
@@ -131,7 +131,10 @@ internal fun ColumnScope.OrdersScrollableContent(
             )
 
             OrdersConfirmDialogSection(
-                formState = state.toLegacyFormState(),
+                instrumentState = state.instrumentState,
+                inputState = state.inputState,
+                tradeDetailsState = state.tradeDetailsState,
+                executionState = state.executionState,
                 onDismiss = callbacks.onDismissConfirmDialog,
                 onConfirm = callbacks.onConfirmOrder,
             )
@@ -161,7 +164,9 @@ internal fun ColumnScope.OrdersScrollableContent(
             OrdersPairSection(
                 coordState = state.coordState,
                 searchState = state.searchState,
-                formState = state.toLegacyFormState(),
+                instrumentState = state.instrumentState,
+                inputState = state.inputState,
+                tradeDetailsState = state.tradeDetailsState,
                 tradingStatuses = state.tradingStatuses,
                 resetSwipe = state.resetSwipe,
                 scrollState = scrollState,
