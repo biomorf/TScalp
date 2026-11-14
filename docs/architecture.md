@@ -253,6 +253,61 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
 - `docs/ISSUES.md` → `ClassCastException в PostOrderUseCase при StopLoss без stopPrice` (решён, PR #132).
 - `docs/clean-audit.md` → M017 (`buildPlaceOrderRequest`), M013 / A2 (orchestration) — контекст оркестрации заявок.
 
+## C2 target: FormMediator + 4 sub-VM
+
+**Целевая** архитектура экрана «Заявки» после C2 (PR-4). Текущее (после PR-3): `OrderFormViewModel` (27 fun, `@Suppress`). Цель — 4 sub-VM + Mediator.
+
+**Индустриальный контекст (2025):** Mediator Pattern для split big ViewModel — droidcon Berlin 2025 («Breaking Up with Big ViewModels — Without Breaking Your Architecture», Staff Engineer Perry Street Software), StackOverflow «Clean way to share data between viewModels». Screen-scoped Mediator держит shared state, sub-VM реактивно читают/пишут через него.
+
+```mermaid
+flowchart LR
+    subgraph UI[OrdersScreen + 5 UI files]
+        U[Composables]
+    end
+    subgraph PRES[presentation/screens/orders/]
+        M[OrderFormMediator<br/>ViewModelScoped]
+        IVM[OrderInstrumentViewModel<br/>~9 fun]
+        INVM[OrderInputViewModel<br/>~6 fun]
+        TVM[OrderTradeDetailsViewModel<br/>2 fun - PR-1 done]
+        EVM[OrderExecutionViewModel<br/>~8 fun]
+        C[OrderFormViewModel<br/>lifecycle: 2 fun]
+    end
+    subgraph DOM[domain]
+        UC[SaveFormStateUseCase<br/>SyncPriceInterestUseCase<br/>PlaceOrderUseCase<br/>Calculate UseCases]
+        FPM[PriceFlowManager]
+        TSR[TradingStateRepository]
+    end
+
+    U -->|read state| IVM
+    U -->|read state| INVM
+    U -->|read state| TVM
+    U -->|read state| EVM
+    U -->|action| IVM
+    U -->|action| INVM
+    U -->|action| EVM
+
+    IVM -.->|update| M
+    INVM -.->|update| M
+    TVM -.->|update| M
+    EVM -.->|update| M
+    M -->|save snapshot| UC
+    M -->|sync interest| UC
+    C -->|init/onCleared| FPM
+    UC --> TSR
+```
+
+**Ключевые решения:**
+
+- **Mediator** (`@ViewModelScoped`, Hilt) — shared state holder: собирает `TradingStateSnapshot` из `OrderInstrumentState` + `OrderInputState`, вызывает `SaveFormStateUseCase` (debounce 500ms). Сигнализирует sub-VM о пересчёте (recalc/sync).
+- **4 sub-VM** — `OrderInstrument` (~9), `OrderInput` (~6), `OrderTradeDetails` (2, PR-1 done), `OrderExecution` (~8).
+- **`OrderFormViewModel`** — только lifecycle: `init restoreOrderForm` + `onCleared clearInterest(ORDERS)`. ≤ 11 fun → `@Suppress` снимается.
+- **UI** — читает sub-state напрямую, действия — в sub-VM. Медиатор UI не виден.
+- **Cross-VM** — 0. Всё через Mediator (state) + domain (usecases, managers).
+
+**Fallback A (UI-orchestrator):** если Mediator дорог (Hilt scope, 8 фаз) — UI вызывает 3 метода на action (`inputVM.x` + `tradeDetailsVM.update(instrumentVM.state, inputVM.state)` + `coordVM.saveState(...)`). Cross-VM = 0, 2c-fixation в KDoc UI.
+
+**Ссылки:** `docs/ROADMAP.md` → `### OrderFormViewModel: split на sub-VM` → «PR-4 (big-bang) — план для отдельной сессии». droidcon Berlin 2025 (Mediator); `docs/domain_models.md` §Portfolio (snapshot model).
+
 ## CardIdentity и слоты
 
 Модель карточки инструмента на экране «Заявки» и в «Последних просмотренных»:

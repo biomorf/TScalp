@@ -483,7 +483,48 @@ UI (переписать, C2):
   - PR-1 (#150) — sub-states + TradeDetails VM ✅
   - PR-2 (#151) — SaveFormState + SyncPriceInterest usecases ✅
   - PR-3 (#154) — refactor на usecases (2d closed) ✅, Coord 27 fun (без изменения)
-  - PR-4 — big-bang (UI + 4 sub-VM + Coord minimize + reactive save + `@Suppress` removal)
+  - PR-4 — big-bang: 4 sub-VM + Mediator + Coord lifecycle + UI rewrite + `@Suppress` removal (см. «PR-4 (big-bang) — план для отдельной сессии»)
+
+**PR-4 (big-bang) — план для отдельной сессии.**
+
+Контекст: PR-1 (#150) — states + TradeDetails VM. PR-2 (#151) — usecases. PR-3 (#154) — 2d closed, VM делегирует в usecases. Coord 27 fun, `@Suppress` остаётся. PR-4 = реальный C2: 4 sub-VM + Coord → lifecycle + UI rewrite + `@Suppress` removal.
+
+**Фундаментальная проблема.** `TradingStateSnapshot` (persist) собирается из state двух VM: `selectedCard` / `pairedCard` из Instrument; `quantity` / `orderType` / `pairedMultiplier` / `pairTradingEnabled` из Input. Ни один sub-VM не может собрать snapshot сам. Без решения — либо cross-VM calls (2c violation), либо UI-orchestrator, либо Mediator.
+
+**Варианты (обоснование и источники — `docs/architecture.md` → «C2 target: FormMediator + 4 sub-VM»):**
+
+- **A. UI-orchestrator + Coord-service** (~8 ч). UI вызывает 3 метода на user-action (`inputVM.x` + `tradeDetailsVM.update(...)` + `coordVM.saveState(...)`). Cross-VM = 0. 2c fixation в KDoc UI. Race в `onConfirmOrder` нет (explicit). Coord — 4 fun. **Fallback, если Mediator окажется дорогим.**
+- **B. Cross-VM calls** (~7 ч). Input VM inject'ит TradeDetails VM + Coord VM. 2c violation в 3 VM (KDoc). **Не рекомендую** — хуже A по Clean.
+- **C. Reactive in Coord** (~10 ч). Race в `onConfirmOrder` (stale `pendingDirection`), flaky tests (debounce). **Не рекомендую.**
+- **D. Mediator Pattern** (~10–12 ч). Класс `OrderFormMediator` (`@ViewModelScoped`), sub-VM через Mediator. **Индустриальный стандарт 2025** (droidcon Berlin: «Breaking Up with Big ViewModels»). Clean, race нет, UI тонкий. **Рекомендация.**
+
+**Рекомендация: D (Mediator), fallback A.** Если Hilt scope + 8 фаз дороги — A (UI-orchestrator) даёт тот же результат по `@Suppress` и Clean, дешевле на ~2 ч.
+
+**Фазы PR-4 (Mediator, 8 фаз):**
+
+- **0** (30 мин). Скелеты: 4 sub-VM (empty state + DI), `OrderFormMediator` (`@ViewModelScoped`).
+- **1** (2 ч). `OrderInstrumentViewModel` (~9 fun) + 6–8 тестов.
+- **2** (1.5 ч). `OrderInputViewModel` (~6 fun) + 4–5 тестов.
+- **3** (1.5 ч). `OrderExecutionViewModel` (~8 fun) + 8–10 тестов.
+- **4** (2 ч). `OrderFormMediator` — shared state (snapshot из Instrument + Input) + reactive save (debounce 500) + orchestration.
+- **5** (1.5 ч). UI rewrite 6 файлов (`formState.X` → `subState.X`). UI-санкция подтверждена (Q-P4a, 2026-11-14).
+- **6** (1 ч). Coord → lifecycle (`OrderFormViewModel` = 2 fun).
+- **7** (1 ч). Удалить `OrderFormState.kt`, `@Suppress` removal, `OrderFormViewModelTest` реструктуризация, `docs/architecture.md` обновить.
+- **8** (1 ч). Roborazzi diff = 0; live-test 7 сценариев (Android 14); Extended behavioural (20 тестов).
+
+**Файлы:** 6 UI + 4 sub-VM + `OrderFormMediator.kt` + `OrderFormViewModel.kt` (rewrite) + `OrderFormState.kt` (delete) + `OrderFormViewModelTest.kt` (rewrite).
+
+**Оценка:** ~10–12 ч (Mediator) / ~8 ч (A-fallback).
+
+**Риски:** Roborazzi diff ≠ 0; Hilt scope (`@ViewModelScoped` vs `@ActivityRetainedScoped` — открытый вопрос); live-test требует Android 14 (есть).
+
+**Критерий готовности:** Coord ≤ 11 fun (или исчез); 4 sub-VM ≤ 11 fun; `OrderFormState.kt` удалён; `@Suppress` снят; UI читает sub-state; Roborazzi diff = 0; live-test PASS; Extended behavioural PASS.
+
+**Открытые вопросы:** Hilt scope; debounce 500 vs 300ms (индустрия — 300ms); `@OptIn(ExperimentalTestApi::class)` для Compose v2 (Phase 5).
+
+**Стартовый чек-лист:** ветка `feature/orderform-split-c2-p4` от `dev`; эмулятор Android 14; UI-санкция подтверждена; Roborazzi baseline в `dev`; `AGENTS.md`/`AGENTS-LESSONS.md` прочитаны.
+
+**Проверка Clean (2c):** Mediator в `presentation/screens/orders/`. Sub-VM → Mediator (state), Mediator → domain (usecases). Dependency rule `presentation → domain`. **Соответствует.**
 - 26–33 новых тестов + 10 старых переехали в sub-VM.
 - Roborazzi diff = 0 на 8 baseline; property-тесты зелёные; Extended OrdersScreenBehaviourTest 5–7 сценариев зелёные.
 - Live-тест 7 сценариев PASS.
