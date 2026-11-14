@@ -348,7 +348,7 @@ ___
 
 **Мобильная работа:** невозможно (desktop; крупный рефакторинг presentation-слоя + 6 UI-файлов + live-тест 7 сценариев; локальный gate на desktop обязателен).
 
-**Статус:** в работе (PR-1 #150, PR-2 #151 merged; PR-3, PR-4 pending).
+**Статус:** в работе — Phase 6 done (PR-1..PR-4b: 3.1 + 5a–6.2a merged; **Phase 7–8 pending**).
 
 **Контекст:** 2c-фиксация 2026-11-07 (KDoc `OrderFormViewModel.kt`, §13d-B) отклоняла split Form на sub-VM с обоснованием «+N VM + cross-VM». После закрытия M001 (`TradeDetailsFormat.kt`), M017 (`OrderFormStateMapper.kt`), A2, 13d — обоснование устарело: формат/мапперы вынесены; cross-state reads в VM минимальны (4 поля: `confirmOrdersEnabled` ×2, `selectedAccountId`, `pendingDirection`, `toPlaceOrderRequest`); extract-helpers не даёт снятия `@Suppress` (10 private мутируют state/async; merge 3× `handlePostOrder*` + `updateTradeDetails`/`updatePairExecDetails` = −3 fun → 24 ≫ 11).
 
@@ -574,6 +574,17 @@ UI (переписать, C2):
 - **4** ✅ merged (PR #155, `2211647a`). `OrderFormMediator` save-only: `updatePrimitives` + `Channel(CONFLATED)` + `debounce(500)` + `@Singleton CoroutineScope` (`di/AppScopeModule.kt`), 3 теста.
 - **4.5** ✅ merged (PR #155, `fb7c4fea`). `OrderMediatorViewModel` — HiltViewModel wrapper над Mediator (UI-facing), additive.
 - **3.1** ⏳ PR-4b, pre-Phase-5. `freeBalance` → `OrderExecutionState` (Q1 resolved 2026-11-14): +`freeBalance: Double? = null` в `OrderExecutionState`; `handlePostOrderSuccess` пишет `_state.update { it.copy(isLoading = false, freeBalance = outcome.freeBalance) }`; `freeBalance` из `OrderTradeDetailsState` удаляется (dead field — в Phase 3 не пишется); 2d-debt `OrderExecutionViewModel.kt:36` (не сохраняем) закрывается. KDoc — `OrderExecutionState`, `OrderTradeDetailsState`, `OrderInstrumentState:13`, `OrderTradeDetailsViewModel:26`. Тест: `OrderExecutionViewModelTest` — +assertion на `_state.value.freeBalance`.
+- **5a** ✅ merged (PR #155, `fb7c4fea`). UI wrapper `OrderMediatorViewModel` (HiltViewModel над `@ActivityRetainedScoped` `OrderFormMediator`).
+- **5b/5c** ✅ merged (`6e521e7a`). `OrdersScrollableState` → 4 sub-state (instrument / input / tradeDetails / execution); `OrdersScrollableContent` reads via sub-state; 2d adapter `OrdersScrollableAdapters.kt`.
+- **5d** ✅ merged (`dcea08d4` + `10f114c5`). 3 дочерних (`OrdersInstrumentSection` / `OrdersConfirmDialogSection` / `OrdersPairSection`) на sub-state.
+- **5e** ✅ merged (`2eda5742`). `OrdersDialogsSection`: `formViewModel` → `instrumentViewModel` (`onAccountSaved` / `onPairedAccountSaved` в `OrderInstrumentViewModel`).
+- **5f-a** ✅ merged (`e8fab9b9`). `OrderPlaceRequestMapper.toPlaceRequest(instrumentState, inputState)`; `CardIdentityMapper.toPrimaryCardIdentity / toPairedCardIdentity`; тесты.
+- **5f-b-1** ✅ merged (`74604a09`). `restore(state)` в 3 sub-VM (Instrument / Input / TradeDetails) + тесты.
+- **5f-b-2a** ✅ merged (`3fad61b1`). `OrderInstrumentViewModel`: +`restoreFromUseCase` + `onCleared { clearInterest(ORDERS) }` (перенос из Coord) + тесты.
+- **5f-b-2b** ✅ merged (`433aa17b`). `OrdersScreen`: 8 `hiltViewModel()`, 4 `LaunchedEffect` (checkApiInit / restore / reactive recalc / reactive save), 21 callback на sub-VM, `OrdersBottomButtons` на `execState.freeBalance` + `isFormValid(instr, input, coord.isApiInitialized)`, buy/sell confirm/direct. `OrderExecutionViewModel`: +`onBuyClickDirect` / `onSellClickDirect` + 2 теста.
+- **5f-b-2c** ✅ merged (`e18a4e24`). `git rm OrdersScrollableAdapters.kt`; baseline test → 5 test-helper'ов (2d, умирают в Phase 7).
+- **6.1** ✅ merged (`051b7a50`). `git rm OrderFormViewModel.kt` + `OrderFormViewModelTest.kt` (903 deletions).
+- **6.2a** ✅ merged (`55552669`). KDoc cleanup после Coord removal (8 файлов, KDoc-only).
 
 **PR-4b (Phase 5–8) — план для отдельной сессии. Ветка `feature/orderform-split-c2-p4b` от `dev`.**
 
