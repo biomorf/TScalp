@@ -1082,6 +1082,27 @@ echo "OK: fence parity ($N)"
 
 ---
 
+### 114. YAML block scalar (`run: |`) — многострочный контент одинаково сдвинут
+
+**Правило:** в GitHub Actions `run: |` (block scalar) все строки контента должны иметь одинаковый отступ — минимум **+2 пробела** от `run:`. Строка с меньшим отступом (особенно 0) разрывает block scalar; YAML-парсер видит конец блока и падает на следующей строке. В контексте `run:` это даёт `Invalid workflow file: path#L<N>`.
+
+**Инцидент:** 2026-11-15, `ktlint-gradle-944.yml` (PR #158, merge `45052d05`). В `run: |` было:
+```yaml
+          BODY="ktlint-gradle issue #944 ... CLOSED.
+
+Next steps:
+1. Check ...
+```
+— `Next steps:` и `1.` на нулевом отступе. GitHub Actions: `Invalid workflow file: .github/workflows/ktlint-gradle-944.yml#L64` (строка 64 = `Next steps:`). Хотфикс `5ce9dbf4` (PR #159): `BODY="..."` → `cat > body.txt <<EOF … EOF` + `gh issue create --body-file body.txt`. После merge — smoke-test через `workflow_dispatch`.
+
+**Проверка:**
+1. Превентивно — `ruby -ryaml -e 'YAML.parse_file(ARGV[0])' file.yml` (или `python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' file.yml`). Локально у нас fallback (ruby / python3+yaml нет) — тогда визуально: все строки под `run: |` имеют отступ ≥ +2 от `run:`, нет нулевого отступа внутри контента.
+2. Долгосрочно — `actionlint` в CI (отдельной задачей, не блокер; связать с `### Markdown linter в CI`).
+
+Расширение урока 77 (`strict pre-check`) и 5a (CI/CD — порядок «коммит → push → CI»).
+
+---
+
 
 ## Kotlin / Compose
 

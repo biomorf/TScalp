@@ -984,6 +984,7 @@ ___
 **Шаги:**
 1. ✅ CDS: `jvmArgs("-Xshare:off")` в `tasks.withType<Test>` (`a3becccc`). Синтаксис — с двоеточием (`-Xshare:off`), не с равенством (`-Xshare=off` = `Unrecognized option` на JDK 17+).
 2. ✅ Cron-check ktlint-gradle #944 (`.github/workflows/ktlint-gradle-944.yml`, `2e7e3170`): daily 09:00 UTC + `workflow_dispatch`; при `state == 'CLOSED'` создаёт issue с label `ktlint-gradle-944` и инструкцией снять флаг.
+2a. ⏳ YAML hotfix: PR #158 (`45052d05`) ввёл `.github/workflows/ktlint-gradle-944.yml` с невалидным `run: |` (block scalar, нулевой отступ на строке 64 → `Invalid workflow file ...#L64`). Hotfix `5ce9dbf4` (PR #159): `BODY="..."` → `cat > body.txt <<EOF … EOF` + `--body-file body.txt`. После merge — smoke-test через `workflow_dispatch`. Урок 114.
 3. ⏳ Unsafe — **blocked**: `--sun-misc-unsafe-memory-access=allow` появился в JDK 23 (JEP 471); CI на JDK 17 (temurin, `setup-java@v5`) → флаг = `Unrecognized option` → daemon падает. Нужен upgrade CI до JDK 25 (отдельная задача `### CI: JDK 17 → 25`, follow-up). Когда CI JDK 25 + ktlint-gradle #944 закрыт (cron уведомит) — снять флаг и проверить `grep sun.misc.Unsafe::objectFieldOffset`.
 
 **Тесты:** нет (build-конфиг). Verify — по `gate` логам (CDS warning = 0; Unsafe — ждёт JDK 25).
