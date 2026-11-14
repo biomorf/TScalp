@@ -95,10 +95,9 @@ fun OrdersScreen() {
             // ========== СКРОЛЛИРУЕМЫЙ БЛОК (OrdersScrollableContent) ==========
             OrdersScrollableContent(
                 state =
-                    OrdersScrollableState(
+                    formState.toOrdersScrollableState(
                         coordState = coordState,
                         searchState = searchState,
-                        formState = formState,
                         tradingStatuses = tradingStatuses,
                         resetSwipe = dialogsState.swipeResetTrigger,
                     ),

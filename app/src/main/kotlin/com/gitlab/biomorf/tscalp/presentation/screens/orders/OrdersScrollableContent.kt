@@ -21,20 +21,32 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import kotlinx.coroutines.CoroutineScope
 
 /**
- * State для [OrdersScrollableContent]: 5 state-полей из 3 VM.
+ * State для [OrdersScrollableContent]: 8 state-полей (coord / search /
+ * 4 sub-state Form / tradingStatuses / resetSwipe) из 5 VM.
  *
  * **2c-фиксация (Pass-2a):** state и callbacks в 2 data class, а не
- * в 22+ параметров `@Composable`-функции. Причина: 27 параметров
+ * в 30+ параметров `@Composable`-функции. Причина: 27 параметров
  * функции → detekt `LongParameterList` (>6). `data class` — не функция
  * (детект exempt), проверено на существующих `OrderFormState` /
  * `OrderSearchState` / `OrdersCoordState`. Плюс: behavioral-тест
  * (Pass-2b) может вызвать `OrdersScrollableContent(state = stub,
  * callbacks = no-op)` без Hilt.
+ *
+ * **Phase 5b (C2, PR-4b, 2026-11-14):** `formState: OrderFormState`
+ * заменён на 4 sub-state из Form-VM (`OrderInstrumentState` /
+ * `OrderInputState` / `OrderTradeDetailsState` / `OrderExecutionState`);
+ * legacy-форма собирается adapter'ом `toLegacyFormState()` только для
+ * 3 дочерних (`OrdersInstrumentSection` / `OrdersConfirmDialogSection` /
+ * `OrdersPairSection`), которые переедут на sub-state в Phase 5d/5e.
+ * См. [toLegacyFormState] — 2d, удаляется в 5d/5e.
  */
 internal data class OrdersScrollableState(
     val coordState: OrdersCoordState,
     val searchState: OrderSearchState,
-    val formState: OrderFormState,
+    val instrumentState: OrderInstrumentState,
+    val inputState: OrderInputState,
+    val tradeDetailsState: OrderTradeDetailsState,
+    val executionState: OrderExecutionState,
     val tradingStatuses: Map<String, TradingAvailability>,
     val resetSwipe: Boolean,
 )
@@ -104,7 +116,7 @@ internal fun ColumnScope.OrdersScrollableContent(
             OrdersInstrumentSection(
                 coordState = state.coordState,
                 searchState = state.searchState,
-                formState = state.formState,
+                formState = state.toLegacyFormState(),
                 tradingStatuses = state.tradingStatuses,
                 resetSwipe = state.resetSwipe,
                 onSearchQueryChanged = callbacks.onSearchQueryChanged,
@@ -119,29 +131,29 @@ internal fun ColumnScope.OrdersScrollableContent(
             )
 
             OrdersConfirmDialogSection(
-                formState = state.formState,
+                formState = state.toLegacyFormState(),
                 onDismiss = callbacks.onDismissConfirmDialog,
                 onConfirm = callbacks.onConfirmOrder,
             )
 
             OrdersQuantityRow(
-                quantity = state.formState.quantity,
-                quantityAsLong = state.formState.quantityAsLong ?: 0L,
-                costOverlay = state.formState.costOverlay,
-                canDecrement = (state.formState.quantityAsLong ?: 0L) > 0 && state.formState.selectedInstrument != null,
-                canIncrement = state.formState.selectedInstrument != null,
+                quantity = state.inputState.quantity,
+                quantityAsLong = state.inputState.quantityAsLong ?: 0L,
+                costOverlay = state.tradeDetailsState.costOverlay,
+                canDecrement = (state.inputState.quantityAsLong ?: 0L) > 0 && state.instrumentState.selectedInstrument != null,
+                canIncrement = state.instrumentState.selectedInstrument != null,
                 onQuantityChanged = callbacks.onQuantityChanged,
             )
 
             OrdersTypeChips(
-                orderType = state.formState.orderType,
+                orderType = state.inputState.orderType,
                 onOrderTypeChanged = callbacks.onOrderTypeChanged,
             )
 
             OrdersPriceFields(
-                orderType = state.formState.orderType,
-                limitPrice = state.formState.limitPrice,
-                stopPrice = state.formState.stopPrice,
+                orderType = state.inputState.orderType,
+                limitPrice = state.inputState.limitPrice,
+                stopPrice = state.inputState.stopPrice,
                 onLimitPriceChanged = callbacks.onLimitPriceChanged,
                 onStopPriceChanged = callbacks.onStopPriceChanged,
             )
@@ -149,7 +161,7 @@ internal fun ColumnScope.OrdersScrollableContent(
             OrdersPairSection(
                 coordState = state.coordState,
                 searchState = state.searchState,
-                formState = state.formState,
+                formState = state.toLegacyFormState(),
                 tradingStatuses = state.tradingStatuses,
                 resetSwipe = state.resetSwipe,
                 scrollState = scrollState,

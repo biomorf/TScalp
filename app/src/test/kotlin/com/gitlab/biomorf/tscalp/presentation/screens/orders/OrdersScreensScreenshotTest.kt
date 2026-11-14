@@ -219,10 +219,9 @@ class OrdersScreensScreenshotTest {
                 multiplierOverlay = "x1",
             )
         val scrollable =
-            OrdersScrollableState(
+            form.toOrdersScrollableState(
                 coordState = emptyCoord(),
                 searchState = emptySearch(),
-                formState = form,
                 tradingStatuses = emptyMap(),
                 resetSwipe = false,
             )
