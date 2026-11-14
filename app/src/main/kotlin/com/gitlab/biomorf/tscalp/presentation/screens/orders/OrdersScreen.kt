@@ -65,6 +65,10 @@ fun OrdersScreen() {
     // lastSelectedInstruments / tradingStatuses. Cross-VM via domain only.
     val formViewModel: OrderFormViewModel = hiltViewModel()
     val formState by formViewModel.state.collectAsState()
+    // Instrument sub-VM (Phase 5e, C2): onAccountSaved / onPairedAccountSaved
+    // от OrdersDialogsSection. До Phase 6 Coord жив параллельно; в 6 - Coord
+    // умрёт, 4 sub-VM + Mediator.
+    val instrumentViewModel: OrderInstrumentViewModel = hiltViewModel()
     val focusManager = LocalFocusManager.current
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -165,7 +169,7 @@ fun OrdersScreen() {
     OrdersDialogsSection(
         dialogsViewModel = dialogsViewModel,
         searchViewModel = searchViewModel,
-        formViewModel = formViewModel,
+        instrumentViewModel = instrumentViewModel,
         dialogsState = dialogsState,
         searchState = searchState,
         showOrdersListDialog = showOrdersListDialog,
