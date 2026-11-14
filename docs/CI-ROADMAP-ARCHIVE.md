@@ -581,3 +581,91 @@ ___
 **Связано:** `### Desktop: pre-push hook (ktlintFormat + ktlintCheck)` (следующая), M016 (PR #112).
 
 **Открытые вопросы:** нет.
+
+
+
+### ✅ Compose UI tests: миграция на v2
+
+**Дата закрытия:** 2026-11-15.
+
+**Мобильная работа:** полное закрытие (правки `.kt` в тестах — proot + PR;
+гейт на CI).
+
+
+**Что сделано:** PR #157 (merge `267634c1`), коммит `38ec026f`. 20 файлов: 17 × `createComposeRule` → `junit4.v2.createComposeRule`; 3 × `createAndroidComposeRule<HiltTestActivity>` → `junit4.v2.createAndroidComposeRule` (`OrdersScreenBehaviourTest` / `PortfolioScreenBehaviourTest` / `SettingsScreenBehaviourTest`). Вторичные импорты (`onNodeWithText`, `performClick`, `assertIsDisplayed`, `onNodeWithContentDescription`) не тронуты — общие v1/v2. `@OptIn(ExperimentalTestApi::class)` не потребовался (Compose BOM `2026.09.00`, v2 стабилен — подтверждено `OrdersScreensScreenshotTest`, уже на v2). `testDebugUnitTest` — все 20 файлов зелёные в первом прогоне (`StandardTestDispatcher` не сломал behavioural: `waitForIdle()` уже был в нужных местах; `runTest` / `advanceUntilIdle` / `UnconfinedTestDispatcher` — 0 в behavioural). Gate зелёный; deprecation warnings 20 → 0. Roborazzi baseline (8 PNG) не затронут.
+
+
+**Триггер:** Compose UI test API v1 (`androidx.compose.ui.test.junit4.createComposeRule`
+и `junit4.createAndroidComposeRule`) объявлен deprecated. Новый screenshot-тест
+(`OrdersScreensScreenshotTest`, `ed5111c1`) уже на v2. Существующие
+Behaviour-тесты на v1 компилируются с warning'ом; при обновлении Compose BOM
+v1 может исчезнуть.
+
+**Контекст:** 20 Compose UI-тестов используют v1 API:
+- `createAndroidComposeRule` (3): `OrdersScreenBehaviourTest`,
+  `PortfolioScreenBehaviourTest`, `SettingsScreenBehaviourTest`;
+- `createComposeRule` (17): `ApiNotInitializedCardTest`, `OrderCardTest`,
+  `OrdersQuantityRowTest`, `OrdersTypeChipsTest`, `SearchResultItemTest`,
+  `AccountHeaderCardTest`, `EmptyPortfolioCardTest`, `PortfolioAccountBlockTest`,
+  `BcsTokenHelpCardTest`, `CloseSandboxAccountDialogTest`, `ConnectStatusCardTest`,
+  `FinamTokenHelpCardTest`, `SettingsHubListTest`, `StatusMessageCardTest`,
+  `TInvestAccountSectionTest`, `TInvestStatusCardTest`, `TInvestTokenHelpCardTest`.
+
+V2 переключает `StandardTestDispatcher` вместо `UnconfinedTestDispatcher` —
+поведенческие тесты, полагающиеся на немедленное выполнение корутин, потребуют
+явной синхронизации (`waitUntil`, `mainClock.advanceTimeBy`). Screenshot-тест
+(`OrdersScreensScreenshotTest`) уже на v2 — из этой задачи исключён.
+
+**Предусловия:** нет.
+
+**Файлы:** 20 файлов в `app/src/test/kotlin/.../presentation/`
+(`*BehaviourTest.kt`, `*Test.kt`). Полный список —
+`grep -rln 'junit4.createComposeRule\|junit4.createAndroidComposeRule' app/src/test`.
+
+**Шаги:**
+1. Заменить импорт `androidx.compose.ui.test.junit4.createComposeRule` →
+   `androidx.compose.ui.test.junit4.v2.createComposeRule` в 17 файлах.
+2. Заменить `androidx.compose.ui.test.junit4.createAndroidComposeRule` →
+   `androidx.compose.ui.test.junit4.v2.createAndroidComposeRule` в 3 файлах.
+3. Прогнать `:app:testDebugUnitTest` локально; исправить падения, вызванные
+   `StandardTestDispatcher` (добавить `waitUntil` / `mainClock.advanceTimeBy`
+   где нужно).
+4. Прогнать полный гейт.
+
+**Тесты:** все существующие Compose UI-тесты — цель: зелёные без изменения
+утверждений (только синхронизация, где `UnconfinedTestDispatcher` скрывал race).
+
+**Референсы:** AGENTS.md → 2a (актуальность);
+[Compose ui-test v2 migration guide](https://developer.android.com/reference/kotlin/androidx/compose/ui/test/junit4/v2/package-summary).
+
+**Ограничения:**
+- Не смешивать с Roborazzi baseline (уже на v2).
+- Не менять утверждения тестов — только импорты и синхронизация.
+- V1-импорты (deprecated) — единственный сигнал; сам пакет
+  `androidx.compose.ui.test.*` (`onNodeWithText` и т.п.) не меняется.
+
+**Критерий готовности:**
+- Все 20 файлов на `junit4.v2`.
+- 0 warnings `createComposeRule is deprecated`.
+- Полный гейт зелёный.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** нет.
+
+**Связано:** `docs/ROADMAP.md` → `### OrderFormViewModel: split на sub-VM`
+(предзадача Roborazzi — новые тесты уже на v2, `ed5111c1`).
+
+**Открытые вопросы:**
+- Требуется ли `@OptIn(ExperimentalTestApi::class)` для v2-API в текущей
+  Compose BOM — проверить по факту (по 3 не выдумываю: миграционный гайд
+  Google говорит «no @OptIn», но Compose BOM у нас собран 2026-11; при
+  первом PR — эмпирически).
+
+
+
+
+
+
+
+___

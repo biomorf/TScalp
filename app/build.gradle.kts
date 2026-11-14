@@ -337,6 +337,11 @@ afterEvaluate {
 }
 
 tasks.withType<Test> {
+    // CDS warning "Sharing is only supported for boot loader classes"
+    // comes from JVMTI agents (Robolectric / JaCoCo) appending to the
+    // boot classpath. -Xshare:off disables CDS for the test JVM only;
+    // harmless for the build (no shared archive used in tests).
+    jvmArgs("-Xshare:off")
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = false

@@ -1,0 +1,72 @@
+name: ktlint-gradle #944 status
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # 09:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      state: ${{ steps.issue.outputs.state }}
+      title: ${{ steps.issue.outputs.title }}
+    steps:
+      - name: Check ktlint-gradle #944 state
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          JSON=$(gh issue view 944 \
+            --repo JLLeitschuh/ktlint-gradle \
+            --json state,title,closedAt)
+          echo "$JSON"
+          echo "state=$(echo "$JSON" | jq -r .state)" >> "$GITHUB_OUTPUT"
+          echo "title=$(echo "$JSON" | jq -r .title)" >> "$GITHUB_OUTPUT"
+
+  notify:
+    needs: check
+    if: needs.check.outputs.state == 'CLOSED'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create ktlint-gradle-944 \
+            --color "c5def5" \
+            --description "Track ktlint-gradle #944 (Unsafe warning) — ready to unmute" \
+            --repo ${{ github.repository }} 2>/dev/null || true
+
+      - name: Check for existing open issue
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COUNT=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --label "ktlint-gradle-944" \
+            --state open \
+            --json number --jq 'length')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue (once)
+        if: steps.existing.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY="ktlint-gradle issue #944 (JLLeitschuh/ktlint-gradle) is now CLOSED (was: ${{ needs.check.outputs.title }}).
+
+Next steps:
+1. Check the latest ktlint-gradle release notes for #944 / 'Unsafe' / Kotlin compiler upgrade.
+2. If the fix is in the release — remove --sun-misc-unsafe-memory-access=allow from gradle.properties (org.gradle.jvmargs) and from tasks.withType<Test>() jvmArgs in app/build.gradle.kts.
+3. Run ./gradlew :app:ktlintCheck :app:detekt and grep for sun.misc.Unsafe::objectFieldOffset — should be empty.
+4. Close this issue."
+          gh issue create \
+            --repo ${{ github.repository }} \
+            --title "ktlint-gradle #944 closed — try unmuting --sun-misc-unsafe-memory-access" \
+            --body "$BODY" \
+            --label "ktlint-gradle-944"
