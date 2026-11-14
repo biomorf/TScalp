@@ -10,22 +10,74 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
  * - [OrderFormState.toOrdersScrollableState] — фабрика `OrdersScrollableState`
  *   из legacy `OrderFormState`. Используется `OrdersScreen` и baseline-тест
  *   до Phase 6 (Coord `OrderFormViewModel` умрёт).
- * - [OrdersScrollableState.toLegacyFormState] — синтез legacy `OrderFormState`
- *   для 3 дочерних (`OrdersInstrumentSection` / `OrdersConfirmDialogSection` /
- *   `OrdersPairSection`), которые переедут на sub-state в Phase 5d/5e.
  *
- * **Clean-альтернатива:** дочерние принимают 4 sub-state напрямую (Phase
- * 5d/5e); фабрика `OrdersScrollableState` — из 4 sub-state без legacy
- * (Phase 6, после удаления Coord).
+ * `OrdersScrollableState.toLegacyFormState` (синтез legacy `OrderFormState`
+ * для 3 дочерних) **удалён в Phase 5d** — все 3 дочерних (`OrdersInstrumentSection`
+ * / `OrdersConfirmDialogSection` / `OrdersPairSection`) переведены на
+ * sub-state параметры.
  *
- * **Выгоды:** Phase 5b/5c изолированы — `OrdersScrollableState` сразу
- * в новой форме, `OrdersScrollableContent` читает sub-state напрямую;
- * `OrdersScreen` / baseline не раздуваются на 4 sub-state в конструкторе.
- * Adapter'ы умирают в Phase 5d/5e (после перевода дочерних) и Phase 6
- * (после удаления Coord) — 2 задачи.
+ * **Clean-альтернатива:** фабрика `OrdersScrollableState` — из 4 sub-state
+ * без legacy (Phase 6, после удаления Coord).
+ *
+ * **Выгоды:** `OrdersScrollableState` в новой форме (Phase 5b),
+ * `OrdersScrollableContent` и 3 дочерних читают sub-state напрямую
+ * (Phase 5c/5d); `OrdersScreen` / baseline не раздуваются на 4 sub-state
+ * в конструкторе. Adapter умирает в Phase 6.
  *
  * **Ссылка на задачу:** PR-4b, Phase 5b/5c (см. `docs/ROADMAP.md` →
  * `OrderFormViewModel: split` → «PR-4b»).
+ */
+internal fun OrderFormState.toInstrumentState(): OrderInstrumentState =
+    OrderInstrumentState(
+        ticker = ticker,
+        selectedInstrument = selectedInstrument,
+        currentPrice = currentPrice,
+        selectedPriceChangePercent = selectedPriceChangePercent,
+        currentPointValue = currentPointValue,
+        isPriceLoading = isPriceLoading,
+        selectedBroker = selectedBroker,
+        selectedAccountId = selectedAccountId,
+        pairedInstrument = pairedInstrument,
+        pairCurrentPrice = pairCurrentPrice,
+        pairedPointValue = pairedPointValue,
+        pairedBroker = pairedBroker,
+        pairedAccountId = pairedAccountId,
+    )
+
+internal fun OrderFormState.toInputState(): OrderInputState =
+    OrderInputState(
+        quantity = quantity,
+        limitPrice = limitPrice,
+        stopPrice = stopPrice,
+        orderType = orderType,
+        expirationType = expirationType,
+        expireDate = expireDate,
+        pairTradingEnabled = pairTradingEnabled,
+        pairedMultiplier = pairedMultiplier,
+    )
+
+internal fun OrderFormState.toTradeDetailsState(): OrderTradeDetailsState =
+    OrderTradeDetailsState(
+        executionPrice = executionPrice,
+        costOverlay = costOverlay,
+        multiplierOverlay = multiplierOverlay,
+        pairExecPrice = pairExecPrice,
+        pairedOrderType = pairedOrderType,
+    )
+
+internal fun OrderFormState.toExecutionState(): OrderExecutionState =
+    OrderExecutionState(
+        showConfirmDialog = showConfirmDialog,
+        pendingDirection = pendingDirection,
+        confirmOrdersEnabled = confirmOrdersEnabled,
+        isLoading = isLoading,
+        freeBalance = freeBalance,
+    )
+
+/**
+ * 2d-helper (Phase 5f, PR-4b): 4 sub-state из legacy `OrderFormState`.
+ * Используется фабрикой [toOrdersScrollableState] и baseline-тестом
+ * (`OrdersScreensScreenshotTest`). Удаляется в Phase 6 вместе с фабрикой.
  */
 internal fun OrderFormState.toOrdersScrollableState(
     coordState: OrdersCoordState,
@@ -36,89 +88,10 @@ internal fun OrderFormState.toOrdersScrollableState(
     OrdersScrollableState(
         coordState = coordState,
         searchState = searchState,
-        instrumentState =
-            OrderInstrumentState(
-                ticker = ticker,
-                selectedInstrument = selectedInstrument,
-                currentPrice = currentPrice,
-                selectedPriceChangePercent = selectedPriceChangePercent,
-                currentPointValue = currentPointValue,
-                isPriceLoading = isPriceLoading,
-                selectedBroker = selectedBroker,
-                selectedAccountId = selectedAccountId,
-                pairedInstrument = pairedInstrument,
-                pairCurrentPrice = pairCurrentPrice,
-                pairedPointValue = pairedPointValue,
-                pairedBroker = pairedBroker,
-                pairedAccountId = pairedAccountId,
-            ),
-        inputState =
-            OrderInputState(
-                quantity = quantity,
-                limitPrice = limitPrice,
-                stopPrice = stopPrice,
-                orderType = orderType,
-                expirationType = expirationType,
-                expireDate = expireDate,
-                pairTradingEnabled = pairTradingEnabled,
-                pairedMultiplier = pairedMultiplier,
-            ),
-        tradeDetailsState =
-            OrderTradeDetailsState(
-                executionPrice = executionPrice,
-                costOverlay = costOverlay,
-                multiplierOverlay = multiplierOverlay,
-                pairExecPrice = pairExecPrice,
-                pairedOrderType = pairedOrderType,
-            ),
-        executionState =
-            OrderExecutionState(
-                showConfirmDialog = showConfirmDialog,
-                pendingDirection = pendingDirection,
-                confirmOrdersEnabled = confirmOrdersEnabled,
-                isLoading = isLoading,
-                freeBalance = freeBalance,
-            ),
+        instrumentState = toInstrumentState(),
+        inputState = toInputState(),
+        tradeDetailsState = toTradeDetailsState(),
+        executionState = toExecutionState(),
         tradingStatuses = tradingStatuses,
         resetSwipe = resetSwipe,
-    )
-
-/**
- * 2d-adapter: синтез legacy `OrderFormState` из 4 sub-state для 3 дочерних
- * (`OrdersInstrumentSection` / `OrdersConfirmDialogSection` / `OrdersPairSection`).
- * Удаляется в Phase 5d/5e (после перевода дочерних на sub-state).
- */
-internal fun OrdersScrollableState.toLegacyFormState(): OrderFormState =
-    OrderFormState(
-        ticker = instrumentState.ticker,
-        selectedInstrument = instrumentState.selectedInstrument,
-        currentPrice = instrumentState.currentPrice,
-        pairCurrentPrice = instrumentState.pairCurrentPrice,
-        isPriceLoading = instrumentState.isPriceLoading,
-        selectedPriceChangePercent = instrumentState.selectedPriceChangePercent,
-        currentPointValue = instrumentState.currentPointValue,
-        pairedPointValue = instrumentState.pairedPointValue,
-        quantity = inputState.quantity,
-        limitPrice = inputState.limitPrice,
-        stopPrice = inputState.stopPrice,
-        orderType = inputState.orderType,
-        expirationType = inputState.expirationType,
-        expireDate = inputState.expireDate,
-        selectedBroker = instrumentState.selectedBroker,
-        selectedAccountId = instrumentState.selectedAccountId,
-        pairedBroker = instrumentState.pairedBroker,
-        pairedAccountId = instrumentState.pairedAccountId,
-        pairTradingEnabled = inputState.pairTradingEnabled,
-        pairedInstrument = instrumentState.pairedInstrument,
-        pairedMultiplier = inputState.pairedMultiplier,
-        pairExecPrice = tradeDetailsState.pairExecPrice,
-        pairedOrderType = tradeDetailsState.pairedOrderType,
-        executionPrice = tradeDetailsState.executionPrice,
-        costOverlay = tradeDetailsState.costOverlay,
-        multiplierOverlay = tradeDetailsState.multiplierOverlay,
-        freeBalance = executionState.freeBalance,
-        showConfirmDialog = executionState.showConfirmDialog,
-        pendingDirection = executionState.pendingDirection,
-        confirmOrdersEnabled = executionState.confirmOrdersEnabled,
-        isLoading = executionState.isLoading,
     )

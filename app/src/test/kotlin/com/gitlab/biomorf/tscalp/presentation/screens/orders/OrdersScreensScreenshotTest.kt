@@ -85,7 +85,10 @@ class OrdersScreensScreenshotTest {
         rule.setContent {
             TScalpTheme {
                 OrdersConfirmDialogSection(
-                    formState = form,
+                    instrumentState = form.toInstrumentState(),
+                    inputState = form.toInputState(),
+                    tradeDetailsState = form.toTradeDetailsState(),
+                    executionState = form.toExecutionState(),
                     onDismiss = {},
                     onConfirm = {},
                 )
@@ -107,7 +110,10 @@ class OrdersScreensScreenshotTest {
         rule.setContent {
             TScalpTheme {
                 OrdersConfirmDialogSection(
-                    formState = form,
+                    instrumentState = form.toInstrumentState(),
+                    inputState = form.toInputState(),
+                    tradeDetailsState = form.toTradeDetailsState(),
+                    executionState = form.toExecutionState(),
                     onDismiss = {},
                     onConfirm = {},
                 )
@@ -123,7 +129,7 @@ class OrdersScreensScreenshotTest {
                 OrdersInstrumentSection(
                     coordState = emptyCoord(),
                     searchState = emptySearch(),
-                    formState = emptyForm(),
+                    instrumentState = emptyForm().toInstrumentState(),
                     tradingStatuses = emptyMap(),
                     resetSwipe = false,
                     onSearchQueryChanged = {},
@@ -155,7 +161,7 @@ class OrdersScreensScreenshotTest {
                 OrdersInstrumentSection(
                     coordState = emptyCoord(),
                     searchState = search,
-                    formState = emptyForm(),
+                    instrumentState = emptyForm().toInstrumentState(),
                     tradingStatuses = emptyMap(),
                     resetSwipe = false,
                     onSearchQueryChanged = {},
@@ -186,7 +192,9 @@ class OrdersScreensScreenshotTest {
                     OrdersPairSection(
                         coordState = emptyCoord(),
                         searchState = emptySearch(),
-                        formState = form,
+                        instrumentState = form.toInstrumentState(),
+                        inputState = form.toInputState(),
+                        tradeDetailsState = form.toTradeDetailsState(),
                         tradingStatuses = emptyMap(),
                         resetSwipe = false,
                         scrollState = rememberScrollState(),
