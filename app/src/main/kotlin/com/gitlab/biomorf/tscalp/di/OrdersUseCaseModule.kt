@@ -1,10 +1,12 @@
 package com.gitlab.biomorf.tscalp.di
 
+import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.OrdersRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.PortfolioRepository
+import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
@@ -12,6 +14,8 @@ import com.gitlab.biomorf.tscalp.domain.usecases.CancelOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PostOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrepareOrderRequestUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.SaveFormStateUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.SyncPriceInterestUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,6 +32,18 @@ object OrdersUseCaseModule {
     @Provides
     @Singleton
     fun providePrepareOrderRequestUseCase(): PrepareOrderRequestUseCase = PrepareOrderRequestUseCase()
+
+    @Provides
+    @Singleton
+    fun provideSaveFormStateUseCase(
+        tradingStateRepository: TradingStateRepository,
+    ): SaveFormStateUseCase = SaveFormStateUseCase(tradingStateRepository)
+
+    @Provides
+    @Singleton
+    fun provideSyncPriceInterestUseCase(
+        priceFlowManager: PriceFlowManager,
+    ): SyncPriceInterestUseCase = SyncPriceInterestUseCase(priceFlowManager)
 
     @Provides
     @Singleton
