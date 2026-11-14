@@ -573,6 +573,7 @@ UI (переписать, C2):
 - **3** ✅ merged (PR #155, `4bb6a979`). `OrderExecutionViewModel` full — 9 fun (`Channel<StatusEvent>`), 9 тестов.
 - **4** ✅ merged (PR #155, `2211647a`). `OrderFormMediator` save-only: `updatePrimitives` + `Channel(CONFLATED)` + `debounce(500)` + `@Singleton CoroutineScope` (`di/AppScopeModule.kt`), 3 теста.
 - **4.5** ✅ merged (PR #155, `fb7c4fea`). `OrderMediatorViewModel` — HiltViewModel wrapper над Mediator (UI-facing), additive.
+- **3.1** ⏳ PR-4b, pre-Phase-5. `freeBalance` → `OrderExecutionState` (Q1 resolved 2026-11-14): +`freeBalance: Double? = null` в `OrderExecutionState`; `handlePostOrderSuccess` пишет `_state.update { it.copy(isLoading = false, freeBalance = outcome.freeBalance) }`; `freeBalance` из `OrderTradeDetailsState` удаляется (dead field — в Phase 3 не пишется); 2d-debt `OrderExecutionViewModel.kt:36` (не сохраняем) закрывается. KDoc — `OrderExecutionState`, `OrderTradeDetailsState`, `OrderInstrumentState:13`, `OrderTradeDetailsViewModel:26`. Тест: `OrderExecutionViewModelTest` — +assertion на `_state.value.freeBalance`.
 
 **PR-4b (Phase 5–8) — план для отдельной сессии. Ветка `feature/orderform-split-c2-p4b` от `dev`.**
 
@@ -588,7 +589,7 @@ UI (переписать, C2):
 - **5c.** `OrdersScrollableContent` — читает `state.subState.X` вместо `state.formState.X` (7 мест: costOverlay, limitPrice, orderType, quantity, quantityAsLong, selectedInstrument, stopPrice).
 - **5d.** `OrdersPairTrading` (7 `formState.X` → subState), `OrdersSearch` (4), `OrdersConfirmDialog` (11).
 - **5e.** `OrdersDialogsSection`: `formViewModel: OrderFormViewModel` → `instrumentViewModel: OrderInstrumentViewModel` (`onAccountSaved` / `onPairedAccountSaved`).
-- **5f.** `OrdersScreen.kt` — 4 sub-VM + `OrderMediatorViewModel` (всего 7 VM вместо 4). **Orchestration на каждое action** (22 блока): `inputVM.x(...)` → `tradeDetailsVM.updateTradeDetails(instrumentVM.state.value, inputVM.state.value)` → `mediatorVM.updatePrimitives(...)`. `onConfirmOrder` — `executionVM.onConfirmOrder(request)` где `request = toPlaceOrderRequest(instrumentVM.state.value, inputVM.state.value)`. `formState.freeBalance` → `tradeDetailsVM.state.value.freeBalance` (**открытый вопрос 1**). `formState.isFormValid(coord.isApiInitialized)` → `isFormValid(instrumentVM.state.value, inputVM.state.value, coord.isApiInitialized)`. `formViewModel.status` → `executionVM.status`. `OrdersScreen` станет ~350 строк (`@Suppress("LongMethod")` остаётся — **открытый вопрос 2**).
+- **5f.** `OrdersScreen.kt` — 4 sub-VM + `OrderMediatorViewModel` (всего 7 VM вместо 4). **Orchestration на каждое action** (22 блока): `inputVM.x(...)` → `tradeDetailsVM.updateTradeDetails(instrumentVM.state.value, inputVM.state.value)` → `mediatorVM.updatePrimitives(...)`. `onConfirmOrder` — `executionVM.onConfirmOrder(request)` где `request = toPlaceOrderRequest(instrumentVM.state.value, inputVM.state.value)`. `formState.freeBalance` → `executionVM.state.value.freeBalance` (Q1 resolved 2026-11-14). `formState.isFormValid(coord.isApiInitialized)` → `isFormValid(instrumentVM.state.value, inputVM.state.value, coord.isApiInitialized)`. `formViewModel.status` → `executionVM.status`. `OrdersScreen` станет ~350 строк (`@Suppress("LongMethod")` остаётся — Q2 resolved 2026-11-14).
 - **5g.** Новый `toPlaceOrderRequest(instrumentState, inputState): PlaceOrderRequest?` в `presentation/util/OrderPlaceRequestMapper.kt`. Текущий `OrderFormState.toPlaceOrderRequest` — удаляется в Phase 7. `OrderPlaceRequestMapperTest` — 4 кейса.
 - **5h.** Гейт + Roborazzi diff = 0.
 
@@ -614,8 +615,8 @@ UI (переписать, C2):
 - **Live-test 7 сценариев (Android 14):** instrument select primary/pair, quantity/limit/stop/orderType, confirm buy, confirm sell, success snackbar, restore after restart, pair trade.
 
 **Открытые вопросы (2d — решить при старте PR-4b):**
-1. `freeBalance` — Phase 3 `handlePostOrderSuccess` не пишет `freeBalance` в TradeDetails state. В PR-4b: `ExecutionVM` пишет через `mediator` / `OnOrderSuccessUseCase`, или UI-оркестрация через `onOrderSuccess` callback.
-2. `OrdersScreen` ~350 строк с `@Suppress("LongMethod")` — остаётся. `TooManyFunctions` у Coord — исчезает вместе с файлом.
+1. ✅ **Решено 2026-11-14 (Q1).** `freeBalance` — Phase 3 `handlePostOrderSuccess` не пишет его в state (2d, `OrderExecutionViewModel.kt:36`). Решение пользователя: `freeBalance` переезжает в `OrderExecutionState` (execution-результат, не trade-details); `handlePostOrderSuccess` пишет `_state.update { it.copy(isLoading = false, freeBalance = outcome.freeBalance) }`. UI (`OrdersBottomButtons`) читает `executionVM.state.value.freeBalance`. Q1-default (UI-оркестрация через `onOrderSuccess` callback) отменён. Закрывается в Phase 3.1 (post-merged fix; см. ниже).
+2. ✅ **Решено 2026-11-14 (Q2).** `OrdersScreen` ~350 строк с `@Suppress("LongMethod")` — остаётся. `TooManyFunctions` у Coord — исчезает вместе с файлом.
 3. `OrdersScrollableContent` / `OrdersPairTrading` — `LongMethod` / `CyclomaticComplexMethod` `@Suppress` уже есть (Н94). Не снимаются в PR-4b.
 
 **Файлы:** 6 UI + 4 sub-VM + `OrderFormMediator.kt` + `OrderFormViewModel.kt` (rewrite) + `OrderFormState.kt` (delete) + `OrderFormViewModelTest.kt` (rewrite).
