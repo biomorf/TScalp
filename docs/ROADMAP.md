@@ -567,16 +567,56 @@ UI (переписать, C2):
 
 **Фазы PR-4 (Mediator, 8 фаз):**
 
-- **0** (30 мин). Скелеты: 4 sub-VM (empty state + DI), `OrderFormMediator` (`@ActivityRetainedScoped`).
-  **2c-fixation (scope):** `@ViewModelScoped` не работает — Hilt даёт свой инстанс на каждую VM, shared state между sibling-VM невозможен. `@ActivityRetainedScoped` — single-Activity приложение, один инстанс, state живёт до Activity, другие экраны Mediator не инжектят (нет утечки).
-- **1** (2 ч). `OrderInstrumentViewModel` (~9 fun) + 6–8 тестов.
-- **2** (1.5 ч). `OrderInputViewModel` (~6 fun) + 4–5 тестов.
-- **3** (1.5 ч). `OrderExecutionViewModel` (~8 fun) + 8–10 тестов.
-- **4** (2 ч). `OrderFormMediator` — **save-only**: `updatePrimitives(...)` от UI + `Channel(CONFLATED)` + `debounce(500)` + `saveFormStateUseCase.execute(snapshot)`. Recalc/sync — **не здесь** (Phase 5). Инжектит `@ApplicationScope CoroutineScope` (уже в `DispatcherModule`); одна корутина на app. M4/M7 (snapshot внутри) — **pre-existing**, отдельная задача (см. «C2: SaveFormStateUseCase primitives»).
-- **5** (1.5 ч). UI rewrite 6 файлов (`formState.X` → `subState.X`). **Recalc orchestration**: UI на action вызывает `inputVM.x` → `tradeDetailsVM.update(instrumentVM.state, inputVM.state)` → `mediator.updatePrimitives(...)`. Cross-VM = 0 (UI оркестрирует). 2c-fixation в KDoc UI (M4-подобное: UI = дирижёр, осознанно). UI-санкция подтверждена (Q-P4a, 2026-11-14).
-- **6** (1 ч). Coord → lifecycle (`OrderFormViewModel` = 2 fun).
-- **7** (1 ч). Удалить `OrderFormState.kt`, `@Suppress` removal, `OrderFormViewModelTest` реструктуризация, `docs/architecture.md` обновить.
-- **8** (1 ч). Roborazzi diff = 0; live-test 7 сценариев (Android 14); Extended behavioural (20 тестов).
+- **0** ✅ merged (PR #155, `5cd05198`). 4 sub-VM skeletons + `OrderFormMediator` (`@ActivityRetainedScoped`, 2c scope fixation) + `OrderFormSharedState` + docs `@ViewModelScoped` → `@ActivityRetainedScoped`.
+- **1** ✅ merged (PR #155, `604c92c5`). `OrderInstrumentViewModel` full — 9 fun, 8 тестов.
+- **2** ✅ merged (PR #155, `c632c52e`). `OrderInputViewModel` full — 6 fun, 8 тестов.
+- **3** ✅ merged (PR #155, `4bb6a979`). `OrderExecutionViewModel` full — 9 fun (`Channel<StatusEvent>`), 9 тестов.
+- **4** ✅ merged (PR #155, `2211647a`). `OrderFormMediator` save-only: `updatePrimitives` + `Channel(CONFLATED)` + `debounce(500)` + `@Singleton CoroutineScope` (`di/AppScopeModule.kt`), 3 теста.
+- **4.5** ✅ merged (PR #155, `fb7c4fea`). `OrderMediatorViewModel` — HiltViewModel wrapper над Mediator (UI-facing), additive.
+
+**PR-4b (Phase 5–8) — план для отдельной сессии. Ветка `feature/orderform-split-c2-p4b` от `dev`.**
+
+**Session state (для следующей сессии):**
+- В `dev`: 4 sub-VM + Mediator + OrderMediatorViewModel (28 тестов PASSED). Старый `OrderFormViewModel` (Coord, 27 fun, `@Suppress`) **активен**, UI не тронут — поведение 1:1.
+- UI-санкция **подтверждена** (Q-P4a, 2026-11-14). Эмулятор Android 14 (API 34). Roborazzi baseline 8 PNG в `app/src/test/screenshots/`.
+- `AGENTS.md` / `AGENTS-LESSONS.md` прочитать.
+
+**Phase 5 — UI rewrite (6 файлов) + `toPlaceOrderRequest` для sub-state (~2.5–3 ч):**
+
+- **5a** ✅ merged (PR #155, `fb7c4fea`).
+- **5b.** `OrdersScrollableState`: `formState: OrderFormState` → 4 поля (`instrumentState`, `inputState`, `tradeDetailsState`, `executionState`). `OrdersScrollableCallbacks` — 22 callbacks без изменений.
+- **5c.** `OrdersScrollableContent` — читает `state.subState.X` вместо `state.formState.X` (7 мест: costOverlay, limitPrice, orderType, quantity, quantityAsLong, selectedInstrument, stopPrice).
+- **5d.** `OrdersPairTrading` (7 `formState.X` → subState), `OrdersSearch` (4), `OrdersConfirmDialog` (11).
+- **5e.** `OrdersDialogsSection`: `formViewModel: OrderFormViewModel` → `instrumentViewModel: OrderInstrumentViewModel` (`onAccountSaved` / `onPairedAccountSaved`).
+- **5f.** `OrdersScreen.kt` — 4 sub-VM + `OrderMediatorViewModel` (всего 7 VM вместо 4). **Orchestration на каждое action** (22 блока): `inputVM.x(...)` → `tradeDetailsVM.updateTradeDetails(instrumentVM.state.value, inputVM.state.value)` → `mediatorVM.updatePrimitives(...)`. `onConfirmOrder` — `executionVM.onConfirmOrder(request)` где `request = toPlaceOrderRequest(instrumentVM.state.value, inputVM.state.value)`. `formState.freeBalance` → `tradeDetailsVM.state.value.freeBalance` (**открытый вопрос 1**). `formState.isFormValid(coord.isApiInitialized)` → `isFormValid(instrumentVM.state.value, inputVM.state.value, coord.isApiInitialized)`. `formViewModel.status` → `executionVM.status`. `OrdersScreen` станет ~350 строк (`@Suppress("LongMethod")` остаётся — **открытый вопрос 2**).
+- **5g.** Новый `toPlaceOrderRequest(instrumentState, inputState): PlaceOrderRequest?` в `presentation/util/OrderPlaceRequestMapper.kt`. Текущий `OrderFormState.toPlaceOrderRequest` — удаляется в Phase 7. `OrderPlaceRequestMapperTest` — 4 кейса.
+- **5h.** Гейт + Roborazzi diff = 0.
+
+**Phase 6 — Coord → удаление (~1 ч):**
+
+- `OrderFormViewModel.kt` **удаляется полностью**. Не 2 fun, а 0.
+- `restoreOrderForm` → UI-orchestration: `LaunchedEffect(Unit) { restoreUseCase.execute() }` в `OrdersScreen`, результат раскладывается по 4 sub-VM через `fun restore(state: RestoredFormState)` в каждом.
+- `onCleared { clearInterest(ORDERS) }` → `OrderInstrumentViewModel.onCleared`.
+- Остальные private-методы уже в sub-VM/usecase (Phase 1–4).
+- **Итого:** Coord = 0 fun, `@Suppress` исчезает вместе с файлом.
+
+**Phase 7 — remove `OrderFormState` + тесты (~1 ч):**
+
+- Удалить `OrderFormState.kt`, `OrderFormViewModel.kt`, `OrderFormViewModelTest.kt` (11 тестов), `OrderFormStateMapper.kt`.
+- `OrderFormValidation.kt` — остаётся.
+- **Маппинг 11 тестов:** `onInstrumentSelected` ×3, `onPairedInstrumentSelected` ×1, `onAccountSaved` ×1, `onPairedAccountSaved` ×1, `clearSelectedInstrument` ×1, `clearPairedInstrument` ×1 — уже покрыты в `OrderInstrumentViewModelTest`. `restoreOrderForm` ×2 — новые `restore(state)` кейсы. `postOrder success` ×1 — покрыт в `OrderExecutionViewModelTest`. **0 новых тестов.**
+- `OrderFormStateMapper.kt` — `toPlaceOrderRequest(OrderFormState)` удаляется (заменён в Phase 5g).
+
+**Phase 8 — docs + Roborazzi + live-test (~1 ч):**
+
+- `docs/architecture.md` → «Data flow: заявки»: Coord удалён, 4 sub-state, UI-orchestration.
+- Roborazzi diff = 0 на 8 baseline. Extended OrdersScreenBehaviourTest — 20 тестов повторно.
+- **Live-test 7 сценариев (Android 14):** instrument select primary/pair, quantity/limit/stop/orderType, confirm buy, confirm sell, success snackbar, restore after restart, pair trade.
+
+**Открытые вопросы (2d — решить при старте PR-4b):**
+1. `freeBalance` — Phase 3 `handlePostOrderSuccess` не пишет `freeBalance` в TradeDetails state. В PR-4b: `ExecutionVM` пишет через `mediator` / `OnOrderSuccessUseCase`, или UI-оркестрация через `onOrderSuccess` callback.
+2. `OrdersScreen` ~350 строк с `@Suppress("LongMethod")` — остаётся. `TooManyFunctions` у Coord — исчезает вместе с файлом.
+3. `OrdersScrollableContent` / `OrdersPairTrading` — `LongMethod` / `CyclomaticComplexMethod` `@Suppress` уже есть (Н94). Не снимаются в PR-4b.
 
 **Файлы:** 6 UI + 4 sub-VM + `OrderFormMediator.kt` + `OrderFormViewModel.kt` (rewrite) + `OrderFormState.kt` (delete) + `OrderFormViewModelTest.kt` (rewrite).
 
