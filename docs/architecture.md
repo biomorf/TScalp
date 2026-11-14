@@ -324,7 +324,7 @@ flowchart LR
 
 **Ключевые решения:**
 
-- **Mediator** (`@ViewModelScoped`, Hilt) — shared state holder: собирает `TradingStateSnapshot` из `OrderInstrumentState` + `OrderInputState`, вызывает `SaveFormStateUseCase` (debounce 500ms). Сигнализирует sub-VM о пересчёте (recalc/sync).
+- **Mediator** (`@ActivityRetainedScoped`, Hilt) — shared state holder: собирает `TradingStateSnapshot` из `OrderInstrumentState` + `OrderInputState`, вызывает `SaveFormStateUseCase` (debounce 500ms). Сигнализирует sub-VM о пересчёте (recalc/sync).
 - **4 sub-VM** — `OrderInstrument` (~9), `OrderInput` (~6), `OrderTradeDetails` (2, PR-1 done), `OrderExecution` (~8).
 - **`OrderFormViewModel`** — только lifecycle: `init restoreOrderForm` + `onCleared clearInterest(ORDERS)`. ≤ 11 fun → `@Suppress` снимается.
 - **UI** — читает sub-state напрямую, действия — в sub-VM. Медиатор UI не виден.

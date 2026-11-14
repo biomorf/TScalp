@@ -561,13 +561,14 @@ UI (переписать, C2):
 - **A. UI-orchestrator + Coord-service** (~8 ч). UI вызывает 3 метода на user-action (`inputVM.x` + `tradeDetailsVM.update(...)` + `coordVM.saveState(...)`). Cross-VM = 0. 2c fixation в KDoc UI. Race в `onConfirmOrder` нет (explicit). Coord — 4 fun. **Fallback, если Mediator окажется дорогим.**
 - **B. Cross-VM calls** (~7 ч). Input VM inject'ит TradeDetails VM + Coord VM. 2c violation в 3 VM (KDoc). **Не рекомендую** — хуже A по Clean.
 - **C. Reactive in Coord** (~10 ч). Race в `onConfirmOrder` (stale `pendingDirection`), flaky tests (debounce). **Не рекомендую.**
-- **D. Mediator Pattern** (~10–12 ч). Класс `OrderFormMediator` (`@ViewModelScoped`), sub-VM через Mediator. **Индустриальный стандарт 2025** (droidcon Berlin: «Breaking Up with Big ViewModels»). Clean, race нет, UI тонкий. **Рекомендация.**
+- **D. Mediator Pattern** (~10–12 ч). Класс `OrderFormMediator` (`@ActivityRetainedScoped`), sub-VM через Mediator. **Индустриальный стандарт 2025** (droidcon Berlin: «Breaking Up with Big ViewModels»). Clean, race нет, UI тонкий. **Рекомендация.**
 
 **Рекомендация: D (Mediator), fallback A.** Если Hilt scope + 8 фаз дороги — A (UI-orchestrator) даёт тот же результат по `@Suppress` и Clean, дешевле на ~2 ч.
 
 **Фазы PR-4 (Mediator, 8 фаз):**
 
-- **0** (30 мин). Скелеты: 4 sub-VM (empty state + DI), `OrderFormMediator` (`@ViewModelScoped`).
+- **0** (30 мин). Скелеты: 4 sub-VM (empty state + DI), `OrderFormMediator` (`@ActivityRetainedScoped`).
+  **2c-fixation (scope):** `@ViewModelScoped` не работает — Hilt даёт свой инстанс на каждую VM, shared state между sibling-VM невозможен. `@ActivityRetainedScoped` — single-Activity приложение, один инстанс, state живёт до Activity, другие экраны Mediator не инжектят (нет утечки).
 - **1** (2 ч). `OrderInstrumentViewModel` (~9 fun) + 6–8 тестов.
 - **2** (1.5 ч). `OrderInputViewModel` (~6 fun) + 4–5 тестов.
 - **3** (1.5 ч). `OrderExecutionViewModel` (~8 fun) + 8–10 тестов.
@@ -581,7 +582,7 @@ UI (переписать, C2):
 
 **Оценка:** ~10–12 ч (Mediator) / ~8 ч (A-fallback).
 
-**Риски:** Roborazzi diff ≠ 0; Hilt scope (`@ViewModelScoped` vs `@ActivityRetainedScoped` — открытый вопрос); live-test требует Android 14 (есть).
+**Риски:** Roborazzi diff ≠ 0; Hilt scope — решено (`@ActivityRetainedScoped`, 2c-fixation в фазе 0); live-test требует Android 14 (есть).
 
 **Критерий готовности:** Coord ≤ 11 fun (или исчез); 4 sub-VM ≤ 11 fun; `OrderFormState.kt` удалён; `@Suppress` снят; UI читает sub-state; Roborazzi diff = 0; live-test PASS; Extended behavioural PASS.
 
