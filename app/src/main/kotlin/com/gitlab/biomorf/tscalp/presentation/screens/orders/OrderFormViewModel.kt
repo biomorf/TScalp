@@ -533,8 +533,8 @@ class OrderFormViewModel
                     pairedMultiplier = state.pairedMultiplier.toLongOrNull(),
                     pairCurrentPrice = state.pairCurrentPrice,
                 )
-            val costOverlay = formatCostOverlay(details, state)
-            val multiplierOverlay = formatMultiplierOverlay(details, state)
+            val costOverlay = formatCostOverlay(details, state.selectedInstrument)
+            val multiplierOverlay = formatMultiplierOverlay(details, state.pairedInstrument)
             _state.update {
                 it.copy(
                     executionPrice = details.executionPrice,
