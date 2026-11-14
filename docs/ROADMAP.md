@@ -485,6 +485,11 @@ UI (переписать, C2):
   - PR-3 (#154) — refactor на usecases (2d closed) ✅, Coord 27 fun (без изменения)
   - PR-4 — big-bang: 4 sub-VM + Mediator + Coord lifecycle + UI rewrite + `@Suppress` removal (см. «PR-4 (big-bang) — план для отдельной сессии»)
 
+- 26–33 новых тестов + 10 старых переехали в sub-VM.
+- Roborazzi diff = 0 на 8 baseline; property-тесты зелёные; Extended OrdersScreenBehaviourTest 5–7 сценариев зелёные.
+- Live-тест 7 сценариев PASS.
+- Гейт зелёный.
+
 **PR-4 (big-bang) — план для отдельной сессии.**
 
 Контекст: PR-1 (#150) — states + TradeDetails VM. PR-2 (#151) — usecases. PR-3 (#154) — 2d closed, VM делегирует в usecases. Coord 27 fun, `@Suppress` остаётся. PR-4 = реальный C2: 4 sub-VM + Coord → lifecycle + UI rewrite + `@Suppress` removal.
@@ -524,11 +529,20 @@ UI (переписать, C2):
 
 **Стартовый чек-лист:** ветка `feature/orderform-split-c2-p4` от `dev`; эмулятор Android 14; UI-санкция подтверждена; Roborazzi baseline в `dev`; `AGENTS.md`/`AGENTS-LESSONS.md` прочитаны.
 
-**Проверка Clean (2c):** Mediator в `presentation/screens/orders/`. Sub-VM → Mediator (state), Mediator → domain (usecases). Dependency rule `presentation → domain`. **Соответствует.**
-- 26–33 новых тестов + 10 старых переехали в sub-VM.
-- Roborazzi diff = 0 на 8 baseline; property-тесты зелёные; Extended OrdersScreenBehaviourTest 5–7 сценариев зелёные.
-- Live-тест 7 сценариев PASS.
-- Гейт зелёный.
+**Соответствие 2e (Clean + MVVM + KMP):**
+
+- **Clean:**
+  - Dependency rule `presentation → domain` — Mediator → usecases (domain), sub-VM → Mediator (presentation→presentation).
+  - **Cyclic dependency sub-VM ↔ Mediator** — закрыто: Mediator **только держит state** (`StateFlow`), sub-VM подписаны. Mediator **не знает** про sub-VM (однонаправлено). Фаза 4: `MutableStateFlow<FormSharedState>`, sub-VM `combine(mediator.shared, ownState).map{...}`.
+  - **M4/M7 (Mediator собирает `TradingStateSnapshot` из sub-state)** — pre-existing, не устраняется (наследие `OrderFormViewModel.saveState` до PR-3). 2c: `TradingStateSnapshot` — простая domain-модель без платформы; альтернатива `BuildSnapshotUseCase` — лишняя обёртка. **`docs/clean-audit.md` → M018.**
+- **MVVM:**
+  - **M2 (orchestration в Mediator)** — 2c: thin orchestration (сборка snapshot + usecase). Не business-logic. Образец M006/M013. Cross-link M018.
+  - **M4/M7** — см. Clean выше.
+  - **M6 (signals через StateFlow)** — закрыто: recalc/sync через `Flow`/`Channel` (no replay). Не `StateFlow`. Фаза 4.
+  - **M3, M5** — ✅ (Hilt scope не платформа; 1 Mediator state + 4 sub-VM state — не дублирование).
+- **KMP:**
+  - Domain без platform — ✅ (`SaveFormState`/`SyncPriceInterest`, PR-2).
+  - Mediator/sub-VM — presentation, KMP не применим.
 
 **Оценка (C2 умбрелла):** ~17–21 ч (предзадачи ~4.5 + C2 ~12–16; Extended behavioural ~2–3 ч — в составе `### Hilt-test infra`, не здесь).
 
