@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
