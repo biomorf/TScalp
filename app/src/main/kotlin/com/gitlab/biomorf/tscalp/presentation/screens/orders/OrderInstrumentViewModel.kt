@@ -2,12 +2,14 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
@@ -45,6 +47,7 @@ class OrderInstrumentViewModel
         private val priceFlowManager: PriceFlowManager,
         @Suppress("unused") private val mediator: OrderFormMediator,
         private val logger: Logger,
+        private val restoreOrderFormUseCase: RestoreOrderFormUseCase,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderInstrumentState())
         val state: StateFlow<OrderInstrumentState> = _state.asStateFlow()
@@ -185,6 +188,31 @@ class OrderInstrumentViewModel
                 )
             }
             syncPriceInterest()
+        }
+
+        /**
+         * 2d (временное, Phase 5f-b-2a): вызов usecase для UI-оркестрации
+         * restore в `OrdersScreen`. UI: `LaunchedEffect { val r =
+         * instrumentVM.restoreFromUseCase(); if (r != null) {
+         * instrumentVM.restore(r); inputVM.restore(r); tradeDetailsVM.restore(...) } }`.
+         * До 5f-b-2b - dead code.
+         */
+        suspend fun restoreFromUseCase(): RestoredFormState? =
+            when (val result = restoreOrderFormUseCase.execute()) {
+                is AppResult.Success -> result.data
+                is AppResult.Failure -> {
+                    logger.e(
+                        TAG,
+                        "restoreOrderForm failed: ${result.error.message}",
+                        result.error.cause,
+                    )
+                    null
+                }
+            }
+
+        override fun onCleared() {
+            logger.d(TAG, "onCleared")
+            priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
         private fun updateInstrumentPrice(update: PriceUpdate) {

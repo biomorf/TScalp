@@ -6,9 +6,11 @@ import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
+import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
 import com.gitlab.biomorf.tscalp.domain.models.Share
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentResult
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
@@ -40,6 +42,7 @@ class OrderInstrumentViewModelTest {
     private val priceFlowManager = mockk<PriceFlowManager>(relaxed = true)
     private val mediator = mockk<OrderFormMediator>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
+    private val restoreOrderFormUseCase = mockk<RestoreOrderFormUseCase>(relaxed = true)
 
     private val sber =
         Share(
@@ -72,6 +75,7 @@ class OrderInstrumentViewModelTest {
             priceFlowManager,
             mediator,
             logger,
+            restoreOrderFormUseCase,
         )
     }
 
@@ -214,6 +218,7 @@ class OrderInstrumentViewModelTest {
                     priceFlowManager,
                     mediator,
                     logger,
+                    restoreOrderFormUseCase,
                 )
             vm.onInstrumentSelected(sber)
             advanceUntilIdle()
@@ -259,5 +264,33 @@ class OrderInstrumentViewModelTest {
             assertEquals("acc-2", s.pairedAccountId)
             assertEquals(1.0, s.currentPointValue ?: 0.0, 0.001)
             assertEquals(2.0, s.pairedPointValue ?: 0.0, 0.001)
+        }
+
+    @Test
+    fun `restoreFromUseCase success returns data`() =
+        runTest {
+            val restored =
+                RestoredFormState(
+                    quantity = 5L,
+                    orderType = OrderTypeSelection.Limit,
+                )
+            coEvery { restoreOrderFormUseCase.execute() } returns AppResult.Success(restored)
+
+            val vm = viewModel()
+            val r = vm.restoreFromUseCase()
+
+            assertEquals(restored, r)
+        }
+
+    @Test
+    fun `restoreFromUseCase failure returns null`() =
+        runTest {
+            coEvery { restoreOrderFormUseCase.execute() } returns
+                AppResult.Failure(AppError.Unknown("fail", null))
+
+            val vm = viewModel()
+            val r = vm.restoreFromUseCase()
+
+            assertNull(r)
         }
 }
