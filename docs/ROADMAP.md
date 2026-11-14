@@ -482,8 +482,8 @@ UI (переписать, C2):
 - **Последовательность PR:**
   - PR-1 (#150) — sub-states + TradeDetails VM ✅
   - PR-2 (#151) — SaveFormState + SyncPriceInterest usecases ✅
-  - PR-3 — refactor на usecases + reactive save (2d closed), Coord 27 fun (без изменения)
-  - PR-4 — big-bang (UI + 4 sub-VM + Coord minimize + `@Suppress` removal)
+  - PR-3 (#154) — refactor на usecases (2d closed) ✅, Coord 27 fun (без изменения)
+  - PR-4 — big-bang (UI + 4 sub-VM + Coord minimize + reactive save + `@Suppress` removal)
 - 26–33 новых тестов + 10 старых переехали в sub-VM.
 - Roborazzi diff = 0 на 8 baseline; property-тесты зелёные; Extended OrdersScreenBehaviourTest 5–7 сценариев зелёные.
 - Live-тест 7 сценариев PASS.
