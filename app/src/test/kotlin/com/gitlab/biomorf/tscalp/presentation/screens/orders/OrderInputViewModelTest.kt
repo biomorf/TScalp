@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -72,5 +73,23 @@ class OrderInputViewModelTest {
         val vm = viewModel()
         vm.onStopPriceChanged("2x0.0y5")
         assertEquals("20.05", vm.state.value.stopPrice)
+    }
+
+    @Test
+    fun `restore maps RestoredFormState to input fields`() {
+        val vm = viewModel()
+        vm.restore(
+            RestoredFormState(
+                quantity = 3L,
+                pairedMultiplier = 5L,
+                orderType = OrderTypeSelection.Limit,
+                pairTradingEnabled = true,
+            ),
+        )
+        val s = vm.state.value
+        assertEquals("3", s.quantity)
+        assertEquals("5", s.pairedMultiplier)
+        assertEquals(OrderTypeSelection.Limit, s.orderType)
+        assertEquals(true, s.pairTradingEnabled)
     }
 }

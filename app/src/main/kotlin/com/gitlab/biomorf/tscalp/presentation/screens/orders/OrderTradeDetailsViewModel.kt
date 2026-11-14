@@ -89,4 +89,18 @@ class OrderTradeDetailsViewModel
                 )
             }
         }
+
+        /**
+         * Восстановление trade-details после restore sub-VM (Phase 5f-b-1).
+         * Параметры - sub-state, не другой VM (2c: VM не читает `_state.value`
+         * других VM).
+         */
+        fun restore(
+            instrument: OrderInstrumentState,
+            input: OrderInputState,
+            execution: OrderExecutionState,
+        ) {
+            updateTradeDetails(instrument, input)
+            updatePairExecDetails(instrument, input, execution)
+        }
     }

@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.lifecycle.ViewModel
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +72,17 @@ class OrderInputViewModel
 
         fun onStopPriceChanged(price: String) {
             _state.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
+        }
+
+        fun restore(state: RestoredFormState) {
+            _state.update {
+                it.copy(
+                    quantity = state.quantity.toString(),
+                    pairedMultiplier = state.pairedMultiplier.toString(),
+                    orderType = state.orderType,
+                    pairTradingEnabled = state.pairTradingEnabled,
+                )
+            }
         }
 
         companion object {

@@ -5,9 +5,11 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.models.SelectedInstrumentInfo
 import com.gitlab.biomorf.tscalp.domain.models.Share
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentResult
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
@@ -229,5 +231,33 @@ class OrderInstrumentViewModelTest {
             advanceUntilIdle()
             val s2 = vm.state.value
             assertEquals(80.0, s2.pairCurrentPrice ?: 0.0, 0.001)
+        }
+
+    @Test
+    fun `restore maps RestoredFormState to instrument fields`() =
+        runTest {
+            val vm = viewModel()
+            vm.restore(
+                RestoredFormState(
+                    selectedCard = CardIdentity("uid-sber", BrokerName.TINVEST, "acc-1"),
+                    pairedCard = CardIdentity("uid-tmon", BrokerName.BCS, "acc-2"),
+                    selectedInstrument = sber,
+                    pairedInstrument = tmon,
+                    currentPointValue = 1.0,
+                    pairedPointValue = 2.0,
+                ),
+            )
+            advanceUntilIdle()
+
+            val s = vm.state.value
+            assertEquals(sber, s.selectedInstrument)
+            assertEquals("SBER", s.ticker)
+            assertEquals(BrokerName.TINVEST, s.selectedBroker)
+            assertEquals("acc-1", s.selectedAccountId)
+            assertEquals(tmon, s.pairedInstrument)
+            assertEquals(BrokerName.BCS, s.pairedBroker)
+            assertEquals("acc-2", s.pairedAccountId)
+            assertEquals(1.0, s.currentPointValue ?: 0.0, 0.001)
+            assertEquals(2.0, s.pairedPointValue ?: 0.0, 0.001)
         }
 }

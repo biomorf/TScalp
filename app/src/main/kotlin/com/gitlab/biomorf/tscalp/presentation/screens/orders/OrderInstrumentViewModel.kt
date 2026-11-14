@@ -8,6 +8,7 @@ import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SyncPriceInterestUseCase
@@ -167,6 +168,23 @@ class OrderInstrumentViewModel
                 "onPairedAccountSaved: slot=PAIR, uid=${s.pairedInstrument?.tscalpInstrumentId}, " +
                     "broker=${s.pairedBroker}, newAccountId=$newAccountId",
             )
+        }
+
+        fun restore(state: RestoredFormState) {
+            _state.update {
+                it.copy(
+                    selectedInstrument = state.selectedInstrument,
+                    ticker = state.selectedInstrument?.ticker ?: "",
+                    selectedBroker = state.selectedCard?.brokerName ?: BrokerName.TINVEST,
+                    selectedAccountId = state.selectedCard?.accountId,
+                    pairedInstrument = state.pairedInstrument,
+                    pairedBroker = state.pairedCard?.brokerName ?: BrokerName.TINVEST,
+                    pairedAccountId = state.pairedCard?.accountId,
+                    currentPointValue = state.currentPointValue,
+                    pairedPointValue = state.pairedPointValue,
+                )
+            }
+            syncPriceInterest()
         }
 
         private fun updateInstrumentPrice(update: PriceUpdate) {
