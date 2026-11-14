@@ -1016,6 +1016,76 @@ ___
 
 
 
+___
+
+
+
+### CI: JDK 17 → 25
+
+**Мобильная работа:** полное закрытие (правки `.yml` / `.kts` через proot; гейт на CI).
+
+**Статус:** запланировано. **Блокер для** `### Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944` (Unsafe-часть).
+
+**Контекст:** JDK 25 даёт флаг `--sun-misc-unsafe-memory-access=allow` (JEP 471), который подавляет warning `sun.misc.Unsafe::objectFieldOffset` от `kotlin-compiler-embeddable 2.1.0` (тянут ktlint / detekt Gradle-плагины). Без JDK 25 на CI флаг = `Unrecognized option` → daemon падает → нельзя снять Unsafe-warning (см. `### Build: suppress JVM warnings` → шаг 3, статус `blocked`). Локально у нас JDK 25.0.4 — warning виден только потому, что gate на desktop; на CI (JDK 17) warning не появляется, но и флаг не применить.
+
+**Соответствие Clean:** соответствует (организационный слой, 2b).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:**
+- Проверить AGP 9 / KSP / Hilt на JDK 25 (совместимость) — в отдельной ветке, `java-version: '17' → '25'` + прогон `gate`.
+- Проверить foojay-resolver (auto-provision JDK 17 toolchain для bytecode) — если toolchain остаётся 17, а daemon 25.
+
+**Файлы:**
+- `.github/workflows/ci.yml` — 4 × `setup-java@v5` (`java-version: '17'` → `'25'`).
+- `.github/workflows/release.yml` — 1 × `setup-java@v5` (`java-version: '17'` → `'25'`).
+- `app/build.gradle.kts` — `jvmToolchain(17)` — оставить 17 (bytecode); `compilerOptions.jvmTarget = JVM_17` — оставить. Daemon = 25 (для флага), bytecode = 17 (для runtime).
+- `gradle.properties` — `org.gradle.jvmargs` + `--sun-misc-unsafe-memory-access=allow` (после merge JDK 25).
+
+**Шаги:**
+1. Ветка `feature/ci-jdk-25`. Заменить `java-version: '17'` → `'25'` в 5 местах (4 × `ci.yml` + 1 × `release.yml`); имя шага `Set up JDK 17` → `Set up JDK 25` (5 мест).
+2. Если `setup-java@v5` не тянет 25 — проверить `distribution: 'temurin'` актуальность (25 LTS?); при необходимости — `'25-ea'` или `'25.0.x'`.
+3. PR → дождаться `gate` зелёный на JDK 25.
+4. После merge — снять Unsafe-warning: `gradle.properties` `org.gradle.jvmargs` + `--sun-misc-unsafe-memory-access=allow`; `grep -c 'sun.misc.Unsafe::objectFieldOffset'` в gate-логе = 0.
+5. Связать: `### Build: suppress JVM warnings` → шаг 3 ⏳ → ✅ (если #944 уже закрыт) / остаётся ⏳ (cron уведомит).
+
+**Тесты:** нет (CI-конфиг). Verify — `gate` зелёный на PR + после merge; Unsafe-warning = 0 в gate-логе.
+
+**Референсы:**
+- JEP 471 (`sun.misc.Unsafe` deprecation, JDK 23+).
+- `actions/setup-java@v5` (temurin distribution, версии JDK).
+- `gradle/actions/setup-gradle@v5` (если меняется JDK для toolchain).
+
+**Ограничения:**
+- Не менять `jvmToolchain(17)` / `jvmTarget(JVM_17)` — bytecode остаётся 17 (runtime на устройствах Android).
+- Не смешивать с `### Build: suppress JVM warnings` (CDS + cron уже done, эта задача — только JDK 25 upgrade).
+- `release.yml` — трогать осторожно (релизный pipeline); прогонять `release.yml` smoke — только после merge на `dev` через тестовый тег.
+- Если JDK 25 ломает AGP 9 / Hilt / KSP — откатить `java-version` на 17, задача → «blocked on AGP/Hilt», отдельная сессия.
+
+**Критерий готовности:**
+- `ci.yml` (4 места) + `release.yml` (1 место): `java-version: '25'`.
+- `gate` зелёный на PR (JDK 25).
+- `release.yml` smoke (тестовый тег) — собирает APK на JDK 25.
+- После merge: Unsafe-warning 0 в gate-логе (`org.gradle.jvmargs` + флаг); `### Build: suppress JVM warnings` → шаг 3 → ✅.
+
+**Оценка:** ~1–2 ч (риск AGP / KSP / Hilt совместимости с JDK 25 — может затянуться).
+
+**Зависимости:** нет (эта задача — самостоятельная; блокирует Unsafe-часть `### Build: suppress`). ktlint-gradle #944 — отдельный upstream-триггер, cron уведомит.
+
+**Связано:** `docs/ci-roadmap.md` → `### Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944` (шаг 3 Unsafe → ✅ после merge этой задачи); `docs/ci-roadmap.md` → `### Hot-swap CI на GitLab` (JDK 25 будет в self-hosted runner, при переносе).
+
+**Открытые вопросы:**
+- `setup-java@v5` + `temurin` + `java-version: '25'` — доступна ли 25 LTS через setup-java (или нужен `'25-ea'` / `'25.0.x'`)? Проверить при apply.
+- AGP 9 / KSP / Hilt на JDK 25 — есть ли известные несовместимости? Проверить в отдельной ветке (пункт 1 шагов).
+- `jvmToolchain(17)` при daemon 25: нужен ли foojay auto-provision для toolchain 17? Проверить (если нет — `jvmToolchain(25)` + `jvmTarget 17` всё равно работает для bytecode).
+
+
+
+
 ## Закрытые
 
 Вынесены в [`CI-ROADMAP-ARCHIVE.md`](CI-ROADMAP-ARCHIVE.md) (23 задачи).
