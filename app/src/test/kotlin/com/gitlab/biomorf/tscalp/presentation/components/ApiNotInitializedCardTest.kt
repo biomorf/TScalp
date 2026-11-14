@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.components
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import org.junit.Rule

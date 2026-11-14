@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.gitlab.biomorf.tscalp.di.RegistryModule
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
