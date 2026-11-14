@@ -102,6 +102,8 @@ partial-событий — в manager.
 
 #### `OrdersViewModel` split (4 VM)
 
+**Историческая справка (до C2).** Описание 4-VM структуры после split 13d. После C2 (Phase 3.1–7.2): Coord `OrderFormViewModel` удалён, 4 sub-VM + Mediator + UI-orchestration (`OrdersScreen` 4 `LaunchedEffect`). Таблица и диаграмма ниже — состояние **до C2**; актуальное — «Data flow: заявки» и «C2 target» ниже.
+
 После 13d (split `OrdersViewModel`) — 4 VM:
 
 | VM | State | Use cases / domain API | Lifecycle |
@@ -207,7 +209,7 @@ presentation → domain ← data
 
 ```mermaid
 flowchart LR
-    FVM["OrderFormViewModel<br/>presentation"]
+    EVM["OrderExecutionViewModel<br/>presentation"]
     PO["PostOrderUseCase<br/>domain"]
     PR["PrepareOrderRequestUseCase<br/>domain"]
     PRM["PairOrderMapper<br/>domain"]
@@ -215,17 +217,17 @@ flowchart LR
     PRR["PrepareResult<br/>sealed: Prepared / Invalid"]
     OREP["OrdersRepository<br/>data"]
 
-    FVM -->|"execute(input)"| PO
+    EVM -->|"execute(input)"| PO
     PO -->|"prepare(...)"| PR
     PR -.->|"uses"| PRM
     PR -->|"returns"| PRR
     PRR -.->|"Prepared.primary / .paired"| OR
     PO -->|"postPrimary / postPaired"| OREP
     OREP -->|"AppResult"| PO
-    PO -->|"PostOrderOutcome"| FVM
+    PO -->|"PostOrderOutcome"| EVM
 ```
 
-Подпись: `OrderFormViewModel` вызывает `PostOrderUseCase`, который внутри
+Подпись: `OrderExecutionViewModel` вызывает `PostOrderUseCase`, который внутри
 разделяет «проверка» (checkAvailability), «подготовка» (prepare →
 PrepareResult) и «отправка» (postPrimary / postPaired по sealed OrderRequest).
 `PrepareResult.Invalid` — единственная точка валидации до API.
@@ -238,7 +240,7 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
   `postStopOrderResult(StopOrderRequest)`. Адаптер — в `PostOrderUseCase`
   (`when (OrderRequest) { is Broker -> ...; is Stop -> ... }`).
 - **`presentation`** — `PostOrderOutcome` (Success / InsufficientFunds /
-  Error / InvalidRequest); сообщения и форматирование — в `OrderFormViewModel`.
+  Error / InvalidRequest); сообщения и форматирование — в `OrderExecutionViewModel`.
 
 ### Atomicity парной сделки
 
@@ -252,26 +254,23 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
 Валидация рассредоточена по трём слоям, с чётким разделением ролей.
 
 **Presentation — нормализация ввода (TextField):**
-- `OrderFormViewModel` мутаторы: `quantity.filter { it.isDigit() }`, `limitPrice`/`stopPrice.filter { it.isDigit() || it == '.' }`.
+- `OrderInputViewModel` мутаторы: `onQuantityChanged` (digit), `onLimitPriceChanged` / `onStopPriceChanged` (digit + `.`).
 - Presentation-обязанность: не пустить в state символы, которые TextField не должен принимать. Не бизнес-правило.
 
 **Presentation — UI-фидбэк (disabled кнопки):**
-- `OrderFormValidation.kt` (PR-1): `isFormValid(instrument, input, isApiInitialized)` → `isBasicValid` + `isLimitPriceValid` + `isStopPriceValid` + `isPairValid`.
+- `OrderFormValidation.kt`: `isFormValid(instrument, input, isApiInitialized)` → `isBasicValid` + `isLimitPriceValid` + `isStopPriceValid` + `isPairValid`.
 - Роль: **предварительная** проверка для UI (disabled кнопки «Купить»/«Продать»). Финальное решение — domain.
-- `OrderFormState.isFormValid` (строки 86–119) — **дубль** `OrderFormValidation.kt`. Удаляется в PR-4 (фаза 7) вместе с `OrderFormState.kt`.
 
 **Presentation — guard на границе presentation→domain:**
-- `OrderFormStateMapper.toPlaceOrderRequest()`: `instrument ?: return null`, `quantityAsLong ?: return null`, `pairedMultiplier.toLongOrNull() ?: return null`.
-- Роль: не отдавать в domain неполный `PlaceOrderRequest`. Null → `PostOrderOutcome.InvalidRequest` / no-op.
+- `OrderPlaceRequestMapper.toPlaceRequest(instrumentState, inputState)`: `selectedInstrument ?: return null`, `quantityAsLong ?: return null`, `pairedMultiplier.toLongOrNull() ?: return null`.
+- Роль: не отдавать в domain неполный `PlaceOrderRequest`. Null → `PostOrderOutcome.InvalidRequest` / no-op. UI передаёт `toPlaceRequest(instrVM.state.value, inputVM.state.value)` в `execVM.onConfirmOrder(request)` / `onBuyClickDirect(request)` / `onSellClickDirect(request)` (см. `OrdersScreen`).
 
 **Domain — настоящая бизнес-валидация:**
 - `PrepareOrderRequestUseCase` → `PrepareResult.Invalid(reason)`: StopLoss/TakeProfit/StopLimit без `stopPrice` → `Step.Invalid`; парная stop-заявка без `stopPrice` → `Invalid`.
 - `PostOrderUseCase.checkAvailability` → `TradeCheckResult.Error` / `InsufficientFunds`.
 - Роль: **окончательное** решение.
 
-**Что НЕ переезжает в PR-4:** нормализация — в `OrderInputViewModel`; `isFormValid` — pure extension (уже в PR-1); `toPlaceOrderRequest()` — по месту; `PrepareOrderRequestUseCase` / `PostOrderUseCase` — не трогаются.
-
-**Связанные:** `docs/clean-audit.md` → M017, M013, M018. PR-4 план — `docs/ROADMAP.md` → «PR-4 (big-bang) — план для отдельной сессии».
+**Связанные:** `docs/clean-audit.md` → M017, M013, M018. C2 выполнен: `OrderFormViewModel` удалён в Phase 6.1, `OrderFormState` / `OrderFormStateMapper` — в Phase 7.1.
 
 ### Связанные документы
 
@@ -281,7 +280,7 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
 
 ## C2 target: FormMediator + 4 sub-VM
 
-**Целевая** архитектура экрана «Заявки» после C2 (PR-4). Текущее (после PR-3): `OrderFormViewModel` (27 fun, `@Suppress`). Цель — 4 sub-VM + Mediator.
+**Реализованная** архитектура экрана «Заявки» после C2 (PR-4a + PR-4b, Phase 3.1–7.2, merged в feature/orderform-split-c2-p4b). Coord `OrderFormViewModel` удалён (Phase 6.1); 4 sub-VM + Mediator; UI-orchestration в `OrdersScreen` (4 `LaunchedEffect`: checkApiInit / restore / reactive recalc / reactive save).
 
 **Индустриальный контекст (2025):** Mediator Pattern для split big ViewModel — droidcon Berlin 2025 («Breaking Up with Big ViewModels — Without Breaking Your Architecture», Staff Engineer Perry Street Software), StackOverflow «Clean way to share data between viewModels». Screen-scoped Mediator держит shared state, sub-VM реактивно читают/пишут через него.
 
@@ -291,12 +290,11 @@ flowchart LR
         U[Composables]
     end
     subgraph PRES[presentation/screens/orders/]
-        M[OrderFormMediator<br/>ViewModelScoped]
+        M[OrderFormMediator<br/>ActivityRetainedScoped]
         IVM[OrderInstrumentViewModel<br/>~9 fun]
         INVM[OrderInputViewModel<br/>~6 fun]
         TVM[OrderTradeDetailsViewModel<br/>2 fun - PR-1 done]
         EVM[OrderExecutionViewModel<br/>~8 fun]
-        C[OrderFormViewModel<br/>lifecycle: 2 fun]
     end
     subgraph DOM[domain]
         UC[SaveFormStateUseCase<br/>SyncPriceInterestUseCase<br/>PlaceOrderUseCase<br/>Calculate UseCases]
@@ -318,7 +316,6 @@ flowchart LR
     EVM -.->|update| M
     M -->|save snapshot| UC
     M -->|sync interest| UC
-    C -->|init/onCleared| FPM
     UC --> TSR
 ```
 
@@ -326,7 +323,7 @@ flowchart LR
 
 - **Mediator** (`@ActivityRetainedScoped`, Hilt) — shared state holder: собирает `TradingStateSnapshot` из `OrderInstrumentState` + `OrderInputState`, вызывает `SaveFormStateUseCase` (debounce 500ms). Сигнализирует sub-VM о пересчёте (recalc/sync).
 - **4 sub-VM** — `OrderInstrument` (~9), `OrderInput` (~6), `OrderTradeDetails` (2, PR-1 done), `OrderExecution` (~8).
-- **`OrderFormViewModel`** — только lifecycle: `init restoreOrderForm` + `onCleared clearInterest(ORDERS)`. ≤ 11 fun → `@Suppress` снимается.
+- **Coord `OrderFormViewModel`** удалён в Phase 6.1: `restoreOrderForm` → UI `LaunchedEffect` (`OrderInstrumentViewModel.restoreFromUseCase`), `clearInterest(ORDERS)` → `OrderInstrumentViewModel.onCleared` (Phase 5f-b-2a). `@Suppress` исчез вместе с файлом.
 - **UI** — читает sub-state напрямую, действия — в sub-VM. Медиатор UI не виден.
 - **Cross-VM** — 0. Всё через Mediator (state) + domain (usecases, managers).
 

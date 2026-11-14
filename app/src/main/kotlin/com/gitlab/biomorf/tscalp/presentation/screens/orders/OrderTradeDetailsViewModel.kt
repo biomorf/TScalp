@@ -17,14 +17,14 @@ import javax.inject.Inject
  * ViewModel trade-details (executionPrice / costOverlay / multiplierOverlay /
  * pairExecPrice / pairedOrderType) — часть split Form-VM (C2).
  *
- * Вынесено из `OrderFormViewModel` (13d-A → C2). Семантика 1:1 с
- * `updateTradeDetails` / `updatePairExecDetails` в [OrderFormViewModel].
+ * Вынесено из `OrderFormViewModel` (13d-A → C2, Coord удалён в Phase 6.1).
+ * Семантика 1:1 с legacy `updateTradeDetails` / `updatePairExecDetails`.
  *
  * **2c (fixation, C2):** публичные методы принимают явные параметры
  * (sub-state) — VM не читает `_state.value` других VM. `executionPrice`
  * для `updatePairExecDetails` берётся из **своего** state (SSoT:
  * единственный результат `calculateTradeDetails`). `freeBalance` —
- * в `OrderExecutionState` (`OrderExecutionViewModel`, PR-3);
+ * в `OrderExecutionState` (`OrderExecutionViewModel`, Phase 3.1);
  * в этом VM не хранится.
  */
 @HiltViewModel
@@ -88,5 +88,19 @@ class OrderTradeDetailsViewModel
                     pairedOrderType = result.pairedOrderType,
                 )
             }
+        }
+
+        /**
+         * Восстановление trade-details после restore sub-VM (Phase 5f-b-1).
+         * Параметры - sub-state, не другой VM (2c: VM не читает `_state.value`
+         * других VM).
+         */
+        fun restore(
+            instrument: OrderInstrumentState,
+            input: OrderInputState,
+            execution: OrderExecutionState,
+        ) {
+            updateTradeDetails(instrument, input)
+            updatePairExecDetails(instrument, input, execution)
         }
     }

@@ -3,7 +3,6 @@ package com.gitlab.biomorf.tscalp.presentation.util
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.element
 import io.kotest.property.arbitrary.orNull
@@ -46,8 +45,6 @@ class TradeDetailsFormatPropertyTest {
             isin = "RU0009029540",
         )
 
-    private val state = OrderFormState(selectedInstrument = safeInstrument)
-
     private fun edgeOrNull(): Arb<Double?> = Arb.element(edgeDoubles).orNull()
 
     @Test
@@ -61,7 +58,7 @@ class TradeDetailsFormatPropertyTest {
                         costCurrency = cc,
                         costDomesticCurrency = cd,
                     )
-                formatCostOverlay(details, state.selectedInstrument)
+                formatCostOverlay(details, safeInstrument)
             }
         }
     }
@@ -77,7 +74,7 @@ class TradeDetailsFormatPropertyTest {
                         costCurrency = cc,
                         costDomesticCurrency = cd,
                     )
-                val result = formatCostOverlay(details, state.selectedInstrument)
+                val result = formatCostOverlay(details, safeInstrument)
                 val expectedNonNull = (cp != null && cd != null) || cc != null
                 if (expectedNonNull) {
                     assertTrue("expected non-null, got null", result != null)
@@ -99,7 +96,7 @@ class TradeDetailsFormatPropertyTest {
                         multiplierCurrency = mc,
                         multiplierDomesticCurrency = md,
                     )
-                val result = formatMultiplierOverlay(details, state.pairedInstrument)
+                val result = formatMultiplierOverlay(details, safeInstrument)
                 val expectedNonNull = (mp != null && md != null) || mc != null
                 if (expectedNonNull) {
                     assertTrue("expected non-null, got null", result != null)
@@ -121,7 +118,7 @@ class TradeDetailsFormatPropertyTest {
                         costCurrency = cc,
                         costDomesticCurrency = cd,
                     )
-                val result = formatCostOverlay(details, state.selectedInstrument)
+                val result = formatCostOverlay(details, safeInstrument)
                 if (result != null) {
                     assertTrue("expected non-empty, got '$result'", result.isNotEmpty())
                 }

@@ -4,12 +4,13 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.StopOrderExpirationType
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
+import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderInputState
+import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderInstrumentState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class OrderFormStateMapperTest {
+class OrderPlaceRequestMapperTest {
     private val sber =
         Share(
             brokerName = BrokerName.TINVEST,
@@ -21,24 +22,25 @@ class OrderFormStateMapperTest {
 
     @Test
     fun `success maps all fields`() {
-        val state =
-            OrderFormState(
-                ticker = "SBER",
+        val instrument =
+            OrderInstrumentState(
                 selectedInstrument = sber,
+                selectedAccountId = "acc-1",
+                pairedInstrument = sber,
+                pairedAccountId = "acc-2",
+            )
+        val input =
+            OrderInputState(
                 quantity = "3",
                 orderType = OrderTypeSelection.Limit,
                 limitPrice = "150.5",
                 stopPrice = "0",
                 expirationType = StopOrderExpirationType.GOOD_TILL_DATE,
-                selectedAccountId = "acc-1",
-                pairedInstrument = sber,
-                pairedAccountId = "acc-2",
                 pairedMultiplier = "2",
             )
 
-        val r = state.toPlaceOrderRequest()!!
+        val r = toPlaceRequest(instrument, input)!!
 
-        assertEquals("SBER", r.instrument.ticker)
         assertEquals("uid-sber", r.instrument.tscalpInstrumentId)
         assertEquals("acc-1", r.selectedAccountId)
         assertEquals("acc-2", r.pairedAccountId)
@@ -48,46 +50,30 @@ class OrderFormStateMapperTest {
         assertEquals("0", r.stopPrice)
         assertEquals(StopOrderExpirationType.GOOD_TILL_DATE, r.expirationType)
         assertEquals("uid-sber", r.pairedInstrument?.tscalpInstrumentId)
-        assertEquals("SBER", r.pairedInstrument?.ticker)
         assertEquals(2L, r.pairedMultiplier)
     }
 
     @Test
-    fun `ticker in state is ignored, instrument from selectedInstrument`() {
-        val state =
-            OrderFormState(
-                ticker = "IGNORED",
-                selectedInstrument = sber,
-                quantity = "1",
-            )
+    fun `null selectedInstrument returns null`() {
+        val instrument = OrderInstrumentState(selectedInstrument = null)
+        val input = OrderInputState(quantity = "1")
 
-        val r = state.toPlaceOrderRequest()!!
-
-        assertEquals("SBER", r.instrument.ticker)
-        assertEquals("uid-sber", r.instrument.tscalpInstrumentId)
+        assertNull(toPlaceRequest(instrument, input))
     }
 
     @Test
     fun `null quantity returns null`() {
-        val state =
-            OrderFormState(
-                ticker = "SBER",
-                selectedInstrument = sber,
-                quantity = "",
-            )
+        val instrument = OrderInstrumentState(selectedInstrument = sber)
+        val input = OrderInputState(quantity = "")
 
-        assertNull(state.toPlaceOrderRequest())
+        assertNull(toPlaceRequest(instrument, input))
     }
 
     @Test
-    fun `null selectedInstrument returns null`() {
-        val state =
-            OrderFormState(
-                ticker = "SBER",
-                selectedInstrument = null,
-                quantity = "1",
-            )
+    fun `null pairedMultiplier returns null`() {
+        val instrument = OrderInstrumentState(selectedInstrument = sber)
+        val input = OrderInputState(quantity = "1", pairedMultiplier = "")
 
-        assertNull(state.toPlaceOrderRequest())
+        assertNull(toPlaceRequest(instrument, input))
     }
 }

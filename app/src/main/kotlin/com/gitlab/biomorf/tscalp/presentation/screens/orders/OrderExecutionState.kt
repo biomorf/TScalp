@@ -15,4 +15,5 @@ data class OrderExecutionState(
     val pendingDirection: OrderDirection? = null,
     val confirmOrdersEnabled: Boolean = true,
     val isLoading: Boolean = false,
+    val freeBalance: Double? = null,
 )

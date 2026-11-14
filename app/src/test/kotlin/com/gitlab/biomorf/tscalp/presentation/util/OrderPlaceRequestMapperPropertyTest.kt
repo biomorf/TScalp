@@ -2,7 +2,8 @@ package com.gitlab.biomorf.tscalp.presentation.util
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Share
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
+import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderInputState
+import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderInstrumentState
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.boolean
 import io.kotest.property.arbitrary.long
@@ -14,14 +15,15 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Property-based tests for [toPlaceOrderRequest] (kotest-property).
+ * Property-based tests for [toPlaceRequest] (kotest-property).
+ * Successor of the removed `OrderFormStateMapperPropertyTest` (Phase 7.1).
  *
  * Invariants:
- * - null in any guard (`selectedInstrument` / `quantityAsLong`) -> null result.
+ * - null in any guard (selectedInstrument / quantityAsLong) -> null result.
  * - both guards valid -> non-null result with quantity preserved and
  *   instrument identity preserved.
  */
-class OrderFormStateMapperPropertyTest {
+class OrderPlaceRequestMapperPropertyTest {
     private val sber =
         Share(
             brokerName = BrokerName.TINVEST,
@@ -36,12 +38,15 @@ class OrderFormStateMapperPropertyTest {
         runBlocking {
             checkAll(Arb.boolean(), Arb.boolean()) { noInstrument, noQuantity ->
                 if (!noInstrument && !noQuantity) return@checkAll
-                val state =
-                    OrderFormState(
+                val instrument =
+                    OrderInstrumentState(
                         selectedInstrument = if (noInstrument) null else sber,
+                    )
+                val input =
+                    OrderInputState(
                         quantity = if (noQuantity) "" else "3",
                     )
-                assertNull(state.toPlaceOrderRequest())
+                assertNull(toPlaceRequest(instrument, input))
             }
         }
     }
@@ -50,12 +55,9 @@ class OrderFormStateMapperPropertyTest {
     fun `property 2 - valid instrument and positive quantity yields non-null with same quantity`() {
         runBlocking {
             checkAll(Arb.long(1L, 1_000_000L)) { qty ->
-                val state =
-                    OrderFormState(
-                        selectedInstrument = sber,
-                        quantity = qty.toString(),
-                    )
-                val result = state.toPlaceOrderRequest()
+                val instrument = OrderInstrumentState(selectedInstrument = sber)
+                val input = OrderInputState(quantity = qty.toString())
+                val result = toPlaceRequest(instrument, input)
                 assertNotNull(result)
                 assertEquals(qty, result!!.quantity)
                 assertEquals(sber.tscalpInstrumentId, result.instrument.tscalpInstrumentId)

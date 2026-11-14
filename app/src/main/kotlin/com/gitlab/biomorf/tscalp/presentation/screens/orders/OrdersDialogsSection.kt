@@ -21,7 +21,7 @@ import com.gitlab.biomorf.tscalp.presentation.components.OrdersListDialog
 internal fun OrdersDialogsSection(
     dialogsViewModel: OrderDialogsViewModel,
     searchViewModel: OrderSearchViewModel,
-    formViewModel: OrderFormViewModel,
+    instrumentViewModel: OrderInstrumentViewModel,
     dialogsState: OrderDialogsState,
     searchState: OrderSearchState,
     showOrdersListDialog: Boolean,
@@ -36,8 +36,8 @@ internal fun OrdersDialogsSection(
         onSave = {
             dialogsViewModel.saveBrokerSettings { slot, newAccountId ->
                 when (slot) {
-                    CardSlot.PRIMARY -> formViewModel.onAccountSaved(newAccountId)
-                    CardSlot.PAIR -> formViewModel.onPairedAccountSaved(newAccountId)
+                    CardSlot.PRIMARY -> instrumentViewModel.onAccountSaved(newAccountId)
+                    CardSlot.PAIR -> instrumentViewModel.onPairedAccountSaved(newAccountId)
                 }
             }
         },

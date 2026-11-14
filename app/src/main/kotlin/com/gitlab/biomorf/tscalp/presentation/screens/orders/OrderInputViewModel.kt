@@ -2,6 +2,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.lifecycle.ViewModel
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,11 +17,11 @@ import javax.inject.Inject
  * orderType (с очисткой limitPrice при Market), pairTradingEnabled, quantity,
  * pairedMultiplier.
  *
- * **2d-fixation (Phase 2):** `saveFormState`, `syncPriceInterest`, `recalc`
- * (updateTradeDetails/updatePairExecDetails) при input-событиях **не
- * вызываются** — перенесены в Phase 4 через `OrderFormMediator`. Поведение
- * для пользователя не регрессирует: старый `OrderFormViewModel` (Coord)
- * работает параллельно до Phase 5 (UI rewrite).
+ * **2d-fixation (Phase 2 → closed Phase 5f-b-2b):** `saveFormState`,
+ * `syncPriceInterest`, `recalc` (updateTradeDetails/updatePairExecDetails)
+ * при input-событиях **не вызываются** напрямую — выполняются в
+ * UI-orchestration (`OrdersScreen` LaunchedEffect) через
+ * `OrderFormMediator` + `OrderTradeDetailsViewModel`.
  *
  * **Особенность `setPairTradingEnabled(false)`:** в Phase 2 очищает только
  * Input-поля (`pairTradingEnabled`, `pairedMultiplier`). `pairedInstrument` /
@@ -71,6 +72,17 @@ class OrderInputViewModel
 
         fun onStopPriceChanged(price: String) {
             _state.update { it.copy(stopPrice = price.filter { it.isDigit() || it == '.' }) }
+        }
+
+        fun restore(state: RestoredFormState) {
+            _state.update {
+                it.copy(
+                    quantity = state.quantity.toString(),
+                    pairedMultiplier = state.pairedMultiplier.toString(),
+                    orderType = state.orderType,
+                    pairTradingEnabled = state.pairTradingEnabled,
+                )
+            }
         }
 
         companion object {

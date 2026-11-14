@@ -2,12 +2,15 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SyncPriceInterestUseCase
@@ -25,11 +28,11 @@ import javax.inject.Inject
  * **Что делает:** выбор инструмента (primary/pair), обновление цены из
  * `priceFlowManager.prices`, sync price interest, изменение accountId.
  *
- * **2d-fixation (Phase 1):** `saveFormState` и `recalc` (updateTradeDetails)
- * при instrument-событиях **не вызываются** — перенесены в Phase 4 через
- * `OrderFormMediator` (reactive debounce + cross-state snapshot). Поведение
- * для пользователя не регрессирует: старый `OrderFormViewModel` (Coord)
- * работает параллельно до Phase 5 (UI rewrite).
+ * **2d-fixation (Phase 1 → closed Phase 5f-b-2b):** `saveFormState` и
+ * `recalc` (updateTradeDetails) при instrument-событиях **не вызываются**
+ * напрямую — выполняются в UI-orchestration (`OrdersScreen` LaunchedEffect)
+ * через `OrderFormMediator` (reactive debounce + cross-state snapshot) и
+ * `OrderTradeDetailsViewModel` (reactive recalc).
  *
  * **Phase 4 wiring:** `onInstrumentSelected` → `mediator.saveSnapshot()` +
  * `mediator.scheduleRecalc()`.
@@ -44,6 +47,7 @@ class OrderInstrumentViewModel
         private val priceFlowManager: PriceFlowManager,
         @Suppress("unused") private val mediator: OrderFormMediator,
         private val logger: Logger,
+        private val restoreOrderFormUseCase: RestoreOrderFormUseCase,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderInstrumentState())
         val state: StateFlow<OrderInstrumentState> = _state.asStateFlow()
@@ -167,6 +171,48 @@ class OrderInstrumentViewModel
                 "onPairedAccountSaved: slot=PAIR, uid=${s.pairedInstrument?.tscalpInstrumentId}, " +
                     "broker=${s.pairedBroker}, newAccountId=$newAccountId",
             )
+        }
+
+        fun restore(state: RestoredFormState) {
+            _state.update {
+                it.copy(
+                    selectedInstrument = state.selectedInstrument,
+                    ticker = state.selectedInstrument?.ticker ?: "",
+                    selectedBroker = state.selectedCard?.brokerName ?: BrokerName.TINVEST,
+                    selectedAccountId = state.selectedCard?.accountId,
+                    pairedInstrument = state.pairedInstrument,
+                    pairedBroker = state.pairedCard?.brokerName ?: BrokerName.TINVEST,
+                    pairedAccountId = state.pairedCard?.accountId,
+                    currentPointValue = state.currentPointValue,
+                    pairedPointValue = state.pairedPointValue,
+                )
+            }
+            syncPriceInterest()
+        }
+
+        /**
+         * 2d (временное, Phase 5f-b-2a): вызов usecase для UI-оркестрации
+         * restore в `OrdersScreen`. UI: `LaunchedEffect { val r =
+         * instrumentVM.restoreFromUseCase(); if (r != null) {
+         * instrumentVM.restore(r); inputVM.restore(r); tradeDetailsVM.restore(...) } }`.
+         * До 5f-b-2b - dead code.
+         */
+        suspend fun restoreFromUseCase(): RestoredFormState? =
+            when (val result = restoreOrderFormUseCase.execute()) {
+                is AppResult.Success -> result.data
+                is AppResult.Failure -> {
+                    logger.e(
+                        TAG,
+                        "restoreOrderForm failed: ${result.error.message}",
+                        result.error.cause,
+                    )
+                    null
+                }
+            }
+
+        override fun onCleared() {
+            logger.d(TAG, "onCleared")
+            priceFlowManager.clearInterest(PriceConsumer.ORDERS)
         }
 
         private fun updateInstrumentPrice(update: PriceUpdate) {

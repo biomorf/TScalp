@@ -149,4 +149,29 @@ class OrderTradeDetailsViewModelTest {
         assertTrue(captured.captured.pairTradingEnabled)
         assertEquals(OrderTypeSelection.Market, captured.captured.orderType)
     }
+
+    @Test
+    fun `restore delegates to updateTradeDetails and updatePairExecDetails`() {
+        mockDetails(
+            TradeDetails(
+                executionPrice = 150.0,
+                costPoints = 1500.0,
+                costDomesticCurrency = 1500.0,
+            ),
+        )
+        every { calculatePairExecUseCase.execute(any()) } returns
+            PairExecResult(pairExecPrice = 160.0, pairedOrderType = OrderTypeSelection.Limit)
+
+        val vm = viewModel()
+        vm.restore(
+            instrumentState(),
+            inputState().copy(pairTradingEnabled = true),
+            OrderExecutionState(pendingDirection = OrderDirection.BUY),
+        )
+
+        val state = vm.state.value
+        assertEquals(150.0, state.executionPrice, 0.001)
+        assertEquals(160.0, state.pairExecPrice, 0.001)
+        assertEquals(OrderTypeSelection.Limit, state.pairedOrderType)
+    }
 }

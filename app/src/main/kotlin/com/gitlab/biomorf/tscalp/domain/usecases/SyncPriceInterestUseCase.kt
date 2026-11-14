@@ -10,8 +10,9 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
  * `tscalpIds: Set<String>` — presentation собирает его из
  * `OrderInstrumentState` (sub-state). Domain не знает про sub-state.
  *
- * **2d (временное):** `OrderFormViewModel.syncPriceInterest()` (private)
- * остаётся до PR-3, где 4 sub-VM переезжают на этот usecase.
+ * **История (Coord удалён в Phase 6.1):** `syncPriceInterest()` жил в
+ * `OrderFormViewModel` до C2; теперь вызывается из 4 sub-VM
+ * (`OrderInstrumentViewModel.onInstrumentSelected` и др.).
  */
 class SyncPriceInterestUseCase(
     private val priceFlowManager: PriceFlowManager,

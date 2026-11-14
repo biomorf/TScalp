@@ -6,7 +6,6 @@ import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -101,14 +100,13 @@ class TradeDetailsFormatTest {
 
     @Test
     fun `formatCostOverlay points and domestic`() {
-        val state = OrderFormState(selectedInstrument = sber)
         val details =
             TradeDetails(
                 executionPrice = 0.0,
                 costPoints = 10.0,
                 costDomesticCurrency = 1000.0,
             )
-        val out = formatCostOverlay(details, state.selectedInstrument)!!
+        val out = formatCostOverlay(details, sber)!!
         val parts = out.split("  ·  ")
         assertEquals(2, parts.size)
         assertTrue(parts[0].isNotEmpty())
@@ -117,31 +115,28 @@ class TradeDetailsFormatTest {
 
     @Test
     fun `formatCostOverlay currency only matches formatDomesticCurrency`() {
-        val state = OrderFormState(selectedInstrument = sber)
         val details = TradeDetails(executionPrice = 0.0, costCurrency = 100.0)
-        val out = formatCostOverlay(details, state.selectedInstrument)
+        val out = formatCostOverlay(details, sber)
         assertEquals(formatDomesticCurrency(100.0), out)
     }
 
     @Test
     fun `formatCostOverlay null when no cost fields`() {
-        val state = OrderFormState(selectedInstrument = sber)
         val details = TradeDetails(executionPrice = 0.0)
-        assertNull(formatCostOverlay(details, state.selectedInstrument))
+        assertNull(formatCostOverlay(details, sber))
     }
 
     // ---------- formatMultiplierOverlay ----------
 
     @Test
     fun `formatMultiplierOverlay points and domestic`() {
-        val state = OrderFormState(pairedInstrument = gazp)
         val details =
             TradeDetails(
                 executionPrice = 0.0,
                 multiplierPoints = 5.0,
                 multiplierDomesticCurrency = 500.0,
             )
-        val out = formatMultiplierOverlay(details, state.pairedInstrument)!!
+        val out = formatMultiplierOverlay(details, gazp)!!
         val parts = out.split("  ·  ")
         assertEquals(2, parts.size)
         assertTrue(parts[0].isNotEmpty())
@@ -150,17 +145,15 @@ class TradeDetailsFormatTest {
 
     @Test
     fun `formatMultiplierOverlay currency only matches formatDomesticCurrency`() {
-        val state = OrderFormState(pairedInstrument = gazp)
         val details = TradeDetails(executionPrice = 0.0, multiplierCurrency = 250.0)
-        val out = formatMultiplierOverlay(details, state.pairedInstrument)
+        val out = formatMultiplierOverlay(details, gazp)
         assertEquals(formatDomesticCurrency(250.0), out)
     }
 
     @Test
     fun `formatMultiplierOverlay null when no multiplier fields`() {
-        val state = OrderFormState(pairedInstrument = gazp)
         val details = TradeDetails(executionPrice = 0.0)
-        assertNull(formatMultiplierOverlay(details, state.pairedInstrument))
+        assertNull(formatMultiplierOverlay(details, gazp))
     }
 
     // ---------- formatPrice branch via FUTURES ----------
@@ -176,14 +169,13 @@ class TradeDetailsFormatTest {
                 isin = "SiU4",
                 instrumentType = InstrumentType.FUTURES,
             )
-        val state = OrderFormState(selectedInstrument = futures)
         val details =
             TradeDetails(
                 executionPrice = 0.0,
                 costPoints = 10.0,
                 costDomesticCurrency = 1000.0,
             )
-        val out = formatCostOverlay(details, state.selectedInstrument)!!
+        val out = formatCostOverlay(details, futures)!!
         assertTrue(out, out.contains(" пт"))
     }
 }

@@ -17,6 +17,9 @@ import com.gitlab.biomorf.tscalp.presentation.components.ApiNotInitializedCard
 import com.gitlab.biomorf.tscalp.presentation.components.StatusEventEffect
 import com.gitlab.biomorf.tscalp.presentation.components.StatusSnackbarHost
 import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
+import com.gitlab.biomorf.tscalp.presentation.util.toPairedCardIdentity
+import com.gitlab.biomorf.tscalp.presentation.util.toPlaceRequest
+import com.gitlab.biomorf.tscalp.presentation.util.toPrimaryCardIdentity
 import kotlinx.coroutines.flow.Flow
 
 @Composable
@@ -42,37 +45,76 @@ private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
     }
 }
 
-// Архитектурный долг: 221 строка > 60. Extract сделан (10 подкомпонентов),
+// Архитектурный долг: функция > 60 строк. Extract сделан (10 подкомпонентов),
 // CyclomaticComplexMethod снят (complexity < 14). Дальнейшая декомпозиция
-// (вынести sidebar-навигацию, статусы) — Н94 / #### Compose-экраны.
+// (вынести sidebar-навигацию, статусы) - Н94 / #### Compose-экраны.
 @Suppress("LongMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen() {
-    val viewModel: OrdersViewModel = hiltViewModel()
-    val coordState by viewModel.coordState.collectAsState()
-    val tradingStatuses by viewModel.tradingStatuses.collectAsState()
-    // orchestrates user-intent across 2 VMs (P4): search + form-trigger
-    // split (searchVM.onSearchResultSelected + coordVM.onInstrumentSelected).
-    val searchViewModel: OrderSearchViewModel = hiltViewModel()
-    val searchState by searchViewModel.state.collectAsState()
-    // orchestrates user-intent across dialogs (12b): dialog + save -> dialogsVM,
-    // Coord remains source of form/positions state.
-    val dialogsViewModel: OrderDialogsViewModel = hiltViewModel()
-    val dialogsState by dialogsViewModel.state.collectAsState()
-    // Form-VM (split 13d): form-only state (instrument / quantity / orderType /
-    // prices / pair / confirm / status). Coord `uiState` owns accounts /
-    // lastSelectedInstruments / tradingStatuses. Cross-VM via domain only.
-    val formViewModel: OrderFormViewModel = hiltViewModel()
-    val formState by formViewModel.state.collectAsState()
+    // Coord (Phase 5f-b-2b): accounts / lifecycle / tradingStatuses.
+    // clearInterest(ORDERS) - в OrderInstrumentViewModel (Phase 5f-b-2a).
+    // Coord OrderFormViewModel удалён в Phase 6.1 (не используется с 5f-b-2b).
+    val coordVM: OrdersViewModel = hiltViewModel()
+    val coordState by coordVM.coordState.collectAsState()
+    val tradingStatuses by coordVM.tradingStatuses.collectAsState()
+
+    val searchVM: OrderSearchViewModel = hiltViewModel()
+    val searchState by searchVM.state.collectAsState()
+
+    val dialogsVM: OrderDialogsViewModel = hiltViewModel()
+    val dialogsState by dialogsVM.state.collectAsState()
+
+    // 4 sub-VM Form (C2, Phase 5f-b-2b)
+    val instrVM: OrderInstrumentViewModel = hiltViewModel()
+    val instrState by instrVM.state.collectAsState()
+
+    val inputVM: OrderInputViewModel = hiltViewModel()
+    val inputState by inputVM.state.collectAsState()
+
+    val tradeDetailsVM: OrderTradeDetailsViewModel = hiltViewModel()
+    val tradeDetailsState by tradeDetailsVM.state.collectAsState()
+
+    val execVM: OrderExecutionViewModel = hiltViewModel()
+    val execState by execVM.state.collectAsState()
+
+    // UI-facing wrapper над @ActivityRetainedScoped OrderFormMediator.
+    val mediatorVM: OrderMediatorViewModel = hiltViewModel()
+
     val focusManager = LocalFocusManager.current
-
     val snackbarHostState = remember { SnackbarHostState() }
-
     var showOrdersListDialog by remember { mutableStateOf(false) }
 
+    // Coord: checkApiInitialization (остаётся в Coord до Phase 6)
     LaunchedEffect(Unit) {
-        viewModel.checkApiInitialization()
+        coordVM.checkApiInitialization()
+    }
+
+    // Restore (Phase 5f-b-2b): Coord init { restoreOrderForm() } -> UI orchestration.
+    LaunchedEffect(Unit) {
+        val restored = instrVM.restoreFromUseCase()
+        if (restored != null) {
+            instrVM.restore(restored)
+            inputVM.restore(restored)
+        }
+    }
+
+    // Reactive recalc: trade-details на изменение instr/input/exec.pendingDirection.
+    LaunchedEffect(instrState, inputState, execState.pendingDirection) {
+        tradeDetailsVM.updateTradeDetails(instrState, inputState)
+        tradeDetailsVM.updatePairExecDetails(instrState, inputState, execState)
+    }
+
+    // Reactive save: persist на изменение instr/input (debounce 500ms в Mediator).
+    LaunchedEffect(instrState, inputState) {
+        mediatorVM.updatePrimitives(
+            selectedCard = instrState.toPrimaryCardIdentity(),
+            pairedCard = instrState.toPairedCardIdentity(),
+            pairTradingEnabled = inputState.pairTradingEnabled,
+            quantity = inputState.quantityAsLong ?: 1L,
+            pairedMultiplier = inputState.pairedMultiplier.toLongOrNull() ?: 10L,
+            orderType = inputState.orderType,
+        )
     }
 
     Box(
@@ -82,7 +124,6 @@ fun OrdersScreen() {
                 .padding(16.dp),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // ========== ЗАГОЛОВОК ==========
             OrdersScreenHeader(onShowOrdersList = { showOrdersListDialog = true })
 
             if (!coordState.isApiInitialized) {
@@ -92,81 +133,101 @@ fun OrdersScreen() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ========== СКРОЛЛИРУЕМЫЙ БЛОК (OrdersScrollableContent) ==========
             OrdersScrollableContent(
                 state =
                     OrdersScrollableState(
                         coordState = coordState,
                         searchState = searchState,
-                        formState = formState,
+                        instrumentState = instrState,
+                        inputState = inputState,
+                        tradeDetailsState = tradeDetailsState,
+                        executionState = execState,
                         tradingStatuses = tradingStatuses,
                         resetSwipe = dialogsState.swipeResetTrigger,
                     ),
                 callbacks =
                     OrdersScrollableCallbacks(
-                        onSearchQueryChanged = { searchViewModel.onQueryChanged(SearchSlot.PRIMARY, it) },
+                        onSearchQueryChanged = { searchVM.onQueryChanged(SearchSlot.PRIMARY, it) },
                         onInstrumentSelected = { inst ->
-                            searchViewModel.onResultSelected(SearchSlot.PRIMARY, inst)
-                            formViewModel.onInstrumentSelected(inst)
+                            searchVM.onResultSelected(SearchSlot.PRIMARY, inst)
+                            instrVM.onInstrumentSelected(inst)
                             focusManager.clearFocus()
                         },
                         onClearSearch = {
-                            searchViewModel.clearQuery(SearchSlot.PRIMARY)
-                            formViewModel.clearSelectedInstrument()
+                            searchVM.clearQuery(SearchSlot.PRIMARY)
+                            instrVM.clearSelectedInstrument()
                         },
-                        onRefreshSearch = { searchViewModel.refresh(SearchSlot.PRIMARY) },
-                        onOpenSearchSettings = { searchViewModel.openBrokerDialog(SearchSlot.PRIMARY) },
-                        onClearSelected = { formViewModel.clearSelectedInstrument() },
+                        onRefreshSearch = { searchVM.refresh(SearchSlot.PRIMARY) },
+                        onOpenSearchSettings = { searchVM.openBrokerDialog(SearchSlot.PRIMARY) },
+                        onClearSelected = { instrVM.clearSelectedInstrument() },
                         onOpenBrokerDialog = { inst, acc, slot ->
-                            dialogsViewModel.openBrokerDialog(inst, acc, slot)
+                            dialogsVM.openBrokerDialog(inst, acc, slot)
                         },
-                        onDismissConfirmDialog = { formViewModel.onDismissConfirmDialog() },
-                        onConfirmOrder = { formViewModel.onConfirmOrder() },
-                        onQuantityChanged = { formViewModel.onQuantityChanged(it) },
-                        onOrderTypeChanged = { formViewModel.onOrderTypeChanged(it) },
-                        onLimitPriceChanged = { formViewModel.onLimitPriceChanged(it) },
-                        onStopPriceChanged = { formViewModel.onStopPriceChanged(it) },
-                        onPairSearchQueryChanged = { searchViewModel.onQueryChanged(SearchSlot.PAIR, it) },
+                        onDismissConfirmDialog = { execVM.onDismissConfirmDialog() },
+                        onConfirmOrder = {
+                            val req = toPlaceRequest(instrState, inputState)
+                            if (req != null) execVM.onConfirmOrder(req)
+                        },
+                        onQuantityChanged = { inputVM.onQuantityChanged(it) },
+                        onOrderTypeChanged = { inputVM.onOrderTypeChanged(it) },
+                        onLimitPriceChanged = { inputVM.onLimitPriceChanged(it) },
+                        onStopPriceChanged = { inputVM.onStopPriceChanged(it) },
+                        onPairSearchQueryChanged = { searchVM.onQueryChanged(SearchSlot.PAIR, it) },
                         onPairedInstrumentSelected = { inst ->
-                            searchViewModel.onResultSelected(SearchSlot.PAIR, inst)
-                            formViewModel.onPairedInstrumentSelected(inst)
+                            searchVM.onResultSelected(SearchSlot.PAIR, inst)
+                            instrVM.onPairedInstrumentSelected(inst)
                             focusManager.clearFocus()
                         },
-                        onClearPairSearch = { searchViewModel.clearQuery(SearchSlot.PAIR) },
-                        onRefreshPairSearch = { searchViewModel.refresh(SearchSlot.PAIR) },
-                        onOpenPairSearchBrokerSettings = { searchViewModel.openBrokerDialog(SearchSlot.PAIR) },
-                        onPairTradingEnabledChanged = { formViewModel.setPairTradingEnabled(it) },
-                        onClearPairedInstrument = {
-                            searchViewModel.clearQuery(SearchSlot.PAIR)
-                            formViewModel.clearPairedInstrument()
+                        onClearPairSearch = { searchVM.clearQuery(SearchSlot.PAIR) },
+                        onRefreshPairSearch = { searchVM.refresh(SearchSlot.PAIR) },
+                        onOpenPairSearchBrokerSettings = { searchVM.openBrokerDialog(SearchSlot.PAIR) },
+                        onPairTradingEnabledChanged = { enabled ->
+                            inputVM.setPairTradingEnabled(enabled)
+                            if (!enabled) instrVM.clearPairedInstrument()
                         },
-                        onPairedMultiplierChanged = { formViewModel.onPairedMultiplierChanged(it) },
+                        onClearPairedInstrument = {
+                            searchVM.clearQuery(SearchSlot.PAIR)
+                            instrVM.clearPairedInstrument()
+                        },
+                        onPairedMultiplierChanged = { inputVM.onPairedMultiplierChanged(it) },
                     ),
             )
 
-            // ========== ФИКСИРОВАННАЯ НИЖНЯЯ СЕКЦИЯ (только кнопки) ==========
             OrdersBottomButtons(
-                freeBalance = formState.freeBalance,
-                isFormValid = formState.isFormValid(coordState.isApiInitialized),
-                isLoading = formState.isLoading || coordState.isLoading,
-                onBuyClick = { formViewModel.onBuyClick() },
-                onSellClick = { formViewModel.onSellClick() },
+                freeBalance = execState.freeBalance,
+                isFormValid = isFormValid(instrState, inputState, coordState.isApiInitialized),
+                isLoading = execState.isLoading || coordState.isLoading,
+                onBuyClick = {
+                    if (execState.confirmOrdersEnabled) {
+                        execVM.onBuyClick()
+                    } else {
+                        val req = toPlaceRequest(instrState, inputState)
+                        if (req != null) execVM.onBuyClickDirect(req)
+                    }
+                },
+                onSellClick = {
+                    if (execState.confirmOrdersEnabled) {
+                        execVM.onSellClick()
+                    } else {
+                        val req = toPlaceRequest(instrState, inputState)
+                        if (req != null) execVM.onSellClickDirect(req)
+                    }
+                },
             )
         }
 
-        // Snackbar (extracted, Fase 2 11b; 13d-E-A: coord + form channels)
         OrdersScreenSnackbar(
             snackbarHostState = snackbarHostState,
-            coordStatus = viewModel.coordStatus,
-            formStatus = formViewModel.status,
-            searchStatus = searchViewModel.status,
+            coordStatus = coordVM.coordStatus,
+            formStatus = execVM.status,
+            searchStatus = searchVM.status,
         )
     }
 
     OrdersDialogsSection(
-        dialogsViewModel = dialogsViewModel,
-        searchViewModel = searchViewModel,
-        formViewModel = formViewModel,
+        dialogsViewModel = dialogsVM,
+        searchViewModel = searchVM,
+        instrumentViewModel = instrVM,
         dialogsState = dialogsState,
         searchState = searchState,
         showOrdersListDialog = showOrdersListDialog,
@@ -181,7 +242,7 @@ fun OrdersScreen() {
  * Разбито на [OrdersSnackbarEffects] + [OrdersSnackbarHost] (detekt
  * LongMethod < 60, без @Suppress).
  *
- * `BoxScope` — для `Modifier.align(Alignment.BottomCenter)`.
+ * BoxScope - для Modifier.align(Alignment.BottomCenter).
  */
 @Composable
 private fun BoxScope.OrdersScreenSnackbar(
@@ -200,8 +261,8 @@ private fun BoxScope.OrdersScreenSnackbar(
 }
 
 /**
- * Три one-shot канала: Coord / Form / Search (`StatusEventEffect`).
- * `Channel(BUFFERED)` в каждой VM consume'ится ровно один раз; M6,
+ * Три one-shot канала: Coord / Exec / Search (StatusEventEffect).
+ * Channel(BUFFERED) в каждой VM consume-ится ровно один раз; M6,
  * clean-audit M6.
  */
 @Composable
@@ -216,4 +277,4 @@ private fun OrdersSnackbarEffects(
     StatusEventEffect(snackbarHostState = snackbarHostState, status = searchStatus)
 }
 // Архитектурный долг: функция требует декомпозиции.
-// См. ROADMAP → «Рефакторинг OrdersScreen».
+// См. ROADMAP -> Рефакторинг OrdersScreen.

@@ -30,7 +30,7 @@ import com.gitlab.biomorf.tscalp.presentation.util.withCard
 internal fun OrdersInstrumentSection(
     coordState: OrdersCoordState,
     searchState: OrderSearchState,
-    formState: OrderFormState,
+    instrumentState: OrderInstrumentState,
     tradingStatuses: Map<String, TradingAvailability>,
     resetSwipe: Boolean,
     onSearchQueryChanged: (String) -> Unit,
@@ -41,7 +41,7 @@ internal fun OrdersInstrumentSection(
     onClearSelected: () -> Unit,
     onOpenBrokerDialog: (Instrument, String?) -> Unit,
 ) {
-    if (formState.selectedInstrument == null) {
+    if (instrumentState.selectedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
@@ -66,9 +66,9 @@ internal fun OrdersInstrumentSection(
             }
         }
     } else {
-        formState.selectedInstrument.let { instrument: Instrument ->
-            val card = coordState.activeCardFor(formState.selectedInstrument, formState.selectedAccountId)
-            val currentPrice = formState.currentPrice ?: card?.currentPrice ?: 0.0
+        instrumentState.selectedInstrument.let { instrument: Instrument ->
+            val card = coordState.activeCardFor(instrumentState.selectedInstrument, instrumentState.selectedAccountId)
+            val currentPrice = instrumentState.currentPrice ?: card?.currentPrice ?: 0.0
             val position =
                 emptyPosition(
                     instrument = instrument,
@@ -79,9 +79,9 @@ internal fun OrdersInstrumentSection(
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = currentPrice,
-                priceChangePercent = formState.selectedPriceChangePercent,
+                priceChangePercent = instrumentState.selectedPriceChangePercent,
                 onDelete = onClearSelected,
-                onSettings = { onOpenBrokerDialog(instrument, formState.selectedAccountId) },
+                onSettings = { onOpenBrokerDialog(instrument, instrumentState.selectedAccountId) },
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,

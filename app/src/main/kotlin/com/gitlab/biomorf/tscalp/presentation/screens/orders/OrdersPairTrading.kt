@@ -39,7 +39,9 @@ private const val PRICE_FIELDS_ANIMATION_MS = 200
 internal fun OrdersPairSection(
     coordState: OrdersCoordState,
     searchState: OrderSearchState,
-    formState: OrderFormState,
+    instrumentState: OrderInstrumentState,
+    inputState: OrderInputState,
+    tradeDetailsState: OrderTradeDetailsState,
     tradingStatuses: Map<String, TradingAvailability>,
     resetSwipe: Boolean,
     scrollState: ScrollState,
@@ -64,12 +66,12 @@ internal fun OrdersPairSection(
     ) {
         Text("Парная торговля", style = MaterialTheme.typography.titleSmall)
         Switch(
-            checked = formState.pairTradingEnabled,
+            checked = inputState.pairTradingEnabled,
             onCheckedChange = onPairTradingEnabledChanged,
         )
     }
-    if (!formState.pairTradingEnabled) return
-    if (formState.pairedInstrument == null) {
+    if (!inputState.pairTradingEnabled) return
+    if (instrumentState.pairedInstrument == null) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InstrumentSearchField(
@@ -94,10 +96,10 @@ internal fun OrdersPairSection(
             }
         }
     } else {
-        formState.pairedInstrument.let { instrument: Instrument ->
-            val card = coordState.activePairedCardFor(formState.pairedInstrument, formState.pairedAccountId)
+        instrumentState.pairedInstrument.let { instrument: Instrument ->
+            val card = coordState.activePairedCardFor(instrumentState.pairedInstrument, instrumentState.pairedAccountId)
             val pairPrice =
-                formState.pairCurrentPrice
+                instrumentState.pairCurrentPrice
                     ?: card?.currentPrice
                     ?: 0.0
             val position =
@@ -110,9 +112,9 @@ internal fun OrdersPairSection(
             AssetPositionCard(
                 position = position,
                 displayCurrentPrice = pairPrice,
-                priceChangePercent = formState.selectedPriceChangePercent,
+                priceChangePercent = instrumentState.selectedPriceChangePercent,
                 onDelete = onClearPairedInstrument,
-                onSettings = { onOpenBrokerDialog(instrument, formState.pairedAccountId) },
+                onSettings = { onOpenBrokerDialog(instrument, instrumentState.pairedAccountId) },
                 onClick = { },
                 isSelected = false,
                 resetSwipe = resetSwipe,
@@ -120,7 +122,7 @@ internal fun OrdersPairSection(
             )
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
-                    value = formState.pairedMultiplier,
+                    value = inputState.pairedMultiplier,
                     onValueChange = onPairedMultiplierChanged,
                     label = { Text("Множитель") },
                     textStyle = MaterialTheme.typography.bodyLarge,
@@ -137,7 +139,7 @@ internal fun OrdersPairSection(
                                 }
                             },
                 )
-                val multiplierOverlay = formState.multiplierOverlay
+                val multiplierOverlay = tradeDetailsState.multiplierOverlay
                 if (multiplierOverlay != null) {
                     Box(
                         modifier =
