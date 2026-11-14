@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
@@ -21,8 +20,10 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.SaveFormStateUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
+import com.gitlab.biomorf.tscalp.domain.usecases.SyncPriceInterestUseCase
 import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import com.gitlab.biomorf.tscalp.presentation.util.formatCostOverlay
 import com.gitlab.biomorf.tscalp.presentation.util.formatDomesticCurrency
@@ -51,7 +52,7 @@ import javax.inject.Inject
  * **Cross-VM — только через domain или UI-оркестрацию**
  * (принцип централизации): Form не читает `_uiState` другого VM;
  * Coord не читает `_state` Form. Координация:
- * - Form -> `priceFlowManager.setInterest` / `clearInterest`
+ * - Form -> `syncPriceInterestUseCase.execute` / `priceFlowManager.clearInterest`
  *   (domain API) — 13d-B / 13d-D;
  * - Coord -> `PositionFlowManager.sheet` / `CardsRepository.identities`
  *   (domain) — Coord реактивен, Form не вызывает Coord-методы;
@@ -89,9 +90,10 @@ class OrderFormViewModel
     constructor(
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
-        private val tradingStateRepository: TradingStateRepository,
+        private val saveFormStateUseCase: SaveFormStateUseCase,
         private val tradingPreferencesRepository: TradingPreferencesRepository,
         private val priceFlowManager: PriceFlowManager,
+        private val syncPriceInterestUseCase: SyncPriceInterestUseCase,
         private val logger: Logger,
         private val placeOrderUseCase: PlaceOrderUseCase,
         private val restoreOrderFormUseCase: RestoreOrderFormUseCase,
@@ -483,7 +485,7 @@ class OrderFormViewModel
 
         private suspend fun saveState() {
             val state = _state.value
-            tradingStateRepository.save(
+            saveFormStateUseCase.execute(
                 TradingStateSnapshot(
                     selectedCard =
                         state.selectedInstrument?.let { inst ->
@@ -516,7 +518,7 @@ class OrderFormViewModel
                     state.selectedInstrument?.let { add(it.tscalpInstrumentId) }
                     state.pairedInstrument?.let { add(it.tscalpInstrumentId) }
                 }
-            priceFlowManager.setInterest(PriceConsumer.ORDERS, uids)
+            syncPriceInterestUseCase.execute(uids)
         }
 
         private fun updateTradeDetails() {
