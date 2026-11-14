@@ -185,7 +185,7 @@ dependencies {
 
     // Unit-тесты
     testImplementation("junit:junit:4.13.2")
-    testImplementation("io.kotest:kotest-property:6.2.4")
+    testImplementation("io.kotest:kotest-property:6.2.7")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("io.mockk:mockk:1.13.13")
 
