@@ -9,7 +9,6 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Future
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.Share
-import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,8 +46,6 @@ class OrdersScreensScreenshotTest {
             isin = "RU000SBRF001",
         )
 
-    private fun emptyForm() = OrderFormState()
-
     private fun emptyCoord() = OrdersCoordState()
 
     private fun emptySearch() = OrderSearchState()
@@ -75,21 +72,21 @@ class OrdersScreensScreenshotTest {
 
     @Test
     fun confirmDialog_buy() {
-        val form =
-            emptyForm().copy(
+        val instrument = OrderInstrumentState(selectedInstrument = sber)
+        val input = OrderInputState(quantity = "10")
+        val tradeDetails = OrderTradeDetailsState(executionPrice = 150.0)
+        val execution =
+            OrderExecutionState(
                 showConfirmDialog = true,
-                selectedInstrument = sber,
                 pendingDirection = OrderDirection.BUY,
-                quantity = "10",
-                executionPrice = 150.0,
             )
         rule.setContent {
             TScalpTheme {
                 OrdersConfirmDialogSection(
-                    instrumentState = form.toInstrumentStateForTest(),
-                    inputState = form.toInputStateForTest(),
-                    tradeDetailsState = form.toTradeDetailsStateForTest(),
-                    executionState = form.toExecutionStateForTest(),
+                    instrumentState = instrument,
+                    inputState = input,
+                    tradeDetailsState = tradeDetails,
+                    executionState = execution,
                     onDismiss = {},
                     onConfirm = {},
                 )
@@ -100,21 +97,21 @@ class OrdersScreensScreenshotTest {
 
     @Test
     fun confirmDialog_sell() {
-        val form =
-            emptyForm().copy(
+        val instrument = OrderInstrumentState(selectedInstrument = sber)
+        val input = OrderInputState(quantity = "10")
+        val tradeDetails = OrderTradeDetailsState(executionPrice = 150.0)
+        val execution =
+            OrderExecutionState(
                 showConfirmDialog = true,
-                selectedInstrument = sber,
                 pendingDirection = OrderDirection.SELL,
-                quantity = "10",
-                executionPrice = 150.0,
             )
         rule.setContent {
             TScalpTheme {
                 OrdersConfirmDialogSection(
-                    instrumentState = form.toInstrumentStateForTest(),
-                    inputState = form.toInputStateForTest(),
-                    tradeDetailsState = form.toTradeDetailsStateForTest(),
-                    executionState = form.toExecutionStateForTest(),
+                    instrumentState = instrument,
+                    inputState = input,
+                    tradeDetailsState = tradeDetails,
+                    executionState = execution,
                     onDismiss = {},
                     onConfirm = {},
                 )
@@ -130,7 +127,7 @@ class OrdersScreensScreenshotTest {
                 OrdersInstrumentSection(
                     coordState = emptyCoord(),
                     searchState = emptySearch(),
-                    instrumentState = emptyForm().toInstrumentStateForTest(),
+                    instrumentState = OrderInstrumentState(),
                     tradingStatuses = emptyMap(),
                     resetSwipe = false,
                     onSearchQueryChanged = {},
@@ -162,7 +159,7 @@ class OrdersScreensScreenshotTest {
                 OrdersInstrumentSection(
                     coordState = emptyCoord(),
                     searchState = search,
-                    instrumentState = emptyForm().toInstrumentStateForTest(),
+                    instrumentState = OrderInstrumentState(),
                     tradingStatuses = emptyMap(),
                     resetSwipe = false,
                     onSearchQueryChanged = {},
@@ -180,22 +177,26 @@ class OrdersScreensScreenshotTest {
 
     @Test
     fun pairSection_enabled() {
-        val form =
-            emptyForm().copy(
-                pairTradingEnabled = true,
+        val instrument =
+            OrderInstrumentState(
                 selectedInstrument = sber,
                 pairedInstrument = sberFuture,
+            )
+        val input =
+            OrderInputState(
+                pairTradingEnabled = true,
                 pairedMultiplier = "10",
             )
+        val tradeDetails = OrderTradeDetailsState()
         rule.setContent {
             TScalpTheme {
                 Column {
                     OrdersPairSection(
                         coordState = emptyCoord(),
                         searchState = emptySearch(),
-                        instrumentState = form.toInstrumentStateForTest(),
-                        inputState = form.toInputStateForTest(),
-                        tradeDetailsState = form.toTradeDetailsStateForTest(),
+                        instrumentState = instrument,
+                        inputState = input,
+                        tradeDetailsState = tradeDetails,
                         tradingStatuses = emptyMap(),
                         resetSwipe = false,
                         scrollState = rememberScrollState(),
@@ -218,19 +219,23 @@ class OrdersScreensScreenshotTest {
 
     @Test
     fun scrollableContent_filled() {
-        val form =
-            emptyForm().copy(
-                selectedInstrument = sber,
-                quantity = "10",
-                currentPrice = 150.0,
-                executionPrice = 150.0,
-                costOverlay = "1 500 \u20bd",
-                multiplierOverlay = "x1",
-            )
         val scrollable =
-            form.toScrollableStateForTest(
+            OrdersScrollableState(
                 coordState = emptyCoord(),
                 searchState = emptySearch(),
+                instrumentState =
+                    OrderInstrumentState(
+                        selectedInstrument = sber,
+                        currentPrice = 150.0,
+                    ),
+                inputState = OrderInputState(quantity = "10"),
+                tradeDetailsState =
+                    OrderTradeDetailsState(
+                        executionPrice = 150.0,
+                        costOverlay = "1 500 \u20bd",
+                        multiplierOverlay = "x1",
+                    ),
+                executionState = OrderExecutionState(),
                 tradingStatuses = emptyMap(),
                 resetSwipe = false,
             )
@@ -269,72 +274,4 @@ class OrdersScreensScreenshotTest {
         }
         rule.onRoot().captureRoboImage()
     }
-    // ==================== test-only helpers (Phase 5f-b-2c, 2d) ====================
-    //
-    // Дублируют prod-логику бывших OrdersScrollableAdapters (удалён в 5f-b-2c).
-    // Умирают в Phase 7 вместе с OrderFormState / baseline-тестом
-    // (тогда baseline перейдёт на sub-state напрямую).
-
-    private fun OrderFormState.toInstrumentStateForTest() =
-        OrderInstrumentState(
-            ticker = ticker,
-            selectedInstrument = selectedInstrument,
-            currentPrice = currentPrice,
-            selectedPriceChangePercent = selectedPriceChangePercent,
-            currentPointValue = currentPointValue,
-            isPriceLoading = isPriceLoading,
-            selectedBroker = selectedBroker,
-            selectedAccountId = selectedAccountId,
-            pairedInstrument = pairedInstrument,
-            pairCurrentPrice = pairCurrentPrice,
-            pairedPointValue = pairedPointValue,
-            pairedBroker = pairedBroker,
-            pairedAccountId = pairedAccountId,
-        )
-
-    private fun OrderFormState.toInputStateForTest() =
-        OrderInputState(
-            quantity = quantity,
-            limitPrice = limitPrice,
-            stopPrice = stopPrice,
-            orderType = orderType,
-            expirationType = expirationType,
-            expireDate = expireDate,
-            pairTradingEnabled = pairTradingEnabled,
-            pairedMultiplier = pairedMultiplier,
-        )
-
-    private fun OrderFormState.toTradeDetailsStateForTest() =
-        OrderTradeDetailsState(
-            executionPrice = executionPrice,
-            costOverlay = costOverlay,
-            multiplierOverlay = multiplierOverlay,
-            pairExecPrice = pairExecPrice,
-            pairedOrderType = pairedOrderType,
-        )
-
-    private fun OrderFormState.toExecutionStateForTest() =
-        OrderExecutionState(
-            showConfirmDialog = showConfirmDialog,
-            pendingDirection = pendingDirection,
-            confirmOrdersEnabled = confirmOrdersEnabled,
-            isLoading = isLoading,
-            freeBalance = freeBalance,
-        )
-
-    private fun OrderFormState.toScrollableStateForTest(
-        coordState: OrdersCoordState,
-        searchState: OrderSearchState,
-        tradingStatuses: Map<String, TradingAvailability>,
-        resetSwipe: Boolean,
-    ) = OrdersScrollableState(
-        coordState = coordState,
-        searchState = searchState,
-        instrumentState = toInstrumentStateForTest(),
-        inputState = toInputStateForTest(),
-        tradeDetailsState = toTradeDetailsStateForTest(),
-        executionState = toExecutionStateForTest(),
-        tradingStatuses = tradingStatuses,
-        resetSwipe = resetSwipe,
-    )
 }
