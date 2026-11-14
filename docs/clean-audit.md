@@ -110,7 +110,7 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Live тест:** -.
 
-**Описание:** PR-4 (C2 big-bang) вводит `OrderFormMediator` (`@ViewModelScoped`): собирает `TradingStateSnapshot` из `OrderInstrumentState` + `OrderInputState` (cross-state), вызывает `SaveFormStateUseCase` (debounce 500ms), сигнализирует sub-VM о recalc/sync. **M2** (orchestration в presentation) + **M4/M7** (domain-модель `TradingStateSnapshot` конструируется в presentation, наследие `OrderFormViewModel.saveState` до PR-3).
+**Описание:** PR-4 (C2 big-bang) вводит `OrderFormMediator` (`@ActivityRetainedScoped`): собирает `TradingStateSnapshot` из `OrderInstrumentState` + `OrderInputState` (cross-state), вызывает `SaveFormStateUseCase` (debounce 500ms), сигнализирует sub-VM о recalc/sync. **M2** (orchestration в presentation) + **M4/M7** (domain-модель `TradingStateSnapshot` конструируется в presentation, наследие `OrderFormViewModel.saveState` до PR-3).
 
 **Нарушенное правило:** M2 — business-orchestration в Mediator (не UseCase); M4/M7 — presentation конструирует domain-модель.
 
@@ -126,9 +126,11 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-11-14:** нет (создана в этой сессии).
 
-### Н95. OrderFormViewModel — @Suppress("TooManyFunctions") (принято 2c)
+### Исправленные (L1)
 
-**Статус:** принято 2c.
+### ✅ Н95. OrderFormViewModel — @Suppress("TooManyFunctions")
+
+**Статус:** исправлено (2026-11-15, PR-4b Phase 6.1-7.2, feature/orderform-split-c2-p4b).
 
 **Серьёзность:** средне.
 
@@ -142,12 +144,12 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Выгоды (по 2c):** работает сейчас, god-класс ограничен presentation-слоем, cross-state reads в VM минимальны (4 поля). `@Suppress` остаётся до закрытия C2 umbrella — reduce-task закрыта как accepted (`cf911ae8`), C2 — целевая задача с явным триггером.
 
+**Что сделано:** split выполнен (PR-4b, feature/orderform-split-c2-p4b): Coord `OrderFormViewModel` удалён (Phase 6.1, `051b7a50`); `OrderFormState` / `OrderFormStateMapper` удалены (Phase 7.1, `844bf1ba`); 4 sub-VM (`OrderInstrumentViewModel` / `OrderInputViewModel` / `OrderTradeDetailsViewModel` / `OrderExecutionViewModel`) + `OrderFormMediator` (`@ActivityRetainedScoped`) + `OrderMediatorViewModel` (UI-facing wrapper); UI-orchestration (`OrdersScreen` 4 `LaunchedEffect`: checkApiInit / restore / reactive recalc / reactive save); `@Suppress("TooManyFunctions")` исчез вместе с файлом; Roborazzi baseline (8 PNG) + property-тесты + Extended behavioural 20 зелёные. `### C2: SaveFormStateUseCase primitives (M4/M7 fix)` — follow-up задача (закрывает M4/M7 pre-existing; Н95 не требует).
+
 **MVVM-альтернатива:** — (не нарушение MVVM).
 
-**Ссылка на задачу:** `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`); reduce-task closed accepted — `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: @Suppress accepted (2c)` (`cf911ae8`). Связано: M001 (закрыт PR #111), M017 (закрыт `4ee4174`), M013 (закрыт PR #110).
+**Ссылка на задачу:** `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`; merge pending 8.2 → `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: split`); reduce-task closed accepted — `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: @Suppress accepted (2c)` (`cf911ae8`). Связано: M001 (закрыт PR #111), M017 (закрыт `4ee4174`), M013 (закрыт PR #110).
 
-
-### Исправленные (L1)
 
 ### ✅ M016. One-shot events через StateFlow (M6) — statusMessage / isError
 
