@@ -1048,6 +1048,41 @@ echo "OK: fence parity ($N)"
 
 ---
 
+### 111. Commit message — английский, включая цитаты названий и полей
+
+**Правило:** commit message формулируется **сразу на английском**, включая цитаты названий задач, заголовков секций и служебных полей (`**Дата закрытия:**`, `**Статус:**`). Не «вставлю и посмотрю, поймает ли pre-check». Механический pre-check — последняя линия защиты, а не первая.
+
+**Инцидент:** сессия 2026-11-15 (C2 + v2 + build-warnings), **10/10** попыток пронести русскую цитату в `git commit -F` поймал pre-check `grep -P '[А-Яа-я]'` — до коммита. Каждый раз — лишний round-trip: `cat → pre-check → abort → переформулировать`. Примеры: `«### Compose UI tests: миграция на v2»` (C4), `«### OrderFormViewModel: split на sub-VM»` (ROADMAP mark done), `«**Дата закрытия:**»`, `«**Статус:** в работе — Phase 6 done»`, `«(C2, снятие @Suppress) + 2 test infra prereqs»`. Правило 5 «цитаты — тоже на английском» есть с самого начала, но я его обходил мысленно на этапе `cat > $HOME/.msg.txt`.
+
+**Проверка:** превентивно — message-черновик пишется на английском; если в голове всплывает русская цитата — **перефраз** или перевод. Постфактум — pre-check перед `git commit` (как в 5b/4i). Расширение урока 77 и правила 5: «10/10 поймано pre-check» — сигнал, что без pre-check проходило бы 10/10.
+
+---
+
+### 112. Idempotency guard — по `old`, не по `new`; `new ⊂ old` — ложно-«уже применено»
+
+**Правило:** idempotency-guard в скрипте правки `.md`/`.kt` — проверять **`old`** (`if old not in text: print("already applied"); return`), а не `new`. `if new in text: skip` ложно-срабатывает, когда `new` содержит `old` как подстроку **или** встречается в файле в другом контексте. `assert old not in text` для «старой формы больше нет» — только если `new` её не содержит; иначе — `assert count(old) == expected_old_count` (обычно 0) или `assert count(new) == expected` без проверки отсутствия `old`.
+
+**Инцидент:** сессия 2026-11-15 (PR-4b, C2), **2 случая**:
+1. **Phase 5d, Edit 6 (`OrderExecutionViewModel` KDoc):** `if new in text: skip` — `new = " * 2026-11-14: execution-результат, а не trade-details)."` уже присутствовал в файле **внутри `old`** (на строке до anchor). Guard ложно-пропустил; строка `«работает параллельно до Phase 5»` осталась. 7 файлов изменены, 8-й — нет. Обнаружено verify-grep; фикс-скрипт с `if OLD not in t: skip`.
+2. **`OrderPlaceRequestMapper.kt` (fix ранее):** `assert "toLegacyFormState" not in t` — ловил **KDoc-цитату** `«`OrdersScrollableState.toLegacyFormState` … удалён в Phase 5d»` (legitimate исторический комментарий) — assert падал с ложным «функция ещё здесь», хотя `internal fun` был удалён.
+
+Расширение урока 88 (idempotency guard) и 65 (`new ⊂ old`).
+
+**Проверка:** в скрипте — `if old_frag not in text: skip` + `assert text.count(old_frag) == 1` до replace. Если `new` может быть в файле по другому поводу (KDoc, исторический комментарий) — `assert count(old_frag) == 1`, replace, потом **line-anchored** `re.findall(r'^new_frag$', text, re.MULTILINE)` (не подстрочный). Это тот же принцип, что урок 67 («line-anchored regex для `###`») — распространить на любой маркер.
+
+---
+
+### 113. JVM/Gradle-флаги — синтаксис проверить до применения
+
+**Правило:** JVM-флаги (`-Xshare:off`, `--sun-misc-unsafe-memory-access=allow`, `-Xmx`, `-Dfile.encoding`) — **синтаксис варьируется**: некоторые с `:` (`-Xshare:off`), некоторые с `=` (`--sun-misc-unsafe-memory-access=allow`), некоторые с пробелом (`-Dfile.encoding=UTF-8`). Перед добавлением в `gradle.properties` / `tasks.withType<Test>` — сверить с **документацией JDK** (не по памяти, не по образцу «в интернете видел»). Неверный синтаксис = `Unrecognized option: -Xshare=off` → JVM не стартует → **gate RED**, но файл уже записан.
+
+**Инцидент:** 2026-11-15 (C2, build-warnings). В `app/build.gradle.kts` добавил `jvmArgs("-Xshare=off")` (со знаком `=`). Gate (`testDebugUnitTest`) — `BUILD FAILED in 45s`, `Unrecognized option: -Xshare=off` → `Error: A fatal exception has occurred. Program will exit` в `Gradle Test Executor 123/124/125`. Правка: `-Xshare:off` (**двоеточие**). Правил в 2 итерации.
+
+**Проверка:** перед `jvmArgs` / `org.gradle.jvmargs` / `JAVA_OPTS` — `java -Xshare:help` (для `-Xshare`), или `man java` на нужной JDK, или официальная документация Oracle. Плюс — **минимальный локальный прогон** (`./gradlew :app:testDebugUnitTest`) до `git commit`, а не после.
+
+---
+
+
 ## Kotlin / Compose
 
 ### 72. Smart cast невозможен для computed getter
