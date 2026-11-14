@@ -1,10 +1,10 @@
 package com.gitlab.biomorf.tscalp.presentation.util
 
+import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.usecases.PairedOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
-import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderFormState
 
 // Formatting for trade details and post-order success messages —
 // extracted from `OrderFormViewModel` (M001, clean-audit: VM built
@@ -48,10 +48,10 @@ internal fun formatPostOrderSuccess(
  */
 internal fun formatCostOverlay(
     details: TradeDetails,
-    state: OrderFormState,
+    instrument: Instrument?,
 ): String? {
-    val instrumentType = state.selectedInstrument?.instrumentType ?: InstrumentType.OTHER
-    val currency = state.selectedInstrument?.currency ?: DOMESTIC_CURRENCY
+    val instrumentType = instrument?.instrumentType ?: InstrumentType.OTHER
+    val currency = instrument?.currency ?: DOMESTIC_CURRENCY
     return when {
         details.costPoints != null && details.costDomesticCurrency != null ->
             "${formatPrice(details.costPoints, instrumentType, currency)}  ·  ${formatDomesticCurrency(details.costDomesticCurrency)}"
@@ -67,10 +67,10 @@ internal fun formatCostOverlay(
  */
 internal fun formatMultiplierOverlay(
     details: TradeDetails,
-    state: OrderFormState,
+    pairedInstrument: Instrument?,
 ): String? {
-    val pairedInstrumentType = state.pairedInstrument?.instrumentType ?: InstrumentType.OTHER
-    val currency = state.pairedInstrument?.currency ?: DOMESTIC_CURRENCY
+    val pairedInstrumentType = pairedInstrument?.instrumentType ?: InstrumentType.OTHER
+    val currency = pairedInstrument?.currency ?: DOMESTIC_CURRENCY
     return when {
         details.multiplierPoints != null && details.multiplierDomesticCurrency != null ->
             "${formatPrice(details.multiplierPoints, pairedInstrumentType, currency)}  ·  ${formatDomesticCurrency(details.multiplierDomesticCurrency)}"

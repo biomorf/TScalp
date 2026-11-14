@@ -61,7 +61,7 @@ class TradeDetailsFormatPropertyTest {
                         costCurrency = cc,
                         costDomesticCurrency = cd,
                     )
-                formatCostOverlay(details, state)
+                formatCostOverlay(details, state.selectedInstrument)
             }
         }
     }
@@ -77,7 +77,7 @@ class TradeDetailsFormatPropertyTest {
                         costCurrency = cc,
                         costDomesticCurrency = cd,
                     )
-                val result = formatCostOverlay(details, state)
+                val result = formatCostOverlay(details, state.selectedInstrument)
                 val expectedNonNull = (cp != null && cd != null) || cc != null
                 if (expectedNonNull) {
                     assertTrue("expected non-null, got null", result != null)
@@ -99,7 +99,7 @@ class TradeDetailsFormatPropertyTest {
                         multiplierCurrency = mc,
                         multiplierDomesticCurrency = md,
                     )
-                val result = formatMultiplierOverlay(details, state)
+                val result = formatMultiplierOverlay(details, state.pairedInstrument)
                 val expectedNonNull = (mp != null && md != null) || mc != null
                 if (expectedNonNull) {
                     assertTrue("expected non-null, got null", result != null)
@@ -121,7 +121,7 @@ class TradeDetailsFormatPropertyTest {
                         costCurrency = cc,
                         costDomesticCurrency = cd,
                     )
-                val result = formatCostOverlay(details, state)
+                val result = formatCostOverlay(details, state.selectedInstrument)
                 if (result != null) {
                     assertTrue("expected non-empty, got '$result'", result.isNotEmpty())
                 }
