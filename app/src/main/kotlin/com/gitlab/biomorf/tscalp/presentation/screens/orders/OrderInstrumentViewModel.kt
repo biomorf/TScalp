@@ -28,11 +28,11 @@ import javax.inject.Inject
  * **Что делает:** выбор инструмента (primary/pair), обновление цены из
  * `priceFlowManager.prices`, sync price interest, изменение accountId.
  *
- * **2d-fixation (Phase 1):** `saveFormState` и `recalc` (updateTradeDetails)
- * при instrument-событиях **не вызываются** — перенесены в Phase 4 через
- * `OrderFormMediator` (reactive debounce + cross-state snapshot). Поведение
- * для пользователя не регрессирует: старый `OrderFormViewModel` (Coord)
- * работает параллельно до Phase 5 (UI rewrite).
+ * **2d-fixation (Phase 1 → closed Phase 5f-b-2b):** `saveFormState` и
+ * `recalc` (updateTradeDetails) при instrument-событиях **не вызываются**
+ * напрямую — выполняются в UI-orchestration (`OrdersScreen` LaunchedEffect)
+ * через `OrderFormMediator` (reactive debounce + cross-state snapshot) и
+ * `OrderTradeDetailsViewModel` (reactive recalc).
  *
  * **Phase 4 wiring:** `onInstrumentSelected` → `mediator.saveSnapshot()` +
  * `mediator.scheduleRecalc()`.

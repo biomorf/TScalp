@@ -10,8 +10,9 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
  * [TradingStateSnapshot] — presentation-маппинг (`OrderFormState` →
  * sub-state → snapshot) в VM. Domain не знает про presentation-state.
  *
- * **2d (временное):** `OrderFormViewModel.saveState()` (private) остаётся
- * до PR-3, где 4 sub-VM переезжают на этот usecase. Unblocks PR-3.
+ * **История (Coord удалён в Phase 6.1):** `saveState()` жил в
+ * `OrderFormViewModel` до C2; теперь персистит `OrderFormMediator`
+ * через этот usecase (reactive, debounce 500ms).
  */
 class SaveFormStateUseCase(
     private val tradingStateRepository: TradingStateRepository,

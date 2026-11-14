@@ -8,8 +8,8 @@ import com.gitlab.biomorf.tscalp.presentation.screens.orders.OrderInstrumentStat
  * (Phase 5f-a, C2, PR-4b).
  *
  * **2c / M4 (fixation, pre-existing):** presentation конструирует
- * domain-модель `CardIdentity` - то же, что делает legacy
- * `OrderFormViewModel.saveState` (Coord, строки 492/500) и
+ * domain-модель `CardIdentity` - то же, что делал legacy Coord
+ * `saveState` (удалён Phase 6.1) и
  * `OrderFormMediator.toSnapshot` (M018, 2c принято). Альтернатива -
  * usecase с 7 primitives - это задача `### C2: SaveFormStateUseCase
  * primitives (M4/M7 fix, pre-existing)` (в начале ROADMAP Pending).

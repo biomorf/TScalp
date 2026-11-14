@@ -17,11 +17,11 @@ import javax.inject.Inject
  * orderType (с очисткой limitPrice при Market), pairTradingEnabled, quantity,
  * pairedMultiplier.
  *
- * **2d-fixation (Phase 2):** `saveFormState`, `syncPriceInterest`, `recalc`
- * (updateTradeDetails/updatePairExecDetails) при input-событиях **не
- * вызываются** — перенесены в Phase 4 через `OrderFormMediator`. Поведение
- * для пользователя не регрессирует: старый `OrderFormViewModel` (Coord)
- * работает параллельно до Phase 5 (UI rewrite).
+ * **2d-fixation (Phase 2 → closed Phase 5f-b-2b):** `saveFormState`,
+ * `syncPriceInterest`, `recalc` (updateTradeDetails/updatePairExecDetails)
+ * при input-событиях **не вызываются** напрямую — выполняются в
+ * UI-orchestration (`OrdersScreen` LaunchedEffect) через
+ * `OrderFormMediator` + `OrderTradeDetailsViewModel`.
  *
  * **Особенность `setPairTradingEnabled(false)`:** в Phase 2 очищает только
  * Input-поля (`pairTradingEnabled`, `pairedMultiplier`). `pairedInstrument` /

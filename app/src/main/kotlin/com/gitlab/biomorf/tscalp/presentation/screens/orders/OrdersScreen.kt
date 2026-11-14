@@ -53,8 +53,8 @@ private fun OrdersScreenHeader(onShowOrdersList: () -> Unit) {
 @Composable
 fun OrdersScreen() {
     // Coord (Phase 5f-b-2b): accounts / lifecycle / tradingStatuses.
-    // onCleared clearInterest - в OrderInstrumentViewModel (Phase 5f-b-2a);
-    // Coord OrderFormViewModel больше не используется в UI (умирает в Phase 6).
+    // clearInterest(ORDERS) - в OrderInstrumentViewModel (Phase 5f-b-2a).
+    // Coord OrderFormViewModel удалён в Phase 6.1 (не используется с 5f-b-2b).
     val coordVM: OrdersViewModel = hiltViewModel()
     val coordState by coordVM.coordState.collectAsState()
     val tradingStatuses by coordVM.tradingStatuses.collectAsState()

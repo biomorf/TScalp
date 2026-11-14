@@ -17,8 +17,8 @@ import javax.inject.Inject
  * ViewModel trade-details (executionPrice / costOverlay / multiplierOverlay /
  * pairExecPrice / pairedOrderType) — часть split Form-VM (C2).
  *
- * Вынесено из `OrderFormViewModel` (13d-A → C2). Семантика 1:1 с
- * `updateTradeDetails` / `updatePairExecDetails` в [OrderFormViewModel].
+ * Вынесено из `OrderFormViewModel` (13d-A → C2, Coord удалён в Phase 6.1).
+ * Семантика 1:1 с legacy `updateTradeDetails` / `updatePairExecDetails`.
  *
  * **2c (fixation, C2):** публичные методы принимают явные параметры
  * (sub-state) — VM не читает `_state.value` других VM. `executionPrice`

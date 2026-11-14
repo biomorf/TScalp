@@ -34,8 +34,7 @@ import javax.inject.Inject
  * **2d-fixation (Phase 3 → closed Phase 3.1):** в `handlePostOrder*` не
  * пишем в Input state (`quantity`/`limitPrice`/`stopPrice` — не
  * очищаем). `freeBalance` — пишется в **свой** state (Phase 3.1,
- * 2026-11-14: execution-результат, а не trade-details). Старый
- * `OrderFormViewModel` работает параллельно до Phase 5.
+ * 2026-11-14: execution-результат, а не trade-details).
  */
 @HiltViewModel
 class OrderExecutionViewModel
