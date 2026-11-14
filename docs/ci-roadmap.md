@@ -886,84 +886,6 @@ ___
 
 
 
-### Compose UI tests: миграция на v2
-
-**Мобильная работа:** полное закрытие (правки `.kt` в тестах — proot + PR;
-гейт на CI).
-
-**Статус:** запланировано.
-
-**Триггер:** Compose UI test API v1 (`androidx.compose.ui.test.junit4.createComposeRule`
-и `junit4.createAndroidComposeRule`) объявлен deprecated. Новый screenshot-тест
-(`OrdersScreensScreenshotTest`, `ed5111c1`) уже на v2. Существующие
-Behaviour-тесты на v1 компилируются с warning'ом; при обновлении Compose BOM
-v1 может исчезнуть.
-
-**Контекст:** 20 Compose UI-тестов используют v1 API:
-- `createAndroidComposeRule` (3): `OrdersScreenBehaviourTest`,
-  `PortfolioScreenBehaviourTest`, `SettingsScreenBehaviourTest`;
-- `createComposeRule` (17): `ApiNotInitializedCardTest`, `OrderCardTest`,
-  `OrdersQuantityRowTest`, `OrdersTypeChipsTest`, `SearchResultItemTest`,
-  `AccountHeaderCardTest`, `EmptyPortfolioCardTest`, `PortfolioAccountBlockTest`,
-  `BcsTokenHelpCardTest`, `CloseSandboxAccountDialogTest`, `ConnectStatusCardTest`,
-  `FinamTokenHelpCardTest`, `SettingsHubListTest`, `StatusMessageCardTest`,
-  `TInvestAccountSectionTest`, `TInvestStatusCardTest`, `TInvestTokenHelpCardTest`.
-
-V2 переключает `StandardTestDispatcher` вместо `UnconfinedTestDispatcher` —
-поведенческие тесты, полагающиеся на немедленное выполнение корутин, потребуют
-явной синхронизации (`waitUntil`, `mainClock.advanceTimeBy`). Screenshot-тест
-(`OrdersScreensScreenshotTest`) уже на v2 — из этой задачи исключён.
-
-**Предусловия:** нет.
-
-**Файлы:** 20 файлов в `app/src/test/kotlin/.../presentation/`
-(`*BehaviourTest.kt`, `*Test.kt`). Полный список —
-`grep -rln 'junit4.createComposeRule\|junit4.createAndroidComposeRule' app/src/test`.
-
-**Шаги:**
-1. Заменить импорт `androidx.compose.ui.test.junit4.createComposeRule` →
-   `androidx.compose.ui.test.junit4.v2.createComposeRule` в 17 файлах.
-2. Заменить `androidx.compose.ui.test.junit4.createAndroidComposeRule` →
-   `androidx.compose.ui.test.junit4.v2.createAndroidComposeRule` в 3 файлах.
-3. Прогнать `:app:testDebugUnitTest` локально; исправить падения, вызванные
-   `StandardTestDispatcher` (добавить `waitUntil` / `mainClock.advanceTimeBy`
-   где нужно).
-4. Прогнать полный гейт.
-
-**Тесты:** все существующие Compose UI-тесты — цель: зелёные без изменения
-утверждений (только синхронизация, где `UnconfinedTestDispatcher` скрывал race).
-
-**Референсы:** AGENTS.md → 2a (актуальность);
-[Compose ui-test v2 migration guide](https://developer.android.com/reference/kotlin/androidx/compose/ui/test/junit4/v2/package-summary).
-
-**Ограничения:**
-- Не смешивать с Roborazzi baseline (уже на v2).
-- Не менять утверждения тестов — только импорты и синхронизация.
-- V1-импорты (deprecated) — единственный сигнал; сам пакет
-  `androidx.compose.ui.test.*` (`onNodeWithText` и т.п.) не меняется.
-
-**Критерий готовности:**
-- Все 20 файлов на `junit4.v2`.
-- 0 warnings `createComposeRule is deprecated`.
-- Полный гейт зелёный.
-
-**Оценка:** ~1.5–2 ч.
-
-**Зависимости:** нет.
-
-**Связано:** `docs/ROADMAP.md` → `### OrderFormViewModel: split на sub-VM`
-(предзадача Roborazzi — новые тесты уже на v2, `ed5111c1`).
-
-**Открытые вопросы:**
-- Требуется ли `@OptIn(ExperimentalTestApi::class)` для v2-API в текущей
-  Compose BOM — проверить по факту (по 3 не выдумываю: миграционный гайд
-  Google говорит «no @OptIn», но Compose BOM у нас собран 2026-11; при
-  первом PR — эмпирически).
-
-
-
-
-___
 
 
 
@@ -1026,6 +948,70 @@ ___
 
 ---
 
+
+
+
+### Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
+
+**Мобильная работа:** полное закрытие (правки `gradle.properties` / `app/build.gradle.kts` / `.github/workflows/` — proot + PR; гейт на CI).
+
+**Статус:** в работе — CDS done (`a3becccc`), cron #944 done (`2e7e3170`); Unsafe blocked on CI JDK 25 upgrade (follow-up).
+
+**Контекст:** два JVM warning'а шумят в `gate` логах:
+1. `sun.misc.Unsafe::objectFieldOffset` — от `kotlin-compiler-embeddable 2.1.0` (IntelliJ `com.intellij.util.containers.Unsafe`), тянут ktlint / detekt Gradle-плагины. Warning включён с JDK 24+ (локальный — 25.0.4). Upstream: `JLLeitschuh/ktlint-gradle#944` — открыт с 2025-08-21; последний релиз 14.2.0 (2026-03-12) его не содержит. Warning подавлен только в ktlint CLI (#3040), не в Gradle-плагине.
+2. `Sharing is only supported for boot loader classes because bootstrap classpath has been appended` — CDS warning от JVMTI-агентов (Robolectric / JaCoCo), модифицирующих bootclasspath в test JVM.
+
+**Соответствие Clean:** соответствует (организационный слой, 2b).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** — (не применимо).
+
+**Предусловия:** нет.
+
+**Файлы:**
+- `app/build.gradle.kts` — `tasks.withType<Test>` (jvmArgs).
+- `gradle.properties` — `org.gradle.jvmargs` (для C1, blocked).
+- `.github/workflows/ktlint-gradle-944.yml` — cron-check.
+- `docs/ci-roadmap.md` — эта задача.
+
+**Шаги:**
+1. ✅ CDS: `jvmArgs("-Xshare:off")` в `tasks.withType<Test>` (`a3becccc`). Синтаксис — с двоеточием (`-Xshare:off`), не с равенством (`-Xshare=off` = `Unrecognized option` на JDK 17+).
+2. ✅ Cron-check ktlint-gradle #944 (`.github/workflows/ktlint-gradle-944.yml`, `2e7e3170`): daily 09:00 UTC + `workflow_dispatch`; при `state == 'CLOSED'` создаёт issue с label `ktlint-gradle-944` и инструкцией снять флаг.
+3. ⏳ Unsafe — **blocked**: `--sun-misc-unsafe-memory-access=allow` появился в JDK 23 (JEP 471); CI на JDK 17 (temurin, `setup-java@v5`) → флаг = `Unrecognized option` → daemon падает. Нужен upgrade CI до JDK 25 (отдельная задача `### CI: JDK 17 → 25`, follow-up). Когда CI JDK 25 + ktlint-gradle #944 закрыт (cron уведомит) — снять флаг и проверить `grep sun.misc.Unsafe::objectFieldOffset`.
+
+**Тесты:** нет (build-конфиг). Verify — по `gate` логам (CDS warning = 0; Unsafe — ждёт JDK 25).
+
+**Референсы:**
+- ktlint-gradle #944 (issue, открыт).
+- JEP 471 (`sun.misc.Unsafe` deprecation, JDK 23+).
+- `-Xshare:off` в JVM docs (Oracle).
+
+**Ограничения:**
+- Не добавлять `--sun-misc-unsafe-memory-access=allow` в `org.gradle.jvmargs` до JDK 25 на CI (daemon падает).
+- Не путать с C2-правкой (`-Xshare:off`) — она уже в `app/build.gradle.kts`.
+- Cron-check — только при закрытии #944; не при каждом релизе.
+
+**Критерий готовности:**
+- CDS warning — 0 в `gate` логах (локально и на CI). ✅
+- Cron-check #944 — workflow зелёный, при закрытии issue — создаётся issue с label `ktlint-gradle-944`. ✅ (проверить на PR)
+- Unsafe warning — 0 в `gate` логах (после upgrade CI до JDK 25 + закрытия #944). ⏳
+
+**Оценка:** CDS + cron ~30 мин (сделано); Unsafe — блокер (CI JDK 17 → 25, отдельная задача).
+
+**Зависимости:** `### CI: JDK 17 → 25` (для Unsafe); ktlint-gradle #944 (upstream, cron уведомит).
+
+**Связано:** `docs/ci-roadmap.md` → `### Compose UI tests: миграция на v2` (закрыт в этом PR); `### CI: JDK 17 → 25` (follow-up, не заведена — завести отдельной docs-задачей после merge).
+
+**Открытые вопросы:**
+- `### CI: JDK 17 → 25` — scope (AGP 9 / KSP / Hilt / toolchain / foojay) и риск — отдельная сессия, не в этом PR.
+- Точная версия ktlint-gradle с фиксом #944 — неизвестна, cron уведомит.
 
 
 
