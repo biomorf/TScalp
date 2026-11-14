@@ -294,6 +294,8 @@ ___
 
 **C2 — целевой.** Coord исчезает (или минимальный lifecycle: 2 fun). UI читает 4 sub-VM state напрямую. API `formState` удаляется → 6 UI-файлов переписать (`OrdersScreen`, `OrdersPairTrading`, `OrdersConfirmDialog`, `OrdersScrollableContent`, `OrdersSearch`, `OrdersDialogsSection`). Coord ≤ 11 fun → `@Suppress("TooManyFunctions")` **снимается**.
 
+**C2-честно (2026-11-14):** пошаговый split на 4 sub-VM **не достижим** через PR-1..PR-3: методы `onInstrumentSelected` / `onPairedInstrumentSelected` / `onInput*` содержат cross-concerns (recalc, sync, save, clear pair-slot), которые нельзя чисто вынести в отдельный VM без cross-VM calls (2c). **PR-1** (states + TradeDetails VM) и **PR-2** (usecases) — подготовка. **PR-3** — закрытие 2d (`saveState`/`syncPriceInterest` → usecases) + reactive save (6 input-методов). **PR-4** — big-bang: UI rewrite (6 файлов) + 4 sub-VM + Coord minimize + `@Suppress` removal + live-test 7 сценариев. `@Suppress` снимается только в PR-4.
+
 **Соответствие Clean:** соответствует (внутри presentation; dependency rule не нарушается).
 
 **Нарушенное правило Clean:** —.
@@ -477,6 +479,11 @@ UI (переписать, C2):
 - 4 sub-VM ≤ 11 fun каждый.
 - `formState` API удалён; 6 UI-файлов читают 4 sub-state напрямую.
 - **`@Suppress("TooManyFunctions")` снят**.
+- **Последовательность PR:**
+  - PR-1 (#150) — sub-states + TradeDetails VM ✅
+  - PR-2 (#151) — SaveFormState + SyncPriceInterest usecases ✅
+  - PR-3 — refactor на usecases + reactive save (2d closed), Coord 27 fun (без изменения)
+  - PR-4 — big-bang (UI + 4 sub-VM + Coord minimize + `@Suppress` removal)
 - 26–33 новых тестов + 10 старых переехали в sub-VM.
 - Roborazzi diff = 0 на 8 baseline; property-тесты зелёные; Extended OrdersScreenBehaviourTest 5–7 сценариев зелёные.
 - Live-тест 7 сценариев PASS.
