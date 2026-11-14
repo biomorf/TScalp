@@ -2,7 +2,6 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingPreferencesRepository
-import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
@@ -18,10 +17,12 @@ import com.gitlab.biomorf.tscalp.domain.usecases.PlaceOrderUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PrimaryOutcome
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
+import com.gitlab.biomorf.tscalp.domain.usecases.SaveFormStateUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentResult
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedInstrumentUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.SelectPairedResult
+import com.gitlab.biomorf.tscalp.domain.usecases.SyncPriceInterestUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.TradeDetails
 import com.gitlab.biomorf.tscalp.testutil.MainDispatcherRule
 import io.mockk.coEvery
@@ -46,9 +47,10 @@ class OrderFormViewModelTest {
 
     private val calculateTradeDetails = mockk<CalculateTradeDetailsUseCase>(relaxed = true)
     private val calculatePairExecUseCase = mockk<CalculatePairExecUseCase>(relaxed = true)
-    private val tradingStateRepository = mockk<TradingStateRepository>(relaxed = true)
+    private val saveFormStateUseCase = mockk<SaveFormStateUseCase>(relaxed = true)
     private val tradingPreferencesRepository = mockk<TradingPreferencesRepository>(relaxed = true)
     private val priceFlowManager = mockk<PriceFlowManager>(relaxed = true)
+    private val syncPriceInterestUseCase = mockk<SyncPriceInterestUseCase>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
     private val placeOrderUseCase = mockk<PlaceOrderUseCase>(relaxed = true)
     private val restoreOrderFormUseCase = mockk<RestoreOrderFormUseCase>(relaxed = true)
@@ -85,9 +87,10 @@ class OrderFormViewModelTest {
         return OrderFormViewModel(
             calculateTradeDetails,
             calculatePairExecUseCase,
-            tradingStateRepository,
+            saveFormStateUseCase,
             tradingPreferencesRepository,
             priceFlowManager,
+            syncPriceInterestUseCase,
             logger,
             placeOrderUseCase,
             restoreOrderFormUseCase,
