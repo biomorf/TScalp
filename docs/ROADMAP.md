@@ -288,7 +288,7 @@ ___
 
 **Мобильная работа:** невозможно (desktop; крупный рефакторинг presentation-слоя + 6 UI-файлов + live-тест 7 сценариев; локальный gate на desktop обязателен).
 
-**Статус:** запланировано.
+**Статус:** в работе (PR-1 #150, PR-2 #151 merged; PR-3, PR-4 pending).
 
 **Контекст:** 2c-фиксация 2026-11-07 (KDoc `OrderFormViewModel.kt`, §13d-B) отклоняла split Form на sub-VM с обоснованием «+N VM + cross-VM». После закрытия M001 (`TradeDetailsFormat.kt`), M017 (`OrderFormStateMapper.kt`), A2, 13d — обоснование устарело: формат/мапперы вынесены; cross-state reads в VM минимальны (4 поля: `confirmOrdersEnabled` ×2, `selectedAccountId`, `pendingDirection`, `toPlaceOrderRequest`); extract-helpers не даёт снятия `@Suppress` (10 private мутируют state/async; merge 3× `handlePostOrder*` + `updateTradeDetails`/`updatePairExecDetails` = −3 fun → 24 ≫ 11).
 
@@ -332,6 +332,7 @@ UI (переписать, C2):
 Тесты:
 - `OrderFormViewModelTest.kt` (11 `@Test`) — реструктуризация по sub-VM.
 - 4 новых `*ViewModelTest`.
+- **Факт (PR-1 + PR-2):** 13 тестов — 5 `OrderTradeDetailsViewModelTest` + 4 `SaveFormStateUseCaseTest` + 4 `SyncPriceInterestUseCaseTest`.
 
 Документация:
 - `docs/architecture.md` → «Data flow: заявки» (C2: 4 sub-state, coord — lifecycle).
@@ -373,12 +374,16 @@ UI (переписать, C2):
 **Основная задача (C2).**
 
 **Фаза 0 — Подготовка (1 ч).**
+**Статус:** ✅ merged (PR #150, `168f5aee`).
+
 - 0.1 C2 подтверждён (не C1) — решено 2026-11-12.
 - 0.2 `OrderFormState` — расщепить на 4 sub-state.
 - 0.3 Coord: **исчезает** или **минимальный lifecycle (2 fun)**. **Дефолт:** минимальный lifecycle (2 fun: `init { restoreOrderForm() }` + `onCleared { clearInterest(ORDERS) }`) — coord ≤ 11 → `@Suppress` снимается.
 - 0.4 **UI-санкция** (правило 1): смена `formState.X` → `subState.X` в 6 UI-файлах.
 
 **Фаза 1 — `OrderTradeDetailsViewModel` (1.5–2 ч).**
+**Статус:** ✅ merged (PR #150, `41c5232f`).
+
 - 1.1 `OrderTradeDetailsState` (6 полей: executionPrice, costOverlay, multiplierOverlay, freeBalance, pairExecPrice, pairedOrderType).
 - 1.2 VM: 2 public fun + private. Зависимости: `calculateTradeDetails`, `calculatePairExecUseCase`.
 - 1.3 Coord: убрать `updateTradeDetails` / `updatePairExecDetails` (−2 fun).
@@ -386,7 +391,15 @@ UI (переписать, C2):
 - 1.5 `OrderTradeDetailsViewModelTest` — 4–5 кейсов.
 - 1.6 Гейт + Roborazzi diff (0).
 
+**Фаза 1.5 — Extract save/sync usecases (PR-2).** ✅ merged (PR #151, `b43b3f73`).
+- 1.5.1 `SaveFormStateUseCase` (обёртка `TradingStateRepository.save`, domain-DTO).
+- 1.5.2 `SyncPriceInterestUseCase` (обёртка `PriceFlowManager.setInterest`).
+- 1.5.3 DI `@Provides` в `OrdersUseCaseModule` (precedent: `CalculateTradeDetails`).
+- 1.5.4 8 unit-тестов (4 + 4).
+
 **Фаза 2 — `OrderInputViewModel` (отложено в PR-3).**
+**Статус:** отложено в PR-3 (Instrument первым).
+
 
 **Причина отложения (2026-11-14):** 6 input-методов текущего `OrderFormViewModel` содержат cross-concerns: recalc (`updateTradeDetails` + `updatePairExecDetails`), persist (`saveState`), sync price interest, clear pair-slot (`pairedInstrument` — Instrument state). Без этих вызовов `OrderInputViewModel` — «полу-мёртвая» (тесты не отражают реальный поток, в PR-4 orchestration переделывается). Перенос в PR-3 (после Instrument VM) или PR-4 (вместе с UI) — правильное место для orchestration.
 - 2.1 `OrderInputState` (7 полей: quantity, limitPrice, stopPrice, orderType, expirationType, expireDate, computed quantityAsLong).
@@ -397,6 +410,8 @@ UI (переписать, C2):
 - 2.6 Гейт + Roborazzi.
 
 **Фаза 3 — `OrderInstrumentViewModel` (3–4 ч).**
+**Статус:** PR-3 pending.
+
 - 3.1 `OrderInstrumentState` (~15 полей: primary slot — selectedInstrument, selectedBroker, selectedAccountId, currentPrice, selectedPriceChangePercent, currentPointValue; pair slot — pairedInstrument, pairedBroker, pairedAccountId, pairedMultiplier, pairCurrentPrice, pairedPointValue, pairTradingEnabled).
 - 3.2 VM: 11 fun. Зависимости: `selectInstrumentUseCase`, `selectPairedInstrumentUseCase`, `priceFlowManager`.
 - 3.3 `init { priceFlowManager.prices.collect { ... } }` — в sub-VM.
@@ -406,6 +421,8 @@ UI (переписать, C2):
 - 3.7 Гейт + Roborazzi.
 
 **Фаза 4 — `OrderExecutionViewModel` (2–3 ч).**
+**Статус:** PR-4 pending.
+
 - 4.1 `OrderExecutionState` (3 поля: showConfirmDialog, pendingDirection, isLoading) + `_status: Channel<StatusEvent>`.
 - 4.2 VM: 8 fun. Зависимости: `placeOrderUseCase`.
 - 4.3 `postOrder` принимает `PlaceOrderRequest` из coord/UI (не читает весь state).
@@ -415,12 +432,16 @@ UI (переписать, C2):
 - 4.7 Гейт + Roborazzi.
 
 **Фаза 5 — Lifecycle / Persistence (1.5–2 ч).**
+**Статус:** PR-4 pending.
+
 - 5.1 Coord: 2 fun (`init { restoreOrderForm(); subscribe confirmOrdersEnabled }` + `onCleared { clearInterest(ORDERS) }`).
 - 5.2 `saveState` / `restoreOrderForm` — в coord (2 fun) или usecase.
 - 5.3 Тесты.
 - 5.4 Гейт + Roborazzi.
 
 **Фаза 6 — Финализация (2–3 ч).**
+**Статус:** PR-4 pending.
+
 - 6.1 Coord: **≤ 2 fun** (lifecycle). Проверить: `grep -cE "^[[:space:]]+(private |internal |override )?(suspend )?fun " OrderFormViewModel.kt` ≤ 11.
 - 6.2 **`@Suppress("TooManyFunctions")` снять**, KDoc обновить: «coord = lifecycle-контейнер, sub-VM — 4, `@Suppress` не нужен».
 - 6.3 UI: 6 файлов на 4 sub-state, `formState` API удалить (заменить на `instrumentVM.state` / `inputVM.state` / `tradeDetailsVM.state` / `executionVM.state`).
@@ -450,6 +471,7 @@ UI (переписать, C2):
 
 **Критерий готовности (C2):**
 - 2 предзадачи merged (Roborazzi + property).
+- **PR-1 + PR-2 merged** (PR #150 `30917815`, PR #151 `b43b3f73`).
 - Extended behavioural (Hilt-test этап 2) merged (требование).
 - Coord `OrderFormViewModel` ≤ 11 fun (или исчез).
 - 4 sub-VM ≤ 11 fun каждый.
@@ -461,6 +483,8 @@ UI (переписать, C2):
 - Гейт зелёный.
 
 **Оценка (C2 умбрелла):** ~17–21 ч (предзадачи ~4.5 + C2 ~12–16; Extended behavioural ~2–3 ч — в составе `### Hilt-test infra`, не здесь).
+
+**Факт:** PR-1 ~5 ч, PR-2 ~1.5 ч. Остаток: PR-3 ~4–5 ч, PR-4 ~5–6 ч.
 
 **Зависимости:**
 - Предзадача 1 (Roborazzi) — независима (U4 merged).
