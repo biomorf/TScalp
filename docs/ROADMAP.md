@@ -322,7 +322,7 @@ Coord / state:
 
 Новые sub-VM (4):
 - `OrderInstrumentViewModel.kt` (~11 fun) + `OrderInstrumentState.kt` (~15 полей).
-- `OrderInputViewModel.kt` (~4 fun) + `OrderInputState.kt` (~7 полей).
+- `OrderInputState.kt` (~8 полей, создан в PR-1) + `OrderInputViewModel.kt` (отложен в PR-3).
 - `OrderTradeDetailsViewModel.kt` (~2–3 fun) + `OrderTradeDetailsState.kt` (6 полей).
 - `OrderExecutionViewModel.kt` (~8 fun) + `OrderExecutionState.kt` (3 поля) + `_status: Channel<StatusEvent>` + `val status: Flow<StatusEvent>`.
 
@@ -386,12 +386,14 @@ UI (переписать, C2):
 - 1.5 `OrderTradeDetailsViewModelTest` — 4–5 кейсов.
 - 1.6 Гейт + Roborazzi diff (0).
 
-**Фаза 2 — `OrderInputViewModel` (1.5–2 ч).**
+**Фаза 2 — `OrderInputViewModel` (отложено в PR-3).**
+
+**Причина отложения (2026-11-14):** 6 input-методов текущего `OrderFormViewModel` содержат cross-concerns: recalc (`updateTradeDetails` + `updatePairExecDetails`), persist (`saveState`), sync price interest, clear pair-slot (`pairedInstrument` — Instrument state). Без этих вызовов `OrderInputViewModel` — «полу-мёртвая» (тесты не отражают реальный поток, в PR-4 orchestration переделывается). Перенос в PR-3 (после Instrument VM) или PR-4 (вместе с UI) — правильное место для orchestration.
 - 2.1 `OrderInputState` (7 полей: quantity, limitPrice, stopPrice, orderType, expirationType, expireDate, computed quantityAsLong).
 - 2.2 VM: 4 fun. Без зависимостей.
 - 2.3 Coord: −4 делегата.
 - 2.4 UI: `OrdersScrollableContent`, `OrdersConfirmDialog` — из sub-state.
-- 2.5 `OrderInputViewModelTest` — 4–5 кейсов.
+- 2.5 `OrderInputViewModelTest` — 4–5 кейсов (отложено с Фазой 2).
 - 2.6 Гейт + Roborazzi.
 
 **Фаза 3 — `OrderInstrumentViewModel` (3–4 ч).**
