@@ -967,6 +967,63 @@ ___
 
 
 
+### CI: actions/cache v4 -> v6 (Node 20 deprecation)
+
+**Мобильная работа:** полное закрытие (proot + PR; правка `ci.yml` в 3 местах, gate на CI).
+
+**Статус:** запланировано.
+
+**Триггер:** 2026-11-14, PR #152 (`bugfix/ci-robolectric-cache`). GitHub Actions warning в каждом CI-run:
+`Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4.`
+
+**Контекст:** PR #152 добавил `actions/cache@v4` в 3 job'а (`fast-check`, `full-build`, `screenshot-test`) для кэша Robolectric `android-all-instrumented`. К ноябрю 2026 актуальна версия `actions/cache@v6` (по 2a). v4 работает, но выдаёт deprecation warning в каждом CI-run.
+
+**Соответствие Clean:** соответствует (организационный слой, 2b).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**Предусловия:** PR #152 merged (`2261145c`, 2026-11-14).
+
+**Файлы:** `.github/workflows/ci.yml` — 3 места (`actions/cache@v4` -> `@v6`): `fast-check`, `full-build`, `screenshot-test`.
+
+**Шаги:**
+1. Заменить `actions/cache@v4` -> `actions/cache@v6` (3 места, count = 3).
+2. Проверить, что кэш-key (`roborazzi-android-all-...`) не меняется (v6 API совместим с v4 для `path` / `key` / `restore-keys`).
+3. YAML parse + `git diff`.
+4. PR -> merge.
+
+**Тесты:** нет (CI-изменение). Verify — по CI-run после merge: warning исчез.
+
+**Референсы:** PR #152 (`2261145c`); `https://github.com/actions/cache/releases` — актуальная версия v6 на 2026-11.
+
+**Ограничения:**
+- Не менять кэш-key / path — только версию action'а.
+- Не трогать другие `uses:` (`checkout@v6`, `setup-java@v5`, `setup-gradle@v5`, `upload-artifact@v7`).
+
+**Критерий готовности:**
+- `actions/cache@v6` в 3 местах.
+- CI зелёный на PR + после merge в `dev`.
+- `Node.js 20 is deprecated` warning исчез из CI-логов.
+
+**Оценка:** ~10 минут (3 замены + YAML + PR).
+
+**Зависимости:** PR #152 merged (✅).
+
+**Связано:** `docs/ROADMAP.md` -> `### OrderFormViewModel: split на sub-VM` (v6 должен быть до PR-3, по запросу пользователя 2026-11-14).
+
+**Открытые вопросы:**
+- Точная версия `actions/cache` на 2026-11 (v6 подтверждён пользователем; проверить при apply — `latest` в репозитории action'а).
+
+
+
+___
+
+
+
 ---
 
 
