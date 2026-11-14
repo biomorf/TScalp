@@ -9,8 +9,8 @@ import com.gitlab.biomorf.tscalp.domain.models.Instrument
  * Источник: `OrderFormState` (13d-A). Содержит только поля,
  * связанные с выбором инструмента, ценой и identity слота.
  * Поля `quantity` / `orderType` / `prices` / `pair-multiplier` —
- * в [OrderInputState]; trade-details (executionPrice, costOverlay,
- * freeBalance) — в [OrderTradeDetailsState]; confirm/status —
+ * в [OrderInputState]; trade-details (executionPrice, costOverlay) —
+ * в [OrderTradeDetailsState]; confirm/status/freeBalance —
  * в [OrderExecutionState].
  *
  * **2c (fixation, C2):** `saveState()` — в [OrderInstrumentViewModel]

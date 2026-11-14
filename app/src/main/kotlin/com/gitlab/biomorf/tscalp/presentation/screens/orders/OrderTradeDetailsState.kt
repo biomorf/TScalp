@@ -14,7 +14,6 @@ data class OrderTradeDetailsState(
     val executionPrice: Double = 0.0,
     val costOverlay: String? = null,
     val multiplierOverlay: String? = null,
-    val freeBalance: Double? = null,
     val pairExecPrice: Double = 0.0,
     val pairedOrderType: OrderTypeSelection? = null,
 )

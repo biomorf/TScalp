@@ -24,7 +24,7 @@ import javax.inject.Inject
  * (sub-state) — VM не читает `_state.value` других VM. `executionPrice`
  * для `updatePairExecDetails` берётся из **своего** state (SSoT:
  * единственный результат `calculateTradeDetails`). `freeBalance` —
- * в `OrderExecutionState` (`OrderExecutionViewModel`, PR-3);
+ * в `OrderExecutionState` (`OrderExecutionViewModel`, Phase 3.1);
  * в этом VM не хранится.
  */
 @HiltViewModel

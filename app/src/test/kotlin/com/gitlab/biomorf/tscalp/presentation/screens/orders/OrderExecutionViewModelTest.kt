@@ -126,6 +126,7 @@ class OrderExecutionViewModelTest {
             assertEquals(false, s.showConfirmDialog)
             assertNull(s.pendingDirection)
             assertEquals(false, s.isLoading)
+            assertEquals(5000.0, s.freeBalance!!, 0.0)
             coVerify { placeOrderUseCase.execute(request, OrderDirection.BUY) }
         }
 

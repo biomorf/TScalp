@@ -31,10 +31,11 @@ import javax.inject.Inject
  * от построения request (это Phase 4 через `toPlaceOrderRequest()` +
  * Mediator).
  *
- * **2d-fixation (Phase 3):** в `handlePostOrder*` не пишем в Input state
- * (`quantity`/`limitPrice`/`stopPrice` — не очищаем) и в TradeDetails
- * state (`freeBalance` — не сохраняем). Перенесено в Phase 4 через
- * Mediator. Старый `OrderFormViewModel` работает параллельно до Phase 5.
+ * **2d-fixation (Phase 3 → closed Phase 3.1):** в `handlePostOrder*` не
+ * пишем в Input state (`quantity`/`limitPrice`/`stopPrice` — не
+ * очищаем). `freeBalance` — пишется в **свой** state (Phase 3.1,
+ * 2026-11-14: execution-результат, а не trade-details). Старый
+ * `OrderFormViewModel` работает параллельно до Phase 5.
  */
 @HiltViewModel
 class OrderExecutionViewModel
@@ -105,7 +106,7 @@ class OrderExecutionViewModel
             if (freeBalance != null && freeBalance < 1000.0) {
                 message += "\n\u26a0\ufe0f \u041d\u0438\u0437\u043a\u0438\u0439 \u0441\u0432\u043e\u0431\u043e\u0434\u043d\u044b\u0439 \u043e\u0441\u0442\u0430\u0442\u043e\u043a: ${formatDomesticCurrency(freeBalance)}"
             }
-            _state.update { it.copy(isLoading = false) }
+            _state.update { it.copy(isLoading = false, freeBalance = outcome.freeBalance) }
             _status.trySend(StatusEvent(message, isError = false))
         }
 
