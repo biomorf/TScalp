@@ -102,6 +102,66 @@ ___
 
 
 
+### C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing)
+
+**Мобильная работа:** полное закрытие (proot + PR; domain + presentation, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** M018 (clean-audit, принято 2c в PR-4): `OrderFormMediator` собирает `TradingStateSnapshot` в presentation (M4/M7). Наследие `OrderFormViewModel.saveState` до PR-3. Fix — `SaveFormStateUseCase` принимает primitives (7 параметров), собирает snapshot **внутри domain**. Устраняет M4/M7 для persist-формы.
+
+**Соответствие Clean:** соответствует (M4/M7 устраняются).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** соответствует (после fix presentation не конструирует domain-модель).
+
+**KMP:** соответствует (usecase в domain, без platform).
+
+**Предусловия:** PR-4 merged (Mediator написан, `OrderFormMediator.kt` собирает snapshot).
+
+**Файлы:**
+- `domain/usecases/SaveFormStateUseCase.kt` — signature 7 primitives, snapshot внутри.
+- `domain/usecases/SaveFormStateUseCaseTest.kt` — 7 кейсов (null cards, defaults, full).
+- `presentation/screens/orders/OrderFormMediator.kt` — передаёт primitives, не импортирует `TradingStateSnapshot`.
+- `docs/clean-audit.md` — M018 → `### Исправленные (L1)`.
+
+**Шаги:**
+1. `SaveFormStateUseCase.execute(selectedCard, pairedCard, pairTradingEnabled, quantity, pairedMultiplier, orderType)` — собирает snapshot внутри.
+2. `SaveFormStateUseCaseTest` — 7 кейсов: null cards, defaults, full, empty, mixed.
+3. `OrderFormMediator.updatePrimitives` → `saveFormStateUseCase.execute(...)` (primitives напрямую); remove `TradingStateSnapshot` import.
+4. `clean-audit`: M018 → `### Исправленные (L1)`, статус «исправлено».
+5. Гейт.
+
+**Тесты:** 7 unit-кейсов `SaveFormStateUseCaseTest`; Mediator-тесты без изменений (если есть).
+
+**Референсы:** M018 (clean-audit), PR-2 (`SaveFormStateUseCase` создан), PR-4 (Mediator). paritytech/layered-architecture «DTO ↔ domain: mandatory, always map at data layer».
+
+**Ограничения:**
+- Не менять `TradingStateSnapshot` (domain model без изменений).
+- Не менять `TradingStateRepository` (сигнатура `save(snapshot)` — внутри usecase).
+- Signature 7 primitives — если при PR-4 добавится поле в snapshot, расширить (это осознанная цена).
+
+**Критерий готовности:**
+- `SaveFormStateUseCase.execute(7 primitives)`; snapshot внутри usecase.
+- `OrderFormMediator` не импортирует `TradingStateSnapshot`.
+- M018 → `### Исправленные (L1)`.
+- Гейт зелёный.
+
+**Оценка:** ~1.5 ч.
+
+**Зависимости:** PR-4 merged.
+
+**Связано:** M018 (clean-audit), PR-2 (`SaveFormStateUseCase`), PR-4 (Mediator).
+
+**Открытые вопросы:** нет.
+
+___
+
 ### Архитектурный документ (docs/architecture.md)
 
 **Мобильная работа:** полное закрытие (правки .md — через proot;
@@ -511,8 +571,8 @@ UI (переписать, C2):
 - **1** (2 ч). `OrderInstrumentViewModel` (~9 fun) + 6–8 тестов.
 - **2** (1.5 ч). `OrderInputViewModel` (~6 fun) + 4–5 тестов.
 - **3** (1.5 ч). `OrderExecutionViewModel` (~8 fun) + 8–10 тестов.
-- **4** (2 ч). `OrderFormMediator` — shared state (snapshot из Instrument + Input) + reactive save (debounce 500) + orchestration.
-- **5** (1.5 ч). UI rewrite 6 файлов (`formState.X` → `subState.X`). UI-санкция подтверждена (Q-P4a, 2026-11-14).
+- **4** (2 ч). `OrderFormMediator` — **save-only**: `updatePrimitives(...)` от UI + `Channel(CONFLATED)` + `debounce(500)` + `saveFormStateUseCase.execute(snapshot)`. Recalc/sync — **не здесь** (Phase 5). Инжектит `@ApplicationScope CoroutineScope` (уже в `DispatcherModule`); одна корутина на app. M4/M7 (snapshot внутри) — **pre-existing**, отдельная задача (см. «C2: SaveFormStateUseCase primitives»).
+- **5** (1.5 ч). UI rewrite 6 файлов (`formState.X` → `subState.X`). **Recalc orchestration**: UI на action вызывает `inputVM.x` → `tradeDetailsVM.update(instrumentVM.state, inputVM.state)` → `mediator.updatePrimitives(...)`. Cross-VM = 0 (UI оркестрирует). 2c-fixation в KDoc UI (M4-подобное: UI = дирижёр, осознанно). UI-санкция подтверждена (Q-P4a, 2026-11-14).
 - **6** (1 ч). Coord → lifecycle (`OrderFormViewModel` = 2 fun).
 - **7** (1 ч). Удалить `OrderFormState.kt`, `@Suppress` removal, `OrderFormViewModelTest` реструктуризация, `docs/architecture.md` обновить.
 - **8** (1 ч). Roborazzi diff = 0; live-test 7 сценариев (Android 14); Extended behavioural (20 тестов).
