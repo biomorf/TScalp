@@ -22,7 +22,8 @@ import kotlin.time.Clock
  *
  * Acquire is all-or-nothing: if any level is exhausted, returns max wait, consumes
  * nothing. `block()` runs outside the mutex — no contention on the network call.
- * On timeout (> [TIMEOUT_MS]) — [RateLimitTimeoutException]; caller wraps into
+ * On timeout (> timeoutMs, default 5s) — [RateLimitTimeoutException]; caller wraps
+ * into
  * `AppResult.Failure` at the boundary (see ROADMAP step 1a-3).
  *
  * Stream slots: per-(protocol, service) semaphore. Shared WS+gRPC budget and
@@ -36,6 +37,8 @@ import kotlin.time.Clock
 internal class TInvestRateLimiter(
     private val clock: Clock,
     private val logger: Logger,
+    private val timeoutMs: Long = 5_000L,
+    private val slowWaitMs: Long = 1_000L,
 ) : TransportRateLimiter {
     private val mutex = Mutex()
 
@@ -72,7 +75,7 @@ internal class TInvestRateLimiter(
                 }
                 return block()
             }
-            if (waitedMs + waitMs > TIMEOUT_MS) {
+            if (waitedMs + waitMs > timeoutMs) {
                 logger.e(
                     TAG,
                     "[rate-limit/$protocol/$service/${method ?: "-"}] timeout after ${waitedMs}ms",
@@ -81,7 +84,7 @@ internal class TInvestRateLimiter(
                     "[rate-limit/$protocol/$service/${method ?: "-"}] budget exhausted after ${waitedMs}ms",
                 )
             }
-            if (waitMs >= SLOW_WAIT_MS) {
+            if (waitMs >= slowWaitMs) {
                 logger.w(
                     TAG,
                     "[rate-limit/$protocol/$service/${method ?: "-"}] slow wait ${waitMs}ms",
@@ -202,37 +205,6 @@ internal class TInvestRateLimiter(
 
     private fun nowNanos(): Long = clock.now().toEpochMilliseconds() * NANOS_PER_MILLI
 
-    private class TokenBucket(
-        private val capacity: Double,
-        private val refillPerNano: Double,
-    ) {
-        private var tokens: Double = capacity
-        private var lastRefillNanos: Long = 0L
-
-        fun inspect(nowNanos: Long): Long? {
-            refill(nowNanos)
-            if (tokens >= 1.0) return null
-            if (refillPerNano <= 0.0) return Long.MAX_VALUE / 2
-            val waitNanos = ceil((1.0 - tokens) / refillPerNano).toLong()
-            return maxOf(1L, waitNanos / NANOS_PER_MILLI)
-        }
-
-        fun consume() {
-            tokens -= 1.0
-        }
-
-        private fun refill(nowNanos: Long) {
-            if (lastRefillNanos == 0L) {
-                lastRefillNanos = nowNanos
-                return
-            }
-            val elapsed = nowNanos - lastRefillNanos
-            if (elapsed <= 0L) return
-            tokens = (tokens + elapsed.toDouble() * refillPerNano).coerceAtMost(capacity)
-            lastRefillNanos = nowNanos
-        }
-    }
-
     private data class MethodKey(
         val protocol: TransportProtocol,
         val service: String,
@@ -241,9 +213,39 @@ internal class TInvestRateLimiter(
 
     companion object {
         private const val TAG = "TInvestRateLimiter"
-        private const val TIMEOUT_MS = 5_000L
-        private const val SLOW_WAIT_MS = 1_000L
-        private const val NANOS_PER_MILLI = 1_000_000L
+    }
+}
+
+internal const val NANOS_PER_MILLI = 1_000_000L
+
+internal class TokenBucket(
+    private val capacity: Double,
+    private val refillPerNano: Double,
+) {
+    private var tokens: Double = capacity
+    private var lastRefillNanos: Long = 0L
+
+    fun inspect(nowNanos: Long): Long? {
+        refill(nowNanos)
+        if (tokens >= 1.0) return null
+        if (refillPerNano <= 0.0) return Long.MAX_VALUE / 2
+        val waitNanos = ceil((1.0 - tokens) / refillPerNano).toLong()
+        return maxOf(1L, waitNanos / NANOS_PER_MILLI)
+    }
+
+    fun consume() {
+        tokens -= 1.0
+    }
+
+    private fun refill(nowNanos: Long) {
+        if (lastRefillNanos == 0L) {
+            lastRefillNanos = nowNanos
+            return
+        }
+        val elapsed = nowNanos - lastRefillNanos
+        if (elapsed <= 0L) return
+        tokens = (tokens + elapsed.toDouble() * refillPerNano).coerceAtMost(capacity)
+        lastRefillNanos = nowNanos
     }
 }
 
