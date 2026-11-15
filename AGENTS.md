@@ -1757,6 +1757,22 @@ git-дефолты (адресат, файлы, ветка).
 `$`-интерполяции; `bash -c '...'` — запрещён при наличии
 одинарных кавычек (AGENTS-LESSONS урок 51).
 
+**adb-команды в heredoc — `< /dev/null` и `--foreground`.**
+
+`adb shell` внутри `$(...)` в heredoc наследует stdin от heredoc'а
+и зависает в ожидании ввода. Всегда `< /dev/null`:
+
+    PID=$(timeout 5 adb shell pidof <pkg> < /dev/null | tr -d '\r\n')
+
+`timeout` без `--foreground` создаёт новую process group, SIGINT
+(Ctrl+C) не доходит до дочернего процесса — блок висит до таймаута.
+`timeout --foreground` пробрасывает SIGINT, Ctrl+C работает.
+
+Для live-test лога — `adb logcat --pid=<PID>`: только логи
+приложения (без system / Google), объём 10–50× меньше.
+
+    timeout --foreground 300 adb logcat --pid="$PID" -v threadtime > "$LOG" 2>&1
+
 <!-- AGENTS_SECTION_END: r4i -->
 <!-- AGENTS_SECTION_BEGIN: r5 -->
 ### 5. Коммит после каждой задачи

@@ -870,6 +870,25 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 ---
 
+### 115. adb в heredoc: `< /dev/null`, `timeout --foreground`, `--pid`
+
+**Правило:** (а) `adb shell` в `$()` внутри heredoc — `< /dev/null`;
+(б) `timeout` без `--foreground` не пробрасывает Ctrl+C —
+`timeout --foreground`; (в) live-test лог — `adb logcat --pid=<PID>`
+(10–50× меньше).
+
+**Инцидент:** 2026-11-16, live-test 1a (rate-limiter). Скрипт
+захвата с `adb logcat` падал за 0.1с или висел до таймаута
+(2507 строк, 324KB — стресс не успел). Причины: (1) `adb shell
+pidof` в `$()` — hung, читал stdin heredoc'а; (2) `timeout 300
+adb logcat` без `--foreground` — Ctrl+C не работал, ждали полные
+5 мин; (3) без `--pid` — весь logcat (700KB). Итераций: 6.
+
+**Проверка:** шаблон:
+
+    PID=$(timeout 5 adb shell pidof <pkg> < /dev/null | tr -d '\r\n')
+    timeout --foreground 300 adb logcat --pid="$PID" -v threadtime > "$LOG" 2>&1
+
 <!-- LESSONS_SECTION_END: scripts -->
 <!-- LESSONS_SECTION_BEGIN: kotlin -->
 
