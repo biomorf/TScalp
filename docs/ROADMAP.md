@@ -106,7 +106,9 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
 
-**Статус:** запланировано. Блокирует live-test C2 (scenarios 2–7).
+**Статус:** в работе. Блокирует live-test C2 (scenarios 2–7).
+
+**Ветка:** — (umbrella; ветки подзадач — отдельные)
 
 **Умбрелла.** Группировка задач по rate-limit и сокращению unary-запросов. Цель: устранить `RESOURCE_EXHAUSTED` на cold start и search; заложить broker-agnostic architecture для BCS/Finam.
 
