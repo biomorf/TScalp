@@ -1266,6 +1266,8 @@ live-тесте #2 задержки почти не было видно — View
 
 **Симптом:** REST fallback `findInstruments` (variant B, PR #85) делает N+1 unary-запросов: 1 `InstrumentsService/FindInstrument` + N `InstrumentsService/GetInstrumentBy` (по одному на каждый uid из короткого списка).
 
+**C2-находка (2026-11-15):** `SearchInstrumentsUseCase:49` добавил `updateStatuses(ids)` → +N `getTradingStatuses` → **2N+1 unary** на поиск. Sandbox 6/сек → `RESOURCE_EXHAUSTED` (live-log C2). Rate-limiter (умбрелла) закроет; сокращение — `### Search: сократить N+1 unary в findInstruments`.
+
 **Причина:** REST `FindInstrument` возвращает `InstrumentShort` без `currency`/`lot`, обязательных для `InstrumentUi` (8 обязательных полей в `domain/models/Instruments.kt`). Полный `Instrument` — только через `GetInstrumentBy`. Fallback повторяет gRPC-путь (там тоже N+1).
 
 **Последствия:** при поиске на 100 инструментов — 101 unary-запрос подряд. Fallback редкий (только когда gRPC `UNAVAILABLE` / `DEADLINE_EXCEEDED` / `UNIMPLEMENTED`), но при совпадении с rate-limit T-Invest (6 unary/сек) — `RESOURCE_EXHAUSTED` и деградация поиска.
@@ -1462,3 +1464,31 @@ drop pair-stop без `stopPrice` → `Invalid`. `execute` complexity 15 → 8
 removal + `PrepareOrderRequestUseCaseTest`) — следующий PR.
 
 **Когда вернуться:** — (закрыто; B2 — отдельная фаза umbrella-задачи).
+
+## T-Invest rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED
+
+**Статус:** открыт.
+
+**Симптом:** на cold start и search — `RESOURCE_EXHAUSTED` от T-Invest API. Live-log C2 (2026-11-15, emulator, sandbox):
+- **Search burst:** 6 × `TInvestInstruments: RESOURCE_EXHAUSTED` за 300ms (17:50:40.024–.314) на pair-search.
+- **Cold start:** `LoadPortfolioUseCase` / `LoadOrdersAccountsUseCase` / `RestoreOrderFormUseCase` — `UNAVAILABLE: Unable to resolve host` (DNS эмулятора) + `RESOURCE_EXHAUSTED` после.
+
+**Причина:**
+- `findInstruments` = N+1 unary (1 + N `getInstrumentBy`); C2 добавил `updateStatuses(ids)` = +N `getTradingStatuses` → **2N+1 unary** на поиск.
+- Cold start: 5s×N accounts polling + 10s position polling + 5 min periodic statuses + `restore` (broker init + instrument ×2 + load) → суммарная нагрузка.
+- Sandbox 6/сек (global) — burst 2N+1 > 6 → `RESOURCE_EXHAUSTED`.
+
+**Решение:** umbrella `### Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED` (ROADMAP) + подзадачи (1) Rate-limiter, (2) Search N+1, (3) updateStatuses skip, (4) getTradingStatuses batching.
+
+**Файлы:**
+- `domain/usecases/SearchInstrumentsUseCase.kt`
+- `data/api/tinvest/TInvestInstrumentsService.kt`
+- `data/api/tinvest/TInvestTradingService.kt`
+- `data/api/tinvest/TInvestRateLimiter.kt` (новый)
+- `docs/rate-limits.md`
+
+**Связано:** `docs/ROADMAP.md` → umbrella; `docs/ISSUES.md` → `## PortfolioScreen: infinite retry loadPortfolio`, `## T-Invest REST findInstruments fallback (N+1 unary)`; `docs/clean-audit.md` → Н66; live-log C2 (2026-11-15).
+
+**Когда вернуться:** после закрытия umbrella (live-test C2 2–7 PASS).
+
+---

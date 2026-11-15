@@ -128,6 +128,28 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ### Исправленные (L1)
 
+### ✅ M1/M7. SearchInstrumentsUseCase: presentation prefix
+
+**Статус:** исправлено (2026-11-15, PR #160, merge `4af3b682`).
+
+**Серьёзность:** низко.
+
+**Live тест:** -.
+
+**Описание:** `SearchInstrumentsUseCase.kt:59` формировал UI-текст `"Ошибка поиска: ${e.message}"` (M1 — domain делает presentation-работу; M7 — конвертация domain→presentation). `OrderSearchViewModel:105` добавлял тот же префикс → двойной `"Ошибка поиска: Ошибка поиска: RESOURCE_EXHAUSTED"` в live-test (2026-11-15).
+
+**Нарушенное правило:** M1 — domain форматирует UI; M7 — presentation-форматирование в domain.
+
+**Clean-альтернатива:** domain возвращает `AppError.Unknown(e.message ?: "Search failed", e)` — сырое сообщение; presentation (`OrderSearchViewModel`) форматирует префикс.
+
+**MVVM-альтернатива:** то же — presentation форматирует.
+
+**Что сделано:** `SearchInstrumentsUseCase.kt:59` → `AppError.Unknown(e.message ?: "Search failed", e)`. Двойной префикс исчез. PR #160, коммит `9297b4b1`.
+
+**Ссылка на задачу:** PR #160 (merge `4af3b682`).
+
+**Связано:** `docs/ISSUES.md` → `## T-Invest rate-limit umbrella...` (RESOURCE_EXHAUSTED — отдельная причина).
+
 ### ✅ Н95. OrderFormViewModel — @Suppress("TooManyFunctions")
 
 **Статус:** исправлено (2026-11-15, PR-4b Phase 6.1-7.2, feature/orderform-split-c2-p4b).

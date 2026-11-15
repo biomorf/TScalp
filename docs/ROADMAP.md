@@ -102,6 +102,414 @@ ___
 
 
 
+### Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED
+
+**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
+
+**Статус:** запланировано. Блокирует live-test C2 (scenarios 2–7).
+
+**Умбрелла.** Группировка задач по rate-limit и сокращению unary-запросов. Цель: устранить `RESOURCE_EXHAUSTED` на cold start и search; заложить broker-agnostic architecture для BCS/Finam.
+
+**Контекст (live-log C2, 2026-11-15, emulator, sandbox T-Invest):**
+- **Search burst:** 6 × `TInvestInstruments: RESOURCE_EXHAUSTED` за 300ms (17:50:40.024–.314) на pair-search.
+- **Причина:** `findInstruments` = N+1 unary (1 + N `getInstrumentBy`); C2 добавил `SearchInstrumentsUseCase:49` `updateStatuses(ids)` = +N `getTradingStatuses` → **2N+1 unary** на поиск. Sandbox 6/сек → burst.
+- **Cold start:** 5s×N accounts polling + 10s position polling + 5 min periodic statuses + `restore` (broker init + instrument ×2 + load) → суммарная нагрузка поверх search.
+- **НЕ rate-limit:** `PortfolioScreen` `LaunchedEffect(isLoading)` infinite retry (UX-баг, блокирует live-test 6).
+
+**Подзадачи (все — отдельные задачи 5e, ниже в этом разделе):**
+
+| # | Подзадача | Тип | Блокирует |
+|---|---|---|---|
+| 1 | `Rate-limiter для unary-запросов T-Invest` (existing) | защита (P0) | live-test 2–7 |
+| 2 | `Search: сократить N+1 unary в findInstruments` (new) | оптимизация | UX search |
+| 3 | `updateStatuses: skip on cache hit / lazy on select` (new) | оптимизация | rate-budget |
+| 4 | `getTradingStatuses: батчинг / concurrency` (new; поглощает `clean-audit` Н66) | оптимизация | rate-budget |
+| 5 | `PortfolioScreen: retry с backoff` (new; **не rate-limit**, UX) | UX | live-test 6 |
+
+**Порядок:** **1 → (2, 3, 4 параллельно) → 5.**
+**Обоснование:** (1) — фундамент. Без защиты любая новая фича / фоновый запрос / periodic может снова выбить лимит; сокращение без защиты — «бег на месте». После (1) каждая оптимизация — безопасный refactor: «стало 2N+1 → N+1 → 1» на фоне гарантии ≤ 50/sec. (5) независима от rate-limit, но блокирует live-test 6 (restore).
+
+**Multi-broker (2a, 2e):** rate-limits у брокеров разные:
+- T-Invest: `docs/rate-limits.md` (50/sec global, 200/min Instruments gRPC, 600/min MarketData, `postOrder` 15/sec, `GetUserTariff` для динамических лимитов).
+- BCS: `429 Too Many Requests`; конкретные лимиты — TBD (проверить при `### Реализация BCS Broker API`).
+- Finam: REST 200 req/min (`docs/brokers.md`); gRPC — TBD.
+
+**Архитектурное решение (2e → data-слой, ближе к транспорту):** `RateLimiter` — интерфейс broker-agnostic (в `data/api/common/`); конфиг лимитов — per-broker (`data/api/<broker>/<Broker>RateLimits.kt`). Обёртка вокруг **каждого unary-вызова** в `data/api/tinvest/TInvest*Service` (`getAccounts`, `findInstruments`, `fetchProtoInstrument`, `getTradingStatuses`, `postOrder`, …). Перед вызовом — `rateLimiter.withPermission(transport, service, method) { ... }`. Domain не знает про лимиты — они свойство транспорта. Подзадача 1 реализует для T-Invest; BCS/Finam — при интеграции.
+
+**Разные протоколы и методы — разные лимиты (D1 = 4 уровня):**
+1. **global 50/sec** — по IP, все запросы.
+2. **per-(transport, service)** — gRPC и REST **разные бюджеты** (Instruments gRPC 200/min vs REST 100/min; MarketData 600/600; Orders 100/100).
+3. **per-(transport, method)** — если у метода свой лимит (`getOrders` 200, `postOrder` 15/sec, `getHistory` 30 REST, `getStopOrders` 60, `cancelOrder`/`replaceOrder` 300, `postOrderAsync` 600).
+4. **per-protocol fallback** — при gRPC → REST fallback (orchestrator) второй запрос идёт в **другой** budget (gRPC Instruments 200 vs REST Instruments 100), не в общий «Instruments».
+
+**Соответствие Clean:** соответствует (organizational umbrella; подзадачи — по 2e отдельно).
+
+**MVVM:** — (не применимо, umbrella).
+
+**KMP:** — (не применимо, umbrella).
+
+**Предусловия:** нет.
+
+**Файлы (umbrella):** `docs/ROADMAP.md` — эта umbrella; `docs/ISSUES.md` — umbrella-запись.
+
+**Шаги:** см. подзадачи 1–5. Каждая — отдельный PR.
+
+**Тесты:** см. подзадачи. Umbrella-критерий: live-test C2 2–7 PASS без `RESOURCE_EXHAUSTED`.
+
+**Референсы:** `docs/rate-limits.md` (обновлён 2026-11-15, [официальная страница](https://developer.tbank.ru/invest/intro/intro/limits)); `docs/ISSUES.md` → `## T-Invest rate-limit umbrella...`, `## PortfolioScreen: infinite retry...`, `## T-Invest REST findInstruments fallback (N+1 unary)`; `docs/clean-audit.md` → Н66; live-log C2 (2026-11-15); `docs/brokers.md`.
+
+**Ограничения:**
+- Не смешивать с `### Rate-limiter...` — это подзадача, umbrella только группирует.
+- Multi-broker: не реализовывать BCS/Finam-лимиты сейчас (нет интеграции), только архитектурная готовность (2a).
+- Не блокировать PR #160 — он уже merged; umbrella — новая работа.
+
+**Критерий готовности:** live-test C2 2–7 PASS; `RESOURCE_EXHAUSTED` в search — 0; rate-limiter в продакшене; search latency приемлемая (< 2 сек на 10 инструментов); Portfolio retry — bounded (3 попытки).
+
+**Оценка:** umbrella ~6–9 ч суммарно. Подзадачи: (1) 3–5 ч; (2) 1–1.5 ч; (3) 0.5–1 ч; (4) 1 ч; (5) 0.5 ч.
+
+**Зависимости:** нет. Подзадачи независимы (кроме 2–4 → после 1).
+
+**Связано:** PR #160 (observability + 3 fix; merged `4af3b682`); `docs/ISSUES.md` → `## T-Invest rate-limit umbrella...`, `## PortfolioScreen: infinite retry...`; `docs/clean-audit.md` → Н66; `docs/rate-limits.md`; `docs/brokers.md`.
+
+**Открытые вопросы (решить в подзадаче 1):**
+- **D1.** Limiter scope: 4 уровня (global 50/sec + per-(transport, service) + per-(transport, method) + per-protocol fallback) — см. «Архитектурное решение».
+- **D2.** `updateStatuses` в search: skip on cache hit / lazy на select / drop?
+- **D3.** `findInstruments` N+1: partial (InstrumentShort) vs full контракт? Если presentation требует full — N+1 неизбежен без API-батчинга.
+- **D4.** Concurrency: `Semaphore` поверх limiter (N parallel) vs sequential?
+- **D5.** `GetUserTariff`: динамические лимиты vs статические константы?
+- **D6.** Per-broker config: `data/api/<broker>/<Broker>RateLimits.kt` vs `data/api/common/RateLimits.kt` с per-broker параметром?
+
+---
+
+
+### Rate-limiter для unary-запросов T-Invest
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** в проекте **нет rate-limiter для unary-запросов**
+к T-Invest. Единственные механизмы ограничения частоты —
+периодичность polling (`RETRY_DELAY_MS = 10_000L` для позиций,
+`5_000L` для цен) и backoff переподключения стримов
+(`GRPC_RETRY_DELAYS_MS`, `RETRY_DELAYS_MS`). Это не ограничители
+частоты API, а расписания. При параллельных запросах
+(например, `getTradingStatuses` через
+`coroutineScope { awaitAll() }` — N параллельных unary на
+N инструментов) лимит легко превышается.
+
+Официальные лимиты T-Invest записаны в `docs/rate-limits.md`:
+не более 50 запросов в секунду суммарно, плюс по-сервисные
+лимиты в минуту (Instruments 200, Users 100, MarketData 300,
+Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
+и т.д.).
+
+**Зачем:** без rate-limiter'а возможны `RESOURCE_EXHAUSTED`
+от API, троттлинг на стороне сервера, деградация UX
+(запросы уходят в отказ, UI показывает ошибки). Особенно
+критично для `postOrder` (15/сек) и `getTradingStatuses`
+(N параллельных).
+
+**Предусловия:** нет.
+
+**Файлы:**
+
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestRateLimiter.kt` (новый) —
+  rate-limiter (токен-бакет) с учётом лимитов по сервисам и
+  общего лимита 50/сек.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/` —
+  unary-вызовы в `TInvestPricesService` (`getLastPricesByTscalpInstrumentId`),
+  `TInvestTradingService` (`getTradingStatuses`, `checkTradeAvailability`),
+  `TInvestPortfolioService` (`fetchPortfolioPositions` — was `fetchPositionsSnapshot`),
+  `TInvestInstrumentsService` (`fetchFullInstrument`, `findInstruments`),
+  `TInvestAccountsService` (`getAccounts`, `getBalance`) — обернуть в rate-limiter.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestOrdersService.kt` —
+  обернуть `postOrder` (15/сек), `postStopOrder`,
+  `getOrders`/`getStopOrders`, `cancel*`.
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/DataModule.kt` —
+  Hilt-провайдер `TInvestRateLimiter` как `@Singleton`.
+
+**Шаги:**
+
+1. **Вынести лимиты в константы** (`TInvestRateLimits` в
+   `data/api/`): таблицы из `docs/rate-limits.md` — по каждому
+   сервису, отдельные строки для `getOrders` и `postOrder`,
+   общий лимит 50/сек.
+2. **Реализовать токен-бакет** (`TInvestRateLimiter`): метод
+   `suspend fun <T> withPermission(service: TInvestService, block: suspend () -> T): T`.
+   Внутри — `Semaphore` или `Channel`-based limiter с
+   двумя уровнями: per-service (N/мин) и глобальный (50/сек).
+3. **Интегрировать** в 5 data-сервисов (`TInvestPricesService`,
+   `TInvestTradingService`, `TInvestPortfolioService`,
+   `TInvestInstrumentsService`, `TInvestAccountsService`) и
+   `TInvestOrdersService`: обернуть каждый unary-вызов в
+   `rateLimiter.withPermission(...) { broker.method() }`.
+4. **Особый случай `getTradingStatuses`:** сейчас
+   `coroutineScope { ids.map { async { ... } }.awaitAll() }` —
+   N параллельных. С rate-limiter'ом либо (а) последовательно
+   через limiter, либо (б) батчинг (если API даст метод
+   batch-запроса), либо (в) ограничить concurrency — например,
+   `Semaphore(10)` поверх rate-limiter'а.
+5. **Опционально: `GetUserTariff`** — unary-метод, возвращает
+   актуальные лимиты для пользователя. Вызывать при старте
+   приложения (после `initialize`), кэшировать, использовать
+   в rate-limiter вместо статических констант. Для грейдов
+   4–5 лимиты выше, чем в таблице.
+6. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
+   запросов не превышают лимит, что `postOrder` не чаще
+   15/сек, что общий лимит 50/сек соблюдается.
+
+**Референсы:**
+
+- `docs/rate-limits.md` — официальные лимиты (полные таблицы).
+- Официальная документация T-Invest:
+  `https://developer.tbank.ru/invest/intro/developer/limits` —
+  раздел «Лимиты запросов».
+- `GetUserTariff` в proto-контракте:
+  `ru.tinkoff.piapi.contract.v1.UsersService/GetUserTariff`.
+
+**Ограничения:**
+
+- Не менять публичные контракты `BrokerApi`. Rate-limiter —
+  внутренняя деталь `TInvestBrokerAPI` и его сервисов.
+- Не смешивать с задачей `stream-orchestrator` — это отдельная
+  работа по data-слою, не про WS.
+- Не трогать BCS / Finam — у них свои лимиты, отдельные задачи
+  при интеграции.
+- Держать поведение `getTradingStatuses` прежним по контракту
+  (тот же `Map<uid, TradingAvailability>`), меняется только
+  внутренняя реализация.
+- Если rate-limiter не может дать разрешение (запрос ждёт
+  слишком долго) — вернуть `AppResult.Failure` с
+  `AppError.Unknown("rate limit")` или дождаться с таймаутом.
+  Решение зафиксировать в KDoc.
+
+**Критерий готовности:**
+
+- `TInvestRateLimiter` реализован, покрыт unit-тестами.
+- Все unary-вызовы в 5 data-сервисах (`TInvestPricesService`,
+  `TInvestTradingService`, `TInvestPortfolioService`,
+  `TInvestInstrumentsService`, `TInvestAccountsService`) и
+  `TInvestOrdersService` проходят через rate-limiter.
+- `getTradingStatuses` не превышает лимит `MarketData`
+  (300/мин для gRPC) даже при 100 инструментах за раз.
+- `postOrder` не чаще 15/сек.
+- Общий лимит 50/сек с одного IP соблюдается (замер в unit-тесте).
+- 63 теста зелёные, ktlint и detekt чистые.
+
+**Оценка:** ~3–5 часов (токен-бакет 1–1.5 ч, интеграция
+1–1.5 ч, `GetUserTariff` 0.5–1 ч, тесты 0.5–1 ч).
+
+**Зависимости:** нет. **Разблокирует:** безопасный переход на
+более агрессивный polling, добавление батч-операций по
+инструментам, торговлю без риска `RESOURCE_EXHAUSTED`.
+
+**Открытые вопросы:**
+
+- Использовать `GetUserTariff` сразу или начать со статических
+  лимитов и добавить динамические позже. Решить при старте.
+- Как вести себя при долгом ожидании (timeout vs fail vs
+  ждать) — унифицировать через `AppResult`.
+- Нужен ли отдельный rate-limiter для REST-эндпоинтов T-Invest
+  (REST-прокси), если они будут использоваться — у REST
+  лимиты ниже (см. таблицу). Пока REST не используется,
+  не актуально.
+
+
+
+
+___
+
+
+### Search: сократить N+1 unary в findInstruments
+
+**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `TInvestInstrumentsService.findInstruments` = 1 `findInstrumentShorts` + N `fetchProtoInstrument` (N+1). C2 добавил `updateStatuses(ids)` → +N `getTradingStatuses` → **2N+1 unary** на поиск. Sandbox 6/сек → `RESOURCE_EXHAUSTED` (live-log C2, 2026-11-15). См. umbrella.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**MVVM:** — (не применимо, data/domain).
+
+**KMP:** соответствует (data-слой).
+
+**Предусловия:** подзадача 1 (limiter) — для безопасного рефактора.
+
+**Файлы:** `data/api/tinvest/TInvestInstrumentsService.kt`, `domain/usecases/SearchInstrumentsUseCase.kt`.
+
+**Шаги:**
+1. Partial `InstrumentShort` vs full: если presentation требует full — N+1 неизбежен (API без батчинга). Оценить (D3).
+2. `updateStatuses`: skip on cache hit / lazy на select (D2).
+3. Тесты.
+
+**Тесты:** unit на `SearchInstrumentsUseCase` (partial → full lazy).
+
+**Референсы:** `docs/ISSUES.md` → `## T-Invest REST findInstruments fallback (N+1 unary)`; umbrella.
+
+**Ограничения:** не менять `Instrument` контракт без миграции presentation.
+
+**Критерий готовности:** 2N+1 → N+1 (или 1, если partial достаточно); search latency < 2 сек на 10 инструментов.
+
+**Оценка:** ~1–1.5 ч.
+
+**Зависимости:** подзадача 1 (limiter).
+
+**Связано:** umbrella; `docs/ISSUES.md` → `## T-Invest REST findInstruments fallback (N+1 unary)`.
+
+**Открытые вопросы:** D2, D3 (umbrella).
+
+---
+
+### updateStatuses: skip on cache hit / lazy on select
+
+**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `SearchInstrumentsUseCase:49` вызывает `updateStatuses(instruments.map { uid })` на **каждый** поиск, включая cache hit. Даже если результаты из `SearchCacheRepository` — N unary впустую. См. umbrella.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** соответствует.
+
+**Предусловия:** нет.
+
+**Файлы:** `domain/usecases/SearchInstrumentsUseCase.kt`.
+
+**Шаги:**
+1. При `searchCacheRepository.search` → `AppResult.Success` (cached) — **не** вызывать `updateStatuses`.
+2. Или lazy: `updateStatuses` только при `onResultSelected` (UI).
+3. Тесты.
+
+**Тесты:** unit — cache hit не вызывает `updateTradingStatusesUseCase`.
+
+**Референсы:** umbrella.
+
+**Ограничения:** не ломать свежесть статусов (если нужен — lazy на select).
+
+**Критерий готовности:** cache hit — 0 unary; fresh search — N (или 0, если lazy).
+
+**Оценка:** ~0.5–1 ч.
+
+**Зависимости:** подзадача 1 (limiter).
+
+**Связано:** umbrella; `SearchInstrumentsUseCase`.
+
+**Открытые вопросы:** D2.
+
+---
+
+### getTradingStatuses: батчинг / concurrency
+
+**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `getTradingStatuses` — `coroutineScope { ids.map { async { ... } }.awaitAll() }` — N параллельных unary. На 100 инструментов — 100 запросов к MarketData (лимит 600/мин). Поглощает `clean-audit` Н66. См. umbrella.
+
+**Соответствие Clean:** соответствует.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** соответствует.
+
+**Предусловия:** подзадача 1 (limiter).
+
+**Файлы:** `data/api/tinvest/TInvestTradingService.kt`.
+
+**Шаги:**
+1. `Semaphore(10)` поверх rate-limiter (D4) или последовательно.
+2. Или батчинг, если API даст batch-метод (проверить).
+3. Тесты.
+
+**Тесты:** unit — не более N параллельных.
+
+**Референсы:** `clean-audit` Н66; umbrella.
+
+**Ограничения:** не менять контракт `Map<uid, TradingAvailability>`.
+
+**Критерий готовности:** ≤ 10 параллельных; rate-limiter соблюдён.
+
+**Оценка:** ~1 ч.
+
+**Зависимости:** подзадача 1 (limiter).
+
+**Связано:** `clean-audit` Н66; umbrella.
+
+**Открытые вопросы:** D4.
+
+---
+
+### PortfolioScreen: retry с backoff
+
+**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `PortfolioScreen:44` — `LaunchedEffect(uiState.isLoading) { loadPortfolio() }`. При ошибке `isLoading false → true` перезапускает effect → infinite retry (live-log 17:48:06–44, 6 retry подряд). **Не rate-limit**, UX-баг. Блокирует live-test 6 (restore after restart).
+
+**Соответствие Clean:** соответствует (presentation).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**MVVM:** соответствует (UI orchestration; retry в VM или UI — допустимо).
+
+**KMP:** — (не применимо, presentation).
+
+**Предусловия:** нет.
+
+**Файлы:** `presentation/screens/portfolio/PortfolioScreen.kt`, `PortfolioViewModel.kt`.
+
+**Шаги:**
+1. `LaunchedEffect(Unit)` вместо `LaunchedEffect(isLoading)` — один вызов при заходе.
+2. Retry с backoff (3 попытки: 1s, 3s, 10s) — в VM или UI.
+3. Тесты.
+
+**Тесты:** unit на retry-логику (если в VM).
+
+**Референсы:** live-log C2 (17:48:06–44); umbrella.
+
+**Ограничения:** не менять `LoadPortfolioUseCase` (retry — presentation).
+
+**Критерий готовности:** ≤ 3 retry; после — snackbar; без infinite loop.
+
+**Оценка:** ~0.5 ч.
+
+**Зависимости:** нет (независима от rate-limiter).
+
+**Связано:** umbrella; live-log C2.
+
+**Открытые вопросы:** retry в VM vs UI (2c).
+
+---
+
+
 ### C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing)
 
 **Мобильная работа:** полное закрытие (proot + PR; domain + presentation, гейт на CI).
@@ -810,145 +1218,6 @@ ___
 ___
 
 
-
-
-### Rate-limiter для unary-запросов T-Invest
-
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** в проекте **нет rate-limiter для unary-запросов**
-к T-Invest. Единственные механизмы ограничения частоты —
-периодичность polling (`RETRY_DELAY_MS = 10_000L` для позиций,
-`5_000L` для цен) и backoff переподключения стримов
-(`GRPC_RETRY_DELAYS_MS`, `RETRY_DELAYS_MS`). Это не ограничители
-частоты API, а расписания. При параллельных запросах
-(например, `getTradingStatuses` через
-`coroutineScope { awaitAll() }` — N параллельных unary на
-N инструментов) лимит легко превышается.
-
-Официальные лимиты T-Invest записаны в `docs/rate-limits.md`:
-не более 50 запросов в секунду суммарно, плюс по-сервисные
-лимиты в минуту (Instruments 200, Users 100, MarketData 300,
-Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
-и т.д.).
-
-**Зачем:** без rate-limiter'а возможны `RESOURCE_EXHAUSTED`
-от API, троттлинг на стороне сервера, деградация UX
-(запросы уходят в отказ, UI показывает ошибки). Особенно
-критично для `postOrder` (15/сек) и `getTradingStatuses`
-(N параллельных).
-
-**Предусловия:** нет.
-
-**Файлы:**
-
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestRateLimiter.kt` (новый) —
-  rate-limiter (токен-бакет) с учётом лимитов по сервисам и
-  общего лимита 50/сек.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/` —
-  unary-вызовы в `TInvestPricesService` (`getLastPricesByTscalpInstrumentId`),
-  `TInvestTradingService` (`getTradingStatuses`, `checkTradeAvailability`),
-  `TInvestPortfolioService` (`fetchPortfolioPositions` — was `fetchPositionsSnapshot`),
-  `TInvestInstrumentsService` (`fetchFullInstrument`, `findInstruments`),
-  `TInvestAccountsService` (`getAccounts`, `getBalance`) — обернуть в rate-limiter.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestOrdersService.kt` —
-  обернуть `postOrder` (15/сек), `postStopOrder`,
-  `getOrders`/`getStopOrders`, `cancel*`.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/di/DataModule.kt` —
-  Hilt-провайдер `TInvestRateLimiter` как `@Singleton`.
-
-**Шаги:**
-
-1. **Вынести лимиты в константы** (`TInvestRateLimits` в
-   `data/api/`): таблицы из `docs/rate-limits.md` — по каждому
-   сервису, отдельные строки для `getOrders` и `postOrder`,
-   общий лимит 50/сек.
-2. **Реализовать токен-бакет** (`TInvestRateLimiter`): метод
-   `suspend fun <T> withPermission(service: TInvestService, block: suspend () -> T): T`.
-   Внутри — `Semaphore` или `Channel`-based limiter с
-   двумя уровнями: per-service (N/мин) и глобальный (50/сек).
-3. **Интегрировать** в 5 data-сервисов (`TInvestPricesService`,
-   `TInvestTradingService`, `TInvestPortfolioService`,
-   `TInvestInstrumentsService`, `TInvestAccountsService`) и
-   `TInvestOrdersService`: обернуть каждый unary-вызов в
-   `rateLimiter.withPermission(...) { broker.method() }`.
-4. **Особый случай `getTradingStatuses`:** сейчас
-   `coroutineScope { ids.map { async { ... } }.awaitAll() }` —
-   N параллельных. С rate-limiter'ом либо (а) последовательно
-   через limiter, либо (б) батчинг (если API даст метод
-   batch-запроса), либо (в) ограничить concurrency — например,
-   `Semaphore(10)` поверх rate-limiter'а.
-5. **Опционально: `GetUserTariff`** — unary-метод, возвращает
-   актуальные лимиты для пользователя. Вызывать при старте
-   приложения (после `initialize`), кэшировать, использовать
-   в rate-limiter вместо статических констант. Для грейдов
-   4–5 лимиты выше, чем в таблице.
-6. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
-   запросов не превышают лимит, что `postOrder` не чаще
-   15/сек, что общий лимит 50/сек соблюдается.
-
-**Референсы:**
-
-- `docs/rate-limits.md` — официальные лимиты (полные таблицы).
-- Официальная документация T-Invest:
-  `https://developer.tbank.ru/invest/intro/developer/limits` —
-  раздел «Лимиты запросов».
-- `GetUserTariff` в proto-контракте:
-  `ru.tinkoff.piapi.contract.v1.UsersService/GetUserTariff`.
-
-**Ограничения:**
-
-- Не менять публичные контракты `BrokerApi`. Rate-limiter —
-  внутренняя деталь `TInvestBrokerAPI` и его сервисов.
-- Не смешивать с задачей `stream-orchestrator` — это отдельная
-  работа по data-слою, не про WS.
-- Не трогать BCS / Finam — у них свои лимиты, отдельные задачи
-  при интеграции.
-- Держать поведение `getTradingStatuses` прежним по контракту
-  (тот же `Map<uid, TradingAvailability>`), меняется только
-  внутренняя реализация.
-- Если rate-limiter не может дать разрешение (запрос ждёт
-  слишком долго) — вернуть `AppResult.Failure` с
-  `AppError.Unknown("rate limit")` или дождаться с таймаутом.
-  Решение зафиксировать в KDoc.
-
-**Критерий готовности:**
-
-- `TInvestRateLimiter` реализован, покрыт unit-тестами.
-- Все unary-вызовы в 5 data-сервисах (`TInvestPricesService`,
-  `TInvestTradingService`, `TInvestPortfolioService`,
-  `TInvestInstrumentsService`, `TInvestAccountsService`) и
-  `TInvestOrdersService` проходят через rate-limiter.
-- `getTradingStatuses` не превышает лимит `MarketData`
-  (300/мин для gRPC) даже при 100 инструментах за раз.
-- `postOrder` не чаще 15/сек.
-- Общий лимит 50/сек с одного IP соблюдается (замер в unit-тесте).
-- 63 теста зелёные, ktlint и detekt чистые.
-
-**Оценка:** ~3–5 часов (токен-бакет 1–1.5 ч, интеграция
-1–1.5 ч, `GetUserTariff` 0.5–1 ч, тесты 0.5–1 ч).
-
-**Зависимости:** нет. **Разблокирует:** безопасный переход на
-более агрессивный polling, добавление батч-операций по
-инструментам, торговлю без риска `RESOURCE_EXHAUSTED`.
-
-**Открытые вопросы:**
-
-- Использовать `GetUserTariff` сразу или начать со статических
-  лимитов и добавить динамические позже. Решить при старте.
-- Как вести себя при долгом ожидании (timeout vs fail vs
-  ждать) — унифицировать через `AppResult`.
-- Нужен ли отдельный rate-limiter для REST-эндпоинтов T-Invest
-  (REST-прокси), если они будут использоваться — у REST
-  лимиты ниже (см. таблицу). Пока REST не используется,
-  не актуально.
-
-
-
-
-___
 
 
 ### UI: кнопка swap слотов (primary ↔ pair)
