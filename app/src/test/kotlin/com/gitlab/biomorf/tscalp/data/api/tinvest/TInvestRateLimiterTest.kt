@@ -147,4 +147,23 @@ class TInvestRateLimiterTest {
             waitingJob.cancel()
             testScheduler.runCurrent()
         }
+
+    @Test
+    fun `per-method override replaces per-service cap`() =
+        runTest {
+            val fakeClock = newClock()
+            val limiter = TInvestRateLimiter(fakeClock, TestLogger)
+
+            // 150 getOrders at 10 req/sec (advance 100ms between calls).
+            // Global 50/sec is not exhausted (10 < 50).
+            // With fix (override 200/min replaces service 100/min): all 150 pass.
+            // Without fix (service 100/min, refill 1.67/sec vs consume 10/sec):
+            // ~101st call exhausts -> RateLimitTimeoutException -> FAIL.
+            repeat(150) {
+                limiter.withUnaryPermission(TransportProtocol.GRPC, "orders", "getOrders") { }
+                fakeClock.advance(100.milliseconds)
+                testScheduler.advanceTimeBy(100L)
+            }
+            // No exception thrown = override applied
+        }
 }

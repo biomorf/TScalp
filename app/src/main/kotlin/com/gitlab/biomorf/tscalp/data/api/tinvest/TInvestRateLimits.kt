@@ -51,7 +51,7 @@ internal object TInvestRateLimits {
             "orders.cancelOrder" to 300,
             "orders.replaceOrder" to 300,
             "orders.postOrderAsync" to 600,
-            "orders.getStopOrders" to 60,
+            "stoporders.getStopOrders" to 60,
         )
     val METHOD_UNARY_PER_MIN_REST: Map<String, Int> =
         METHOD_UNARY_PER_MIN_GRPC

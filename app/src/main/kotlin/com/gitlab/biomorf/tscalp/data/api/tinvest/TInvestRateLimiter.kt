@@ -120,13 +120,16 @@ internal class TInvestRateLimiter(
         method: String?,
         nowNanos: Long,
     ): Long? {
+        val secBucket = methodSecBucket(protocol, service, method)
+        val minBucket = methodMinBucket(protocol, service, method)
+        // Per-method override REPLACES the per-service cap (T-Invest docs:
+        // postOrder is 15/sec = 900/min — cannot fit under the 100/min service cap).
         val buckets =
-            listOfNotNull(
-                methodSecBucket(protocol, service, method),
-                methodMinBucket(protocol, service, method),
-                serviceBucket(protocol, service),
-                globalBucket,
-            )
+            if (secBucket != null || minBucket != null) {
+                listOfNotNull(secBucket, minBucket, globalBucket)
+            } else {
+                listOfNotNull(serviceBucket(protocol, service), globalBucket)
+            }
         val waits = buckets.map { it.inspect(nowNanos) }
         if (waits.any { it != null }) {
             return waits.filterNotNull().maxOrNull()
