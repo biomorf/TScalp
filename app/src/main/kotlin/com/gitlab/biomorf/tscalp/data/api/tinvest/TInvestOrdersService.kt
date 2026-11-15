@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderRequest
 import com.gitlab.biomorf.tscalp.domain.models.BrokerOrderType
 import com.gitlab.biomorf.tscalp.domain.models.Order
@@ -28,6 +30,7 @@ import ru.tinkoff.piapi.contract.v1.StopOrderType as ProtoStopOrderType
  */
 class TInvestOrdersService(
     private val state: TInvestApiState,
+    private val rateLimiter: TransportRateLimiter,
 ) {
     companion object {
         private const val TAG = "TInvestOrders"
@@ -76,9 +79,21 @@ class TInvestOrdersService(
 
             val response =
                 if (state.sandboxMode) {
-                    currentApi.sandboxServiceSync.postSandboxOrder(apiRequest)
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "sandbox",
+                        method = "postSandboxOrder",
+                    ) {
+                        currentApi.sandboxServiceSync.postSandboxOrder(apiRequest)
+                    }
                 } else {
-                    currentApi.ordersServiceSync.postOrder(apiRequest)
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "orders",
+                        method = "postOrder",
+                    ) {
+                        currentApi.ordersServiceSync.postOrder(apiRequest)
+                    }
                 }
 
             OrderResult(
@@ -96,9 +111,21 @@ class TInvestOrdersService(
             val request = GetOrdersRequest.newBuilder().setAccountId(accountId).build()
             val response =
                 if (state.sandboxMode) {
-                    currentApi.sandboxServiceSync.getSandboxOrders(request)
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "sandbox",
+                        method = "getSandboxOrders",
+                    ) {
+                        currentApi.sandboxServiceSync.getSandboxOrders(request)
+                    }
                 } else {
-                    currentApi.ordersServiceSync.getOrders(request)
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "orders",
+                        method = "getOrders",
+                    ) {
+                        currentApi.ordersServiceSync.getOrders(request)
+                    }
                 }
 
             val activeStatuses =
@@ -123,9 +150,21 @@ class TInvestOrdersService(
                 .setOrderId(orderId)
                 .build()
         if (state.sandboxMode) {
-            currentApi.sandboxServiceSync.cancelSandboxOrder(request)
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "sandbox",
+                method = "cancelSandboxOrder",
+            ) {
+                currentApi.sandboxServiceSync.cancelSandboxOrder(request)
+            }
         } else {
-            currentApi.ordersServiceSync.cancelOrder(request)
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "orders",
+                method = "cancelOrder",
+            ) {
+                currentApi.ordersServiceSync.cancelOrder(request)
+            }
         }
     }
 
@@ -152,9 +191,21 @@ class TInvestOrdersService(
 
             val response =
                 if (state.sandboxMode) {
-                    currentApi.sandboxServiceSync.postSandboxStopOrder(builder.build())
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "sandbox",
+                        method = "postSandboxStopOrder",
+                    ) {
+                        currentApi.sandboxServiceSync.postSandboxStopOrder(builder.build())
+                    }
                 } else {
-                    currentApi.stopOrdersServiceSync.postStopOrder(builder.build())
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "stoporders",
+                        method = "postStopOrder",
+                    ) {
+                        currentApi.stopOrdersServiceSync.postStopOrder(builder.build())
+                    }
                 }
             response.stopOrderId
         }
@@ -165,9 +216,21 @@ class TInvestOrdersService(
             val request = GetStopOrdersRequest.newBuilder().setAccountId(accountId).build()
             val response =
                 if (state.sandboxMode) {
-                    currentApi.sandboxServiceSync.getSandboxStopOrders(request)
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "sandbox",
+                        method = "getSandboxStopOrders",
+                    ) {
+                        currentApi.sandboxServiceSync.getSandboxStopOrders(request)
+                    }
                 } else {
-                    currentApi.stopOrdersServiceSync.getStopOrders(request)
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "stoporders",
+                        method = "getStopOrders",
+                    ) {
+                        currentApi.stopOrdersServiceSync.getStopOrders(request)
+                    }
                 }
             response.stopOrdersList.map { order -> TInvestOrdersMapper.mapStopOrder(order) }
         }
@@ -184,9 +247,21 @@ class TInvestOrdersService(
                 .setStopOrderId(stopOrderId)
                 .build()
         if (state.sandboxMode) {
-            currentApi.sandboxServiceSync.cancelSandboxStopOrder(request)
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "sandbox",
+                method = "cancelSandboxStopOrder",
+            ) {
+                currentApi.sandboxServiceSync.cancelSandboxStopOrder(request)
+            }
         } else {
-            currentApi.stopOrdersServiceSync.cancelStopOrder(request)
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "stoporders",
+                method = "cancelStopOrder",
+            ) {
+                currentApi.stopOrdersServiceSync.cancelStopOrder(request)
+            }
         }
     }
 
