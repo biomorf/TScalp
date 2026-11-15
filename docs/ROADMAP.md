@@ -122,14 +122,15 @@ ___
 
 | # | Подзадача | Тип | Блокирует |
 |---|---|---|---|
-| 1 | `Rate-limiter для unary-запросов T-Invest` (existing) | защита (P0) | live-test 2–7 |
+| 1a | `Rate-limiter для unary-запросов T-Invest` (existing) | защита (P0) | live-test 2–7 |
+| 1b | `Stream connection limiter: WS + gRPC-streaming` (new) | защита (P0) | WS-reconnect шторм, BCS/Finam streaming |
 | 2 | `Search: сократить N+1 unary в findInstruments` (new) | оптимизация | UX search |
 | 3 | `updateStatuses: skip on cache hit / lazy on select` (new) | оптимизация | rate-budget |
 | 4 | `getTradingStatuses: батчинг / concurrency` (new; поглощает `clean-audit` Н66) | оптимизация | rate-budget |
 | 5 | `PortfolioScreen: retry с backoff` (new; **не rate-limit**, UX) | UX | live-test 6 |
 
-**Порядок:** **1 → (2, 3, 4 параллельно) → 5.**
-**Обоснование:** (1) — фундамент. Без защиты любая новая фича / фоновый запрос / periodic может снова выбить лимит; сокращение без защиты — «бег на месте». После (1) каждая оптимизация — безопасный refactor: «стало 2N+1 → N+1 → 1» на фоне гарантии ≤ 50/sec. (5) независима от rate-limit, но блокирует live-test 6 (restore).
+**Порядок:** **1a → 1b → (2, 3, 4 параллельно) → 5.**
+**Обоснование:** (1a) — фундамент unary: без защиты любая новая фича / фоновый запрос / periodic может снова выбить unary-лимит. (1b) — фундамент stream: WS-реконнект-шторм может выбить stream-лимит (32/16/11) молча; сокращение без защиты — «бег на месте». После (1) каждая оптимизация — безопасный refactor: «стало 2N+1 → N+1 → 1» на фоне гарантии ≤ 50/sec. (5) независима от rate-limit, но блокирует live-test 6 (restore).
 
 **Multi-broker (2a, 2e):** rate-limits у брокеров разные:
 - T-Invest: `docs/rate-limits.md` (50/sec global, 200/min Instruments gRPC, 600/min MarketData, `postOrder` 15/sec, `GetUserTariff` для динамических лимитов).
@@ -167,19 +168,19 @@ ___
 
 **Критерий готовности:** live-test C2 2–7 PASS; `RESOURCE_EXHAUSTED` в search — 0; rate-limiter в продакшене; search latency приемлемая (< 2 сек на 10 инструментов); Portfolio retry — bounded (3 попытки).
 
-**Оценка:** umbrella ~6–9 ч суммарно. Подзадачи: (1) 3–5 ч; (2) 1–1.5 ч; (3) 0.5–1 ч; (4) 1 ч; (5) 0.5 ч.
+**Оценка:** umbrella ~6–9 ч суммарно. Подзадачи: (1a) 3–5 ч; (1b) 1–2 ч; (2) 1–1.5 ч; (3) 0.5–1 ч; (4) 1 ч; (5) 0.5 ч.
 
 **Зависимости:** нет. Подзадачи независимы (кроме 2–4 → после 1).
 
 **Связано:** PR #160 (observability + 3 fix; merged `4af3b682`); `docs/ISSUES.md` → `## T-Invest rate-limit umbrella...`, `## PortfolioScreen: infinite retry...`; `docs/clean-audit.md` → Н66; `docs/rate-limits.md`; `docs/brokers.md`.
 
 **Открытые вопросы (решить в подзадаче 1):**
-- **D1.** Limiter scope: 4 уровня (global 50/sec + per-(transport, service) + per-(transport, method) + per-protocol fallback) — см. «Архитектурное решение».
+- **D1 (решено).** A+ split: 1a — unary (gRPC-unary + REST-unary, token bucket, 4 уровня); 1b — stream (gRPC-streaming + WS, semaphore, флаг `WS_SHARES_STREAM_BUDGET = true`). «gRPC» в конфиге заменён на «streaming» (WS = прокси для gRPC streaming, делят stream-лимит).
 - **D2.** `updateStatuses` в search: skip on cache hit / lazy на select / drop?
 - **D3.** `findInstruments` N+1: partial (InstrumentShort) vs full контракт? Если presentation требует full — N+1 неизбежен без API-батчинга.
 - **D4.** Concurrency: `Semaphore` поверх limiter (N parallel) vs sequential?
-- **D5.** `GetUserTariff`: динамические лимиты vs статические константы?
-- **D6.** Per-broker config: `data/api/<broker>/<Broker>RateLimits.kt` vs `data/api/common/RateLimits.kt` с per-broker параметром? Role-pattern не применим — см. «Не role» в `### Rate-limiter для unary-запросов T-Invest`.
+- **D5 (решено).** Статика из `docs/rate-limits.md` (A); `GetUserTariff` (динамика, B) — отдельная follow-up задача.
+- **D6 (решено).** Per-broker конфиг: `data/api/<broker>/<Broker>RateLimits.kt` (A) + флаг `WS_SHARES_STREAM_BUDGET`. Role-pattern не применим — см. «Не role» в `### Rate-limiter для unary-запросов T-Invest`.
 
 ---
 
@@ -188,7 +189,9 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе.
+
+**Ветка:** feature/rate-limiter-unary
 
 **Контекст:** в проекте **нет rate-limiter для unary-запросов**
 к T-Invest. Единственные механизмы ограничения частоты —
@@ -218,6 +221,7 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 **Файлы:**
 
+- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/common/TransportRateLimiter.kt` (новый) — интерфейс (KMP-safe), две оси: `UnaryBudget` + `StreamBudget`.
 - `app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/api/tinvest/TInvestRateLimiter.kt` (новый) —
   rate-limiter (токен-бакет) с учётом лимитов по сервисам и
   общего лимита 50/сек.
@@ -259,7 +263,9 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
    приложения (после `initialize`), кэшировать, использовать
    в rate-limiter вместо статических констант. Для грейдов
    4–5 лимиты выше, чем в таблице.
-6. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
+6. **Логирование:** каждый вызов через limiter — `Logger.d` при ожидании (`[rate-limit/gRPC/instruments/getTradingStatuses] waited 120ms, budget 199/200 per-min`); `Logger.w` при ожидании > 1s (`[rate-limit/...] waited 1200ms — slow`); `Logger.e` при таймауте (`[rate-limit/...] timeout 5000ms, budget exhausted`). Без логирования `RESOURCE_EXHAUSTED` не диагностируется — какой именно бюджет выбит.
+
+7. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
    запросов не превышают лимит, что `postOrder` не чаще
    15/сек, что общий лимит 50/сек соблюдается.
 
@@ -280,6 +286,7 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
   работа по data-слою, не про WS.
 - Не трогать BCS / Finam — у них свои лимиты, отдельные задачи
   при интеграции.
+- **KMP:** без `System.currentTimeMillis()` / `Thread.sleep`; время — через инжект `kotlin.time.Clock`; `Duration` / `Instant` из `kotlin.time`; без `android.*` / `java.*` (2e).
 - Держать поведение `getTradingStatuses` прежним по контракту
   (тот же `Map<uid, TradingAvailability>`), меняется только
   внутренняя реализация.
@@ -325,6 +332,76 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 ___
 
 
+### Stream connection limiter: WS + gRPC-streaming
+
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** запланировано.
+
+**Ветка:** feature/stream-connection-limiter
+
+**Контекст:** WS — прокси для gRPC streaming (T-Invest docs: «Сервис для получения сообщений gRPC streaming через JSON WebSocket»); у него **отдельная лимитная политика** (stream-соединения 32/16/11 по сервисам, ошибка `4008 RESOURCE_EXHAUSTED`). Прямого указания, делят ли WS и gRPC-streaming общий счётчик, в документации нет — консервативно считаем, что делят. `TInvestWsService` создаёт 3 WS-канала (`Positions`, `Prices`, `OrderState`); `mergeStreamSources` в `TInvestOrchestrator` держит gRPC + WS параллельно. Реконнект-шторм (backoff 1–60s, `reapplyDebugFlags`) может выбить stream-лимит молча, без явной диагностики. Сейчас защиты нет — `retryWithBackoff` управляет частотой, но не считает слоты. BCS — только WS (без gRPC); Finam — gRPC + WS + REST.
+
+**Соответствие Clean:** соответствует (data-layer infrastructure; domain не знает).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** соответствует — `kotlinx.coroutines.sync.Semaphore` + `kotlinx.coroutines.withTimeout` (KMP-safe); без `java.util.concurrent.Semaphore` (не KMP-safe), без `android.*` / `java.*`.
+
+**Предусловия:** 1a — общий интерфейс `TransportRateLimiter` (две оси: UnaryBudget + StreamBudget).
+
+**Файлы:**
+- `app/src/main/kotlin/.../data/api/common/StreamBudgetLimiter.kt` (новый) — semaphore per-(transport, service).
+- `app/src/main/kotlin/.../data/api/tinvest/TInvestRateLimits.kt` — `StreamBudget` (MarketData 32 / Orders 16 / Operations 11).
+- `app/src/main/kotlin/.../data/api/tinvest/TInvestWsService.kt` — acquire/release слота при connect/stop.
+- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — acquire/release для gRPC-stream.
+- `app/src/test/kotlin/.../data/api/common/StreamBudgetLimiterTest.kt` (новый).
+
+**Шаги:**
+1. `StreamBudgetLimiter(semaphore per service)`: `suspend fun <T> withSlot(service, block): T` — acquire → блок → release (finally).
+2. Флаг `WS_SHARES_STREAM_BUDGET = true` (в `TInvestRateLimits`): `true` — WS и gRPC-streaming делят счётчик; `false` — раздельные semaphore × 2 на сервис.
+3. `TInvestWsService.initialize` — acquire на 3 канала (3 слота: MarketData/prices, Operations/positions, Orders/orderState); `stop` — release.
+4. `TInvestOrchestrator` — acquire/release на gRPC-stream каналы.
+5. **Логирование:** `Logger.d` при acquire — `[stream-limit/gRPC/positions] slot 1/32 acquired`; `Logger.d` при release; `Logger.w` при таймауте acquire (`waited 5000ms, budget 32/32 — WS-reconnect storm?`); итог бюджета на release — `[stream-limit/WS/positions] released, 2/32 used`. Без этого `4008` не диагностируется.
+6. Тесты: 4 кейса — under limit, at limit (acquire waits), WS+gRPC shared (флаг `true`), split (флаг `false`).
+7. BCS/Finam — конфиги: `BcsRateLimits` = `StreamBudget(WS)`, `FinamRateLimits` = `StreamBudget(gRPC, WS)`. Acquire/release — при интеграции брокеров.
+
+**Тесты:** `StreamBudgetLimiterTest` — 4 кейса.
+
+**Референсы:** `docs/rate-limits.md` → «Stream-соединения T-Invest»; `docs/streams.md`; `docs/brokers.md` (BCS — только WS, Finam — gRPC+WS+REST); `TInvestOrchestrator.mergeStreamSources`; `TInvestWsService`.
+
+**Ограничения:**
+- Не менять публичные контракты `BrokerApi` / `StreamsApi`.
+- Не смешивать с 1a (unary limiter) — разные механизмы, разные ветки.
+- WS inbound frames не заряжаются — только subscription (acquire при connect) и ping (по 60s, в уже занятом слоте).
+- `retryWithBackoff` остаётся; limiter считает слоты, не частоту retry.
+- BCS/Finam — конфиги в этой подзадаче; реальное acquire/release — при интеграции брокеров.
+- **KMP:** `kotlinx.coroutines.sync.Semaphore`, `kotlinx.coroutines.withTimeout`; без `java.util.concurrent.Semaphore` (не KMP-safe), без `android.*` / `java.*` (2e).
+
+**Критерий готовности:**
+- `StreamBudgetLimiter` реализован, покрыт тестами (4 кейса).
+- 3 WS-канала T-Invest + gRPC-stream каналы проходят через acquire/release.
+- Логирование: acquire/release, таймаут, итог бюджета.
+- Флаг `WS_SHARES_STREAM_BUDGET` работает (shared / split).
+- live-test: WS-reconnect (вкл/выкл сеть) — нет `4008`, в логах `[stream-limit/...]`.
+- Гейт зелёный.
+
+**Оценка:** ~1.5–2 ч (limiter 40 мин, интеграция 40 мин, логирование + тесты 30 мин, live-test 20 мин).
+
+**Зависимости:** 1a (общий интерфейс).
+
+**Связано:** umbrella; `docs/rate-limits.md` → «Stream-соединения»; `docs/streams.md`; `TInvestOrchestrator.mergeStreamSources`.
+
+**Открытые вопросы:**
+- WS и gRPC-streaming делят один счётчик? Пока консервативно `true`; если в логах `4008` при общем счёте < лимита — вероятно, раздельные, флаг `false`.
+- T-Invest docs: счётчик стрим-соединений обновляется каждые 2 минуты — влияет ли на acquire? — уточнить по факту.
+
 ### Search: сократить N+1 unary в findInstruments
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
@@ -343,7 +420,7 @@ ___
 
 **MVVM:** — (не применимо, data/domain).
 
-**KMP:** соответствует (data-слой).
+**KMP:** соответствует — новый код KMP-safe (`Clock` инжект `kotlin.time.Clock`, `Duration`/`Instant` из `kotlin.time`, `kotlinx.coroutines.sync.Semaphore`); без `System.currentTimeMillis()` / `Thread.sleep` / `android.*` / `java.*`. Data-слой целиком — не в этой фазе, но новый код — без нового KMP-долга.
 
 **Предусловия:** подзадача 1 (limiter) — для безопасного рефактора.
 
