@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +25,7 @@ import ru.tinkoff.piapi.contract.v1.Instrument as ProtoInstrument
 class TInvestInstrumentsService(
     private val state: TInvestApiState,
     private val logger: Logger,
+    private val rateLimiter: TransportRateLimiter,
 ) {
     companion object {
         private const val TAG = "TInvestInstruments"
@@ -50,7 +53,13 @@ class TInvestInstrumentsService(
                     .setIdType(InstrumentIdType.INSTRUMENT_ID_TYPE_UID)
                     .setId(uid)
                     .build()
-            currentApi.instrumentsServiceSync.getInstrumentBy(request).instrument
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "instruments",
+                method = "getInstrumentBy",
+            ) {
+                currentApi.instrumentsServiceSync.getInstrumentBy(request).instrument
+            }
         }
 
     @Suppress("DEPRECATION")
@@ -58,8 +67,18 @@ class TInvestInstrumentsService(
         try {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = GetFuturesMarginRequest.newBuilder().setFigi(figi).build()
-            val response = currentApi.instrumentsServiceSync.getFuturesMargin(request)
+            val response =
+                rateLimiter.withUnaryPermission(
+                    protocol = TransportProtocol.GRPC,
+                    service = "instruments",
+                    method = "getFuturesMargin",
+                ) {
+                    currentApi.instrumentsServiceSync.getFuturesMargin(request)
+                }
             response.minPriceIncrementAmount?.let { it.units + it.nano / 1_000_000_000.0 }
+        } catch (e: RateLimitTimeoutException) {
+            logger.e(TAG, "getFuturesMargin($figi): rate-limited, ${e.message}", e)
+            null
         } catch (e: Exception) {
             logger.w(TAG, "Не удалось получить стоимость шага цены для $figi: ${e.message}")
             null
@@ -69,7 +88,13 @@ class TInvestInstrumentsService(
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = FindInstrumentRequest.newBuilder().setQuery(query).build()
-            currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "instruments",
+                method = "findInstrument",
+            ) {
+                currentApi.instrumentsServiceSync.findInstrument(request).instrumentsList
+            }
         }
 
     suspend fun findInstruments(query: String): List<Instrument> =
@@ -78,6 +103,9 @@ class TInvestInstrumentsService(
                 try {
                     val instrument = fetchProtoInstrument(short.uid) ?: return@mapNotNull null
                     TInvestInstrumentMapper.mapProtoToDomain(instrument)
+                } catch (e: RateLimitTimeoutException) {
+                    logger.e(TAG, "Rate-limited fetching uid=${short.uid}: ${e.message}", e)
+                    null
                 } catch (e: Exception) {
                     logger.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
                     null
