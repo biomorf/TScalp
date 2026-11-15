@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -78,8 +79,12 @@ class OrdersViewModel
             // StateFlow отдаёт текущее значение сразу при подписке — аналог
             // прежнего прямого вызова checkApiInitialization() в init.
             viewModelScope.launch {
-                logger.d(TAG, "subscribed to anyInitialized")
-                brokerManager.anyInitialized.collect {
+                logger.d(TAG, "subscribed to anyInitialized (drop current, react to changes)")
+                // C2 live-test regression: anyInitialized эмитит текущее значение
+                // при подписке -> двойной checkApiInitialization (вместе с
+                // LaunchedEffect(Unit) в OrdersScreen). drop(1): UI делает
+                // первый вызов, VM ловит только изменения (login/logout).
+                brokerManager.anyInitialized.drop(1).collect {
                     checkApiInitialization()
                 }
             }
