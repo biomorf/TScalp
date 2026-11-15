@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
@@ -19,6 +20,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class OrderFormMediatorTest {
     private val saveFormStateUseCase = mockk<SaveFormStateUseCase>(relaxed = true)
+    private val logger = mockk<Logger>(relaxed = true)
 
     private val card1 = CardIdentity("uid-1", BrokerName.TINVEST, "acc-1")
     private val card2 = CardIdentity("uid-2", BrokerName.BCS, "acc-2")
@@ -27,7 +29,7 @@ class OrderFormMediatorTest {
     fun `updatePrimitives emits to shared immediately`() =
         runTest {
             val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
-            val mediator = OrderFormMediator(saveFormStateUseCase, scope)
+            val mediator = OrderFormMediator(saveFormStateUseCase, logger, scope)
 
             mediator.updatePrimitives(
                 selectedCard = card1,
@@ -48,7 +50,7 @@ class OrderFormMediatorTest {
     fun `updatePrimitives debounces save calls`() =
         runTest {
             val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
-            val mediator = OrderFormMediator(saveFormStateUseCase, scope)
+            val mediator = OrderFormMediator(saveFormStateUseCase, logger, scope)
 
             mediator.updatePrimitives(card1, null, false, 1L, 10L, OrderTypeSelection.Market)
             advanceTimeBy(100)
@@ -65,7 +67,7 @@ class OrderFormMediatorTest {
     fun `conflated channel keeps latest`() =
         runTest {
             val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
-            val mediator = OrderFormMediator(saveFormStateUseCase, scope)
+            val mediator = OrderFormMediator(saveFormStateUseCase, logger, scope)
 
             mediator.updatePrimitives(card1, card2, true, 5L, 20L, OrderTypeSelection.Limit)
             advanceTimeBy(OrderFormMediator.DEBOUNCE_MS + 100)

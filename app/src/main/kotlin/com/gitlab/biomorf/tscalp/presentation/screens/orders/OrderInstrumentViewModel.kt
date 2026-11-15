@@ -84,6 +84,11 @@ class OrderInstrumentViewModel
                                 selectedAccountId = card.accountId,
                             )
                         }
+                        logger.d(
+                            TAG,
+                            "onInstrumentSelected: success ${instrument.ticker} " +
+                                "(acc=${card.accountId}, price=${card.currentPrice})",
+                        )
                         syncPriceInterest()
                     }
                     is AppResult.Failure -> {
@@ -130,6 +135,10 @@ class OrderInstrumentViewModel
                             _state.update { it.copy(pairCurrentPrice = price) }
                             _state.update { it.copy(pairedPointValue = data.pointValue) }
                         }
+                        logger.d(
+                            TAG,
+                            "onPairedInstrumentSelected: success ${instrument.ticker} (price=$price)",
+                        )
                     }
                     is AppResult.Failure -> {
                         logger.e(

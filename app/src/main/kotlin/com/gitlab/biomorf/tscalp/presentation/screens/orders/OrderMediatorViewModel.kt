@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.lifecycle.ViewModel
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +27,7 @@ class OrderMediatorViewModel
     @Inject
     constructor(
         private val mediator: OrderFormMediator,
+        private val logger: Logger,
     ) : ViewModel() {
         fun updatePrimitives(
             selectedCard: CardIdentity?,
@@ -35,6 +37,12 @@ class OrderMediatorViewModel
             pairedMultiplier: Long,
             orderType: OrderTypeSelection,
         ) {
+            logger.d(
+                TAG,
+                "updatePrimitives (UI): primary=${selectedCard?.tscalpInstrumentId} " +
+                    "pair=${pairedCard?.tscalpInstrumentId} pairTrading=$pairTradingEnabled " +
+                    "qty=$quantity mult=$pairedMultiplier",
+            )
             mediator.updatePrimitives(
                 selectedCard = selectedCard,
                 pairedCard = pairedCard,
@@ -43,5 +51,9 @@ class OrderMediatorViewModel
                 pairedMultiplier = pairedMultiplier,
                 orderType = orderType,
             )
+        }
+
+        companion object {
+            private const val TAG = "OrderMediatorViewModel"
         }
     }

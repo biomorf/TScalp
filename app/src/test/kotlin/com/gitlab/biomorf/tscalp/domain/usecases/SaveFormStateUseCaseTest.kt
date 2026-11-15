@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
@@ -11,7 +12,8 @@ import org.junit.Test
 
 class SaveFormStateUseCaseTest {
     private val tradingStateRepository = mockk<TradingStateRepository>(relaxed = true)
-    private val useCase = SaveFormStateUseCase(tradingStateRepository)
+    private val logger = mockk<Logger>(relaxed = true)
+    private val useCase = SaveFormStateUseCase(tradingStateRepository, logger)
 
     @Test
     fun `execute passes snapshot to repository`() =
