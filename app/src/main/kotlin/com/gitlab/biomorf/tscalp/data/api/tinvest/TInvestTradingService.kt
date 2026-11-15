@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
@@ -13,6 +15,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
@@ -31,10 +35,17 @@ class TInvestTradingService(
     private val logger: Logger,
     private val accountsService: TInvestAccountsService,
     private val pricesService: TInvestPricesService,
+    private val rateLimiter: TransportRateLimiter,
 ) {
     companion object {
         private const val TAG = "TInvestTrading"
+        private const val GET_TRADING_STATUSES_CONCURRENCY = 10
     }
+
+    // Concurrency cap for N parallel unary calls. Rate-limiter serializes at
+    // bucket level, but N coroutines still contend on its mutex -> context-switch
+    // storm at N=1000. Revisit if T-Invest adds a batch API (umbrella subtask 4).
+    private val tradingStatusesSemaphore = Semaphore(GET_TRADING_STATUSES_CONCURRENCY)
 
     suspend fun getTradingStatuses(uids: List<String>): Map<String, TradingAvailability> =
         withContext(Dispatchers.IO) {
@@ -47,11 +58,23 @@ class TInvestTradingService(
                             async {
                                 try {
                                     val request = GetTradingStatusRequest.newBuilder().setInstrumentId(uid).build()
-                                    val response = currentApi.marketDataServiceSync.getTradingStatus(request)
+                                    val response =
+                                        tradingStatusesSemaphore.withPermit {
+                                            rateLimiter.withUnaryPermission(
+                                                protocol = TransportProtocol.GRPC,
+                                                service = "marketdata",
+                                                method = "getTradingStatus",
+                                            ) {
+                                                currentApi.marketDataServiceSync.getTradingStatus(request)
+                                            }
+                                        }
                                     val available = response.apiTradeAvailableFlag
                                     uid to if (available) TradingAvailability.AVAILABLE else TradingAvailability.UNAVAILABLE
                                 } catch (e: CancellationException) {
                                     throw e
+                                } catch (e: RateLimitTimeoutException) {
+                                    logger.e(TAG, "Статус для $uid: rate-limited, ${e.message}", e)
+                                    uid to TradingAvailability.UNKNOWN
                                 } catch (e: Exception) {
                                     logger.w(TAG, "Статус для $uid недоступен: ${e.message}")
                                     uid to TradingAvailability.UNKNOWN

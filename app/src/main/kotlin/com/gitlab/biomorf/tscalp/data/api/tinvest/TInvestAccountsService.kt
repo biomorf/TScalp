@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
@@ -23,6 +25,7 @@ import ru.tinkoff.piapi.contract.v1.SandboxPayInRequest
 class TInvestAccountsService(
     private val state: TInvestApiState,
     private val logger: Logger,
+    private val rateLimiter: TransportRateLimiter,
 ) {
     suspend fun getAccounts(sandboxMode: Boolean): List<BrokerAccount> =
         withContext(Dispatchers.IO) {
@@ -30,9 +33,21 @@ class TInvestAccountsService(
             val request = GetAccountsRequest.getDefaultInstance()
             val accounts =
                 if (sandboxMode) {
-                    currentApi.sandboxServiceSync.getSandboxAccounts(request).accountsList
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "sandbox",
+                        method = "getSandboxAccounts",
+                    ) {
+                        currentApi.sandboxServiceSync.getSandboxAccounts(request).accountsList
+                    }
                 } else {
-                    currentApi.usersServiceSync.getAccounts(request).accountsList
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "users",
+                        method = "getAccounts",
+                    ) {
+                        currentApi.usersServiceSync.getAccounts(request).accountsList
+                    }
                 }
             accounts.map { acc ->
                 BrokerAccount(
@@ -53,7 +68,13 @@ class TInvestAccountsService(
         withContext(Dispatchers.IO) {
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = OpenSandboxAccountRequest.newBuilder().build()
-            currentApi.sandboxServiceSync.openSandboxAccount(request).accountId
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "sandbox",
+                method = "openSandboxAccount",
+            ) {
+                currentApi.sandboxServiceSync.openSandboxAccount(request).accountId
+            }
         }
 
     suspend fun closeSandboxAccount(accountId: String) =
@@ -64,7 +85,13 @@ class TInvestAccountsService(
                     .newBuilder()
                     .setAccountId(accountId)
                     .build()
-            currentApi.sandboxServiceSync.closeSandboxAccount(request)
+            rateLimiter.withUnaryPermission(
+                protocol = TransportProtocol.GRPC,
+                service = "sandbox",
+                method = "closeSandboxAccount",
+            ) {
+                currentApi.sandboxServiceSync.closeSandboxAccount(request)
+            }
             logger.d(TAG, "Счёт песочницы $accountId закрыт")
         }
 
@@ -86,7 +113,13 @@ class TInvestAccountsService(
                 .setAccountId(accountId)
                 .setAmount(money)
                 .build()
-        currentApi.sandboxServiceSync.sandboxPayIn(request)
+        rateLimiter.withUnaryPermission(
+            protocol = TransportProtocol.GRPC,
+            service = "sandbox",
+            method = "sandboxPayIn",
+        ) {
+            currentApi.sandboxServiceSync.sandboxPayIn(request)
+        }
     }
 
     suspend fun getBalance(accountId: String): Double =
@@ -94,7 +127,14 @@ class TInvestAccountsService(
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             if (state.sandboxMode) {
                 val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
-                val portfolio = currentApi.sandboxServiceSync.getSandboxPortfolio(request)
+                val portfolio =
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "sandbox",
+                        method = "getSandboxPortfolio",
+                    ) {
+                        currentApi.sandboxServiceSync.getSandboxPortfolio(request)
+                    }
                 val totalRub =
                     (portfolio.totalAmountCurrencies?.units ?: 0) +
                         (portfolio.totalAmountCurrencies?.nano ?: 0) / 1_000_000_000.0
@@ -109,7 +149,14 @@ class TInvestAccountsService(
                 totalRub - positionsValue
             } else {
                 val request = GetMarginAttributesRequest.newBuilder().setAccountId(accountId).build()
-                val response = currentApi.usersServiceSync.getMarginAttributes(request)
+                val response =
+                    rateLimiter.withUnaryPermission(
+                        protocol = TransportProtocol.GRPC,
+                        service = "users",
+                        method = "getMarginAttributes",
+                    ) {
+                        currentApi.usersServiceSync.getMarginAttributes(request)
+                    }
                 val money = response.liquidPortfolio
                 (money?.units ?: 0) + (money?.nano ?: 0) / 1_000_000_000.0
             }

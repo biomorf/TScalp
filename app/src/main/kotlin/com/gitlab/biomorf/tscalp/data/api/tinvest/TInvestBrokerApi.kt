@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.data.orchestrator.TInvestOrchestrator
 import com.gitlab.biomorf.tscalp.domain.api.BrokerApi
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
@@ -64,6 +65,7 @@ class TInvestBrokerAPI(
     private val httpClient: HttpClient,
     private val debugFlagsRepository: DebugFlagsRepository,
     private val logger: Logger,
+    private val rateLimiter: TransportRateLimiter,
 ) : BrokerApi,
     BrokerSnapshotApi,
     StreamsApi,
@@ -78,13 +80,13 @@ class TInvestBrokerAPI(
     MarketDataApi,
     TradeCheckApi {
     private val state = TInvestApiState()
-    private val instrumentsService = TInvestInstrumentsService(state, logger)
-    private val portfolioService = TInvestPortfolioService(state, instrumentsService)
-    private val accountsService = TInvestAccountsService(state, logger)
-    private val pricesService = TInvestPricesService(state, logger)
-    private val tradingService = TInvestTradingService(state, logger, accountsService, pricesService)
+    private val instrumentsService = TInvestInstrumentsService(state, logger, rateLimiter)
+    private val portfolioService = TInvestPortfolioService(state, instrumentsService, rateLimiter)
+    private val accountsService = TInvestAccountsService(state, logger, rateLimiter)
+    private val pricesService = TInvestPricesService(state, logger, rateLimiter)
+    private val tradingService = TInvestTradingService(state, logger, accountsService, pricesService, rateLimiter)
     private val positionsService = TInvestPositionsService(state, logger)
-    private val ordersService = TInvestOrdersService(state)
+    private val ordersService = TInvestOrdersService(state, rateLimiter)
     private val wsService = TInvestWsService(httpClient, logger)
     private val restService = TInvestRestService(state, httpClient, logger)
     private val orchestrator =

@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import io.grpc.stub.StreamObserver
 import kotlinx.coroutines.Dispatchers
@@ -25,20 +27,27 @@ import ru.tinkoff.piapi.contract.v1.SubscriptionAction
 class TInvestPricesService(
     private val state: TInvestApiState,
     private val logger: Logger,
+    private val rateLimiter: TransportRateLimiter,
 ) {
     companion object {
         private const val TAG = "TInvestPrices"
     }
 
     suspend fun getLastPricesByTscalpInstrumentId(uids: List<String>): Map<String, Double?> =
-        withContext(Dispatchers.IO) {
-            if (uids.isEmpty()) return@withContext emptyMap()
-            val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
-            val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(uids).build()
-            logger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${uids.size} instruments")
-            val response = currentApi.marketDataServiceSync.getLastPrices(request)
-            response.lastPricesList.associate { lp ->
-                lp.instrumentUid to (lp.price?.let { it.units + it.nano / 1_000_000_000.0 })
+        rateLimiter.withUnaryPermission(
+            protocol = TransportProtocol.GRPC,
+            service = "marketdata",
+            method = "getLastPrices",
+        ) {
+            withContext(Dispatchers.IO) {
+                if (uids.isEmpty()) return@withContext emptyMap()
+                val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
+                val request = GetLastPricesRequest.newBuilder().addAllInstrumentId(uids).build()
+                logger.d(TAG, "[unary/gRPC/TInvest] GetLastPrices for ${uids.size} instruments")
+                val response = currentApi.marketDataServiceSync.getLastPrices(request)
+                response.lastPricesList.associate { lp ->
+                    lp.instrumentUid to (lp.price?.let { it.units + it.nano / 1_000_000_000.0 })
+                }
             }
         }
 

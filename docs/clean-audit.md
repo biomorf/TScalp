@@ -1713,6 +1713,26 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #144 (merge `f3d3d916`); `CustomTrustManager.kt` class KDoc — ban-protection rationale; `CustomTrustManagerHappyPathTest` — 5 CA happy path. Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
 
+### Н97. TInvest*Service + *Api — unary: throw вместо AppResult (смешанный контракт)
+
+**Статус:** открыто.
+
+**Серьёзность:** высоко.
+
+**Live тест:** -.
+
+**Описание:** 6 `TInvest*Service` (`Prices`, `Trading`, `Portfolio`, `Instruments`, `Accounts`, `Orders`) возвращают «сырые» типы (`Map<String, Double?>`, `List<Instrument>`, `List<Order>`), при ошибке — throw. `AppResult` появляется только на границе `*RepositoryImpl` через `runCatchingAppResult`; там **все** исключения мапятся в `AppError.Unknown`, включая `RateLimitTimeoutException` (введён в 1a). Семантика «rate limit vs unknown» теряется. Domain-роли (`MarketDataApi`, `PortfolioApi`, …) тоже возвращают «сырые» типы.
+
+**Нарушенное правило Clean:** contract consistency — data-слой на границе слоя уже `AppResult`, но внутри — throw; `runCatchingAppResult` = generic catcher, маскирующий семантику.
+
+**Clean-альтернатива:** все unary-методы `TInvest*Service` и соответствующих domain-ролей — `AppResult<T>`; `AppError.RateLimited` — отдельный подтип; `runCatchingAppResult` не нужен для unary (streaming остаётся throw). Плюсы: самодокументированный контракт, семантика ошибок, единая точка конвертации (в сервисе, не на границе). Минусы: правка 6 сервисов + 7 ролей + presentation callsites (~4–6 ч).
+
+**MVVM-альтернатива:** — (не применимо, data-layer).
+
+**Ссылка на задачу:** `### TInvest*Service + *Api: unary → AppResult` (ROADMAP, follow-up к 1a).
+
+**Связано:** 1a (`RateLimitTimeoutException`); Н46 (закрыт PR #75 — `SearchCache.search` → `AppResult`, тот же паттерн для одного метода).
+
 ### Исправленные (L6)
 
 ### ✅ Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception

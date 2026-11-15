@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.models.AccountPortfolio
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
@@ -24,6 +26,7 @@ import ru.tinkoff.piapi.contract.v1.PortfolioResponse
 class TInvestPortfolioService(
     private val state: TInvestApiState,
     private val instrumentsService: TInvestInstrumentsService,
+    private val rateLimiter: TransportRateLimiter,
 ) {
     companion object {
         private const val TAG = "TInvestPortfolio"
@@ -37,9 +40,21 @@ class TInvestPortfolioService(
             val currentApi = state.api ?: throw IllegalStateException("API не инициализирован")
             val request = PortfolioRequest.newBuilder().setAccountId(accountId).build()
             if (sandboxMode) {
-                currentApi.sandboxServiceSync.getSandboxPortfolio(request)
+                rateLimiter.withUnaryPermission(
+                    protocol = TransportProtocol.GRPC,
+                    service = "sandbox",
+                    method = "getSandboxPortfolio",
+                ) {
+                    currentApi.sandboxServiceSync.getSandboxPortfolio(request)
+                }
             } else {
-                currentApi.operationsServiceSync.getPortfolio(request)
+                rateLimiter.withUnaryPermission(
+                    protocol = TransportProtocol.GRPC,
+                    service = "operations",
+                    method = "getPortfolio",
+                ) {
+                    currentApi.operationsServiceSync.getPortfolio(request)
+                }
             }
         }
 
