@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.di
 
 import com.gitlab.biomorf.tscalp.data.api.bcs.BcsBrokerApi
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.data.api.finam.FinamBrokerApi
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestBrokerAPI
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestChannelFactory
@@ -23,7 +24,8 @@ object BrokerModule {
         httpClient: HttpClient,
         debugFlagsRepository: DebugFlagsRepository,
         logger: Logger,
-    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient, debugFlagsRepository, logger)
+        rateLimiter: TransportRateLimiter,
+    ): TInvestBrokerAPI = TInvestBrokerAPI(channelFactory, httpClient, debugFlagsRepository, logger, rateLimiter)
 
     @Provides
     @Singleton

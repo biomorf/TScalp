@@ -11,9 +11,9 @@ package com.gitlab.biomorf.tscalp.data.api.common
  * Domain does not know this interface (2e Clean).
  * Per-broker limits live in `data/api/<broker>/<Broker>RateLimits.kt`.
  */
-internal enum class TransportProtocol { GRPC, REST, WS }
+enum class TransportProtocol { GRPC, REST, WS }
 
-internal interface TransportRateLimiter {
+interface TransportRateLimiter {
     suspend fun <T> withUnaryPermission(
         protocol: TransportProtocol,
         service: String,
