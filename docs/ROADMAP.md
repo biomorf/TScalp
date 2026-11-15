@@ -591,6 +591,67 @@ ___
 ---
 
 
+### TInvest*Service + *Api: unary → AppResult
+
+**Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
+
+**Статус:** запланировано. Follow-up к 1a.
+
+**Контекст:** (clean-audit Н97) Сейчас `TInvest*Service` (6 сервисов) возвращают «сырые» типы (`Map<String, Double?>`, `List<Instrument>`, `List<Order>`), при ошибке — throw. `AppResult` появляется только на границе `*RepositoryImpl` через `runCatchingAppResult`; там **все** исключения мапятся в `AppError.Unknown`, включая `RateLimitTimeoutException` (введён в 1a) — семантика «rate limit vs unknown» теряется: UI не может выбрать между retry и «показать ошибку». Domain-роли (`MarketDataApi`, `PortfolioApi`, …) тоже возвращают «сырые» типы.
+
+**Соответствие Clean:** соответствует (унификация контракта data-слоя).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** соответствует (presentation получает `AppResult<T>` без изменения текущей формы).
+
+**KMP:** соответствует (`AppResult` — domain-модель, KMP-safe).
+
+**Предусловия:** umbrella 1a закрыт (`RateLimitTimeoutException` есть).
+
+**Файлы:** 6 `TInvest*Service`, `TInvestBrokerAPI`, 7 domain-ролей с unary, `*RepositoryImpl` (убрать `runCatchingAppResult` где сервис уже `AppResult`), presentation callsites, `AppError.RateLimited` (новый в `domain/models/`).
+
+**Шаги:**
+1. `AppError.RateLimited` — новый подтип; маппинг в presentation («Слишком много запросов. Подождите»).
+2. `TInvestPricesService.getLastPricesByTscalpInstrumentId` → `AppResult<Map<String, Double?>>`; `RateLimitTimeoutException` → `AppError.RateLimited`; прочие `Exception` → `AppError.Unknown`.
+3. Аналогично 5 остальных сервисов — по коммиту на сервис.
+4. Обновить 7 domain-ролей (`MarketDataApi`, `PortfolioApi`, `OrdersApi`, `StreamsApi`, `UserInstrumentsApi`, `AccountsApi`, `TradeCheckApi`) → `AppResult<T>` для unary.
+5. Убрать `runCatchingAppResult` из `*RepositoryImpl` для unary-методов, где сервис уже возвращает `AppResult`.
+6. Presentation: `when (result)` + `AppError.RateLimited` → отдельное сообщение.
+7. Тесты: 6 `TInvest*ServiceTest` + обновить `TInvestOrchestratorFallbackTest` (мок `coEvery { ... } returns AppResult.Failure(...)`).
+8. Live-test: search + cold start без `RESOURCE_EXHAUSTED` (с rate-limiter) + UI-сообщение `RateLimited` при таймауте.
+
+**Тесты:** 6 unit-тестов сервисов; правка `TInvestOrchestratorFallbackTest`.
+
+**Референсы:** clean-audit Н97; закрытый Н46 (PR #75); `docs/architecture.md` → «Data flow».
+
+**Ограничения:**
+- Не менять стиль `*RepositoryImpl` (граница остаётся `AppResult`).
+- Не смешивать с 1a (это follow-up, не подзадача umbrella).
+- Streaming (`Flow`) — не трогать: throw остаётся (структурная ошибка); `AppResult` — только unary.
+- `runCatchingAppResult` убирается **только** для unary-методов.
+
+**Критерий готовности:**
+- Все unary-методы `TInvest*Service` → `AppResult<T>`.
+- 7 domain-ролей → `AppResult<T>` (unary).
+- `AppError.RateLimited` — есть, мапится в UI.
+- `runCatchingAppResult` не нужен для unary.
+- Гейт зелёный; live-test PASS.
+
+**Оценка:** ~4–6 ч (по ~1 ч на сервис + тесты + presentation).
+
+**Зависимости:** 1a (`RateLimitTimeoutException`).
+
+**Связано:** clean-audit Н97; закрытый Н46 (PR #75); umbrella 1a.
+
+**Открытые вопросы:**
+- `AppError.RateLimited` — отдельный подтип или флаг `retryable` на `AppError.Unknown`? **Рекомендация:** отдельный подтип.
+- Streaming (`Flow`) — throw или тоже `AppResult` в `first()`? **Рекомендация:** throw.
+
 ### C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing)
 
 **Мобильная работа:** полное закрытие (proot + PR; domain + presentation, гейт на CI).
