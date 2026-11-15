@@ -82,7 +82,7 @@ class TInvestBrokerAPI(
     private val state = TInvestApiState()
     private val instrumentsService = TInvestInstrumentsService(state, logger, rateLimiter)
     private val portfolioService = TInvestPortfolioService(state, instrumentsService, rateLimiter)
-    private val accountsService = TInvestAccountsService(state, logger)
+    private val accountsService = TInvestAccountsService(state, logger, rateLimiter)
     private val pricesService = TInvestPricesService(state, logger, rateLimiter)
     private val tradingService = TInvestTradingService(state, logger, accountsService, pricesService, rateLimiter)
     private val positionsService = TInvestPositionsService(state, logger)
