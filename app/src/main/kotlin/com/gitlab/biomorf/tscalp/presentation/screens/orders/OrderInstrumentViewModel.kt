@@ -196,6 +196,7 @@ class OrderInstrumentViewModel
                     pairedPointValue = state.pairedPointValue,
                 )
             }
+            logger.d(TAG, "restore: primary=${state.selectedInstrument?.ticker} pair=${state.pairedInstrument?.ticker}")
             syncPriceInterest()
         }
 
@@ -208,7 +209,10 @@ class OrderInstrumentViewModel
          */
         suspend fun restoreFromUseCase(): RestoredFormState? =
             when (val result = restoreOrderFormUseCase.execute()) {
-                is AppResult.Success -> result.data
+                is AppResult.Success -> {
+                    logger.d(TAG, "restoreFromUseCase: qty=${result.data.quantity} orderType=${result.data.orderType}")
+                    result.data
+                }
                 is AppResult.Failure -> {
                     logger.e(
                         TAG,
@@ -257,6 +261,7 @@ class OrderInstrumentViewModel
                     state.selectedInstrument?.let { add(it.tscalpInstrumentId) }
                     state.pairedInstrument?.let { add(it.tscalpInstrumentId) }
                 }
+            logger.d(TAG, "syncInterest: uids=$uids")
             syncPriceInterestUseCase.execute(uids)
         }
 

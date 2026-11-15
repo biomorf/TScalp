@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.lifecycle.ViewModel
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculatePairExecUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.CalculateTradeDetailsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.PairExecInput
@@ -33,6 +34,7 @@ class OrderTradeDetailsViewModel
     constructor(
         private val calculateTradeDetails: CalculateTradeDetailsUseCase,
         private val calculatePairExecUseCase: CalculatePairExecUseCase,
+        private val logger: Logger,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderTradeDetailsState())
         val state: StateFlow<OrderTradeDetailsState> = _state.asStateFlow()
@@ -62,6 +64,7 @@ class OrderTradeDetailsViewModel
                     multiplierOverlay = multiplierOverlay,
                 )
             }
+            logger.d(TAG, "tradeDetails: execPrice=${details.executionPrice} cost=${costOverlay != null}")
         }
 
         fun updatePairExecDetails(
@@ -88,6 +91,7 @@ class OrderTradeDetailsViewModel
                     pairedOrderType = result.pairedOrderType,
                 )
             }
+            logger.d(TAG, "pairExec: price=${result.pairExecPrice} type=${result.pairedOrderType} pairEnabled=${input.pairTradingEnabled}")
         }
 
         /**
@@ -100,7 +104,12 @@ class OrderTradeDetailsViewModel
             input: OrderInputState,
             execution: OrderExecutionState,
         ) {
+            logger.d(TAG, "restore: delegated to updateTradeDetails + updatePairExecDetails")
             updateTradeDetails(instrument, input)
             updatePairExecDetails(instrument, input, execution)
+        }
+
+        companion object {
+            private const val TAG = "OrderTradeDetailsViewModel"
         }
     }

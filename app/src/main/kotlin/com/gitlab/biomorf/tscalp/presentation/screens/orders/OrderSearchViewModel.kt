@@ -91,6 +91,7 @@ class OrderSearchViewModel
                     try {
                         delay(DEBOUNCE_MS)
                         updateSlot(slot) { it.copy(isSearching = true) }
+                        logger.d(TAG, "search: slot=$slot query='$query'")
                         val broker =
                             when (slot) {
                                 SearchSlot.PRIMARY -> _state.value.primary.broker
@@ -130,6 +131,7 @@ class OrderSearchViewModel
             slot: SearchSlot,
             instrument: Instrument,
         ) {
+            logger.d(TAG, "resultSelected: slot=$slot ticker=${instrument.ticker}")
             when (slot) {
                 SearchSlot.PRIMARY ->
                     _state.update {
@@ -194,6 +196,7 @@ class OrderSearchViewModel
                     isSearching = currentQuery.length >= 2,
                 )
             }
+            logger.d(TAG, "saveBroker: slot=$slot broker=$broker")
             if (currentQuery.length >= 2) onQueryChanged(slot, currentQuery)
         }
 

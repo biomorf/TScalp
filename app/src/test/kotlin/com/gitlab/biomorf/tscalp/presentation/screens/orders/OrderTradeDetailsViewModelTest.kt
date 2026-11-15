@@ -27,6 +27,7 @@ class OrderTradeDetailsViewModelTest {
 
     private val calculateTradeDetails = mockk<CalculateTradeDetailsUseCase>()
     private val calculatePairExecUseCase = mockk<CalculatePairExecUseCase>()
+    private val logger = mockk<com.gitlab.biomorf.tscalp.domain.log.Logger>(relaxed = true)
 
     private val sber =
         Share(
@@ -37,7 +38,7 @@ class OrderTradeDetailsViewModelTest {
             isin = "RU0009029540",
         )
 
-    private fun viewModel() = OrderTradeDetailsViewModel(calculateTradeDetails, calculatePairExecUseCase)
+    private fun viewModel() = OrderTradeDetailsViewModel(calculateTradeDetails, calculatePairExecUseCase, logger)
 
     private fun instrumentState() =
         OrderInstrumentState(
