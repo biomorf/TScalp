@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
@@ -31,6 +33,7 @@ class TInvestTradingService(
     private val logger: Logger,
     private val accountsService: TInvestAccountsService,
     private val pricesService: TInvestPricesService,
+    private val rateLimiter: TransportRateLimiter,
 ) {
     companion object {
         private const val TAG = "TInvestTrading"
@@ -47,11 +50,21 @@ class TInvestTradingService(
                             async {
                                 try {
                                     val request = GetTradingStatusRequest.newBuilder().setInstrumentId(uid).build()
-                                    val response = currentApi.marketDataServiceSync.getTradingStatus(request)
+                                    val response =
+                                        rateLimiter.withUnaryPermission(
+                                            protocol = TransportProtocol.GRPC,
+                                            service = "marketdata",
+                                            method = "getTradingStatus",
+                                        ) {
+                                            currentApi.marketDataServiceSync.getTradingStatus(request)
+                                        }
                                     val available = response.apiTradeAvailableFlag
                                     uid to if (available) TradingAvailability.AVAILABLE else TradingAvailability.UNAVAILABLE
                                 } catch (e: CancellationException) {
                                     throw e
+                                } catch (e: RateLimitTimeoutException) {
+                                    logger.e(TAG, "Статус для $uid: rate-limited, ${e.message}", e)
+                                    uid to TradingAvailability.UNKNOWN
                                 } catch (e: Exception) {
                                     logger.w(TAG, "Статус для $uid недоступен: ${e.message}")
                                     uid to TradingAvailability.UNKNOWN
