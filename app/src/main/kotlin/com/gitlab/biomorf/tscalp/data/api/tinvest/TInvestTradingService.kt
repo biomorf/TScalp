@@ -15,6 +15,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.GetTradingStatusRequest
 import ru.tinkoff.piapi.contract.v1.OrderStateStreamRequest
@@ -37,7 +39,13 @@ class TInvestTradingService(
 ) {
     companion object {
         private const val TAG = "TInvestTrading"
+        private const val GET_TRADING_STATUSES_CONCURRENCY = 10
     }
+
+    // Concurrency cap for N parallel unary calls. Rate-limiter serializes at
+    // bucket level, but N coroutines still contend on its mutex -> context-switch
+    // storm at N=1000. Revisit if T-Invest adds a batch API (umbrella subtask 4).
+    private val tradingStatusesSemaphore = Semaphore(GET_TRADING_STATUSES_CONCURRENCY)
 
     suspend fun getTradingStatuses(uids: List<String>): Map<String, TradingAvailability> =
         withContext(Dispatchers.IO) {
@@ -51,12 +59,14 @@ class TInvestTradingService(
                                 try {
                                     val request = GetTradingStatusRequest.newBuilder().setInstrumentId(uid).build()
                                     val response =
-                                        rateLimiter.withUnaryPermission(
-                                            protocol = TransportProtocol.GRPC,
-                                            service = "marketdata",
-                                            method = "getTradingStatus",
-                                        ) {
-                                            currentApi.marketDataServiceSync.getTradingStatus(request)
+                                        tradingStatusesSemaphore.withPermit {
+                                            rateLimiter.withUnaryPermission(
+                                                protocol = TransportProtocol.GRPC,
+                                                service = "marketdata",
+                                                method = "getTradingStatus",
+                                            ) {
+                                                currentApi.marketDataServiceSync.getTradingStatus(request)
+                                            }
                                         }
                                     val available = response.apiTradeAvailableFlag
                                     uid to if (available) TradingAvailability.AVAILABLE else TradingAvailability.UNAVAILABLE
