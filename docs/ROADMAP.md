@@ -258,16 +258,22 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
    через limiter, либо (б) батчинг (если API даст метод
    batch-запроса), либо (в) ограничить concurrency — например,
    `Semaphore(10)` поверх rate-limiter'а.
-5. **Опционально: `GetUserTariff`** — unary-метод, возвращает
-   актуальные лимиты для пользователя. Вызывать при старте
-   приложения (после `initialize`), кэшировать, использовать
-   в rate-limiter вместо статических констант. Для грейдов
-   4–5 лимиты выше, чем в таблице.
+5. **`GetUserTariff` (D5=A, отложено → follow-up задача ниже).**
+   Unary-метод, возвращает актуальные лимиты для пользователя.
+   Вызывать при старте (после `initialize`), кэшировать, использовать
+   в rate-limiter вместо статических констант (грейды 4–5 — лимиты
+   выше). В 1a — не делаем: статика из `docs/rate-limits.md`
+   достаточна для live-test C2; follow-up — `### Rate-limiter:
+   GetUserTariff (dynamic limits)` ниже.
 6. **Логирование:** каждый вызов через limiter — `Logger.d` при ожидании (`[rate-limit/gRPC/instruments/getTradingStatuses] waited 120ms, budget 199/200 per-min`); `Logger.w` при ожидании > 1s (`[rate-limit/...] waited 1200ms — slow`); `Logger.e` при таймауте (`[rate-limit/...] timeout 5000ms, budget exhausted`). Без логирования `RESOURCE_EXHAUSTED` не диагностируется — какой именно бюджет выбит.
 
 7. **Тесты:** unit-тест на `TInvestRateLimiter` — что N
    запросов не превышают лимит, что `postOrder` не чаще
-   15/сек, что общий лимит 50/сек соблюдается.
+   15/сек, что общий лимит 50/сек соблюдается. **Deferred:**
+   unit-test на `Semaphore(10)` в `getTradingStatuses` — требует
+   proto-stub + `TInvestApiState` mock-инфраструктуры (тяжело для
+   одного cap); покрытие — 1a-5 manual verify (логи `[rate-limit/...]`)
+   + umbrella live-test C2 2–7.
 
 **Референсы:**
 
@@ -317,8 +323,9 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 **Открытые вопросы:**
 
-- Использовать `GetUserTariff` сразу или начать со статических
-  лимитов и добавить динамические позже. Решить при старте.
+- **D5 (решено, отложено):** статика из `docs/rate-limits.md`
+  (A); `GetUserTariff` (динамика, B) — follow-up задача
+  `### Rate-limiter: GetUserTariff (dynamic limits)` ниже.
 - Как вести себя при долгом ожидании (timeout vs fail vs
   ждать) — унифицировать через `AppResult`.
 - Нужен ли отдельный rate-limiter для REST-эндпоинтов T-Invest
@@ -331,6 +338,68 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 ___
 
+
+### Rate-limiter: GetUserTariff (dynamic limits)
+
+**Мобильная работа:** полное закрытие (proot + PR; data-слой, гейт на CI).
+
+**Статус:** запланировано. Follow-up к 1a (D5=A).
+
+**Контекст:** 1a использует статические лимиты из `docs/rate-limits.md` (грейд 1 — консервативно). `GetUserTariff` (unary `UsersService/GetUserTariff`) возвращает актуальные `unaryLimits` / `streamLimits` для текущего пользователя; грейды 4–5 дают лимиты выше табличных. Для live-test C2 статики достаточно, но для high-tier пользователей rate-limiter занижает throughput.
+
+**Соответствие Clean:** соответствует (data-layer infrastructure; domain не знает).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** соответствует (`TransportRateLimitsProvider` интерфейс, без platform).
+
+**Предусловия:** 1a закрыт (`TInvestRateLimiter` + `TInvestRateLimits` есть).
+
+**Файлы:**
+- `data/api/common/TransportRateLimitsProvider.kt` (новый, KMP-safe) — `suspend fun fetch(): RateLimitsSnapshot`.
+- `data/api/tinvest/TInvestRateLimitsProvider.kt` (новый) — `GetUserTariff` → snapshot.
+- `data/api/tinvest/TInvestRateLimiter.kt` — принять `RateLimitsProvider?`; `null` → статика.
+- `data/api/tinvest/TInvestBrokerApi.kt` — initialize: fetch + передать snapshot.
+- Тесты.
+
+**Шаги:**
+1. `TransportRateLimitsProvider` (interface) — KMP-safe.
+2. `TInvestRateLimitsProvider` — `GetUserTariff` через rate-limiter (bootstrap-проблема: сам идёт под глобальным лимитом).
+3. `TInvestRateLimiter` — опциональный provider; до первого fetch — статика.
+4. `TInvestBrokerApi` initialize — fetch после `initialize`, кэш в памяти.
+5. **Логирование:** `[rate-limiter/tariff] fetched: unary=..., stream=...`; при ошибке — fallback на статику + `Logger.w`.
+6. Тесты: provider (мок SDK), limiter с/без provider.
+
+**Тесты:** 3 unit-теста.
+
+**Референсы:** `docs/rate-limits.md` → «`GetUserTariff` — динамические лимиты»; proto `ru.tinkoff.piapi.contract.v1.UsersService/GetUserTariff`; 1a шаг 5.
+
+**Ограничения:**
+- Не менять `TInvestRateLimits` (статика остаётся fallback).
+- Не блокировать `initialize` долгим tariff-fetch: timeout 3s + fallback.
+- Bootstrap: `GetUserTariff` сам под `rateLimiter` (без цикла).
+
+**Критерий готовности:**
+- Provider + limiter работают с динамическими лимитами.
+- Live-test: high-tier пользователь видит throughput > статики; low-tier — не ломается.
+- Fallback на статику при ошибке/tail.
+- Гейт зелёный.
+
+**Оценка:** ~1.5–2 ч (provider 40 мин, integration 40 мин, tests 20 мин, live 20 мин).
+
+**Зависимости:** 1a (закрыт).
+
+**Связано:** umbrella 1a (D5=A, шаг 5); `docs/rate-limits.md`.
+
+**Открытые вопросы:**
+- Bootstrap: `GetUserTariff` под глобальным rate-limiter? — да, но с повышенным таймаутом.
+- Кэшировать между запусками (DataStore) или только в памяти? — в памяти для 1-й итерации.
 
 ### Stream connection limiter: WS + gRPC-streaming
 
