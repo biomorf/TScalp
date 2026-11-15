@@ -56,7 +56,7 @@ class SearchInstrumentsUseCase
                 throw e
             } catch (e: Exception) {
                 logger.e(TAG, "search instruments exception", e)
-                AppResult.Failure(AppError.Unknown("Ошибка поиска: ${e.message}", e))
+                AppResult.Failure(AppError.Unknown(e.message ?: "Search failed", e))
             }
         }
 
