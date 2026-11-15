@@ -177,7 +177,7 @@ ___
 - **D3.** `findInstruments` N+1: partial (InstrumentShort) vs full контракт? Если presentation требует full — N+1 неизбежен без API-батчинга.
 - **D4.** Concurrency: `Semaphore` поверх limiter (N parallel) vs sequential?
 - **D5.** `GetUserTariff`: динамические лимиты vs статические константы?
-- **D6.** Per-broker config: `data/api/<broker>/<Broker>RateLimits.kt` vs `data/api/common/RateLimits.kt` с per-broker параметром?
+- **D6.** Per-broker config: `data/api/<broker>/<Broker>RateLimits.kt` vs `data/api/common/RateLimits.kt` с per-broker параметром? Role-pattern не применим — см. «Не role» в `### Rate-limiter для unary-запросов T-Invest`.
 
 ---
 
@@ -209,6 +209,8 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 (запросы уходят в отказ, UI показывает ошибки). Особенно
 критично для `postOrder` (15/сек) и `getTradingStatuses`
 (N параллельных).
+
+**Не role.** `RateLimiter` — data-layer infrastructure (strategy), не domain-роль. Не выносить в `BrokerApi` / `domain/api/roles/`: domain о throttling не знает (2e Clean). Инжект — в конструкторы `TInvest*Service`, не через `BrokerApi`.
 
 **Предусловия:** нет.
 
