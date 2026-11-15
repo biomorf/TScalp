@@ -105,8 +105,22 @@ fun OrdersScreen() {
         tradeDetailsVM.updatePairExecDetails(instrState, inputState, execState)
     }
 
-    // Reactive save: persist на изменение instr/input (debounce 500ms в Mediator).
-    LaunchedEffect(instrState, inputState) {
+    // Reactive save: persist на изменение primitives (debounce 500ms в Mediator).
+    // 2e/M5: keying на primitives, не на весь state. currentPrice обновляется
+    // каждые 5-10 сек от polling -> на весь state = save каждые 5 сек = rate-limit.
+    // currentPrice нужен ТОЛЬКО recalc (executionPrice = currentPrice * qty) - выше.
+    LaunchedEffect(
+        instrState.selectedInstrument?.tscalpInstrumentId,
+        instrState.selectedBroker,
+        instrState.selectedAccountId,
+        instrState.pairedInstrument?.tscalpInstrumentId,
+        instrState.pairedBroker,
+        instrState.pairedAccountId,
+        inputState.pairTradingEnabled,
+        inputState.quantityAsLong,
+        inputState.pairedMultiplier.toLongOrNull(),
+        inputState.orderType,
+    ) {
         mediatorVM.updatePrimitives(
             selectedCard = instrState.toPrimaryCardIdentity(),
             pairedCard = instrState.toPairedCardIdentity(),
