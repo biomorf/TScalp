@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.data.api.tinvest
 import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
 import com.gitlab.biomorf.tscalp.domain.api.managers.FakeClock
 import com.gitlab.biomorf.tscalp.domain.log.TestLogger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
@@ -22,6 +23,7 @@ import kotlin.time.Instant
  * Start instant is 1_000ms (not 0): [TokenBucket.refill] uses
  * `lastRefillNanos == 0L` as a sentinel, and `nowNanos == 0` would collide.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class TInvestRateLimiterTest {
     private fun newClock(): FakeClock = FakeClock(Instant.fromEpochMilliseconds(1_000L))
 
