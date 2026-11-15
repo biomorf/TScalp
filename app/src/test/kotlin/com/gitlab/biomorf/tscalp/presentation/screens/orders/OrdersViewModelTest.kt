@@ -16,6 +16,7 @@ import com.gitlab.biomorf.tscalp.domain.models.BrokerAccount
 import com.gitlab.biomorf.tscalp.domain.models.BrokerAccountType
 import com.gitlab.biomorf.tscalp.domain.models.BrokerInitState
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
 import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.OrdersAccountsResult
@@ -62,6 +63,10 @@ class OrdersViewModelTest {
         every { brokerManager.anyInitialized } returns MutableStateFlow(false)
         every { tradingStatusRepository.statuses } returns MutableStateFlow(emptyMap())
         every { cardsRepository.identities } returns flowOf(emptyList())
+        // Fix B (drop(1) on anyInitialized) made loadAccounts run to startPositionUpdates
+        // instead of early-returning via checkApiInitialization in init. sheet is a
+        // StateFlow - collect is terminal, relaxed mockk cannot satisfy it.
+        every { positionFlowManager.sheet } returns MutableStateFlow(PortfolioSheet(accounts = emptyMap()))
         coEvery { sandboxPreferencesRepository.isSandboxMode() } returns false
         coEvery { checkBrokerInitializationUseCase.execute(any()) } returns
             AppResult.Success(BrokerInitState.NoneInitialized)

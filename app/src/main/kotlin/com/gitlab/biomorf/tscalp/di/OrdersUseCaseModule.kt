@@ -37,7 +37,8 @@ object OrdersUseCaseModule {
     @Singleton
     fun provideSaveFormStateUseCase(
         tradingStateRepository: TradingStateRepository,
-    ): SaveFormStateUseCase = SaveFormStateUseCase(tradingStateRepository)
+        logger: Logger,
+    ): SaveFormStateUseCase = SaveFormStateUseCase(tradingStateRepository, logger)
 
     @Provides
     @Singleton

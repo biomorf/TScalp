@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import androidx.lifecycle.ViewModel
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +33,7 @@ class OrderInputViewModel
     @Inject
     constructor(
         @Suppress("unused") private val mediator: OrderFormMediator,
+        private val logger: Logger,
     ) : ViewModel() {
         private val _state = MutableStateFlow(OrderInputState())
         val state: StateFlow<OrderInputState> = _state.asStateFlow()
@@ -46,6 +48,7 @@ class OrderInputViewModel
         }
 
         fun setPairTradingEnabled(enabled: Boolean) {
+            logger.d(TAG, "pairTrading: enabled=$enabled")
             _state.update {
                 if (enabled) {
                     it.copy(pairTradingEnabled = true)
@@ -59,6 +62,7 @@ class OrderInputViewModel
         }
 
         fun onOrderTypeChanged(type: OrderTypeSelection) {
+            logger.d(TAG, "orderType: $type")
             _state.update { it.copy(orderType = type) }
             if (type == OrderTypeSelection.Market) {
                 _state.update { it.copy(limitPrice = "") }
@@ -75,6 +79,7 @@ class OrderInputViewModel
         }
 
         fun restore(state: RestoredFormState) {
+            logger.d(TAG, "restore: qty=${state.quantity} mult=${state.pairedMultiplier} orderType=${state.orderType} pair=${state.pairTradingEnabled}")
             _state.update {
                 it.copy(
                     quantity = state.quantity.toString(),
@@ -86,6 +91,7 @@ class OrderInputViewModel
         }
 
         companion object {
+            private const val TAG = "OrderInputViewModel"
             private const val DEFAULT_PAIRED_MULTIPLIER = 10L
         }
     }

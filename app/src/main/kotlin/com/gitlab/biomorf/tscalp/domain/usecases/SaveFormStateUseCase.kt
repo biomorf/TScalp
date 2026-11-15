@@ -1,6 +1,7 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
 import com.gitlab.biomorf.tscalp.domain.api.repository.TradingStateRepository
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
 
 /**
@@ -16,8 +17,18 @@ import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
  */
 class SaveFormStateUseCase(
     private val tradingStateRepository: TradingStateRepository,
+    private val logger: Logger,
 ) {
     suspend fun execute(snapshot: TradingStateSnapshot) {
+        logger.d(
+            TAG,
+            "execute: primary=${snapshot.selectedCard?.tscalpInstrumentId} " +
+                "pair=${snapshot.pairedCard?.tscalpInstrumentId} qty=${snapshot.quantity}",
+        )
         tradingStateRepository.save(snapshot)
+    }
+
+    companion object {
+        private const val TAG = "SaveFormStateUseCase"
     }
 }

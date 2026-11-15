@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.CardIdentity
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingStateSnapshot
@@ -41,6 +42,7 @@ class OrderFormMediator
     @Inject
     constructor(
         private val saveFormStateUseCase: SaveFormStateUseCase,
+        private val logger: Logger,
         appScope: CoroutineScope,
     ) {
         private val _shared = MutableStateFlow(OrderFormSharedState())
@@ -54,7 +56,9 @@ class OrderFormMediator
                     .receiveAsFlow()
                     .debounce(DEBOUNCE_MS)
                     .collect { state ->
+                        logger.d(TAG, "debounce: save snapshot")
                         saveFormStateUseCase.execute(state.toSnapshot())
+                        logger.d(TAG, "save done")
                     }
             }
         }
@@ -76,6 +80,12 @@ class OrderFormMediator
                     pairedMultiplier = pairedMultiplier,
                     orderType = orderType,
                 )
+            logger.d(
+                TAG,
+                "updatePrimitives: primary=${selectedCard?.tscalpInstrumentId} " +
+                    "pair=${pairedCard?.tscalpInstrumentId} pairTrading=$pairTradingEnabled " +
+                    "qty=$quantity mult=$pairedMultiplier orderType=$orderType",
+            )
             _shared.value = next
             pending.trySend(next)
         }
@@ -91,6 +101,7 @@ class OrderFormMediator
             )
 
         companion object {
+            private const val TAG = "OrderFormMediator"
             const val DEBOUNCE_MS = 500L
         }
     }

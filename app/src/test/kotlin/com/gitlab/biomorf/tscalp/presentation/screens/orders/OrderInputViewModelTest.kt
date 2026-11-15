@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
+import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
 import org.junit.Assert.assertEquals
@@ -7,8 +8,9 @@ import org.junit.Test
 
 class OrderInputViewModelTest {
     private val mediator = io.mockk.mockk<OrderFormMediator>(relaxed = true)
+    private val logger = io.mockk.mockk<Logger>(relaxed = true)
 
-    private fun viewModel() = OrderInputViewModel(mediator)
+    private fun viewModel() = OrderInputViewModel(mediator, logger)
 
     @Test
     fun `onQuantityChanged filters non-digit`() {

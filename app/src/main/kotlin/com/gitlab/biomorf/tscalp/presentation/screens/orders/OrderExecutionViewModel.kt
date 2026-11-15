@@ -61,15 +61,18 @@ class OrderExecutionViewModel
         }
 
         fun onBuyClick() {
+            logger.d(TAG, "onBuyClick: dialog")
             _state.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.BUY) }
         }
 
         fun onSellClick() {
+            logger.d(TAG, "onSellClick: dialog")
             _state.update { it.copy(showConfirmDialog = true, pendingDirection = OrderDirection.SELL) }
         }
 
         fun onConfirmOrder(request: PlaceOrderRequest) {
             val direction = _state.value.pendingDirection ?: return
+            logger.d(TAG, "onConfirmOrder: direction=$direction qty=${request.quantity}")
             _state.update { it.copy(showConfirmDialog = false, pendingDirection = null) }
             viewModelScope.launch { postOrder(request, direction) }
         }
@@ -83,6 +86,7 @@ class OrderExecutionViewModel
          * Не открывает диалог; сразу запускает postOrder(BUY).
          */
         fun onBuyClickDirect(request: PlaceOrderRequest) {
+            logger.d(TAG, "onBuyClickDirect: qty=${request.quantity}")
             viewModelScope.launch { postOrder(request, OrderDirection.BUY) }
         }
 
@@ -91,6 +95,7 @@ class OrderExecutionViewModel
          * Не открывает диалог; сразу запускает postOrder(SELL).
          */
         fun onSellClickDirect(request: PlaceOrderRequest) {
+            logger.d(TAG, "onSellClickDirect: qty=${request.quantity}")
             viewModelScope.launch { postOrder(request, OrderDirection.SELL) }
         }
 
