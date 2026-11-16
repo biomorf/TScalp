@@ -661,7 +661,7 @@ ___
 
 **Перед открытием PR — полный гейт.** Минимум
 `testDebugUnitTest` недостаточен: CI прогоняет `fast-check`
-(unit + lint + ktlint + detekt). Все четыре задачи должны
+(unit + lint + ktlint + detekt + Roborazzi verify). Все задачи должны
 быть зелёными **до** открытия PR (локально или на CI —
 см. «Локальный гейт и CI гейт равнозначны»). Иначе
 lint/ktlint/detekt падают на PR — как было в сессиях
@@ -674,7 +674,8 @@ MagicNumber в `StreamCombinators`.
 коммит **не компилируется** (локальный Gradle недоступен). На
 desktop (Bluefin) каждый коммит требует прохождения полного
 локального гейта (`testDebugUnitTest / lintDebug / ktlintCheck /
-detekt`). Исключения (WIP на desktop) — только по явному запросу.
+detekt / Roborazzi verify`). Исключения (WIP на desktop) — только
+по явному запросу.
 
 **PR — только при зелёном CI.** Открытие PR (mobile или desktop) —
 только после зелёного CI `gate` на последнем коммите
@@ -695,8 +696,8 @@ desktop push не после каждого коммита, а один раз �
     bash AGENTS/scripts/run-local-gate.sh --no-build-cache
 
 Скрипт: `:app:clean :app:ktlintCheck :app:lintDebug :app:detekt
-:app:testDebugUnitTest --continue --rerun-tasks`, лог — `/tmp/gate.log`,
-фильтр вывода, exit code = gate.
+:app:testDebugUnitTest -Proborazzi.test.verify=true --continue
+--rerun-tasks`, лог — `/tmp/gate.log`, фильтр вывода, exit code = gate.
 
 Ожидаемо: `BUILD SUCCESSFUL`, все гейты зелёные, только
 известные warning'и (`statusBarColor`, Gradle 10).

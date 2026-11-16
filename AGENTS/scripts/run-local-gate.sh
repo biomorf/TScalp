@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full local Gradle gate (5a): testDebugUnitTest + lintDebug + ktlintCheck + detekt.
+# Full local Gradle gate (5a): testDebugUnitTest + lintDebug + ktlintCheck + detekt + Roborazzi verify.
 # Pre-commit check for feature/dev work on desktop. Not in CI.
 #
 # Deps: ./gradlew (project wrapper), grep.
@@ -38,7 +38,7 @@ if [ "$NO_BUILD_CACHE" = "1" ]; then EXTRA="--no-build-cache"; fi
 
 echo "=== run-gate: log=$LOG clean=${CLEAN:-none} no-build-cache=$NO_BUILD_CACHE"
 ./gradlew $CLEAN :app:ktlintCheck :app:lintDebug :app:detekt :app:testDebugUnitTest \
-  --continue --rerun-tasks $EXTRA > "$LOG" 2>&1
+  -Proborazzi.test.verify=true --continue --rerun-tasks $EXTRA > "$LOG" 2>&1
 GATE=$?
 
 echo "--- gate exit=$GATE ---"
