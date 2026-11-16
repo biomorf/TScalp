@@ -172,7 +172,9 @@ internal class TInvestRateLimiter(
             } ?: return null
         return perMethodMinBuckets.getOrPut(MethodKey(protocol, service, m)) {
             TokenBucket(
-                capacity = limit.toDouble(),
+                // capacity = rate_per_second (1s burst), not the full per-minute limit.
+                // Prevents burst N at startup from exceeding the server's per-second cap.
+                capacity = limit.toDouble() / 60.0,
                 refillPerNano = limit.toDouble() / TInvestRateLimits.ONE_MINUTE_NANOS.toDouble(),
             )
         }
@@ -190,7 +192,9 @@ internal class TInvestRateLimiter(
             } ?: return null
         return perServiceBuckets.getOrPut(protocol to service) {
             TokenBucket(
-                capacity = limit.toDouble(),
+                // capacity = rate_per_second (1s burst), not the full per-minute limit.
+                // See methodMinBucket above.
+                capacity = limit.toDouble() / 60.0,
                 refillPerNano = limit.toDouble() / TInvestRateLimits.ONE_MINUTE_NANOS.toDouble(),
             )
         }

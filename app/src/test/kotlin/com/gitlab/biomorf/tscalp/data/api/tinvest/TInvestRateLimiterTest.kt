@@ -57,22 +57,26 @@ class TInvestRateLimiterTest {
             val fakeClock = newClock()
             val limiter = TInvestRateLimiter(fakeClock, TestLogger)
 
+            // Use a service with no per-service/method cap so only the global bucket
+            // applies. WS + unknown service: serviceBucket -> null, methodBuckets -> null.
+            // Otherwise per-service capacity (100/min = 1.67/sec) would be the bottleneck
+            // before global 50/sec.
             repeat(50) {
-                limiter.withUnaryPermission(TransportProtocol.GRPC, "users", "getAccounts") { }
+                limiter.withUnaryPermission(TransportProtocol.WS, "nonexistent", null) { }
             }
 
             val job =
                 launch {
-                    limiter.withUnaryPermission(TransportProtocol.GRPC, "operations", "getOperations") { }
+                    limiter.withUnaryPermission(TransportProtocol.WS, "nonexistent", null) { }
                 }
             testScheduler.runCurrent()
             assertFalse("51st must wait for global budget", job.isCompleted)
 
-            fakeClock.advance(20.milliseconds)
-            testScheduler.advanceTimeBy(20L)
+            fakeClock.advance(25.milliseconds)
+            testScheduler.advanceTimeBy(25L)
             testScheduler.runCurrent()
 
-            assertTrue("51st must pass after 20ms", job.isCompleted)
+            assertTrue("51st must pass after 25ms", job.isCompleted)
         }
 
     @Test
@@ -154,16 +158,40 @@ class TInvestRateLimiterTest {
             val fakeClock = newClock()
             val limiter = TInvestRateLimiter(fakeClock, TestLogger)
 
-            // 150 getOrders at 10 req/sec (advance 100ms between calls).
-            // Global 50/sec is not exhausted (10 < 50).
-            // With fix (override 200/min replaces service 100/min): all 150 pass.
-            // Without fix (service 100/min, refill 1.67/sec vs consume 10/sec):
-            // ~101st call exhausts -> RateLimitTimeoutException -> FAIL.
+            // 150 getOrders at 2.5 req/sec (advance 400ms between calls = 60s virtual).
+            // getOrders override: 200/min = 3.33/sec > 2.5/sec -> all 150 pass.
+            // Without override (service orders 100/min = 1.67/sec < 2.5/sec):
+            // ~100 calls in 60s, rest time out -> RateLimitTimeoutException -> FAIL.
+            // (capacity was lowered to rate_per_second = 1s burst; see RateLimiter.)
             repeat(150) {
                 limiter.withUnaryPermission(TransportProtocol.GRPC, "orders", "getOrders") { }
-                fakeClock.advance(100.milliseconds)
-                testScheduler.advanceTimeBy(100L)
+                fakeClock.advance(400.milliseconds)
+                testScheduler.advanceTimeBy(400L)
             }
             // No exception thrown = override applied
+        }
+
+    @Test
+    fun `per-minute capacity limits burst to 1 second`() =
+        runTest {
+            val fakeClock = newClock()
+            val limiter = TInvestRateLimiter(fakeClock, TestLogger)
+
+            // instruments service: 200/min = 3.33/sec. Capacity = 3.33 (1s burst).
+            // 3 calls pass immediately, 4th waits ~200ms.
+            repeat(3) {
+                limiter.withUnaryPermission(TransportProtocol.GRPC, "instruments", "getInstrumentBy") { }
+            }
+            val job =
+                launch {
+                    limiter.withUnaryPermission(TransportProtocol.GRPC, "instruments", "getInstrumentBy") { }
+                }
+            testScheduler.runCurrent()
+            assertFalse("4th must wait (capacity=3.33)", job.isCompleted)
+
+            fakeClock.advance(400.milliseconds)
+            testScheduler.advanceTimeBy(400L)
+            testScheduler.runCurrent()
+            assertTrue("4th passes after 400ms", job.isCompleted)
         }
 }
