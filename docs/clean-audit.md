@@ -195,7 +195,7 @@ ___
 
 **MVVM-альтернатива:** — (не нарушение MVVM).
 
-**Ссылка на задачу:** `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`; merge pending 8.2 → `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: split`); reduce-task closed accepted — `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: @Suppress accepted (2c)` (`cf911ae8`). Связано: M001 (закрыт PR #111), M017 (закрыт `4ee4174`), M013 (закрыт PR #110).
+**Ссылка на задачу:** `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`; merge pending 8.2 → `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: split`); reduce-task closed accepted — `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: @Suppress accepted (2c)` (`cf911ae8`). Связано: M001 (закрыт PR #111), M017 (закрыт `4ee4174`), M013 (закрыт PR #110).
 
 
 <!-- SUBSECTION_END: Н95 -->
@@ -217,7 +217,7 @@ ___
 
 **MVVM-альтернатива:** то же — event stream.
 
-**Ссылка на задачу:** `### ✅ 4. M6: one-shot events (StatusEvent)` (`docs/ROADMAP-ARCHIVE.md`, PR #112, merge `967b28fb`).
+**Ссылка на задачу:** `### ✅ 4. M6: one-shot events (StatusEvent)` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR #112, merge `967b28fb`).
 
 **Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
 
@@ -242,7 +242,7 @@ ___
 
 **Выгоды:** —.
 
-**Ссылка на задачу:** `### ✅ M001: formatting в presentation` (`docs/ROADMAP-ARCHIVE.md`, PR #111, merge `7bef1808`).
+**Ссылка на задачу:** `### ✅ M001: formatting в presentation` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR #111, merge `7bef1808`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
@@ -292,7 +292,7 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 
 **Что сделано:** A2 закрыт 2026-11-09 (PR #110). 7 из 9 методов вынесены в usecase: `LoadPortfolioUseCase`, `CheckBrokerInitializationUseCase` (1 для Portfolio + Orders, Q5), `LoadOrdersAccountsUseCase`, `LoadCardAccountsUseCase` (1 для `openBrokerDialog` / `loadDialogAccounts`, Q10), `CancelOrderUseCase`. `openBrokerDialog` / `loadDialogAccounts` переехали в `OrderDialogsViewModel` (split 13d), wiring → usecases (M015). `loadOrders` — по Q3/F3 manager-lifecycle, остаётся в VM (`startPositionUpdates`). `startPositionUpdates` / `stopPositionUpdates` / `syncPriceInterest` — lifecycle (Q2), остаются в VM. M013-related follow-ups закрыты: M002 (`PlaceOrderUseCase`), M015 (`OpenCardDialogUseCase`), M017 (`OrderFormStateMapper`). Live-test: 1-2,5,6-partial PASS (write-token, sandbox T-Invest); 3-4 (смена брокера) — deferred closure в отдельной задаче `### Live-test Broker lifecycle API: BCS/Finam` (ROADMAP); `NoneInitialized`-ветка — pre-existing `BrokerRegistry.anyInitialized` (`docs/ISSUES.md`).
 
-**Ссылка на задачу:** `### ✅ A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (`docs/ROADMAP-ARCHIVE.md`, PR #110, merge `a590122a`).
+**Ссылка на задачу:** `### ✅ A2: orchestration out of Orders/Portfolio/OrdersList (M013)` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR #110, merge `a590122a`).
 
 **Сводный отчёт, 2026-11-06:** да.
 
@@ -428,7 +428,7 @@ ___
 
 **Что сделано:** 5 panel-VM (`TInvestSettingsViewModel`, `BcsSettingsViewModel`, `FinamSettingsViewModel`, `TradeSettingsViewModel`, `InfoSettingsViewModel`) + 6 usecase (`LoadBrokerAccountsUseCase`, `OpenSandboxAccountUseCase`, `CloseSandboxAccountUseCase`, `DisconnectBrokerUseCase`, `ToggleDebugFlagUseCase`, `SetSandboxModeUseCase`). `SettingsViewModel` — 361 → 31 строк (1 метод + 1 инжект); `SettingsUiState` удалён. `SettingsScreen.kt` — 5 панелей на panel-VM, оркестрация ушла из UI. 34 новых теста. Live-test sandbox 12/12. PR #103, merge `24497eb`.
 
-**Ссылка на задачу:** `### ✅ Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)` (`docs/ROADMAP-ARCHIVE.md`, PR #103, merge `24497eb`).
+**Ссылка на задачу:** `### ✅ Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR #103, merge `24497eb`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
@@ -457,7 +457,7 @@ ___
 
 **Что сделано:** 5 panel-VM (`TInvestSettingsViewModel`, `BcsSettingsViewModel`, `FinamSettingsViewModel`, `TradeSettingsViewModel`, `InfoSettingsViewModel`) + 6 usecase (`LoadBrokerAccountsUseCase`, `OpenSandboxAccountUseCase`, `CloseSandboxAccountUseCase`, `DisconnectBrokerUseCase`, `ToggleDebugFlagUseCase`, `SetSandboxModeUseCase`). `SettingsViewModel` — 361 → 31 строк (1 метод + 1 инжект); `SettingsUiState` удалён. `SettingsScreen.kt` — 5 панелей на panel-VM, оркестрация ушла из UI. 34 новых теста. Live-test sandbox 12/12. PR #103, merge `24497eb`.
 
-**Ссылка на задачу:** `### ✅ Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)` (`docs/ROADMAP-ARCHIVE.md`, PR #103, merge `24497eb`).
+**Ссылка на задачу:** `### ✅ Рефакторинг settings-VM: 6 VM-специфичных (A2, M006)` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR #103, merge `24497eb`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
@@ -486,7 +486,7 @@ ___
 
 **Что сделано:** `domain/usecases/PayInSandboxUseCase.kt` (новый) — `@Singleton @Inject constructor(accountsRepository, logger)`, `suspend fun execute(accountId, amount: SandboxMoney): AppResult<Unit>`; `CancellationException` rethrow, прочие `Exception` → `AppResult.Failure(AppError.Unknown(...))` + `logger.e`. `PortfolioViewModel.payInSandbox` — тонкий (~20 строк), `@Suppress("LongMethod")` снят. `PayInSandboxUseCaseTest` — 4 кейса (success / failure passthrough / exception → Unknown / `CancellationException` rethrow). Live-test sandbox (эмулятор Android 14): 4 пополнения × 4 счёта, `sandboxPayIn: success` → `loadPortfolio: 3 accounts`, balance +100 000 ₽. PR #101, merge `e9c592d`. Коммит `b120cd3`.
 
-**Ссылка на задачу:** `### ✅ M003: payInSandbox → PayInSandboxUseCase` (`docs/ROADMAP-ARCHIVE.md`, PR #101, merge `e9c592d`).
+**Ссылка на задачу:** `### ✅ M003: payInSandbox → PayInSandboxUseCase` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR #101, merge `e9c592d`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
@@ -1095,7 +1095,7 @@ ___
 
 **Ссылка на задачу:** PR #145 (merge `f9dc5596`).
 
-**Связано:** `docs/clean-audit.md` → Н96 (D, исправлено в том же PR); `docs/ROADMAP-ARCHIVE.md` → `### ✅ Domain: pairedMultiplier/quantity → Long`.
+**Связано:** `docs/clean-audit.md` → Н96 (D, исправлено в том же PR); `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ Domain: pairedMultiplier/quantity → Long`.
 
 <!-- SUBSECTION_END: Н15 -->
 <!-- SUBSECTION_BEGIN: Н96 -->
@@ -1164,7 +1164,7 @@ ___
 
 **Что сделано:** `PortfolioPosition`, `calculateProfitPercent`, `emptyPortfolioPosition`, `toLegacyPortfolioPosition` удалены из `domain/models/Portfolio.kt`. `PortfolioRepository.fetchPositionsResult → AppResult<List<Position>>`. `emptyPosition(instrument, currentPrice, accountId, brokerName, lockedQuantity)` — dispatcher по `Instrument` (7 subtypes). `PortfolioUiState.positions` удалён; `PortfolioViewModel` на `sheet` + `prices`/`priceChangePercents` overlay; `sheetState`/`pricesMap`/`priceChangePercentsMap` удалены. `OrdersUiState.portfolioPositions → List<Position>`; `toLegacyPortfolioPosition` adapter убран. `AssetPositionCard(position: Position, displayCurrentPrice: Double?, priceChangePercent: Double?)`. `PositionFormatter` — чистые функции с примитивами. `PositionFormatterTest` переписан (26 тестов); `PortfolioConvertersTest` +7 кейсов `emptyPosition`; `CalculateProfitPercentTest` удалён. Коммит `4a0e785`, merge `d04ecc4`, PR #90.
 
-**Ссылка на задачу:** `### ✅ H5. PortfolioPosition removed` (`docs/ROADMAP-ARCHIVE.md`, merge `d04ecc4`, PR #90). Связано с закрытой `### Рефакторинг расчёта P&L для PortfolioPosition` (PR #81, `dev`).
+**Ссылка на задачу:** `### ✅ H5. PortfolioPosition removed` (`docs/roadmap/ROADMAP-ARCHIVE.md`, merge `d04ecc4`, PR #90). Связано с закрытой `### Рефакторинг расчёта P&L для PortfolioPosition` (PR #81, `dev`).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
@@ -1329,7 +1329,7 @@ ___
 
 **Выгоды (по 2c):** 1 callsite (`AccountsRepositoryImpl:49`), 2 impl (`TInvestBrokerApi`, `BcsBrokerApi`/`FinamBrokerApi` — через `accounts = null`). Refactor (`TInvestAccountsApi : AccountsApi`) → правка 2 impl + 1 callsite + новый интерфейс — overhead > текущей выгоды. Параметр `sandboxMode` отражает реальность: у T-Invest sandbox есть, у BCS/Finam — нет (игнорируется). Domain-контракт терпит это как «общий параметр, иногда не применим».
 
-**Ссылка на задачу:** `### ✅ 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (`docs/ROADMAP-ARCHIVE.md`, merge `eb2db6a8`, 2026-11-11).
+**Ссылка на задачу:** `### ✅ 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (`docs/roadmap/ROADMAP-ARCHIVE.md`, merge `eb2db6a8`, 2026-11-11).
 
 <!-- SUBSECTION_END: Н28 -->
 <!-- SUBSECTION_BEGIN: clean-audit-50 -->
@@ -2377,7 +2377,7 @@ ___
 
 **Что сделано:** `di/RepositoryModule.kt` → `di/UseCaseModule.kt` (git mv, 100% rename, content 1:1). `@Provides` для `CalculateTradeDetailsUseCase` / `PrepareOrderRequestUseCase` в `UseCaseModule.kt` — сохранены (2e → KMP → DI). `RepositoryModule` object (H21b) уже был удалён ранее. CI green `9e6d37ee`.
 
-**Ссылка на задачу:** PR #129 (merge `bef308e2`). 24 usecases с `@Inject` — задача `### ✅ Н37b: usecases без DI-аннотаций (2e → KMP → DI)` (`docs/ROADMAP-ARCHIVE.md`, PR #134, merge `1fe8a869`).
+**Ссылка на задачу:** PR #129 (merge `bef308e2`). 24 usecases с `@Inject` — задача `### ✅ Н37b: usecases без DI-аннотаций (2e → KMP → DI)` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR #134, merge `1fe8a869`).
 
 <!-- SUBSECTION_END: Н37 -->
 <!-- SUBSECTION_BEGIN: Н36 -->

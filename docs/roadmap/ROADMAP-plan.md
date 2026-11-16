@@ -2447,7 +2447,7 @@ ___
 
 **Зависимости:** PR-4b merged.
 
-**Связано:** `### ✅ OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (`docs/ROADMAP-ARCHIVE.md`).
+**Связано:** `### ✅ OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (`docs/roadmap/ROADMAP-ARCHIVE.md`).
 
 **Открытые вопросы:** нет.
 <!-- SUBSECTION_END: t-38 -->

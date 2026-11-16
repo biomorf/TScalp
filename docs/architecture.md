@@ -309,7 +309,7 @@ ___
 ___
 ### architecture-11 Связанные документы
 
-- `docs/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
+- `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
 - `docs/ISSUES.md` → `ClassCastException в PostOrderUseCase при StopLoss без stopPrice` (решён, PR #132).
 - `docs/clean-audit.md` → M017 (`buildPlaceOrderRequest`), M013 / A2 (orchestration) — контекст оркестрации заявок.
 

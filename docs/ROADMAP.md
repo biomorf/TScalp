@@ -2,7 +2,7 @@
 
 Полный индекс — `docs/roadmap/ROADMAP.md`.
 Шаблон — `docs/roadmap/ROADMAP-task-template.md`.
-Архив — `docs/ROADMAP-ARCHIVE.md`.
+Архив — `docs/roadmap/ROADMAP-ARCHIVE.md`.
 
 Файлы по статусу:
 - `docs/roadmap/ROADMAP-wip.md`
