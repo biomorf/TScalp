@@ -39,6 +39,7 @@ internal class TInvestRateLimiter(
     private val logger: Logger,
     private val timeoutMs: Long = 5_000L,
     private val slowWaitMs: Long = 1_000L,
+    private val wsSharesStreamBudget: Boolean = TInvestRateLimits.WS_SHARES_STREAM_BUDGET,
 ) : TransportRateLimiter {
     private val mutex = Mutex()
 
@@ -126,7 +127,7 @@ internal class TInvestRateLimiter(
         protocol: TransportProtocol,
         service: String,
     ): Pair<TransportProtocol, String> =
-        if (TInvestRateLimits.WS_SHARES_STREAM_BUDGET && protocol == TransportProtocol.WS) {
+        if (wsSharesStreamBudget && protocol == TransportProtocol.WS) {
             TransportProtocol.GRPC to service
         } else {
             protocol to service
