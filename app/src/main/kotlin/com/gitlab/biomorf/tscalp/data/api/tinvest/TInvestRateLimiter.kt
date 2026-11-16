@@ -39,6 +39,7 @@ internal class TInvestRateLimiter(
     private val logger: Logger,
     private val timeoutMs: Long = 5_000L,
     private val slowWaitMs: Long = 1_000L,
+    private val wsSharesStreamBudget: Boolean = TInvestRateLimits.WS_SHARES_STREAM_BUDGET,
 ) : TransportRateLimiter {
     private val mutex = Mutex()
 
@@ -105,14 +106,55 @@ internal class TInvestRateLimiter(
         service: String,
         block: suspend () -> T,
     ): T {
+        val key = streamSemaphoreKey(protocol, service)
+        val limit = streamLimit(key.first, key.second)
         val semaphore =
             mutex.withLock {
-                streamSemaphores.getOrPut(protocol to service) {
-                    Semaphore(streamLimit(protocol, service))
+                streamSemaphores.getOrPut(key) {
+                    Semaphore(limit)
                 }
             }
-        return semaphore.withPermit { block() }
+        val startedMs = clock.now().toEpochMilliseconds()
+        return semaphore.withPermit {
+            val waitedMs = clock.now().toEpochMilliseconds() - startedMs
+            val acquired = limit - semaphore.availablePermits
+            if (waitedMs >= slowWaitMs) {
+                logger.w(
+                    TAG,
+                    "[stream-limit/$protocol/$service] slow acquire ${waitedMs}ms, " +
+                        "$acquired/$limit — WS-reconnect storm?",
+                )
+            } else {
+                logger.d(TAG, "[stream-limit/$protocol/$service] slot $acquired/$limit acquired")
+            }
+            try {
+                block()
+            } finally {
+                logger.d(
+                    TAG,
+                    "[stream-limit/$protocol/$service] released, ${acquired - 1}/$limit used",
+                )
+            }
+        }
     }
+
+    /**
+     * Semaphore key for [withStreamSlot].
+     *
+     * When [TInvestRateLimits.WS_SHARES_STREAM_BUDGET] is true, WS and
+     * gRPC-streaming share a single per-service budget (T-Invest docs:
+     * WS is a proxy for gRPC streaming; the counter is assumed shared).
+     * Otherwise WS and gRPC have independent per-service budgets.
+     */
+    private fun streamSemaphoreKey(
+        protocol: TransportProtocol,
+        service: String,
+    ): Pair<TransportProtocol, String> =
+        if (wsSharesStreamBudget && protocol == TransportProtocol.WS) {
+            TransportProtocol.GRPC to service
+        } else {
+            protocol to service
+        }
 
     private fun tryAcquireAll(
         protocol: TransportProtocol,

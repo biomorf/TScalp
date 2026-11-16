@@ -99,6 +99,7 @@ class TInvestBrokerAPI(
             prices = pricesService,
             trading = tradingService,
             instruments = instrumentsService,
+            rateLimiter = rateLimiter,
             logger = logger,
             wsFallback = { accountId -> wsService.buildWsFallback(accountId) },
             pricesWsFallback = { uids -> wsService.buildPricesWsFallback(uids) },
