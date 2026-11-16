@@ -39,8 +39,8 @@ rebuild_index) — есть; `seed_markers_docs.py` (oneoff) — создан.
   `clean-audit-L1.md` … `L8.md`.
 - `AGENTS/scripts/oneoff/seed_markers_docs.py` — одноразовый.
 - `docs/scripts/check-docs.sh` — линтер (5 проверок).
-- `AGENTS/scripts/normalize.py`, `add.py`, `cut.py`,
-  `rebuild_index.py` — переиспользуются с `--root docs/`.
+- `AGENTS/scripts/docs_normalize.py`, `docs_add.py`, `docs_cut.py`,
+  `docs_rebuild_index.py` — переиспользуются с `--root docs/`.
 **Шаги:**
 1. **Фаза 0:** `seed_markers_docs.py --apply` — `SECTION_*`
    вокруг `##`, `SUBSECTION_*` вокруг `###` в `docs/*.md`

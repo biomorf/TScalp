@@ -16,8 +16,8 @@ ___
 **Статус:** запланировано.
 **Мобильная работа:** полное закрытие
 **Контекст:** скрипты для работы с `AGENTS/` частично в репо
-(`AGENTS/scripts/`: `normalize.py`, `add.py`, `cut.py`,
-`rebuild_index.py`), частично вне (`$HOME/deepseek/seed_markers.py`
+(`AGENTS/scripts/`: `docs_normalize.py`, `docs_add.py`, `docs_cut.py`,
+`docs_rebuild_index.py`), частично вне (`$HOME/deepseek/seed_markers.py`
 — одноразовый, но не сохранён). Инструкция `4j` упоминает только
 `add`/`cut`/`normalize`, не `rebuild_index`. Нужно: (1) все штатные
 скрипты — в `AGENTS/scripts/`; (2) `4j` — полный список инструментов;
@@ -46,7 +46,7 @@ ___
 2. `seed_markers.py` — `cp $HOME/deepseek/seed_markers.py
    AGENTS/scripts/oneoff/`, шапка «одноразовый, не запускать
    повторно (уже применён в 2658a54c)».
-3. `r4j`: добавить `rebuild_index.py` в список; ссылка на
+3. `r4j`: добавить `docs_rebuild_index.py` в список; ссылка на
    `README.md`.
 4. `$HOME/deepseek/` — `rm normalize.py.bak*`, `4j-body.md`,
    `smoke-body.md`, `agents-cut-*.md`.

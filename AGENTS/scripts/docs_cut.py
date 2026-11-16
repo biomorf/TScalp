@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from normalize import normalize_text  # noqa: E402
+from docs_normalize import normalize_text  # noqa: E402
 
 
 def tmp_path(id_: str) -> Path:
@@ -69,7 +69,7 @@ def main():
         f.write_text(new_text, encoding="utf-8")
         out.write_text(block, encoding="utf-8")
         print(f"CUT: {args.id} from {f} -> {out}")
-        from rebuild_index import rebuild
+        from docs_rebuild_index import rebuild
         rebuild(apply=True)
     else:
         print(f"DRY: would cut {args.id} from {f} -> {out}")

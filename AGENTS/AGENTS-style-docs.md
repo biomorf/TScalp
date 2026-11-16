@@ -42,21 +42,21 @@ ___
 ### r4j Скрипты для AGENTS/
 Ассистент **не форматирует** `SUBSECTION_*`-блоки вручную.
 
-**Вставка подраздела** — `add.py`:
+**Вставка подраздела** — `docs_add.py`:
 
-    python3 AGENTS/scripts/add.py --file <path> --id <id> \
+    python3 AGENTS/scripts/docs_add.py --file <path> --id <id> \
       --title '<title>' --body-file <path> \
       [--after <existing_id> | --at-end] --apply
 
-**Удаление подраздела** — `cut.py` (вырезает в `/tmp/agents-cut-<id>.md`,
-fallback `$HOME/deepseek/`; вставить обратно — `add.py`):
+**Удаление подраздела** — `docs_cut.py` (вырезает в `/tmp/agents-cut-<id>.md`,
+fallback `$HOME/deepseek/`; вставить обратно — `docs_add.py`):
 
-    python3 AGENTS/scripts/cut.py --file <path> --id <id> --apply
+    python3 AGENTS/scripts/docs_cut.py --file <path> --id <id> --apply
 
-**Нормализация** (паддинги, `___`, `rstrip`, fence parity) — `normalize.py`:
+**Нормализация** (паддинги, `___`, `rstrip`, fence parity) — `docs_normalize.py`:
 
-    python3 AGENTS/scripts/normalize.py --check --all   # CI, exit 1 при отклонении
-    python3 AGENTS/scripts/normalize.py --apply --all   # запись
+    python3 AGENTS/scripts/docs_normalize.py --check --all   # CI, exit 1 при отклонении
+    python3 AGENTS/scripts/docs_normalize.py --apply --all   # запись
 
 **`normalize.py --check` входит в 4h pre-commit checklist** для `AGENTS/`:
 перед коммитом — `--check --all` → `deviations=0`.
