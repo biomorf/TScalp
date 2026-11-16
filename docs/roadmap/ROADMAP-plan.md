@@ -150,87 +150,6 @@ ___
 
 
 
-<!-- SUBSECTION_BEGIN: t-5 -->
-___
-### [PLAN] T-5 Stream connection limiter: WS + gRPC-streaming
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Ветка:** feature/stream-connection-limiter
-
-**Контекст:** WS — прокси для gRPC streaming (T-Invest docs: «Сервис для получения сообщений gRPC streaming через JSON WebSocket»); у него **отдельная лимитная политика** (stream-соединения 32/16/11 по сервисам, ошибка `4008 RESOURCE_EXHAUSTED`). Прямого указания, делят ли WS и gRPC-streaming общий счётчик, в документации нет — консервативно считаем, что делят. `TInvestWsService` создаёт 3 WS-канала (`Positions`, `Prices`, `OrderState`); `mergeStreamSources` в `TInvestOrchestrator` держит gRPC + WS параллельно. Реконнект-шторм (backoff 1–60s, `reapplyDebugFlags`) может выбить stream-лимит молча, без явной диагностики. Сейчас защиты нет — `retryWithBackoff` управляет частотой, но не считает слоты. BCS — только WS (без gRPC); Finam — gRPC + WS + REST.
-
-**Соответствие Clean:** соответствует (data-layer infrastructure; domain не знает).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**MVVM:** — (не применимо).
-
-**KMP:** соответствует — `kotlinx.coroutines.sync.Semaphore` + `kotlinx.coroutines.withTimeout` (KMP-safe); без `java.util.concurrent.Semaphore` (не KMP-safe), без `android.*` / `java.*`.
-
-**Предусловия:** 1a — общий интерфейс `TransportRateLimiter` (две оси: UnaryBudget + StreamBudget).
-
-**Файлы:**
-- `app/src/main/kotlin/.../data/api/common/StreamBudgetLimiter.kt` (новый) — semaphore per-(transport, service).
-- `app/src/main/kotlin/.../data/api/tinvest/TInvestRateLimits.kt` — `StreamBudget` (MarketData 32 / Orders 16 / Operations 11).
-- `app/src/main/kotlin/.../data/api/tinvest/TInvestWsService.kt` — acquire/release слота при connect/stop.
-- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — acquire/release для gRPC-stream.
-- `app/src/test/kotlin/.../data/api/common/StreamBudgetLimiterTest.kt` (новый).
-
-**Шаги:**
-1. `StreamBudgetLimiter(semaphore per service)`: `suspend fun <T> withSlot(service, block): T` — acquire → блок → release (finally).
-2. Флаг `WS_SHARES_STREAM_BUDGET = true` (в `TInvestRateLimits`): `true` — WS и gRPC-streaming делят счётчик; `false` — раздельные semaphore × 2 на сервис.
-3. `TInvestWsService.initialize` — acquire на 3 канала (3 слота: MarketData/prices, Operations/positions, Orders/orderState); `stop` — release.
-4. `TInvestOrchestrator` — acquire/release на gRPC-stream каналы.
-5. **Логирование:** `Logger.d` при acquire — `[stream-limit/gRPC/positions] slot 1/32 acquired`; `Logger.d` при release; `Logger.w` при таймауте acquire (`waited 5000ms, budget 32/32 — WS-reconnect storm?`); итог бюджета на release — `[stream-limit/WS/positions] released, 2/32 used`. Без этого `4008` не диагностируется.
-6. Тесты: 4 кейса — under limit, at limit (acquire waits), WS+gRPC shared (флаг `true`), split (флаг `false`).
-7. BCS/Finam — конфиги: `BcsRateLimits` = `StreamBudget(WS)`, `FinamRateLimits` = `StreamBudget(gRPC, WS)`. Acquire/release — при интеграции брокеров.
-
-**Тесты:** `StreamBudgetLimiterTest` — 4 кейса.
-
-**Референсы:** `docs/rate-limits.md` → «Stream-соединения T-Invest»; `docs/streams.md`; `docs/brokers.md` (BCS — только WS, Finam — gRPC+WS+REST); `TInvestOrchestrator.mergeStreamSources`; `TInvestWsService`.
-
-**Ограничения:**
-- Не менять публичные контракты `BrokerApi` / `StreamsApi`.
-- Не смешивать с 1a (unary limiter) — разные механизмы, разные ветки.
-- WS inbound frames не заряжаются — только subscription (acquire при connect) и ping (по 60s, в уже занятом слоте).
-- `retryWithBackoff` остаётся; limiter считает слоты, не частоту retry.
-- BCS/Finam — конфиги в этой подзадаче; реальное acquire/release — при интеграции брокеров.
-- **KMP:** `kotlinx.coroutines.sync.Semaphore`, `kotlinx.coroutines.withTimeout`; без `java.util.concurrent.Semaphore` (не KMP-safe), без `android.*` / `java.*` (2e).
-
-**Критерий готовности:**
-- `StreamBudgetLimiter` реализован, покрыт тестами (4 кейса).
-- 3 WS-канала T-Invest + gRPC-stream каналы проходят через acquire/release.
-- Логирование: acquire/release, таймаут, итог бюджета.
-- Флаг `WS_SHARES_STREAM_BUDGET` работает (shared / split).
-- live-test: WS-reconnect (вкл/выкл сеть) — нет `4008`, в логах `[stream-limit/...]`.
-- Гейт зелёный.
-
-**Оценка:** ~1.5–2 ч (limiter 40 мин, интеграция 40 мин, логирование + тесты 30 мин, live-test 20 мин).
-
-**Зависимости:** 1a (общий интерфейс).
-
-**Связано:** umbrella; `docs/rate-limits.md` → «Stream-соединения»; `docs/streams.md`; `TInvestOrchestrator.mergeStreamSources`.
-
-**Открытые вопросы:**
-- WS и gRPC-streaming делят один счётчик? Пока консервативно `true`; если в логах `4008` при общем счёте < лимита — вероятно, раздельные, флаг `false`.
-- T-Invest docs: счётчик стрим-соединений обновляется каждые 2 минуты — влияет ли на acquire? — уточнить по факту.
-<!-- SUBSECTION_END: t-5 -->
-
-
-
-
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-6 -->
 ___
 ### [PLAN] T-6 Search: сократить N+1 unary в findInstruments
@@ -2452,6 +2371,10 @@ ___
 
 **Открытые вопросы:** нет.
 <!-- SUBSECTION_END: t-38 -->
+
+
+
+
 
 
 

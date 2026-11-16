@@ -103,6 +103,104 @@ ___
 
 
 
+<!-- SUBSECTION_BEGIN: t-5 -->
+___
+### [WIP] T-5 Stream connection limiter: WS + gRPC-streaming
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** в работе.
+
+**Ветка:** feature/stream-connection-limiter
+
+**Контекст (диагностика 2026-11-16).**
+- WS — прокси для gRPC streaming (T-Invest docs: «Сервис для получения сообщений gRPC streaming через JSON WebSocket»). Отдельная лимитная политика — 32/16/11 stream-соединений по сервисам, ошибка `4008 RESOURCE_EXHAUSTED`. Прямого указания, делят ли WS и gRPC-streaming общий счётчик, в документации нет — консервативно считаем, что делят (`WS_SHARES_STREAM_BUDGET = true`).
+- `withStreamSlot` в `TInvestRateLimiter` (line ~103) **существует**, но **0 call sites** — semaphore есть, защиты нет.
+- `mergeStreamSources` (`data/orchestrator/StreamCombinators.kt`) = `merge(*sources)` — primary (gRPC) и fallback (WS) идут **одновременно**; на каждую подписку менеджера — 2 connection.
+- Reconnect: gRPC — `retryWithBackoff` (1/5/15/30/60s); WS — внутренний `while(isActive)` в клиентах (`transport-ktor/.../TInvest*WebSocket.kt`).
+- Реальный storm-риск: `TInvestPositionsWebSocket.subscribePositions()` — per-call, каждый вызов = новый WS со своим reconnect-циклом. `mergeStreamSources` держит WS-fallback параллельно gRPC-primary.
+- Реконнект-шторм (backoff 1–60s, `reapplyDebugFlags`) может выбить stream-лимит молча. Сейчас защиты нет — `retryWithBackoff` управляет частотой, но не считает слоты.
+
+**Решение (вариант A, принят).** Обернуть весь `mergeStreamSources` в `withStreamSlot(protocol, service)` на уровне `TInvestOrchestrator`.
+- **T-Invest:** `protocol = GRPC` (WS — прокси gRPC streaming, shared bucket при `WS_SHARES_STREAM_BUDGET = true`).
+- **BCS (WS-only):** при интеграции (T-30) `BcsOrchestrator` передаёт `protocol = WS` — свой бакет, без конфликта с T-Invest. `TransportRateLimiter` broker-agnostic, интерфейс `withStreamSlot(protocol, service)` уже поддерживает оба.
+- **Finam (mixed):** `protocol = GRPC` + `WS_SHARES = true` (при интеграции T-31).
+- Семантика: **1 slot = 1 subscription** (не 1 connection). При `WS_SHARES=true` обе connection в одном слоте.
+
+**Отклонённые альтернативы (для будущих сессий, без повторного анализа).**
+- **B — раздельные слоты на транспорт.** Обернуть `primary` и `fallback` отдельно: `withStreamSlot(GRPC, ...) { primary }` + `withStreamSlot(WS, ...) { fallback }`. Семантика «1 slot = 1 connection» (2 слота на подписку). Минус: при `WS_SHARES=true` — deadlock (2 acquire на один семафор); нужно `=false` + отдельные ключи. **Рассмотреть, если** live-test покажет раздельный бюджет T-Invest (WS vs gRPC) или `4008` при общем счёте < лимита. Оценка B ≈ 2 ч.
+- **C — A + идемпотентность WS positions.** A + guard в `TInvestPositionsWebSocket.subscribePositions()`: если WS уже активна для accountId — reuse, не открывать вторую. **Рассмотреть, если** live-test покажет duplicate-WS storm (переподписка без `stop()`). Оценка C ≈ 2–3 ч.
+
+**Соответствие Clean:** соответствует (data-layer infrastructure; domain не знает).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** соответствует — `kotlinx.coroutines.sync.Semaphore` (KMP-safe); без `java.util.concurrent.Semaphore`, без `android.*` / `java.*`.
+
+**Предусловия:** 1a merged (PR #161) — `TransportRateLimiter.withStreamSlot` (интерфейс + impl в `TInvestRateLimiter`).
+
+**Файлы.**
+- `app/src/main/kotlin/.../data/api/common/TransportRateLimiter.kt` — без изменений (интерфейс `withStreamSlot` уже есть).
+- `app/src/main/kotlin/.../data/api/tinvest/TInvestRateLimiter.kt` — `withStreamSlot` уже реализован; проверить учёт `WS_SHARES_STREAM_BUDGET` (сейчас флаг не используется в теле, только объявлен в `TInvestRateLimits`).
+- `app/src/main/kotlin/.../data/orchestrator/TInvestOrchestrator.kt` — обернуть `positionsStream`, `pricesStream`, `orderStateStream` в `withStreamSlot`.
+- `app/src/test/kotlin/.../data/orchestrator/TInvestOrchestratorTest.kt` (новый или дополнение) — 4 теста: under limit / at limit / shared / split.
+
+**Шаги.**
+1. `TInvestRateLimiter.withStreamSlot`: при `WS_SHARES_STREAM_BUDGET = true` ключ семафора для WS совпадает с GRPC. Реализация — одна функция: `val key = if (WS_SHARES && protocol == WS) TransportProtocol.GRPC to service else protocol to service`.
+2. `TInvestOrchestrator.positionsStream / pricesStream / orderStateStream`: обернуть `mergeStreamSources(...)` в `flow { withStreamSlot(TransportProtocol.GRPC, "<service>") { mergeStreamSources(...).collect { emit(it) } } }`. Сервис: positions → `operations`, prices → `marketdata`, orderState → `orders`.
+3. Логирование: `[stream-limit/<protocol>/<service>] acquired <n>/<limit>` при входе, `released` при выходе (finally), `warn` при таймауте (`waited Xms, budget N/N — WS-reconnect storm?`).
+4. Тесты (`TInvestOrchestratorTest`):
+   - under limit — N подписок < limit → все получают слот;
+   - at limit — N+1-я подписка ждёт (таймаут → `RateLimitTimeoutException`);
+   - shared (`WS_SHARES=true`) — WS и GRPC делят bucket (общий счётчик);
+   - split (`WS_SHARES=false`) — WS и GRPC раздельные bucket (2×limit).
+5. BCS/Finam — конфиги `BcsRateLimits` / `FinamRateLimits` — при интеграции брокеров, отдельными задачами (T-30, T-31). Сейчас не трогаем.
+
+**Тесты:** `TInvestOrchestratorTest` — 4 кейса (шаг 4).
+
+**Референсы:** `docs/rate-limits.md` → «Stream-соединения T-Invest»; `docs/streams.md`; `docs/architecture.md` → architecture-22 (rate-limiter); `TInvestOrchestrator.mergeStreamSources` (`data/orchestrator/StreamCombinators.kt`); `TInvestRateLimiter.withStreamSlot`; PR #161 (1a merged); PR #162 (burst-capacity fix).
+
+**Ограничения.**
+- Не менять публичные контракты `BrokerApi` / `StreamsApi`.
+- Не смешивать с 1a — разные механизмы (1a — unary token-bucket, 1b — stream semaphore), разные ветки. 1a merged.
+- `retryWithBackoff` остаётся; limiter считает слоты, не частоту retry.
+- WS inbound frames не заряжаются — только subscription (acquire при connect) и ping (по 60s, в уже занятом слоте).
+- BCS/Finam: конфиги в этой задаче **не** создаются; acquire/release — при интеграции (T-30, T-31).
+- **KMP:** `kotlinx.coroutines.sync.Semaphore`; без `java.util.concurrent.Semaphore`.
+
+**Критерий готовности.**
+- `TInvestOrchestrator.positionsStream/pricesStream/orderStateStream` проходят через `withStreamSlot`.
+- `WS_SHARES_STREAM_BUDGET` работает (shared / split).
+- Логирование acquire/release/таймаут.
+- `TInvestOrchestratorTest` — 4 кейса зелёные.
+- live-test: WS-reconnect storm (вкл/выкл сеть, `reapplyDebugFlags`) — нет `4008`, в логах `[stream-limit/...]`.
+- Гейт зелёный.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** 1a merged (PR #161).
+
+**Связано:** umbrella T-3; PR #161 (1a); PR #162 (burst-capacity); `docs/rate-limits.md`; `docs/streams.md`; T-30 (BCS); T-31 (Finam).
+
+**Открытые вопросы.**
+- WS и gRPC-streaming делят один счётчик? Пока консервативно `true`; если в логах `4008` при общем счёте < лимита — вероятно, раздельные, флаг `false`.
+- T-Invest docs: счётчик стрим-соединений обновляется каждые 2 минуты — влияет ли на acquire? — уточнить по факту.
+<!-- SUBSECTION_END: t-5 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: t-33 -->
 ___
 ### [WIP] T-33 Установка GrpcExceptionGuard
@@ -224,6 +322,10 @@ ___
 
 ___
 <!-- SUBSECTION_END: t-34 -->
+
+
+
+
 
 
 
