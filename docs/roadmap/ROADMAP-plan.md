@@ -150,64 +150,6 @@ ___
 
 
 
-<!-- SUBSECTION_BEGIN: t-6 -->
-___
-### [PLAN] T-6 Search: сократить N+1 unary в findInstruments
-**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** `TInvestInstrumentsService.findInstruments` = 1 `findInstrumentShorts` + N `fetchProtoInstrument` (N+1). C2 добавил `updateStatuses(ids)` → +N `getTradingStatuses` → **2N+1 unary** на поиск. Sandbox 6/сек → `RESOURCE_EXHAUSTED` (live-log C2, 2026-11-15). См. umbrella.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды:** —.
-
-**MVVM:** — (не применимо, data/domain).
-
-**KMP:** соответствует — новый код KMP-safe (`Clock` инжект `kotlin.time.Clock`, `Duration`/`Instant` из `kotlin.time`, `kotlinx.coroutines.sync.Semaphore`); без `System.currentTimeMillis()` / `Thread.sleep` / `android.*` / `java.*`. Data-слой целиком — не в этой фазе, но новый код — без нового KMP-долга.
-
-**Предусловия:** подзадача 1 (limiter) — для безопасного рефактора.
-
-**Файлы:** `data/api/tinvest/TInvestInstrumentsService.kt`, `domain/usecases/SearchInstrumentsUseCase.kt`.
-
-**Шаги:**
-1. Partial `InstrumentShort` vs full: если presentation требует full — N+1 неизбежен (API без батчинга). Оценить (D3).
-2. `updateStatuses`: skip on cache hit / lazy на select (D2).
-3. Тесты.
-
-**Тесты:** unit на `SearchInstrumentsUseCase` (partial → full lazy).
-
-**Референсы:** `docs/ISSUES.md` → `## T-Invest REST findInstruments fallback (N+1 unary)`; umbrella.
-
-**Ограничения:** не менять `Instrument` контракт без миграции presentation.
-
-**Критерий готовности:** 2N+1 → N+1 (или 1, если partial достаточно); search latency < 2 сек на 10 инструментов.
-
-**Оценка:** ~1–1.5 ч.
-
-**Зависимости:** подзадача 1 (limiter).
-
-**Связано:** umbrella; `docs/ISSUES.md` → `## T-Invest REST findInstruments fallback (N+1 unary)`.
-
-**Открытые вопросы:** D2, D3 (umbrella).
-
----
-<!-- SUBSECTION_END: t-6 -->
-
-
-
-
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-9 -->
 ___
 ### [PLAN] T-9 PortfolioScreen: retry с backoff
@@ -2254,6 +2196,10 @@ ___
 
 **Открытые вопросы:** нет.
 <!-- SUBSECTION_END: t-38 -->
+
+
+
+
 
 
 
