@@ -704,11 +704,15 @@ desktop push не после каждого коммита, а один раз �
 (п. «Post-push проверка защищённых веток») — для `dev` /
 `master`, не для feature.
 
-Команда:
+Команда (скрипт):
 
-    ./gradlew :app:clean :app:ktlintCheck :app:lintDebug \
-      :app:detekt :app:testDebugUnitTest --continue --rerun-tasks \
-      2>&1 | grep -E '\[warn\]|\[error\]|^w:|^e:|FAILED|BUILD'
+    bash AGENTS/scripts/run-local-gate.sh
+    # для новых тестов / подозрения на кэш:
+    bash AGENTS/scripts/run-local-gate.sh --no-build-cache
+
+Скрипт: `:app:clean :app:ktlintCheck :app:lintDebug :app:detekt
+:app:testDebugUnitTest --continue --rerun-tasks`, лог — `/tmp/gate.log`,
+фильтр вывода, exit code = gate.
 
 Ожидаемо: `BUILD SUCCESSFUL`, все гейты зелёные, только
 известные warning'и (`statusBarColor`, Gradle 10).
