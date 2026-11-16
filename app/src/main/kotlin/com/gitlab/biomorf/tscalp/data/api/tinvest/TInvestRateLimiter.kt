@@ -106,13 +106,36 @@ internal class TInvestRateLimiter(
         service: String,
         block: suspend () -> T,
     ): T {
+        val key = streamSemaphoreKey(protocol, service)
+        val limit = streamLimit(key.first, key.second)
         val semaphore =
             mutex.withLock {
-                streamSemaphores.getOrPut(streamSemaphoreKey(protocol, service)) {
-                    Semaphore(streamLimit(protocol, service))
+                streamSemaphores.getOrPut(key) {
+                    Semaphore(limit)
                 }
             }
-        return semaphore.withPermit { block() }
+        val startedMs = clock.now().toEpochMilliseconds()
+        return semaphore.withPermit {
+            val waitedMs = clock.now().toEpochMilliseconds() - startedMs
+            val acquired = limit - semaphore.availablePermits
+            if (waitedMs >= slowWaitMs) {
+                logger.w(
+                    TAG,
+                    "[stream-limit/$protocol/$service] slow acquire ${waitedMs}ms, " +
+                        "$acquired/$limit — WS-reconnect storm?",
+                )
+            } else {
+                logger.d(TAG, "[stream-limit/$protocol/$service] slot $acquired/$limit acquired")
+            }
+            try {
+                block()
+            } finally {
+                logger.d(
+                    TAG,
+                    "[stream-limit/$protocol/$service] released, ${acquired - 1}/$limit used",
+                )
+            }
+        }
     }
 
     /**
