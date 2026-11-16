@@ -18,7 +18,6 @@
 
 ## Справочник (по мере необходимости)
 
-
 | ID | Заголовок | Файл | Якорь |
 |---|---|---|---|
 | l-application-89 | Merge `origin/dev` в feature перед PR — через `--no-commit --no-ff` | AGENTS/AGENTS-LESSONS-application.md | #l-application-89 |

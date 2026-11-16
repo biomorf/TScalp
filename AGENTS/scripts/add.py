@@ -74,6 +74,8 @@ def main():
     if args.apply:
         f.write_text(new_text, encoding="utf-8")
         print(f"APPLIED: {args.id} into {f}")
+        from rebuild_index import rebuild
+        rebuild(apply=True)
     else:
         print(f"DRY: would insert {args.id} into {f} (pass --apply)")
     return 0

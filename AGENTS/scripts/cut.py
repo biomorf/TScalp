@@ -69,6 +69,8 @@ def main():
         f.write_text(new_text, encoding="utf-8")
         out.write_text(block, encoding="utf-8")
         print(f"CUT: {args.id} from {f} -> {out}")
+        from rebuild_index import rebuild
+        rebuild(apply=True)
     else:
         print(f"DRY: would cut {args.id} from {f} -> {out}")
     return 0

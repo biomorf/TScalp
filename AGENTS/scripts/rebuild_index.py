@@ -75,9 +75,8 @@ def replace_table(text: str, new_table: str) -> str:
         if lines[i].strip() == "## Справочник (по мере необходимости)":
             out.append(lines[i])
             i += 1
-            # skip until table start (line starting with "|")
+            # skip blank/non-table lines until table start
             while i < n and not lines[i].startswith("|"):
-                out.append(lines[i])
                 i += 1
             # skip table body (consecutive lines starting with "|")
             while i < n and lines[i].startswith("|"):
@@ -92,16 +91,9 @@ def replace_table(text: str, new_table: str) -> str:
     return "".join(out)
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--dry-run", action="store_true")
-    g.add_argument("--apply", action="store_true")
-    args = ap.parse_args()
-
+def rebuild(apply: bool) -> int:
+    """Regenerate all four index files. Returns 0 on success."""
     agents_rows, lessons_rows = collect()
-    print(f"collected: agents={len(agents_rows)} lessons={len(lessons_rows)}")
-
     agents_table = build_table(agents_rows)
     lessons_table = build_table(lessons_rows)
 
@@ -116,7 +108,7 @@ def main():
         assert p.exists(), f"missing: {path}"
         old = p.read_text(encoding="utf-8")
         new = replace_table(old, table)
-        if args.apply:
+        if apply:
             if new != old:
                 p.write_text(new, encoding="utf-8")
                 print(f"APPLIED {path}")
@@ -128,8 +120,19 @@ def main():
             else:
                 print(f"DRY {path}: unchanged")
 
-    print("---")
     print(f"agents_rows={len(agents_rows)} lessons_rows={len(lessons_rows)}")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--dry-run", action="store_true")
+    g.add_argument("--apply", action="store_true")
+    args = ap.parse_args()
+    agents_rows, lessons_rows = collect()
+    print(f"collected: agents={len(agents_rows)} lessons={len(lessons_rows)}")
+    return rebuild(apply=args.apply)
 
 
 if __name__ == "__main__":

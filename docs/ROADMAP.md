@@ -83,6 +83,84 @@ clean-audit.
 
 ## Планируемые задачи
 
+### AGENTS: авто-rebuild индекса после add.py/cut.py
+
+**Статус:** запланировано.
+**Мобильная работа:** полное закрытие
+**Контекст:** сейчас после `add.py`/`cut.py` индекс (`AGENTS/AGENTS.md`,
+`AGENTS/AGENTS-LESSONS.md`, корневые) обновляется вручную вызовом
+`rebuild_index.py`. Легко забыть → `normalize.py --check-index` падает,
+«шпаргалка» устаревает. Нужно, чтобы `add.py`/`cut.py` сами вызывали
+`rebuild_index` после изменения файла.
+**Соответствие Clean:** — (не применимо, инструменты документации)
+**Нарушенное правило Clean:** —
+**Clean-альтернатива:** —
+**Выгоды:** —
+**MVVM:** — (не применимо)
+**KMP:** — (не применимо)
+**Предусловия:** `add.py`, `cut.py`, `rebuild_index.py` в `AGENTS/scripts/`
+(есть, `c99b302b`).
+**Файлы:**
+- `AGENTS/scripts/add.py` — после `f.write_text` вызвать `rebuild_index.rebuild(apply=True)`.
+- `AGENTS/scripts/cut.py` — то же.
+- `AGENTS/scripts/rebuild_index.py` — вынести логику в `rebuild(apply: bool) -> int`, `main` — обёртка.
+**Шаги:**
+1. `rebuild_index.py`: вынести `rebuild(apply: bool)` из `main`, `main` — argparse + вызов.
+2. `add.py`: после `write_text` — `from rebuild_index import rebuild; rebuild(apply=True)`.
+3. `cut.py`: то же.
+4. Smoke: `add.py` на temp → индекс обновился; `cut.py` → индекс обновился.
+5. Verify: `normalize.py --check-index` → 0 после add/cut без ручного rebuild.
+**Референсы:** `AGENTS/scripts/add.py`, `cut.py`, `rebuild_index.py`; правило `4j`.
+**Ограничения:** не ломать `--dry-run` (при dry-run rebuild не вызывать).
+**Критерий готовности:** после `add.py --apply` и `cut.py --apply` — `--check-index` = 0 без отдельного вызова `rebuild_index.py`. `--dry-run` не пишет.
+**Оценка:** ~30–40 мин.
+**Зависимости:** — (разблокирует `4j`-полноту).
+**Открытые вопросы:** —
+
+___
+
+### AGENTS-style.md: дробление на style-core / style-git / style-docs
+
+**Статус:** запланировано.
+**Мобильная работа:** полное закрытие
+**Контекст:** `AGENTS/AGENTS-style.md` — 150KB, 30 подразделов
+(`r1`–`r5g`, `r5f-freeze`). Это ⅓ всего `AGENTS/`. Читать целиком тяжело,
+ассистент при каждой правке грузит 150KB. Дробление по темам ускорит
+навигацию и снизит объём контекста.
+**Соответствие Clean:** — (не применимо, документация)
+**Нарушенное правило Clean:** —
+**Clean-альтернатива:** —
+**Выгоды:** —
+**MVVM:** — (не применимо)
+**KMP:** — (не применимо)
+**Предусловия:** `AGENTS/` split (есть, `f07e38e2`), `SUBSECTION_*`-якоря
+(есть, `2658a54c`), `normalize.py`/`add.py`/`cut.py`/`rebuild_index.py`
+(есть, `bc9673e5`/`b814a5fd`/`c99b302b`).
+**Файлы:**
+- `AGENTS/AGENTS-style.md` → разделить на:
+  - `AGENTS/AGENTS-style-core.md` — `r1`–`r3b` (UI, чистота, актуальность, Clean-проверка, временные, триада, не выдумывать, дефолты).
+  - `AGENTS/AGENTS-style-git.md` — `r4f`, `r4g`, `r5`, `r5a`, `r5b`, `r5d`, `r5f`, `r5f-freeze`, `r5g` (git, коммиты, PR, ROADMAP).
+  - `AGENTS/AGENTS-style-docs.md` — `r4`, `r4a`–`r4e`, `r4h`, `r4i`, `r4j`, `r5c` (формат, скрипты, шаги, безопасность).
+- `AGENTS/AGENTS.md` (индекс), `AGENTS.md` (корень) — обновить таблицу.
+**Шаги:**
+1. Определить границы: какие `r*` в какой файл (согласовать).
+2. `cut.py` каждый `r*` из `AGENTS-style.md` → `$HOME/deepseek/`.
+3. Создать три файла с `<!-- AGENTS_SECTION_BEGIN: style-core -->` / `## ...` / `<!-- AGENTS_SECTION_END: ... -->`.
+4. `add.py --at-end` каждый `r*` в целевой файл.
+5. `normalize.py --apply --all`.
+6. `rebuild_index.py --apply`.
+7. `--check --check-index` → 0.
+**Референсы:** `AGENTS/AGENTS-style.md` (текущий), `4j`, `add.py`/`cut.py`.
+**Ограничения:** ID `r*` **не менять** (на них ссылаются `AGENTS-LESSONS`, ROADMAP, чат). Файл `AGENTS-style.md` **удалить** после переноса (одна секция = один файл).
+**Критерий готовности:** три файла, все 30 `r*` на месте (BEGIN/END пары), `--check-index` = 0, ссылки `r4h`/`r5f` и т.д. работают (якорь `#r4h` → `AGENTS-style-docs.md`).
+**Оценка:** ~1–1.5 часа.
+**Зависимости:** задача 3 (авто-rebuild) — желательна, но не блокер.
+**Открытые вопросы:** границы дробления (предложены выше) — согласовать.
+
+___
+
+
+
 
 
 ___
