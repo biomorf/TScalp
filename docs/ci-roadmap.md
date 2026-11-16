@@ -21,7 +21,7 @@
 
 <!-- SUBSECTION_BEGIN: c-1 -->
 ___
-### c-1 Markdown linter в CI
+### [PLAN] C-1 Markdown linter в CI
 
 **Мобильная работа:** полное закрытие. Всё через proot
 (правки `.yml`) + web (проверка PR). Локальная сборка
@@ -126,7 +126,7 @@ ___
 <!-- SUBSECTION_END: c-1 -->
 <!-- SUBSECTION_BEGIN: c-2 -->
 ___
-### c-2 GitHub → GitLab mirror через GitHub Action
+### [PLAN] C-2 GitHub → GitLab mirror через GitHub Action
 
 **Мобильная работа:** полное закрытие. Всё через proot
 (правки `.yml`) + web (настройка токенов). Локальная
@@ -269,7 +269,7 @@ ___
 <!-- SUBSECTION_END: c-2 -->
 <!-- SUBSECTION_BEGIN: c-3 -->
 ___
-### c-3 Codecov: diff coverage в PR и бейдж покрытия
+### [PLAN] C-3 Codecov: diff coverage в PR и бейдж покрытия
 
 **Мобильная работа:** полное закрытие. Всё делается через
 proot (правки `.yml`) + web (регистрация, настройка,
@@ -421,7 +421,7 @@ ___
 <!-- SUBSECTION_END: c-3 -->
 <!-- SUBSECTION_BEGIN: c-4 -->
 ___
-### c-4 Role emulation для тестировщика
+### [DEFER] C-4 Role emulation для тестировщика
 
 **Мобильная работа:** полное закрытие. Всё делается через
 web Settings GitHub + правка `docs/git-flow.md`.
@@ -488,7 +488,7 @@ web Settings GitHub + правка `docs/git-flow.md`.
 <!-- SUBSECTION_END: c-4 -->
 <!-- SUBSECTION_BEGIN: c-5 -->
 ___
-### c-5 Self-hosted GitLab Runner через Ansible + Podman
+### [WIP] C-5 Self-hosted GitLab Runner через Ansible + Podman
 
 **Мобильная работа:** частичное (live-тест разворачивания на удалённом сервере).
 
@@ -587,7 +587,7 @@ ___
 <!-- SUBSECTION_END: c-5 -->
 <!-- SUBSECTION_BEGIN: c-6 -->
 ___
-### c-6 Hot-swap CI на GitLab
+### [PLAN] C-6 Hot-swap CI на GitLab
 
 **Мобильная работа:** частичное (live-тест пайплайна после self-hosted runner).
 
@@ -697,7 +697,7 @@ ___
 <!-- SUBSECTION_END: c-6 -->
 <!-- SUBSECTION_BEGIN: c-7 -->
 ___
-### c-7 Play Store Internal Testing
+### [PLAN] C-7 Play Store Internal Testing
 
 **Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
@@ -777,7 +777,7 @@ Service Account).
 <!-- SUBSECTION_END: c-7 -->
 <!-- SUBSECTION_BEGIN: c-8 -->
 ___
-### c-8 Play Store Production
+### [PLAN] C-8 Play Store Production
 
 **Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
@@ -840,7 +840,7 @@ ___
 <!-- SUBSECTION_END: c-8 -->
 <!-- SUBSECTION_BEGIN: c-9 -->
 ___
-### c-9 Desktop: pre-push hook (ktlintFormat + ktlintCheck)
+### [PLAN] C-9 Desktop: pre-push hook (ktlintFormat + ktlintCheck)
 
 **Мобильная работа:** полное закрытие (desktop; на mobile hook не работает — Gradle в proot нестабилен).
 
@@ -919,7 +919,7 @@ ___
 <!-- SUBSECTION_END: c-9 -->
 <!-- SUBSECTION_BEGIN: c-10 -->
 ___
-### c-10 CI: actions/cache v4 -> v6 (Node 20 deprecation)
+### [PLAN] C-10 CI: actions/cache v4 -> v6 (Node 20 deprecation)
 
 **Мобильная работа:** полное закрытие (proot + PR; правка `ci.yml` в 3 местах, gate на CI).
 
@@ -984,7 +984,7 @@ ___
 <!-- SUBSECTION_END: c-10 -->
 <!-- SUBSECTION_BEGIN: c-11 -->
 ___
-### c-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
+### [WIP] C-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
 
 **Мобильная работа:** полное закрытие (правки `gradle.properties` / `app/build.gradle.kts` / `.github/workflows/` — proot + PR; гейт на CI).
 
@@ -1056,7 +1056,7 @@ ___
 <!-- SUBSECTION_END: c-11 -->
 <!-- SUBSECTION_BEGIN: c-12 -->
 ___
-### c-12 CI: JDK 17 → 25
+### [PLAN] C-12 CI: JDK 17 → 25
 
 **Мобильная работа:** полное закрытие (правки `.yml` / `.kts` через proot; гейт на CI).
 
