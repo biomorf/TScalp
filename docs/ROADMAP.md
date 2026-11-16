@@ -83,6 +83,64 @@ clean-audit.
 
 ## Планируемые задачи
 
+### AGENTS: консолидация скриптов в AGENTS/scripts + инструкции отдельно
+
+**Статус:** запланировано.
+**Мобильная работа:** полное закрытие
+**Контекст:** скрипты для работы с `AGENTS/` частично в репо
+(`AGENTS/scripts/`: `normalize.py`, `add.py`, `cut.py`,
+`rebuild_index.py`), частично вне (`$HOME/deepseek/seed_markers.py`
+— одноразовый, но не сохранён). Инструкция `4j` упоминает только
+`add`/`cut`/`normalize`, не `rebuild_index`. Нужно: (1) все штатные
+скрипты — в `AGENTS/scripts/`; (2) `4j` — полный список инструментов;
+(3) одноразовые — в `AGENTS/scripts/oneoff/` или задокументированы
+как «не штатные».
+**Соответствие Clean:** — (не применимо, инструменты документации)
+**Нарушенное правило Clean:** —
+**Clean-альтернатива:** —
+**Выгоды:** —
+**MVVM:** — (не применимо)
+**KMP:** — (не применимо)
+**Предусловия:** `AGENTS/scripts/` с 4 скриптами (есть,
+`bc9673e5`/`b814a5fd`/`c99b302b`/`e12aed55`).
+**Файлы:**
+- `AGENTS/scripts/README.md` — что каждый скрипт делает, аргументы,
+  примеры (инструменты).
+- `AGENTS/AGENTS-style-docs.md` (r4j) — обновить: полный список
+  (`normalize`, `add`, `cut`, `rebuild_index`), ссылка на
+  `scripts/README.md`.
+- `AGENTS/scripts/oneoff/` — `seed_markers.py` (перенести из
+  `$HOME/deepseek/`, пометить «одноразовый, не запускать повторно»).
+- `$HOME/deepseek/` — почистить бэкапы/временные.
+**Шаги:**
+1. `AGENTS/scripts/README.md` — таблица: скрипт, назначение,
+   аргументы, пример.
+2. `seed_markers.py` — `cp $HOME/deepseek/seed_markers.py
+   AGENTS/scripts/oneoff/`, шапка «одноразовый, не запускать
+   повторно (уже применён в 2658a54c)».
+3. `r4j`: добавить `rebuild_index.py` в список; ссылка на
+   `README.md`.
+4. `$HOME/deepseek/` — `rm normalize.py.bak*`, `4j-body.md`,
+   `smoke-body.md`, `agents-cut-*.md`.
+5. Verify: `r4j` содержит все 4 скрипта; `README.md` содержит
+   все 4; `--check-index` 0.
+**Референсы:** `AGENTS/scripts/*.py`, `r4j`,
+`$HOME/deepseek/seed_markers.py`.
+**Ограничения:** не менять логику скриптов — только документация
+и перенос. `seed_markers.py` — не запускать (уже применён).
+**Критерий готовности:** `AGENTS/scripts/README.md` (4 скрипта +
+oneoff); `r4j` упоминает все 4; `oneoff/seed_markers.py` в репо;
+`$HOME/deepseek/` чист от временных; `--check-index` 0.
+**Оценка:** ~30–40 мин.
+**Зависимости:** —.
+**Открытые вопросы:** `seed_markers.py` — в `oneoff/` или удалить
+(он одноразовый, применён)? Рекомендую `oneoff/` — история, как
+расставлялись маркеры.
+
+___
+
+
+
 ### Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
