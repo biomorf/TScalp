@@ -45,7 +45,10 @@ class SearchInstrumentsUseCase
                 when (val searchResult = searchCacheRepository.search(brokerName, query)) {
                     is AppResult.Success -> {
                         val instruments = searchResult.data
-                        if (instruments.isNotEmpty() && brokerName == BrokerName.TINVEST) {
+                        if (instruments.isNotEmpty() &&
+                            brokerName == BrokerName.TINVEST &&
+                            !searchCacheRepository.isCached(brokerName, query)
+                        ) {
                             updateStatuses(instruments.map { it.tscalpInstrumentId })
                         }
                         searchResult
