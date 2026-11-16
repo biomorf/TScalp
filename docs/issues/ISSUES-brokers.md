@@ -337,14 +337,16 @@ ___
 
 <!-- SUBSECTION_BEGIN: i-24 -->
 ___
-### [OPEN] I-24 T-Invest REST findInstruments fallback (N+1 unary)
-**Статус:** открыт. Латентный, не блокер.
+### [DONE] I-24 T-Invest REST findInstruments fallback (N+1 unary)
+**Статус:** решён (2026-11-17, T-6, PR pending).
 
 **Симптом:** REST fallback `findInstruments` (variant B, PR #85) делает N+1 unary-запросов: 1 `InstrumentsService/FindInstrument` + N `InstrumentsService/GetInstrumentBy` (по одному на каждый uid из короткого списка).
 
 **C2-находка (2026-11-15):** `SearchInstrumentsUseCase:49` добавил `updateStatuses(ids)` → +N `getTradingStatuses` → **2N+1 unary** на поиск. Sandbox 6/сек → `RESOURCE_EXHAUSTED` (live-log C2). Rate-limiter (умбрелла) закроет; сокращение — `### Search: сократить N+1 unary в findInstruments`.
 
 **Причина:** REST `FindInstrument` возвращает `InstrumentShort` без `currency`/`lot`, обязательных для `InstrumentUi` (8 обязательных полей в `domain/models/Instruments.kt`). Полный `Instrument` — только через `GetInstrumentBy`. Fallback повторяет gRPC-путь (там тоже N+1).
+
+**Решение:** T-6 (2026-11-17, коммит `a8d9948e`): search возвращает partial `SearchItem` (1 `findInstrument`, без `getInstrumentBy`); REST fallback — тоже 1 unary. Full `Instrument` — lazy на select через `SelectInstrumentUseCase` / `InstrumentRepository` (кэш или 1 `getInstrumentBy`). Rate-limiter (T-3/1a) остаётся защитой. См. `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ T-6 ...`.
 
 **Последствия:** при поиске на 100 инструментов — 101 unary-запрос подряд. Fallback редкий (только когда gRPC `UNAVAILABLE` / `DEADLINE_EXCEEDED` / `UNIMPLEMENTED`), но при совпадении с rate-limit T-Invest (6 unary/сек) — `RESOURCE_EXHAUSTED` и деградация поиска.
 
