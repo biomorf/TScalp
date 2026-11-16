@@ -65,3 +65,4 @@ google-services.json
 **/secure_prefs.xml
 **/EncryptedSharedPreferences.xml
 
+__pycache__/

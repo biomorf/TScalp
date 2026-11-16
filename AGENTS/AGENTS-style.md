@@ -1863,6 +1863,43 @@ ___
 
 
 
+<!-- SUBSECTION_BEGIN: r4j -->
+___
+### r4j Скрипты для AGENTS/
+Ассистент **не форматирует** `SUBSECTION_*`-блоки вручную.
+
+**Вставка подраздела** — `add.py`:
+
+    python3 AGENTS/scripts/add.py --file <path> --id <id> \
+      --title '<title>' --body-file <path> \
+      [--after <existing_id> | --at-end] --apply
+
+**Удаление подраздела** — `cut.py` (вырезает в `/tmp/agents-cut-<id>.md`,
+fallback `$HOME/deepseek/`; вставить обратно — `add.py`):
+
+    python3 AGENTS/scripts/cut.py --file <path> --id <id> --apply
+
+**Нормализация** (паддинги, `___`, `rstrip`, fence parity) — `normalize.py`:
+
+    python3 AGENTS/scripts/normalize.py --check --all   # CI, exit 1 при отклонении
+    python3 AGENTS/scripts/normalize.py --apply --all   # запись
+
+**`normalize.py --check` входит в 4h pre-commit checklist** для `AGENTS/`:
+перед коммитом — `--check --all` → `deviations=0`.
+
+**Запрещено** править паддинги, `___`, `SUBSECTION_*` вручную — только
+скрипты. Причина: единый формат, идемпотентность, нет «съехавших» отступов.
+<!-- SUBSECTION_END: r4j -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: r5 -->
 ___
 ### r5 Коммит после каждой задачи
@@ -2775,6 +2812,10 @@ hotfix-веток.
 
 ---
 <!-- SUBSECTION_END: r5g -->
+
+
+
+
 
 
 
