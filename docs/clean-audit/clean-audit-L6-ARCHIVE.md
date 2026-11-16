@@ -388,4 +388,30 @@ ___
 
 <!-- SUBSECTION_END: Н64 -->
 
+
+
+___
+
+
+
+### Н66 ✅ Н66. getTradingStatuses — N параллельных unary
+
+**Статус:** исправлено (2026-11-17, T-8, PR pending).
+
+**Серьёзность:** высоко.
+
+**Live тест:** ✓
+
+**Описание:** `TInvestMarketDataService.getTradingStatuses`: `coroutineScope { ids.map { async { getTradingStatus(uid) } }.awaitAll() }` — N параллельных unary-запросов. При 100 инструментах — 100 параллельных запросов. При превышении лимита T-Invest (`RESOURCE_EXHAUSTED`) — часть падает в `UNKNOWN`.
+
+**Нарушенное правило Clean:** не строго Clean — не учитывает rate-limit внешнего API.
+
+**Clean-альтернатива:** через rate-limiter (ROADMAP `### Rate-limiter для unary-запросов T-Invest`) или батчинг (если API даст batch-метод). Плюсы: нет `RESOURCE_EXHAUSTED`. Минусы: —.
+
+**Выгоды:** быстрее, чем последовательный вызов.
+
+**Что сделано:** батчинг + fallback. `getTradingStatuses` использует SDK 1.51 batch (`MarketDataServiceSync.getTradingStatuses`, `GetTradingStatusesRequest`, chunked by 100) → 1 unary на чанк вместо N. `tryBatch` при ошибке batch возвращает `null` → fallback на `getTradingStatusesSingular` (per-uid, Semaphore(10), rate-limiter `getTradingStatus`). Пустые uid → пустой map. Тесты: `TInvestTradingServiceTest`, 4 кейса. Коммит `214409d4`.
+
+**Ссылка на задачу:** `### ✅ T-8 getTradingStatuses: batch primary + singular fallback` (`docs/roadmap/ROADMAP-ARCHIVE.md`, PR pending, коммит `214409d4`).
+
 <!-- SECTION_END: clean-audit-L6-ARCHIVE -->

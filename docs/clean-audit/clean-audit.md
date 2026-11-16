@@ -14,7 +14,7 @@
 | L3 | domain/models | 0 | 9 | `clean-audit-L3.md`, `clean-audit-L3-ARCHIVE.md` |
 | L4 | domain/api | 3 | 10 | `clean-audit-L4.md`, `clean-audit-L4-ARCHIVE.md` |
 | L5 | domain/managers | 3 | 4 | `clean-audit-L5.md`, `clean-audit-L5-ARCHIVE.md` |
-| L6 | data/repository | 11 | 15 | `clean-audit-L6.md`, `clean-audit-L6-ARCHIVE.md` |
+| L6 | data/repository | 10 | 16 | `clean-audit-L6.md`, `clean-audit-L6-ARCHIVE.md` |
 | L7 | di | 0 | 5 | `clean-audit-L7.md`, `clean-audit-L7-ARCHIVE.md` |
 | L8 | app | 3 | 3 | `clean-audit-L8.md`, `clean-audit-L8-ARCHIVE.md` |
 | L9 | transport-ktor | 6 | 2 | `clean-audit-L9.md`, `clean-audit-L9-ARCHIVE.md` |

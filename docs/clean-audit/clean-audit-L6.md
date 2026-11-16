@@ -1,27 +1,7 @@
 <!-- SECTION_BEGIN: clean-audit-L6 -->
 ## L6 — data/repository
 
-<!-- SUBSECTION_BEGIN: Н66 -->
-___
-### Н66 Н66. getTradingStatuses — N параллельных unary
 
-**Статус:** открыто.
-
-**Серьёзность:** высоко.
-
-**Live тест:** ✓
-
-**Описание:** `TInvestMarketDataService.getTradingStatuses`: `coroutineScope { ids.map { async { getTradingStatus(uid) } }.awaitAll() }` — N параллельных unary-запросов. При 100 инструментах — 100 параллельных запросов. При превышении лимита T-Invest (`RESOURCE_EXHAUSTED`) — часть падает в `UNKNOWN`.
-
-**Нарушенное правило Clean:** не строго Clean — не учитывает rate-limit внешнего API.
-
-**Clean-альтернатива:** через rate-limiter (ROADMAP `### Rate-limiter для unary-запросов T-Invest`) или батчинг (если API даст batch-метод). Плюсы: нет `RESOURCE_EXHAUSTED`. Минусы: —.
-
-**Выгоды:** быстрее, чем последовательный вызов.
-
-**Ссылка на задачу:** `docs/ROADMAP.md` → `### Rate-limiter для unary-запросов T-Invest`.
-
-<!-- SUBSECTION_END: Н66 -->
 
 <!-- SUBSECTION_BEGIN: Н67 -->
 ___
