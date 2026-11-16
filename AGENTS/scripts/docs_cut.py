@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Cut a SUBSECTION block out of an AGENTS/ file, save to /tmp, normalize.
+"""Cut a SUBSECTION block out of an AGENTS/ file, save to /tmp (fallback $HOME/tmp), normalize.
 
 Usage:
   cut.py --file <path> --id <id> [--force] [--apply]
 
-Output tmp: /tmp/agents-cut-<id>.md (fallback: $HOME/deepseek/agents-cut-<id>.md).
+Output tmp: /tmp/agents-cut-<id>.md (fallback: $HOME/tmp/agents-cut-<id>.md).
 Idempotent: if SUBSECTION_BEGIN: <id> not in file, print "already absent" and exit 0.
 """
 import argparse
@@ -18,12 +18,13 @@ from docs_normalize import normalize_text  # noqa: E402
 
 
 def tmp_path(id_: str) -> Path:
+    """tmp policy (AGENTS-style-docs.md 4k): primary /tmp, fallback $HOME/tmp."""
     primary = Path("/tmp")
     if primary.is_dir() and os.access(primary, os.W_OK):
         return primary / f"agents-cut-{id_}.md"
-    home = Path.home() / "deepseek"
-    home.mkdir(parents=True, exist_ok=True)
-    return home / f"agents-cut-{id_}.md"
+    home_tmp = Path.home() / "tmp"
+    home_tmp.mkdir(parents=True, exist_ok=True)
+    return home_tmp / f"agents-cut-{id_}.md"
 
 
 def main():

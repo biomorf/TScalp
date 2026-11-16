@@ -42,6 +42,7 @@
 | r2a | Актуальность решений, не традиция | AGENTS/AGENTS-style-core.md | #r2a |
 | r2 | Чистота кода — приоритет | AGENTS/AGENTS-style-core.md | #r2 |
 | r1 | Не менять UI без санкции | AGENTS/AGENTS-style-core.md | #r1 |
+| r4k | tmp/ — primary /tmp, fallback $HOME/tmp | AGENTS/AGENTS-style-docs.md | #r4k |
 | r5c | Структура ответа | AGENTS/AGENTS-style-docs.md | #r5c |
 | r4j | Скрипты для AGENTS/ | AGENTS/AGENTS-style-docs.md | #r4j |
 | r4i | Шаблон bash-скриптов | AGENTS/AGENTS-style-docs.md | #r4i |

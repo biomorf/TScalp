@@ -10,6 +10,40 @@
 
 
 
+<!-- SUBSECTION_BEGIN: r4k -->
+___
+### r4k tmp/ — primary /tmp, fallback $HOME/tmp
+**Правило:** все временные файлы (cut-файлы, логи проверок, fragments,
+backup) — в `/tmp/`. Если `/tmp/` не writable — `${HOME}/tmp/`.
+`$HOME/deepseek/` — **не** tmp (там `add`/`body`/`seed`).
+
+**Проверка writable (shell):**
+
+    TMPDIR_LOCAL="/tmp"
+    if [ ! -d "$TMPDIR_LOCAL" ] || [ ! -w "$TMPDIR_LOCAL" ]; then
+      TMPDIR_LOCAL="$HOME/tmp"
+      mkdir -p "$TMPDIR_LOCAL"
+    fi
+
+**В Python:**
+
+    def tmp_path(name: str) -> Path:
+        primary = Path("/tmp")
+        if primary.is_dir() and os.access(primary, os.W_OK):
+            return primary / name
+        home_tmp = Path.home() / "tmp"
+        home_tmp.mkdir(parents=True, exist_ok=True)
+        return home_tmp / name
+
+**Запрещено:** `$HOME/deepseek/` как tmp; `/tmp` без fallback (в proot
+`/tmp` может быть не writable); хардкод `/data/data/.../home/tmp`.
+
+**Причина:** в proot/Termux `/tmp` может быть не writable (2026-11-16);
+`$HOME/tmp` — persistent. `/tmp` быстрее (tmpfs), если доступен.
+
+**Не путать с 4d:** 4d — идемпотентность; 4k — где лежат tmp-файлы.
+<!-- SUBSECTION_END: r4k -->
+
 <!-- SUBSECTION_BEGIN: r5c -->
 ___
 ### r5c Структура ответа

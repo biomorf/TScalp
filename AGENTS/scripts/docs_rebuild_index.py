@@ -18,7 +18,7 @@ from pathlib import Path
 
 BEGIN_RE = re.compile(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
 END_RE = re.compile(r"^<!-- SUBSECTION_END: ([A-Za-z0-9_-]+) -->$")
-HEADING_RE = re.compile(r"^### ([A-Za-z0-9_-]+) (.+)$")
+HEADING_RE = re.compile(r"^### (?:\[(?:WIP|PLAN|DEFER|DONE)\]\s+)?([A-Za-z0-9_-]+) (.+)$")
 
 
 def collect(root: str = "AGENTS") -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
@@ -50,7 +50,8 @@ def collect(root: str = "AGENTS") -> tuple[list[tuple[str, str, str]], list[tupl
                 continue
             if cur_id:
                 mh = HEADING_RE.match(line)
-                if mh and mh.group(1) == cur_id:
+                if mh:
+                    # any ### heading inside SUBSECTION; do not require id match
                     cur_title = mh.group(2).strip()
     return agents, lessons
 
