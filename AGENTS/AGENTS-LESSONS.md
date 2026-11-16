@@ -70,6 +70,7 @@
 | l-kotlin-78 | Mobile/proot: ktlint-ошибки на `.kt` — только CI | AGENTS/AGENTS-LESSONS-kotlin.md | #l-kotlin-78 |
 | l-kotlin-84 | `TooManyFunctions` на классе-менеджере — extraction в top-level extension | AGENTS/AGENTS-LESSONS-kotlin.md | #l-kotlin-84 |
 | l-kotlin-103 | Hilt-test infra pitfalls (Robolectric + Compose) | AGENTS/AGENTS-LESSONS-kotlin.md | #l-kotlin-103 |
+| l-kotlin-115 | Rate-limiter per-minute bucket capacity = 1s burst, not full minute | AGENTS/AGENTS-LESSONS-kotlin.md | #l-kotlin-115 |
 | l-process-21 | reset --hard — перечислить теряемые коммиты | AGENTS/AGENTS-LESSONS-process.md | #l-process-21 |
 | l-process-22 | В proot писать в $HOME, не /tmp | AGENTS/AGENTS-LESSONS-process.md | #l-process-22 |
 | l-process-34 | Миграция DI — поэтапно, компиляция между этапами | AGENTS/AGENTS-LESSONS-process.md | #l-process-34 |

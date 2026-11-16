@@ -533,4 +533,20 @@ ___
 
 
 
+
+
+<!-- SUBSECTION_BEGIN: l-kotlin-115 -->
+___
+### l-kotlin-115 Rate-limiter per-minute bucket capacity = 1s burst, not full minute
+**Правило:** per-minute token-bucket инициализировать `capacity = limit / 60.0` (1 секунда токенов), не `capacity = limit` (полная минута). `refillPerNano` — по-прежнему `limit / ONE_MINUTE_NANOS`. Per-second bucket (`postOrder` 15/sec) — `capacity = limit` (уже 1s), не трогать.
+
+**Инцидент:** 2026-11-16, live-test sandbox (fix/rate-limiter-burst-capacity). `TInvestRateLimiter` инициализировал `perMethodMinBuckets` и `perServiceBuckets` с `capacity = limit`. Для `instruments` (200/min) бакет стартовал с 200 токенами → клиент разрешал burst до 200 запросов мгновенно. Реальный burst: `findInstruments` = 1 `findInstrument` + N `getInstrumentBy` + N `getTradingStatus` (2N+1 unary на поиск). Сервер отбивал `RESOURCE_EXHAUSTED`: 152 за прогон, первые 10 за ~1.2 сек. После `capacity = limit / 60.0 = 3.33` — 0 `RESOURCE_EXHAUSTED`, waits 98–300ms (`getTradingStatus` ~100ms = 600/min, `getInstrumentBy` ~300ms = 200/min).
+
+**Проверка:** в `TokenBucket(capacity = ...)` для per-minute bucket — `capacity = limit / 60.0`. Для per-second — `capacity = limit`. Тест: burst N > 60 × limit за < 1 сек, ожидаем 0 `RESOURCE_EXHAUSTED` на сервере, waits ≈ 60000/limit ms. Дефолт `capacity = limit` в новом rate-limiter — красный флаг.
+<!-- SUBSECTION_END: l-kotlin-115 -->
+
+
+
+
+
 <!-- LESSONS_SECTION_END: kotlin -->
