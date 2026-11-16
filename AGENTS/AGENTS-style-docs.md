@@ -92,12 +92,14 @@ fallback `$HOME/deepseek/`; вставить обратно — `docs_add.py`):
     python3 AGENTS/scripts/docs_normalize.py --check --all   # CI, exit 1 при отклонении
     python3 AGENTS/scripts/docs_normalize.py --apply --all   # запись
 
-**Live-test / post-PR** — `AGENTS/scripts/*.sh`:
+**Live-test / post-PR** — `AGENTS/scripts/*.sh`. Запуск — всегда явно
+через `bash`, без `./` (не зависит от exec-бита, shebang, cwd;
+консистентно с 4g — без умолчаний):
 
-    AGENTS/scripts/live-test-build.sh                  # installDebug + force-stop
-    AGENTS/scripts/live-test-capture.sh                # режим A (файл), CAPTURE_SECONDS
-    AGENTS/scripts/live-test-capture-interactive.sh    # режим B (live, --line-buffered)
-    AGENTS/scripts/post-pr.sh <branch>                 # 5f чек-лист
+    bash AGENTS/scripts/live-test-build.sh                  # installDebug + force-stop
+    bash AGENTS/scripts/live-test-capture.sh                # режим A (файл), CAPTURE_SECONDS
+    bash AGENTS/scripts/live-test-capture-interactive.sh    # режим B (live, --line-buffered)
+    bash AGENTS/scripts/post-pr.sh <branch>                 # 5f чек-лист
 
 Шапки скриптов содержат зависимости, аргументы и примеры. См. `docs/live-test.md`.
 

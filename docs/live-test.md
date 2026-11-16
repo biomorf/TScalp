@@ -20,7 +20,7 @@ Deferred closure — правило 5g п.4 AGENTS.md. Процедура —
 - Сценарий live-теста известен из `**Подтверждение:**` в
   ROADMAP (какое поведение наблюдаем, какой критерий закрытия).
 - Известны теги логов нужных компонентов (см. «Теги» ниже).
-- **Скрипты (рекомендуется):** `AGENTS/scripts/live-test-build.sh` (build+install+force-stop), `AGENTS/scripts/live-test-capture.sh` (режим A, файл), `AGENTS/scripts/live-test-capture-interactive.sh` (режим B, live). Аргументы — в шапках скриптов.
+- **Скрипты (рекомендуется, запуск через `bash`):** `bash AGENTS/scripts/live-test-build.sh` (build+install+force-stop), `bash AGENTS/scripts/live-test-capture.sh` (режим A, файл), `bash AGENTS/scripts/live-test-capture-interactive.sh` (режим B, live). Аргументы — в шапках скриптов.
 
 ---
 
