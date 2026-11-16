@@ -11764,3 +11764,82 @@ ___
 **Открытые вопросы.**
 - D2: `updateStatuses` в search — skip on cache hit / lazy на select / drop? — **решено: skip on cache hit (A)**.
 - Есть ли ещё call sites `UpdateTradingStatusesUseCase` (в `Coord`, по KDoc) — проверить grep `UpdateTradingStatusesUseCase` в `main` без `usecases/` + `di/`.
+
+
+
+___
+
+
+
+### ✅ T-8 getTradingStatuses: batch primary + singular fallback
+
+**Дата закрытия:** 2026-11-17
+
+**Что сделано:** TInvestTradingService.getTradingStatuses now uses the SDK 1.51 batch (MarketDataServiceSync.getTradingStatuses, chunked by TRADING_STATUSES_BATCH_SIZE=100) with a singular fallback. tryBatch returns null on any batch failure; getTradingStatuses falls back to getTradingStatusesSingular (per-uid Semaphore(10), unchanged). Empty uids -> emptyMap. Tests: TInvestTradingServiceTest, 4 cases (batch success / partial -> UNKNOWN / failure -> fallback / empty).
+
+**Коммит:** 214409d4
+
+**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
+
+**Контекст (диагностика 2026-11-17).**
+- `TInvestTradingService.getTradingStatuses` — N параллельных `getTradingStatus` (singular). Semaphore(10) добавлен в T-5 step 4 (`e9e4b383`).
+- SDK 1.51 имеет batch: `MarketDataServiceSync.getTradingStatuses(GetTradingStatusesRequest) → GetTradingStatusesResponse`. Подтверждено `javap` (jar: `kotlin-sdk-grpc-core-1.51.0`).
+  - `GetTradingStatusesRequest`: `repeated string instrument_id` (список uid).
+  - `GetTradingStatusesResponse`: `repeated GetTradingStatusResponse trading_statuses`.
+  - `GetTradingStatusResponse`: `figi`, `instrument_uid`, `ticker`, `api_trade_available_flag` (та же структура, что singular).
+- Batch-лимит в `docs/rate-limits.md` не задокументирован (для `getTradingStatus` — нет строки; вероятно общий MarketData 600/min). Риск управляем через fallback + логирование.
+- Live-log 2026-11-16 (sandbox): 2275 `getTradingStatus` за 5 мин. После T-7 cache hit не стреляет, но свежий поиск — N unary.
+
+**Решение (вариант A: batch primary + singular fallback).**
+- `tryBatch`: `GetTradingStatusesRequest` с чанками по 100 uid (безопасный default; точный batch-лимит не задокументирован). Rate-limiter: `service = "marketdata"`, `method = "getTradingStatuses"`. На успех — `Map<uid, TradingAvailability>` + UNKNOWN для отсутствующих.
+- На любую ошибку batch (или пустой ответ) — fallback на текущий путь: N × `getTradingStatus` + Semaphore(10) + rate-limiter.
+- Batch-ошибки: `logger.w` (штатный fallback, не `e`).
+
+**Отклонённые альтернативы.**
+- **B — только semaphore + тест (без batch).** Н66 закрыт формально, экономии нет. ~20 мин. Рассмотреть, если batch-лимит окажется = singular × N (нет выгоды) или batch часто падает.
+- **C — batch без fallback.** При batch-ошибке все статусы UNKNOWN. UX-регресс, не рекомендую.
+
+**Соответствие Clean:** соответствует (data-layer; domain не знает).
+
+**Нарушенное правило Clean:** —.
+**Clean-альтернатива:** —.
+**Выгоды:** —.
+**MVVM:** — (не применимо, data).
+**KMP:** соответствует (`kotlinx.coroutines`, proto; без platform).
+
+**Предусловия:** T-5 merged (rate limiter + semaphore); T-7 merged (cache skip — снижает частоту свежих запросов).
+
+**Файлы.**
+- `data/api/tinvest/TInvestTradingService.kt` — batch + fallback.
+- `app/src/test/.../TInvestTradingServiceTest.kt` (новый) — batch success (1 batch, 0 singular), batch fail (N singular).
+
+**Шаги.**
+1. `tryBatch(currentApi, uids)`: `chunked(TRADING_STATUSES_BATCH_SIZE=100)`, rate-limiter (`service = "marketdata"`, `method = "getTradingStatuses"`), сборка Map.
+2. `getTradingStatuses`: tryBatch → на успех return; на ошибку/пусто → fallback (текущий N×singular + semaphore).
+3. Импорт `GetTradingStatusesRequest`.
+4. Тест: mock `state.api`, batch, fallback.
+
+**Тесты:** `TInvestTradingServiceTest` — 2 кейса.
+
+**Референсы:** SDK 1.51 (`kotlin-sdk-grpc-core`, `kotlin-sdk-grpc-contract`); T-5; T-7; clean-audit Н66; `docs/rate-limits.md`.
+
+**Ограничения.**
+- Не менять публичный контракт `Map<uid, TradingAvailability>`.
+- Semaphore(10) — только для fallback.
+- Batch-лимит не задокументирован — fallback + логирование; при живом превышении — фиксировать в `docs/rate-limits.md`.
+
+**Критерий готовности.**
+- Batch API используется (1 unary вместо N при успехе).
+- Fallback работает (при ошибке batch — N singular).
+- Тест: batch success + batch fail.
+- Гейт зелёный.
+- Live-test: `[rate-limit/GRPC/marketdata/getTradingStatuses]` (1 на чанк) вместо N `[rate-limit/.../getTradingStatus]`.
+
+**Оценка:** ~1 ч.
+
+**Зависимости:** T-5 (merged), T-7 (merged).
+
+**Связано:** umbrella T-3; clean-audit Н66; `docs/rate-limits.md`.
+
+**Открытые вопросы.**
+- Точный лимит batch в T-Invest (не задокументирован). При превышении — уменьшить batch size или вернуться к варианту B.
