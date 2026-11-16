@@ -112,7 +112,7 @@ class SelectInstrumentUseCaseTest {
                     ),
                 )
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -131,16 +131,14 @@ class SelectInstrumentUseCaseTest {
         }
 
     @Test
-    fun `getInstrument null falls back to input instrument pointValue`() =
+    fun `getInstrument null returns Failure`() =
         runBlocking {
             stubDefaults()
             coEvery { instrumentRepository.getInstrument("uid-1") } returns null
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
 
-            assertTrue(r is AppResult.Success)
-            val result = (r as AppResult.Success<SelectInstrumentResult>).data
-            assertEquals(1.0, result.pointValue, 0.001)
+            assertTrue(r is AppResult.Failure)
         }
 
     @Test
@@ -150,7 +148,7 @@ class SelectInstrumentUseCaseTest {
             coEvery { marketDataRepository.getLastPricesResult(listOf("uid-1")) } returns
                 AppResult.Failure(AppError.Network("network down", null))
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -164,7 +162,7 @@ class SelectInstrumentUseCaseTest {
             stubDefaults()
             every { accountSelectionRepository.selected(BrokerName.TINVEST) } returns flowOf(null)
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -188,7 +186,7 @@ class SelectInstrumentUseCaseTest {
                     ),
                 )
 
-            val r = useCase.execute(inputInstrument, currentAccountId = "t-inv")
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName, currentAccountId = "t-inv")
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -211,7 +209,7 @@ class SelectInstrumentUseCaseTest {
                     ),
                 )
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -226,7 +224,7 @@ class SelectInstrumentUseCaseTest {
             every { tradingStateRepository.state } returns MutableStateFlow<TradingStateSnapshot?>(null)
             coEvery { tradingStateRepository.load() } returns TradingStateSnapshot(quantity = 7L)
 
-            useCase.execute(inputInstrument)
+            useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
 
             coVerify(exactly = 1) { tradingStateRepository.load() }
         }
@@ -237,7 +235,7 @@ class SelectInstrumentUseCaseTest {
             stubDefaults()
             coEvery { instrumentRepository.getInstrument("uid-1") } throws RuntimeException("boom")
 
-            val r = useCase.execute(inputInstrument)
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
 
             assertTrue(r is AppResult.Failure)
             val err = (r as AppResult.Failure).error
@@ -251,7 +249,7 @@ class SelectInstrumentUseCaseTest {
             coEvery { instrumentRepository.getInstrument("uid-1") } throws CancellationException()
 
             try {
-                useCase.execute(inputInstrument)
+                useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName)
                 fail("expected CancellationException")
             } catch (expected: CancellationException) {
                 // OK
@@ -312,7 +310,7 @@ class SelectInstrumentUseCaseTest {
                     ),
                 )
 
-            val r = useCase.execute(inputInstrument, currentAccountId = "card-acc")
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName, currentAccountId = "card-acc")
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -328,7 +326,7 @@ class SelectInstrumentUseCaseTest {
             val cardB = CardIdentity("uid-1", BrokerName.TINVEST, "B")
             every { cardsRepository.identities } returns flowOf(listOf(cardA, cardB))
 
-            val r = useCase.execute(inputInstrument, currentAccountId = "B")
+            val r = useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName, currentAccountId = "B")
 
             assertTrue(r is AppResult.Success)
             val result = (r as AppResult.Success<SelectInstrumentResult>).data
@@ -343,7 +341,7 @@ class SelectInstrumentUseCaseTest {
             val cardB = CardIdentity("uid-1", BrokerName.TINVEST, "B")
             every { cardsRepository.identities } returns flowOf(listOf(cardA, cardB))
 
-            useCase.execute(inputInstrument, currentAccountId = "A")
+            useCase.execute(inputInstrument.tscalpInstrumentId, inputInstrument.brokerName, currentAccountId = "A")
 
             coVerify(exactly = 1) {
                 cardsRepository.save(

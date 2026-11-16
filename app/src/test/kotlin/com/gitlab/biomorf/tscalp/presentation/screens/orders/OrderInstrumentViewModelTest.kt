@@ -97,11 +97,11 @@ class OrderInstrumentViewModelTest {
     @Test
     fun `onInstrumentSelected success updates state`() =
         runTest {
-            coEvery { selectInstrumentUseCase.execute(sber, null) } returns
-                AppResult.Success(SelectInstrumentResult(card = info(sber, "acc-1"), pointValue = 1.0))
+            coEvery { selectInstrumentUseCase.execute(sber.tscalpInstrumentId, sber.brokerName, null) } returns
+                AppResult.Success(SelectInstrumentResult(instrument = sber, card = info(sber, "acc-1"), pointValue = 1.0))
             val vm = viewModel()
 
-            vm.onInstrumentSelected(sber)
+            vm.onInstrumentSelected(sber.tscalpInstrumentId, sber.ticker, sber.brokerName)
             advanceUntilIdle()
 
             val s = vm.state.value
@@ -117,15 +117,17 @@ class OrderInstrumentViewModelTest {
     @Test
     fun `onInstrumentSelected failure keeps state and resets loading`() =
         runTest {
-            coEvery { selectInstrumentUseCase.execute(sber, null) } returns
+            coEvery { selectInstrumentUseCase.execute(sber.tscalpInstrumentId, sber.brokerName, null) } returns
                 AppResult.Failure(AppError.Unknown("fail", null))
             val vm = viewModel()
 
-            vm.onInstrumentSelected(sber)
+            vm.onInstrumentSelected(sber.tscalpInstrumentId, sber.ticker, sber.brokerName)
             advanceUntilIdle()
 
             val s = vm.state.value
-            assertEquals(sber, s.selectedInstrument)
+            assertNull("selectedInstrument must be null on failure (full Instrument loaded on success only)", s.selectedInstrument)
+            assertEquals("SBER", s.ticker)
+            assertEquals(BrokerName.TINVEST, s.selectedBroker)
             assertTrue(!s.isPriceLoading)
             assertNull(s.selectedAccountId)
         }
@@ -133,10 +135,10 @@ class OrderInstrumentViewModelTest {
     @Test
     fun `clearSelectedInstrument resets primary fields`() =
         runTest {
-            coEvery { selectInstrumentUseCase.execute(sber, null) } returns
-                AppResult.Success(SelectInstrumentResult(card = info(sber, "acc-1"), pointValue = 1.0))
+            coEvery { selectInstrumentUseCase.execute(sber.tscalpInstrumentId, sber.brokerName, null) } returns
+                AppResult.Success(SelectInstrumentResult(instrument = sber, card = info(sber, "acc-1"), pointValue = 1.0))
             val vm = viewModel()
-            vm.onInstrumentSelected(sber)
+            vm.onInstrumentSelected(sber.tscalpInstrumentId, sber.ticker, sber.brokerName)
             advanceUntilIdle()
 
             vm.clearSelectedInstrument()
@@ -153,11 +155,11 @@ class OrderInstrumentViewModelTest {
     @Test
     fun `onPairedInstrumentSelected success updates paired state`() =
         runTest {
-            coEvery { selectPairedInstrumentUseCase.execute(tmon) } returns
-                AppResult.Success(SelectPairedResult(price = 75.0, pointValue = 1.0))
+            coEvery { selectPairedInstrumentUseCase.execute(tmon.tscalpInstrumentId, tmon.brokerName) } returns
+                AppResult.Success(SelectPairedResult(instrument = tmon, price = 75.0, pointValue = 1.0))
             val vm = viewModel()
 
-            vm.onPairedInstrumentSelected(tmon)
+            vm.onPairedInstrumentSelected(tmon.tscalpInstrumentId, tmon.ticker, tmon.brokerName)
             advanceUntilIdle()
 
             val s = vm.state.value
@@ -170,10 +172,10 @@ class OrderInstrumentViewModelTest {
     @Test
     fun `clearPairedInstrument resets paired fields`() =
         runTest {
-            coEvery { selectPairedInstrumentUseCase.execute(tmon) } returns
-                AppResult.Success(SelectPairedResult(price = 75.0, pointValue = 1.0))
+            coEvery { selectPairedInstrumentUseCase.execute(tmon.tscalpInstrumentId, tmon.brokerName) } returns
+                AppResult.Success(SelectPairedResult(instrument = tmon, price = 75.0, pointValue = 1.0))
             val vm = viewModel()
-            vm.onPairedInstrumentSelected(tmon)
+            vm.onPairedInstrumentSelected(tmon.tscalpInstrumentId, tmon.ticker, tmon.brokerName)
             advanceUntilIdle()
 
             vm.clearPairedInstrument()
@@ -203,10 +205,10 @@ class OrderInstrumentViewModelTest {
     @Test
     fun `updateInstrumentPrice primary and paired slots`() =
         runTest {
-            coEvery { selectInstrumentUseCase.execute(sber, null) } returns
-                AppResult.Success(SelectInstrumentResult(card = info(sber, "acc-1"), pointValue = 1.0))
-            coEvery { selectPairedInstrumentUseCase.execute(tmon) } returns
-                AppResult.Success(SelectPairedResult(price = 75.0, pointValue = 1.0))
+            coEvery { selectInstrumentUseCase.execute(sber.tscalpInstrumentId, sber.brokerName, null) } returns
+                AppResult.Success(SelectInstrumentResult(instrument = sber, card = info(sber, "acc-1"), pointValue = 1.0))
+            coEvery { selectPairedInstrumentUseCase.execute(tmon.tscalpInstrumentId, tmon.brokerName) } returns
+                AppResult.Success(SelectPairedResult(instrument = tmon, price = 75.0, pointValue = 1.0))
             val prices = MutableSharedFlow<PriceUpdate>()
             every { priceFlowManager.prices } returns prices
 
@@ -220,9 +222,9 @@ class OrderInstrumentViewModelTest {
                     logger,
                     restoreOrderFormUseCase,
                 )
-            vm.onInstrumentSelected(sber)
+            vm.onInstrumentSelected(sber.tscalpInstrumentId, sber.ticker, sber.brokerName)
             advanceUntilIdle()
-            vm.onPairedInstrumentSelected(tmon)
+            vm.onPairedInstrumentSelected(tmon.tscalpInstrumentId, tmon.ticker, tmon.brokerName)
             advanceUntilIdle()
 
             // primary update

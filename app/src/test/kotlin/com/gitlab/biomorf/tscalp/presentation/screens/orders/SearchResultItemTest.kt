@@ -4,8 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Share
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -24,20 +23,11 @@ class SearchResultItemTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val sber =
-        Share(
-            brokerName = BrokerName.TINVEST,
-            tscalpInstrumentId = "uid-sber",
-            ticker = "SBER",
-            name = "Сбербанк",
-            isin = "RU0009029540",
-        )
-
     @Test
     fun `renders ticker and name`() {
         rule.setContent {
             TScalpTheme {
-                SearchResultItem(instrument = sber, onClick = {})
+                SearchResultItem(tscalpInstrumentId = "uid-sber", ticker = "SBER", name = "Сбербанк", instrumentType = InstrumentType.SHARE, onClick = {})
             }
         }
         rule.onNodeWithText("SBER - Сбербанк").assertIsDisplayed()
@@ -48,7 +38,7 @@ class SearchResultItemTest {
         var clicked = false
         rule.setContent {
             TScalpTheme {
-                SearchResultItem(instrument = sber, onClick = { clicked = true })
+                SearchResultItem(tscalpInstrumentId = "uid-sber", ticker = "SBER", name = "Сбербанк", instrumentType = InstrumentType.SHARE, onClick = { clicked = true })
             }
         }
         rule.onNodeWithText("SBER - Сбербанк").performClick()

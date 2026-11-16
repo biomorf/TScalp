@@ -162,9 +162,9 @@ fun OrdersScreen() {
                 callbacks =
                     OrdersScrollableCallbacks(
                         onSearchQueryChanged = { searchVM.onQueryChanged(SearchSlot.PRIMARY, it) },
-                        onInstrumentSelected = { inst ->
-                            searchVM.onResultSelected(SearchSlot.PRIMARY, inst)
-                            instrVM.onInstrumentSelected(inst)
+                        onInstrumentSelected = { id, ticker, name, brokerName ->
+                            searchVM.onResultSelected(SearchSlot.PRIMARY, id, ticker, name)
+                            instrVM.onInstrumentSelected(id, ticker, brokerName)
                             focusManager.clearFocus()
                         },
                         onClearSearch = {
@@ -187,9 +187,9 @@ fun OrdersScreen() {
                         onLimitPriceChanged = { inputVM.onLimitPriceChanged(it) },
                         onStopPriceChanged = { inputVM.onStopPriceChanged(it) },
                         onPairSearchQueryChanged = { searchVM.onQueryChanged(SearchSlot.PAIR, it) },
-                        onPairedInstrumentSelected = { inst ->
-                            searchVM.onResultSelected(SearchSlot.PAIR, inst)
-                            instrVM.onPairedInstrumentSelected(inst)
+                        onPairedInstrumentSelected = { id, ticker, name, brokerName ->
+                            searchVM.onResultSelected(SearchSlot.PAIR, id, ticker, name)
+                            instrVM.onPairedInstrumentSelected(id, ticker, brokerName)
                             focusManager.clearFocus()
                         },
                         onClearPairSearch = { searchVM.clearQuery(SearchSlot.PAIR) },

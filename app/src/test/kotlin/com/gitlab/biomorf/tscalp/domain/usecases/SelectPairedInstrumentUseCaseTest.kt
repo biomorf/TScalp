@@ -1,5 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
+import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
@@ -18,9 +19,10 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class SelectPairedInstrumentUseCaseTest {
+    private val instrumentRepository = mockk<InstrumentRepository>(relaxed = true)
     private val marketDataRepository = mockk<MarketDataRepository>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
-    private val useCase = SelectPairedInstrumentUseCase(marketDataRepository, logger)
+    private val useCase = SelectPairedInstrumentUseCase(instrumentRepository, marketDataRepository, logger)
 
     private val gazp =
         Share(
@@ -34,11 +36,12 @@ class SelectPairedInstrumentUseCaseTest {
     @Test
     fun `success returns price and pointValue`() =
         runBlocking {
+            coEvery { instrumentRepository.getInstrument("uid-gazp") } returns gazp
             coEvery {
                 marketDataRepository.getLastPricesResult(listOf("uid-gazp"))
             } returns AppResult.Success(mapOf("uid-gazp" to 200.0))
 
-            val r = useCase.execute(gazp)
+            val r = useCase.execute(gazp.tscalpInstrumentId, gazp.brokerName)
 
             assertTrue(r is AppResult.Success)
             val data = (r as AppResult.Success).data
@@ -49,11 +52,12 @@ class SelectPairedInstrumentUseCaseTest {
     @Test
     fun `getLastPrices failure returns Success with null price`() =
         runBlocking {
+            coEvery { instrumentRepository.getInstrument("uid-gazp") } returns gazp
             coEvery {
                 marketDataRepository.getLastPricesResult(listOf("uid-gazp"))
             } returns AppResult.Failure(AppError.Network("down", null))
 
-            val r = useCase.execute(gazp)
+            val r = useCase.execute(gazp.tscalpInstrumentId, gazp.brokerName)
 
             assertTrue(r is AppResult.Success)
             val data = (r as AppResult.Success).data
@@ -64,11 +68,12 @@ class SelectPairedInstrumentUseCaseTest {
     @Test
     fun `exception returns Failure`() =
         runBlocking {
+            coEvery { instrumentRepository.getInstrument("uid-gazp") } returns gazp
             coEvery {
                 marketDataRepository.getLastPricesResult(any())
             } throws RuntimeException("boom")
 
-            val r = useCase.execute(gazp)
+            val r = useCase.execute(gazp.tscalpInstrumentId, gazp.brokerName)
 
             assertTrue(r is AppResult.Failure)
         }
@@ -76,12 +81,13 @@ class SelectPairedInstrumentUseCaseTest {
     @Test
     fun `cancellation is rethrown`() =
         runBlocking {
+            coEvery { instrumentRepository.getInstrument("uid-gazp") } returns gazp
             coEvery {
                 marketDataRepository.getLastPricesResult(any())
             } throws CancellationException()
 
             try {
-                useCase.execute(gazp)
+                useCase.execute(gazp.tscalpInstrumentId, gazp.brokerName)
                 fail("expected CancellationException")
             } catch (expected: CancellationException) {
                 // expected

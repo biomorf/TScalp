@@ -7,7 +7,9 @@ import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Future
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.OrderDirection
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
 import kotlinx.coroutines.CoroutineScope
@@ -54,7 +56,7 @@ class OrdersScreensScreenshotTest {
     fun searchResultItem_share() {
         rule.setContent {
             TScalpTheme {
-                SearchResultItem(instrument = sber, onClick = {})
+                SearchResultItem(tscalpInstrumentId = "uid-sber", ticker = "SBER", name = "Сбербанк", instrumentType = InstrumentType.SHARE, onClick = {})
             }
         }
         rule.onRoot().captureRoboImage()
@@ -64,7 +66,7 @@ class OrdersScreensScreenshotTest {
     fun searchResultItem_future() {
         rule.setContent {
             TScalpTheme {
-                SearchResultItem(instrument = sberFuture, onClick = {})
+                SearchResultItem(tscalpInstrumentId = "uid-sber-fut", ticker = "SRU4", name = "Фьючерс", instrumentType = InstrumentType.FUTURES, onClick = {})
             }
         }
         rule.onRoot().captureRoboImage()
@@ -131,7 +133,7 @@ class OrdersScreensScreenshotTest {
                     tradingStatuses = emptyMap(),
                     resetSwipe = false,
                     onSearchQueryChanged = {},
-                    onInstrumentSelected = {},
+                    onInstrumentSelected = { _, _, _, _ -> },
                     onClearSearch = {},
                     onRefreshSearch = {},
                     onOpenSearchSettings = {},
@@ -150,7 +152,23 @@ class OrdersScreensScreenshotTest {
                 primary =
                     SlotSearchState(
                         query = "SBER",
-                        results = listOf(sber, sberFuture),
+                        results =
+                            listOf(
+                                SearchItem(
+                                    tscalpInstrumentId = "uid-sber",
+                                    brokerName = BrokerName.TINVEST,
+                                    ticker = "SBER",
+                                    name = "Сбербанк",
+                                    instrumentType = InstrumentType.SHARE,
+                                ),
+                                SearchItem(
+                                    tscalpInstrumentId = "uid-sber-fut",
+                                    brokerName = BrokerName.TINVEST,
+                                    ticker = "SRU4",
+                                    name = "Фьючерс",
+                                    instrumentType = InstrumentType.FUTURES,
+                                ),
+                            ),
                     ),
                 isSearchActive = true,
             )
@@ -163,7 +181,7 @@ class OrdersScreensScreenshotTest {
                     tradingStatuses = emptyMap(),
                     resetSwipe = false,
                     onSearchQueryChanged = {},
-                    onInstrumentSelected = {},
+                    onInstrumentSelected = { _, _, _, _ -> },
                     onClearSearch = {},
                     onRefreshSearch = {},
                     onOpenSearchSettings = {},
@@ -202,7 +220,7 @@ class OrdersScreensScreenshotTest {
                         scrollState = rememberScrollState(),
                         scope = CoroutineScope(Dispatchers.Unconfined),
                         onPairSearchQueryChanged = {},
-                        onPairedInstrumentSelected = {},
+                        onPairedInstrumentSelected = { _, _, _, _ -> },
                         onClearPairSearch = {},
                         onRefreshPairSearch = {},
                         onOpenPairSearchBrokerSettings = {},
@@ -247,7 +265,7 @@ class OrdersScreensScreenshotTest {
                         callbacks =
                             OrdersScrollableCallbacks(
                                 onSearchQueryChanged = {},
-                                onInstrumentSelected = {},
+                                onInstrumentSelected = { _, _, _, _ -> },
                                 onClearSearch = {},
                                 onRefreshSearch = {},
                                 onOpenSearchSettings = {},
@@ -260,7 +278,7 @@ class OrdersScreensScreenshotTest {
                                 onLimitPriceChanged = {},
                                 onStopPriceChanged = {},
                                 onPairSearchQueryChanged = {},
-                                onPairedInstrumentSelected = {},
+                                onPairedInstrumentSelected = { _, _, _, _ -> },
                                 onClearPairSearch = {},
                                 onRefreshPairSearch = {},
                                 onOpenPairSearchBrokerSettings = {},

@@ -13,10 +13,10 @@ import com.gitlab.biomorf.tscalp.data.orchestrator.mergeStreamSources
 import com.gitlab.biomorf.tscalp.data.orchestrator.retryWithBackoff
 import com.gitlab.biomorf.tscalp.domain.api.DebugFlagsRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import com.gitlab.biomorf.tscalp.domain.models.toStreamItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -49,7 +49,7 @@ class TInvestOrchestrator(
     private val positionsRestFallback: (suspend (String, Boolean) -> List<PositionStreamItem>)? = null,
     private val ordersRestFallback: (suspend (String) -> List<Order>)? = null,
     private val balanceRestFallback: (suspend (String) -> Double)? = null,
-    private val findInstrumentsRestFallback: (suspend (String) -> List<Instrument>)? = null,
+    private val findInstrumentsRestFallback: (suspend (String) -> List<SearchItem>)? = null,
 ) {
     private companion object {
         private const val TAG = "TInvestOrchestrator"
@@ -230,7 +230,7 @@ class TInvestOrchestrator(
         }
     }
 
-    suspend fun findInstrumentsWithFallback(query: String): List<Instrument> {
+    suspend fun findInstrumentsWithFallback(query: String): List<SearchItem> {
         if (debugFlagsRepository.forceRest) {
             val rest = findInstrumentsRestFallback ?: throw IllegalStateException("REST fallback not configured")
             logger.w(TAG, "forceRest: bypassing gRPC for instruments")

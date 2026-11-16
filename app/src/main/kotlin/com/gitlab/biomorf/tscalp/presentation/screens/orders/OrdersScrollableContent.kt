@@ -15,6 +15,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.OrderTypeSelection
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
@@ -53,7 +54,7 @@ internal data class OrdersScrollableState(
 
 internal data class OrdersScrollableCallbacks(
     val onSearchQueryChanged: (String) -> Unit,
-    val onInstrumentSelected: (Instrument) -> Unit,
+    val onInstrumentSelected: (tscalpInstrumentId: String, ticker: String, name: String, brokerName: BrokerName) -> Unit,
     val onClearSearch: () -> Unit,
     val onRefreshSearch: () -> Unit,
     val onOpenSearchSettings: () -> Unit,
@@ -66,7 +67,7 @@ internal data class OrdersScrollableCallbacks(
     val onLimitPriceChanged: (String) -> Unit,
     val onStopPriceChanged: (String) -> Unit,
     val onPairSearchQueryChanged: (String) -> Unit,
-    val onPairedInstrumentSelected: (Instrument) -> Unit,
+    val onPairedInstrumentSelected: (tscalpInstrumentId: String, ticker: String, name: String, brokerName: BrokerName) -> Unit,
     val onClearPairSearch: () -> Unit,
     val onRefreshPairSearch: () -> Unit,
     val onOpenPairSearchBrokerSettings: () -> Unit,

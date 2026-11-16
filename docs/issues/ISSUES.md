@@ -42,7 +42,7 @@
 | DONE | I-21 | Дублирующий init {} в SettingsViewModel | domain | `docs/issues/ISSUES-domain.md` |
 | DEFER | I-22 | Strip warnings в debug APK | ci | `docs/issues/ISSUES-ci.md` |
 | OPEN | I-23 | Асимметрия lifecycle: старт менеджеров после login vs restore | domain | `docs/issues/ISSUES-domain.md` |
-| OPEN | I-24 | T-Invest REST findInstruments fallback (N+1 unary) | brokers | `docs/issues/ISSUES-brokers.md` |
+| DONE | I-24 | T-Invest REST findInstruments fallback (N+1 unary) | brokers | `docs/issues/ISSUES-brokers.md` |
 | DONE | I-25 | AGENTS.md ссылался на удалённое `InstrumentUi.ttech_uid` | misc | `docs/issues/ISSUES-misc.md` |
 | DONE | I-26 | Currency format: lowercase iso-code в `Currency.getInstance` | data | `docs/issues/ISSUES-data.md` |
 | OPEN | I-27 | REST poll failed: REST transport not initialized (W при disconnect) | streams | `docs/issues/ISSUES-streams.md` |

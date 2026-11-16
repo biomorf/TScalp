@@ -1,9 +1,11 @@
 package com.gitlab.biomorf.tscalp.domain.usecases
 
+import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.MarketDataRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.moneyPerPointOfPrice
 import kotlinx.coroutines.CancellationException
@@ -36,6 +38,7 @@ import kotlinx.coroutines.CancellationException
  */
 class SelectPairedInstrumentUseCase
     constructor(
+        private val instrumentRepository: InstrumentRepository,
         private val marketDataRepository: MarketDataRepository,
         private val logger: Logger,
     ) {
@@ -43,14 +46,23 @@ class SelectPairedInstrumentUseCase
             private const val TAG = "SelectPairedInstrumentUseCase"
         }
 
-        suspend fun execute(instrument: Instrument): AppResult<SelectPairedResult> {
-            logger.d(TAG, "execute: ticker=${instrument.ticker}")
+        suspend fun execute(
+            tscalpInstrumentId: String,
+            brokerName: BrokerName,
+        ): AppResult<SelectPairedResult> {
+            logger.d(TAG, "execute: uid=$tscalpInstrumentId, broker=$brokerName")
             return try {
-                val price = fetchPrice(instrument.tscalpInstrumentId)
+                val actualInstrument =
+                    instrumentRepository.getInstrument(tscalpInstrumentId)
+                        ?: return AppResult.Failure(
+                            AppError.Unknown("Instrument not found for uid=$tscalpInstrumentId"),
+                        )
+                val price = fetchPrice(actualInstrument.tscalpInstrumentId)
                 AppResult.Success(
                     SelectPairedResult(
+                        instrument = actualInstrument,
                         price = price,
-                        pointValue = instrument.moneyPerPointOfPrice,
+                        pointValue = actualInstrument.moneyPerPointOfPrice,
                     ),
                 )
             } catch (e: CancellationException) {
@@ -88,6 +100,7 @@ class SelectPairedInstrumentUseCase
  * `pointValue` — `instrument.moneyPerPointOfPrice`.
  */
 data class SelectPairedResult(
+    val instrument: Instrument,
     val price: Double?,
     val pointValue: Double,
 )

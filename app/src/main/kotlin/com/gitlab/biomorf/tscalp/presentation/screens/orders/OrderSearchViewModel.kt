@@ -7,10 +7,8 @@ import com.gitlab.biomorf.tscalp.domain.api.repository.SearchCacheRepository
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.usecases.SearchInstrumentsUseCase
 import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
-import com.gitlab.biomorf.tscalp.presentation.util.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -129,20 +127,23 @@ class OrderSearchViewModel
 
         fun onResultSelected(
             slot: SearchSlot,
-            instrument: Instrument,
+            tscalpInstrumentId: String,
+            ticker: String,
+            name: String,
         ) {
-            logger.d(TAG, "resultSelected: slot=$slot ticker=${instrument.ticker}")
+            logger.d(TAG, "resultSelected: slot=$slot ticker=$ticker")
+            val label = "$ticker - $name"
             when (slot) {
                 SearchSlot.PRIMARY ->
                     _state.update {
                         it.copy(
-                            primary = it.primary.copy(query = instrument.displayName(), results = emptyList()),
+                            primary = it.primary.copy(query = label, results = emptyList()),
                             isSearchActive = false,
                         )
                     }
                 SearchSlot.PAIR ->
                     updateSlot(slot) {
-                        it.copy(query = instrument.displayName(), results = emptyList())
+                        it.copy(query = label, results = emptyList())
                     }
             }
         }

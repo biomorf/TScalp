@@ -5,8 +5,8 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
-import com.gitlab.biomorf.tscalp.domain.models.Share
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -27,12 +27,12 @@ class SearchInstrumentsUseCaseTest {
     private val useCase = SearchInstrumentsUseCase(searchCache, updateStatuses, logger)
 
     private val sber =
-        Share(
+        SearchItem(
             brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-sber",
             ticker = "SBER",
             name = "Сбербанк",
-            isin = "RU0009029540",
+            instrumentType = InstrumentType.SHARE,
         )
 
     @Test
@@ -100,7 +100,7 @@ class SearchInstrumentsUseCaseTest {
     fun `empty results skip statuses call`() =
         runBlocking {
             coEvery { searchCache.search(BrokerName.TINVEST, "X") } returns
-                AppResult.Success(emptyList<Instrument>())
+                AppResult.Success(emptyList<SearchItem>())
 
             val r = useCase.execute(BrokerName.TINVEST, "X")
 

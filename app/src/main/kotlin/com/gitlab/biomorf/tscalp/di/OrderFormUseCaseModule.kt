@@ -55,10 +55,12 @@ object OrderFormUseCaseModule {
     @Provides
     @Singleton
     fun provideSelectPairedInstrumentUseCase(
+        instrumentRepository: InstrumentRepository,
         marketDataRepository: MarketDataRepository,
         logger: Logger,
     ): SelectPairedInstrumentUseCase =
         SelectPairedInstrumentUseCase(
+            instrumentRepository = instrumentRepository,
             marketDataRepository = marketDataRepository,
             logger = logger,
         )

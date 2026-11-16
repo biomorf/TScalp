@@ -74,40 +74,45 @@ class SelectInstrumentUseCase
          *   `getLastPrices` failure — не ошибка (price = null, 1:1).
          */
         suspend fun execute(
-            instrument: Instrument,
+            tscalpInstrumentId: String,
+            brokerName: BrokerName,
             currentAccountId: String? = null,
         ): AppResult<SelectInstrumentResult> {
             logger.d(
                 TAG,
-                "execute: uid=${instrument.tscalpInstrumentId}, broker=${instrument.brokerName}, " +
+                "execute: uid=$tscalpInstrumentId, broker=$brokerName, " +
                     "currentAccountId=$currentAccountId",
             )
             return try {
                 val actualInstrument =
-                    instrumentRepository.getInstrument(instrument.tscalpInstrumentId) ?: instrument
+                    instrumentRepository.getInstrument(tscalpInstrumentId)
+                        ?: return AppResult.Failure(
+                            AppError.Unknown("Instrument not found for uid=$tscalpInstrumentId"),
+                        )
                 val currentCards = cardsRepository.identities.first()
-                val existingCard = currentCards.findCard(instrument, currentAccountId)
-                persistIdentity(instrument, currentCards, existingCard, currentAccountId)
+                val existingCard = currentCards.findCard(actualInstrument, currentAccountId)
+                persistIdentity(actualInstrument, currentCards, existingCard, currentAccountId)
                 saveSelectedToSession(
                     CardIdentity(
-                        tscalpInstrumentId = instrument.tscalpInstrumentId,
-                        brokerName = instrument.brokerName,
+                        tscalpInstrumentId = actualInstrument.tscalpInstrumentId,
+                        brokerName = actualInstrument.brokerName,
                         accountId = existingCard?.accountId,
                     ),
                 )
-                val price = fetchPrice(instrument.tscalpInstrumentId)
+                val price = fetchPrice(actualInstrument.tscalpInstrumentId)
                 val accountId = accountSelectionRepository.selected(BrokerName.TINVEST).first()
                 val portfolioPos =
-                    findPortfolioPosition(instrument, existingCard?.accountId ?: accountId)
+                    findPortfolioPosition(actualInstrument, existingCard?.accountId ?: accountId)
                 val card =
                     buildCard(
-                        instrument = instrument,
+                        instrument = actualInstrument,
                         price = price,
                         portfolioPos = portfolioPos,
                         existingCard = existingCard,
                     )
                 AppResult.Success(
                     SelectInstrumentResult(
+                        instrument = actualInstrument,
                         card = card,
                         pointValue = actualInstrument.moneyPerPointOfPrice,
                     ),
@@ -199,6 +204,7 @@ class SelectInstrumentUseCase
  * «свежего» `Instrument` (для `currentPointValue` в VM).
  */
 data class SelectInstrumentResult(
+    val instrument: Instrument,
     val card: SelectedInstrumentInfo,
     val pointValue: Double,
 )

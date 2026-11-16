@@ -1,7 +1,7 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.orders
 
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 
 /**
  * Slot (primary / pair) for [OrderSearchViewModel].
@@ -19,7 +19,7 @@ enum class SearchSlot {
  */
 data class SlotSearchState(
     val query: String = "",
-    val results: List<Instrument> = emptyList(),
+    val results: List<SearchItem> = emptyList(),
     val isSearching: Boolean = false,
     val broker: BrokerName = BrokerName.TINVEST,
     val showBrokerDialog: Boolean = false,

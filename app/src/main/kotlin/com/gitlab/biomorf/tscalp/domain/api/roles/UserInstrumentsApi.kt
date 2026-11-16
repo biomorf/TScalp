@@ -1,6 +1,6 @@
 package com.gitlab.biomorf.tscalp.domain.api.roles
 
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 
 /**
@@ -46,7 +46,7 @@ interface UserInstrumentsApi {
      * `BrokerInstrumentApi.fetchFullInstrument(uid)` по
      * найденному `tscalpInstrumentId`.
      */
-    suspend fun findInstruments(query: String): List<Instrument>
+    suspend fun findInstruments(query: String): List<SearchItem>
 
     /**
      * Статусы доступности торговли для списка
