@@ -1,9 +1,11 @@
 package com.gitlab.biomorf.tscalp.data.api.tinvest
 
 import com.gitlab.biomorf.tscalp.domain.log.Logger
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
 import com.gitlab.biomorf.tscalp.domain.models.Order
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import com.gitlab.biomorf.tscalp.transport.ktor.TInvestRestTransport
 import io.ktor.client.HttpClient
 
@@ -68,12 +70,19 @@ class TInvestRestService(
         return rest.getBalance(accountId, state.sandboxMode)
     }
 
-    suspend fun findInstrumentsRestFallback(query: String): List<Instrument> {
+    suspend fun findInstrumentsRestFallback(query: String): List<SearchItem> {
         val rest = restTransport ?: throw IllegalStateException("REST transport not initialized")
         val shorts = rest.findInstrument(query)
-        return shorts.mapNotNull { short ->
-            val instrument = rest.getInstrumentBy(short.uid) ?: return@mapNotNull null
-            instrument.toInstrument()
+        return shorts.map { short ->
+            SearchItem(
+                tscalpInstrumentId = short.uid,
+                brokerName = BrokerName.TINVEST,
+                ticker = short.ticker,
+                name = short.name,
+                instrumentType = InstrumentType.fromBrokerString(short.instrumentType ?: ""),
+                figi = short.figi?.ifBlank { null },
+                classCode = short.classCode?.ifBlank { null },
+            )
         }
     }
 }

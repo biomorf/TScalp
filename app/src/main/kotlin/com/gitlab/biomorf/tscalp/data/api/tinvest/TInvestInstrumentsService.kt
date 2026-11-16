@@ -3,7 +3,10 @@ package com.gitlab.biomorf.tscalp.data.api.tinvest
 import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
 import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.domain.log.Logger
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.tinkoff.piapi.contract.v1.FindInstrumentRequest
@@ -97,19 +100,18 @@ class TInvestInstrumentsService(
             }
         }
 
-    suspend fun findInstruments(query: String): List<Instrument> =
+    suspend fun findInstruments(query: String): List<SearchItem> =
         withContext(Dispatchers.IO) {
-            findInstrumentShorts(query).mapNotNull { short ->
-                try {
-                    val instrument = fetchProtoInstrument(short.uid) ?: return@mapNotNull null
-                    TInvestInstrumentMapper.mapProtoToDomain(instrument)
-                } catch (e: RateLimitTimeoutException) {
-                    logger.e(TAG, "Rate-limited fetching uid=${short.uid}: ${e.message}", e)
-                    null
-                } catch (e: Exception) {
-                    logger.e(TAG, "Ошибка получения инструмента по uid=${short.uid}", e)
-                    null
-                }
+            findInstrumentShorts(query).map { short ->
+                SearchItem(
+                    tscalpInstrumentId = short.uid,
+                    brokerName = BrokerName.TINVEST,
+                    ticker = short.ticker,
+                    name = short.name,
+                    instrumentType = InstrumentType.fromBrokerString(short.instrumentType ?: ""),
+                    figi = short.figi.ifBlank { null },
+                    classCode = short.classCode.ifBlank { null },
+                )
             }
         }
 }

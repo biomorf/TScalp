@@ -19,7 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.gitlab.biomorf.tscalp.domain.models.*
+import com.gitlab.biomorf.tscalp.domain.models.BrokerName
 import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import com.gitlab.biomorf.tscalp.presentation.components.AssetPositionCard
 import com.gitlab.biomorf.tscalp.presentation.theme.TScalpTheme
@@ -34,7 +37,7 @@ internal fun OrdersInstrumentSection(
     tradingStatuses: Map<String, TradingAvailability>,
     resetSwipe: Boolean,
     onSearchQueryChanged: (String) -> Unit,
-    onInstrumentSelected: (Instrument) -> Unit,
+    onInstrumentSelected: (tscalpInstrumentId: String, ticker: String, name: String, brokerName: BrokerName) -> Unit,
     onClearSearch: () -> Unit,
     onRefreshSearch: () -> Unit,
     onOpenSearchSettings: () -> Unit,
@@ -93,15 +96,18 @@ internal fun OrdersInstrumentSection(
 
 @Composable
 internal fun SearchResultItem(
-    instrument: Instrument,
+    tscalpInstrumentId: String,
+    ticker: String,
+    name: String,
+    instrumentType: InstrumentType,
     onClick: () -> Unit,
 ) {
-    val typeColor = getInstrumentTypeColor(instrument.instrumentType)
+    val typeColor = getInstrumentTypeColor(instrumentType)
     ListItem(
-        headlineContent = { Text("${instrument.ticker} - ${instrument.name}") },
+        headlineContent = { Text("$ticker - $name") },
         supportingContent = {
             Text(
-                text = instrument.tscalpInstrumentId,
+                text = tscalpInstrumentId,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -126,8 +132,8 @@ internal fun InstrumentSearchField(
     query: String,
     onQueryChanged: (String) -> Unit,
     isSearching: Boolean,
-    searchResults: List<Instrument>,
-    onInstrumentSelected: (Instrument) -> Unit,
+    searchResults: List<SearchItem>,
+    onInstrumentSelected: (tscalpInstrumentId: String, ticker: String, name: String, brokerName: BrokerName) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
     recentInstruments: List<Instrument> = emptyList(),
@@ -201,9 +207,17 @@ internal fun InstrumentSearchField(
                             val status = tradingStatuses[instrument.tscalpInstrumentId]
                             if (status == TradingAvailability.UNAVAILABLE) return@forEach
                             SearchResultItem(
-                                instrument = instrument,
+                                tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                ticker = instrument.ticker,
+                                name = instrument.name,
+                                instrumentType = instrument.instrumentType,
                                 onClick = {
-                                    onInstrumentSelected(instrument)
+                                    onInstrumentSelected(
+                                        instrument.tscalpInstrumentId,
+                                        instrument.ticker,
+                                        instrument.name,
+                                        instrument.brokerName,
+                                    )
                                     inputText = "${instrument.ticker} - ${instrument.name}"
                                     expanded = false
                                 },
@@ -214,9 +228,17 @@ internal fun InstrumentSearchField(
                             val status = tradingStatuses[instrument.tscalpInstrumentId]
                             if (status == TradingAvailability.UNAVAILABLE) return@forEach
                             SearchResultItem(
-                                instrument = instrument,
+                                tscalpInstrumentId = instrument.tscalpInstrumentId,
+                                ticker = instrument.ticker,
+                                name = instrument.name,
+                                instrumentType = instrument.instrumentType,
                                 onClick = {
-                                    onInstrumentSelected(instrument)
+                                    onInstrumentSelected(
+                                        instrument.tscalpInstrumentId,
+                                        instrument.ticker,
+                                        instrument.name,
+                                        instrument.brokerName,
+                                    )
                                     inputText = "${instrument.ticker} - ${instrument.name}"
                                     expanded = false
                                 },
@@ -234,16 +256,10 @@ internal fun InstrumentSearchField(
 private fun SearchResultItemSharePreview() {
     TScalpTheme {
         SearchResultItem(
-            instrument =
-                Share(
-                    brokerName = BrokerName.TINVEST,
-                    tscalpInstrumentId = "uid-preview",
-                    ticker = "SBER",
-                    name = "Сбербанк",
-                    isin = "BBG004730N88",
-                    classCode = "TQBR",
-                    currency = "rub",
-                ),
+            tscalpInstrumentId = "uid-preview",
+            ticker = "SBER",
+            name = "Сбербанк",
+            instrumentType = InstrumentType.SHARE,
             onClick = {},
         )
     }

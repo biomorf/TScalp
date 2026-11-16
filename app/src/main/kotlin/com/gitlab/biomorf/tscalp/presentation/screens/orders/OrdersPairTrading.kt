@@ -47,7 +47,7 @@ internal fun OrdersPairSection(
     scrollState: ScrollState,
     scope: CoroutineScope,
     onPairSearchQueryChanged: (String) -> Unit,
-    onPairedInstrumentSelected: (Instrument) -> Unit,
+    onPairedInstrumentSelected: (tscalpInstrumentId: String, ticker: String, name: String, brokerName: BrokerName) -> Unit,
     onClearPairSearch: () -> Unit,
     onRefreshPairSearch: () -> Unit,
     onOpenPairSearchBrokerSettings: () -> Unit,

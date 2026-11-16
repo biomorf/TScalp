@@ -7,7 +7,6 @@ import com.gitlab.biomorf.tscalp.domain.api.managers.PriceFlowManager
 import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
 import com.gitlab.biomorf.tscalp.domain.models.PriceUpdate
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoreOrderFormUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RestoredFormState
@@ -61,23 +60,30 @@ class OrderInstrumentViewModel
             }
         }
 
-        fun onInstrumentSelected(instrument: Instrument) {
+        fun onInstrumentSelected(
+            tscalpInstrumentId: String,
+            ticker: String,
+            brokerName: BrokerName,
+        ) {
             _state.update {
                 it.copy(
-                    selectedInstrument = instrument,
-                    ticker = instrument.ticker,
-                    selectedBroker = instrument.brokerName,
+                    ticker = ticker,
+                    selectedBroker = brokerName,
                 )
             }
             viewModelScope.launch {
                 _state.update { it.copy(isPriceLoading = true) }
                 val currentAccountId = _state.value.selectedAccountId
-                when (val result = selectInstrumentUseCase.execute(instrument, currentAccountId)) {
+                when (
+                    val result =
+                        selectInstrumentUseCase.execute(tscalpInstrumentId, brokerName, currentAccountId)
+                ) {
                     is AppResult.Success -> {
                         val data = result.data
                         val card = data.card
                         _state.update {
                             it.copy(
+                                selectedInstrument = data.instrument,
                                 currentPrice = card.currentPrice,
                                 isPriceLoading = false,
                                 currentPointValue = data.pointValue,
@@ -86,7 +92,7 @@ class OrderInstrumentViewModel
                         }
                         logger.d(
                             TAG,
-                            "onInstrumentSelected: success ${instrument.ticker} " +
+                            "onInstrumentSelected: success $ticker " +
                                 "(acc=${card.accountId}, price=${card.currentPrice})",
                         )
                         syncPriceInterest()
@@ -117,17 +123,21 @@ class OrderInstrumentViewModel
             syncPriceInterest()
         }
 
-        fun onPairedInstrumentSelected(instrument: Instrument) {
+        fun onPairedInstrumentSelected(
+            tscalpInstrumentId: String,
+            ticker: String,
+            brokerName: BrokerName,
+        ) {
             _state.update {
                 it.copy(
-                    pairedInstrument = instrument,
-                    pairedBroker = instrument.brokerName,
+                    pairedBroker = brokerName,
                     pairedAccountId = null,
                 )
             }
-            syncPriceInterest()
             viewModelScope.launch {
-                when (val result = selectPairedInstrumentUseCase.execute(instrument)) {
+                when (
+                    val result = selectPairedInstrumentUseCase.execute(tscalpInstrumentId, brokerName)
+                ) {
                     is AppResult.Success -> {
                         val data = result.data
                         val price = data.price
@@ -135,9 +145,11 @@ class OrderInstrumentViewModel
                             _state.update { it.copy(pairCurrentPrice = price) }
                             _state.update { it.copy(pairedPointValue = data.pointValue) }
                         }
+                        _state.update { it.copy(pairedInstrument = data.instrument) }
+                        syncPriceInterest()
                         logger.d(
                             TAG,
-                            "onPairedInstrumentSelected: success ${instrument.ticker} (price=$price)",
+                            "onPairedInstrumentSelected: success $ticker (price=$price)",
                         )
                     }
                     is AppResult.Failure -> {

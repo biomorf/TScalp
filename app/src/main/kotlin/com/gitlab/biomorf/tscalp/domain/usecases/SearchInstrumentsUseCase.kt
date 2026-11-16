@@ -5,7 +5,7 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Instrument
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -39,7 +39,7 @@ class SearchInstrumentsUseCase
         suspend fun execute(
             brokerName: BrokerName,
             query: String,
-        ): AppResult<List<Instrument>> {
+        ): AppResult<List<SearchItem>> {
             logger.d(TAG, "execute: broker=$brokerName, query=$query")
             return try {
                 when (val searchResult = searchCacheRepository.search(brokerName, query)) {

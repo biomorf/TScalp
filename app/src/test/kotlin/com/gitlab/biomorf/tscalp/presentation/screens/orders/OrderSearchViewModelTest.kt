@@ -6,7 +6,8 @@ import com.gitlab.biomorf.tscalp.domain.log.Logger
 import com.gitlab.biomorf.tscalp.domain.models.AppError
 import com.gitlab.biomorf.tscalp.domain.models.AppResult
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Share
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import com.gitlab.biomorf.tscalp.domain.usecases.SearchInstrumentsUseCase
 import com.gitlab.biomorf.tscalp.testutil.MainDispatcherRule
 import io.mockk.coEvery
@@ -35,12 +36,12 @@ class OrderSearchViewModelTest {
     private fun createVm() = OrderSearchViewModel(searchInstrumentsUseCase, searchCacheRepository, brokerRegistry, logger)
 
     private val sber =
-        Share(
+        SearchItem(
             brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-sber",
             ticker = "SBER",
             name = "Сбербанк",
-            isin = "RU0009029540",
+            instrumentType = InstrumentType.SHARE,
         )
 
     @Test
@@ -107,9 +108,9 @@ class OrderSearchViewModelTest {
         runTest {
             val vm = createVm()
 
-            vm.onResultSelected(SearchSlot.PRIMARY, sber)
+            vm.onResultSelected(SearchSlot.PRIMARY, "sber-uid", "SBER", "Name-sber")
 
-            assertEquals("SBER - Сбербанк", vm.state.value.primary.query)
+            assertEquals("SBER - Name-sber", vm.state.value.primary.query)
             assertTrue(
                 vm.state.value.primary.results
                     .isEmpty(),
@@ -121,7 +122,7 @@ class OrderSearchViewModelTest {
     fun `clearSearchQuery resets search fields`() =
         runTest {
             val vm = createVm()
-            vm.onResultSelected(SearchSlot.PRIMARY, sber)
+            vm.onResultSelected(SearchSlot.PRIMARY, "sber-uid", "SBER", "Name-sber")
 
             vm.clearQuery(SearchSlot.PRIMARY)
 
@@ -171,9 +172,9 @@ class OrderSearchViewModelTest {
             val vm = createVm()
             vm.setSearchActive(true)
 
-            vm.onResultSelected(SearchSlot.PAIR, sber)
+            vm.onResultSelected(SearchSlot.PAIR, "sber-uid", "SBER", "Name-sber")
 
-            assertEquals("SBER - Сбербанк", vm.state.value.pair.query)
+            assertEquals("SBER - Name-sber", vm.state.value.pair.query)
             assertTrue(
                 vm.state.value.pair.results
                     .isEmpty(),
@@ -186,8 +187,8 @@ class OrderSearchViewModelTest {
     fun `pair clearQuery resets pair fields only`() =
         runTest {
             val vm = createVm()
-            vm.onResultSelected(SearchSlot.PRIMARY, sber)
-            vm.onResultSelected(SearchSlot.PAIR, sber)
+            vm.onResultSelected(SearchSlot.PRIMARY, "sber-uid", "SBER", "Name-sber")
+            vm.onResultSelected(SearchSlot.PAIR, "sber-uid", "SBER", "Name-sber")
 
             vm.clearQuery(SearchSlot.PAIR)
 
@@ -197,7 +198,7 @@ class OrderSearchViewModelTest {
                     .isEmpty(),
             )
             // primary не задет
-            assertEquals("SBER - Сбербанк", vm.state.value.primary.query)
+            assertEquals("SBER - Name-sber", vm.state.value.primary.query)
         }
 
     @Test

@@ -2,7 +2,8 @@ package com.gitlab.biomorf.tscalp.data.repository
 
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.models.BrokerName
-import com.gitlab.biomorf.tscalp.domain.models.Share
+import com.gitlab.biomorf.tscalp.domain.models.InstrumentType
+import com.gitlab.biomorf.tscalp.domain.models.SearchItem
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -15,12 +16,12 @@ class SearchCacheImplTest {
     private val cache = SearchCacheImpl(brokerRegistry)
 
     private val sber =
-        Share(
+        SearchItem(
             brokerName = BrokerName.TINVEST,
             tscalpInstrumentId = "uid-sber",
             ticker = "SBER",
             name = "Sberbank",
-            isin = "RU0009029540",
+            instrumentType = InstrumentType.SHARE,
         )
 
     @Test
