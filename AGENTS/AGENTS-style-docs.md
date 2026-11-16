@@ -92,6 +92,15 @@ fallback `$HOME/deepseek/`; вставить обратно — `docs_add.py`):
     python3 AGENTS/scripts/docs_normalize.py --check --all   # CI, exit 1 при отклонении
     python3 AGENTS/scripts/docs_normalize.py --apply --all   # запись
 
+**Live-test / post-PR** — `AGENTS/scripts/*.sh`:
+
+    AGENTS/scripts/live-test-build.sh                  # installDebug + force-stop
+    AGENTS/scripts/live-test-capture.sh                # режим A (файл), CAPTURE_SECONDS
+    AGENTS/scripts/live-test-capture-interactive.sh    # режим B (live, --line-buffered)
+    AGENTS/scripts/post-pr.sh <branch>                 # 5f чек-лист
+
+Шапки скриптов содержат зависимости, аргументы и примеры. См. `docs/live-test.md`.
+
 **`normalize.py --check` входит в 4h pre-commit checklist** для `AGENTS/`:
 перед коммитом — `--check --all` → `deviations=0`.
 
