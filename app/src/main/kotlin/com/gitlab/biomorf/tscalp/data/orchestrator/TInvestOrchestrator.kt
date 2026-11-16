@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestInstrumentsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
@@ -17,6 +19,7 @@ import com.gitlab.biomorf.tscalp.domain.models.OrderState
 import com.gitlab.biomorf.tscalp.domain.models.PositionStreamItem
 import com.gitlab.biomorf.tscalp.domain.models.toStreamItem
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Оркестратор стримов T-Invest.
@@ -37,6 +40,7 @@ class TInvestOrchestrator(
     private val prices: TInvestPricesService,
     private val trading: TInvestTradingService,
     private val instruments: TInvestInstrumentsService,
+    private val rateLimiter: TransportRateLimiter,
     private val logger: Logger,
     private val wsFallback: (String) -> Flow<PositionStreamItem>? = { null },
     private val pricesWsFallback: (Set<String>) -> Flow<Pair<String, Double>>? = { null },
@@ -51,56 +55,86 @@ class TInvestOrchestrator(
         private const val TAG = "TInvestOrchestrator"
     }
 
+    /**
+     * Stream positions: gRPC primary + WS fallback merged, guarded by the
+     * stream slot (T-5). Slot lifetime = subscription lifetime.
+     *
+     * Edge case (T-5): if both `disableGrpc` and `disableWs` are on,
+     * [mergeStreamSources] returns an empty flow. The slot is still taken
+     * and released immediately — bounded, no leak, no stuck slot.
+     */
     fun positionsStream(accountId: String): Flow<PositionStreamItem> =
-        mergeStreamSources(
-            primary =
-                if (debugFlagsRepository.disableGrpc) {
-                    null
-                } else {
-                    positions.subscribePositionsGrpcWithReconnect(accountId)
-                },
-            fallback =
-                if (debugFlagsRepository.disableWs) {
-                    null
-                } else {
-                    wsFallback(accountId)
-                },
-            polling = null,
-        )
+        flow {
+            rateLimiter.withStreamSlot(TransportProtocol.GRPC, "operations") {
+                mergeStreamSources(
+                    primary =
+                        if (debugFlagsRepository.disableGrpc) {
+                            null
+                        } else {
+                            positions.subscribePositionsGrpcWithReconnect(accountId)
+                        },
+                    fallback =
+                        if (debugFlagsRepository.disableWs) {
+                            null
+                        } else {
+                            wsFallback(accountId)
+                        },
+                    polling = null,
+                ).collect { emit(it) }
+            }
+        }
 
+    /**
+     * Stream last prices: gRPC primary (retry-with-backoff) + WS fallback
+     * merged, guarded by the stream slot (T-5). See [positionsStream]
+     * for the `disableGrpc && disableWs` edge case.
+     */
     fun pricesStream(uids: Set<String>): Flow<Pair<String, Double>> =
-        mergeStreamSources(
-            primary =
-                if (debugFlagsRepository.disableGrpc) {
-                    null
-                } else {
-                    retryWithBackoff { prices.subscribeLastPrices(uids.toList()) }
-                },
-            fallback =
-                if (debugFlagsRepository.disableWs) {
-                    null
-                } else {
-                    pricesWsFallback(uids)
-                },
-            polling = null,
-        )
+        flow {
+            rateLimiter.withStreamSlot(TransportProtocol.GRPC, "marketdata") {
+                mergeStreamSources(
+                    primary =
+                        if (debugFlagsRepository.disableGrpc) {
+                            null
+                        } else {
+                            retryWithBackoff { prices.subscribeLastPrices(uids.toList()) }
+                        },
+                    fallback =
+                        if (debugFlagsRepository.disableWs) {
+                            null
+                        } else {
+                            pricesWsFallback(uids)
+                        },
+                    polling = null,
+                ).collect { emit(it) }
+            }
+        }
 
+    /**
+     * Stream order state: gRPC primary (retry-with-backoff) + WS fallback
+     * merged, guarded by the stream slot (T-5). See [positionsStream]
+     * for the `disableGrpc && disableWs` edge case.
+     */
     fun orderStateStream(accountId: String): Flow<OrderState> =
-        mergeStreamSources(
-            primary =
-                if (debugFlagsRepository.disableGrpc) {
-                    null
-                } else {
-                    retryWithBackoff { trading.subscribeOrderState(accountId) }
-                },
-            fallback =
-                if (debugFlagsRepository.disableWs) {
-                    null
-                } else {
-                    orderStateWsFallback(accountId)
-                },
-            polling = null,
-        )
+        flow {
+            rateLimiter.withStreamSlot(TransportProtocol.GRPC, "orders") {
+                mergeStreamSources(
+                    primary =
+                        if (debugFlagsRepository.disableGrpc) {
+                            null
+                        } else {
+                            retryWithBackoff { trading.subscribeOrderState(accountId) }
+                        },
+                    fallback =
+                        if (debugFlagsRepository.disableWs) {
+                            null
+                        } else {
+                            orderStateWsFallback(accountId)
+                        },
+                    polling = null,
+                ).collect { emit(it) }
+            }
+        }
 
     // ---------- Unary snapshots (без fallback, фаза 1a) ----------
     // Fallback gRPC → REST будет добавлен в шаге 2.

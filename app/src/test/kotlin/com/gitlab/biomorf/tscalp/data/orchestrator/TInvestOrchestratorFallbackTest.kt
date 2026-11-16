@@ -1,5 +1,7 @@
 package com.gitlab.biomorf.tscalp.data.orchestrator
 
+import com.gitlab.biomorf.tscalp.data.api.common.TransportProtocol
+import com.gitlab.biomorf.tscalp.data.api.common.TransportRateLimiter
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestAccountsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestInstrumentsService
 import com.gitlab.biomorf.tscalp.data.api.tinvest.TInvestOrdersService
@@ -32,6 +34,25 @@ class TInvestOrchestratorFallbackTest {
     private val trading = mockk<TInvestTradingService>()
     private val instruments = mockk<TInvestInstrumentsService>()
 
+    // Noop limiter: passes the block through, so the test flow sees no
+    // throttling. TInvestRateLimiter itself is covered in
+    // TInvestRateLimiterTest.
+    private val noopRateLimiter =
+        object : TransportRateLimiter {
+            override suspend fun <T> withUnaryPermission(
+                protocol: TransportProtocol,
+                service: String,
+                method: String?,
+                block: suspend () -> T,
+            ): T = block()
+
+            override suspend fun <T> withStreamSlot(
+                protocol: TransportProtocol,
+                service: String,
+                block: suspend () -> T,
+            ): T = block()
+        }
+
     @Test
     fun `pricesSnapshot falls back to REST on UNAVAILABLE`() =
         runBlocking {
@@ -48,6 +69,7 @@ class TInvestOrchestratorFallbackTest {
                     trading = trading,
                     instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
+                    rateLimiter = noopRateLimiter,
                     logger = TestLogger,
                     pricesRestFallback = { restData },
                 )
@@ -73,6 +95,7 @@ class TInvestOrchestratorFallbackTest {
                     trading = trading,
                     instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
+                    rateLimiter = noopRateLimiter,
                     logger = TestLogger,
                     pricesRestFallback = {
                         fallbackCalled = true
@@ -105,6 +128,7 @@ class TInvestOrchestratorFallbackTest {
                     trading = trading,
                     instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
+                    rateLimiter = noopRateLimiter,
                     logger = TestLogger,
                     ordersRestFallback = { restOrders },
                 )
@@ -130,6 +154,7 @@ class TInvestOrchestratorFallbackTest {
                     trading = trading,
                     instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
+                    rateLimiter = noopRateLimiter,
                     logger = TestLogger,
                     balanceRestFallback = { restBalance },
                 )
@@ -163,6 +188,7 @@ class TInvestOrchestratorFallbackTest {
                     trading = trading,
                     instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
+                    rateLimiter = noopRateLimiter,
                     logger = TestLogger,
                     positionsRestFallback = { _, _ -> restPositions },
                 )
@@ -188,6 +214,7 @@ class TInvestOrchestratorFallbackTest {
                     trading = trading,
                     instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
+                    rateLimiter = noopRateLimiter,
                     logger = TestLogger,
                     findInstrumentsRestFallback = { restData },
                 )
@@ -213,6 +240,7 @@ class TInvestOrchestratorFallbackTest {
                     trading = trading,
                     instruments = instruments,
                     debugFlagsRepository = mockk(relaxed = true),
+                    rateLimiter = noopRateLimiter,
                     logger = TestLogger,
                     findInstrumentsRestFallback = {
                         fallbackCalled = true

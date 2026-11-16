@@ -107,12 +107,30 @@ internal class TInvestRateLimiter(
     ): T {
         val semaphore =
             mutex.withLock {
-                streamSemaphores.getOrPut(protocol to service) {
+                streamSemaphores.getOrPut(streamSemaphoreKey(protocol, service)) {
                     Semaphore(streamLimit(protocol, service))
                 }
             }
         return semaphore.withPermit { block() }
     }
+
+    /**
+     * Semaphore key for [withStreamSlot].
+     *
+     * When [TInvestRateLimits.WS_SHARES_STREAM_BUDGET] is true, WS and
+     * gRPC-streaming share a single per-service budget (T-Invest docs:
+     * WS is a proxy for gRPC streaming; the counter is assumed shared).
+     * Otherwise WS and gRPC have independent per-service budgets.
+     */
+    private fun streamSemaphoreKey(
+        protocol: TransportProtocol,
+        service: String,
+    ): Pair<TransportProtocol, String> =
+        if (TInvestRateLimits.WS_SHARES_STREAM_BUDGET && protocol == TransportProtocol.WS) {
+            TransportProtocol.GRPC to service
+        } else {
+            protocol to service
+        }
 
     private fun tryAcquireAll(
         protocol: TransportProtocol,
