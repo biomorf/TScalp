@@ -81,7 +81,7 @@ ___
 
 **Зависимости:** нет. Подзадачи независимы (кроме 2–4 → после 1).
 
-**Связано:** PR #160 (observability + 3 fix; merged `4af3b682`); `docs/ISSUES.md` → `## T-Invest rate-limit umbrella...`, `## PortfolioScreen: infinite retry...`; `docs/clean-audit.md` → Н66; `docs/rate-limits.md`; `docs/brokers.md`.
+**Связано:** PR #160 (observability + 3 fix; merged `4af3b682`); PR #162 (burst-capacity fix; merged `1a3635fb`); `docs/ISSUES.md` → `## T-Invest rate-limit umbrella...`, `## PortfolioScreen: infinite retry...`; `docs/clean-audit.md` → Н66; `docs/rate-limits.md`; `docs/brokers.md`.
 
 **Открытые вопросы (решить в подзадаче 1):**
 - **D1 (решено).** A+ split: 1a — unary (gRPC-unary + REST-unary, token bucket, 4 уровня); 1b — stream (gRPC-streaming + WS, semaphore, флаг `WS_SHARES_STREAM_BUDGET = true`). «gRPC» в конфиге заменён на «streaming» (WS = прокси для gRPC streaming, делят stream-лимит).

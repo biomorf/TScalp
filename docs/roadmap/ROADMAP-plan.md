@@ -297,6 +297,7 @@ ___
 **Статус:** запланировано.
 
 **Контекст:** `SearchInstrumentsUseCase:49` вызывает `updateStatuses(instruments.map { uid })` на **каждый** поиск, включая cache hit. Даже если результаты из `SearchCacheRepository` — N unary впустую. См. umbrella.
+**Live-log 2026-11-16 (sandbox):** 3723 × `getTradingStatus` за 5 мин capture — N на каждый поиск в реальном сценарии.
 
 **Соответствие Clean:** соответствует.
 
