@@ -636,4 +636,60 @@ ___
 
 
 
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-22 -->
+___
+### architecture-22 Rate-limiter (transport layer)
+**Что/зачем.** Ограничитель частоты unary-запросов к брокеру. Защищает от `RESOURCE_EXHAUSTED` при burst (поиск, cold start, polling). Broker-agnostic интерфейс; domain про лимиты не знает — это свойство транспорта (2a, 2e).
+
+**Где живёт (data-слой).**
+- `data/api/common/TransportRateLimiter` — интерфейс (`withUnaryPermission`, `withStreamSlot`).
+- `data/api/tinvest/TInvestRateLimiter` — реализация (token-bucket + stream semaphore).
+- `data/api/tinvest/TInvestRateLimits` — per-broker конфиг (лимиты из `docs/rate-limits.md`).
+- BCS/Finam — свои `<Broker>RateLimits.kt` + impl при интеграции.
+
+**Четыре уровня unary (narrow → broad, all-or-nothing acquire).** На каждый unary-вызов проверяются все применимые уровни; если хотя бы один пуст — ждём `max(waits)`, ничего не списывая:
+1. **per-(protocol, service.method) per-second** — `postOrder` 15/sec.
+2. **per-(protocol, service.method) per-minute** — `getOrders` 200, `getStopOrders` 60, `getHistory` 30 REST, `cancelOrder`/`replaceOrder` 300.
+3. **per-(protocol, service) per-minute** — Instruments 200 (gRPC) / 100 (REST), MarketData 600, Orders 100.
+4. **global per-second** — 50/sec, все транспорты, все сервисы.
+
+**Per-method override заменяет per-service cap** (не добавляется): `getOrders` 200/min > `orders` 100/min — берётся только override + global.
+
+**Bucket capacity = 1s burst.** Для per-minute bucket `capacity = limit / 60.0` (1 секунда токенов), не `limit` (полная минута). Иначе burst N за < 1 сек превышает серверный per-second cap → `RESOURCE_EXHAUSTED` (`l-kotlin-115`, PR #162). Per-second bucket — `capacity = limit` (уже 1s).
+
+**Timeout.** `RateLimitTimeoutException` при `waitedMs + waitMs > timeoutMs` (5s) → caller на границе data → `AppResult.Failure`. Ниже — поток одного вызова:
+
+```mermaid
+flowchart LR
+    C[unary call] --> S1[per-method sec]
+    S1 --> S2[per-method min]
+    S2 --> S3[per-service min]
+    S3 --> G[global sec]
+    G -->|all pass| B[block]
+    G -->|any empty| W[wait max waits]
+    W --> C
+    G -->|timeout| E[RateLimitTimeoutException → AppResult.Failure]
+```
+
+**Stream limiter (1b).** `withStreamSlot` — per-(protocol, service) semaphore; WS и gRPC-streaming делят бюджеты (флаг `WS_SHARES_STREAM_BUDGET`). 4 уровня unary к стримам не применяются.
+
+**Clean:** соответствует — data-layer infrastructure, domain не знает. **KMP:** `kotlin.time.Clock` (injected), `kotlinx.coroutines.sync.*` — без `java.*` / `android.*`.
+
+**Связанные:** T-3 umbrella (`docs/roadmap/ROADMAP-wip.md`); PR #162 (burst-capacity fix); `docs/rate-limits.md` (лимиты API); `l-kotlin-115` (bucket capacity); 1b (stream limiter, план).
+<!-- SUBSECTION_END: architecture-22 -->
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: architecture -->
