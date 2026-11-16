@@ -56,6 +56,15 @@ class SearchCacheImpl
             return AppResult.Success(sorted)
         }
 
+        override fun isCached(
+            brokerName: BrokerName,
+            query: String,
+        ): Boolean {
+            val normalizedQuery = query.trim().lowercase()
+            val key = "${brokerName.key}:$normalizedQuery"
+            return cache.containsKey(key)
+        }
+
         /**
          * Инвалидирует кеш для конкретного запроса и брокера.
          * Используется при нажатии кнопки "Обновить".

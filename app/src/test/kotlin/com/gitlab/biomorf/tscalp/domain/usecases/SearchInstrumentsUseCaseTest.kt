@@ -10,6 +10,7 @@ import com.gitlab.biomorf.tscalp.domain.models.Share
 import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
@@ -50,6 +51,19 @@ class SearchInstrumentsUseCaseTest {
             coVerify(exactly = 1) {
                 updateStatuses.execute(BrokerName.TINVEST, listOf("uid-sber"))
             }
+        }
+
+    @Test
+    fun `cache hit skips statuses call`() =
+        runBlocking {
+            coEvery { searchCache.search(BrokerName.TINVEST, "SBER") } returns
+                AppResult.Success(listOf(sber))
+            every { searchCache.isCached(BrokerName.TINVEST, "SBER") } returns true
+
+            val r = useCase.execute(BrokerName.TINVEST, "SBER")
+
+            assertTrue(r is AppResult.Success)
+            coVerify(exactly = 0) { updateStatuses.execute(any(), any()) }
         }
 
     @Test

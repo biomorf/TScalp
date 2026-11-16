@@ -26,6 +26,17 @@ interface SearchCacheRepository {
         query: String,
     ): AppResult<List<Instrument>>
 
+    /**
+     * Возвращает `true`, если результат [search] для пары
+     * (`brokerName`, `query`) уже лежит в кеше. Неатомарен с
+     * [search] (между вызовами кеш может быть инвалидирован);
+     * используется для skip обновлений, не для корректности.
+     */
+    fun isCached(
+        brokerName: BrokerName,
+        query: String,
+    ): Boolean
+
     /** Инвалидирует кеш для конкретного запроса и брокера. */
     fun invalidate(
         brokerName: BrokerName,

@@ -103,75 +103,7 @@ ___
 
 
 
-<!-- SUBSECTION_BEGIN: t-7 -->
-___
-### [WIP] T-7 updateStatuses: skip on cache hit / lazy on select
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** в работе.
-
-**Ветка:** feature/update-statuses-skip-cache
-
-**Контекст.** `SearchInstrumentsUseCase:48-50` вызывает `updateStatuses(instruments.map { uid })` на **каждый** `AppResult.Success` из `SearchCacheRepository.search`. `SearchCacheImpl.search` (line 39) возвращает кэш и miss одинаково (`AppResult.Success`), не различая. Cache hit (повторный ввод той же строки) → **N unary впустую** (`getTradingStatuses` = N × `getTradingStatus`). Live-log 2026-11-16 (sandbox): 2275 `getTradingStatus` за 5 мин capture — N на каждый поиск, включая cache hit.
-
-**Решение (вариант A).** `SearchCacheRepository` получает `isCached(brokerName, query): Boolean`; `SearchInstrumentsUseCase` вызывает `updateStatuses` только при `!isCached`.
-- Cache hit → 0 unary.
-- Свежий поиск → N (как сейчас).
-- UX не меняется (статусы на свежем поиске остаются свежими).
-
-**Отклонённые альтернативы (для будущих сессий).**
-- **B — `SearchResult(instruments, fromCache)`.** Меняет контракт `search`, тот же результат, ~1 ч. Рассмотреть, если `isCached` + `search` окажутся неатомарными (race: между `isCached` и `search` кеш инвалидирован). Сейчас race не критичен — худший случай лишний N unary, не ошибка.
-- **C — lazy on select.** Search = N+1 unary (без +N), **UX-регресс** (UNKNOWN в результатах до выбора), риск **M2** (orchestration в VM). Рассмотреть, если UX-решение принято.
-- **D — drop statuses из search.** → **deferred to T-39** (`docs/roadmap/ROADMAP-defer.md`): needs periodic status refresh in Coord + T-8 batching + UX sanction (rule 1).
-
-**Соответствие Clean:** соответствует (contract в domain, импл в data; orchestration — usecase).
-
-**Нарушенное правило Clean:** —.
-**Clean-альтернатива:** —.
-**Выгоды (для «отклонение по 2c»):** —.
-
-**MVVM:** соответствует (orchestration в usecase, не VM).
-**KMP:** соответствует (domain без platform).
-
-**Предусловия:** T-5 merged (stream limiter; PR pending) — не блокер для T-7, разные механизмы.
-
-**Файлы.**
-- `domain/api/repository/SearchCacheRepository.kt` — `isCached(brokerName, query): Boolean`.
-- `data/repository/SearchCacheImpl.kt` — реализация `isCached` (нормализация query, как в `search`).
-- `domain/usecases/SearchInstrumentsUseCase.kt` — `if (!searchCacheRepository.isCached(...)) updateStatuses(...)`.
-- `app/src/test/.../SearchInstrumentsUseCaseTest.kt` (новый) — cache hit → 0 вызовов `updateTradingStatusesUseCase`; miss → 1.
-
-**Шаги.**
-1. `SearchCacheRepository.isCached`: `fun isCached(brokerName, query): Boolean`.
-2. `SearchCacheImpl.isCached`: нормализация (trim + lowercase) + `cache.containsKey(key)`.
-3. `SearchInstrumentsUseCase`: `if (!searchCacheRepository.isCached(brokerName, query)) { updateStatuses(...) }`.
-4. Тест: cache hit → 0; miss → 1.
-
-**Тесты:** `SearchInstrumentsUseCaseTest` — 2 кейса.
-
-**Референсы:** T-7 `ROADMAP-wip.md`; live-log 2026-11-16; `SearchCacheImpl`; `TradingStatusRepository`; `UpdateTradingStatusesUseCase`.
-
-**Ограничения.**
-- Не менять публичный контракт `UpdateTradingStatusesUseCase`.
-- Не менять UX.
-- `isCached` + `search` — неатомарны (race между вызовами); худший случай — лишний N unary, не ошибка. Если race станет критичным — вариант B.
-
-**Критерий готовности.**
-- Cache hit → 0 unary (`getTradingStatuses` не вызывается).
-- Свежий поиск → N unary (как сейчас).
-- `SearchInstrumentsUseCaseTest` — 2 кейса зелёные.
-- Гейт зелёный.
-
-**Оценка:** ~30 мин.
-
-**Зависимости:** — (независима от T-5, T-6, T-8).
-
-**Связано:** umbrella T-3; T-6 (N+1 search); T-8 (batching); `docs/rate-limits.md`.
-
-**Открытые вопросы.**
-- D2: `updateStatuses` в search — skip on cache hit / lazy на select / drop? — **решено: skip on cache hit (A)**.
-- Есть ли ещё call sites `UpdateTradingStatusesUseCase` (в `Coord`, по KDoc) — проверить grep `UpdateTradingStatusesUseCase` в `main` без `usecases/` + `di/`.
-<!-- SUBSECTION_END: t-7 -->
 
 
 
