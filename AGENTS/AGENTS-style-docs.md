@@ -100,6 +100,7 @@ fallback `$HOME/deepseek/`; вставить обратно — `docs_add.py`):
     bash AGENTS/scripts/live-test-capture.sh                # режим A (файл), CAPTURE_SECONDS
     bash AGENTS/scripts/live-test-capture-interactive.sh    # режим B (live, --line-buffered)
     bash AGENTS/scripts/post-pr.sh <branch>                 # 5f чек-лист
+    bash AGENTS/scripts/docs-gate.sh [files...]        # 5a docs-only gate
 
 Шапки скриптов содержат зависимости, аргументы и примеры. См. `docs/live-test.md`.
 
