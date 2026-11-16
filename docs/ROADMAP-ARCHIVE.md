@@ -11565,3 +11565,31 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 
 ___
+
+
+
+___
+
+
+
+### ✅ AGENTS: авто-rebuild индекса после add.py/cut.py
+
+**Дата закрытия:** 2026-11-16
+
+**Что сделано:** rebuild_index.py: rebuild(apply) extracted; add.py/cut.py call it after write_text; replace_table idempotent (skip blank lines). Plan task removed from ROADMAP.
+
+**Коммит:** `e12aed55`
+
+
+
+___
+
+
+
+### ✅ AGENTS-style.md: дробление на style-core / style-git / style-docs
+
+**Дата закрытия:** 2026-11-16
+
+**Что сделано:** AGENTS-style.md (150KB, 30 SUBSECTION) split into style-core (10), style-git (10), style-docs (10); IDs r* unchanged; index rebuilt; 165/165 pairs; --check-index 0.
+
+**Коммит:** `cce71706`
