@@ -161,26 +161,31 @@ def check_index() -> list[str]:
 
     Returns list of errors (empty = ok)."""
     errors = []
-    idx_path = Path("AGENTS/AGENTS.md")
-    if not idx_path.exists():
-        return []  # no index yet — nothing to check
-    idx_text = idx_path.read_text(encoding="utf-8")
-    # Parse table rows: | <id> | <title> | <file> | <anchor> |
-    row_re = re.compile(r"^\| ([A-Za-z0-9_-]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", re.MULTILINE)
+    idx_paths = [Path("AGENTS/AGENTS.md"), Path("AGENTS/AGENTS-LESSONS.md")]
+    row_re = re.compile(r"^\| ([A-Za-z0-9_-]+) \| ((?:[^|\\]|\\.)+) \| ((?:[^|\\]|\\.)+) \| ((?:[^|\\]|\\.)+) \|$", re.MULTILINE)
     index_ids = set()
     index_files = {}
-    for m in row_re.finditer(idx_text):
-        sid, _title, fpath, _anchor = m.groups()
-        if sid in ("ID",):  # skip header row
+    any_index = False
+    for idx_path in idx_paths:
+        if not idx_path.exists():
             continue
-        index_ids.add(sid)
-        index_files[sid] = fpath.strip()
+        any_index = True
+        idx_text = idx_path.read_text(encoding="utf-8")
+        for m in row_re.finditer(idx_text):
+            sid, _title, fpath, _anchor = m.groups()
+            if sid in ("ID",):
+                continue
+            index_ids.add(sid)
+            index_files[sid] = fpath.strip()
+    if not any_index:
+        return []
     # Actual
     actual = {}
     for f in Path("AGENTS").glob("AGENTS-*.md"):
         if f.name in ("AGENTS.md",):
             continue
-        for m in BEGIN_RE.finditer(f.read_text(encoding="utf-8")):
+        for m in re.finditer(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$",
+                     f.read_text(encoding="utf-8"), re.MULTILINE):
             actual[m.group(1)] = f.name
     # In index, not in files
     for sid in sorted(index_ids - set(actual)):
