@@ -42,7 +42,7 @@ def main():
     block_lines = [
         begin_tag,
         "___",
-        f"### {args.id} {args.title}",
+        f"### {args.title}",
         body.rstrip("\n"),
         f"<!-- SUBSECTION_END: {args.id} -->",
     ]
@@ -51,7 +51,7 @@ def main():
     if args.at_end:
         # insert before SECTION_END of this file
         import re
-        m = re.search(r"^<!-- (AGENTS|LESSONS)_SECTION_END: [A-Za-z0-9_-]+ -->$",
+        m = re.search(r"^<!-- (?:AGENTS_|LESSONS_)?SECTION_END: [A-Za-z0-9_-]+ -->$",
                       text, re.MULTILINE)
         assert m, "SECTION_END not found"
         idx = m.start()
