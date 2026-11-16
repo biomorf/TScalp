@@ -4,21 +4,39 @@
 # merge --ff-only origin/dev -> stash pop (if was stashed) ->
 # delete local branch -> delete remote branch -> verify.
 #
-# Deps: git.
-# Args: <branch> (the merged branch name to delete).
+# Deps: git, grep, awk.
+# Args:
+#   <branch>          merged branch name to delete (required).
+#   --task T-N        optional: verify ROADMAP state for T-N.
 # Env:  none.
-# Exit: 0 on success; non-zero on failure (branch still exists, etc.).
+# Exit: 0 on success; non-zero on failure (branch still exists, missing
+#       mark done, etc.).
 #
 # Note (l-scripts-100): stash pop only if push actually created a stash.
 
 set -uo pipefail
-BRANCH="${1:-}"
+BRANCH=""
+TASK=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --task) TASK="$2"; shift 2 ;;
+    --task=*) TASK="${1#--task=}"; shift ;;
+    -h|--help)
+      echo "usage: $0 <branch-to-delete> [--task T-N]"
+      exit 0
+      ;;
+    --) shift; break ;;
+    -*) echo "unknown flag: $1" >&2; exit 2 ;;
+    *) BRANCH="$1"; shift ;;
+  esac
+done
+
 if [ -z "$BRANCH" ]; then
-  echo "usage: $0 <branch-to-delete>"
+  echo "usage: $0 <branch-to-delete> [--task T-N]" >&2
   exit 2
 fi
 
-echo "=== post-pr: branch=$BRANCH ==="
+echo "=== post-pr: branch=$BRANCH task=${TASK:-none} ==="
 echo "current: $(git branch --show-current)"
 echo "HEAD:    $(git log --oneline -1)"
 echo
@@ -68,3 +86,31 @@ echo
 
 echo "=== 7. final state ==="
 git status
+echo
+
+if [ -n "$TASK" ]; then
+  echo "=== 8. ROADMAP check for $TASK ==="
+  ARCHIVE=docs/roadmap/ROADMAP-ARCHIVE.md
+  WIP=docs/roadmap/ROADMAP-wip.md
+  if [ -f "$ARCHIVE" ] && grep -qE "^### ✅ ${TASK} " "$ARCHIVE"; then
+    echo "  OK: $TASK in $ARCHIVE (### ✅)"
+  elif [ -f "$WIP" ] && awk -v t="$TASK" '
+      $0 ~ "^### \[(WIP|PLAN|DEFER)\] "t" " {in_block=1; next}
+      in_block && /^### / {in_block=0}
+      in_block && /\*\*Подтверждение:\*\*/ {found=1}
+      END {exit !found}
+    ' "$WIP" 2>/dev/null; then
+    echo "  OK: $TASK deferred in $WIP (Подтверждение present)"
+  else
+    echo "  ERROR: mark done missing for $TASK" >&2
+    echo "  fix: docs(roadmap): mark $TASK done (docs-only commit in dev)" >&2
+    exit 1
+  fi
+  echo
+else
+  echo "=== 8. ROADMAP check: skip (no --task) ==="
+  echo "  tip: pass --task T-N to verify mark done"
+  echo
+fi
+
+echo "=== post-pr: DONE ==="

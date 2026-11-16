@@ -99,8 +99,16 @@ fallback `$HOME/deepseek/`; вставить обратно — `docs_add.py`):
     bash AGENTS/scripts/live-test-build.sh                  # installDebug + force-stop
     bash AGENTS/scripts/live-test-capture.sh                # режим A (файл), CAPTURE_SECONDS
     bash AGENTS/scripts/live-test-capture-interactive.sh    # режим B (live, --line-buffered)
-    bash AGENTS/scripts/post-pr.sh <branch>                 # 5f чек-лист
+    bash AGENTS/scripts/post-pr.sh <branch> [--task T-N]   # 5f чек-лист (+ ROADMAP verify)
     bash AGENTS/scripts/docs-gate.sh [files...]        # 5a docs-only gate
+
+**Фиксированные скрипты — использовать, не inline.** Любая операция
+из списка выше — через `AGENTS/scripts/*.sh`, не inline-дубликатом.
+Inline в правилах допустим только как «что делает скрипт» (справка
+для чтения), не для запуска. Если скрипт недоступен (нет файла /
+не та ОС) — зафиксировать причину в ответе; иначе inline запрещён.
+Причина: `evolution-workflow` (защита от повторения ошибок),
+`5b`/`r5b` (не переизобретать текст для копирования).
 
 Шапки скриптов содержат зависимости, аргументы и примеры. См. `docs/live-test.md`.
 

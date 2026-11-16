@@ -296,69 +296,51 @@ ___
 3. Только после выполнения чек-листа — переходить к
    следующей задаче.
 
-**Чек-лист post-PR (выполняется одним блоком):**
+**Чек-лист post-PR — скриптом** (r4j: использовать, не переписывать):
+
+    bash AGENTS/scripts/post-pr.sh <branch> --task T-N
+
+`<branch>` — имя смерженной feature-ветки; `--task T-N` — опционально
+(проверить ROADMAP: `### ✅ T-N` в `ROADMAP-ARCHIVE.md`, или
+`**Подтверждение:**` в `ROADMAP-wip.md`). Без `--task` ROADMAP-шаг
+пропускается с подсказкой.
+
+**Что делает скрипт** (справка для чтения, не для копирования):
 
 ```bash
-# 1. Спрятать локальные правки (если есть)
-git stash 2>/dev/null || echo "nothing to stash"
-
-# 2. Переключиться и синхронизироваться
-git checkout dev
+git stash 2>/dev/null || echo "nothing to stash"    # 1
+git checkout dev                                    # 2
 git remote update
 git merge --ff-only origin/dev
-
-# 3. Вернуть правки обратно
-git stash pop 2>/dev/null || echo "nothing to pop"
-
-# 4. Удалить локальную ветку (если не смержена, упадёт)
-git branch -d <branch>
-
-# 5. Удалить удалённую ветку (если уже удалена, пропустит)
-git push origin --delete <branch> 2>/dev/null || echo "skip: remote already gone"
-
-# 6. Пауза для синхронизации GitHub backend (иначе branch -r может показать старую ссылку)
-sleep 2
-
-# 7. Проверить, что ветки нет
-git branch -r | grep <branch> && echo "STILL EXISTS (check manually!)" || echo "remote branch deleted"
-
-# 8. Проверить рабочее дерево
-git status
+git stash pop 2>/dev/null || echo "nothing to pop"  # 3
+git branch -d <branch>                              # 4
+git push origin --delete <branch>                   # 5
+sleep 2                                             # 6
+git branch -r | grep <branch>                       # 7
+git status                                          # 8
+# + --task T-N: ROADMAP check (### ✅ in ARCHIVE / Подтверждение in wip)
 ```
 
 Если `grep` в шаге 7 нашел ветку (несмотря на `sleep 2` и успешный push --delete), это скорее всего кэш локального репозитория. Выполнить `git remote prune origin` и проверить `git branch -r` еще раз.
 
-9. Если задача из `docs/ROADMAP.md` — **проверить**, что
-   после merge она в правильном состоянии:
-    - **обычная задача**: в `docs/roadmap/ROADMAP-ARCHIVE.md`, заголовок
-      `### ✅ <название>`, поля `**Ветка:**` нет
-      (mark done сделан в feature-ветке по 5g п.4);
-    - **задача с пост-релизным подтверждением**: в
-      `## Планируемые задачи`, `**Статус:** в работе`,
-      есть строка `**Подтверждение:** <причина, deadline,
-      критерий>` (см. 5g п.4, исключение для deferred
-      closure).
-10. Если ни того, ни другого — это забытый mark done:
-   **исправить сразу в `dev`**, отдельным коммитом
-   `docs(roadmap): mark <task> done`. Не откладывать
-   на следующую сессию.
+9. **ROADMAP (если `--task` передан):** скрипт проверяет
+   состояние задачи:
+    - **обычная задача**: `### ✅ T-N` в `docs/roadmap/ROADMAP-ARCHIVE.md`,
+      поля `**Ветка:**` нет (mark done сделан в feature-ветке по 5g п.4);
+    - **задача с пост-релизным подтверждением**: в `ROADMAP-wip.md`,
+      в блоке задачи есть строка `**Подтверждение:**` (см. 5g п.4,
+      исключение для deferred closure).
+10. Если ни того, ни другого — скрипт падает с `ERROR: mark done
+    missing for T-N`. Фикс — **сразу в `dev`**, отдельным коммитом
+    `docs(roadmap): mark T-N done`. Не откладывать на следующую сессию.
 
 **Формат ответа ассистента после «PR смержен»:**
 
     PR смержен. Выполняем post-PR чек-лист:
 
-    1. `git checkout dev`
-    2. `git remote update && git merge --ff-only origin/dev`
-    3. Удалить локальную ветку: `git branch -d <branch>`
-    4. Удалить удалённую: `git push origin --delete <branch>`
-       (или проверь `git branch -r`, если GitHub удалил автоматом)
-    5. `git status`
-    6. Проверить ROADMAP: задача в `docs/roadmap/ROADMAP-ARCHIVE.md` (обычная)
-       или в `## Планируемые` с `**Подтверждение:**`
-       (deferred closure). Если ни того, ни другого —
-       mark done сразу, в `dev`.
+    bash AGENTS/scripts/post-pr.sh <branch> --task T-N
 
-    Останавливаюсь. Жду вывода команд.
+    Останавливаюсь. Жду вывода.
 
     Это исключение из 4b: чек-лист выдаётся одним блоком,
     остановка одна — после последней команды. Полный список
