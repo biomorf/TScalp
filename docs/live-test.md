@@ -11,6 +11,7 @@ Deferred closure — правило 5g п.4 AGENTS.md. Процедура —
 
 ---
 
+<!-- SECTION_BEGIN: live-test -->
 ## Предусловия
 
 - Устройство или эмулятор подключены (`adb devices` — непустой
@@ -22,6 +23,8 @@ Deferred closure — правило 5g п.4 AGENTS.md. Процедура —
 
 ---
 
+<!-- SECTION_END: live-test -->
+<!-- SECTION_BEGIN: live-test -->
 ## Два режима захвата
 
 Захват лога зависит от сценария: автоматический (приложение
@@ -41,7 +44,9 @@ live-вывод в терминал: пользователь смотрит, ч
 и решает, какое действие делать дальше. Вывод — с фильтрацией
 в терминал, опционально дублируется в файл (`tee`).
 
-### Режим A — автоматический (лог в файл)
+<!-- SUBSECTION_BEGIN: live-test-1 -->
+___
+### live-test-1 Режим A — автоматический (лог в файл)
 
 - **Лимит захвата** — 10 минут (`CAPTURE_SECONDS=600`). Хватает
   на сценарий StreamState (три перехода × три менеджера +
@@ -79,7 +84,10 @@ less /tmp/tscalp-live.log
 grep -E "FlowManager: state:|StreamStateTracker|TInvestOrchestrator|TInvestWS|TInvestRest|TInvestMarketData" /tmp/tscalp-live.log
 ```
 
-### Режим B — ручной (live-вывод в терминал)
+<!-- SUBSECTION_END: live-test-1 -->
+<!-- SUBSECTION_BEGIN: live-test-2 -->
+___
+### live-test-2 Режим B — ручной (live-вывод в терминал)
 
 Пользователь держит устройство в руках и одновременно смотрит
 в терминал (второй монитор / split screen / телефон + ноутбук).
@@ -134,6 +142,9 @@ AGENTS.md 4e, правило 5. В режиме B `grep --line-buffered` — о�
 
 ---
 
+<!-- SUBSECTION_END: live-test-2 -->
+<!-- SECTION_END: live-test -->
+<!-- SECTION_BEGIN: live-test -->
 ## Теги логов
 
 | Компонент | Тег в logcat |
@@ -149,6 +160,8 @@ AGENTS.md 4e, правило 5. В режиме B `grep --line-buffered` — о�
 
 ---
 
+<!-- SECTION_END: live-test -->
+<!-- SECTION_BEGIN: live-test -->
 ## Тайминги (watchdog StreamState)
 
 `StreamStateTracker`:
@@ -165,13 +178,17 @@ AGENTS.md 4e, правило 5. В режиме B `grep --line-buffered` — о�
 
 ---
 
+<!-- SECTION_END: live-test -->
+<!-- SECTION_BEGIN: live-test -->
 ## Сценарии
 
 Каждый сценарий указывает **режим** (A — автоматический,
 B — ручной). Если сценарий требует действий пользователя
 во время захвата, это режим B.
 
-### StreamState (PR #38, задача `StreamState в data-слое`)
+<!-- SUBSECTION_BEGIN: live-test-3 -->
+___
+### live-test-3 StreamState (PR #38, задача `StreamState в data-слое`)
 
 **Режим:** B (ручной) — нужны действия (открыть вкладку
 «Заявки», включить тумблеры, logout).
@@ -204,7 +221,10 @@ Position / Price / Order:
 5–15 сек (polling: Position/Order ~1s, Price ~5s; stream: до
 1s после reconnect) → `STALE → POLLING` или `STALE → LIVE`.
 
-### Debug-тумблеры (задача `Debug-тумблеры: применить ко всем менеджерам`)
+<!-- SUBSECTION_END: live-test-3 -->
+<!-- SUBSECTION_BEGIN: live-test-4 -->
+___
+### live-test-4 Debug-тумблеры (задача `Debug-тумблеры: применить ко всем менеджерам`)
 
 **Режим:** B (ручной).
 
@@ -274,7 +294,10 @@ Position / Price / Order:
 debug-toggles done` в `dev`. Дальше — live-тест StreamState
 (полный цикл для трёх менеджеров).
 
-### DebugConfig (задача `DebugConfig: только для debug-сборок`)
+<!-- SUBSECTION_END: live-test-4 -->
+<!-- SUBSECTION_BEGIN: live-test-5 -->
+___
+### live-test-5 DebugConfig (задача `DebugConfig: только для debug-сборок`)
 
 **Критерий:** в debug-сборке — тумблеры видны и работают;
 в release — секция скрыта, флаги всегда `false` (никаких
@@ -284,6 +307,9 @@ debug-toggles done` в `dev`. Дальше — live-тест StreamState
 
 ---
 
+<!-- SUBSECTION_END: live-test-5 -->
+<!-- SECTION_END: live-test -->
+<!-- SECTION_BEGIN: live-test -->
 ## Известные ловушки
 
 - **`adb logcat -c` обязателен** — иначе в разборе старые эмиты,
@@ -305,6 +331,8 @@ debug-toggles done` в `dev`. Дальше — live-тест StreamState
 
 ---
 
+<!-- SECTION_END: live-test -->
+<!-- SECTION_BEGIN: live-test -->
 ## Связанные документы
 
 - `AGENTS.md` 5g п.4 — deferred closure, `**Подтверждение:**`.
@@ -312,3 +340,4 @@ debug-toggles done` в `dev`. Дальше — live-тест StreamState
 - `docs/streams.md` — стримы, WS, polling.
 - `docs/gradle-setup.md` — сборка, unit-тесты, `android.util.Log`.
 - `docs/ROADMAP.md` — задачи с `**Подтверждение:**`.
+<!-- SECTION_END: live-test -->

@@ -15,6 +15,7 @@
 
 ---
 
+<!-- SECTION_BEGIN: issues -->
 ## Шаблон для новых записей
 
 ```markdown
@@ -27,6 +28,8 @@
 **Когда вернуться:** ...
 ```
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## OrderSearchViewModel: selectedBroker не влияет на API поиска (решён)
 
 **Статус:** решён (PR #136, merge `58b8233b`).
@@ -79,6 +82,8 @@ re-search при смене брокера (`onQueryChanged(slot, currentQuery)`
 **Когда вернуться:** не требуется. Открыть заново, если появится похожая
 дивергенция state (два поля на одно логическое значение в одном `data class`).
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Race в start/stop *FlowManager — дублирование стримов
 
 **Статус:** открыт (частично, live-test 2026-11-08, шаг 16b).
@@ -255,6 +260,8 @@ BCS / Finam без утечек.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Separator между секциями ROADMAP не везде по шаблону
 
 **Статус:** открыт.
@@ -294,6 +301,8 @@ BCS / Finam без утечек.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Trailing whitespace в docs/*.md
 
 **Статус:** открыт.
@@ -334,6 +343,8 @@ markdown-рендера, где trailing spaces не видны.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Gradle 10: устаревшие API в сторонних плагинах
 
 **Статус:** отложен. Не наш код.
@@ -359,6 +370,8 @@ release notes Hilt, KSP, AGP. Перед апгрейдом до Gradle 10 —
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## INVALID_ARGUMENT: 30052 при торговле акциями
 
 **Статус:** открыт. Локализован на стороне API Т-Инвестиций.
@@ -400,6 +413,8 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Позиции не обновляются при смене счёта
 
 **Статус:** решён (фикс в `### StreamState в data-слое`).
@@ -472,6 +487,8 @@ BBG004730N88) завершаются ошибкой `INVALID_ARGUMENT: 30052`.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## GrpcExceptionGuard не установлен
 
 **Статус:** в работе (deferred closure; AppMetrica 2–3 дня).
@@ -511,6 +528,8 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## PositionsStream не доставляет данные
 
 **Статус:** решён (2026-10-15, PR #20).
@@ -551,6 +570,8 @@ at java.util.concurrent.ThreadPoolExecutor.runWorker
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## T-Invest WebSocket: решён — канал должен быть в URL path
 
 **Статус:** решён (2026-10-19). Транспорт подтверждён через
@@ -661,6 +682,8 @@ handshake проходит за миллисекунды.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## restoreTInvest не использует сохранённый accountId при падении getAccounts
 
 **Статус:** решён (2026-10-18, PR #25, коммит `776f8b4`).
@@ -722,6 +745,8 @@ handshake проходит за миллисекунды.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## gRPC retry: string matching NOT_FOUND вместо Status.Code
 
 **Статус:** открыт. Небольшой фикс. Связан с WS/retry — см. следующую запись.
@@ -753,6 +778,8 @@ handshake проходит за миллисекунды.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## gRPC retry: бесконечный retry на не-recoverable ошибках
 
 **Статус:** открыт. Фикс вместе с предыдущей записью. **Критичен
@@ -789,6 +816,8 @@ L4-Н32.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket
 
 **Статус:** решён (#11, `TInvestWsService.stop()` + lifecycle).
@@ -816,6 +845,8 @@ OkHttp/CIO сессию, отменить Flow). `deinitialize()` уже обн�
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## BcsBrokerApi логирует refreshToken (решён)
 
 **Статус:** решён (2026-10-28, ветка `bugfix/security-token-logging`).
@@ -849,6 +880,8 @@ OkHttp/CIO сессию, отменить Flow). `deinitialize()` уже обн�
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## BcsBrokerApi создаёт OkHttpClient без CustomTrustManager
 
 **Статус:** открыт. Латентный. Не для WS.
@@ -872,6 +905,8 @@ TLS BCS, или когда понадобится shared OkHttpClient из DI.
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## PriceFlowManager.collectStream: потенциальный busy loop
 
 **Статус:** открыт. Латентный, не воспроизводится сейчас. Не для WS.
@@ -916,6 +951,8 @@ gRPC завершился нормально). Фикс — тот же (delay �
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## PriceFlowManager.runPolling swallows CancellationException
 
 **Статус:** открыт.
@@ -947,6 +984,8 @@ gRPC завершился нормально). Фикс — тот же (delay �
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## PositionsStream over WS не отдаёт данные в песочнице
 
 **Статус:** открыт. Ограничение сервера, не наш код.
@@ -1013,6 +1052,8 @@ reconnect-loop без пользы. С 2026-10-27 `TInvestPositionsWebSocket`
 ---
 
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## INTERNAL: 70001 при параллельных unary-запросах
 
 **Статус:** открыт. Причина подтверждена.
@@ -1058,6 +1099,8 @@ reconnect-loop без пользы. С 2026-10-27 `TInvestPositionsWebSocket`
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Дублирующий init {} в SettingsViewModel
 
 **Статус:** решён (2026-10-27). Ветка `bugfix/settingsvm-duplicate-init`
@@ -1156,6 +1199,8 @@ debug-флаги (`disableGrpc` / `disableWs` / `forceRest`).
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Strip warnings в debug APK
 
 **Статус:** отложен. Не наш код.
@@ -1192,6 +1237,8 @@ keepDebugSymbols += "..." } }` или `doNotStrip`. Лишний конфиг
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Асимметрия lifecycle: старт менеджеров после login vs restore
 
 **Статус:** открыт.
@@ -1260,6 +1307,8 @@ live-тесте #2 задержки почти не было видно — View
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## T-Invest REST findInstruments fallback (N+1 unary)
 
 **Статус:** открыт. Латентный, не блокер.
@@ -1282,6 +1331,8 @@ live-тесте #2 задержки почти не было видно — View
 
 **Когда вернуться:** при появлении rate-limiter (закроется автоматически), или при жалобах на `RESOURCE_EXHAUSTED` при поиске.
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## AGENTS.md ссылался на удалённое `InstrumentUi.ttech_uid`
 
 **Статус:** решён.
@@ -1300,6 +1351,8 @@ live-тесте #2 задержки почти не было видно — View
 
 **Когда вернуться:** при следующем изменении `tscalpInstrumentId` / `figi` в domain-модели, чтобы правило не рассинхронизировалось с кодом.
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## Currency format: lowercase iso-code в `Currency.getInstance`
 
 **Статус:** решён (PR #143, merge `10b138f6`).
@@ -1323,6 +1376,8 @@ live-тесте #2 задержки почти не было видно — View
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## REST poll failed: REST transport not initialized (W при disconnect)
 
 **Статус:** открыт (pre-existing, не блокер).
@@ -1350,6 +1405,8 @@ live-тесте #2 задержки почти не было видно — View
 **Когда вернуться:** при следующем касании `DisconnectBrokerUseCase` / `PriceFlowManager`; или при появлении жалобы на W-шум в логах.
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## BrokerRegistry.anyInitialized не сбрасывается после DisconnectBrokerUseCase
 
 **Статус:** открыт (pre-existing, не блокер).
@@ -1376,6 +1433,8 @@ live-тесте #2 задержки почти не было видно — View
 
 ---
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## PriceFlowManager retry loop после logout при неактивных VM
 
 **Статус:** открыт (pre-existing, не блокер).
@@ -1397,6 +1456,8 @@ live-тесте #2 задержки почти не было видно — View
 
 **Когда вернуться:** при следующем касании `DisconnectBrokerUseCase` / `PriceFlowManager`, или вместе с «REST poll failed».
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## System: A resource failed to call release (lifecycle-находка)
 
 **Статус:** открыт (pre-existing, не блокер).
@@ -1433,6 +1494,8 @@ DisconnectBrokerUseCase» (та же область — lifecycle disconnect).
 / `TInvestWsService.stop` / `TInvestOrchestrator`, или при появлении
 жалоб на утечку ресурсов / battery drain после logout.
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## ClassCastException в PostOrderUseCase при StopLoss без stopPrice
 
 **Статус:** решён (PR #132, merge `718d108c`, 2026-11-11).
@@ -1465,6 +1528,8 @@ removal + `PrepareOrderRequestUseCaseTest`) — следующий PR.
 
 **Когда вернуться:** — (закрыто; B2 — отдельная фаза umbrella-задачи).
 
+<!-- SECTION_END: issues -->
+<!-- SECTION_BEGIN: issues -->
 ## T-Invest rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED
 
 **Статус:** открыт.
@@ -1492,3 +1557,4 @@ removal + `PrepareOrderRequestUseCaseTest`) — следующий PR.
 **Когда вернуться:** после закрытия umbrella (live-test C2 2–7 PASS).
 
 ---
+<!-- SECTION_END: issues -->

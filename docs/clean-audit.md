@@ -10,6 +10,7 @@
 
 Каждая находка заводится **отдельной записью** (правило 2c AGENTS.md). Гибридные (Clean + MVVM) — основная запись под тем ID, к которому относится природа нарушения; cross-link в `**Связано:**`.
 
+<!-- SECTION_BEGIN: clean-audit -->
 ## Шаблон записи
 
 ~~~markdown
@@ -38,6 +39,8 @@
 **Сводный отчёт, <дата>:** — (не включена) / да (включена в отчёт от <дата>)
 ~~~
 
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## Уровни (по приоритету)
 
 | Уровень | Слой | Приоритет |
@@ -54,7 +57,9 @@
 
 L4–L8 — не проверены, заполняются по мере инспекции.
 
-### Шкала серьёзности
+<!-- SUBSECTION_BEGIN: clean-audit-1 -->
+___
+### clean-audit-1 Шкала серьёзности
 
 | Значение | Значение |
 |---|---|
@@ -65,7 +70,10 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ---
 
-### Типы MVVM-нарушений
+<!-- SUBSECTION_END: clean-audit-1 -->
+<!-- SUBSECTION_BEGIN: clean-audit-2 -->
+___
+### clean-audit-2 Типы MVVM-нарушений
 
 Серьёзность (см. выше) и тип (M1–M7) — **ортогональны**: одна и та же M-категория может быть и критичной, и низкой. Серьёзность ставится по «Шкале», тип — по этой таблице. В записи: `**Нарушенное правило:** M<N> — <тип>`.
 
@@ -83,6 +91,9 @@ L4–L8 — не проверены, заполняются по мере инс
 
 ---
 
+<!-- SUBSECTION_END: clean-audit-2 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L1 — presentation
 
 **Краткая таблица:**
@@ -100,9 +111,14 @@ L4–L8 — не проверены, заполняются по мере инс
 | M006. TInvestSettingsPanel — счета/orchestration в UI | высоко | L1 | `SettingsScreen.kt` `TInvestSettingsPanel` (172–525) | ✓ |
 | M011. OrdersListDialog — `as?` и расчёт в UI | средне | L1 | `OrdersListDialog.kt` (~50) | - |
 
-### Принятые (2c)
+<!-- SUBSECTION_BEGIN: clean-audit-3 -->
+___
+### clean-audit-3 Принятые (2c)
 
-### M018. Mediator orchestration + snapshot cross-state (PR-4, принято 2c)
+<!-- SUBSECTION_END: clean-audit-3 -->
+<!-- SUBSECTION_BEGIN: M018 -->
+___
+### M018 M018. Mediator orchestration + snapshot cross-state (PR-4, принято 2c)
 
 **Статус:** принято 2c.
 
@@ -126,9 +142,15 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-11-14:** нет (создана в этой сессии).
 
-### Исправленные (L1)
+<!-- SUBSECTION_END: M018 -->
+<!-- SUBSECTION_BEGIN: clean-audit-5 -->
+___
+### clean-audit-5 Исправленные (L1)
 
-### ✅ M1/M7. SearchInstrumentsUseCase: presentation prefix
+<!-- SUBSECTION_END: clean-audit-5 -->
+<!-- SUBSECTION_BEGIN: clean-audit-6 -->
+___
+### clean-audit-6 ✅ M1/M7. SearchInstrumentsUseCase: presentation prefix
 
 **Статус:** исправлено (2026-11-15, PR #160, merge `4af3b682`).
 
@@ -150,7 +172,10 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Связано:** `docs/ISSUES.md` → `## T-Invest rate-limit umbrella...` (RESOURCE_EXHAUSTED — отдельная причина).
 
-### ✅ Н95. OrderFormViewModel — @Suppress("TooManyFunctions")
+<!-- SUBSECTION_END: clean-audit-6 -->
+<!-- SUBSECTION_BEGIN: Н95 -->
+___
+### Н95 ✅ Н95. OrderFormViewModel — @Suppress("TooManyFunctions")
 
 **Статус:** исправлено (2026-11-15, PR-4b Phase 6.1-7.2, feature/orderform-split-c2-p4b).
 
@@ -173,7 +198,10 @@ L4–L8 — не проверены, заполняются по мере инс
 **Ссылка на задачу:** `### OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (ROADMAP, `e1f62ffc`; merge pending 8.2 → `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: split`); reduce-task closed accepted — `docs/ROADMAP-ARCHIVE.md` → `### ✅ OrderFormViewModel: @Suppress accepted (2c)` (`cf911ae8`). Связано: M001 (закрыт PR #111), M017 (закрыт `4ee4174`), M013 (закрыт PR #110).
 
 
-### ✅ M016. One-shot events через StateFlow (M6) — statusMessage / isError
+<!-- SUBSECTION_END: Н95 -->
+<!-- SUBSECTION_BEGIN: M016 -->
+___
+### M016 ✅ M016. One-shot events через StateFlow (M6) — statusMessage / isError
 
 **Статус:** исправлено (2026-11-09, PR #112, merge 967b28fb).
 
@@ -193,7 +221,10 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-11-06:** да (включена в отчёт от 2026-11-06).
 
-### ✅ M001. OrdersViewModel форматирует overlay (формулы в VM)
+<!-- SUBSECTION_END: M016 -->
+<!-- SUBSECTION_BEGIN: M001 -->
+___
+### M001 ✅ M001. OrdersViewModel форматирует overlay (формулы в VM)
 
 **Статус:** исправлено (2026-11-09, PR #111, merge 7bef1808).
 
@@ -215,7 +246,10 @@ L4–L8 — не проверены, заполняются по мере инс
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### ✅ M013. Orchestration в Orders / Portfolio / OrdersList ViewModels (7 методов)
+<!-- SUBSECTION_END: M001 -->
+<!-- SUBSECTION_BEGIN: M013 -->
+___
+### M013 ✅ M013. Orchestration в Orders / Portfolio / OrdersList ViewModels (7 методов)
 
 **Статус:** исправлено (2026-11-09, A2 закрыт; PR #110; live-test 1-2,5,6-partial PASS).
 
@@ -262,7 +296,10 @@ VM — тонкие: `usecase.execute + _uiState.update`. Плюсы: VM тес�
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### ✅ M014. OrdersCoordState — `activeCard` / `activePairedCard` → pure extensions
+<!-- SUBSECTION_END: M013 -->
+<!-- SUBSECTION_BEGIN: M014 -->
+___
+### M014 ✅ M014. OrdersCoordState — `activeCard` / `activePairedCard` → pure extensions
 
 **Статус:** исправлено (2026-11-07, 13d-F, `9776172`).
 
@@ -298,7 +335,10 @@ Compose state read).
 **Ссылка на задачу:** `### OrdersViewModel: разбить на несколько VM` (ROADMAP, шаг 13d-F).
 
 
-### ✅ M015. OrderDialogsViewModel.openBrokerDialog — M2 partial
+<!-- SUBSECTION_END: M014 -->
+<!-- SUBSECTION_BEGIN: M015 -->
+___
+### M015 ✅ M015. OrderDialogsViewModel.openBrokerDialog — M2 partial
 
 **Статус:** исправлено (2026-11-08, M015-A1b+A2, `6a4a597` + `5a2a4e3`).
 
@@ -334,7 +374,10 @@ passthrough / cancellation).
 
 **Сводный отчёт, 2026-11-06:** нет (создана 2026-11-08).
 
-### ✅ M017. OrderFormViewModel.buildPlaceOrderRequest — presentation собирает domain-модель
+<!-- SUBSECTION_END: M015 -->
+<!-- SUBSECTION_BEGIN: M017 -->
+___
+### M017 ✅ M017. OrderFormViewModel.buildPlaceOrderRequest — presentation собирает domain-модель
 
 **Статус:** исправлено (2026-11-08, M017, `4ee4174`).
 
@@ -362,7 +405,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 `4ee4174`.
 
 **Сводный отчёт, 2026-11-06:** нет (создана 2026-11-08).
-### ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
+<!-- SUBSECTION_END: M017 -->
+<!-- SUBSECTION_BEGIN: M006 -->
+___
+### M006 ✅ M006. TInvestSettingsPanel — счета и orchestration в UI
 
 **Статус:** исправлено (2026-11-06, PR #103).
 
@@ -388,7 +434,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### ✅ M011. OrdersListDialog — `as?` и расчёт в UI
+<!-- SUBSECTION_END: M006 -->
+<!-- SUBSECTION_BEGIN: M011 -->
+___
+### M011 ✅ M011. OrdersListDialog — `as?` и расчёт в UI
 
 **Статус:** исправлено (2026-11-06, PR #103).
 
@@ -414,7 +463,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### ✅ M003. PortfolioViewModel.payInSandbox — orchestration в VM
+<!-- SUBSECTION_END: M011 -->
+<!-- SUBSECTION_BEGIN: M003 -->
+___
+### M003 ✅ M003. PortfolioViewModel.payInSandbox — orchestration в VM
 
 **Статус:** исправлено (2026-11-06, PR #101).
 
@@ -441,7 +493,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 **Сводный отчёт, 2026-11-06:** да.
 
 
-### ✅ M004. SettingsViewModel.initialize* — login-orchestration в VM
+<!-- SUBSECTION_END: M003 -->
+<!-- SUBSECTION_BEGIN: M004 -->
+___
+### M004 ✅ M004. SettingsViewModel.initialize* — login-orchestration в VM
 
 **Статус:** исправлено (2026-11-06, feature/initialize-broker-usecase, PR pending).
 
@@ -463,7 +518,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### ✅ M005. SettingsViewModel — Dispatchers.IO в VM
+<!-- SUBSECTION_END: M004 -->
+<!-- SUBSECTION_BEGIN: M005 -->
+___
+### M005 ✅ M005. SettingsViewModel — Dispatchers.IO в VM
 
 **Статус:** исправлено (2026-11-06, feature/initialize-broker-usecase, PR pending).
 
@@ -485,7 +543,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### ✅ M007. SettingsScreen — login-orchestration в UI
+<!-- SUBSECTION_END: M005 -->
+<!-- SUBSECTION_BEGIN: M007 -->
+___
+### M007 ✅ M007. SettingsScreen — login-orchestration в UI
 
 **Статус:** исправлено (2026-11-06, feature/initialize-broker-usecase, PR pending).
 
@@ -507,7 +568,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Сводный отчёт, 2026-11-06:** да.
 
-### ✅ M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable
+<!-- SUBSECTION_END: M007 -->
+<!-- SUBSECTION_BEGIN: M008 -->
+___
+### M008 ✅ M008. OrdersScreen — расчёт pairExecPrice/pairedOrderType в Composable
 
 **Статус:** исправлено (2026-11-05, merge `34ffed5`, PR #94).
 
@@ -533,7 +597,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 
 
-### ✅ Н94. God-функции Compose под `@Suppress` (частично)
+<!-- SUBSECTION_END: M008 -->
+<!-- SUBSECTION_BEGIN: Н94 -->
+___
+### Н94 ✅ Н94. God-функции Compose под `@Suppress` (частично)
 
 **Статус:** частично исправлено (2026-11-04, merge `5d4e867`, PR #92; split `5bb9184`, PR #93; InstrumentColors `e28af70`, PR #95; пакеты A+B+C).
 
@@ -570,7 +637,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 
 
-### ✅ Н24. Дублирование обогащения в двух VM
+<!-- SUBSECTION_END: Н94 -->
+<!-- SUBSECTION_BEGIN: Н24 -->
+___
+### Н24 ✅ Н24. Дублирование обогащения в двух VM
 
 **Статус:** исправлено (2026-10-29, PR #69).
 
@@ -592,7 +662,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Ссылка на задачу:** — (не заведена). Связано с `### Рефакторинг ViewModel-слоя`.
 
-### ✅ Н1. Presentation конструирует PortfolioPosition
+<!-- SUBSECTION_END: Н24 -->
+<!-- SUBSECTION_BEGIN: Н1 -->
+___
+### Н1 ✅ Н1. Presentation конструирует PortfolioPosition
 
 **Статус:** исправлено (2026-10-29, PR #68).
 
@@ -612,7 +685,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Ссылка на задачу:** — (не заведена).
 
-### ✅ Н4. UI конвертирует String → domain-модель
+<!-- SUBSECTION_END: Н1 -->
+<!-- SUBSECTION_BEGIN: Н4 -->
+___
+### Н4 ✅ Н4. UI конвертирует String → domain-модель
 
 **Статус:** исправлено (2026-10-28, растворён в Split order, коммит `ec9c7d5`).
 
@@ -631,7 +707,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 **Ссылка на задачу:** `### Split order domain into sealed Regular/Stop` (в его рамках решается).
 
 
-### ✅ Н21. ViewModel → data.repository.*
+<!-- SUBSECTION_END: Н4 -->
+<!-- SUBSECTION_BEGIN: Н21 -->
+___
+### Н21 ✅ Н21. ViewModel → data.repository.*
 
 **Статус:** исправлено (PR #57, `dev`, 2026-10-27).
 
@@ -658,7 +737,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 ---
 
-### ✅ Н23. ViewModel → data.orchestrator.DebugConfig
+<!-- SUBSECTION_END: Н21 -->
+<!-- SUBSECTION_BEGIN: Н23 -->
+___
+### Н23 ✅ Н23. ViewModel → data.orchestrator.DebugConfig
 
 **Статус:** исправлено (PR #59, `dev`, 2026-10-28).
 **Серьёзность:** средне.
@@ -679,7 +761,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 ---
 
-### ✅ Н22. ViewModel → di.BrokerManager
+<!-- SUBSECTION_END: Н23 -->
+<!-- SUBSECTION_BEGIN: Н22 -->
+___
+### Н22 ✅ Н22. ViewModel → di.BrokerManager
 
 **Статус:** исправлено (PR #60, `dev`, 2026-10-28).
 
@@ -706,7 +791,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 
 **Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
 
-### ✅ Н3. OrdersListViewModel в ui.components
+<!-- SUBSECTION_END: Н22 -->
+<!-- SUBSECTION_BEGIN: Н3 -->
+___
+### Н3 ✅ Н3. OrdersListViewModel в ui.components
 
 **Статус:** исправлено (PR #58, `dev`, 2026-10-27). `OrdersListViewModel`
 в `presentation/screens/orders/`, package обновлён.
@@ -724,7 +812,10 @@ import `PlaceOrderRequest` из VM удалён. `OrderFormStateMapperTest` — 
 **Выгоды:** —
 
 **Ссылка на задачу:** `### H3. Move OrdersListViewModel to presentation/screens/orders/` (PR #58, `dev`).
-### ✅ M002. OrdersViewModel.postOrder — orchestration в VM
+<!-- SUBSECTION_END: Н3 -->
+<!-- SUBSECTION_BEGIN: M002 -->
+___
+### M002 ✅ M002. OrdersViewModel.postOrder — orchestration в VM
 
 **Статус:** исправлено (2026-11-03, PR #89, `dev`).
 
@@ -763,7 +854,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### ✅ M009. OrdersScreen — состояние торговой операции в UI
+<!-- SUBSECTION_END: M002 -->
+<!-- SUBSECTION_BEGIN: M009 -->
+___
+### M009 ✅ M009. OrdersScreen — состояние торговой операции в UI
 
 **Статус:** исправлено (2026-11-03, PR #89, `dev`).
 
@@ -785,7 +879,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### ✅ M010. OrdersScreen — UI читает VM через метод, не через state
+<!-- SUBSECTION_END: M009 -->
+<!-- SUBSECTION_BEGIN: M010 -->
+___
+### M010 ✅ M010. OrdersScreen — UI читает VM через метод, не через state
 
 **Статус:** исправлено (2026-11-03, PR #89, `dev`).
 
@@ -807,7 +904,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### ✅ M012. OrdersViewModel — MutableStateFlow-поля вместо UiState
+<!-- SUBSECTION_END: M010 -->
+<!-- SUBSECTION_BEGIN: M012 -->
+___
+### M012 ✅ M012. OrdersViewModel — MutableStateFlow-поля вместо UiState
 
 **Статус:** исправлено (2026-11-03, PR #89, `dev`).
 
@@ -831,6 +931,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 ---
 
+<!-- SUBSECTION_END: M012 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L2 — util
 
 **Краткая таблица:**
@@ -842,9 +945,14 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н17. TradePhrases — Compose в util | средне | L2, L1 | `util/TradePhrases.kt` | - |
 | Н18. CurrencyUtils — presentation-формат в util | низко | L2, L1 | `util/CurrencyUtils.kt` | - |
 
-### Исправленные (L2)
+<!-- SUBSECTION_BEGIN: clean-audit-33 -->
+___
+### clean-audit-33 Исправленные (L2)
 
-### ✅ Н20. AppResultExtensions — io.grpc в util
+<!-- SUBSECTION_END: clean-audit-33 -->
+<!-- SUBSECTION_BEGIN: Н20 -->
+___
+### Н20 ✅ Н20. AppResultExtensions — io.grpc в util
 
 **Статус:** исправлено (2026-10-29, PR #70).
 
@@ -872,7 +980,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `#### Классификатор ошибок` в `### Рефакторинг архитектурного долга (detekt-группа 3)` (про декомпозицию; про переезд — задача не заведена).
 
-### ✅ Н17. TradePhrases — Compose в util
+<!-- SUBSECTION_END: Н20 -->
+<!-- SUBSECTION_BEGIN: Н17 -->
+___
+### Н17 ✅ Н17. TradePhrases — Compose в util
 
 **Статус:** исправлено (2026-10-29, PR #64 — unify presentation).
 
@@ -892,7 +1003,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена).
 
-### ✅ Н18. CurrencyUtils — presentation-формат в util
+<!-- SUBSECTION_END: Н17 -->
+<!-- SUBSECTION_BEGIN: Н18 -->
+___
+### Н18 ✅ Н18. CurrencyUtils — presentation-формат в util
 
 **Статус:** исправлено (2026-10-29, PR #64 — unify presentation).
 
@@ -912,7 +1026,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена).
 
-### ✅ Н19. AppLogger — android.util.Log в util
+<!-- SUBSECTION_END: Н18 -->
+<!-- SUBSECTION_BEGIN: Н19 -->
+___
+### Н19 ✅ Н19. AppLogger — android.util.Log в util
 
 **Статус:** исправлено (2026-10-29, H19 part 1–3, PR #65–#67).
 
@@ -937,6 +1054,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 ---
 
+<!-- SUBSECTION_END: Н19 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L3 — domain/models
 
 **Краткая таблица:**
@@ -950,9 +1070,14 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н16. TradeCheckResult — sealed class для sum-type | низко | L3 | `domain/models/TradingStatus.kt` | - |
 | Н13. KDoc StreamState — устаревший пакет | низко | L3 | `domain/models/StreamState.kt` | - |
 
-### Исправленные (L3)
+<!-- SUBSECTION_BEGIN: clean-audit-38 -->
+___
+### clean-audit-38 Исправленные (L3)
 
-### ✅ Н15. TradingStateSnapshot — presentation в domain
+<!-- SUBSECTION_END: clean-audit-38 -->
+<!-- SUBSECTION_BEGIN: Н15 -->
+___
+### Н15 ✅ Н15. TradingStateSnapshot — presentation в domain
 
 **Статус:** исправлено (2026-11-13, PR #145, merge `f9dc5596`).
 
@@ -972,7 +1097,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Связано:** `docs/clean-audit.md` → Н96 (D, исправлено в том же PR); `docs/ROADMAP-ARCHIVE.md` → `### ✅ Domain: pairedMultiplier/quantity → Long`.
 
-### ✅ Н96. DataStore-специфика в domain-модели (orderTypeFromStorageKey/toStorageKey)
+<!-- SUBSECTION_END: Н15 -->
+<!-- SUBSECTION_BEGIN: Н96 -->
+___
+### Н96 ✅ Н96. DataStore-специфика в domain-модели (orderTypeFromStorageKey/toStorageKey)
 
 **Статус:** исправлено (2026-11-13, PR #145, merge `f9dc5596`).
 
@@ -992,7 +1120,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Связано:** `docs/clean-audit.md` → Н15 (исправлено в том же PR).
 
-### ✅ Н13. KDoc StreamState — устаревший пакет
+<!-- SUBSECTION_END: Н96 -->
+<!-- SUBSECTION_BEGIN: Н13 -->
+___
+### Н13 ✅ Н13. KDoc StreamState — устаревший пакет
 
 **Статус:** исправлено (2026-11-11, commit `2f476dc6`).
 
@@ -1012,7 +1143,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** commit `2f476dc6` (2026-11-11). Правка в рамках сессии по очереди clean-audit.
 
-### ✅ Н5. PortfolioPosition — presentation-поля
+<!-- SUBSECTION_END: Н13 -->
+<!-- SUBSECTION_BEGIN: Н5 -->
+___
+### Н5 ✅ Н5. PortfolioPosition — presentation-поля
 
 **Статус:** исправлено (merge `d04ecc4`, PR #90; коммит `4a0e785`).
 
@@ -1034,7 +1168,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### ✅ Н7. ttech_figi — временное, без задачи
+<!-- SUBSECTION_END: Н5 -->
+<!-- SUBSECTION_BEGIN: Н7 -->
+___
+### Н7 ✅ Н7. ttech_figi — временное, без задачи
 
 **Статус:** исправлено (2026-11-02, C-min шаг 1, коммит `241b8cb`).
 
@@ -1054,7 +1191,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### ✅ Instrument: C-min (Phase 1)` (ROADMAP).
 
-### ✅ Н8. OrderTypeSelection — sealed class для sum-type
+<!-- SUBSECTION_END: Н7 -->
+<!-- SUBSECTION_BEGIN: Н8 -->
+___
+### Н8 ✅ Н8. OrderTypeSelection — sealed class для sum-type
 
 **Статус:** исправлено (PR #72, `dev`, 2026-10-30).
 
@@ -1074,7 +1214,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #72 (`feature/sealed-interface-sumtypes`), коммит `3d491db`.
 
-### ✅ Н16. TradeCheckResult — sealed class для sum-type
+<!-- SUBSECTION_END: Н8 -->
+<!-- SUBSECTION_BEGIN: Н16 -->
+___
+### Н16 ✅ Н16. TradeCheckResult — sealed class для sum-type
 
 **Статус:** исправлено (PR #72, `dev`, 2026-10-30).
 
@@ -1096,7 +1239,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 ---
 
-### ✅ Н6. InstrumentUi — god-класс
+<!-- SUBSECTION_END: Н16 -->
+<!-- SUBSECTION_BEGIN: Н6 -->
+___
+### Н6 ✅ Н6. InstrumentUi — god-класс
 
 **Статус:** исправлено (2026-11-02, Phase 2, коммит `bf34061`).
 
@@ -1118,6 +1264,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### ✅ Instrument: Phase 2 (sealed interface)` (ROADMAP).
 
+<!-- SUBSECTION_END: Н6 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L4 — domain/api
 
 **Краткая таблица:**
@@ -1136,7 +1285,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н61. retryWithBackoff — busy loop на normal completion | высоко | L4 | `domain/api/StreamCombinators.kt` | - |
 | Н70. BrokerApi — @Suppress("TooManyFunctions") | средне | L4 | `domain/api/BrokerApi.kt` | - |
 
-### Н27. StreamsApi.subscribeOrderState — suspend
+<!-- SUBSECTION_BEGIN: Н27 -->
+___
+### Н27 Н27. StreamsApi.subscribeOrderState — suspend
 
 **Статус:** открыто.
 
@@ -1154,9 +1305,15 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена). Может быть частью Н25.
 
-### Принятые (2c)
+<!-- SUBSECTION_END: Н27 -->
+<!-- SUBSECTION_BEGIN: clean-audit-48 -->
+___
+### clean-audit-48 Принятые (2c)
 
-### Н28. AccountsApi.getAccounts(sandboxMode) (принято 2c)
+<!-- SUBSECTION_END: clean-audit-48 -->
+<!-- SUBSECTION_BEGIN: Н28 -->
+___
+### Н28 Н28. AccountsApi.getAccounts(sandboxMode) (принято 2c)
 
 **Статус:** принято 2c.
 
@@ -1174,9 +1331,15 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### ✅ 2c-фиксация: Н28 (AccountsApi sandboxMode) + Н15 (TradingStateSnapshot)` (`docs/ROADMAP-ARCHIVE.md`, merge `eb2db6a8`, 2026-11-11).
 
-### Исправленные (L4)
+<!-- SUBSECTION_END: Н28 -->
+<!-- SUBSECTION_BEGIN: clean-audit-50 -->
+___
+### clean-audit-50 Исправленные (L4)
 
-### ✅ Н30. BrokerSnapshotApi KDoc — устарел после #9
+<!-- SUBSECTION_END: clean-audit-50 -->
+<!-- SUBSECTION_BEGIN: Н30 -->
+___
+### Н30 ✅ Н30. BrokerSnapshotApi KDoc — устарел после #9
 
 **Статус:** исправлено (2026-11-11, commit `decc4ea9`).
 
@@ -1196,7 +1359,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** commit `decc4ea9` (2026-11-11). Правилась как п.5 ревизии `### Ревизия ссылок на PortfolioPosition после H5`.
 
-### ✅ Н25. BrokerApi fat дублирует nullable-val роли
+<!-- SUBSECTION_END: Н30 -->
+<!-- SUBSECTION_BEGIN: Н25 -->
+___
+### Н25 ✅ Н25. BrokerApi fat дублирует nullable-val роли
 
 **Статус:** исправлено (PR #61, `dev`, 2026-10-28).
 
@@ -1224,7 +1390,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 ---
 
-### ✅ Н70. BrokerApi — @Suppress("TooManyFunctions")
+<!-- SUBSECTION_END: Н25 -->
+<!-- SUBSECTION_BEGIN: Н70 -->
+___
+### Н70 ✅ Н70. BrokerApi — @Suppress("TooManyFunctions")
 
 **Статус:** исправлено (PR #61, `dev`, 2026-10-28).
 
@@ -1246,7 +1415,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/clean-audit.md` → L4-Н25; `### Рефакторинг ролей BrokerApi` (закрыта); `### Рефакторинг BrokerApi-реализаций (D)` (закрыта).
 
-### ✅ Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика
+<!-- SUBSECTION_END: Н70 -->
+<!-- SUBSECTION_BEGIN: Н31 -->
+___
+### Н31 ✅ Н31. StreamsApi.subscribeLastPrices(uids) — T-Invest-специфика
 
 **Статус:** исправлено (PR #71, `dev`, 2026-10-30).
 
@@ -1271,7 +1443,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #71 (`feature/instrument-ids`), коммиты `6f74454`, `86ab1c4`.
 
-### ✅ Н32. StreamCombinators — транспорт в domain/api
+<!-- SUBSECTION_END: Н31 -->
+<!-- SUBSECTION_BEGIN: Н32 -->
+___
+### Н32 ✅ Н32. StreamCombinators — транспорт в domain/api
 
 **Статус:** исправлено (PR #76, `dev`, 2026-10-30).
 
@@ -1291,7 +1466,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #76 (`dev`, 2026-10-30), коммит `a636699`.
 
-### ✅ Н32a. streamWithFallback — семантически неверное имя
+<!-- SUBSECTION_END: Н32 -->
+<!-- SUBSECTION_BEGIN: Н32a -->
+___
+### Н32a ✅ Н32a. streamWithFallback — семантически неверное имя
 
 **Статус:** исправлено (PR #76, `dev`, 2026-10-30).
 
@@ -1311,7 +1489,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #76 (`dev`, 2026-10-30), коммит `986c330`. Объединено с Н32 в одном PR, но отдельным коммитом.
 
-### ✅ Н26. BrokerLifecycleApi — не 2c-фиксация
+<!-- SUBSECTION_END: Н32a -->
+<!-- SUBSECTION_BEGIN: Н26 -->
+___
+### Н26 ✅ Н26. BrokerLifecycleApi — не 2c-фиксация
 
 **Статус:** исправлено (PR #77, `dev`, 2026-10-31).
 
@@ -1331,7 +1512,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #77 (`dev`, 2026-10-31), коммит `63697ae`.
 
-### ✅ Н60. retryWithBackoff — non-retryable не классифицирует
+<!-- SUBSECTION_END: Н26 -->
+<!-- SUBSECTION_BEGIN: Н60 -->
+___
+### Н60 ✅ Н60. retryWithBackoff — non-retryable не классифицирует
 
 **Статус:** исправлено (PR #79, `dev`, 2026-10-31).
 
@@ -1351,7 +1535,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #79 (`dev`, 2026-10-31). `docs/ISSUES.md` → «gRPC retry: бесконечный retry на не-recoverable ошибках».
 
-### ✅ Н61. retryWithBackoff — busy loop на normal completion
+<!-- SUBSECTION_END: Н60 -->
+<!-- SUBSECTION_BEGIN: Н61 -->
+___
+### Н61 ✅ Н61. retryWithBackoff — busy loop на normal completion
 
 **Статус:** исправлено (PR #79, `dev`, 2026-10-31).
 
@@ -1371,6 +1558,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #79 (`dev`, 2026-10-31). `docs/ISSUES.md` → «PriceFlowManager.collectStream: потенциальный busy loop».
 
+<!-- SUBSECTION_END: Н61 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L5 — domain/managers
 
 **Краткая таблица:**
@@ -1384,7 +1574,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 | Н58. PositionFlowManager.runPolling — string matching NOT_FOUND | средне | L5 | `PositionFlowManager.kt` | - |
 | Н59. PriceFlowManager.runPolling — swallows CancellationException | средне | L5 | `PriceFlowManager.kt` | - |
 
-### Н41. Хардкод BrokerName.TINVEST в менеджерах
+<!-- SUBSECTION_BEGIN: Н41 -->
+___
+### Н41 Н41. Хардкод BrokerName.TINVEST в менеджерах
 
 **Статус:** открыто.
 
@@ -1402,7 +1594,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена). Связано с `### Реализация BCS Broker API` / `### Реализация Finam Broker API`.
 
-### Н58. PositionFlowManager.runPolling — string matching NOT_FOUND
+<!-- SUBSECTION_END: Н41 -->
+<!-- SUBSECTION_BEGIN: Н58 -->
+___
+### Н58 Н58. PositionFlowManager.runPolling — string matching NOT_FOUND
 
 **Статус:** открыто.
 
@@ -1420,7 +1615,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/ISSUES.md` → «gRPC retry: string matching NOT_FOUND вместо Status.Code» (расширено в L5-Н58: «касается также `PositionFlowManager.runPolling`»).
 
-### Н59. PriceFlowManager.runPolling — swallows CancellationException
+<!-- SUBSECTION_END: Н58 -->
+<!-- SUBSECTION_BEGIN: Н59 -->
+___
+### Н59 Н59. PriceFlowManager.runPolling — swallows CancellationException
 
 **Статус:** открыто.
 
@@ -1438,13 +1636,19 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/ISSUES.md` → «PriceFlowManager.runPolling swallows CancellationException» (отдельная запись).
 
-### Исправленные (L5)
+<!-- SUBSECTION_END: Н59 -->
+<!-- SUBSECTION_BEGIN: clean-audit-63 -->
+___
+### clean-audit-63 Исправленные (L5)
 
 [пусто]
 
 ---
 
-### ✅ Н38. PriceFlowManager → data.orchestrator.DebugConfig
+<!-- SUBSECTION_END: clean-audit-63 -->
+<!-- SUBSECTION_BEGIN: Н38 -->
+___
+### Н38 ✅ Н38. PriceFlowManager → data.orchestrator.DebugConfig
 
 **Статус:** исправлено (PR #59, `dev`, 2026-10-28).
 **Серьёзность:** критично.
@@ -1463,7 +1667,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 ---
 
-### ✅ Н40. Менеджеры → di.BrokerManager
+<!-- SUBSECTION_END: Н38 -->
+<!-- SUBSECTION_BEGIN: Н40 -->
+___
+### Н40 ✅ Н40. Менеджеры → di.BrokerManager
 
 **Статус:** исправлено (PR #60, `dev`, 2026-10-28).
 
@@ -1481,7 +1688,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
 
-### ✅ Н39. PriceFlowManager → util.toAppError
+<!-- SUBSECTION_END: Н40 -->
+<!-- SUBSECTION_BEGIN: Н39 -->
+___
+### Н39 ✅ Н39. PriceFlowManager → util.toAppError
 
 **Статус:** исправлено (0 вхождений `toAppError` в `PriceFlowManager`; ушло при рефакторинге, вероятно с Н47).
 
@@ -1501,6 +1711,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена; закрыто фактически).
 
+<!-- SUBSECTION_END: Н39 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L6 — data/repository
 
 **Краткая таблица:**
@@ -1533,7 +1746,9 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 **Соответствуют Clean (data-only, никаких утечек):**
 `TradingStateRepository`, `SettingsRepository`.
 
-### Н66. getTradingStatuses — N параллельных unary
+<!-- SUBSECTION_BEGIN: Н66 -->
+___
+### Н66 Н66. getTradingStatuses — N параллельных unary
 
 **Статус:** открыто.
 
@@ -1551,7 +1766,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### Rate-limiter для unary-запросов T-Invest`.
 
-### Н67. postStopOrder — закомментированный expireDate
+<!-- SUBSECTION_END: Н66 -->
+<!-- SUBSECTION_BEGIN: Н67 -->
+___
+### Н67 Н67. postStopOrder — закомментированный expireDate
 
 **Статус:** открыто.
 
@@ -1569,7 +1787,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/ROADMAP.md` → `### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)`.
 
-### Н72. BcsBrokerApi.orders = null при работающем postOrder
+<!-- SUBSECTION_END: Н67 -->
+<!-- SUBSECTION_BEGIN: Н72 -->
+___
+### Н72 Н72. BcsBrokerApi.orders = null при работающем postOrder
 
 **Статус:** открыто.
 
@@ -1587,7 +1808,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### Реализация BCS Broker API` (ROADMAP — не заведена).
 
-### Н73. FinamBrokerApi.checkTradeAvailability — всегда Success
+<!-- SUBSECTION_END: Н72 -->
+<!-- SUBSECTION_BEGIN: Н73 -->
+___
+### Н73 Н73. FinamBrokerApi.checkTradeAvailability — всегда Success
 
 **Статус:** открыто.
 
@@ -1605,7 +1829,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### Реализация Finam Broker API` (ROADMAP).
 
-### Н74. FinamBrokerApi.subscribePositions — dead callbackFlow
+<!-- SUBSECTION_END: Н73 -->
+<!-- SUBSECTION_BEGIN: Н74 -->
+___
+### Н74 Н74. FinamBrokerApi.subscribePositions — dead callbackFlow
 
 **Статус:** открыто.
 
@@ -1623,7 +1850,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### Реализация Finam Broker API` (ROADMAP).
 
-### Н75. FinamBrokerApi — 6 TODO("Not yet implemented")
+<!-- SUBSECTION_END: Н74 -->
+<!-- SUBSECTION_BEGIN: Н75 -->
+___
+### Н75 Н75. FinamBrokerApi — 6 TODO("Not yet implemented")
 
 **Статус:** открыто.
 
@@ -1641,7 +1871,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### Реализация Finam Broker API` (ROADMAP).
 
-### Н76. KDoc ссылается на несуществующую ### Реализация BCS Broker API
+<!-- SUBSECTION_END: Н75 -->
+<!-- SUBSECTION_BEGIN: Н76 -->
+___
+### Н76 Н76. KDoc ссылается на несуществующую ### Реализация BCS Broker API
 
 **Статус:** открыто.
 
@@ -1659,7 +1892,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** — (не заведена, KDoc висит).
 
-### Н77. BcsBrokerApi.subscribePositions → emptyFlow(), polling-loop удалён
+<!-- SUBSECTION_END: Н76 -->
+<!-- SUBSECTION_BEGIN: Н77 -->
+___
+### Н77 Н77. BcsBrokerApi.subscribePositions → emptyFlow(), polling-loop удалён
 
 **Статус:** открыто.
 
@@ -1677,7 +1913,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### Реализация BCS Broker API` (ROADMAP — не заведена).
 
-### Н78. BcsBrokerApi использует OkHttpClient() без CustomTrustManager
+<!-- SUBSECTION_END: Н77 -->
+<!-- SUBSECTION_BEGIN: Н78 -->
+___
+### Н78 Н78. BcsBrokerApi использует OkHttpClient() без CustomTrustManager
 
 **Статус:** открыто.
 
@@ -1695,7 +1934,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager».
 
-### Н81. CustomTrustManager — CustomX509TrustManager lint-warning (принято 2c)
+<!-- SUBSECTION_END: Н78 -->
+<!-- SUBSECTION_BEGIN: Н81 -->
+___
+### Н81 Н81. CustomTrustManager — CustomX509TrustManager lint-warning (принято 2c)
 
 **Статус:** принято 2c.
 
@@ -1713,7 +1955,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #144 (merge `f3d3d916`); `CustomTrustManager.kt` class KDoc — ban-protection rationale; `CustomTrustManagerHappyPathTest` — 5 CA happy path. Связано с `docs/ISSUES.md` → «BcsBrokerApi создаёт OkHttpClient без CustomTrustManager» (потенциальный переезд на NNC затронет всех).
 
-### Н97. TInvest*Service + *Api — unary: throw вместо AppResult (смешанный контракт)
+<!-- SUBSECTION_END: Н81 -->
+<!-- SUBSECTION_BEGIN: Н97 -->
+___
+### Н97 Н97. TInvest*Service + *Api — unary: throw вместо AppResult (смешанный контракт)
 
 **Статус:** открыто.
 
@@ -1733,9 +1978,15 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Связано:** 1a (`RateLimitTimeoutException`); Н46 (закрыт PR #75 — `SearchCache.search` → `AppResult`, тот же паттерн для одного метода).
 
-### Исправленные (L6)
+<!-- SUBSECTION_END: Н97 -->
+<!-- SUBSECTION_BEGIN: clean-audit-78 -->
+___
+### clean-audit-78 Исправленные (L6)
 
-### ✅ Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception
+<!-- SUBSECTION_END: clean-audit-78 -->
+<!-- SUBSECTION_BEGIN: Н79 -->
+___
+### Н79 ✅ Н79. CustomTrustManager loadCertificateToKeyStore — swallowed Exception
 
 **Статус:** исправлено (2026-11-13, PR #144).
 
@@ -1755,7 +2006,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #144 (merge `f3d3d916`).
 
-### ✅ Н80. CustomTrustManager — нет проверки загрузки всех 5 CA
+<!-- SUBSECTION_END: Н79 -->
+<!-- SUBSECTION_BEGIN: Н80 -->
+___
+### Н80 ✅ Н80. CustomTrustManager — нет проверки загрузки всех 5 CA
 
 **Статус:** исправлено (2026-11-13, PR #144).
 
@@ -1775,7 +2029,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #144 (merge `f3d3d916`). Связано с Н79.
 
-### ✅ Н68. SettingsRepository — @Suppress("TooManyFunctions")
+<!-- SUBSECTION_END: Н80 -->
+<!-- SUBSECTION_BEGIN: Н68 -->
+___
+### Н68 ✅ Н68. SettingsRepository — @Suppress("TooManyFunctions")
 
 **Статус:** исправлено (PR #81, `dev`, 2026-10-31).
 
@@ -1802,7 +2059,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #81 (`feature/clean-audit-pkg-b`, `dev`).
 
-### ✅ Н71. BcsBrokerApi.initialize логирует refreshToken
+<!-- SUBSECTION_END: Н68 -->
+<!-- SUBSECTION_BEGIN: Н71 -->
+___
+### Н71 ✅ Н71. BcsBrokerApi.initialize логирует refreshToken
 
 **Статус:** исправлено (2026-10-28, ветка `bugfix/security-token-logging`).
 
@@ -1822,7 +2082,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `docs/ISSUES.md` → «BcsBrokerApi логирует refreshToken» (security-запись).
 
-### ✅ Н46. SearchCache.search бросает IllegalArgumentException
+<!-- SUBSECTION_END: Н71 -->
+<!-- SUBSECTION_BEGIN: Н46 -->
+___
+### Н46 ✅ Н46. SearchCache.search бросает IllegalArgumentException
 
 **Статус:** исправлено (PR #75, `dev`, 2026-10-30).
 
@@ -1842,7 +2105,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #75 (`dev`, 2026-10-30).
 
-### ✅ Н47. SearchCache.search — избыточный withContext(Dispatchers.IO)
+<!-- SUBSECTION_END: Н46 -->
+<!-- SUBSECTION_BEGIN: Н47 -->
+___
+### Н47 ✅ Н47. SearchCache.search — избыточный withContext(Dispatchers.IO)
 
 **Статус:** исправлено (PR #75, `dev`, 2026-10-30).
 
@@ -1864,7 +2130,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 ---
 
-### ✅ Н44. data/repository/* → di.BrokerManager
+<!-- SUBSECTION_END: Н47 -->
+<!-- SUBSECTION_BEGIN: Н44 -->
+___
+### Н44 ✅ Н44. data/repository/* → di.BrokerManager
 
 **Статус:** исправлено (PR #60, `dev`, 2026-10-28).
 
@@ -1891,7 +2160,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
 
-### ✅ Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket
+<!-- SUBSECTION_END: Н44 -->
+<!-- SUBSECTION_BEGIN: Н62 -->
+___
+### Н62 ✅ Н62. TInvestBrokerAPI.initialize не закрывает positionsWebSocket
 
 **Статус:** исправлено (PR #78, `dev`, 2026-10-31).
 
@@ -1911,7 +2183,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** PR #78 (`dev`, 2026-10-31). `docs/ISSUES.md` → «TInvestBrokerAPI.initialize() не закрывает предыдущий positionsWebSocket».
 
-### ✅ Н63. TInvestMarketDataService — god-класс 622 строки
+<!-- SUBSECTION_END: Н62 -->
+<!-- SUBSECTION_BEGIN: Н63 -->
+___
+### Н63 ✅ Н63. TInvestMarketDataService — god-класс 622 строки
 
 **Статус:** исправлено (2026-10-31, PR #84, `dev`).
 
@@ -1929,7 +2204,10 @@ orchestration fully removed from VM (13d-C-A1 + A2):
 
 **Ссылка на задачу:** `### ✅ Пакет C: TInvestMarketDataService split (Н63)` (ROADMAP, `dev`, 2026-10-31; PR #84).
 
-### ✅ Н45. InvestRepository использует 4 fat-метода BrokerApi
+<!-- SUBSECTION_END: Н63 -->
+<!-- SUBSECTION_BEGIN: Н45 -->
+___
+### Н45 ✅ Н45. InvestRepository использует 4 fat-метода BrokerApi
 
 **Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
 4 fat-метода `BrokerApi` (`getLastPricesByTscalpInstrumentId`,
@@ -1958,7 +2236,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `### ✅ BrokerApi: ревизия fat-части после InvestRepository split` (закрыта, PR #61). **Связано с H25**.
 
-### ✅ Н53. `data/api` — плоская структура (17 файлов в одном пакете)
+<!-- SUBSECTION_END: Н45 -->
+<!-- SUBSECTION_BEGIN: Н53 -->
+___
+### Н53 ✅ Н53. `data/api` — плоская структура (17 файлов в одном пакете)
 
 **Статус:** исправлено (PR #84, `dev`, 2026-10-31).
 
@@ -1985,7 +2266,10 @@ InvestRepository split` (ROADMAP).
 
 **Сводный отчёт, 2026-10-31:** да (включена в отчёт от 2026-10-31).
 
-### ✅ Н69. InvestRepository — @Suppress("TooManyFunctions")
+<!-- SUBSECTION_END: Н53 -->
+<!-- SUBSECTION_BEGIN: Н69 -->
+___
+### Н69 ✅ Н69. InvestRepository — @Suppress("TooManyFunctions")
 
 **Статус:** исправлено (PR #56, `dev`). `InvestRepository` удалён;
 `@Suppress` ушёл вместе с ним.
@@ -2004,7 +2288,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `### ✅ Разбивка InvestRepository по доменным областям` (закрыта, PR #56).
 
-### ✅ Н65. TInvestInstrumentMapper.mapProtoToDomain — @Suppress("LongMethod")
+<!-- SUBSECTION_END: Н69 -->
+<!-- SUBSECTION_BEGIN: Н65 -->
+___
+### Н65 ✅ Н65. TInvestInstrumentMapper.mapProtoToDomain — @Suppress("LongMethod")
 
 **Статус:** исправлено (2026-11-05, PR #83).
 
@@ -2024,7 +2311,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `### ✅ Instrument: Phase 2 (sealed interface)` (PR #83).
 
-### ✅ Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
+<!-- SUBSECTION_END: Н65 -->
+<!-- SUBSECTION_BEGIN: Н64 -->
+___
+### Н64 ✅ Н64. fetchPortfolioPositions — @Suppress("CyclomaticComplexMethod")
 
 **Статус:** исправлено (2026-11-05, merge `662d1e4`, PR #96).
 
@@ -2044,6 +2334,9 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `### ✅ Рефакторинг data-слоя T-Invest (Н64)` (ROADMAP, PR #96).
 
+<!-- SUBSECTION_END: Н64 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L7 — di
 
 **Краткая таблица:**
@@ -2055,9 +2348,14 @@ InvestRepository split` (ROADMAP).
 | Н36. provideTInvestWsHttpClient — транспортная конфигурация в di | средне | L7, L6 | `di/DataModule.kt` | - |
 | Н37. Конвенции DI-файлов | низко | L7 | `di/RepositoryModule.kt` | - |
 
-### Исправленные (L7)
+<!-- SUBSECTION_BEGIN: clean-audit-93 -->
+___
+### clean-audit-93 Исправленные (L7)
 
-### ✅ Н37. Конвенции DI-файлов
+<!-- SUBSECTION_END: clean-audit-93 -->
+<!-- SUBSECTION_BEGIN: Н37 -->
+___
+### Н37 ✅ Н37. Конвенции DI-файлов
 
 **Статус:** исправлено (2026-11-11, PR #129, merge `bef308e2`). Rename
 `RepositoryModule.kt` → `UseCaseModule.kt` (file-convention aspect);
@@ -2081,7 +2379,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** PR #129 (merge `bef308e2`). 24 usecases с `@Inject` — задача `### ✅ Н37b: usecases без DI-аннотаций (2e → KMP → DI)` (`docs/ROADMAP-ARCHIVE.md`, PR #134, merge `1fe8a869`).
 
-### ✅ Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
+<!-- SUBSECTION_END: Н37 -->
+<!-- SUBSECTION_BEGIN: Н36 -->
+___
+### Н36 ✅ Н36. provideTInvestWsHttpClient — транспортная конфигурация в di
 
 **Статус:** исправлено (merge `9f352bbe`, PR #128).
 
@@ -2103,7 +2404,10 @@ InvestRepository split` (ROADMAP).
 
 ---
 
-### ✅ Н29. BrokerManager — domain-сервис в di/
+<!-- SUBSECTION_END: Н36 -->
+<!-- SUBSECTION_BEGIN: Н29 -->
+___
+### Н29 ✅ Н29. BrokerManager — domain-сервис в di/
 
 **Статус:** исправлено (PR #60, `dev`, 2026-10-28).
 
@@ -2129,7 +2433,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `### H22. BrokerRegistry` (PR #60, `dev`).
 
-### ✅ Н35. provideBrokerManager — domain-конфигурация в di
+<!-- SUBSECTION_END: Н29 -->
+<!-- SUBSECTION_BEGIN: Н35 -->
+___
+### Н35 ✅ Н35. provideBrokerManager — domain-конфигурация в di
 
 **Статус:** исправлено (PR #80, `dev`, 2026-10-31).
 
@@ -2149,6 +2456,9 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** PR #80 (`dev`, 2026-10-31). Входит в дизайн H22 (`BrokerRegistry`).
 
+<!-- SUBSECTION_END: Н35 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L8 — app
 
 **Краткая таблица:**
@@ -2163,7 +2473,9 @@ InvestRepository split` (ROADMAP).
 
 **MainActivity.kt** — чисто (20 строк, `enableEdgeToEdge` + `TScalpTheme { MainScreen() }`, никаких нарушений).
 
-### Н48. TScalpApplication → data.repository.SettingsRepository
+<!-- SUBSECTION_BEGIN: Н48 -->
+___
+### Н48 Н48. TScalpApplication → data.repository.SettingsRepository
 
 **Статус:** принято 2c.
 
@@ -2181,7 +2493,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** `H21b` (ROADMAP).
 
-### Н51. refreshInitializationState — 2 callsites в app
+<!-- SUBSECTION_END: Н48 -->
+<!-- SUBSECTION_BEGIN: Н51 -->
+___
+### Н51 Н51. refreshInitializationState — 2 callsites в app
 
 **Статус:** открыто.
 
@@ -2199,7 +2514,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена). **Обогащает открытый вопрос H22**.
 
-### Н52. Finam → Unit в restoreBrokerConnection
+<!-- SUBSECTION_END: Н51 -->
+<!-- SUBSECTION_BEGIN: Н52 -->
+___
+### Н52 Н52. Finam → Unit в restoreBrokerConnection
 
 **Статус:** принято 2c.
 
@@ -2217,9 +2535,15 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена). **Связано с `### Реализация Finam Broker API`**.
 
-### Исправленные (L8)
+<!-- SUBSECTION_END: Н52 -->
+<!-- SUBSECTION_BEGIN: clean-audit-101 -->
+___
+### clean-audit-101 Исправленные (L8)
 
-### ✅ Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger
+<!-- SUBSECTION_END: clean-audit-101 -->
+<!-- SUBSECTION_BEGIN: Н49 -->
+___
+### Н49 ✅ Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger
 
 **Статус:** исправлено (PR #70, `dev`, 2026-10-29).
 
@@ -2239,7 +2563,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** PR #70 (H17–H20); H19, H20 (закрыты).
 
-### ✅ Н50. restoreTInvest содержит domain-логику выбора счёта
+<!-- SUBSECTION_END: Н49 -->
+<!-- SUBSECTION_BEGIN: Н50 -->
+___
+### Н50 ✅ Н50. restoreTInvest содержит domain-логику выбора счёта
 
 **Статус:** исправлено (PR #77, `dev`, 2026-10-31).
 
@@ -2261,6 +2588,9 @@ InvestRepository split` (ROADMAP).
 
 ---
 
+<!-- SUBSECTION_END: Н50 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## L9 — transport-ktor (отдельный модуль)
 
 **Краткая таблица:**
@@ -2275,7 +2605,9 @@ InvestRepository split` (ROADMAP).
 | Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt | низко | L9 | `dto/PositionsStreamDto.kt` | - |
 | Н93. PositionsStreamDto — устаревшие комментарии-гипотезы | низко | L9 | `dto/PositionsStreamDto.kt` | - |
 
-### Н87. TInvestPositionsWebSocket — cold flow, риск дублирования соединений
+<!-- SUBSECTION_BEGIN: Н87 -->
+___
+### Н87 Н87. TInvestPositionsWebSocket — cold flow, риск дублирования соединений
 
 **Статус:** открыто.
 
@@ -2293,7 +2625,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена). Связано с закрытой `### Add stop() to TInvestOrderStateWebSocket` (прецедент hot vs cold).
 
-### Н89. TInvestRestTransport — DTO в одном файле
+<!-- SUBSECTION_END: Н87 -->
+<!-- SUBSECTION_BEGIN: Н89 -->
+___
+### Н89 Н89. TInvestRestTransport — DTO в одном файле
 
 **Статус:** открыто.
 
@@ -2313,7 +2648,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена). Связано с Н53 (`data/api/` структура).
 
-### Н90. RestDto — избыточные @SerialName
+<!-- SUBSECTION_END: Н89 -->
+<!-- SUBSECTION_BEGIN: Н90 -->
+___
+### Н90 Н90. RestDto — избыточные @SerialName
 
 **Статус:** открыто.
 
@@ -2331,7 +2669,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена).
 
-### Н91. createTransportHttpClient — dead code
+<!-- SUBSECTION_END: Н90 -->
+<!-- SUBSECTION_BEGIN: Н91 -->
+___
+### Н91 Н91. createTransportHttpClient — dead code
 
 **Статус:** открыто.
 
@@ -2351,7 +2692,10 @@ InvestRepository split` (ROADMAP).
 
 ---
 
-### Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt
+<!-- SUBSECTION_END: Н91 -->
+<!-- SUBSECTION_BEGIN: Н92 -->
+___
+### Н92 Н92. Общие DTO между WS-каналами — в PositionsStreamDto.kt
 
 **Статус:** открыто.
 
@@ -2375,7 +2719,10 @@ InvestRepository split` (ROADMAP).
 
 **Ссылка на задачу:** — (не заведена). Связано с Н53 (`data/api/` структура).
 
-### Н93. PositionsStreamDto — устаревшие комментарии-гипотезы
+<!-- SUBSECTION_END: Н92 -->
+<!-- SUBSECTION_BEGIN: Н93 -->
+___
+### Н93 Н93. PositionsStreamDto — устаревшие комментарии-гипотезы
 
 **Статус:** открыто.
 
@@ -2399,9 +2746,15 @@ InvestRepository split` (ROADMAP).
 
 ---
 
-### Исправленные (L9)
+<!-- SUBSECTION_END: Н93 -->
+<!-- SUBSECTION_BEGIN: clean-audit-110 -->
+___
+### clean-audit-110 Исправленные (L9)
 
-### ✅ Н88. RestGetPortfolioRequest — без @Serializable
+<!-- SUBSECTION_END: clean-audit-110 -->
+<!-- SUBSECTION_BEGIN: Н88 -->
+___
+### Н88 ✅ Н88. RestGetPortfolioRequest — без @Serializable
 
 **Статус:** исправлено (PR #75, `dev`, 2026-10-30).
 
@@ -2423,12 +2776,17 @@ InvestRepository split` (ROADMAP).
 
 ---
 
+<!-- SUBSECTION_END: Н88 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## Связанные документы
 
 - `AGENTS.md` → 2c, 2d
 - `docs/ROADMAP.md` — задачи реализации
 - `docs/architecture.md` — когда появится (раздел «Известные долги»)
 
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## История
 
 - 2026-10-26 — создан. Заполнены L1 (7), L2 (4), L3 (7). L4–L8 — заглушки.
@@ -2436,11 +2794,15 @@ InvestRepository split` (ROADMAP).
 - 2026-10-31 — сводный отчёт: 76 Н (36 закрыто, 40 открыто), 12 M (0 закрыто); новая ось MVVM (M001–M012).
 - 2026-10-31 — ревизия Н45/Н53/Н69 после Пакета C: все три закрыты (после отчёта; счётчик отчёта не меняется).
 
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## Сводный отчёт, 2026-10-27
 
 **Зафиксировано в `docs/clean-audit.md`:** 74 находки, ~1500 строк. Проверены все 9 уровней (L1–L9), 3 документа-источника (ROADMAP, ci-roadmap, ISSUES) прошли ревизию.
 
-### Метрики
+<!-- SUBSECTION_BEGIN: clean-audit-112 -->
+___
+### clean-audit-112 Метрики
 
 | Метрика | Значение |
 |---|---|
@@ -2451,7 +2813,10 @@ InvestRepository split` (ROADMAP).
 | Новых в этой сессии | 56 (L4–L9) |
 | Файлов кода покрыто | ~55 (app + transport-ktor) |
 
-### Распределение по уровням
+<!-- SUBSECTION_END: clean-audit-112 -->
+<!-- SUBSECTION_BEGIN: clean-audit-113 -->
+___
+### clean-audit-113 Распределение по уровням
 
 | Уровень | Находок | Ключевые |
 |---|---|---|
@@ -2466,14 +2831,20 @@ InvestRepository split` (ROADMAP).
 | L8 app | 5 | Н50 (domain-логика в app), Н51 (`refreshInitializationState` × 2) |
 | L9 transport-ktor | 7 | Н88 (missing `@Serializable`), Н87 (cold flow) |
 
-### Severity
+<!-- SUBSECTION_END: clean-audit-113 -->
+<!-- SUBSECTION_BEGIN: clean-audit-114 -->
+___
+### clean-audit-114 Severity
 
 - **Критично** ~10: Н21, Н22, Н25, Н29, Н38, Н40, Н44, Н53, Н63, Н71 (security).
 - **Высоко** ~15: Н1, Н19, Н20, Н39, Н45, Н62, Н66, Н67, Н72, Н73, Н76, Н77, Н78, Н88, +1.
 - **Средне** ~25.
 - **Низко** ~24.
 
-### Baseline: до / после
+<!-- SUBSECTION_END: clean-audit-114 -->
+<!-- SUBSECTION_BEGIN: clean-audit-115 -->
+___
+### clean-audit-115 Baseline: до / после
 
 - **До сессии** (initial clean-audit 2026-10-26): 18 находок (L1–L3).
 - **После** (2026-10-27): 74 находки (L1–L9).
@@ -2484,7 +2855,10 @@ InvestRepository split` (ROADMAP).
 - **Дыры в инвентаризации закрыты** — backfill Н58–Н70 восстановил 13 пропусков.
 - **Cross-level связи** — `**Анализ Lx-Нy:**` показывает, что `DebugConfig` протекает в 2 слоя (L1 + L5), `di.BrokerManager` — в 3 (L1 + L5 + L6), `toAppError` — в 3 (L2 + L5 + data).
 
-### Что важно из находок (не очевидное)
+<!-- SUBSECTION_END: clean-audit-115 -->
+<!-- SUBSECTION_BEGIN: clean-audit-116 -->
+___
+### clean-audit-116 Что важно из находок (не очевидное)
 
 1. **`di.BrokerManager` — центральная проблема.** 10 потребителей: 3 VM + 3 менеджера + 3 репозитория + 1 app. Тянет за собой Н22, Н29, Н40, Н44. Решение — `BrokerRegistry` (Н22) + `refreshInitializationState` как открытый вопрос (internal / interface / auto).
 2. **Н71 (security) — `refreshToken` BcsBrokerApi логируется.** Уже в ISSUES приоритетно. Ждёт `bugfix/security-token-logging`.
@@ -2492,7 +2866,10 @@ InvestRepository split` (ROADMAP).
 4. **`data/api` структурно критичен** (Н53). 17 файлов в одном пакете. Нужна раскладка `common/`, `tinvest/{services,mappers}`, `bcs/`, `finam/`.
 5. **`util` — grab-bag** (Н17–Н20): presentation (`TradePhrases`), платформа (`AppLogger`), transport (`AppResultExtensions`), формат (`CurrencyUtils`). Используется в 3 слоях. Разъезд по слоям — большая задача.
 
-### Рекомендация по приоритету исправления
+<!-- SUBSECTION_END: clean-audit-116 -->
+<!-- SUBSECTION_BEGIN: clean-audit-117 -->
+___
+### clean-audit-117 Рекомендация по приоритету исправления
 
 План в ROADMAP: **H3 → Разбивка InvestRepository → H21b → H23 → util → H22 → H1/Н4/H24 → H5**.
 
@@ -2515,11 +2892,16 @@ Clean-audit подтверждает этот порядок и уточняет
 - **Н88** (missing `@Serializable`) — 5 минут.
 - **Н53** (структура `data/api/`) — большая, но критичная.
 
+<!-- SUBSECTION_END: clean-audit-117 -->
+<!-- SECTION_END: clean-audit -->
+<!-- SECTION_BEGIN: clean-audit -->
 ## Сводный отчёт, 2026-10-31
 
 **Зафиксировано в `docs/clean-audit.md`:** 76 Н (Clean) + 12 M (MVVM) = 88 находок. Все 9 уровней (L1–L9) проверены. Н: 36 закрыто, 40 открыто. M: 0 закрыто, 12 открыто.
 
-### Метрики
+<!-- SUBSECTION_BEGIN: clean-audit-118 -->
+___
+### clean-audit-118 Метрики
 
 | Метрика | 2026-10-27 | 2026-10-31 | Diff |
 |---|---|---|---|
@@ -2530,7 +2912,10 @@ Clean-audit подтверждает этот порядок и уточняет
 | Открыто M | 0 | 12 | +12 |
 | Закрыто M | 0 | 0 | 0 |
 
-### Распределение Н по уровням
+<!-- SUBSECTION_END: clean-audit-118 -->
+<!-- SUBSECTION_BEGIN: clean-audit-119 -->
+___
+### clean-audit-119 Распределение Н по уровням
 
 | Уровень | Всего | Открыто | Ключевые открытые |
 |---|---|---|---|
@@ -2544,7 +2929,10 @@ Clean-audit подтверждает этот порядок и уточняет
 | L8 app | 5 | 3 | Н48, Н51, Н52 |
 | L9 transport-ktor | 7 | 6 | Н87, Н89–Н93 |
 
-### MVVM (M001–M012) — новая ось
+<!-- SUBSECTION_END: clean-audit-119 -->
+<!-- SUBSECTION_BEGIN: clean-audit-120 -->
+___
+### clean-audit-120 MVVM (M001–M012) — новая ось
 
 Введена в этой сессии, все 12 записей — L1 (presentation), все открыты.
 
@@ -2558,13 +2946,19 @@ Clean-audit подтверждает этот порядок и уточняет
 
 M001 — гибридная (M1 + M7), учтена в обеих строках.
 
-### Diff с 2026-10-27
+<!-- SUBSECTION_END: clean-audit-120 -->
+<!-- SUBSECTION_BEGIN: clean-audit-121 -->
+___
+### clean-audit-121 Diff с 2026-10-27
 
 - **Н:** 74 → 76 (+2: Н94 — новый в L1; +1 — по списку открытых L-уровней).
 - **Закрыто:** 0 → 36. Сессия 2026-10-27 → 2026-10-31: Пакеты A/B/C/D, H21b, H22, H23, H24, H25, H26, H29, H31, H32, H32a, H35, H38, H39, H40, H44, H46, H47, H49, H50, H60, H61, H62, H63, H68, H70, H71, H88, Н1, Н3, Н4, Н8, Н16, Н17–Н20.
 - **M:** 0 → 12 (вся ось введена в этой сессии).
 
-### Что важно из находок (не очевидное)
+<!-- SUBSECTION_END: clean-audit-121 -->
+<!-- SUBSECTION_BEGIN: clean-audit-122 -->
+___
+### clean-audit-122 Что важно из находок (не очевидное)
 
 1. **Н5 (PortfolioPosition — presentation-поля)** — центральная проблема. Блокирует H5 (split модели). Связана с Н15 (TradingStateSnapshot) и `UI: blocked`. По факту кода: `PortfolioPosition` без `money`/`blocked`, `toPortfolioPosition`/`mergeWith` их не передают — разрыв в domain, не в UI.
 2. **MVVM (M001–M012)** — 12 записей, все в L1. Связаны с Н94 (god-функции Compose, 10 функций / 5 файлов). `OrdersViewModel.postOrder` (M002) и `TInvestSettingsPanel` (M006) — самые дорогие (orchestration в VM/UI).
@@ -2572,7 +2966,10 @@ M001 — гибридная (M1 + M7), учтена в обеих строках
 4. **KMP-блокер — `javax.inject` в 4 менеджерах** (`BrokerLifecycleManager`, `OrderFlowManager`, `PositionFlowManager`, `PriceFlowManager`), не 3, как в `docs/architecture.md` — `BrokerLifecycleManager` добавлен в PR #77 после KMP-аудита. `Dispatchers.IO` и `java.time` — чисто (PR #73, #74).
 5. **Н53 (`data/api` — плоская структура)** — вероятно, частично закрыт: PR #84 (шаг 0) переехал `data/api/` по подпапкам (`tinvest/`, `bcs/`, `finam/`, `common/`). Требует ревизии.
 
-### Рекомендация по приоритету
+<!-- SUBSECTION_END: clean-audit-122 -->
+<!-- SUBSECTION_BEGIN: clean-audit-123 -->
+___
+### clean-audit-123 Рекомендация по приоритету
 
 По цифрам отчёта (не по интуиции):
 
@@ -2582,3 +2979,5 @@ M001 — гибридная (M1 + M7), учтена в обеих строках
 4. **Н45, Н53, Н69 — ревизия** (вероятно, закрыты после Пакета C) — ~30 мин, отдельным docs-коммитом.
 
 Оценка отчёта: ~45 мин (включая эту запись).
+<!-- SUBSECTION_END: clean-audit-123 -->
+<!-- SECTION_END: clean-audit -->

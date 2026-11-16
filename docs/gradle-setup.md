@@ -4,6 +4,7 @@
 Документ описывает нюансы запуска приложения из Android Studio
 и работы с APK-файлами в TScalp.
 
+<!-- SECTION_BEGIN: gradle-setup -->
 ## Автоматический `clean assembleDebug` перед запуском
 
 **Проблема:** при нажатии Shift+F10 Android Studio запускает
@@ -18,7 +19,9 @@
 `clean assembleDebug` в секции **Before launch** конфигурации
 запуска.
 
-### Пошагово
+<!-- SUBSECTION_BEGIN: gradle-setup-1 -->
+___
+### gradle-setup-1 Пошагово
 
 1. **Run → Edit Configurations…**
 2. Выбрать конфигурацию `app`.
@@ -28,7 +31,10 @@
 6. В поле **Tasks** задать: `clean assembleDebug`
 7. Нажать **OK**.
 
-### Результат
+<!-- SUBSECTION_END: gradle-setup-1 -->
+<!-- SUBSECTION_BEGIN: gradle-setup-2 -->
+___
+### gradle-setup-2 Результат
 
 При каждом Shift+F10:
 1. Выполнится `clean assembleDebug` — полная пересборка APK с нуля.
@@ -38,6 +44,9 @@
 Красивое имя APK (`tscalp-debug-v1.XXX.apk`) появляется
 автоматически через `finalizedBy` на `assembleDebug`.
 
+<!-- SUBSECTION_END: gradle-setup-2 -->
+<!-- SECTION_END: gradle-setup -->
+<!-- SECTION_BEGIN: gradle-setup -->
 ## Unit-тесты: android.util.Log в JVM
 
 **Проблема:** production-код логирует через `AppLogger` →
@@ -76,12 +85,16 @@
 **Связано:** `AGENTS.md` → «Unit-тесты: mockk для suspend-функций».
 
 
+<!-- SECTION_END: gradle-setup -->
+<!-- SECTION_BEGIN: gradle-setup -->
 ## Compose UI tests (Robolectric)
 
 Инфраструктура для **Compose UI** тестов на JVM (без эмулятора), гоняются
 в `testDebugUnitTest` → CI `fast-check`.
 
-### Зависимости (app/build.gradle.kts)
+<!-- SUBSECTION_BEGIN: gradle-setup-3 -->
+___
+### gradle-setup-3 Зависимости (app/build.gradle.kts)
 
 - `testImplementation("androidx.compose.ui:ui-test-junit4")` (BOM уже в проекте).
 - `testImplementation("org.robolectric:robolectric:4.14.1")`.
@@ -90,7 +103,10 @@
 - `debugImplementation("androidx.compose.ui:ui-test-manifest")` — уже есть.
 - `testOptions { unitTests.isIncludeAndroidResources = true }` — обязательно для Robolectric.
 
-### Как писать тест
+<!-- SUBSECTION_END: gradle-setup-3 -->
+<!-- SUBSECTION_BEGIN: gradle-setup-4 -->
+___
+### gradle-setup-4 Как писать тест
 
 ~~~kotlin
 @RunWith(AndroidJUnit4::class)
@@ -108,20 +124,29 @@ class XTest {
 }
 ~~~
 
-### Ограничения Robolectric
+<!-- SUBSECTION_END: gradle-setup-4 -->
+<!-- SUBSECTION_BEGIN: gradle-setup-5 -->
+___
+### gradle-setup-5 Ограничения Robolectric
 
 - нет RenderThread, bitmap, accessibility-дерева;
 - нет реального IME, insets, edge-to-edge, WebView, камеры/биометрии;
 - для таких — instrumented (`androidTest` + эмулятор), у нас пока не требуется.
 
-### Полезные API
+<!-- SUBSECTION_END: gradle-setup-5 -->
+<!-- SUBSECTION_BEGIN: gradle-setup-6 -->
+___
+### gradle-setup-6 Полезные API
 
 - `onNodeWithText / onNodeWithContentDescription / onNode(hasTestTag(...))`;
 - `performClick / performTextInput / performScrollToIndex`;
 - `waitForIdle()` — дожать recomposition/animations;
 - `mainClock.autoAdvance = false` + `mainClock.advanceTimeBy(ms)` — кадровый контроль (`LaunchedEffect`-задержки).
 
-### Screenshot tests (Roborazzi)
+<!-- SUBSECTION_END: gradle-setup-6 -->
+<!-- SUBSECTION_BEGIN: gradle-setup-7 -->
+___
+### gradle-setup-7 Screenshot tests (Roborazzi)
 
 Rendering-regression guard для UI: PNG-baseline в git, pixel-diff в CI.
 Плагин `io.github.takahirom.roborazzi:1.79.0` (root + app), baseline в
@@ -152,12 +177,18 @@ artifact `roborazzi-results`.
 **Связано:** `docs/ROADMAP.md` → `### OrderFormViewModel: split на sub-VM`
 (предзадача «Roborazzi screenshot tests»).
 
-### Desktop
+<!-- SUBSECTION_END: gradle-setup-7 -->
+<!-- SUBSECTION_BEGIN: gradle-setup-8 -->
+___
+### gradle-setup-8 Desktop
 
 На desktop `./gradlew :app:testDebugUnitTest` работает локально; на mobile
 (proot) — только CI (`fast-check`), локальный Gradle не поднимается.
 
 
+<!-- SUBSECTION_END: gradle-setup-8 -->
+<!-- SECTION_END: gradle-setup -->
+<!-- SECTION_BEGIN: gradle-setup -->
 ## Замечания
 
 - **Configuration cache:** флаг `--no-configuration-cache` нельзя
@@ -167,4 +198,4 @@ artifact `roborazzi-results`.
 - **Время сборки:** `clean` замедляет запуск. Если мешает —
   уберите `clean`, положившись на инкрементальную сборку.
 - **Release:** аналогично можно создать отдельную конфигурацию
-  с задачей `clean assembleRelease`.
+  с задачей `clean assembleRelease`.<!-- SECTION_END: gradle-setup -->

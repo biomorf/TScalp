@@ -9,6 +9,7 @@ CI/CD-планирование → `docs/ci-roadmap.md`.
 
 
 
+<!-- SECTION_BEGIN: roadmap -->
 ## Шаблон задачи
 
 Все поля обязательные. Задачи без заполненных полей не
@@ -81,9 +82,13 @@ clean-audit.
 
 
 
+<!-- SECTION_END: roadmap -->
+<!-- SECTION_BEGIN: roadmap -->
 ## Планируемые задачи
 
-### docs/: рефакторинг журналов (ROADMAP, ci-roadmap, ISSUES, clean-audit)
+<!-- SUBSECTION_BEGIN: t-1 -->
+___
+### t-1 docs/: рефакторинг журналов (ROADMAP, ci-roadmap, ISSUES, clean-audit)
 
 **Статус:** в работе (Фаза 0 начата)
 **Мобильная работа:** полное закрытие
@@ -151,7 +156,10 @@ ___
 
 
 
-### AGENTS: консолидация скриптов в AGENTS/scripts + инструкции отдельно
+<!-- SUBSECTION_END: t-1 -->
+<!-- SUBSECTION_BEGIN: t-2 -->
+___
+### t-2 AGENTS: консолидация скриптов в AGENTS/scripts + инструкции отдельно
 
 **Статус:** запланировано.
 **Мобильная работа:** полное закрытие
@@ -209,7 +217,10 @@ ___
 
 
 
-### Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED
+<!-- SUBSECTION_END: t-2 -->
+<!-- SUBSECTION_BEGIN: t-3 -->
+___
+### t-3 Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
 
@@ -292,7 +303,10 @@ ___
 ---
 
 
-### Rate-limiter: GetUserTariff (dynamic limits)
+<!-- SUBSECTION_END: t-3 -->
+<!-- SUBSECTION_BEGIN: t-4 -->
+___
+### t-4 Rate-limiter: GetUserTariff (dynamic limits)
 
 **Мобильная работа:** полное закрытие (proot + PR; data-слой, гейт на CI).
 
@@ -354,7 +368,10 @@ ___
 - Bootstrap: `GetUserTariff` под глобальным rate-limiter? — да, но с повышенным таймаутом.
 - Кэшировать между запусками (DataStore) или только в памяти? — в памяти для 1-й итерации.
 
-### Stream connection limiter: WS + gRPC-streaming
+<!-- SUBSECTION_END: t-4 -->
+<!-- SUBSECTION_BEGIN: t-5 -->
+___
+### t-5 Stream connection limiter: WS + gRPC-streaming
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -424,7 +441,10 @@ ___
 - WS и gRPC-streaming делят один счётчик? Пока консервативно `true`; если в логах `4008` при общем счёте < лимита — вероятно, раздельные, флаг `false`.
 - T-Invest docs: счётчик стрим-соединений обновляется каждые 2 минуты — влияет ли на acquire? — уточнить по факту.
 
-### Search: сократить N+1 unary в findInstruments
+<!-- SUBSECTION_END: t-5 -->
+<!-- SUBSECTION_BEGIN: t-6 -->
+___
+### t-6 Search: сократить N+1 unary в findInstruments
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
 
@@ -471,7 +491,10 @@ ___
 
 ---
 
-### updateStatuses: skip on cache hit / lazy on select
+<!-- SUBSECTION_END: t-6 -->
+<!-- SUBSECTION_BEGIN: t-7 -->
+___
+### t-7 updateStatuses: skip on cache hit / lazy on select
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
 
@@ -518,7 +541,10 @@ ___
 
 ---
 
-### getTradingStatuses: батчинг / concurrency
+<!-- SUBSECTION_END: t-7 -->
+<!-- SUBSECTION_BEGIN: t-8 -->
+___
+### t-8 getTradingStatuses: батчинг / concurrency
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
 
@@ -565,7 +591,10 @@ ___
 
 ---
 
-### PortfolioScreen: retry с backoff
+<!-- SUBSECTION_END: t-8 -->
+<!-- SUBSECTION_BEGIN: t-9 -->
+___
+### t-9 PortfolioScreen: retry с backoff
 
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
 
@@ -613,7 +642,10 @@ ___
 ---
 
 
-### TInvest*Service + *Api: unary → AppResult
+<!-- SUBSECTION_END: t-9 -->
+<!-- SUBSECTION_BEGIN: t-10 -->
+___
+### t-10 TInvest*Service + *Api: unary → AppResult
 
 **Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
 
@@ -674,7 +706,10 @@ ___
 - `AppError.RateLimited` — отдельный подтип или флаг `retryable` на `AppError.Unknown`? **Рекомендация:** отдельный подтип.
 - Streaming (`Flow`) — throw или тоже `AppResult` в `first()`? **Рекомендация:** throw.
 
-### C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing)
+<!-- SUBSECTION_END: t-10 -->
+<!-- SUBSECTION_BEGIN: t-11 -->
+___
+### t-11 C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing)
 
 **Мобильная работа:** полное закрытие (proot + PR; domain + presentation, гейт на CI).
 
@@ -734,7 +769,10 @@ ___
 
 ___
 
-### Архитектурный документ (docs/architecture.md)
+<!-- SUBSECTION_END: t-11 -->
+<!-- SUBSECTION_BEGIN: t-12 -->
+___
+### t-12 Архитектурный документ (docs/architecture.md)
 
 **Мобильная работа:** полное закрытие (правки .md — через proot;
 mermaid-рендер — визуальная проверка, не блокирует).
@@ -905,7 +943,10 @@ ___
 
 
 
-### Compose UI: test infra + 3 экрана — ✅ done (U0–U4)
+<!-- SUBSECTION_END: t-12 -->
+<!-- SUBSECTION_BEGIN: t-13 -->
+___
+### t-13 Compose UI: test infra + 3 экрана — ✅ done (U0–U4)
 
 См. `ROADMAP-ARCHIVE.md` → `### ✅ Compose UI: test infra + 3 экрана (U0–U4)`.
 
@@ -917,7 +958,10 @@ ___
 
 
 
-### UX-flow Variant D: broker + account до поиска
+<!-- SUBSECTION_END: t-13 -->
+<!-- SUBSECTION_BEGIN: t-14 -->
+___
+### t-14 UX-flow Variant D: broker + account до поиска
 
 **Мобильная работа:** невозможно (desktop; UI-ревизия диалога свойств слота + 6+ файлов + live-test).
 
@@ -978,7 +1022,10 @@ ___
 3. `OrderSearchState` — плоский или `SlotSearchState(broker, account, query)`?
 
 
-### Рефакторинг архитектурного долга (detekt-группа 3)
+<!-- SUBSECTION_END: t-14 -->
+<!-- SUBSECTION_BEGIN: t-15 -->
+___
+### t-15 Рефакторинг архитектурного долга (detekt-группа 3)
 
 **Статус:** запланировано.
 
@@ -1107,7 +1154,10 @@ ___
 
 
 
-### Orders: P&L в песочнице (expectedYield)
+<!-- SUBSECTION_END: t-15 -->
+<!-- SUBSECTION_BEGIN: t-16 -->
+___
+### t-16 Orders: P&L в песочнице (expectedYield)
 
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с SBER).
 
@@ -1178,7 +1228,10 @@ ___
 
 
 
-### Margin/risk → TradeCheckResult
+<!-- SUBSECTION_END: t-16 -->
+<!-- SUBSECTION_BEGIN: t-17 -->
+___
+### t-17 Margin/risk → TradeCheckResult
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -1247,7 +1300,10 @@ ___
 
 
 
-### T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
+<!-- SUBSECTION_END: t-17 -->
+<!-- SUBSECTION_BEGIN: t-18 -->
+___
+### t-18 T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -1309,7 +1365,10 @@ ___
 
 
 
-### Position: источники priceChangePercent и lockedQuantity
+<!-- SUBSECTION_END: t-18 -->
+<!-- SUBSECTION_BEGIN: t-19 -->
+___
+### t-19 Position: источники priceChangePercent и lockedQuantity
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -1384,7 +1443,10 @@ ___
 
 
 
-### UI: кнопка swap слотов (primary ↔ pair)
+<!-- SUBSECTION_END: t-19 -->
+<!-- SUBSECTION_BEGIN: t-20 -->
+___
+### t-20 UI: кнопка swap слотов (primary ↔ pair)
 
 **Мобильная работа:** частичное (live-тест UI).
 
@@ -1444,7 +1506,10 @@ swap рядом со slider «Парная торговля».
 
 
 
-### KMP: domain → commonMain
+<!-- SUBSECTION_END: t-20 -->
+<!-- SUBSECTION_BEGIN: t-21 -->
+___
+### t-21 KMP: domain → commonMain
 
 **Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
 
@@ -1504,7 +1569,10 @@ ___
 
 
 
-### Плавный переход Hilt → Koin
+<!-- SUBSECTION_END: t-21 -->
+<!-- SUBSECTION_BEGIN: t-22 -->
+___
+### t-22 Плавный переход Hilt → Koin
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -1671,7 +1739,10 @@ ___
 
 
 
-### UI: показать executedPrice / executedQuantity на карточке
+<!-- SUBSECTION_END: t-22 -->
+<!-- SUBSECTION_BEGIN: t-23 -->
+___
+### t-23 UI: показать executedPrice / executedQuantity на карточке
 
 **Мобильная работа:** частичное (live-тест UI).
 
@@ -1732,7 +1803,10 @@ ___
 
 
 
-### UI-индикатор состояния стримов
+<!-- SUBSECTION_END: t-23 -->
+<!-- SUBSECTION_BEGIN: t-24 -->
+___
+### t-24 UI-индикатор состояния стримов
 
 **Статус:** запланировано. **UI — требует санкции.**
 
@@ -1802,7 +1876,10 @@ ___
 
 
 
-### UI: разбивка AccountBalance.total на money/blocked в шапке счёта
+<!-- SUBSECTION_END: t-24 -->
+<!-- SUBSECTION_BEGIN: t-25 -->
+___
+### t-25 UI: разбивка AccountBalance.total на money/blocked в шапке счёта
 
 **Мобильная работа:** частичное (live-тест UI).
 
@@ -1909,7 +1986,10 @@ ___
 
 
 
-### UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
+<!-- SUBSECTION_END: t-25 -->
+<!-- SUBSECTION_BEGIN: t-26 -->
+___
+### t-26 UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
 
 **Мобильная работа:** частичное (live-тест UI).
 
@@ -2025,7 +2105,10 @@ ___
 
 
 
-### Индикатор доступности инструмента в карточке позиции
+<!-- SUBSECTION_END: t-26 -->
+<!-- SUBSECTION_BEGIN: t-27 -->
+___
+### t-27 Индикатор доступности инструмента в карточке позиции
 
 **Файлы:**
 - `ui/components/AssetPositionCard.kt` — параметр
@@ -2050,7 +2133,10 @@ ___
 
 
 
-### P&L: sandbox client-side fallback для Position (низкий приоритет)
+<!-- SUBSECTION_END: t-27 -->
+<!-- SUBSECTION_BEGIN: t-28 -->
+___
+### t-28 P&L: sandbox client-side fallback для Position (низкий приоритет)
 
 **Мобильная работа:** частичное (live-тест данных в песочнице).
 
@@ -2146,7 +2232,10 @@ ___
 
 
 
-### Полировка debug-переключателей
+<!-- SUBSECTION_END: t-28 -->
+<!-- SUBSECTION_BEGIN: t-29 -->
+___
+### t-29 Полировка debug-переключателей
 
 **Мобильная работа:** частичное (live-тест 8 комбинаций тумблеров).
 
@@ -2205,7 +2294,10 @@ ___
 
 
 
-### Реализация BCS Broker API
+<!-- SUBSECTION_END: t-29 -->
+<!-- SUBSECTION_BEGIN: t-30 -->
+___
+### t-30 Реализация BCS Broker API
 
 **Мобильная работа:** частичное (live-тест BCS API).
 
@@ -2270,7 +2362,10 @@ ___
 
 
 
-### Реализация Finam Broker API
+<!-- SUBSECTION_END: t-30 -->
+<!-- SUBSECTION_BEGIN: t-31 -->
+___
+### t-31 Реализация Finam Broker API
 
 **Статус:** запланировано.
 
@@ -2362,7 +2457,10 @@ ___
 
 
 
-### Live-test Broker lifecycle API: BCS/Finam
+<!-- SUBSECTION_END: t-31 -->
+<!-- SUBSECTION_BEGIN: t-32 -->
+___
+### t-32 Live-test Broker lifecycle API: BCS/Finam
 
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
 
@@ -2442,7 +2540,10 @@ ___
 
 
 
-### Установка GrpcExceptionGuard
+<!-- SUBSECTION_END: t-32 -->
+<!-- SUBSECTION_BEGIN: t-33 -->
+___
+### t-33 Установка GrpcExceptionGuard
 
 **Мобильная работа:** частичное (live-тест на устройстве).
 
@@ -2530,7 +2631,10 @@ ___
 
 
 
-### Расшифровка кодов ошибок брокеров
+<!-- SUBSECTION_END: t-33 -->
+<!-- SUBSECTION_BEGIN: t-34 -->
+___
+### t-34 Расшифровка кодов ошибок брокеров
 
 **Статус:** в работе.
 
@@ -2556,7 +2660,10 @@ ___
 
 
 
-### OrdersListDialog: empty-state
+<!-- SUBSECTION_END: t-34 -->
+<!-- SUBSECTION_BEGIN: t-35 -->
+___
+### t-35 OrdersListDialog: empty-state
 
 **Мобильная работа:** частичное (live-тест UI).
 
@@ -2609,7 +2716,10 @@ ___
 
 
 
-### Settings: inline status card vs snackbar
+<!-- SUBSECTION_END: t-35 -->
+<!-- SUBSECTION_BEGIN: t-36 -->
+___
+### t-36 Settings: inline status card vs snackbar
 
 **Мобильная работа:** частичное (live-тест UI).
 
@@ -2667,7 +2777,10 @@ ___
 
 ___
 
-### docs/live-test.md: mobile-ограничения (Robolectric vs device)
+<!-- SUBSECTION_END: t-36 -->
+<!-- SUBSECTION_BEGIN: t-37 -->
+___
+### t-37 docs/live-test.md: mobile-ограничения (Robolectric vs device)
 
 **Мобильная работа:** полное закрытие (docs-only, proot).
 
@@ -2729,7 +2842,10 @@ ___
 
 
 
-### Live-test: C2 Orders form 7 сценариев
+<!-- SUBSECTION_END: t-37 -->
+<!-- SUBSECTION_BEGIN: t-38 -->
+___
+### t-38 Live-test: C2 Orders form 7 сценариев
 
 **Мобильная работа:** невозможно (live-test на устройстве).
 
@@ -2775,6 +2891,10 @@ ___
 
 **Открытые вопросы:** нет.
 
+<!-- SUBSECTION_END: t-38 -->
+<!-- SECTION_END: roadmap -->
+<!-- SECTION_BEGIN: roadmap -->
 ## Закрытые
 
 Задачи вынесены в [`ROADMAP-ARCHIVE.md`](ROADMAP-ARCHIVE.md).
+<!-- SECTION_END: roadmap -->

@@ -11,15 +11,21 @@ Ansible + Podman»). Раздел про GitLab-релиз сохранён ни
 помечен
 как временно отключённый.
 
+<!-- SECTION_BEGIN: release-process -->
 ## Версии
 
-### versionName
+<!-- SUBSECTION_BEGIN: release-process-1 -->
+___
+### release-process-1 versionName
 
 - **Локально** (без `-PreleaseVersionName`): `1.<yy.MM.dd.HHmm>`
   в UTC. Пример: `1.26.10.07.1430`.
 - **В CI на теге** `vX.Y.Z`: ровно `X.Y.Z` (без префикса `v`).
 
-### versionCode
+<!-- SUBSECTION_END: release-process-1 -->
+<!-- SUBSECTION_BEGIN: release-process-2 -->
+___
+### release-process-2 versionCode
 
 Вычисляется из semver тега по формуле:
 
@@ -41,9 +47,14 @@ Ansible + Podman»). Раздел про GitLab-релиз сохранён ни
 
 ---
 
+<!-- SUBSECTION_END: release-process-2 -->
+<!-- SECTION_END: release-process -->
+<!-- SECTION_BEGIN: release-process -->
 ## Секреты и CI-переменные
 
-### GitHub Repository secrets (актуально)
+<!-- SUBSECTION_BEGIN: release-process-3 -->
+___
+### release-process-3 GitHub Repository secrets (актуально)
 
 Задаются в `Settings → Secrets and variables → Actions → New
 repository secret`. Используются в `release.yml`.
@@ -64,7 +75,10 @@ repository secret`. Используются в `release.yml`.
 per-environment значения) — см. `docs/ci-roadmap.md` →
 «Переход на GitHub Environment secrets».
 
-### GitLab CI/CD Variables (временно отключены)
+<!-- SUBSECTION_END: release-process-3 -->
+<!-- SUBSECTION_BEGIN: release-process-4 -->
+___
+### release-process-4 GitLab CI/CD Variables (временно отключены)
 
 Сохраняются в GitLab на случай восстановления пайплайна.
 Пока не используются.
@@ -82,9 +96,14 @@ per-environment значения) — см. `docs/ci-roadmap.md` →
 
 ---
 
+<!-- SUBSECTION_END: release-process-4 -->
+<!-- SECTION_END: release-process -->
+<!-- SECTION_BEGIN: release-process -->
 ## Теги
 
-### Аннотированные, не легковесные
+<!-- SUBSECTION_BEGIN: release-process-5 -->
+___
+### release-process-5 Аннотированные, не легковесные
 
 Релизные теги создаются **только аннотированными**:
 
@@ -104,7 +123,10 @@ per-environment значения) — см. `docs/ci-roadmap.md` →
 - **Воспроизводимость.** Клонировав репозиторий на тег, любой
   может увидеть сообщение тега без запуска CI.
 
-### Защита веток и тегов
+<!-- SUBSECTION_END: release-process-5 -->
+<!-- SUBSECTION_BEGIN: release-process-6 -->
+___
+### release-process-6 Защита веток и тегов
 
 **Детали — в отдельном справочнике:** `docs/repo-protection.md`.
 Там описаны:
@@ -124,6 +146,9 @@ force-push / удаления. Теги `v*` — иммутабельны, со�
 
 ---
 
+<!-- SUBSECTION_END: release-process-6 -->
+<!-- SECTION_END: release-process -->
+<!-- SECTION_BEGIN: release-process -->
 ## Продвижение master
 
 > **Схема обновлена в рамках перехода на GitFlow**
@@ -144,7 +169,9 @@ force-push / удаления. Теги `v*` — иммутабельны, со�
 `master → dev`**, чтобы фиксы стабилизации и hotfix-правки
 не потерялись при следующем релизе.
 
-### Стратегия merge
+<!-- SUBSECTION_BEGIN: release-process-7 -->
+___
+### release-process-7 Стратегия merge
 
 Используется **Merge commit** (`Create a merge commit`).
 
@@ -166,7 +193,10 @@ force-push / удаления. Теги `v*` — иммутабельны, со�
 merge-коммитом на каждый PR. Для одиночного проекта это
 приемлемо.
 
-### Настройка GitHub
+<!-- SUBSECTION_END: release-process-7 -->
+<!-- SUBSECTION_BEGIN: release-process-8 -->
+___
+### release-process-8 Настройка GitHub
 
 - `Settings → General → Pull requests` → `Allow merge commits`
   включено.
@@ -182,6 +212,9 @@ merge-коммитом на каждый PR. Для одиночного про�
 Верхний коммит — merge-коммит с сообщением вида
 `Merge pull request #N from biomorf/dev`.
 
+<!-- SUBSECTION_END: release-process-8 -->
+<!-- SECTION_END: release-process -->
+<!-- SECTION_BEGIN: release-process -->
 ## Релиз через GitHub Actions
 
 Полный цикл:
@@ -221,6 +254,8 @@ merge-коммитом на каждый PR. Для одиночного про�
 
        # PR master -> dev через web (Merge commit)
 
+<!-- SECTION_END: release-process -->
+<!-- SECTION_BEGIN: release-process -->
 ## Релиз через GitLab CI (временно отключён)
 
 Пайплайн сохранён в `.gitlab-ci.yml`, но не запускается:
@@ -251,7 +286,9 @@ self-hosted runner'а (см. `docs/ci-roadmap.md` →
 
 ---
 
-### Чек-лист релиза
+<!-- SUBSECTION_BEGIN: release-process-9 -->
+___
+### release-process-9 Чек-лист релиза
 
 Перед созданием тега:
 
@@ -333,3 +370,5 @@ self-hosted runner'а (см. `docs/ci-roadmap.md` →
   (`git tag -d vX.Y.Z`), создать заново после исправлений.
 
 ---
+<!-- SUBSECTION_END: release-process-9 -->
+<!-- SECTION_END: release-process -->

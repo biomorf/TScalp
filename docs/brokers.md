@@ -9,6 +9,7 @@ T-Invest, BCS, Finam. Матрица транспортов, авторизац�
 
 ---
 
+<!-- SECTION_BEGIN: brokers -->
 ## Матрица транспортов
 
 | Брокер    | gRPC-stream | gRPC-unary | WebSocket | REST |
@@ -34,6 +35,8 @@ transport» (`docs/ROADMAP.md`).
 
 ---
 
+<!-- SECTION_END: brokers -->
+<!-- SECTION_BEGIN: brokers -->
 ## T-Invest
 
 **URL:** `invest-public-api.tbank.ru`
@@ -68,6 +71,8 @@ transport» (`docs/ROADMAP.md`).
 
 ---
 
+<!-- SECTION_END: brokers -->
+<!-- SECTION_BEGIN: brokers -->
 ## BCS
 
 **URL:** `https://trade-api.bcs.ru/`
@@ -106,6 +111,8 @@ transport» (`docs/ROADMAP.md`).
 
 ---
 
+<!-- SECTION_END: brokers -->
+<!-- SECTION_BEGIN: brokers -->
 ## Finam
 
 **URL:** `https://api.finam.ru/`
@@ -128,6 +135,8 @@ transport» (`docs/ROADMAP.md`).
 
 ---
 
+<!-- SECTION_END: brokers -->
+<!-- SECTION_BEGIN: brokers -->
 ## Связанные документы
 
 - `docs/streams.md` — работа со стримами T-Invest API.
@@ -136,3 +145,4 @@ transport» (`docs/ROADMAP.md`).
   transport для polling», «Реализация Finam Broker API».
 - `docs/ISSUES.md` — известные проблемы (например,
   `INVALID_ARGUMENT: 30052` для BCS).
+<!-- SECTION_END: brokers -->
