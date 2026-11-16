@@ -9,10 +9,15 @@
 
 ---
 
+<!-- SECTION_BEGIN: domain_models -->
 ## Instruments
 
-### 1. Роль модели
 
+
+
+<!-- SUBSECTION_BEGIN: domain_models-1 -->
+___
+### domain_models-1 Роль модели
 `Instruments` — **«паспорт инструмента»**. Это центральная модель: от неё зависят `Portfolio`, `Orders`, `Positions` и все операции с брокером.
 
 **Жизненный цикл:**
@@ -25,9 +30,20 @@
 - Domain везде ходит через `tscalpInstrumentId`. Data на границе с брокером достаёт нужный ID из модели. Единая точка трансляции.
 - Модель должна быть **пригодна для операций после search**. Если search вернул «короткий» вариант (BCS info API, Finam `Assets`, T-Invest `FindInstrument`) — данные дообогащаются (`GetAsset` / `getInstrumentBy`). Это N+1 — известный компромисс (см. `docs/ISSUES.md` → «T-Invest REST findInstruments fallback (N+1 unary)»).
 - Все broker-specific поля, которые могут отсутствовать у части брокеров, — **nullable** (`String?`, `Long?`, `Double?`). Обязательных — минимум (core identity).
+<!-- SUBSECTION_END: domain_models-1 -->
 
-### 2. Терминология (переименования)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-2 -->
+___
+### domain_models-2 Терминология (переименования)
 Здесь зафиксированы решения по именам. Причина — семантическая путаница в текущем коде.
 
 | Было | Стало | Что означает | Почему |
@@ -40,9 +56,20 @@
 
 **Формула P&L фьючерса:** `(currentPrice - avgPrice) × quantity × moneyPerPointOfPrice`.
 Эквивалентно: `((currentPrice - avgPrice) / minPriceIncrement) × priceStepCost × quantity`.
+<!-- SUBSECTION_END: domain_models-2 -->
 
-### 3. Core (обязательные, 5)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-3 -->
+___
+### domain_models-3 Core (обязательные, 5)
 Без них инструмент не идентифицируется. Все — non-null.
 
 | Поле | T-Invest | BCS | Finam |
@@ -56,9 +83,20 @@
 **Почему `isin` не в core.** proto T-Invest (v1.51+): `Share` и `Instrument` имеют `isin`, **`Future` и `Option` — нет**. Если оставить `isin: String` в core, для futures/options пришлось бы писать `""` (ложь). `isin` — common optional (§4).
 
 **Почему `instrumentType` не из proto-поля.** У T-Invest `Share`/`Future`/`Option` **нет общего** `instrument_type` — есть только `Instrument.instrument_type` и `Instrument.instrument_kind` (через `GetInstrumentBy`). Поле заполняется **маппером по контексту**: `Shares()` → `SHARE`, `Futures()` → `FUTURES`, `Options()` → `OPTION`. В Phase 2 (A) тип определяется самим `data class`.
+<!-- SUBSECTION_END: domain_models-3 -->
 
-### 4. Common optional (на интерфейсе, nullable)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-4 -->
+___
+### domain_models-4 Common optional (на интерфейсе, nullable)
 Есть в модели у всех, но заполняется только если брокер даёт.
 
 **Идентификаторы и параметры:**
@@ -88,9 +126,20 @@
 
 **Производные (computed):**
 - `moneyPerPointOfPrice: Double` — extension `val InstrumentUi.moneyPerPointOfPrice: Double get() = priceStepCost?.let { amount -> minPriceIncrement?.takeIf { it > 0.0 }?.let { inc -> amount / inc } } ?: 1.0`. **Не поле** — SSoT, ноль дублирования.
+<!-- SUBSECTION_END: domain_models-4 -->
 
-### 5. Subtype-specific (Этап 2, A)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-5 -->
+___
+### domain_models-5 Subtype-specific (Этап 2, A)
 Поля, применимые только к одному типу инструмента. В C-min — `null` / не используются. В A — переезжают в свой `data class`.
 
 **`Share`** (proto T-Invest `Share` + BCS + Finam):
@@ -118,18 +167,40 @@
 - `otcFlag` — «ранее для внебиржевых», deprecated по смыслу.
 - `realExchange: RealExchange` — реальная площадка расчётов; у нас `exchange` достаточно.
 - `klong`, `kshort` — `[deprecated = true]` в proto T-Invest, не тащить.
+<!-- SUBSECTION_END: domain_models-5 -->
 
-### 6. Вне модели (Этап 2, A; отдельная задача)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-6 -->
+___
+### domain_models-6 Вне модели (Этап 2, A; отдельная задача)
 **Margin / risk — account-specific.** У T-Invest — свойство инструмента (`initialMarginOnBuy/Sell`, `dlong/dshort`, `dlongMin/dshortMin`, `klong/kshort`). У Finam — `GetAssetParams` с `account_id` (per-account). Это **не свойство инструмента**, а «доступность в этом счёте».
 
 **Решение:** вынести в `TradeCheckResult` / `MarginInfo` (отдельная задача).
 **Статус:** вернуться **2026-11-02**. Важно, не забыть.
 
 **Также вне модели:** `tradingStatus` (режим торгов — это не свойство инструмента, а состояние торговой сессии), `initialMargin*`, `dlong*`.
+<!-- SUBSECTION_END: domain_models-6 -->
 
-### 7. Этап 1 (C-min) — чек-лист
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-7 -->
+___
+### domain_models-7 Этап 1 (C-min) — чек-лист
 **Цель:** снять 9 кастов `as? FutureUi`, убрать 3 неоднозначных/дублирующих поля, добавить 3 отсутствующих, переименовать модель. Модель остаётся `open class` + 2 `data class` — без sealed interface.
 
 **2c:** соответствует Clean (поля-изменения в domain; мапперы в data; dependency rule не нарушен).
@@ -205,9 +276,20 @@
 - `instrumentType` — enum везде.
 - Гейт (`testDebugUnitTest / lintDebug / ktlintCheck / detekt`) зелёный на каждом коммите.
 - `docs/domain_models.md` §7 — все чек-боксы `[x]` (обновляется в том же PR).
+<!-- SUBSECTION_END: domain_models-7 -->
 
-### 8. Этап 2 (A) — sealed interface
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-8 -->
+___
+### domain_models-8 Этап 2 (A) — sealed interface
 **Цель:** ISP/LSP, exhaustive `when`, subtype-specific поля — только в своих типах.
 
 **2c:** соответствует Clean (domain-модель меняет форму; dependency rule не нарушен).
@@ -284,9 +366,20 @@
 
 
 **Phase 2 закрыта (2026-11-02).** 9/11 шагов; шаги 0.2/0.3 (BCS/Finam mapping subtype-полей) отложены до `### Реализация BCS Broker API` / `### Реализация Finam Broker API`. 9 коммитов (`bf34061`..`f9d53b9` + fix'ы), CI зелёный.
+<!-- SUBSECTION_END: domain_models-8 -->
 
-### 9. Сравнительные таблицы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-9 -->
+___
+### domain_models-9 Сравнительные таблицы
 #### Акции
 
 | Domain | T-Invest | BCS | Finam |
@@ -399,9 +492,20 @@
 - T-Invest: `ru.tinkoff.piapi.contract.v1.PostOrderRequest` (proto).
 - BCS: https://trade-api.bcs.ru/http/operations/sync/create-order-sync (`ticker` + `classCode`).
 - Finam: https://api.finam.ru/docs/grpc/#placeorder (`symbol` = `ticker@mic`).
+<!-- SUBSECTION_END: domain_models-9 -->
 
-### 10. Открытые вопросы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-10 -->
+___
+### domain_models-10 Открытые вопросы
 | # | Вопрос | Где | Когда |
 |---|---|---|---|
 | 1 | `priceStepCost` для Finam futures — формула `min_step/10^decimals × contract_size` требует live-подтверждения. Пока — `null` fallback. | `TInvestRestMappers` / Finam mapper | При реализации Finam |
@@ -420,9 +524,20 @@
 - `positionUid`, `assetUid`, `otcFlag`, `realExchange` — не включаем (Q4, YAGNI). Добавим при реальной необходимости.
 - `klong`/`kshort` — `[deprecated = true]` в proto T-Invest; не тащим.
 - `instrumentType` — заполняется маппером по контексту (`Shares()` → `SHARE`), не из proto-поля: у `Share`/`Future`/`Option` нет общего `instrument_type`. В Phase 2 (A) subtype сам определяет тип.
+<!-- SUBSECTION_END: domain_models-10 -->
 
-### 11. Связанные документы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-11 -->
+___
+### domain_models-11 Связанные документы
 - `docs/architecture.md` — слои, dependency rule.
 - `docs/clean-audit.md` — Н5 (`PortfolioPosition` — presentation-поля), Н6 (`InstrumentUi` — god-класс), Н7 (`ttech_figi` — временное).
 - `docs/ROADMAP.md` — задачи реализации.
@@ -430,11 +545,20 @@
 - `docs/ISSUES.md` — известные проблемы (N+1 при search).
 
 ---
+<!-- SUBSECTION_END: domain_models-11 -->
 
-## Портфель (Portfolio)
 
-### 1. Роль моделей
 
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-12 -->
+___
+### domain_models-12 Роль моделей
 - **`Position`** — снимок позиции по инструменту в конкретном счёте. Тип инструмента — через `instrument: Instrument` (композиция). Плоские subtypes: `SharePosition`, `FuturePosition`, `BondPosition`, `EtfPosition`.
 - **`AccountBalance`** — денежный остаток по валюте в конкретном счёте. Не позиция (валюта — не ценная бумага).
 - **`AccountPortfolio`** — агрегат одного счёта: позиции + балансы.
@@ -451,9 +575,20 @@
 - Мультиброкерность и мультисчётность обязательны: на Портфеле одновременно отображаются счета разных брокеров, у одного брокера — несколько счетов.
 - Составной ключ `AccountKey(brokerName, accountId)` — единственный идентификатор счёта в агрегате.
 - `Position` не зависит от того, какие подтипы есть в `Instrument`; добавление `Bond` / `Etf` не ломает `Position` — только добавляет `BondPosition` / `EtfPosition`.
+<!-- SUBSECTION_END: domain_models-12 -->
 
-### 2. Терминология (переименования)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-13 -->
+___
+### domain_models-13 Терминология (переименования)
 | Было | Стало | Что означает | Почему |
 |---|---|---|---|
 | `PortfolioPosition` | `Position` (sealed interface) + subtypes | Позиция по инструменту в счёте | Тип инструмента через `instrument: Instrument`; плоские subtypes по паттерну проекта |
@@ -468,9 +603,20 @@
 | — (новое) | `Position.lockedQuantity: Double?` | Заблокированное количество бумаг | T-Invest `blocked`, BCS `locked` |
 | — (новое) | `AccountKey(brokerName, accountId)` | Составной ключ | Мультиброкерность |
 | — (новое) | `AccountPortfolio` / `PortfolioSheet` | Агрегаты | Мультисчётность |
+<!-- SUBSECTION_END: domain_models-13 -->
 
-### 3. Core `Position` (обязательные)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-14 -->
+___
+### domain_models-14 Core `Position` (обязательные)
 | Поле | T-Invest | BCS | Finam |
 |---|---|---|---|
 | `instrument: Instrument` | `instrumentUid` + `GetInstrumentBy` (композиция) | `ticker` + `board` + `AssetsService` (композиция) | `symbol` + `AssetsService/GetAsset` (композиция) |
@@ -483,9 +629,20 @@
 | `lockedQuantity: Double?` | `blocked` (WS) | `locked` | — (null) |
 
 `quantity: Double` — компромисс: Finam поддерживает дробное количество, T-Invest/BCS — целое. Presentation-формат («10 шт» vs «10.5 шт») — в UI.
+<!-- SUBSECTION_END: domain_models-14 -->
 
-### 4. Common optional (`AccountBalance`, `AccountPortfolio`, `PortfolioSheet`)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-15 -->
+___
+### domain_models-15 Common optional (`AccountBalance`, `AccountPortfolio`, `PortfolioSheet`)
 **`AccountBalance`** — по валюте, множественный (`List<AccountBalance>` в `AccountPortfolio`):
 
 | Поле | T-Invest | BCS | Finam |
@@ -520,9 +677,20 @@
 - `AccountPortfolio.totalProfit: Double? get() = positions.sumOf { it.profit ?: 0.0 }.takeIf { positions.any { it.profit != null } }`
 
 `moneyPerPointOfPrice` — extension из `Instrument` (C-min §7 шаг 7). Единая формула `totalValue` для shares / futures / bonds / etf.
+<!-- SUBSECTION_END: domain_models-15 -->
 
-### 4.x `PortfolioSheet` — агрегат мультисчётности
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-16 -->
+___
+### domain_models-16 4.x `PortfolioSheet` — агрегат мультисчётности
 **Что.** Полный снимок всех счетов пользователя: все инициализированные брокеры × все счета × позиции × `AccountBalance` per currency.
 
 **Зачем.** Единственный публичный эмитируемый тип `PositionFlowManager`. Убирает плоский `List<PortfolioPosition>` из `PortfolioViewModel`. UI группирует по счёту (`AccountKey`), не по брокеру.
@@ -541,24 +709,57 @@
 **Жизненный цикл.** Создаётся при `PositionFlowManager.start(accountKeys)` — все счета, которые UI запросил. Обновляется per-account (stream / polling). Сбрасывается в `stop()`.
 
 **Связь с `PositionStreamItem` / `Position`.** `PositionStreamItem` — internal-событие источника (stream / polling). `Position` — domain-модель позиции (в `AccountPortfolio.positions`). Конверсия `PositionStreamItem → Position` — в маппере / менеджере. `PortfolioSheet` наружу не отдаёт `PositionStreamItem`.
+<!-- SUBSECTION_END: domain_models-16 -->
 
-### 5. Subtype-specific `Position`
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-17 -->
+___
+### domain_models-17 Subtype-specific `Position`
 Плоские subtypes (7, симметрично `Instrument`): `SharePosition`, `FuturePosition`, `BondPosition`, `OptionPosition`, `EtfPosition`, `CurrencyPosition`, `OtherPosition`. Каждый — `data class` с тем же набором override-полей, что и интерфейс. Subtype-специфичных полей **сейчас нет** (все поля — common). Если когда-нибудь появится (например, `margin` только для фьючерсов) — место уже есть.
 
 `CurrencyPosition` — валюта иностранного государства. Деньги в домашней валюте (RUB) — в `AccountBalance`, не в `Position`.
 
 Плоскость следует из `Instrument`: `SharePosition.instrument: Share`, `FuturePosition.instrument: Future`, `BondPosition.instrument: Bond`, `OptionPosition.instrument: Option`, `EtfPosition.instrument: Etf`, `CurrencyPosition.instrument: Currency`, `OtherPosition.instrument: Other`. Компилятор проверяет соответствие.
+<!-- SUBSECTION_END: domain_models-17 -->
 
-### 6. Связь с `Instrument`
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-18 -->
+___
+### domain_models-18 Связь с `Instrument`
 - Композиция: `Position.instrument: Instrument`. Поля `Instrument` (ticker, name, classCode, isin, currency, moneyPerPointOfPrice, …) не дублируются.
 - `moneyPerPointOfPrice` — extension из `Instruments` C-min §7 шаг 7.
 - `Position` не зависит от того, какие подтипы есть в `Instrument`. Добавление `Bond` / `Etf` в `Instrument` не ломает `Position` — только добавляет `BondPosition` / `EtfPosition`.
 - `when (position)` — exhaustive по `Position` (7 подтипов); `when (position.instrument)` — вложенный exhaustive по `Instrument` (7 подтипов). Оба — явные.
+<!-- SUBSECTION_END: domain_models-18 -->
 
-### 7. Вне модели
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-19 -->
+___
+### domain_models-19 Вне модели
 - `equity` (Finam, account-level) — не включаем. При появлении UI-шапки — extension или отдельная задача.
 - `unrealized_profit` (Finam, account-level) — не включаем. `AccountPortfolio.totalProfit` — computed.
 - `dailyPL`, `dailyPercentPL` (BCS), `daily_pnl` (Finam) — PnL за день, отдельная концепция. Не включаем.
@@ -573,9 +774,20 @@
 - `futuresLimit` (BCS) — открытый вопрос §10.
 
 **UI-шапка счёта с балансом** — реализована (`AccountHeaderCard`, `AccountBalance.total`). Разбивка `total` на `money` / `blocked` — задача `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`.
+<!-- SUBSECTION_END: domain_models-19 -->
 
-### 8. Этапы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-20 -->
+___
+### domain_models-20 Этапы
 **Одна фаза.** `Position` сразу `sealed interface` + плоские `data class`. `AccountBalance`, `AccountPortfolio`, `PortfolioSheet`, `AccountKey` — `data class`.
 
 **Триггер:** `Instrument` Phase 2 (sealed interface) реализована. «Сначала Instruments, затем Portfolio». Проектирование — сейчас; реализация — после `Instrument` Phase 2 (не после C-min).
@@ -592,9 +804,20 @@
 6. UI — `AssetPositionCard` принимает `Position`; `PortfolioScreen` — по счетам.
 7. Удалить `PortfolioPosition`, `PositionStreamItem` (если больше не нужен), `toPortfolioPosition`, `mergeWith`.
 8. Гейт.
+<!-- SUBSECTION_END: domain_models-20 -->
 
-### 9. Сравнительные таблицы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-21 -->
+___
+### domain_models-21 Сравнительные таблицы
 #### 9.1 Позиции (`Position`)
 
 | Domain | T-Invest | BCS | Finam |
@@ -636,9 +859,20 @@
 | T-Invest | `GetPortfolio` (gRPC) / REST fallback | `PositionsStream` (`moneyList` + `securities` / `futures`) | 10 с (`PositionFlowManager.runPolling`) |
 | BCS | `GET /portfolio` | `wss://ws.broker.ru/trade-api-bff-portfolio/api/v1/portfolio/ws` (формат = HTTP-ответ) | при реализации |
 | Finam | `GetAccount` (gRPC) / `GET /v1/accounts/{id}` (REST) | **нет** (WS только ORDERS / QUOTES / TRADES / BARS / ORDER_BOOK) | при реализации; REST-лимит 200 req/min |
+<!-- SUBSECTION_END: domain_models-21 -->
 
-### 10. Открытые вопросы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-22 -->
+___
+### domain_models-22 Открытые вопросы
 | # | Вопрос | Где | Когда |
 |---|---|---|---|
 | 1 | **BCS `futuresLimit`** — деньги под ГО или фьючерсная позиция? Не угадываем. | `type` enum BCS | при реализации BCS |
@@ -654,9 +888,20 @@
 - Все проектные вопросы (модель, поля, getters, ключ агрегата, форма subtypes, источники) — зафиксированы в этом разделе.
 - `lockedQuantity: Double?` — включено.
 - `futuresLimit` (BCS) — открытый вопрос §10.
+<!-- SUBSECTION_END: domain_models-22 -->
 
-### 11. Связанные документы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-23 -->
+___
+### domain_models-23 Связанные документы
 - `docs/architecture.md` — «Data flow: позиции» (текущее состояние, `PortfolioPosition`, `PositionFlowManager`).
 - `docs/clean-audit.md` — Н5 (`PortfolioPosition` — presentation-поля, пересматривается), Н15 (`TradingStateSnapshot`).
 - `docs/ROADMAP.md` — `### H5. PortfolioPosition: разделение domain/presentation` (реализация), `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта`, `### Обогащение name в PortfolioPosition (вариант C)` (отменяется как подзадача — `name` в `Instrument`), `### Margin/risk → TradeCheckResult`, `### Instrument: C-min → sealed interface` (предусловие).
@@ -665,13 +910,31 @@
   - T-Invest: `docs/brokers.md`, `docs/streams.md`, `docs/rate-limits.md`.
   - BCS: `https://trade-api.bcs.ru/http/portfolio`, `https://trade-api.bcs.ru/websocket/portfolio/`.
   - Finam: `https://api.finam.ru/docs/grpc/#introduction`, `https://api.finam.ru/docs/async-api/#introduction`, `https://api.finam.ru/docs/rest/`.
+<!-- SUBSECTION_END: domain_models-23 -->
 
-### 12. Реализация — отдельная задача
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: domain_models-24 -->
+___
+### domain_models-24 Реализация — отдельная задача
 Этот документ — **проектирование**. Реализация — `docs/ROADMAP.md` → `### Portfolio: модель портфеля`. Задача самодостаточная (5e), по образцу `### Instrument: C-min → sealed interface`.
 
 ---
+<!-- SUBSECTION_END: domain_models-24 -->
 
+
+
+
+<!-- SECTION_END: domain_models -->
+<!-- SECTION_BEGIN: domain_models -->
 ## Заявки (Orders)
 
 *Раздел в проектировании. Открывается после `Instruments` и `Portfolio`.*
+<!-- SECTION_END: domain_models -->

@@ -7,10 +7,15 @@
 KMP-ready — `AGENTS.md` → 2e. Три поля фиксации в задаче:
 `**Соответствие Clean:**`, `**MVVM:**`, `**KMP:**`.
 
+<!-- SECTION_BEGIN: architecture -->
 ## Data flow: позиции (portfolio positions)
 
-### Модели
 
+
+
+<!-- SUBSECTION_BEGIN: architecture-1 -->
+___
+### architecture-1 Модели
 **Domain (`domain/models/Portfolio.kt`):**
 
 - `Position` (sealed interface, 7 subtypes: `SharePosition` / `FuturePosition` /
@@ -46,9 +51,20 @@ KMP-ready — `AGENTS.md` → 2e. Три поля фиксации в задач
 удалён; `Position` (sealed) — единственная модель. Presentation-поля
 (`priceChangePercent` day-change, цвета) — в `PositionFormatter` и
 presentation-util.
+<!-- SUBSECTION_END: architecture-1 -->
 
-### Обогащение (SSoT)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-2 -->
+___
+### architecture-2 Обогащение (SSoT)
 **Владелец:** `PositionFlowManager` (`domain/api/managers/PositionFlowManager.kt`).
 
 - **`sheet: StateFlow<PortfolioSheet>`** — единственный источник истины.
@@ -87,9 +103,20 @@ partial-событий — в manager.
 
 **Окно отката:** polling раз в 10 сек может «откатить» свежее WS-обновление
 (≤10 сек). Приемлемо.
+<!-- SUBSECTION_END: architecture-2 -->
 
-### ViewModels
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-3 -->
+___
+### architecture-3 ViewModels
 #### `PortfolioViewModel`
 
 - Подписывается на `positionFlowManager.sheet` (`StateFlow<PortfolioSheet>`).
@@ -156,9 +183,20 @@ flowchart LR
 ```
 
 Подпись: 4-VM структура `Orders` после split 13d — 4 state, 5 cross-VM связей через domain / UI-orchestration, ноль `_uiState`-чтений.
+<!-- SUBSECTION_END: architecture-3 -->
 
-### Границы (dependency rule)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-4 -->
+___
+### architecture-4 Границы (dependency rule)
 ~~~
 presentation → domain ← data
 ~~~
@@ -168,9 +206,20 @@ presentation → domain ← data
 - `data` создаёт `PositionStreamItem` (raw) и `AccountPortfolio`
   (полный polling-снимок), отдаёт менеджеру.
 - `presentation` читает `PortfolioSheet` (готовый), не мержит.
+<!-- SUBSECTION_END: architecture-4 -->
 
-### Связанные документы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-5 -->
+___
+### architecture-5 Связанные документы
 - `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 —
   проектный мастер-план.
 - `docs/clean-audit.md` → Н5 (исправлено, merge `d04ecc4`, PR #90: legacy
@@ -183,11 +232,20 @@ presentation → domain ← data
   `### Position: источники priceChangePercent и lockedQuantity`
   (day-change, lockedQuantity, balances),
   `### P&L: sandbox client-side fallback для Position` (отдельная задача).
+<!-- SUBSECTION_END: architecture-5 -->
 
-## Data flow: заявки (orders)
 
-### Модели и контракт
 
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-6 -->
+___
+### architecture-6 Модели и контракт
 **`OrderRequest` (`domain/models/OrderModels.kt`)** — sealed interface для
 готовой к отправке заявки. Два подтипа: `Broker(BrokerOrderRequest)` и
 `Stop(StopOrderRequest)`. Заменяет `Any`-поля в `PreparedOrders` (B1, PR #132).
@@ -204,9 +262,20 @@ presentation → domain ← data
 **`PostOrderUseCase.execute(input)`** — orchestration: `checkAvailability` →
 `prepare` → `postPrimary` → (если `paired != null`) `postPaired`. Все `when`
 по `OrderRequest` — exhaustive, 0 `as`-cast.
+<!-- SUBSECTION_END: architecture-6 -->
 
-### Диаграмма — поток заявки
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-7 -->
+___
+### architecture-7 Диаграмма — поток заявки
 ```mermaid
 flowchart LR
     EVM["OrderExecutionViewModel<br/>presentation"]
@@ -231,9 +300,20 @@ flowchart LR
 разделяет «проверка» (checkAvailability), «подготовка» (prepare →
 PrepareResult) и «отправка» (postPrimary / postPaired по sealed OrderRequest).
 `PrepareResult.Invalid` — единственная точка валидации до API.
+<!-- SUBSECTION_END: architecture-7 -->
 
-### Границы (dependency rule)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-8 -->
+___
+### architecture-8 Границы (dependency rule)
 - **`domain`** — `OrderRequest`, `PrepareResult`, `BrokerOrderRequest`,
   `StopOrderRequest`.
 - **`data`** — `OrdersRepository.postOrderResult(BrokerOrderRequest)` /
@@ -241,16 +321,38 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
   (`when (OrderRequest) { is Broker -> ...; is Stop -> ... }`).
 - **`presentation`** — `PostOrderOutcome` (Success / InsufficientFunds /
   Error / InvalidRequest); сообщения и форматирование — в `OrderExecutionViewModel`.
+<!-- SUBSECTION_END: architecture-8 -->
 
-### Atomicity парной сделки
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-9 -->
+___
+### architecture-9 Atomicity парной сделки
 Идеально — 2 заявки одной транзакцией. T-Invest / BCS / Finam **не
 поддерживают batch**: primary уходит → paired отдельно; `PairedOutcome.Failed`
 не откатывает primary. **Вне scope** (broker limitation). При появлении
 потребности — `cancelOnPairedFailure` rollback отдельной задачей.
+<!-- SUBSECTION_END: architecture-9 -->
 
-### Валидация и нормализация: по слоям
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-10 -->
+___
+### architecture-10 Валидация и нормализация: по слоям
 Валидация рассредоточена по трём слоям, с чётким разделением ролей.
 
 **Presentation — нормализация ввода (TextField):**
@@ -271,73 +373,37 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
 - Роль: **окончательное** решение.
 
 **Связанные:** `docs/clean-audit.md` → M017, M013, M018. C2 выполнен: `OrderFormViewModel` удалён в Phase 6.1, `OrderFormState` / `OrderFormStateMapper` — в Phase 7.1.
+<!-- SUBSECTION_END: architecture-10 -->
 
-### Связанные документы
 
-- `docs/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-11 -->
+___
+### architecture-11 Связанные документы
+- `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
 - `docs/ISSUES.md` → `ClassCastException в PostOrderUseCase при StopLoss без stopPrice` (решён, PR #132).
 - `docs/clean-audit.md` → M017 (`buildPlaceOrderRequest`), M013 / A2 (orchestration) — контекст оркестрации заявок.
+<!-- SUBSECTION_END: architecture-11 -->
 
-## C2 target: FormMediator + 4 sub-VM
 
-**Реализованная** архитектура экрана «Заявки» после C2 (PR-4a + PR-4b, Phase 3.1–7.2, merged в feature/orderform-split-c2-p4b). Coord `OrderFormViewModel` удалён (Phase 6.1); 4 sub-VM + Mediator; UI-orchestration в `OrdersScreen` (4 `LaunchedEffect`: checkApiInit / restore / reactive recalc / reactive save).
 
-**Индустриальный контекст (2025):** Mediator Pattern для split big ViewModel — droidcon Berlin 2025 («Breaking Up with Big ViewModels — Without Breaking Your Architecture», Staff Engineer Perry Street Software), StackOverflow «Clean way to share data between viewModels». Screen-scoped Mediator держит shared state, sub-VM реактивно читают/пишут через него.
 
-```mermaid
-flowchart LR
-    subgraph UI[OrdersScreen + 5 UI files]
-        U[Composables]
-    end
-    subgraph PRES[presentation/screens/orders/]
-        M[OrderFormMediator<br/>ActivityRetainedScoped]
-        IVM[OrderInstrumentViewModel<br/>~9 fun]
-        INVM[OrderInputViewModel<br/>~6 fun]
-        TVM[OrderTradeDetailsViewModel<br/>2 fun - PR-1 done]
-        EVM[OrderExecutionViewModel<br/>~8 fun]
-    end
-    subgraph DOM[domain]
-        UC[SaveFormStateUseCase<br/>SyncPriceInterestUseCase<br/>PlaceOrderUseCase<br/>Calculate UseCases]
-        FPM[PriceFlowManager]
-        TSR[TradingStateRepository]
-    end
 
-    U -->|read state| IVM
-    U -->|read state| INVM
-    U -->|read state| TVM
-    U -->|read state| EVM
-    U -->|action| IVM
-    U -->|action| INVM
-    U -->|action| EVM
 
-    IVM -.->|update| M
-    INVM -.->|update| M
-    TVM -.->|update| M
-    EVM -.->|update| M
-    M -->|save snapshot| UC
-    M -->|sync interest| UC
-    UC --> TSR
-```
 
-**Ключевые решения:**
 
-- **Mediator** (`@ActivityRetainedScoped`, Hilt) — shared state holder: собирает `TradingStateSnapshot` из `OrderInstrumentState` + `OrderInputState`, вызывает `SaveFormStateUseCase` (debounce 500ms). Сигнализирует sub-VM о пересчёте (recalc/sync).
-- **4 sub-VM** — `OrderInstrument` (~9), `OrderInput` (~6), `OrderTradeDetails` (2, PR-1 done), `OrderExecution` (~8).
-- **Coord `OrderFormViewModel`** удалён в Phase 6.1: `restoreOrderForm` → UI `LaunchedEffect` (`OrderInstrumentViewModel.restoreFromUseCase`), `clearInterest(ORDERS)` → `OrderInstrumentViewModel.onCleared` (Phase 5f-b-2a). `@Suppress` исчез вместе с файлом.
-- **UI** — читает sub-state напрямую, действия — в sub-VM. Медиатор UI не виден.
-- **Cross-VM** — 0. Всё через Mediator (state) + domain (usecases, managers).
 
-**Fallback A (UI-orchestrator):** если Mediator дорог (Hilt scope, 8 фаз) — UI вызывает 3 метода на action (`inputVM.x` + `tradeDetailsVM.update(instrumentVM.state, inputVM.state)` + `coordVM.saveState(...)`). Cross-VM = 0, 2c-fixation в KDoc UI.
 
-**Ссылки:** `docs/ROADMAP.md` → `### OrderFormViewModel: split на sub-VM` → «PR-4 (big-bang) — план для отдельной сессии». droidcon Berlin 2025 (Mediator); `docs/domain_models.md` §Portfolio (snapshot model).
-
-## CardIdentity и слоты
-
-Модель карточки инструмента на экране «Заявки» и в «Последних просмотренных»:
-как карточки создаются, хранятся и различаются.
-
-### CardIdentity — иммутабельный identity
-
+<!-- SUBSECTION_BEGIN: architecture-12 -->
+___
+### architecture-12 CardIdentity — иммутабельный identity
 `CardIdentity(tscalpInstrumentId, brokerName, accountId)` — **иммутабельная**
 identity карточки. Все три поля задаются при создании и не меняются до
 удаления карточки.
@@ -359,9 +425,20 @@ identity карточки. Все три поля задаются при соз
 
 `ticker` в identity **не входит** — только data-граница (BCS/Finam-запросы)
 и display.
+<!-- SUBSECTION_END: architecture-12 -->
 
-### Создание карточки
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-13 -->
+___
+### architecture-13 Создание карточки
 1. Пользователь задаёт брокера в свойствах слота (до поиска).
 2. В строке поиска ищет инструмент у этого брокера.
 3. Выбирает инструмент → карточка создаётся с
@@ -374,9 +451,20 @@ identity карточки. Все три поля задаются при соз
 **Смена счёта — пересоздание identity, не мутация.** `SaveCardSettings` —
 не «обновляет account в карточке», а «удаляет старую identity + создаёт
 новую».
+<!-- SUBSECTION_END: architecture-13 -->
 
-### Слоты (primary / pair)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-14 -->
+___
+### architecture-14 Слоты (primary / pair)
 На экране «Заявки» два независимых слота: основной и парный. В каждом —
 своя **активная карточка** (или none до выбора).
 
@@ -387,9 +475,20 @@ identity карточки. Все три поля задаются при соз
   `(uid, broker, accountId)`.
 - Один и тот же инструмент в двух слотах — **две разные** карточки
   (разные `accountId` или разные `broker`).
+<!-- SUBSECTION_END: architecture-14 -->
 
-### Коллизия при смене счёта
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-15 -->
+___
+### architecture-15 Коллизия при смене счёта
 Если пользователь в свойствах карточки выбирает `accountId`, который
 уже занят **другой** карточкой того же `(uid, broker)` в этом или
 соседнем слоте — счёт в диалоге **disabled** (α-вариант).
@@ -400,28 +499,57 @@ identity карточки. Все три поля задаются при соз
 **Swap слотов** при α: через временный счёт или удаление + пересоздание.
 Быстрый swap отдельной кнопкой рядом со slider «Парная торговля» —
 отдельная задача (`### UI: кнопка swap слотов`).
+<!-- SUBSECTION_END: architecture-15 -->
 
-### Портфель на карточке
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-16 -->
+___
+### architecture-16 Портфель на карточке
 Если инструмент `(uid, broker, accountId)` уже есть в портфеле (на этом
 счёте у этого брокера) — карточка показывает `quantity` / `averagePrice`
 / `profit` как на вкладке «Портфель». Источник —
 `PositionFlowManager.sheet`, ключ `AccountKey(broker, accountId)`.
+<!-- SUBSECTION_END: architecture-16 -->
 
-### Границы (Clean)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-17 -->
+___
+### architecture-17 Границы (Clean)
 `CardIdentity` — domain-модель. Presentation конструирует её только через
 usecase (`SelectInstrumentUseCase` / `SaveCardSettingsUseCase`); прямая
 конструкция в UI запрещена (M4). `SaveCardSettings` и `OpenCardDialog` —
 usecase с I/O и бизнес-правилом (пересоздание карточки / коллизия), не
 presentation-функции.
+<!-- SUBSECTION_END: architecture-17 -->
 
-## KMP readiness
 
-Цель: `domain` → `:shared/commonMain`. Аудит 2026-10-29 (read-only, `grep` по `domain/`).
 
-### Блокеры в domain
 
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-18 -->
+___
+### architecture-18 Блокеры в domain
 | # | Что | Где | Фикс |
 |---|---|---|---|
 | 2 | `javax.inject.Inject` / `Singleton` | 4 менеджера | Koin (без аннотаций) — задача `### Плавный переход Hilt → Koin` |
@@ -445,9 +573,20 @@ split одного `UseCaseModule.kt` — detekt `TooManyFunctions`).
 **Исправлено (PR #74, `dev`, 2026-10-30):**
 
 - #4 — `Dispatchers.IO` → инжект `CoroutineDispatcher` через DI (`di/DispatcherModule.kt`); `limitedParallelism(1)` сохранён (доменная сериализация); 3 менеджера + тесты.
+<!-- SUBSECTION_END: architecture-18 -->
 
-### Чисто (KMP-safe)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-19 -->
+___
+### architecture-19 Чисто (KMP-safe)
 - `domain/models/*` — KMP-safe (PR #73: `kotlin.time.Instant`).
 - `domain/api/repository/*` (8 интерфейсов) — ноль platform.
 - `domain/api/roles/*` — чисто.
@@ -457,16 +596,44 @@ split одного `UseCaseModule.kt` — detekt `TooManyFunctions`).
   DI через `@Provides` в 6 доменных `*UseCaseModule.kt`.
   `CalculateTradeDetailsUseCase` / `PrepareOrderRequestUseCase` —
   уже были чистыми.
+<!-- SUBSECTION_END: architecture-19 -->
 
-### Не в этой фазе
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-20 -->
+___
+### architecture-20 Не в этой фазе
 - `data/` — не готов к `commonMain` (`android.*`: Context, DataStore, CustomTrustManager → `androidMain`; `java.*` в 8 файлах; `javax.inject` → уйдёт с Koin).
 - Koin — предусловие (задача `### Плавный переход Hilt → Koin`).
+<!-- SUBSECTION_END: architecture-20 -->
 
-### Порядок
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: architecture-21 -->
+___
+### architecture-21 Порядок
 1. ✅ Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — закрыто в PR #73.
 2. ✅ Фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`) — закрыто (PR #74).
 3. Koin — снимает #2.
 4. `domain` → `:shared/commonMain` (umbrella-задача `### KMP: domain → commonMain`).
 5. `data` → split `commonMain`/`androidMain` (отдельная фаза).
+<!-- SUBSECTION_END: architecture-21 -->
+
+
+
+
+<!-- SECTION_END: architecture -->

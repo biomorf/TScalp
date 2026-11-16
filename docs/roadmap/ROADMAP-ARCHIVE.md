@@ -7784,7 +7784,7 @@ ___
 
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Контекст:** `docs/ROADMAP.md` разросся до ~10200 строк; `## Закрытые задачи` — ~9900 строк (~98%), `## Планируемые` — ~80 строк (2%). Перекос: рабочий список теряется в архиве. То же — `docs/ci-roadmap.md` (22 `###`, ~1300 строк, растёт). Вынести закрытые задачи в отдельные журналы (`docs/ROADMAP-ARCHIVE.md`, `docs/CI-ROADMAP-ARCHIVE.md`), в ROADMAP/ci-roadmap оставить ссылку. Плюс: у каждой закрытой задачи — поле `**Дата закрытия:** YYYY-MM-DD` (по заголовку `### ✅`), чтобы архив был хронологическим.
+**Контекст:** `docs/ROADMAP.md` разросся до ~10200 строк; `## Закрытые задачи` — ~9900 строк (~98%), `## Планируемые` — ~80 строк (2%). Перекос: рабочий список теряется в архиве. То же — `docs/ci-roadmap.md` (22 `###`, ~1300 строк, растёт). Вынести закрытые задачи в отдельные журналы (`docs/roadmap/ROADMAP-ARCHIVE.md`, `docs/roadmap/CI-ROADMAP-ARCHIVE.md`), в ROADMAP/ci-roadmap оставить ссылку. Плюс: у каждой закрытой задачи — поле `**Дата закрытия:** YYYY-MM-DD` (по заголовку `### ✅`), чтобы архив был хронологическим.
 
 **Соответствие Clean:** не применимо (docs-only).
 
@@ -7799,8 +7799,8 @@ ___
 **Файлы:**
 - `docs/ROADMAP.md` — вынести `## Закрытые задачи` в `ROADMAP-ARCHIVE.md`; оставить `## Закрытые задачи` с ссылкой на архив.
 - `docs/ci-roadmap.md` — то же, `CI-ROADMAP-ARCHIVE.md`.
-- `docs/ROADMAP-ARCHIVE.md` (новый) — все `### ✅` из ROADMAP, с `**Дата закрытия:**`.
-- `docs/CI-ROADMAP-ARCHIVE.md` (новый) — все `### ✅` из ci-roadmap, с `**Дата закрытия:**`.
+- `docs/roadmap/ROADMAP-ARCHIVE.md` (новый) — все `### ✅` из ROADMAP, с `**Дата закрытия:**`.
+- `docs/roadmap/CI-ROADMAP-ARCHIVE.md` (новый) — все `### ✅` из ci-roadmap, с `**Дата закрытия:**`.
 - `AGENTS.md` → 5g.4 (`mark done`) — `cut` из `## Планируемые`, `append` в `<archive>`, с `**Дата закрытия:** <today>`. Плюс — `### Порядок секций` (если `## Закрытые` остаётся — уточнить, что в нём ссылка, не задачи).
 
 **Шаги:**
@@ -7824,16 +7824,16 @@ ___
 
 **Критерий готовности:**
 - `docs/ROADMAP.md` < 1000 строк; `## Закрытые` — ссылка на `ROADMAP-ARCHIVE.md`.
-- `docs/ROADMAP-ARCHIVE.md` — все `### ✅` (109), у каждого `**Дата закрытия:**`.
+- `docs/roadmap/ROADMAP-ARCHIVE.md` — все `### ✅` (109), у каждого `**Дата закрытия:**`.
 - `docs/ci-roadmap.md` < 500 строк; `## Закрытые` — ссылка на `CI-ROADMAP-ARCHIVE.md`.
-- `docs/CI-ROADMAP-ARCHIVE.md` — все `### ✅` (22), у каждого `**Дата закрытия:**`.
+- `docs/roadmap/CI-ROADMAP-ARCHIVE.md` — все `### ✅` (22), у каждого `**Дата закрытия:**`.
 - `AGENTS.md` 5g.4 обновлён (`append` в archive, `**Дата закрытия:** <today>`).
 - `git diff --check` чистый.
 
 **Что сделано:**
 - `AGENTS.md` (`ef056e3`): 11 точек — 5g.4 (mark done -> archive + date), 5d, 5f, «Порядок секций».
-- `docs/ROADMAP.md` + `docs/ROADMAP-ARCHIVE.md` (`00d1ffe`): 81 задача, ROADMAP 10269 -> 2504, ARCHIVE 7772.
-- `docs/ci-roadmap.md` + `docs/CI-ROADMAP-ARCHIVE.md` (`00d1ffe`): 14 задач, ci-roadmap 1334 -> 825, CI-ARCHIVE 515.
+- `docs/ROADMAP.md` + `docs/roadmap/ROADMAP-ARCHIVE.md` (`00d1ffe`): 81 задача, ROADMAP 10269 -> 2504, ARCHIVE 7772.
+- `docs/ci-roadmap.md` + `docs/roadmap/CI-ROADMAP-ARCHIVE.md` (`00d1ffe`): 14 задач, ci-roadmap 1334 -> 825, CI-ARCHIVE 515.
 
 **Оценка:** ~2–3 ч (даты 30 мин, ROADMAP-ARCHIVE 45 мин, CI-ROADMAP-ARCHIVE 20 мин, AGENTS 20 мин, проверка 20 мин, PR 15 мин).
 
@@ -9580,7 +9580,7 @@ Panel-VM (без изменений в размере):
 - `DisconnectBrokerUseCase` + тест (M006, `ae3aa83`) — образец orchestration.
 - `TInvestSettingsViewModel` (M006, `ab0f1bb`) — образец тонкой panel-VM.
 - `docs/clean-audit.md` → M013.
-- `docs/ROADMAP-ARCHIVE.md` → `### ✅ Рефакторинг settings-VM (A2, M006)` (образец закрытой формы).
+- `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ Рефакторинг settings-VM (A2, M006)` (образец закрытой формы).
 
 **Ограничения:**
 - **UI визуально не меняется** — та же разметка, тексты, кнопки.
@@ -10458,7 +10458,7 @@ ___
 
 **Тесты:** B1 — `PostOrderUseCaseTest` (регрессия, ~15 существующих кейсов); B2 — новый `PrepareOrderRequestUseCaseTest` (8). Покрытие `prepare` до B2 = 0 → B1 первым.
 
-**Референсы:** `OrderFormState.isStopPriceValid` (UI-валидация); `PostOrderUseCase.execute` (существующий `InvalidRequest`-паттерн); `docs/ISSUES.md` → `ClassCastException…`; `docs/ROADMAP-ARCHIVE.md` → `#### UseCase-слой` (закрыта).
+**Референсы:** `OrderFormState.isStopPriceValid` (UI-валидация); `PostOrderUseCase.execute` (существующий `InvalidRequest`-паттерн); `docs/ISSUES.md` → `ClassCastException…`; `docs/roadmap/ROADMAP-ARCHIVE.md` → `#### UseCase-слой` (закрыта).
 
 **Ограничения:**
 - **Поведение меняется:** StopLoss без stopPrice → `InvalidRequest` вместо crash / market. UI не затронут (`isFormValid` блокирует submit), public-API теперь честный.
@@ -11565,3 +11565,31 @@ Orders 100 — из них `getOrders` 200, `postOrder` 15/сек,
 
 
 ___
+
+
+
+___
+
+
+
+### ✅ AGENTS: авто-rebuild индекса после add.py/cut.py
+
+**Дата закрытия:** 2026-11-16
+
+**Что сделано:** rebuild_index.py: rebuild(apply) extracted; add.py/cut.py call it after write_text; replace_table idempotent (skip blank lines). Plan task removed from ROADMAP.
+
+**Коммит:** `e12aed55`
+
+
+
+___
+
+
+
+### ✅ AGENTS-style.md: дробление на style-core / style-git / style-docs
+
+**Дата закрытия:** 2026-11-16
+
+**Что сделано:** AGENTS-style.md (150KB, 30 SUBSECTION) split into style-core (10), style-git (10), style-docs (10); IDs r* unchanged; index rebuilt; 165/165 pairs; --check-index 0.
+
+**Коммит:** `cce71706`

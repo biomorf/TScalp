@@ -11,16 +11,32 @@ Ansible + Podman»). Раздел про GitLab-релиз сохранён ни
 помечен
 как временно отключённый.
 
+<!-- SECTION_BEGIN: release-process -->
 ## Версии
 
-### versionName
 
+
+
+<!-- SUBSECTION_BEGIN: release-process-1 -->
+___
+### release-process-1 versionName
 - **Локально** (без `-PreleaseVersionName`): `1.<yy.MM.dd.HHmm>`
   в UTC. Пример: `1.26.10.07.1430`.
 - **В CI на теге** `vX.Y.Z`: ровно `X.Y.Z` (без префикса `v`).
+<!-- SUBSECTION_END: release-process-1 -->
 
-### versionCode
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: release-process-2 -->
+___
+### release-process-2 versionCode
 Вычисляется из semver тега по формуле:
 
     versionCode = major * 10_000 + minor * 100 + patch
@@ -40,11 +56,20 @@ Ansible + Podman»). Раздел про GitLab-релиз сохранён ни
 релизами. Формула гарантирует это при корректном semver-инкременте.
 
 ---
+<!-- SUBSECTION_END: release-process-2 -->
 
-## Секреты и CI-переменные
 
-### GitHub Repository secrets (актуально)
 
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: release-process-3 -->
+___
+### release-process-3 GitHub Repository secrets (актуально)
 Задаются в `Settings → Secrets and variables → Actions → New
 repository secret`. Используются в `release.yml`.
 
@@ -63,9 +88,20 @@ repository secret`. Используются в `release.yml`.
 Про Environment secrets (approval, ограничение по тегам,
 per-environment значения) — см. `docs/ci-roadmap.md` →
 «Переход на GitHub Environment secrets».
+<!-- SUBSECTION_END: release-process-3 -->
 
-### GitLab CI/CD Variables (временно отключены)
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: release-process-4 -->
+___
+### release-process-4 GitLab CI/CD Variables (временно отключены)
 Сохраняются в GitLab на случай восстановления пайплайна.
 Пока не используются.
 
@@ -81,11 +117,20 @@ per-environment значения) — см. `docs/ci-roadmap.md` →
 требует минимум 8 символов для маскировки — `tscalp` (7) не пройдёт.
 
 ---
+<!-- SUBSECTION_END: release-process-4 -->
 
-## Теги
 
-### Аннотированные, не легковесные
 
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: release-process-5 -->
+___
+### release-process-5 Аннотированные, не легковесные
 Релизные теги создаются **только аннотированными**:
 
     git tag -a v1.0.0 -m "Release v1.0.0"
@@ -103,9 +148,20 @@ per-environment значения) — см. `docs/ci-roadmap.md` →
   коммитов.
 - **Воспроизводимость.** Клонировав репозиторий на тег, любой
   может увидеть сообщение тега без запуска CI.
+<!-- SUBSECTION_END: release-process-5 -->
 
-### Защита веток и тегов
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: release-process-6 -->
+___
+### release-process-6 Защита веток и тегов
 **Детали — в отдельном справочнике:** `docs/repo-protection.md`.
 Там описаны:
 
@@ -123,29 +179,20 @@ force-push / удаления. Теги `v*` — иммутабельны, со�
 только для Maintainers.
 
 ---
+<!-- SUBSECTION_END: release-process-6 -->
 
-## Продвижение master
 
-> **Схема обновлена в рамках перехода на GitFlow**
-> (см. `docs/ci-roadmap.md` → «Переход на полный GitFlow»).
-> Раньше продвижение шло напрямую `dev → master`.
-> Сейчас — через `release/*`. Полное описание — в
-> `docs/git-flow.md`.
 
-Ветка `master` защищена: прямой push запрещён. Продвижение
-идёт **только через Pull Request из `release/*`** (или
-`hotfix/*` для экстренных фиксов). Локальный
-`git merge --ff-only` не используется — его заменяет PR.
 
-Каждый merge в `master` сопровождается **аннотированным
-тегом** `vX.Y.Z` (см. «Теги»).
 
-После merge в `master` делается **обратный merge
-`master → dev`**, чтобы фиксы стабилизации и hotfix-правки
-не потерялись при следующем релизе.
 
-### Стратегия merge
 
+
+
+
+<!-- SUBSECTION_BEGIN: release-process-7 -->
+___
+### release-process-7 Стратегия merge
 Используется **Merge commit** (`Create a merge commit`).
 
 Почему не squash и не rebase:
@@ -165,9 +212,20 @@ force-push / удаления. Теги `v*` — иммутабельны, со�
 Минус Merge commit — нелинейная история с отдельным
 merge-коммитом на каждый PR. Для одиночного проекта это
 приемлемо.
+<!-- SUBSECTION_END: release-process-7 -->
 
-### Настройка GitHub
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: release-process-8 -->
+___
+### release-process-8 Настройка GitHub
 - `Settings → General → Pull requests` → `Allow merge commits`
   включено.
 - `Settings → Rules → Rulesets → Protect master` →
@@ -181,78 +239,20 @@ merge-коммитом на каждый PR. Для одиночного про�
 
 Верхний коммит — merge-коммит с сообщением вида
 `Merge pull request #N from biomorf/dev`.
+<!-- SUBSECTION_END: release-process-8 -->
 
-## Релиз через GitHub Actions
 
-Полный цикл:
 
-1. Убедиться, что `dev` содержит все коммиты для релиза.
-2. Создать ветку `release/vX.Y.Z` от `dev`:
 
-       git checkout dev
-       git pull
-       git checkout -b release/vX.Y.Z
-       git push -u origin release/vX.Y.Z
 
-3. Стабилизация: в `release/vX.Y.Z` вносятся только фиксы,
-   найденные при тестировании. Новые фичи не допускаются.
-4. Продвинуть `master` через Pull Request
-   `release/vX.Y.Z → master` (см. «Продвижение master»).
-5. Поставить **аннотированный** тег и запушить:
 
-       git tag -a vX.Y.Z -m "Release vX.Y.Z"
-       git push origin vX.Y.Z
 
-6. GitHub Actions запускает `release.yml`:
-    - триггер на тег `v*`;
-    - checkout, setup JDK 17, setup Gradle;
-    - декодирует keystore из `KEYSTORE_BASE64`;
-    - создаёт `keystore.properties` из четырёх secrets;
-    - собирает `assembleRelease -PreleaseVersionName=X.Y.Z`;
-    - переименовывает APK в `tscalp-release-vX.Y.Z.apk`;
-    - создаёт GitHub Release с APK и автоматически
-      сгенерированными release notes.
 
-Отдельный workflow `ci.yml` прогоняет `testDebugUnitTest`,
-`lintDebug` и `assembleDebug` на push и PR в `dev` / `master`.
 
-7. Обратный merge `master → dev`, чтобы фиксы стабилизации
-   не потерялись:
 
-       # PR master -> dev через web (Merge commit)
-
-## Релиз через GitLab CI (временно отключён)
-
-Пайплайн сохранён в `.gitlab-ci.yml`, но не запускается:
-квота Free Tier исчерпана. Будет восстановлен после настройки
-self-hosted runner'а (см. `docs/ci-roadmap.md` →
-«Self-hosted GitLab Runner через Ansible + Podman»).
-
-Порядок — тот же, что для GitHub Actions, но с MR вместо PR
-и `release-cli` вместо `softprops/action-gh-release`:
-
-1. Продвинуть `master` через MR из `dev`.
-2. Поставить **аннотированный** тег `vX.Y.Z` и запушить:
-
-       git tag -a vX.Y.Z -m "Release vX.Y.Z"
-       git push origin vX.Y.Z
-
-3. GitLab CI собирает pipeline:
-    - `unit-tests`, `lint`, `assemble-debug` — на всех ветках
-      и тегах;
-    - `build-release` — проверяет, что тег стоит на `master`,
-      расшифровывает keystore из `KEYSTORE_BASE64`, собирает
-      `assembleRelease -PreleaseVersionName=X.Y.Z`;
-    - `publish-release` — создаёт GitLab Release с APK в assets
-      и release notes из коммитов между предыдущим и текущим
-      тегом. В notes попадают только `feat` и `fix`;
-      инфраструктурные (`chore`, `docs`, `refactor`, `test`)
-      отфильтровываются по типу коммита.
-
----
-
-### Чек-лист релиза
-
+<!-- SUBSECTION_BEGIN: release-process-9 -->
+___
+### release-process-9 Чек-лист релиза
 Перед созданием тега:
 
 1. Убедиться, что `dev` содержит все нужные коммиты.
@@ -333,3 +333,9 @@ self-hosted runner'а (см. `docs/ci-roadmap.md` →
   (`git tag -d vX.Y.Z`), создать заново после исправлений.
 
 ---
+<!-- SUBSECTION_END: release-process-9 -->
+
+
+
+
+<!-- SECTION_END: release-process -->

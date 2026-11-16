@@ -4,6 +4,7 @@
 Справочник по работе со стримами в TScalp. Документ описывает
 успешные реализации и грабли, на которые мы наступали.
 
+<!-- SECTION_BEGIN: streams -->
 ## Общие принципы
 
 - **Разделяйте каналы (ManagedChannel)** для торговых операций и
@@ -15,26 +16,54 @@
 - **Проверяйте доступность стримов в sandbox** — многие из них
   возвращают `UNAUTHENTICATED`.
 
+<!-- SECTION_END: streams -->
+<!-- SECTION_BEGIN: streams -->
 ## Реализованные стримы
 
-### MarketDataStream (LastPrice)
 
+
+
+<!-- SUBSECTION_BEGIN: streams-1 -->
+___
+### streams-1 MarketDataStream (LastPrice)
 - **Метод:** `subscribeLastPrices(uids: List<String>)`.
 - **Канал:** `pricesStreamChannel` (отдельный от общего API-канала).
 - **Реализация:** `MarketDataStreamServiceGrpc.newStub(channel)` +
   `StreamObserver`.
 - **Статус:** работает в песочнице и боевом режиме.
+<!-- SUBSECTION_END: streams-1 -->
 
-### OrderStateStream
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-2 -->
+___
+### streams-2 OrderStateStream
 - **Метод:** `subscribeOrderState(accountId: String)`.
 - **Канал:** `ordersStateChannel` (отдельный).
 - **Реализация:** `OrdersStreamServiceGrpc.newStub(channel)`.
 - **Статус:** работает в боевом режиме. В песочнице —
   `UNAUTHENTICATED: 40003`.
+<!-- SUBSECTION_END: streams-2 -->
 
-### PositionsStream
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-3 -->
+___
+### streams-3 PositionsStream
 **Статус:** решён. gRPC-стрим реализован и работает в боевом
 и песочнице. Основной источник изменений количества; polling
 остаётся параллельным fallback'ом. См. `docs/ROADMAP.md` →
@@ -104,20 +133,20 @@
 `connectionState: StateFlow<StreamState>` (`LIVE` / `POLLING` /
 `STALE` / `STOPPED`). UI-индикатор — отдельная задача
 (ROADMAP → «UI-индикатор состояния стримов»).
+<!-- SUBSECTION_END: streams-3 -->
 
-## WebSocket (T-Invest)
 
-Стриминг через WebSocket — альтернатива gRPC-стримам для тех же
-каналов (`PositionsStream`, `MarketDataStream`, `OrdersStream`).
-Реализован в `:transport-ktor` для трёх каналов
-(`TInvestPositionsWebSocket`, `TInvestPricesWebSocket`,
-`TInvestOrderStateWebSocket`), движок Ktor CIO. Все три
-создаются только при `!sandbox` (sandbox WS не работает —
-серверное ограничение). Управление — `TInvestWsService`
-(`initialize` / `stop`).
 
-### Адрес
 
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-4 -->
+___
+### streams-4 Адрес
 **Канал — часть URL path**, а не только тело подписки:
 
     # Prod
@@ -135,9 +164,20 @@ URL выбирается по флагу: prod → `invest-public-api.tbank.ru`,
 sandbox → `sandbox-invest-public-api.tbank.ru`. Без этого
 sandbox-токен уходил на прод-хост, и сервер закрывал соединение
 сразу после подписки.
+<!-- SUBSECTION_END: streams-4 -->
 
-### Авторизация
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-5 -->
+___
+### streams-5 Авторизация
 Два допустимых способа (по документации T-Invest):
 
 - `Authorization: Bearer <token>` — HTTP-заголовок, работает.
@@ -145,9 +185,20 @@ sandbox-токен уходил на прод-хост, и сервер закр
   протокола, тоже допустим, но не проверяли.
 
 Сейчас в коде используется `Authorization`.
+<!-- SUBSECTION_END: streams-5 -->
 
-### Формат сообщений: json или json-proto
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-6 -->
+___
+### streams-6 Формат сообщений: json или json-proto
 T-Invest поддерживает два режима через заголовок
 `Web-Socket-Protocol`:
 
@@ -181,9 +232,20 @@ T-Invest поддерживает два режима через заголов�
 был не отдельным слоем, а тонкой обёрткой над gRPC-proto, и мы
 были бы готовы втащить `ru.tinkoff.piapi` внутрь него. У нас —
 два разных слоя по дизайну, и `json` эту границу уважает.
+<!-- SUBSECTION_END: streams-6 -->
 
-### Коды закрытия WS
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-7 -->
+___
+### streams-7 Коды закрытия WS
 Сервер T-Invest использует стандартные WebSocket close codes
 (1000–4999) плюс собственные application-коды в reason:
 
@@ -195,9 +257,20 @@ T-Invest поддерживает два режима через заголов�
   в `Authorization`. Проверить токен / режим (sandbox vs prod).
 - **`1011` + `reason: "50004"`** — `NOT_FOUND` (счёт не существует).
   Проверить accountId: соответствует ли он токену.
+<!-- SUBSECTION_END: streams-7 -->
 
-### Sandbox WS не отдаёт данные
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-8 -->
+___
+### streams-8 Sandbox WS не отдаёт данные
 В песочнице сервер принимает handshake и подписку, но **сразу
 закрывает соединение без единого кадра** (`Received WebSocket
 close message`, без `subscriptions`, без `initialPositions`,
@@ -210,9 +283,20 @@ close message`, без `subscriptions`, без `initialPositions`,
 других источников. Для UI прозрачно. Запись:
 `docs/ISSUES.md` → «PositionsStream over WS не отдаёт данные
 в песочнице».
+<!-- SUBSECTION_END: streams-8 -->
 
-### Подписка: encodeDefaults
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-9 -->
+___
+### streams-9 Подписка: encodeDefaults
 `withInitialPositions` в DTO имеет default `true`. Без
 `encodeDefaults = true` в `Json` kotlinx.serialization
 **не сериализует поле с default-значением** — payload уходит
@@ -221,9 +305,20 @@ close message`, без `subscriptions`, без `initialPositions`,
 
 Лечится `Json { ignoreUnknownKeys = true; encodeDefaults = true }`
 в `TInvestPositionsWebSocket`.
+<!-- SUBSECTION_END: streams-9 -->
 
-### Money и blocked: раздельно, без формулы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-10 -->
+___
+### streams-10 Money и blocked: раздельно, без формулы
 Валютные остатки приходят двумя account-level массивами:
 `money` (свободные) и `blocked` (заблокированные), каждый
 элемент — `MoneyValue` с одним полем `currency` (без uid и
@@ -240,9 +335,20 @@ ticker).
 не подтверждена по документации — интерпретация отложена до
 UI-задачи (см. `docs/ROADMAP.md` → «UI: разбивка
 AccountBalance.total на money/blocked в шапке счёта»).
+<!-- SUBSECTION_END: streams-10 -->
 
-### Связанные документы
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: streams-11 -->
+___
+### streams-11 Связанные документы
 - `docs/ISSUES.md` → «T-Invest WebSocket: решён — канал должен
   быть в URL path» — root cause, матрица экспериментов,
   коды закрытия.
@@ -252,7 +358,13 @@ AccountBalance.total на money/blocked в шапке счёта»).
   план фаз 2 и 3.
 
 ---
+<!-- SUBSECTION_END: streams-11 -->
 
+
+
+
+<!-- SECTION_END: streams -->
+<!-- SECTION_BEGIN: streams -->
 ## Рекомендации
 
 - **Правильное имя метода:** `OperationsStreamService.positionsStream`
@@ -277,3 +389,4 @@ AccountBalance.total на money/blocked в шапке счёта»).
 
 
 ####################################################
+<!-- SECTION_END: streams -->

@@ -1,0 +1,408 @@
+<!-- AGENTS_SECTION_BEGIN: code -->
+## Работа с кодом
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-project -->
+___
+### code-project Проект
+- **Стек:** Kotlin, Jetpack Compose, Hilt, Coroutines/Flow,
+  gRPC (T-Invest SDK), REST (BCS, Finam).
+- **Слои:** `presentation → domain → data`. ViewModel не ходит
+  к брокеру напрямую — только через `InvestRepository`.
+- **Структура `domain/`:** новая роль — в `api/roles/`,
+  новый менеджер — в `managers/`. Полная структура —
+  `docs/architecture.md` (задача `### Архитектурный документ`
+  в `docs/ROADMAP.md`).
+- **Nullable-val роли.** Паттерн: `val <role>: <RoleApi>?`
+  в `BrokerApi`; брокер — `override val <role>: RoleApi get() = this`
+  (реализует) или `override val <role>: RoleApi? = null`
+  (не поддерживает). **Supertype = «реализую все методы».**
+  Если брокер не реализует все методы роли — supertype
+  **не ставится**, только `val <role> = null`. Пример #3
+  (`b2ef717` → `8ba59f9`): BCS/Finam получили supertype
+  `BrokerInstrumentApi`, но не реализуют
+  `fetchFullInstrument` — компилятор потребовал
+  реализацию. Правильно: `instrument = null` без supertype.
+- **Обработка ошибок:** `AppResult<T>` (Success/Failure), не
+  исключения на границах слоёв. Ошибки брокеров расшифровываются
+  через `BrokerErrorMessages`.
+- **Логирование:** `AppLogger`, не `android.util.Log`.
+- **Формат логов транспортов:** `<протокол>/<транспорт>/<брокер>`.
+  - `[REST/ktor/TInvest] ...`
+  - `[WS/ktor/TInvest] ...`
+  - `[stream/gRPC/TInvest] ...`
+  - `[unary/gRPC/TInvest] ...`
+  - `[manager/stream] ...` (менеджер получил данные из любого стрима)
+  - `[manager/polling] ...` (менеджер получил данные из любого polling)
+- **Цены** — только через `PriceFlowManager`. Не вызывать
+  `broker.subscribeLastPrices` и `repository.getLastPricesResult`
+  из ViewModel напрямую. Регистрировать интерес через
+  `setInterest(PriceConsumer, uids)`.
+<!-- SUBSECTION_END: code-project -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-workflows -->
+___
+### code-workflows Рабочие сценарии: mobile (proot) и desktop (Bluefin)
+Проект разрабатывается в двух окружениях. Правила 5/5a
+действуют в обоих, но доступные инструменты и порядок работы
+различаются.
+
+**Mobile (proot Ubuntu в Termux, телефон).**
+
+- Доступно: терминал, `git`, `grep`, `sed`, `awk`, `python3`,
+  правки `.kt` / `.md` / конфигов, `git mv`, коммиты, push,
+  PR через web, web UI GitHub/GitLab.
+- Недоступно: Android Studio, эмулятор/девайс по ADB, локальный
+  запуск Gradle (тяжело для proot, нестабильно), live-тест на
+  устройстве (см. `docs/live-test.md`).
+- Гейт: **CI `gate` на PR** (см. 5a). Локальный гейт невозможен.
+- WIP-коммиты: полное тело (см. 5), первая строка
+  `WIP — mobile (proot), CI gate; not final.`
+- `type` коммита — стандартный (см. 5), `wip` — не тип.
+
+**Desktop (Bluefin OS, ноутбук/десктоп).**
+
+- Доступно: всё из mobile, плюс локальный Gradle
+  (`./gradlew :app:...`), Android Studio, эмулятор/девайс по
+  ADB, live-тест на устройстве (`docs/live-test.md`).
+- Гейт: **локальный полный гейт** (см. 5a, команда) — быстрее
+  CI (~50 сек vs 2–3 мин), не тратит Actions-минуты. CI `gate`
+  на PR — подтверждение.
+- **WIP-коммиты: не используются.** Каждый коммит требует
+  прохождения полного локального гейта до коммита. Промежуточные
+  коммиты — обычные, без WIP-маркера.
+- `type` коммита — стандартный (см. 5).
+
+**Что можно/нельзя менять в этих подпунктах.**
+Список инструментов и порядок работы в этих сценариях —
+**живой**: если в proot появляется новая возможность (например,
+`ktlint` отдельным бинарём) или на десктопе меняется окружение —
+дополнять этот подпункт правкой AGENTS (категория 2 по 5g,
+прямой push в `dev`), без отдельной задачи.
+
+**Историческая справка.** В сессиях 2026-10-25 (#3–#8) тип `wip`
+использовался в заголовке как стандартный (`wip(domain): ...`).
+Это отклонение от 5 (список типов закрытый); переписывать историю
+нельзя (force-push, 5a). Впредь — стандартный тип + `WIP` в теле.
+<!-- SUBSECTION_END: code-workflows -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-instrument-ids -->
+___
+### code-instrument-ids Идентификаторы инструментов
+- **Domain-слой** оперирует `tscalpInstrumentId` — универсальным
+  идентификатором инструмента. В domain-моделях, usecase'ах и
+  domain-API (`PriceFlowManager`, `PositionFlowManager`)
+  ключ инструмента называется `tscalpInstrumentId`, а не `uid`
+  и не `figi`.
+- **Data-слой** (`data/api/*`, `data/repository/*`) — на границе
+  с брокером. Здесь `uid` (T-Invest), `figi` (BCS),
+  `ticker` + `exchange` (Finam) честно отражают формат брокера.
+- **Трансляция** `tscalpInstrumentId ↔ broker-specific-id`
+  происходит в репозитории или в брокере.
+<!-- SUBSECTION_END: code-instrument-ids -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-before-edits -->
+___
+### code-before-edits Перед правками
+- Ассистент запрашивает актуальные версии файлов, которые
+  собирается менять. Не полагается на память о предыдущих
+  сессиях.
+- **KDoc читать целиком, а не только сигнатуры.** При
+  первом касании файла — открыть KDoc класса и функций
+  (обычно в шапке файла). KDoc содержит: известные
+  ограничения, указатели на другие задачи, предупреждения
+  о lifecycle, ловушки. Пропуск KDoc — источник ошибок,
+  которые видны только при чтении комментариев. Пример:
+  `TInvestOrderStateWebSocket` без stop(),
+  `TInvestPricesWebSocket` с incremental subscription
+  вместо parity с gRPC — эти решения объяснены в KDoc.
+- **Атомарный запрос KDoc + сигнатуры.** Когда нужны
+  сигнатуры методов — запрашивать KDoc и сигнатуру
+  **одной командой**, а не двумя шагами. Примеры:
+
+      grep -n -B30 -A10 "^\s*fun <name>" <path>
+      grep -n -B50 -A10 "^\s*class <name>" <path>
+
+  - `-B` — контекст перед: захватывает KDoc (`/** ... */`).
+    `-B30` для метода (KDoc обычно 10–20 строк), `-B50` для
+    класса (KDoc 20–40 строк).
+  - `-A` — контекст после: сигнатура + первые строки тела.
+  - **Несколько целей** — через альтернацию в regex:
+    `grep -n -B30 -A10 "^\s*fun <name1>\|^\s*fun <name2>" <path>`.
+  - **Шум допустим.** `-B`/`-A` захватывает соседние методы
+    и импорты — приоритет KDoc целиком, не чистота вывода.
+  - **Файл целиком** — только когда правок много и нужен
+    весь контекст (рефакторинг структуры, много методов).
+  - **Запрещено** `grep "fun <name>"` без `-B`: KDoc
+    пропускается, правило «KDoc читать целиком» нарушается.
+
+  **Почему:** одна команда вместо двух — меньше трафика и
+  раундов; KDoc не теряется. Практика 2026-10-23:
+  `runGrcpStream` (метод, `-B30`), `OrderFlowManager` (класс,
+  `-B50`), альтернация двух методов — всё захватило KDoc
+  целиком.
+- Перед удалением кода проверяет через `grep`, что он
+  действительно не используется.
+- Перед переименованием или сменой сигнатуры проверяет всех
+  вызывающих.
+- **Anchor на строку с отступом — проверять `repr()`.**
+  При замене одной строки по anchor (не через многострочный
+  блок) — сначала получить точный отступ через
+  `repr(line)` / `len(line) - len(line.lstrip())`, потом
+  писать anchor. Не по визуальной оценке: `cat -A`
+  показывает символы, но количество пробелов легко
+  пересчитать неверно. Практика 2026-10-25 (#5
+  `AccountsApi`): anchor в
+  `TScalpApplication.resolveTInvestAccountId` написан с 20
+  пробелами, реально было 16, скрипт упал с
+  `anchor count = 0`. Проверка через `repr()` занимает
+  5 секунд, откат красной сборки — минуты.
+- **Порядок импортов при вставке — по алфавиту, не по
+  позиционному anchor.** При добавлении импорта — сначала
+  определить место по алфавиту (с учётом ktlint-правил:
+  `java`, `javax`, `kotlin` и алиасы в конце), затем
+  вставить. Не «после такого-то импорта» — ktlintFormat
+  ловит и требует переупорядочивания. Практика 2026-10-25:
+  три раза подряд (#1 `StreamsApi`, #2 `BrokerCredentials`
+  + `BrokerLifecycleApi`, #3 `BrokerInstrumentApi`) импорт
+  вставлялся позиционным anchor'ом и падал на
+  `ktlintMainSourceSetCheck`. Решение: сортировать набор
+  импортов alphabetically перед вставкой, либо прогонять
+  `ktlintFormat` после каждой правки импортов.
+<!-- SUBSECTION_END: code-before-edits -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-after-edits -->
+___
+### code-after-edits После правок
+- Сборка: `./gradlew :app:clean :app:testDebugUnitTest --rerun-tasks 2>&1 | grep -E '\[warn\]|\[error\]|^w:|^e:'`
+- Ожидаемый результат: 84 теста зелёных, только известные
+  warning'и (список — в `docs/ISSUES.md`).
+- Новые warning'и, новые ошибки — разбираются, не игнорируются.
+<!-- SUBSECTION_END: code-after-edits -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-unit-mockk-suspend -->
+___
+### code-unit-mockk-suspend Unit-тесты: mockk для suspend-функций
+Для `suspend`-функций в mockk — **только** `coEvery` / `coVerify`
+(или `coAnswers`), не `every` / `verify`. На неверную версию
+компилятор ругается `Suspension functions can only be called
+within coroutine body` — ошибка указывает на строку `verify`,
+а не на функцию, что путает.
+
+Правило:
+- `suspend fun` → `coEvery { ... } returns ...`, `coVerify { ... }`.
+- обычная `fun` (включая `fun ... : Flow<T>`) → `every` / `verify`.
+
+Пример из проекта (`OrderFlowManager`):
+- `broker.subscribeOrderState(accountId): Flow<OrderState>` —
+  suspend → `coEvery` / `coVerify`.
+- `broker.ordersSnapshot(accountId): List<OrderListItem>` —
+  suspend → `coEvery` / `coVerify`.
+- `repository.subscribeLastPrices(broker, ids): Flow<Pair<String, Double>>`
+  — **не** suspend (обычный `fun`) → `every` / `verify`.
+
+При написании теста: посмотреть сигнатуру в исходнике, не
+догадываться по имени (`getX`, `subscribeX` — не признак suspend).
+
+**JVM-тесты и `android.util.Log`.** Если production-код в тесте
+вызывает `AppLogger` → `android.util.Log`, тест упадёт с
+`RuntimeException at Log.java:-1`. Лечится
+`testOptions { unitTests.isReturnDefaultValues = true }` в
+`app/build.gradle.kts`. Уже включено; причина — в
+`docs/gradle-setup.md` → «Unit-тесты».
+<!-- SUBSECTION_END: code-unit-mockk-suspend -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-self-contained-scripts -->
+___
+### code-self-contained-scripts Самодостаточность инфраструктурных скриптов
+Любой скрипт, Ansible-роль, playbook, Dockerfile или CI-конфиг, который
+ассистент пишет или правит, обязан:
+
+- **явно перечислять все зависимости** — пакеты, версии, репозитории,
+  сервисы;
+- **устанавливать отсутствующее сам**, не полагаясь на «из коробки»;
+- **проверять состояние перед изменением** — идемпотентность
+  (правило 4d);
+- **не оставлять ручных шагов**, которые пользователь должен доделать
+  по памяти.
+
+**Запрещено полагаться на:** предустановленные пакеты («обычно podman
+уже стоит»), дефолтные настройки ОС («systemd настроен»), неявные
+состояния системы, внешние ресурсы без фиксации версии.
+
+**Причина:** в CI, Ansible, развёртывании «из коробки» — источник
+скрытых сюрпризов. Скрипт должен воспроизводиться с нуля на чистой
+системе, без неявных предпосылок. Проверка «всё поставилось и
+работает» — часть задачи, а не опция.
+<!-- SUBSECTION_END: code-self-contained-scripts -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-git-workflow-origin -->
+___
+### code-git-workflow-origin Git workflow: синхронизация с origin
+Для синхронизации локальной ветки с origin используем
+**двухшаговую схему**:
+
+    git remote update
+    git merge --ff-only origin/<branch>
+
+**Почему не `git pull`:**
+
+- `git pull` = `git fetch` + `git merge` в одной команде.
+  Если локальная ветка разошлась с origin, `git pull`
+  создаст merge-коммит молча — история станет грязной,
+  а причина расхождения — незамеченной.
+- `git pull --rebase` перепишет локальные коммиты.
+  Тоже нежелательно без явного решения.
+- `git remote update` + `git merge --ff-only` разделяет
+  операции: сначала обновляем remote-ссылки, потом
+  явно решаем, что делать с локальной веткой.
+- При `--ff-only` merge **невозможен**, если ветки разошлись.
+  Это сигнал разобраться, а не автоматический merge-коммит.
+
+**Порядок:**
+
+1. `git remote update` — обновить все отслеживаемые remote.
+2. `git status` — посмотреть, отстаёт / совпадает / разошлась.
+3. `git merge --ff-only origin/dev` — fast-forward только
+   если возможно.
+
+Если `--ff-only` не прошёл — **остановиться и разобраться**.
+Не делать `git pull`, не делать `git merge` без явного
+намерения.
+
+**Исключение:** merge feature-ветки в `dev` (не синхронизация) —
+через `git merge --no-ff` или через web PR, как зафиксировано
+в ROADMAP. Правило выше — только про синхронизацию **текущей
+ветки с её origin-копией**.
+<!-- SUBSECTION_END: code-git-workflow-origin -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: code-git-workflow-pr -->
+___
+### code-git-workflow-pr Git workflow: ветки и PR
+Полное соглашение о ветвлении — в `docs/git-flow.md`. Здесь —
+краткая карта для быстрой ориентации.
+
+**Постоянные ветки:**
+
+- `master` — релизы. Прямой push запрещён (Ruleset).
+- `dev` — интеграция. Прямой push запрещён (Ruleset).
+
+**Временные ветки:**
+
+- `feature/<name>` — от `dev`. Одна фича.
+- `bugfix/<issue-id>` — от `dev`. Один баг в разработке.
+- `release/vX.Y.Z` — от `dev`. Стабилизация перед релизом.
+- `hotfix/vX.Y.Z` — от тега на `master`. Экстренный фикс.
+
+**Стратегия merge:** Merge commit везде. Squash и Rebase
+отключены в Rulesets — стратегия единая (см.
+`docs/git-flow.md` → «Осознанные отклонения»).
+
+**Карта merge:**
+
+| Source | Target | Тег |
+|---|---|---|
+| `feature/*` | `dev` | — |
+| `bugfix/*` | `dev` | — |
+| `release/*` | `master` | `vX.Y.Z` |
+| `master` | `dev` | — |
+| `hotfix/*` | `master` | `vX.Y.(Z+1)` |
+| `hotfix/*` | `dev` | — |
+
+**Порядок работы над задачей из ROADMAP** — правило 5g.
+
+**Проверка перед PR:** `./gradlew :app:clean
+:app:testDebugUnitTest --rerun-tasks` — зелёный. CI прогонит
+то же на PR.
+
+---
+<!-- SUBSECTION_END: code-git-workflow-pr -->
+
+
+
+
+
+
+
+
+<!-- AGENTS_SECTION_END: code -->

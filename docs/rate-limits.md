@@ -8,6 +8,7 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+<!-- SECTION_BEGIN: rate-limits -->
 ## Общие рекомендации
 
 - **Не более 50 запросов в секунду** суммарно по всем счетам
@@ -20,6 +21,8 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+<!-- SECTION_END: rate-limits -->
+<!-- SECTION_BEGIN: rate-limits -->
 ## Unary-методы T-Invest (gRPC / REST)
 
 Лимит в **минуту** на каждый сервис (суммарно по всем методам
@@ -61,6 +64,8 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+<!-- SECTION_END: rate-limits -->
+<!-- SECTION_BEGIN: rate-limits -->
 ## Stream-соединения T-Invest
 
 Лимит на **количество одновременных stream-соединений**.
@@ -96,6 +101,8 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+<!-- SECTION_END: rate-limits -->
+<!-- SECTION_BEGIN: rate-limits -->
 ## WebSocket
 
 Лимит частоты сообщений/подписок в рамках WS-соединения — тот
@@ -105,6 +112,8 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+<!-- SECTION_END: rate-limits -->
+<!-- SECTION_BEGIN: rate-limits -->
 ## `GetUserTariff` — динамические лимиты
 
 Возвращает актуальные лимиты для текущего пользователя:
@@ -123,8 +132,11 @@ BCS / Finam — заполнить по мере интеграции.
 ---
 
 
-### Ограничения по доставке данных в стримах
 
+
+<!-- SUBSECTION_BEGIN: rate-limits-1 -->
+___
+### rate-limits-1 Ограничения по доставке данных в стримах
 За один интервал времени может быть отправлено только одно сообщение по одной подписке.
 
 | Тип подписки | Интервал (мс) |
@@ -134,18 +146,36 @@ BCS / Finam — заполнить по мере интеграции.
 | Candles | 100 |
 | LastPrice | без ограничений |
 | Info | без ограничений |
+<!-- SUBSECTION_END: rate-limits-1 -->
 
-### Важно
 
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: rate-limits-2 -->
+___
+### rate-limits-2 Важно
 - Превышения не будет, если количество запросов с IP-адреса клиента **не превышает 1000 в минуту**.
 - В `GetUserTariff` лимиты для стрим-соединений могут возвращаться на 1 больше (запас на переподключение).
 - Счётчик количества стрим-соединений обновляется каждые 2 минуты.
 - Лимита на количество активных заявок нет.
 
 **Ссылка:** [Лимиты — T-Invest API](https://developer.tbank.ru/invest/intro/intro/limits)
+<!-- SUBSECTION_END: rate-limits-2 -->
 
+
+
+
+<!-- SECTION_END: rate-limits -->
+<!-- SECTION_BEGIN: rate-limits -->
 ## Связанные документы
 
 - `docs/ROADMAP.md` → «Rate-limiter для unary-запросов T-Invest».
 - `docs/streams.md` — работа со стримами.
 - `docs/brokers.md` — общая справка по брокерам.
+<!-- SECTION_END: rate-limits -->
