@@ -20,7 +20,9 @@
 Если возникает вопрос «а это где записано?» — сначала
 проверяем эти документы, потом спрашиваем пользователя.
 
-### Всё планируемое — в документах
+<!-- SUBSECTION_BEGIN: project-docs-all-planned -->
+___
+### project-docs-all-planned Всё планируемое — в документах
 
 Любое решение, план, улучшение или отложенная идея, о которых
 договорились в сессии, **обязаны** быть зафиксированы в
@@ -40,7 +42,10 @@
 их оценить — ассистент обязан предложить конкретную формулировку
 для `docs/ROADMAP.md`, а не ограничиваться ответом в чате.
 
-### Диаграммы в документации
+<!-- SUBSECTION_END: project-docs-all-planned -->
+<!-- SUBSECTION_BEGIN: project-docs-diagrams -->
+___
+### project-docs-diagrams Диаграммы в документации
 
 Документация проекта обогащается **Mermaid-диаграммами**
 постепенно. Правило действует без срочного переписывания
@@ -93,7 +98,10 @@
 
 
 
-### Пометка о мобильной работе
+<!-- SUBSECTION_END: project-docs-diagrams -->
+<!-- SUBSECTION_BEGIN: project-docs-mobile -->
+___
+### project-docs-mobile Пометка о мобильной работе
 
 Каждая задача в `docs/ROADMAP.md` получает **пометку о
 возможности закрытия с телефона** — сразу после заголовка
@@ -157,7 +165,10 @@ Gradle-сборки (тяжело для proot, нестабильно). ADB
 
 ---
 
-### Порядок секций в плановых документах
+<!-- SUBSECTION_END: project-docs-mobile -->
+<!-- SUBSECTION_BEGIN: project-docs-section-order -->
+___
+### project-docs-section-order Порядок секций в плановых документах
 
 В `docs/ROADMAP.md` и `docs/ci-roadmap.md` — два раздела
 с разной сортировкой:
@@ -261,4 +272,5 @@ Gradle-сборки (тяжело для proot, нестабильно). ADB
 
 ---
 
+<!-- SUBSECTION_END: project-docs-section-order -->
 <!-- AGENTS_SECTION_END: project-docs -->

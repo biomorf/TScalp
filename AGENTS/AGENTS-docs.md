@@ -19,8 +19,11 @@
 
 ---
 
-### Формат отчёта
+<!-- SUBSECTION_BEGIN: docs-report -->
+___
+### docs-report Формат отчёта
 
 См. `AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении.
 
+<!-- SUBSECTION_END: docs-report -->
 <!-- AGENTS_SECTION_END: docs -->

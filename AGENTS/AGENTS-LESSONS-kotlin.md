@@ -1,6 +1,8 @@
 <!-- LESSONS_SECTION_BEGIN: kotlin -->
 
-### 86. `assert "${X}" not in text` — ловит X в других методах
+<!-- SUBSECTION_BEGIN: l-kotlin-86 -->
+___
+### l-kotlin-86 `assert "${X}" not in text` — ловит X в других методах
 
 **Правило:** post-write verify `assert "${result.error.message}" not in text` на **всём файле** ловит `${result.error.message}` в **pre-existing** методах, не только в изменённом. Проверять внутри извлечённого блока целевого метода: `re.search(r"fun <name>\(.*?
     \}", text, re.DOTALL)` → `assert "${X}" not in match.group(0)`. Или проверять **позитивно** внутри блока (`initResult.error.message in block`), не негативно на файле.
@@ -16,7 +18,10 @@
 **Связано:** уроки 26 (`assert old not in text` — KDoc), 65 (`new ⊂ old`), 67 (inline-ссылки в `###`), 79 (post-assert scope), 80(б) (проверяй факт, не форму).
 
 
-### 88. Idempotency guard `if new_fragment in text: skip` неверен, когда new ⊂ old
+<!-- SUBSECTION_END: l-kotlin-86 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-88 -->
+___
+### l-kotlin-88 Idempotency guard `if new_fragment in text: skip` неверен, когда new ⊂ old
 
 **Правило:** idempotency-guard в скрипте правки — проверять **old-fragment**, которого в новом состоянии **не будет** (`if old_frag not in text: print("already applied"); return`). **Не** `if new_frag in text: skip` — если `new` является подстрокой `old` или наоборот, guard срабатывает ложно: `new` уже есть в файле **до** правки (как часть `old`), правка не применяется, хотя должна.
 
@@ -26,7 +31,10 @@
 
 **Проверка:** в скрипте — guard по `old` (`if old_frag not in text: skip`), не по `new`. Если есть подозрение на пересечение — `assert old_frag in text, "old not found"` + `assert text.count(old_frag) == 1` до replace, `assert new_frag in text` после. Связано: урок 4d (идемпотентность), 65 (`new ⊂ old`), 79 (post-assert scope).
 
-### 91. Verify = call-form / declaration-form, никогда `not in text` для symbols
+<!-- SUBSECTION_END: l-kotlin-88 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-91 -->
+___
+### l-kotlin-91 Verify = call-form / declaration-form, никогда `not in text` для symbols
 
 **Правило:** при verify правки / pre-commit — проверять **фактическое
 состояние кода**, не подстроку в файле. Для символов (`fun X`, `val X`,
@@ -74,7 +82,10 @@ text` / `grep "X"` ловит KDoc, комментарии, KDoc-цитаты �
 text` — `grep -n "X" file | grep -vE '^\s*\*'` + call-form regex.
 `grep "X" file` без фильтра — запрещён как verify.
 
-### 92. `re.sub` replacement — raw-string или без escaped-symbol; `SyntaxWarning` = сигнал
+<!-- SUBSECTION_END: l-kotlin-91 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-92 -->
+___
+### l-kotlin-92 `re.sub` replacement — raw-string или без escaped-symbol; `SyntaxWarning` = сигнал
 
 **Правило:** `re.sub(pattern, replacement, text)` — replacement-строка
 **не должна содержать** escaped-symbol (`\.`, `\(`, `\)`, …) вне
@@ -106,7 +117,10 @@ stderr**, не подавлять.
 
 ---
 
-### 97. uniqueness pre-check до replace: `count == 1`, а не `new in text`
+<!-- SUBSECTION_END: l-kotlin-92 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-97 -->
+___
+### l-kotlin-97 uniqueness pre-check до replace: `count == 1`, а не `new in text`
 
 **Правило:** в скрипте правки `.md`/`.kt` — **до** `text.replace(old, new, 1)` проверить `assert text.count(old) == 1, f"count={text.count(old)}"` (или `if old not in text: skip`). **Запрещено** `if new in text: print("already applied"); skip` для широких `old`/`new` (например, `.isEmpty()`, `StatusEffect`): они могут встретиться в **другом** контексте и дать ложное «уже применено», а целевое место — не тронуто.
 
@@ -115,7 +129,10 @@ stderr**, не подавлять.
 **Проверка:** в скрипте правки перед `replace` — `assert text.count(old) == 1, f"count={text.count(old)}"`. Если `old` законно встречается N раз — `count == N`. «Already applied» — только при `if text.count(new) == 1 and text.count(old) == 0`, и только если `new` уникально.
 
 
-### 108. Idempotency guard — в extract'е блока, не глобальный `grep` по файлу
+<!-- SUBSECTION_END: l-kotlin-97 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-108 -->
+___
+### l-kotlin-108 Idempotency guard — в extract'е блока, не глобальный `grep` по файлу
 
 **Правило:** идемпотентность-guard для правки `.md` (по 88) проверять **в extract'е целевого блока** (`start_marker` … `end_marker`), не глобально по файлу. Глобальный `grep -qF "marker"` / `if NEW in text: skip` даёт **false positive**, когда `NEW` уже есть в **другой** секции файла — guard абортит правку, файл остаётся нетронутым, лишний round-trip. Правильно:
 
@@ -138,7 +155,10 @@ Bash-guard `if grep -qF "$NEW" "$F"; then ...` — **запрещён**, есл�
 
 ---
 
-### 109. `grep -c` при 0 совпадениях возвращает exit 1 — убивает `set -e`
+<!-- SUBSECTION_END: l-kotlin-108 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-109 -->
+___
+### l-kotlin-109 `grep -c` при 0 совпадениях возвращает exit 1 — убивает `set -e`
 
 **Правило:** при `N=$(grep -cE '<pattern>' file)` под `set -e` — **всегда** дописывать `|| N=0`. GNU grep `-c` печатает `0` в stdout, но возвращает **exit 1**, когда совпадений нет (POSIX: «exit > 0 means no lines selected»). Assignment наследует exit 1 → `set -e` убивает группу **до** следующей команды. Правильно:
 
@@ -156,7 +176,10 @@ echo "OK: fence parity ($N)"
 
 ---
 
-### 110. `cmd && echo OK` под `set -e` не abort'ит — только левая часть как statement
+<!-- SUBSECTION_END: l-kotlin-109 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-110 -->
+___
+### l-kotlin-110 `cmd && echo OK` под `set -e` не abort'ит — только левая часть как statement
 
 **Правило:** `test … && echo "OK"` **не** abort'ит группу под `set -e`, даже когда `test` вернул 1 — POSIX `set -e` **не применяется к левой части** `a && b`. Аборт произойдёт только если `a && b` — последняя команда в списке (проверка всей конструкцией). Внутри `{ …; }` — `a && b` не последняя (дальше `;`), `set -e` не срабатывает. Симптом: `OK:` не напечатано, но группа **продолжилась** к следующей команде (commit, push). Правильно — все четыре пункта mini-gate через `|| { …; exit 1; }`:
 
@@ -175,7 +198,10 @@ echo "OK: fence parity ($N)"
 
 ---
 
-### 111. Commit message — английский, включая цитаты названий и полей
+<!-- SUBSECTION_END: l-kotlin-110 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-111 -->
+___
+### l-kotlin-111 Commit message — английский, включая цитаты названий и полей
 
 **Правило:** commit message формулируется **сразу на английском**, включая цитаты названий задач, заголовков секций и служебных полей (`**Дата закрытия:**`, `**Статус:**`). Не «вставлю и посмотрю, поймает ли pre-check». Механический pre-check — последняя линия защиты, а не первая.
 
@@ -185,7 +211,10 @@ echo "OK: fence parity ($N)"
 
 ---
 
-### 112. Idempotency guard — по `old`, не по `new`; `new ⊂ old` — ложно-«уже применено»
+<!-- SUBSECTION_END: l-kotlin-111 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-112 -->
+___
+### l-kotlin-112 Idempotency guard — по `old`, не по `new`; `new ⊂ old` — ложно-«уже применено»
 
 **Правило:** idempotency-guard в скрипте правки `.md`/`.kt` — проверять **`old`** (`if old not in text: print("already applied"); return`), а не `new`. `if new in text: skip` ложно-срабатывает, когда `new` содержит `old` как подстроку **или** встречается в файле в другом контексте. `assert old not in text` для «старой формы больше нет» — только если `new` её не содержит; иначе — `assert count(old) == expected_old_count` (обычно 0) или `assert count(new) == expected` без проверки отсутствия `old`.
 
@@ -199,7 +228,10 @@ echo "OK: fence parity ($N)"
 
 ---
 
-### 113. JVM/Gradle-флаги — синтаксис проверить до применения
+<!-- SUBSECTION_END: l-kotlin-112 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-113 -->
+___
+### l-kotlin-113 JVM/Gradle-флаги — синтаксис проверить до применения
 
 **Правило:** JVM-флаги (`-Xshare:off`, `--sun-misc-unsafe-memory-access=allow`, `-Xmx`, `-Dfile.encoding`) — **синтаксис варьируется**: некоторые с `:` (`-Xshare:off`), некоторые с `=` (`--sun-misc-unsafe-memory-access=allow`), некоторые с пробелом (`-Dfile.encoding=UTF-8`). Перед добавлением в `gradle.properties` / `tasks.withType<Test>` — сверить с **документацией JDK** (не по памяти, не по образцу «в интернете видел»). Неверный синтаксис = `Unrecognized option: -Xshare=off` → JVM не стартует → **gate RED**, но файл уже записан.
 
@@ -209,7 +241,10 @@ echo "OK: fence parity ($N)"
 
 ---
 
-### 114. YAML block scalar (`run: |`) — многострочный контент одинаково сдвинут
+<!-- SUBSECTION_END: l-kotlin-113 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-114 -->
+___
+### l-kotlin-114 YAML block scalar (`run: |`) — многострочный контент одинаково сдвинут
 
 **Правило:** в GitHub Actions `run: |` (block scalar) все строки контента должны иметь одинаковый отступ — минимум **+2 пробела** от `run:`. Строка с меньшим отступом (особенно 0) разрывает block scalar; YAML-парсер видит конец блока и падает на следующей строке. В контексте `run:` это даёт `Invalid workflow file: path#L<N>`.
 
@@ -233,7 +268,10 @@ Next steps:
 
 ## Kotlin / Compose
 
-### 72. Smart cast невозможен для computed getter
+<!-- SUBSECTION_END: l-kotlin-114 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-72 -->
+___
+### l-kotlin-72 Smart cast невозможен для computed getter
 
 **Правило:** если `val prop: T` объявлен как `get() = ...` (computed getter) — `if (obj.prop != null && obj.prop.someMethod())` даёт `Smart cast to 'T' is impossible`. Сохранять в локальную: `val local = obj.prop; if (local != null && local.someMethod())`.
 
@@ -241,7 +279,10 @@ Next steps:
 
 **Проверка:** `grep -n "get() =\|get() {" file.kt` — найти computed getters; в местах `obj.prop != null && obj.prop...` — заменить на локальную `val`.
 
-### 73. `data class` non-null common param без default — обязателен
+<!-- SUBSECTION_END: l-kotlin-72 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-73 -->
+___
+### l-kotlin-73 `data class` non-null common param без default — обязателен
 
 **Правило:** при создании экземпляра `sealed interface` / `data class` в Preview или тесте — все non-null поля без default обязательны. Перед правкой — `grep` всех полей интерфейса / data class; `String` без `= ""` / `?` — обязателен.
 
@@ -249,7 +290,10 @@ Next steps:
 
 **Проверка:** перед `data class(...)` в Preview / тесте — `grep -nE "^\s+val \w+: \w+" Instrument.kt` (тип без `?`, без `=`) — все обязательные поля.
 
-### 74. Locale-dependent `format` — `Locale.US` в продакшене
+<!-- SUBSECTION_END: l-kotlin-73 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-74 -->
+___
+### l-kotlin-74 Locale-dependent `format` — `Locale.US` в продакшене
 
 **Правило:** `"%.1f".format(x)` в продакшене зависит от `Locale.getDefault()` — на CI (ru-RU) даёт `"10,5"`, тест ждёт `"10.5"`. Формат — часть контракта → `String.format(Locale.US, "%.1f", x)`.
 
@@ -257,7 +301,10 @@ Next steps:
 
 **Проверка:** `grep -n '"%[0-9.]*[df]".format' file.kt` — все такие места → `String.format(Locale.US, ...)`. Или `Locale.setDefault(Locale.US)` в тесте (`@BeforeClass`).
 
-### 75. `Currency.getInstance` — ISO 4217 uppercase
+<!-- SUBSECTION_END: l-kotlin-74 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-75 -->
+___
+### l-kotlin-75 `Currency.getInstance` — ISO 4217 uppercase
 
 **Правило:** `java.util.Currency.getInstance(code)` требует ISO 4217 uppercase (`"RUB"`, `"USD"`). Lowercase / mixed case — `IllegalArgumentException`. Нормализовать: `code.uppercase(Locale.ROOT)` перед `getInstance`.
 
@@ -268,7 +315,10 @@ Next steps:
 
 ---
 
-### 78. Mobile/proot: ktlint-ошибки на `.kt` — только CI
+<!-- SUBSECTION_END: l-kotlin-75 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-78 -->
+___
+### l-kotlin-78 Mobile/proot: ktlint-ошибки на `.kt` — только CI
 
 **Правило:** на mobile (proot) `ktlintFormat` недоступен. Каждая
 ktlint-ошибка = 4–5 минут CI-цикла (Actions-минуты, ожидание).
@@ -299,7 +349,10 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 5 grep + `cat -A` затронутого региона.
 
 
-### 84. `TooManyFunctions` на классе-менеджере — extraction в top-level extension
+<!-- SUBSECTION_END: l-kotlin-78 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-84 -->
+___
+### l-kotlin-84 `TooManyFunctions` на классе-менеджере — extraction в top-level extension
 
 **Правило:** если класс > 11 функций и раздутие идёт за счёт **pure-функции** без зависимости от полей класса — вынести её как top-level `private fun Type.method(...)` в тот же файл. Detekt `TooManyFunctions` считает только члены класса — top-level extension не считается. `@Suppress` не нужен. Если раздутие — из-за **разнородных** методов с зависимостью от состояния класса — split на доменные модули (урок 60).
 
@@ -307,7 +360,10 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 **Проверка:** `grep -nE "^        (private )?(suspend )?fun [a-zA-Z]+\(" <file>` — count. Если > 11 — какая из функций pure (не читает поля класса)? → extension. Иначе — split (урок 60).
 
-### 103. Hilt-test infra pitfalls (Robolectric + Compose)
+<!-- SUBSECTION_END: l-kotlin-84 -->
+<!-- SUBSECTION_BEGIN: l-kotlin-103 -->
+___
+### l-kotlin-103 Hilt-test infra pitfalls (Robolectric + Compose)
 
 **Правило:** 3 грабли на первом PR:
 1. `@HiltAndroidApp` в `test/` source set конфликтует с `@HiltAndroidTest` в том же compilation unit (`Cannot process test roots and app roots in the same compilation unit`). Fix: `robolectric.properties` → `application=dagger.hilt.android.testing.HiltTestApplication` (встроенный в `hilt-android-testing`).
@@ -320,4 +376,5 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 ---
 
+<!-- SUBSECTION_END: l-kotlin-103 -->
 <!-- LESSONS_SECTION_END: kotlin -->

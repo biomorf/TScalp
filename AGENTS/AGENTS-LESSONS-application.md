@@ -1,6 +1,8 @@
 <!-- LESSONS_SECTION_BEGIN: application -->
 
-### 89. Merge `origin/dev` в feature перед PR — через `--no-commit --no-ff`
+<!-- SUBSECTION_BEGIN: l-application-89 -->
+___
+### l-application-89 Merge `origin/dev` в feature перед PR — через `--no-commit --no-ff`
 
 **Правило:** если в Rulesets включено «Require branches to be up to date before merging» — перед созданием PR (или перед merge) feature-ветка **обязана** содержать `origin/dev`. Проверять: `git merge origin/dev --no-commit --no-ff` → `git status --short` → если `Unmerged paths` пусто — `git commit -m "Merge origin/dev into <branch>"` → `git push`. **Не** `git merge origin/dev` сразу — без `--no-commit` merge-коммит создаётся автоматически, точка контроля (`git diff --cached --stat`) теряется.
 
@@ -8,7 +10,10 @@
 
 **Проверка:** `git log --oneline origin/feature..origin/dev` — пусто перед PR. Если непусто — `git merge origin/dev --no-commit --no-ff`, проверить `git diff --name-only --diff-filter=U` (пусто = нет конфликтов), commit, push. Связано: 5f-freeze, `docs/repo-protection.md` (Rulesets), 5f (post-PR).
 
-### 93. 4f: правки → пауза → гейт+коммит → пауза (не в одном блоке)
+<!-- SUBSECTION_END: l-application-89 -->
+<!-- SUBSECTION_BEGIN: l-application-93 -->
+___
+### l-application-93 4f: правки → пауза → гейт+коммит → пауза (не в одном блоке)
 
 **Правило:** при работе с кодом на desktop (feature-ветка) — правки,
 гейт и коммит **разделены на два блока** с паузой после каждого:
@@ -39,7 +44,10 @@ diff), `git commit` — в блоке 2.
 за раз), 4d (пауза после скрипта).
 
 
-### 104. 5f-freeze: dev заморожен до трёх условий merge
+<!-- SUBSECTION_END: l-application-93 -->
+<!-- SUBSECTION_BEGIN: l-application-104 -->
+___
+### l-application-104 5f-freeze: dev заморожен до трёх условий merge
 
 **Правило:** в ожидании merge PR — **`dev` заморожен**. Не пушить в `dev`
 (даже docs-only, даже `AGENTS.md`, даже `AGENTS-LESSONS.md`). «Момент
@@ -75,7 +83,10 @@ origin/dev перед PR).
 
 ---
 
-### 106. Test-код → feature-ветка + PR, не push в dev
+<!-- SUBSECTION_END: l-application-104 -->
+<!-- SUBSECTION_BEGIN: l-application-106 -->
+___
+### l-application-106 Test-код → feature-ветка + PR, не push в dev
 
 **Правило:** коммиты с изменением `.kt` / `.kts` / `.gradle` (test / feat / fix / refactor / chore) — только через `feature/<name>` → PR → merge. Прямой push в `dev` через admin bypass — только `docs(...)` (5g категория 2, 5a docs-only). `test(...)` — код, не документация.
 
@@ -92,7 +103,10 @@ origin/dev перед PR).
 
 ---
 
-### 107. 4h mobile pre-commit check — до commit, не после
+<!-- SUBSECTION_END: l-application-106 -->
+<!-- SUBSECTION_BEGIN: l-application-107 -->
+___
+### l-application-107 4h mobile pre-commit check — до commit, не после
 
 **Правило:** на mobile (proot) 4h pre-commit check (import order, unused imports, test function names, multiline wrapping, trailing ws) — строго **до** `git commit`. Post-push check — не замена, только sanity. Пропуск = нарушение 4h, коммит запрещён (даже если CI потом зелёный).
 
@@ -108,4 +122,5 @@ origin/dev перед PR).
 Механизм — `AGENTS.md` → 4h «Проверка правок на соответствие
 перед коммитом». Без 4h уроки — просто текст.
 
+<!-- SUBSECTION_END: l-application-107 -->
 <!-- LESSONS_SECTION_END: application -->

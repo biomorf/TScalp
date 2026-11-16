@@ -1,7 +1,9 @@
 <!-- AGENTS_SECTION_BEGIN: code -->
 ## Работа с кодом
 
-### Проект
+<!-- SUBSECTION_BEGIN: code-project -->
+___
+### code-project Проект
 
 - **Стек:** Kotlin, Jetpack Compose, Hilt, Coroutines/Flow,
   gRPC (T-Invest SDK), REST (BCS, Finam).
@@ -37,7 +39,10 @@
   из ViewModel напрямую. Регистрировать интерес через
   `setInterest(PriceConsumer, uids)`.
 
-### Рабочие сценарии: mobile (proot) и desktop (Bluefin)
+<!-- SUBSECTION_END: code-project -->
+<!-- SUBSECTION_BEGIN: code-workflows -->
+___
+### code-workflows Рабочие сценарии: mobile (proot) и desktop (Bluefin)
 
 Проект разрабатывается в двух окружениях. Правила 5/5a
 действуют в обоих, но доступные инструменты и порядок работы
@@ -81,7 +86,10 @@
 Это отклонение от 5 (список типов закрытый); переписывать историю
 нельзя (force-push, 5a). Впредь — стандартный тип + `WIP` в теле.
 
-### Идентификаторы инструментов
+<!-- SUBSECTION_END: code-workflows -->
+<!-- SUBSECTION_BEGIN: code-instrument-ids -->
+___
+### code-instrument-ids Идентификаторы инструментов
 
 - **Domain-слой** оперирует `tscalpInstrumentId` — универсальным
   идентификатором инструмента. В domain-моделях, usecase'ах и
@@ -94,7 +102,10 @@
 - **Трансляция** `tscalpInstrumentId ↔ broker-specific-id`
   происходит в репозитории или в брокере.
 
-### Перед правками
+<!-- SUBSECTION_END: code-instrument-ids -->
+<!-- SUBSECTION_BEGIN: code-before-edits -->
+___
+### code-before-edits Перед правками
 
 - Ассистент запрашивает актуальные версии файлов, которые
   собирается менять. Не полагается на память о предыдущих
@@ -162,14 +173,20 @@
   импортов alphabetically перед вставкой, либо прогонять
   `ktlintFormat` после каждой правки импортов.
 
-### После правок
+<!-- SUBSECTION_END: code-before-edits -->
+<!-- SUBSECTION_BEGIN: code-after-edits -->
+___
+### code-after-edits После правок
 
 - Сборка: `./gradlew :app:clean :app:testDebugUnitTest --rerun-tasks 2>&1 | grep -E '\[warn\]|\[error\]|^w:|^e:'`
 - Ожидаемый результат: 84 теста зелёных, только известные
   warning'и (список — в `docs/ISSUES.md`).
 - Новые warning'и, новые ошибки — разбираются, не игнорируются.
 
-### Unit-тесты: mockk для suspend-функций
+<!-- SUBSECTION_END: code-after-edits -->
+<!-- SUBSECTION_BEGIN: code-unit-mockk-suspend -->
+___
+### code-unit-mockk-suspend Unit-тесты: mockk для suspend-функций
 
 Для `suspend`-функций в mockk — **только** `coEvery` / `coVerify`
 (или `coAnswers`), не `every` / `verify`. На неверную версию
@@ -199,7 +216,10 @@ within coroutine body` — ошибка указывает на строку `ve
 `app/build.gradle.kts`. Уже включено; причина — в
 `docs/gradle-setup.md` → «Unit-тесты».
 
-### Самодостаточность инфраструктурных скриптов
+<!-- SUBSECTION_END: code-unit-mockk-suspend -->
+<!-- SUBSECTION_BEGIN: code-self-contained-scripts -->
+___
+### code-self-contained-scripts Самодостаточность инфраструктурных скриптов
 
 Любой скрипт, Ansible-роль, playbook, Dockerfile или CI-конфиг, который
 ассистент пишет или правит, обязан:
@@ -221,7 +241,10 @@ within coroutine body` — ошибка указывает на строку `ve
 системе, без неявных предпосылок. Проверка «всё поставилось и
 работает» — часть задачи, а не опция.
 
-### Git workflow: синхронизация с origin
+<!-- SUBSECTION_END: code-self-contained-scripts -->
+<!-- SUBSECTION_BEGIN: code-git-workflow-origin -->
+___
+### code-git-workflow-origin Git workflow: синхронизация с origin
 
 Для синхронизации локальной ветки с origin используем
 **двухшаговую схему**:
@@ -259,7 +282,10 @@ within coroutine body` — ошибка указывает на строку `ve
 в ROADMAP. Правило выше — только про синхронизацию **текущей
 ветки с её origin-копией**.
 
-### Git workflow: ветки и PR
+<!-- SUBSECTION_END: code-git-workflow-origin -->
+<!-- SUBSECTION_BEGIN: code-git-workflow-pr -->
+___
+### code-git-workflow-pr Git workflow: ветки и PR
 
 Полное соглашение о ветвлении — в `docs/git-flow.md`. Здесь —
 краткая карта для быстрой ориентации.
@@ -299,4 +325,5 @@ within coroutine body` — ошибка указывает на строку `ve
 
 ---
 
+<!-- SUBSECTION_END: code-git-workflow-pr -->
 <!-- AGENTS_SECTION_END: code -->

@@ -1,7 +1,9 @@
 <!-- LESSONS_SECTION_BEGIN: estimates -->
 ## Оценки
 
-### 12. Scriptable-задачи — реальное время в 5–10× меньше оценки
+<!-- SUBSECTION_BEGIN: l-estimates-12 -->
+___
+### l-estimates-12 Scriptable-задачи — реальное время в 5–10× меньше оценки
 
 **Правило:** `**Оценка:**` в ROADMAP — для человека-разработчика.
 Для AI+скриптов реальное время обычно в 5–10 раз меньше. В
@@ -14,4 +16,5 @@ wall time (без учёта round-trips в чате).
 
 ---
 
+<!-- SUBSECTION_END: l-estimates-12 -->
 <!-- LESSONS_SECTION_END: estimates -->

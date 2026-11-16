@@ -5,7 +5,9 @@
 и формат отчёта по ним. Читается вместе с `AGENTS/AGENTS-preamble.md`
 и `AGENTS/AGENTS-LESSONS-preamble.md` в начале каждой сессии.
 
-### Обязательные файлы
+<!-- SUBSECTION_BEGIN: l-docs-obligatory-files -->
+___
+### l-docs-obligatory-files Обязательные файлы
 
 В начале каждой сессии ассистент **настойчиво требует** и читает:
 
@@ -28,13 +30,20 @@
 - **`AGENTS-LESSONS-application.md`** — уроки по применению
   (merge origin/dev, 4f, 5f-freeze, test → feature).
 
-### Формат отчёта
+<!-- SUBSECTION_END: l-docs-obligatory-files -->
+<!-- SUBSECTION_BEGIN: l-docs-report-format -->
+___
+### l-docs-report-format Формат отчёта
 
 См. `AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении.
 
-### Причина
+<!-- SUBSECTION_END: l-docs-report-format -->
+<!-- SUBSECTION_BEGIN: l-docs-reason -->
+___
+### l-docs-reason Причина
 
 Без оглашения ассистент не отличает «прочитал всё» от «прочитал
 первые 500 строк». Оглашение — единственная точка, где
 пользователь видит, что контекст неполный, до начала работы.
+<!-- SUBSECTION_END: l-docs-reason -->
 <!-- LESSONS_SECTION_END: docs -->

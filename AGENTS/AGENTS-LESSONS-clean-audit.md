@@ -1,6 +1,8 @@
 <!-- LESSONS_SECTION_BEGIN: clean-audit -->
 
-### 87. Подсчёт функций класса через grep занижен при multi-prefix
+<!-- SUBSECTION_BEGIN: l-clean-audit-87 -->
+___
+### l-clean-audit-87 Подсчёт функций класса через grep занижен при multi-prefix
 
 **Правило:** считать функции класса — `grep -cE "^        ((private|internal|suspend) )+fun |^        fun "` (extended pattern, `+` для повторов префиксов), или Python `re.findall(r"^        (?:private |internal |suspend )*fun ", text, re.MULTILINE)`. **Не** `grep "^\s*(private \|internal \|suspend )?fun"` — `?` матчит **один** префикс, `private suspend fun` не попадает.
 
@@ -14,7 +16,10 @@
 
 ## Clean-audit
 
-### 20. Инвентаризация не пропускает «уже известное»
+<!-- SUBSECTION_END: l-clean-audit-87 -->
+<!-- SUBSECTION_BEGIN: l-clean-audit-20 -->
+___
+### l-clean-audit-20 Инвентаризация не пропускает «уже известное»
 
 **Правило:** каждая находка (нарушение Clean, presentation-текст в нижнем слое, god-класс, `@Suppress` как маркер долга, swallowed exception, dead code, дублирование) заводится отдельной записью в `docs/clean-audit.md`. Существование задачи в ROADMAP/ISSUES не повод не заводить запись — наоборот, ссылка на задачу в поле «Ссылка на задачу:».
 
@@ -22,7 +27,10 @@
 
 **Проверка:** `grep -n "не заводим\|уже известно\|не новая находка" docs/clean-audit.md` — пусто. `grep -c "^### Н" docs/clean-audit.md` — число должно совпадать с ожидаемым.
 
-### 66. Перенос в «Исправленные (L<N>)» — ### ✅ и актуальная ссылка на задачу
+<!-- SUBSECTION_END: l-clean-audit-20 -->
+<!-- SUBSECTION_BEGIN: l-clean-audit-66 -->
+___
+### l-clean-audit-66 Перенос в «Исправленные (L<N>)» — ### ✅ и актуальная ссылка на задачу
 
 **Правило:** при переносе записи из открытых в `### Исправленные (L<N>)` менять **три** вещи, не одну: (1) `**Статус:** открыто.` → `исправлено (дата, ветка/PR)`; (2) **заголовок** `### Н<xx>.` → `### ✅ Н<xx>.` (маркер «исправлено» в шапке, как у всех записей блока); (3) `**Ссылка на задачу:**` — на актуальное состояние (закрытая задача в ROADMAP, PR pending/merged), не «запланировано». Поля `**Серьёзность:**`, `**Описание:**`, `**Clean-альтернатива:**`, `**Что сделано:**` — сохранять дословно (5g.4).
 
@@ -33,4 +41,5 @@
 
 ---
 
+<!-- SUBSECTION_END: l-clean-audit-66 -->
 <!-- LESSONS_SECTION_END: clean-audit -->

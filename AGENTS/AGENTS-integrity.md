@@ -30,9 +30,12 @@
 `template`, `structure`, `scripts`, `kotlin`, `diagnostics`,
 `clean-audit`, `ui`, `ci`, `estimates`, `process`, `application`.
 
-### Формат отчёта
+<!-- SUBSECTION_BEGIN: integrity-report -->
+___
+### integrity-report Формат отчёта
 
 См. `AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении
 (раздел «Обязанность оглашения при получении»).
 
+<!-- SUBSECTION_END: integrity-report -->
 <!-- AGENTS_SECTION_END: integrity -->

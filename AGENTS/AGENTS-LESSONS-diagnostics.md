@@ -1,6 +1,8 @@
 <!-- LESSONS_SECTION_BEGIN: diagnostics -->
 
-### 85. ktlint `multiline-expression-wrapping` — вынести subject в `val`
+<!-- SUBSECTION_BEGIN: l-diagnostics-85 -->
+___
+### l-diagnostics-85 ktlint `multiline-expression-wrapping` — вынести subject в `val`
 
 **Правило (а) — внешний `when`.** `when (val X = call()) { ... }` с multiline-телом триггерит `A multiline expression should start on a new line`. Вынести `val X = call()` **перед** `when`, subject в `when (X)` становится простым — ktlint пропускает.
 
@@ -21,7 +23,10 @@
 
 **Связано:** урок 78 (ktlint на mobile — «золотой» гейт), урок 55 (ktlintFormat на desktop).
 
-### 94. `.kt` file-level comment — `//`, не `/** */`, если у функций есть KDoc
+<!-- SUBSECTION_END: l-diagnostics-85 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-94 -->
+___
+### l-diagnostics-94 `.kt` file-level comment — `//`, не `/** */`, если у функций есть KDoc
 
 **Правило:** в `.kt` файле с KDoc у функций file-level описание делать
 через `//`-комментарий, не через `/** ... */`. ktlint
@@ -34,7 +39,10 @@
 на `TradeDetailsFormat.kt:18:1`. Fix `47729842` (file-level KDoc → `//`).
 
 
-### 96. ktlint multiline: аргументы и цепочки — по одному на строке
+<!-- SUBSECTION_END: l-diagnostics-94 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-96 -->
+___
+### l-diagnostics-96 ktlint multiline: аргументы и цепочки — по одному на строке
 
 **Правило:** на mobile (proot) `ktlintFormat` недоступен, поэтому при написании **нового** `.kt`/тестового кода:
 - вызов, разбитый на строки, — **каждый** аргумент на своей строке: `foo(\n    any(),\n    any(),\n    ...,\n)` (а не `foo(any(), any(), ..., any())` в одну строку);
@@ -45,7 +53,10 @@
 
 **Проверка:** перед коммитом `.kt`-теста — визуально: (а) в multiline-вызове `(` … `)` — все аргументы на своих строках; (б) в assert с `.foo()` — `)` и `.` не на одной строке. На desktop — `./gradlew :app:ktlintFormat` (урок 55).
 
-### 98. `advanceUntilIdle` + `while(isActive){delay}` в `init` = guaranteed hang
+<!-- SUBSECTION_END: l-diagnostics-96 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-98 -->
+___
+### l-diagnostics-98 `advanceUntilIdle` + `while(isActive){delay}` в `init` = guaranteed hang
 
 **Правило:** в unit-тесте ViewModel, у которой `init { ... while (isActive) { delay(…) } }`, **запрещён** `advanceUntilIdle()`. Он гонит виртуальное время бесконечно: после `delay` корутина просыпается, перепланирует следующий `delay`, `runTest` никогда не станет idle → CI hang (не падение, а бесконечный run). Правильно:
 - `runCurrent()` вместо `advanceUntilIdle()` — выполняет задачи на **текущем** времени, не трогает `delay(5 * 60 * 1000)`.
@@ -58,7 +69,10 @@
 
 **Связано:** урок 78 (ktlint на mobile), урок 55 (`ktlintFormat` на desktop).
 
-### 99. Compose UI на Robolectric: runner + GraphicsMode NATIVE + ConscryptMode OFF
+<!-- SUBSECTION_END: l-diagnostics-98 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-99 -->
+___
+### l-diagnostics-99 Compose UI на Robolectric: runner + GraphicsMode NATIVE + ConscryptMode OFF
 
 **Правило:** Compose UI smoke-тест под Robolectric (JVM, без эмулятора) требует **всех четырёх**:
 - `@RunWith(RobolectricTestRunner::class)` — не `AndroidJUnit4` (без instrumentation);
@@ -75,7 +89,10 @@
 
 ---
 
-### 105. `data class *State`: два поля на одно значение — красный флаг
+<!-- SUBSECTION_END: l-diagnostics-99 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-105 -->
+___
+### l-diagnostics-105 `data class *State`: два поля на одно значение — красный флаг
 
 **Правило:** при ревью `data class *State` в presentation — проверять, что два похожих поля не описывают одно логическое значение. Признак дивергенции: один код пишет в `x`, другой читает `selectedX`, значения никогда не синхронизируются. Легитимные пары: primary/pair слоты (`x` + `pairedX`), флаг + значение (`showXDialog` + `selectedX`), разные сущности (`selectedBroker` + `selectedAccountId`).
 
@@ -89,7 +106,10 @@
 
 ## Диагностика
 
-### 17. KDoc vs код — grep фактическое использование
+<!-- SUBSECTION_END: l-diagnostics-105 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-17 -->
+___
+### l-diagnostics-17 KDoc vs код — grep фактическое использование
 
 **Правило:** перед находкой «KDoc не соответствует коду» — `grep` фактическое использование в репозитории. Не доверять тексту KDoc как источнику правды.
 
@@ -99,7 +119,10 @@
 
 ---
 
-### 18. Не угадывать архитектурный intent
+<!-- SUBSECTION_END: l-diagnostics-17 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-18 -->
+___
+### l-diagnostics-18 Не угадывать архитектурный intent
 
 **Правило:** перед рекомендацией «X должен использоваться в Y» — `grep` потребителей X и понять, почему Y не использует X. Не предполагать «не используется = неполнота», возможно — осознанное решение.
 
@@ -109,7 +132,10 @@
 
 ---
 
-### 19. Структурные находки в документах — grep, не память
+<!-- SUBSECTION_END: l-diagnostics-18 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-19 -->
+___
+### l-diagnostics-19 Структурные находки в документах — grep, не память
 
 **Правило:** перед отчётом о положении заголовков/секций в `.md` — `grep -n "^## \|^### "` и сверка с фактическим файлом. Не по памяти прошлых сессий.
 
@@ -119,7 +145,10 @@
 
 ---
 
-### 25. `awk /^### X/,/^### /` закрывается на самом X
+<!-- SUBSECTION_END: l-diagnostics-19 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-25 -->
+___
+### l-diagnostics-25 `awk /^### X/,/^### /` закрывается на самом X
 
 **Правило:** для вывода секции `.md` по границам — `grep -n "^### "` + `sed -n 'N,Mp'` по номерам. Не `awk '/^### X/,/^### /'`.
 
@@ -127,7 +156,10 @@
 
 **Проверка:** `grep -n "^### X$\|^### Y$" file` → два номера → `sed -n 'N,Mp'`. Или `awk '/^### X$/{f=1} f && /^### Y$/{exit} f'`.
 
-### 31. «UI не обновляется» — по слоям, не по симптомам
+<!-- SUBSECTION_END: l-diagnostics-25 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-31 -->
+___
+### l-diagnostics-31 «UI не обновляется» — по слоям, не по симптомам
 
 **Правило:** при баге «данные не отображаются / не обновляются» — диагностировать снизу вверх: (1) источник эмитит? лог в `collect`; (2) ViewModel получает? лог в обработчике; (3) `_uiState` обновляется? лог в `_uiState.update`; (4) Composable читает? лог в `LaunchedEffect`. Не начинать с UI-правок.
 
@@ -135,7 +167,10 @@
 
 **Проверка:** `Log.d` в 4 точках (`emit`, `collect`, `_uiState.update`, `LaunchedEffect`) — смотреть, где обрывается.
 
-### 32. `MutableSharedFlow(replay = 0)` не отдаёт текущее состояние
+<!-- SUBSECTION_END: l-diagnostics-31 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-32 -->
+___
+### l-diagnostics-32 `MutableSharedFlow(replay = 0)` не отдаёт текущее состояние
 
 **Правило:** если на Flow подписываются **после** первой эмиссии (восстановление состояния, вход на экран, переподключение) — `replay = 1`. `replay = 0` даёт только новые эмиссии; «пустое» состояние до следующего тика.
 
@@ -145,7 +180,10 @@
 
 ---
 
-### 46. Удаление fat-метода — проверять supertype реализаций
+<!-- SUBSECTION_END: l-diagnostics-32 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-46 -->
+___
+### l-diagnostics-46 Удаление fat-метода — проверять supertype реализаций
 
 **Правило:** перед удалением метода из интерфейса — `grep -rn "override.*fun <method>" app/src/main/kotlin/**/data` — какие реализации есть. Если брокер не имеет supertype для этого метода (роль `= null`) — override станет orphan (`NOTHING_TO_OVERRIDE`).
 
@@ -153,7 +191,10 @@
 
 **Проверка:** `grep -E "^class \w+.*: .*Api" <broker>.kt` — supertype list. Override допустим только для supertype-ролей.
 
-### 47. `grep -c` на структурных маркерах — ложные тревоги
+<!-- SUBSECTION_END: l-diagnostics-46 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-47 -->
+___
+### l-diagnostics-47 `grep -c` на структурных маркерах — ложные тревоги
 
 **Правило:** `grep -c` — для точного сравнения с ожидаемым; для «есть/нет» — `grep -q`. Для классов/интерфейсов — `grep -nE '^class \w+'` + `head`. `@Suppress` в KDoc ≠ `@Suppress` на классе — считать с `^@Suppress`.
 
@@ -161,7 +202,10 @@
 
 **Проверка:** `^`-anchor, `grep -n`, смотреть на контекст.
 
-### 48. Import-order чекер — `java`/`javax`/`kotlin` в конце
+<!-- SUBSECTION_END: l-diagnostics-47 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-48 -->
+___
+### l-diagnostics-48 Import-order чекер — `java`/`javax`/`kotlin` в конце
 
 **Правило:** для проверки порядка — ktlint-правило (`java`, `javax`, `kotlin` в конце), не чистый алфавит. `grep -E "^import " file | awk 'NR>1 && $0<prev'` — неверно, `javax` лексикографически раньше `kotlinx`, но по правилу — позже.
 
@@ -201,7 +245,10 @@ assert imports[i] <= imports[i+1]`) — упал на корректном фа�
 
 ---
 
-### 90. DataStore на устройстве — `exec-out run-as base64`, не `shell run-as cat`
+<!-- SUBSECTION_END: l-diagnostics-48 -->
+<!-- SUBSECTION_BEGIN: l-diagnostics-90 -->
+___
+### l-diagnostics-90 DataStore на устройстве — `exec-out run-as base64`, не `shell run-as cat`
 
 **Правило:** читать файл DataStore (`*.preferences_pb`) с устройства —
 только через `adb exec-out run-as <pkg> base64 <path>` → `base64 -d`
@@ -222,4 +269,5 @@ decode → `order_cards = TINVEST|e6123145-…|SBER|1fbeef7a-…` на мест�
 base64 -d | strings -n 3` — видит ключи и значения.
 
 
+<!-- SUBSECTION_END: l-diagnostics-90 -->
 <!-- LESSONS_SECTION_END: diagnostics -->

@@ -14,7 +14,9 @@
 
 ---
 
-### 21. reset --hard — перечислить теряемые коммиты
+<!-- SUBSECTION_BEGIN: l-process-21 -->
+___
+### l-process-21 reset --hard — перечислить теряемые коммиты
 
 **Правило:** перед `git reset --hard <target>` — явно перечислить коммиты, которые будут потеряны (`git log --oneline <target>..HEAD`). Не делать вслепую.
 
@@ -24,7 +26,10 @@
 
 ---
 
-### 22. В proot писать в $HOME, не /tmp
+<!-- SUBSECTION_END: l-process-21 -->
+<!-- SUBSECTION_BEGIN: l-process-22 -->
+___
+### l-process-22 В proot писать в $HOME, не /tmp
 
 **Правило:** в proot-окружении (Termux) `/tmp` может быть недоступен для записи. Все backup-файлы, временные fragments — в `$HOME/tscalp-tmp/` или другой writable директории.
 
@@ -32,7 +37,10 @@
 
 **Проверка:** `mkdir -p ~/tscalp-tmp && test -w ~/tscalp-tmp && echo writable` перед backup. Или проверить `test -w /tmp` заранее.
 
-### 34. Миграция DI — поэтапно, компиляция между этапами
+<!-- SUBSECTION_END: l-process-22 -->
+<!-- SUBSECTION_BEGIN: l-process-34 -->
+___
+### l-process-34 Миграция DI — поэтапно, компиляция между этапами
 
 **Правило:** миграция на Hilt разбивается на шаги: (1) зависимости + `@HiltAndroidApp`; компиляция; (2) модули `DataModule`/`RepositoryModule`; компиляция; (3) одна ViewModel (`OrdersViewModel`); компиляция; (4) остальные VM по одной. Не мигрировать всё разом.
 
@@ -40,7 +48,10 @@
 
 **Проверка:** `./gradlew :app:compileDebugKotlin` после каждого шага. Не переходить к следующему, пока не зелёный.
 
-### 35. Hilt: три аннотации — Application, Activity, ViewModel
+<!-- SUBSECTION_END: l-process-34 -->
+<!-- SUBSECTION_BEGIN: l-process-35 -->
+___
+### l-process-35 Hilt: три аннотации — Application, Activity, ViewModel
 
 **Правило:** при первом `hiltViewModel()` в Composable проверить все три: `@HiltAndroidApp` на Application, `@AndroidEntryPoint` на Activity, `@HiltViewModel` + `@Inject constructor` на ViewModel. Пропуск любой — краш `Given component holder class ... does not implement ... GeneratedComponent` или внедрение не работает.
 
@@ -48,7 +59,10 @@
 
 **Проверка:** `grep -rn "@HiltAndroidApp\|@AndroidEntryPoint\|@HiltViewModel" app/src/main/java/com/example/tscalp/` — все три присутствуют. Плюс проверить, что модуль-провайдер сервиса сам вызывает `initializeFromSettings()` (или `initialize()`), а не полагается на `Application.onCreate`.
 
-### 36. `SharedPreferences` — один `@Provides` на всё приложение
+<!-- SUBSECTION_END: l-process-35 -->
+<!-- SUBSECTION_BEGIN: l-process-36 -->
+___
+### l-process-36 `SharedPreferences` — один `@Provides` на всё приложение
 
 **Правило:** `SharedPreferences` предоставляется `@Provides` ровно в одном Hilt-модуле. Два и более — `DuplicateBindings` на этапе KSP.
 
@@ -56,7 +70,10 @@
 
 **Проверка:** `grep -rn "provideSharedPreferences" app/src/main/java/com/example/tscalp/di/` — один результат.
 
-### 37. Рефакторинг ≠ изменение поведения
+<!-- SUBSECTION_END: l-process-36 -->
+<!-- SUBSECTION_BEGIN: l-process-37 -->
+___
+### l-process-37 Рефакторинг ≠ изменение поведения
 
 **Правило:** рефакторинг (переименование, извлечение, перенос) сохраняет поведение 1:1. Любое изменение поведения (даже «улучшение», «полировка», «оптимизация») — отдельный коммит с явным описанием. Не смешивать.
 
@@ -64,7 +81,10 @@
 
 **Проверка:** `git diff --stat` перед коммитом. UI-файлы + файлы логики в одном diff — разбить на два коммита.
 
-### 38. «Обсуждаем» / «планируем» — не код
+<!-- SUBSECTION_END: l-process-37 -->
+<!-- SUBSECTION_BEGIN: l-process-38 -->
+___
+### l-process-38 «Обсуждаем» / «планируем» — не код
 
 **Правило:** при формулировках «обсудим», «планируем», «какой план», «сначала обсудим» — выдать обсуждение/план **без кода** (даже если кажется, что код очевиден). Код — только после явного «приступаем», «готов», «давай код».
 
@@ -72,7 +92,10 @@
 
 **Проверка:** в ответе на «обсуждаем»/«планируем» — `grep -c '^\`\`\`' ответ` = 0 (нет code fence).
 
-### 50. `git revert --no-commit` — не забыть `--continue`/`--abort`
+<!-- SUBSECTION_END: l-process-38 -->
+<!-- SUBSECTION_BEGIN: l-process-50 -->
+___
+### l-process-50 `git revert --no-commit` — не забыть `--continue`/`--abort`
 
 **Правило:** после `git revert --no-commit` — либо `git revert --continue` (если конфликты разрешены), либо `git revert --abort` (отменить). Не оставлять репозиторий в состоянии reverting. `git revert --quit` — «выйти без отката» (если нужен промежуточный результат без commit).
 
@@ -81,4 +104,5 @@
 **Проверка:** `git status` после revert. Если `reverting` — `--continue` / `--abort` / `--quit`.
 
 
+<!-- SUBSECTION_END: l-process-50 -->
 <!-- LESSONS_SECTION_END: process -->

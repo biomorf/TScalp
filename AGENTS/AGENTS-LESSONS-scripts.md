@@ -1,7 +1,9 @@
 <!-- LESSONS_SECTION_BEGIN: scripts -->
 ## Скрипты и правки
 
-### 1. Grep по `main` и `test`
+<!-- SUBSECTION_BEGIN: l-scripts-1 -->
+___
+### l-scripts-1 Grep по `main` и `test`
 
 **Правило:** при добавлении обязательного параметра в конструктор —
 `grep -rn "ClassName(" app/src` (включая `test`, не только `main`).
@@ -12,7 +14,10 @@
 
 **Проверка:** `grep -rn "ClassName(" app/src/main app/src/test`.
 
-### 2. `str.count` ≠ `grep -c`
+<!-- SUBSECTION_END: l-scripts-1 -->
+<!-- SUBSECTION_BEGIN: l-scripts-2 -->
+___
+### l-scripts-2 `str.count` ≠ `grep -c`
 
 **Правило:** перед `assert count == N` — прогнать `grep -n` и
 пересчитать глазами, или явно различать строки и вхождения.
@@ -24,7 +29,10 @@
 **Проверка:** `grep -c` — строки, `grep -o | wc -l` — вхождения.
 Смотреть, нет ли двух обращений в одной строке.
 
-### 3. Supertype в Impl → import Interface
+<!-- SUBSECTION_END: l-scripts-2 -->
+<!-- SUBSECTION_BEGIN: l-scripts-3 -->
+___
+### l-scripts-3 Supertype в Impl → import Interface
 
 **Правило:** при добавлении `: Supertype` в data-класс — сразу
 добавить `import <path>.Supertype`. KSP-ошибка «ERROR supertype» —
@@ -36,7 +44,10 @@
 
 **Проверка:** `grep -n "^import.*SupertypeName" file`.
 
-### 4. `internal` + `public @Binds` = EXPOSED_PARAMETER_TYPE
+<!-- SUBSECTION_END: l-scripts-3 -->
+<!-- SUBSECTION_BEGIN: l-scripts-4 -->
+___
+### l-scripts-4 `internal` + `public @Binds` = EXPOSED_PARAMETER_TYPE
 
 **Правило:** если реализация `internal`, то `@Binds`-функция
 тоже `internal abstract fun`. Альтернатива — `@Provides` в
@@ -49,7 +60,10 @@
 **Проверка:** на CI (локально на телефоне не видно). При
 `internal class` + `@Binds` — делать `internal abstract fun` сразу.
 
-### 5. `mockk(relaxed = true)` — импорт типа не нужен
+<!-- SUBSECTION_END: l-scripts-4 -->
+<!-- SUBSECTION_BEGIN: l-scripts-5 -->
+___
+### l-scripts-5 `mockk(relaxed = true)` — импорт типа не нужен
 
 **Правило:** при `mockk(relaxed = true)` в аргументе конструктора
 тип выводится из параметра, импорт интерфейса не нужен. Импорт
@@ -61,7 +75,10 @@
 **Проверка:** после `mockk(...)` в аргументе — не добавлять импорт;
 если добавил — `ktlintCheck` поймает.
 
-### 6. Порядок импортов — по алфавиту, всегда
+<!-- SUBSECTION_END: l-scripts-5 -->
+<!-- SUBSECTION_BEGIN: l-scripts-6 -->
+___
+### l-scripts-6 Порядок импортов — по алфавиту, всегда
 
 **Правило:** при вставке импорта — определять позицию по
 лексикографическому порядку вручную (посимвольно), даже если
@@ -90,7 +107,10 @@ lexicographic order` (3:1). `ktlintFormat` (урок 55) автофиксит �
 но лучше сразу вставлять в правильную группу. То же — при
 **переносе класса** между пакетами (`api/` → `usecases/`).
 
-### 7. `grep -v` фильтр в verify может врать
+<!-- SUBSECTION_END: l-scripts-6 -->
+<!-- SUBSECTION_BEGIN: l-scripts-7 -->
+___
+### l-scripts-7 `grep -v` фильтр в verify может врать
 
 **Правило:** после verify с `grep -v` — отдельно посмотреть
 «что осталось» и глазами классифицировать (KDoc / historical /
@@ -105,7 +125,10 @@ actual). Не доверять фильтру.
 
 ---
 
-### 23. `text.find("### Header")` находит inline-ссылку
+<!-- SUBSECTION_END: l-scripts-7 -->
+<!-- SUBSECTION_BEGIN: l-scripts-23 -->
+___
+### l-scripts-23 `text.find("### Header")` находит inline-ссылку
 
 **Правило:** для поиска заголовка в `.md` — `re.search(r"^### Header$", text, re.MULTILINE)`, не `text.find("### Header")`.
 
@@ -122,7 +145,10 @@ actual). Не доверять фильтру.
 
 ---
 
-### 24. `count("**Marker:**") == 1` ложно-отрицателен для общих маркеров
+<!-- SUBSECTION_END: l-scripts-23 -->
+<!-- SUBSECTION_BEGIN: l-scripts-24 -->
+___
+### l-scripts-24 `count("**Marker:**") == 1` ложно-отрицателен для общих маркеров
 
 **Правило:** post-write `assert` не проверяет `count == 1` для маркеров, которые есть в каждой задаче ROADMAP (`**Что сделано:**`, `**Референсы:**`, `**Оценка:**`, `**Шаги:**`, `**Файлы:**`, `**Статус:**`, `**Контекст:**`). Использовать `>= 1` + отдельная проверка на дубль внутри *своей* секции (между `### TaskA` и `### TaskB`).
 
@@ -132,7 +158,10 @@ actual). Не доверять фильтру.
 
 ---
 
-### 26. `assert "old_name" not in text` — KDoc содержит старое имя
+<!-- SUBSECTION_END: l-scripts-24 -->
+<!-- SUBSECTION_BEGIN: l-scripts-26 -->
+___
+### l-scripts-26 `assert "old_name" not in text` — KDoc содержит старое имя
 
 **Правило:** после rename — проверять `count(new_name) >= expected`, не `old_name not in text`. Старое имя легитимно остаётся в KDoc, в ссылках на задачи, в исторических цитатах.
 
@@ -151,7 +180,10 @@ actual). Не доверять фильтру.
 
 ---
 
-### 27. Голый `assert` в скрипте — нет контекста падения
+<!-- SUBSECTION_END: l-scripts-26 -->
+<!-- SUBSECTION_BEGIN: l-scripts-27 -->
+___
+### l-scripts-27 Голый `assert` в скрипте — нет контекста падения
 
 **Правило:** каждый `assert` — с сообщением `assert X, "what was expected"`. Голый даёт `AssertionError` без указания, что не прошло.
 
@@ -161,7 +193,10 @@ actual). Не доверять фильтру.
 
 ---
 
-### 28. `write_text` до post-write assert — файл уже изменён
+<!-- SUBSECTION_END: l-scripts-27 -->
+<!-- SUBSECTION_BEGIN: l-scripts-28 -->
+___
+### l-scripts-28 `write_text` до post-write assert — файл уже изменён
 
 **Правило:** `write_text` — точка невозврата до `git checkout`. При падении post-write assert файл **уже изменён**. Диагностика — `git diff` + `git status`, не «откатить и перезапустить». Остановка перед коммитом — правильно; остановка перед диагностикой — нет.
 
@@ -171,7 +206,10 @@ actual). Не доверять фильтру.
 
 ---
 
-### 13. Anchor в скрипте — grep перед написанием
+<!-- SUBSECTION_END: l-scripts-28 -->
+<!-- SUBSECTION_BEGIN: l-scripts-13 -->
+___
+### l-scripts-13 Anchor в скрипте — grep перед написанием
 
 **Правило:** перед написанием anchor в скрипте (для замены/вставки) — взять точный текст из файла через `grep -n -A5` на смежный маркер, не по памяти и не по KDoc.
 
@@ -181,7 +219,10 @@ actual). Не доверять фильтру.
 
 ---
 
-### 14. Fence вложенного блока — 4 backticks или `~~~`
+<!-- SUBSECTION_END: l-scripts-13 -->
+<!-- SUBSECTION_BEGIN: l-scripts-14 -->
+___
+### l-scripts-14 Fence вложенного блока — 4 backticks или `~~~`
 
 **Правило:** если правка (или fragment для вставки) содержит markdown-разметку с тройными backticks — обернуть внешним блоком из 4+ backticks (или `~~~`). Три backticks внутри трёх — ломают fence.
 
@@ -199,7 +240,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 15. Серия скриптов на один файл — по одному, `git diff` после каждого
+<!-- SUBSECTION_END: l-scripts-14 -->
+<!-- SUBSECTION_BEGIN: l-scripts-15 -->
+___
+### l-scripts-15 Серия скриптов на один файл — по одному, `git diff` после каждого
 
 **Правило:** если правка файла разбита на серию последовательных python-скриптов, запускать по одному, после каждого — `git diff --stat` и верификация. Не выдавать все скрипты сразу.
 
@@ -209,7 +253,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 16. Скрипт + верификация в одном блоке
+<!-- SUBSECTION_END: l-scripts-15 -->
+<!-- SUBSECTION_BEGIN: l-scripts-16 -->
+___
+### l-scripts-16 Скрипт + верификация в одном блоке
 
 **Правило:** скрипт правки и verification-команды — один shell-блок. Пользователь запускает один раз, видит результат применения и результат проверки. Не два раунда «пришли вывод → получи verify».
 
@@ -217,7 +264,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** `grep -c "^```" ответ` — чётное, скрипт и verify внутри одного fence. Визуально: один markdown-блок `bash` содержит и `python3 <<` heredoc, и `grep`, и `git diff --stat`.
 
-### 29. Не изобретать — grep перед использованием
+<!-- SUBSECTION_END: l-scripts-16 -->
+<!-- SUBSECTION_BEGIN: l-scripts-29 -->
+___
+### l-scripts-29 Не изобретать — grep перед использованием
 
 **Правило:** перед использованием переменной/поля/функции в предложении и перед правкой файла — `grep -n` фактическое объявление в актуальном исходнике. Не полагаться на память о прошлой сессии, на свой предыдущий ответ, на «логично же».
 
@@ -225,7 +275,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** `grep -n "<symbol>" path/to/file` перед предложением. Если грепа нет — символ не существует. Перед правкой — `git log --oneline -1 -- path/to/file`: если коммит новее, чем «знание» — запросить свежий raw.
 
-### 30. `return@label` требует наличия label в области видимости
+<!-- SUBSECTION_END: l-scripts-29 -->
+<!-- SUBSECTION_BEGIN: l-scripts-30 -->
+___
+### l-scripts-30 `return@label` требует наличия label в области видимости
 
 **Правило:** перед `return@let` / `return@run` / `return@launch` — проверить, что вокруг действительно есть соответствующая обёртка. Ошибка `Unresolved label` — не про скобки, а про отсутствующий label.
 
@@ -237,7 +290,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 40. `git add -A` — источник инцидента
+<!-- SUBSECTION_END: l-scripts-30 -->
+<!-- SUBSECTION_BEGIN: l-scripts-40 -->
+___
+### l-scripts-40 `git add -A` — источник инцидента
 
 **Правило:** только `git add <files>` с явным списком (правило 4g, без исключений). Перед `git commit` — `git diff --cached --name-only`, сверить с ожидаемым. Лишний файл → `git restore --staged <file>`.
 
@@ -245,7 +301,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** `git diff --cached --name-only` перед коммитом.
 
-### 41. `mv` без `-f` на телефоне — зависание на `overwrite?`
+<!-- SUBSECTION_END: l-scripts-40 -->
+<!-- SUBSECTION_BEGIN: l-scripts-41 -->
+___
+### l-scripts-41 `mv` без `-f` на телефоне — зависание на `overwrite?`
 
 **Правило:** `mv -f` (или `mv -n`). `mv` без флага интерактивен, если файл существует.
 
@@ -253,7 +312,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** `mv -f` всегда. Защита от перезаписи — `mv -n` + `echo "skipped"`.
 
-### 42. `.tmp + mv` — коммит может захватить `.tmp`
+<!-- SUBSECTION_END: l-scripts-41 -->
+<!-- SUBSECTION_BEGIN: l-scripts-42 -->
+___
+### l-scripts-42 `.tmp + mv` — коммит может захватить `.tmp`
 
 **Правило:** не использовать `.tmp`-файлы для правок. `write_text` сразу в целевой файл, `assert` до записи и после.
 
@@ -261,7 +323,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** `git diff --cached --name-only` не содержит `*.tmp`. Правка через `write_text` + `assert` — атомарная.
 
-### 43. Heredoc на телефоне — риск потери `MSGEOF`
+<!-- SUBSECTION_END: l-scripts-42 -->
+<!-- SUBSECTION_BEGIN: l-scripts-43 -->
+___
+### l-scripts-43 Heredoc на телефоне — риск потери `MSGEOF`
 
 **Правило:** commit message через `printf '%s\n' ... > "$HOME/.msg.txt" && git commit -F "$HOME/.msg.txt"`. Heredoc (`git commit -F - <<'MSGEOF'`) — только на десктопе.
 
@@ -269,7 +334,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** в блоке коммита — `printf`, не `<<`. Если heredoc неизбежен — `set -e` + `echo "heredoc OK"` после закрывающей метки.
 
-### 44. `set -e` в блоках с несколькими командами
+<!-- SUBSECTION_END: l-scripts-43 -->
+<!-- SUBSECTION_BEGIN: l-scripts-44 -->
+___
+### l-scripts-44 `set -e` в блоках с несколькими командами
 
 **Правило:** каждый блок, где несколько команд пишут в файл / меняют состояние, начинается с `set -euo pipefail` (или `&&`-цепочка).
 
@@ -279,7 +347,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** `set -e` в шапке. `echo "exit: $?"` после критичной команды.
 
-### 45. Парсер multi-line overrides — brace-balance, не regex
+<!-- SUBSECTION_END: l-scripts-44 -->
+<!-- SUBSECTION_BEGIN: l-scripts-45 -->
+___
+### l-scripts-45 Парсер multi-line overrides — brace-balance, не regex
 
 **Правило:** удаление методов в Kotlin — через brace-balance по строкам (inline ` = value` → 1 строка; block `{...}` → баланс), не через regex `[^\n]*\n`. Перед удалением — `grep -n "override.*fun <name>"` + `sed -n 'N,Mp'` для границ.
 
@@ -287,7 +358,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** `grep -n` + `sed -n 'N,Mp'` для границ. Brace-balance + inline-детект.
 
-### 49. Не писать в `.tmp` до полной проверки всех `.tmp`
+<!-- SUBSECTION_END: l-scripts-45 -->
+<!-- SUBSECTION_BEGIN: l-scripts-49 -->
+___
+### l-scripts-49 Не писать в `.tmp` до полной проверки всех `.tmp`
 
 **Правило:** при обработке нескольких файлов — сначала все `write_text` в `.tmp` (без mv), проверка (brace, counts), только потом `mv -f` каждого. Никаких промежуточных `mv` до полной проверки.
 
@@ -295,7 +369,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** структура `copy → mutate .tmp → check → mv -f → check`.
 
-### 51. `bash -c '...'` ломается от одинарных кавычек в содержимом
+<!-- SUBSECTION_END: l-scripts-49 -->
+<!-- SUBSECTION_BEGIN: l-scripts-51 -->
+___
+### l-scripts-51 `bash -c '...'` ломается от одинарных кавычек в содержимом
 
 **Правило:** не оборачивать блок в `bash -c '...'`, если внутри есть хоть одна одинарная кавычка. Она закроет обёртку, остаток станет командами bash. Использовать `bash << 'EOF' ... EOF` или `python3 << 'PYEOF'` напрямую, без `bash -c`.
 
@@ -305,7 +382,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 52. `write_text` в Python ломает line endings
+<!-- SUBSECTION_END: l-scripts-51 -->
+<!-- SUBSECTION_BEGIN: l-scripts-52 -->
+___
+### l-scripts-52 `write_text` в Python ломает line endings
 
 **Правило:** перед `Path.write_text(..., encoding="utf-8")` для `.md` / `.kt` — проверить line endings. Если файл с CRLF — `newline=""` в `read_text`/`write_text` (сохраняет как есть). Иначе весь файл «изменится» (universal newlines → LF), `git diff` покажет `+N/−N` вместо локальной правки.
 
@@ -315,7 +395,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 53. `git diff --cached --stat` перед коммитом
+<!-- SUBSECTION_END: l-scripts-52 -->
+<!-- SUBSECTION_BEGIN: l-scripts-53 -->
+___
+### l-scripts-53 `git diff --cached --stat` перед коммитом
 
 **Правило:** после `git add <file>` и **до** `git commit` — `git diff --cached --stat <file>`. Сверить числа с ожидаемыми. Аномалия (`+6000/−6000` на файл в 7000 строк, когда ожидается `+50/−40`) = что-то сломалось. Откат `git checkout -- <file>`, разбор, заново.
 
@@ -325,7 +408,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 54. Шаблон 4f блока 2 — не урезать grep-фильтр
+<!-- SUBSECTION_END: l-scripts-53 -->
+<!-- SUBSECTION_BEGIN: l-scripts-54 -->
+___
+### l-scripts-54 Шаблон 4f блока 2 — не урезать grep-фильтр
 
 **Правило:** при использовании шаблона 4f (блок 2, гейт+коммит+push) копировать grep-фильтр **целиком**, включая паттерн `\.kt:[0-9]+:[0-9]+`. Урезание скрывает ktlint-ошибки, которые пишутся как `path/to/file.kt:line:col: Rule`.
 
@@ -335,7 +421,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 55. На desktop — `./gradlew :app:ktlintFormat`, не ручной перенос импортов
+<!-- SUBSECTION_END: l-scripts-54 -->
+<!-- SUBSECTION_BEGIN: l-scripts-55 -->
+___
+### l-scripts-55 На desktop — `./gradlew :app:ktlintFormat`, не ручной перенос импортов
 
 **Правило:** при ktlint-ошибке про порядок импортов (или других автофиксируемых нарушений) — на desktop запускать `./gradlew :app:ktlintFormat`, а не править импорты вручную. Форматтер использует `.editorconfig` проекта и расставляет импорты по ktlint-правилам (`java`, `javax`, `kotlin` в конце). Ручная правка — двойная работа и риск повторить ошибку.
 
@@ -345,7 +434,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 56. `assert count == 1` для имени задачи — только line-anchored; структурные проверки — awk, не grep-контекст
+<!-- SUBSECTION_END: l-scripts-55 -->
+<!-- SUBSECTION_BEGIN: l-scripts-56 -->
+___
+### l-scripts-56 `assert count == 1` для имени задачи — только line-anchored; структурные проверки — awk, не grep-контекст
 
 **Правило (а) — имена задач/секций в `.md`.** `assert text.count("### <name>") == 1` ложно-падает, если имя встречается в deps / preconditions / KDoc / ссылках «Связано». Считать только заголовки: `len(re.findall(r"^### <name>$", text, re.MULTILINE)) == 1`. Отсутствие в открытых — `not re.search(r"^### <name>$", text, re.MULTILINE)`. Наличие ссылки в deps — `f"`### {name}`" in text` (с backticks, но без `^`).
 
@@ -368,7 +460,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 ---
 
-### 57. JVM/JUnit API-ограничения: проверять до первого запуска
+<!-- SUBSECTION_END: l-scripts-56 -->
+<!-- SUBSECTION_BEGIN: l-scripts-57 -->
+___
+### l-scripts-57 JVM/JUnit API-ограничения: проверять до первого запуска
 
 **Правило:** перед использованием API в коде/тесте — проверить его ограничения в документации, не полагаться на «выглядит логично». Три категории, на которых уже падали:
 
@@ -397,7 +492,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 
 
-### 58. post-assert count — считать по факту диагностики, не по «логической» сумме
+<!-- SUBSECTION_END: l-scripts-57 -->
+<!-- SUBSECTION_BEGIN: l-scripts-58 -->
+___
+### l-scripts-58 post-assert count — считать по факту диагностики, не по «логической» сумме
 
 **Правило:** перед `assert total == N` в скрипте правки — пересчитать `N` по фактическому выводу диагностики (`grep -n` / `grep -c`), а не по «ожиданию» из плана. Диагностика уже была перед глазами — из неё число берётся однозначно.
 
@@ -409,7 +507,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** в скрипте правки рядом с `assert total == N` — `counts` печатается в лог, и `N` пересчитывается перед отправкой по выводу диагностики. `grep -c "settingsRepository\." file` — контрольная сумма до правки.
 
-### 59. Откат блока в `.kt`/`.md` — anchor на следующий член, не на `}`
+<!-- SUBSECTION_END: l-scripts-58 -->
+<!-- SUBSECTION_BEGIN: l-scripts-59 -->
+___
+### l-scripts-59 Откат блока в `.kt`/`.md` — anchor на следующий член, не на `}`
 
 **Правило:** при удалении/откате многострочного блока кода — правый якорь — **имя следующего члена** (`private val`, `internal abstract fun`, `### Header`), а не символ `}` класса/файла. `}` после блока может быть не закрывающей скобкой класса, а частью следующего члена.
 
@@ -420,7 +521,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** перед откатом блока — `grep -n "abstract fun bind\|^    fun \|^    private val " file` — найти реальный следующий член. Якорь в скрипте — по его сигнатуре, не по `}`.
 
-### 60. detekt `TooManyFunctions` на DI-модуле — split на доменные модули, не `@Suppress`
+<!-- SUBSECTION_END: l-scripts-59 -->
+<!-- SUBSECTION_BEGIN: l-scripts-60 -->
+___
+### l-scripts-60 detekt `TooManyFunctions` на DI-модуле — split на доменные модули, не `@Suppress`
 
 **Правило:** при добавлении `@Binds`/`@Provides` в существующий модуль — считать **итоговое** число функций после **всех** шагов задачи (не только текущего коммита). Если итог > 11 и `@Suppress` не снимается никогда — разделить модуль на доменные (`RepositoryBindingModule` core vs `PreferencesRepositoryBindingModule`), а не ставить `@Suppress`.
 
@@ -428,7 +532,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 
 **Проверка:** перед добавлением `@Binds` — `grep -cE "abstract fun bind" <module>.kt`, прибавить новые + учесть предстоящие удаления. Если итог > 11 и не снимается — split заранее, в том же PR.
 
-### 61. Двусторонняя проверка импортов после удаления кода
+<!-- SUBSECTION_END: l-scripts-60 -->
+<!-- SUBSECTION_BEGIN: l-scripts-61 -->
+___
+### l-scripts-61 Двусторонняя проверка импортов после удаления кода
 
 **Правило:** после удаления функций/секций — проверять импорты в **две стороны**: (а) каждый импорт используется в оставшемся теле; (б) каждый не-builtin символ в теле имеет импорт. Односторонняя проверка («все импорты используются») пропускает случаи, когда **нужный** импорт случайно удалён вместе с «ненужным».
 
@@ -462,7 +569,10 @@ D4 (architecture.md 4-VM), первый apply-скрипт: внешняя об�
 inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full gate) до
 коммита — KSP первым ловит missing imports.
 
-### 62. Import order после rename — лексикографически, не только «нет старого имени»
+<!-- SUBSECTION_END: l-scripts-61 -->
+<!-- SUBSECTION_BEGIN: l-scripts-62 -->
+___
+### l-scripts-62 Import order после rename — лексикографически, не только «нет старого имени»
 
 **Правило:** при переименовании класса (rename) — пересортировать блок `import` **заново**, не просто заменить строку `<Old> -> <New>` на месте. Лексикографический порядок может измениться: `TInvestPositionsService` (`Pos`) идёт **после** `TInvestPortfolioService` (`Por`), но `TInvestOrdersService` (`O`) — раньше обоих.
 
@@ -470,7 +580,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Проверка:** после rename — `awk '/^import / { if (prev != "" && $0 < prev) print "OOD: " prev " >> " $0; prev = $0 }' <file>` — пусто => порядок верный. Дополнительно — `./gradlew :app:ktlintCheck` (уже в гейте).
 
-### 63. Rename класса — все формы
+<!-- SUBSECTION_END: l-scripts-62 -->
+<!-- SUBSECTION_BEGIN: l-scripts-63 -->
+___
+### l-scripts-63 Rename класса — все формы
 
 **Правило:** при rename класса — искать **все формы** использования, не только callsites методов: `Class.method()` (callsites), `param = <ClassName>` (named-args в конструкторах), `[<ClassName>]` (KDoc-ссылки), `import ...<ClassName>` (импорты), `<ClassName>(` (конструкторы). Grep по `<OldName>` **без** `\.` ловит все формы. Дополнительно — `git grep` по main + test (не только main, урок 1).
 
@@ -478,7 +591,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Проверка:** `grep -rn '<OldName>' app/src/main app/src/test` (без `\.`) — до нуля перед коммитом. Если результат не пустой — не только callsites, но и named-args, KDoc, импорты.
 
-### 64. echo с backticks внутри двойных кавычек — command substitution
+<!-- SUBSECTION_END: l-scripts-63 -->
+<!-- SUBSECTION_BEGIN: l-scripts-64 -->
+___
+### l-scripts-64 echo с backticks внутри двойных кавычек — command substitution
 
 **Правило:** в bash-скриптах, которые ассистент выдаёт пользователю, **backticks** внутри `"..."` — это command substitution, даже рядом с одинарными кавычками. Пример: `echo` с тремя backtick'ами внутри двойных кавычек — bash видит `$(...)`, парсер валится с `syntax error near unexpected token`. Писать: одинарные кавычки вокруг всего аргумента (`echo '...'`), экранирование, или без backticks вообще.
 
@@ -486,7 +602,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Проверка:** перед отправкой скрипта — визуально просмотреть все `echo "..."`, где могут быть backticks (типично — markdown fence-проверки, примеры кода); заменить на `echo '...'` (одинарные) или убрать backticks.
 
-### 65. assert new not in text, когда new — подстрока old
+<!-- SUBSECTION_END: l-scripts-64 -->
+<!-- SUBSECTION_BEGIN: l-scripts-65 -->
+___
+### l-scripts-65 assert new not in text, когда new — подстрока old
 
 **Правило:** если `new_fragment` содержит `old_fragment` как подстроку (`new = old + suffix` или `new` с префиксом вокруг `old`), `assert new not in text` **всегда** падает, когда `old` присутствует — это не «already applied», а «old found». Запрещено писать `assert new not in text` для проверки «уже применено», если `new` может содержать `old` как подстроку. Правильно: `assert text.count(old) == 1` (pre-check через count старой формы), потом `text.replace(old, new, 1)`, потом `assert old not in text` (пост — старой формы больше нет).
 
@@ -501,7 +620,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Правило (расширено):** в pre-check `assert new not in text` — проверять `old in new` и `new in old` (пересечения в обе стороны); если есть — не писать этот assert, использовать `assert text.count(old) == 1` (pre) и `assert text.count(new) == expected_count` (post).
 
-### 67. `assert "### X" not in text` — line-anchored regex, не подстрока
+<!-- SUBSECTION_END: l-scripts-65 -->
+<!-- SUBSECTION_BEGIN: l-scripts-67 -->
+___
+### l-scripts-67 `assert "### X" not in text` — line-anchored regex, не подстрока
 
 **Правило:** проверку «заголовка `### X` больше нет в файле» писать как `re.findall(r"^### X$", text, re.MULTILINE)` (длина 0) или `grep -cE "^### X$"` в shell. Не `assert "### X" not in text` — тот падает на inline-ссылках в `**Связано:**` / `**Предусловия:**` / `**Зависимости:**` / цитатах.
 
@@ -560,7 +682,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Проверка (общая):** перед `assert X not in text` в скрипте правки `.md` — `grep -nE "^X$" file`. Если >0 — line-anchored проверка; если inline-вхождения — `assert X not in text` невозможен, использовать `re.findall(r"^X$", ...)`. Связано с уроком 79 (проверяй факт, не форму).
 
-### 68. `Path.read_text()` возвращает trailing `\n`
+<!-- SUBSECTION_END: l-scripts-67 -->
+<!-- SUBSECTION_BEGIN: l-scripts-68 -->
+___
+### l-scripts-68 `Path.read_text()` возвращает trailing `\n`
 
 **Правило:** `Path.read_text()` сохраняет финальный `\n`. При сравнении полного файла (`actual == old_fragment`) — `old_fragment` должен содержать `\n` в конце. Иначе `assert` падает на разнице в один символ.
 
@@ -568,7 +693,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Проверка:** `assert text.endswith("\n")` перед сравнением полного файла; `old_fragment` — `... + "\n"`. Либо сравнение через `.rstrip()` с обеих сторон.
 
-### 69. Вставка в конец файла — `rstrip()` + `\n`
+<!-- SUBSECTION_END: l-scripts-68 -->
+<!-- SUBSECTION_BEGIN: l-scripts-69 -->
+___
+### l-scripts-69 Вставка в конец файла — `rstrip()` + `\n`
 
 **Правило:** вставка `text = text + new_entry` в конец файла даёт blank line at EOF, если `new_entry` оканчивается `\n\n`. Финал: `text = (text + new_entry).rstrip() + "\n"` (или `new_entry.rstrip("\n") + "\n"`).
 
@@ -576,7 +704,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Проверка:** `git diff --check` в том же shell-блоке, что и правка; `assert not text.endswith("\n\n")` после `write_text`.
 
-### 76. `unused import` после удаления кода
+<!-- SUBSECTION_END: l-scripts-69 -->
+<!-- SUBSECTION_BEGIN: l-scripts-76 -->
+___
+### l-scripts-76 `unused import` после удаления кода
 
 **Правило:** после удаления функции — `grep -c "\bSymbol\b" file` vs `grep -c "^import.*\.Symbol$" file`. Равенство (1 == 1) = символ используется только в импорте → unused. После удаления кода — прогонять этот pre-check на все импорты удалённого файла.
 
@@ -586,7 +717,10 @@ inject/свойства. Плюс `./gradlew :app:kspDebugKotlin` (или full g
 
 **Расширение (2026-11-05, InstrumentColors):** второй случай — `InstrumentType` в `AssetPositionCard.kt` после вырезания локального `when`-блока (PR #95). Pre-check в python (`re.findall(r'\bInstrumentType\b', ...)`) ошибочно посчитал `import ...InstrumentType` за использование → `inst_c = 1`, скрипт не удалил импорт, CI `ktlintMainSourceSetCheck`: `Unused import` (fix `30b82ad`). **Правило:** при подсчёте использований — **вычитать import-строку**: `len(re.findall(r'\bSymbol\b', text.replace(imp_line, '', 1))) == 0` до удаления импорта (или `grep -c "^import.*\.Symbol$"` vs `grep -c "\bSymbol\b"` — равенство = unused).
 
-### 77. Commit message / PR body / tag — English only, strict pre-check
+<!-- SUBSECTION_END: l-scripts-76 -->
+<!-- SUBSECTION_BEGIN: l-scripts-77 -->
+___
+### l-scripts-77 Commit message / PR body / tag — English only, strict pre-check
 
 **Правило:** строго перед `git commit -F` (и `git tag -a -F`) — обязательный pre-check на кириллицу:
 
@@ -656,7 +790,10 @@ message:
 
 ---
 
-### 79. post-assert: только новое + `old_frag not in text`
+<!-- SUBSECTION_END: l-scripts-77 -->
+<!-- SUBSECTION_BEGIN: l-scripts-79 -->
+___
+### l-scripts-79 post-assert: только новое + `old_frag not in text`
 
 **Правило:** post-assert проверяет **только** новые маркеры
 (line-anchored через `re.findall(r"^...$", text, re.MULTILINE)`)
@@ -711,7 +848,10 @@ text` — inline-ссылки).
    если нет)`), не голый идентификатор.
 
 
-### 80. `echo` с backtick — 3-й раз; проверяй факт, не форму
+<!-- SUBSECTION_END: l-scripts-79 -->
+<!-- SUBSECTION_BEGIN: l-scripts-80 -->
+___
+### l-scripts-80 `echo` с backtick — 3-й раз; проверяй факт, не форму
 
 **Правило:** (а) `echo` с backtick внутри двойных кавычек —
 command substitution (повтор урока 64, 2026-11-05, M008-диагностика:
@@ -768,7 +908,10 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 **Проверка:** перед отправкой скрипта — для каждого `assert "X" not in text` / `grep "X"` — `grep -n "X" file | grep -v "^\s*\*"` + `grep -nE "^\s*(suspend\s+)?fun\s+X\("`.
 
-### 81. Multiline pre-check в скрипте — `\($` / `\([^)]*$`, не `\(`
+<!-- SUBSECTION_END: l-scripts-80 -->
+<!-- SUBSECTION_BEGIN: l-scripts-81 -->
+___
+### l-scripts-81 Multiline pre-check в скрипте — `\($` / `\([^)]*$`, не `\(`
 
 **Правило:** при проверке multiline wrapping в скрипте — `grep -nE "val \w+ = \w+\.\w+\($"` (с `$` — `(` в конце строки) или `\([^)]*$` (открывающая `(` без `)` на той же строке). **Не** `val \w+ = \w+\.\w+\(` (без `$`) — ложно-падает на однострочных `val x = obj.method(arg)`.
 
@@ -778,7 +921,10 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 **Связано:** AGENTS.md 4h mobile-ветка, правило 4 (Multiline wrapping) — формулировка **корректная** (`\($`), ошибка была в скрипте.
 
-### 82. 5g.4 при extract — перенос комментариев
+<!-- SUBSECTION_END: l-scripts-81 -->
+<!-- SUBSECTION_BEGIN: l-scripts-82 -->
+___
+### l-scripts-82 5g.4 при extract — перенос комментариев
 
 **Правило:** при вынесении кода в helper / extract (2c-рефакторинг) — переносить **все комментарии внутри** старого блока. Потерянный комментарий — нарушение 5g.4 («содержимое не сокращается»).
 
@@ -788,7 +934,10 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 **Связано:** урок 66 (5g.4, перенос в Исправленные — три вещи).
 
-### 83. Clean-audit refs — проверять ID
+<!-- SUBSECTION_END: l-scripts-82 -->
+<!-- SUBSECTION_BEGIN: l-scripts-83 -->
+___
+### l-scripts-83 Clean-audit refs — проверять ID
 
 **Правило:** при закрытии задачи — проверять, что `→ docs/clean-audit.md → Нxx` ведёт на **правильную** запись. Перепутанный ID — источник ложных mark done.
 
@@ -799,7 +948,10 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 **Связано:** урок 13 (anchor в скрипте — grep перед написанием).
 
 
-### 100. `git stash push` no-op → `git stash pop` в том же блоке запрещён
+<!-- SUBSECTION_END: l-scripts-83 -->
+<!-- SUBSECTION_BEGIN: l-scripts-100 -->
+___
+### l-scripts-100 `git stash push` no-op → `git stash pop` в том же блоке запрещён
 
 **Правило:** если `git stash push -u` вернул `No local changes to save` (или exit 0 без вывода) — `git stash pop` в том же блоке **запрещён**: применит чужой stash (например, WIP с другой ветки), и на неверной ветке. Правильно: `git stash push` + флаг `STASH_CREATED=1`; `git stash pop` — только если флаг установлен.
 
@@ -808,7 +960,10 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 **Проверка:** `if [ -n "$(git status --porcelain)" ]; then git stash push -u -m "..."; STASH_CREATED=1; fi` → `if [ "$STASH_CREATED" = "1" ]; then git stash pop; fi`. Перед pop: `git stash list | head -1` — проверить, что наш stash.
 ---
 
-### 101. `grep -cE` с неэкранированной `(` — Unmatched; для unused-import — `grep -cF` + skip wildcards
+<!-- SUBSECTION_END: l-scripts-100 -->
+<!-- SUBSECTION_BEGIN: l-scripts-101 -->
+___
+### l-scripts-101 `grep -cE` с неэкранированной `(` — Unmatched; для unused-import — `grep -cF` + skip wildcards
 
 **Правило:** `grep -cE "Card("` → `Unmatched ( or \(`. Для проверки символов — `grep -cF` (literal, без regex). Для unused-import в pre-commit: `grep -cF "$sym"` + skip wildcard (`import x.*`) — символы из wildcard не ловятся ktlint как unused, но и literal-проверка их не находит.
 
@@ -818,7 +973,10 @@ backticks внутри `"..."`; (б) каждый post-assert — `old_frag not 
 
 ---
 
-### 115. adb в heredoc: `< /dev/null`, `timeout --foreground`, `--pid`
+<!-- SUBSECTION_END: l-scripts-101 -->
+<!-- SUBSECTION_BEGIN: l-scripts-115 -->
+___
+### l-scripts-115 adb в heredoc: `< /dev/null`, `timeout --foreground`, `--pid`
 
 **Правило:** (а) `adb shell` в `$()` внутри heredoc — `< /dev/null`;
 (б) `timeout` без `--foreground` не пробрасывает Ctrl+C —
@@ -837,4 +995,5 @@ adb logcat` без `--foreground` — Ctrl+C не работал, ждали п�
     PID=$(timeout 5 adb shell pidof <pkg> < /dev/null | tr -d '\r\n')
     timeout --foreground 300 adb logcat --pid="$PID" -v threadtime > "$LOG" 2>&1
 
+<!-- SUBSECTION_END: l-scripts-115 -->
 <!-- LESSONS_SECTION_END: scripts -->
