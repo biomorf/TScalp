@@ -208,64 +208,6 @@ ___
 
 
 
-<!-- SUBSECTION_BEGIN: t-8 -->
-___
-### [PLAN] T-8 getTradingStatuses: батчинг / concurrency
-**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** `getTradingStatuses` — `coroutineScope { ids.map { async { ... } }.awaitAll() }` — N параллельных unary. На 100 инструментов — 100 запросов к MarketData (лимит 600/мин). Поглощает `clean-audit` Н66. См. umbrella.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды:** —.
-
-**MVVM:** — (не применимо).
-
-**KMP:** соответствует.
-
-**Предусловия:** подзадача 1 (limiter).
-
-**Файлы:** `data/api/tinvest/TInvestTradingService.kt`.
-
-**Шаги:**
-1. `Semaphore(10)` поверх rate-limiter (D4) или последовательно.
-2. Или батчинг, если API даст batch-метод (проверить).
-3. Тесты.
-
-**Тесты:** unit — не более N параллельных.
-
-**Референсы:** `clean-audit` Н66; umbrella.
-
-**Ограничения:** не менять контракт `Map<uid, TradingAvailability>`.
-
-**Критерий готовности:** ≤ 10 параллельных; rate-limiter соблюдён.
-
-**Оценка:** ~1 ч.
-
-**Зависимости:** подзадача 1 (limiter).
-
-**Связано:** `clean-audit` Н66; umbrella.
-
-**Открытые вопросы:** D4.
-
----
-<!-- SUBSECTION_END: t-8 -->
-
-
-
-
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-9 -->
 ___
 ### [PLAN] T-9 PortfolioScreen: retry с backoff
@@ -2312,6 +2254,10 @@ ___
 
 **Открытые вопросы:** нет.
 <!-- SUBSECTION_END: t-38 -->
+
+
+
+
 
 
 
