@@ -60,6 +60,14 @@ echo "=== [rate-limit/] count (limiter active; >0) ==="
 echo "  count: ${R:-0}"
 echo
 
+S=$(grep -c "\[stream-limit/" "$LOG" 2>/dev/null || true)
+echo "=== [stream-limit/] count (stream limiter active; >0) ==="
+echo "  count: ${S:-0}"
+if [ "${S:-0}" -gt 0 ]; then
+  grep -oE '\[stream-limit/[^]]+\]' "$LOG" | sort | uniq -c | sort -rn | head -10
+fi
+echo
+
 echo "=== crashes / fatal ==="
 grep -E "FATAL EXCEPTION|AndroidRuntime.*FATAL|Process .* has died|ANR in" "$LOG" | head -5 || echo "  (none)"
 echo

@@ -20,6 +20,7 @@ Deferred closure — правило 5g п.4 AGENTS.md. Процедура —
 - Сценарий live-теста известен из `**Подтверждение:**` в
   ROADMAP (какое поведение наблюдаем, какой критерий закрытия).
 - Известны теги логов нужных компонентов (см. «Теги» ниже).
+- **Лог всегда полный.** `live-test-capture.sh` и `live-test-capture-interactive.sh` пишут в `$LOG` весь logcat (без `grep`); `FILTER` в interactive-скрипте сужает только вывод в терминал. Разбор — `grep` по полному файлу.
 - **Скрипты (рекомендуется, запуск через `bash`):** `bash AGENTS/scripts/live-test-build.sh` (build+install+force-stop), `bash AGENTS/scripts/live-test-capture.sh` (режим A, файл), `bash AGENTS/scripts/live-test-capture-interactive.sh` (режим B, live). Аргументы — в шапках скриптов.
 
 ---
