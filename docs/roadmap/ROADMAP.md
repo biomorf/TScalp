@@ -16,7 +16,7 @@
 
 | TOKEN | ID | Title | File |
 |---|---|---|---|
-| WIP | T-1 | docs/: рефакторинг журналов (ROADMAP, ci-roadmap, ISSUES, clean-audit) | `docs/roadmap/ROADMAP-wip.md` |
+| DONE | T-1 | docs/: рефакторинг журналов (ROADMAP, ci-roadmap, ISSUES, clean-audit) | `docs/roadmap/ROADMAP-done.md` |
 | WIP | T-3 | Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | `docs/roadmap/ROADMAP-wip.md` |
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` |
 | WIP | T-34 | Расшифровка кодов ошибок брокеров | `docs/roadmap/ROADMAP-wip.md` |
