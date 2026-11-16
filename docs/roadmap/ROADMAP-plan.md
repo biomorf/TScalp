@@ -208,65 +208,6 @@ ___
 
 
 
-<!-- SUBSECTION_BEGIN: t-7 -->
-___
-### [PLAN] T-7 updateStatuses: skip on cache hit / lazy on select
-**Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** `SearchInstrumentsUseCase:49` вызывает `updateStatuses(instruments.map { uid })` на **каждый** поиск, включая cache hit. Даже если результаты из `SearchCacheRepository` — N unary впустую. См. umbrella.
-**Live-log 2026-11-16 (sandbox):** 3723 × `getTradingStatus` за 5 мин capture — N на каждый поиск в реальном сценарии.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды:** —.
-
-**MVVM:** — (не применимо).
-
-**KMP:** соответствует.
-
-**Предусловия:** нет.
-
-**Файлы:** `domain/usecases/SearchInstrumentsUseCase.kt`.
-
-**Шаги:**
-1. При `searchCacheRepository.search` → `AppResult.Success` (cached) — **не** вызывать `updateStatuses`.
-2. Или lazy: `updateStatuses` только при `onResultSelected` (UI).
-3. Тесты.
-
-**Тесты:** unit — cache hit не вызывает `updateTradingStatusesUseCase`.
-
-**Референсы:** umbrella.
-
-**Ограничения:** не ломать свежесть статусов (если нужен — lazy на select).
-
-**Критерий готовности:** cache hit — 0 unary; fresh search — N (или 0, если lazy).
-
-**Оценка:** ~0.5–1 ч.
-
-**Зависимости:** подзадача 1 (limiter).
-
-**Связано:** umbrella; `SearchInstrumentsUseCase`.
-
-**Открытые вопросы:** D2.
-
----
-<!-- SUBSECTION_END: t-7 -->
-
-
-
-
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-8 -->
 ___
 ### [PLAN] T-8 getTradingStatuses: батчинг / concurrency
@@ -2371,6 +2312,10 @@ ___
 
 **Открытые вопросы:** нет.
 <!-- SUBSECTION_END: t-38 -->
+
+
+
+
 
 
 

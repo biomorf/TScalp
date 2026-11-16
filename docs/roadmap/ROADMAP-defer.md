@@ -272,4 +272,71 @@ ___
 
 
 
+
+<!-- SUBSECTION_BEGIN: t-39 -->
+___
+### [DEFER] T-39 Search: drop statuses (variant D for T-7)
+**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
+
+**Статус:** отложено.
+
+**Контекст.** Альтернатива D для T-7: полностью убрать `updateStatuses` из `SearchInstrumentsUseCase`. Сейчас statuses обновляются на каждом поиске (2N+1 unary); drop → N+1 unary на поиск, экономия N unary.
+
+**Почему отложено.** Опирается на три условия, ни одного из которых нет:
+
+1. **Periodic status refresh в Coord.** `UpdateTradingStatusesUseCase` вызывается только из `SearchInstrumentsUseCase` (search); Coord-файла для orders нет (`OrdersCoordState.kt` — только data-класс). Если убрать statuses из search, статусы обновятся только при следующем поиске/старте.
+2. **T-8 (`getTradingStatuses` batching).** Без батчинга periodic refresh дорогой — N unary каждые T минут на фоне rate-budget.
+3. **UX-санкция (правило 1).** Пользователь принимает, что статусы в результатах поиска обновляются periodic (T-8), а не мгновенно.
+
+**Условия для возврата (все три).**
+- Coord periodic реализован (интервал уточнить: 1 или 5 мин).
+- T-8 (batching) merged.
+- UX-санкция на drop получена.
+
+**Файлы (при старте).**
+- `domain/usecases/SearchInstrumentsUseCase.kt` — убрать `updateStatuses`.
+- Новый `OrdersCoord` (или расширение существующего) — periodic `UpdateTradingStatusesUseCase`.
+- `UpdateTradingStatusesUseCase` — переиспользовать.
+
+**Шаги (при старте).**
+1. Coord periodic для `UpdateTradingStatusesUseCase`.
+2. Удалить `updateStatuses` из `SearchInstrumentsUseCase`.
+3. Тест: search → 0 unary; periodic → N unary по T.
+
+**Соответствие Clean:** соответствует (orchestration в Coord/usecase, не VM).
+**Нарушенное правило Clean:** —.
+**Clean-альтернатива:** —.
+**Выгоды:** —.
+**MVVM:** соответствует.
+**KMP:** соответствует.
+
+**Предусловия:** T-8 merged; Coord periodic реализован; UX-санкция.
+
+**Референсы:** T-7 (variant A), T-8 (batching), T-3 umbrella; live-log 2026-11-16.
+
+**Ограничения.**
+- Не делать без UX-санкции.
+- Не делать без periodic в Coord (иначе UX-регресс).
+
+**Критерий готовности.**
+- Search = N+1 unary (без +N).
+- Periodic = N unary по T.
+- Тест.
+- UX-санкция зафиксирована.
+
+**Оценка:** ~30 мин code + UX-решение.
+
+**Зависимости:** T-8 merged; Coord periodic.
+
+**Связано:** T-7, T-8, T-3.
+
+**Открытые вопросы.**
+- Интервал periodic (1 мин / 5 мин).
+- Что делать при cache hit + periodic — пропускать?
+<!-- SUBSECTION_END: t-39 -->
+
+
+
+
+
 <!-- SECTION_END: roadmap-defer -->
