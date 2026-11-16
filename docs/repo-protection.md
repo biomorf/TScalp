@@ -37,10 +37,12 @@
 Механизм защиты в GitHub — **Rulesets**. Настраиваются в
 `Settings → Rules → Rulesets`.
 
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-1 -->
 ___
 ### repo-protection-1 Наши Rulesets
-
 | Ruleset | Target | Ключевые правила |
 |---|---|---|
 | `Protect master` | `master` | PR + required check `gate` + block force pushes + restrict deletions |
@@ -75,19 +77,20 @@ ___
 разработчика — пересмотреть.
 
 ---
-
 <!-- SUBSECTION_END: repo-protection-1 -->
-<!-- SECTION_END: repo-protection -->
-<!-- SECTION_BEGIN: repo-protection -->
-## Известные ограничения GitHub
 
-За время работы накопились особенности GitHub Rulesets,
-которые легко забыть и наступить на те же грабли.
+
+
+
+
+
+
+
+
 
 <!-- SUBSECTION_BEGIN: repo-protection-2 -->
 ___
 ### repo-protection-2 Picker required checks — 7-дневное окно
-
 Rulesets picker (`Add checks` в Ruleset → Require status
 checks to pass) показывает **только те checks, что
 прогонялись на защищаемой ветке за последние 7 дней**.
@@ -102,12 +105,20 @@ checks to pass) показывает **только те checks, что
   admin bypass, что обесценивает защиту).
 
 **Как обходим:** gate-job (см. ниже).
-
 <!-- SUBSECTION_END: repo-protection-2 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-3 -->
 ___
 ### repo-protection-3 Required check указывается по имени job'а
-
 В Rulesets required check задаётся **именем job'а** из
 workflow — `gate`, `fast-check`. **Не** полным UI-именем
 `CI / gate (pull_request)`.
@@ -121,12 +132,20 @@ PR зависает, потому что такого check в рантайме 
 checks → **Add checks** → начать печатать имя
 (`gate`, `fast-check`) → выбрать из suggestions.
 Не вписывать вручную.
-
 <!-- SUBSECTION_END: repo-protection-3 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-4 -->
 ___
 ### repo-protection-4 Gate-job pattern
-
 Обход 7-дневного окна picker'а. Job `gate` в `ci.yml`:
 
 - `needs: [fast-ktlint, fast-check, full-build]`
@@ -147,12 +166,20 @@ ___
 
 **При добавлении новых job'ов в `ci.yml`** — включать их в
 `needs` gate-job'а, иначе они не будут блокировать merge.
-
 <!-- SUBSECTION_END: repo-protection-4 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-5 -->
 ___
 ### repo-protection-5 Восстановление после ошибочного тега
-
 `Protect release tags` запрещает удаление тегов. Ошибочно
 созданный тег (например, `v0.0.1-test`) удаляется:
 
@@ -166,26 +193,20 @@ ___
 обязателен** — иначе теги копятся навсегда.
 
 ---
-
 <!-- SUBSECTION_END: repo-protection-5 -->
-<!-- SECTION_END: repo-protection -->
-<!-- SECTION_BEGIN: repo-protection -->
-## GitLab Protected Branches / Tags
 
-GitLab использует другую терминологию. Эквиваленты:
 
-| GitHub | GitLab |
-|---|---|
-| Rulesets (branch) | Protected branches |
-| Rulesets (tag) | Protected tags |
-| Required status checks | Required pipeline status (в настройках проекта) |
-| Required approvals | Merge Request Approval Rules |
-| Bypass list | Allowed to merge / Allowed to push |
+
+
+
+
+
+
+
 
 <!-- SUBSECTION_BEGIN: repo-protection-6 -->
 ___
 ### repo-protection-6 Текущее состояние
-
 **Protected branches:**
 
 - `master` — защищена. Прямой push запрещён, только через
@@ -208,12 +229,20 @@ ___
 - `KEY_ALIAS` — Protected (Masked недоступно: 7 символов
   < минимум 8).
 - `KEY_PASSWORD` — Masked + Protected.
-
 <!-- SUBSECTION_END: repo-protection-6 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-7 -->
 ___
 ### repo-protection-7 Особенности GitLab
-
 **Иммутабельность тегов.** Отдельных тумблеров «запретить
 удаление» / «запретить force-push» для тегов в GitLab нет:
 защищённый тег иммутабелен по умолчанию. Любой push,
@@ -232,12 +261,20 @@ Merge Request Approval Rules — обязательное одобрение MR
 Rulesets. Для одиночного проекта сейчас бесполезно (approve
 своего же MR недоступен), но при появлении второго
 разработчика — активируется.
-
 <!-- SUBSECTION_END: repo-protection-7 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-8 -->
 ___
 ### repo-protection-8 Что делать при переключении на GitLab
-
 Процедура описана в `docs/ci-cd.md` (когда появится — этап
 Hot-swap CI в `docs/ci-roadmap.md`). Здесь — только
 защита:
@@ -250,16 +287,20 @@ Hot-swap CI в `docs/ci-roadmap.md`). Здесь — только
    (`Restrict tag creation to maintainers`).
 
 ---
-
 <!-- SUBSECTION_END: repo-protection-8 -->
-<!-- SECTION_END: repo-protection -->
-<!-- SECTION_BEGIN: repo-protection -->
-## Процедуры
+
+
+
+
+
+
+
+
+
 
 <!-- SUBSECTION_BEGIN: repo-protection-9 -->
 ___
 ### repo-protection-9 Добавить новый required check
-
 1. Job должен существовать в `ci.yml` и хотя бы один раз
    отработать на защищаемой ветке (или через PR в неё).
 2. `Settings → Rules → Rulesets → <ruleset> → Edit`.
@@ -267,22 +308,38 @@ ___
 4. **Начать печатать** имя job'а (например, `gate`).
 5. Выбрать из suggestions кликом. **Не вписывать вручную.**
 6. Save.
-
 <!-- SUBSECTION_END: repo-protection-9 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-10 -->
 ___
 ### repo-protection-10 Восстановиться после ошибочного тега
-
 1. Открыть `Releases` → найти релиз → удалить (если создан).
 2. `Releases → Tags` → найти тег → **Delete tag**.
 3. Если кнопки нет — Ruleset `Protect release tags` не
    имеет bypass для admin. Добавить bypass и повторить.
-
 <!-- SUBSECTION_END: repo-protection-10 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: repo-protection-11 -->
 ___
 ### repo-protection-11 Проверить, что правила работают
-
 ```bash
 # Пробный push в защищённую ветку — должен быть отклонён
 git push origin dev
@@ -297,8 +354,11 @@ git push origin feature/test
 сработал (для admin), либо правило не применилось.
 
 ---
-
 <!-- SUBSECTION_END: repo-protection-11 -->
+
+
+
+
 <!-- SECTION_END: repo-protection -->
 <!-- SECTION_BEGIN: repo-protection -->
 ## Связанные документы

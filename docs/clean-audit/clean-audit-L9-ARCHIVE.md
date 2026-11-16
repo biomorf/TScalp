@@ -19,6 +19,10 @@ ___
 
 
 
+
+
+
+
 <!-- SUBSECTION_BEGIN: Н88 -->
 ___
 ### Н88 ✅ Н88. RestGetPortfolioRequest — без @Serializable

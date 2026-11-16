@@ -20,32 +20,50 @@
 <!-- SECTION_BEGIN: streams -->
 ## Реализованные стримы
 
+
+
+
 <!-- SUBSECTION_BEGIN: streams-1 -->
 ___
 ### streams-1 MarketDataStream (LastPrice)
-
 - **Метод:** `subscribeLastPrices(uids: List<String>)`.
 - **Канал:** `pricesStreamChannel` (отдельный от общего API-канала).
 - **Реализация:** `MarketDataStreamServiceGrpc.newStub(channel)` +
   `StreamObserver`.
 - **Статус:** работает в песочнице и боевом режиме.
-
 <!-- SUBSECTION_END: streams-1 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-2 -->
 ___
 ### streams-2 OrderStateStream
-
 - **Метод:** `subscribeOrderState(accountId: String)`.
 - **Канал:** `ordersStateChannel` (отдельный).
 - **Реализация:** `OrdersStreamServiceGrpc.newStub(channel)`.
 - **Статус:** работает в боевом режиме. В песочнице —
   `UNAUTHENTICATED: 40003`.
-
 <!-- SUBSECTION_END: streams-2 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-3 -->
 ___
 ### streams-3 PositionsStream
-
 **Статус:** решён. gRPC-стрим реализован и работает в боевом
 и песочнице. Основной источник изменений количества; polling
 остаётся параллельным fallback'ом. См. `docs/ROADMAP.md` →
@@ -115,25 +133,20 @@ ___
 `connectionState: StateFlow<StreamState>` (`LIVE` / `POLLING` /
 `STALE` / `STOPPED`). UI-индикатор — отдельная задача
 (ROADMAP → «UI-индикатор состояния стримов»).
-
 <!-- SUBSECTION_END: streams-3 -->
-<!-- SECTION_END: streams -->
-<!-- SECTION_BEGIN: streams -->
-## WebSocket (T-Invest)
 
-Стриминг через WebSocket — альтернатива gRPC-стримам для тех же
-каналов (`PositionsStream`, `MarketDataStream`, `OrdersStream`).
-Реализован в `:transport-ktor` для трёх каналов
-(`TInvestPositionsWebSocket`, `TInvestPricesWebSocket`,
-`TInvestOrderStateWebSocket`), движок Ktor CIO. Все три
-создаются только при `!sandbox` (sandbox WS не работает —
-серверное ограничение). Управление — `TInvestWsService`
-(`initialize` / `stop`).
+
+
+
+
+
+
+
+
 
 <!-- SUBSECTION_BEGIN: streams-4 -->
 ___
 ### streams-4 Адрес
-
 **Канал — часть URL path**, а не только тело подписки:
 
     # Prod
@@ -151,12 +164,20 @@ URL выбирается по флагу: prod → `invest-public-api.tbank.ru`,
 sandbox → `sandbox-invest-public-api.tbank.ru`. Без этого
 sandbox-токен уходил на прод-хост, и сервер закрывал соединение
 сразу после подписки.
-
 <!-- SUBSECTION_END: streams-4 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-5 -->
 ___
 ### streams-5 Авторизация
-
 Два допустимых способа (по документации T-Invest):
 
 - `Authorization: Bearer <token>` — HTTP-заголовок, работает.
@@ -164,12 +185,20 @@ ___
   протокола, тоже допустим, но не проверяли.
 
 Сейчас в коде используется `Authorization`.
-
 <!-- SUBSECTION_END: streams-5 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-6 -->
 ___
 ### streams-6 Формат сообщений: json или json-proto
-
 T-Invest поддерживает два режима через заголовок
 `Web-Socket-Protocol`:
 
@@ -203,12 +232,20 @@ T-Invest поддерживает два режима через заголов�
 был не отдельным слоем, а тонкой обёрткой над gRPC-proto, и мы
 были бы готовы втащить `ru.tinkoff.piapi` внутрь него. У нас —
 два разных слоя по дизайну, и `json` эту границу уважает.
-
 <!-- SUBSECTION_END: streams-6 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-7 -->
 ___
 ### streams-7 Коды закрытия WS
-
 Сервер T-Invest использует стандартные WebSocket close codes
 (1000–4999) плюс собственные application-коды в reason:
 
@@ -220,12 +257,20 @@ ___
   в `Authorization`. Проверить токен / режим (sandbox vs prod).
 - **`1011` + `reason: "50004"`** — `NOT_FOUND` (счёт не существует).
   Проверить accountId: соответствует ли он токену.
-
 <!-- SUBSECTION_END: streams-7 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-8 -->
 ___
 ### streams-8 Sandbox WS не отдаёт данные
-
 В песочнице сервер принимает handshake и подписку, но **сразу
 закрывает соединение без единого кадра** (`Received WebSocket
 close message`, без `subscriptions`, без `initialPositions`,
@@ -238,12 +283,20 @@ close message`, без `subscriptions`, без `initialPositions`,
 других источников. Для UI прозрачно. Запись:
 `docs/ISSUES.md` → «PositionsStream over WS не отдаёт данные
 в песочнице».
-
 <!-- SUBSECTION_END: streams-8 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-9 -->
 ___
 ### streams-9 Подписка: encodeDefaults
-
 `withInitialPositions` в DTO имеет default `true`. Без
 `encodeDefaults = true` в `Json` kotlinx.serialization
 **не сериализует поле с default-значением** — payload уходит
@@ -252,12 +305,20 @@ ___
 
 Лечится `Json { ignoreUnknownKeys = true; encodeDefaults = true }`
 в `TInvestPositionsWebSocket`.
-
 <!-- SUBSECTION_END: streams-9 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-10 -->
 ___
 ### streams-10 Money и blocked: раздельно, без формулы
-
 Валютные остатки приходят двумя account-level массивами:
 `money` (свободные) и `blocked` (заблокированные), каждый
 элемент — `MoneyValue` с одним полем `currency` (без uid и
@@ -274,12 +335,20 @@ ticker).
 не подтверждена по документации — интерпретация отложена до
 UI-задачи (см. `docs/ROADMAP.md` → «UI: разбивка
 AccountBalance.total на money/blocked в шапке счёта»).
-
 <!-- SUBSECTION_END: streams-10 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: streams-11 -->
 ___
 ### streams-11 Связанные документы
-
 - `docs/ISSUES.md` → «T-Invest WebSocket: решён — канал должен
   быть в URL path» — root cause, матрица экспериментов,
   коды закрытия.
@@ -289,8 +358,11 @@ ___
   план фаз 2 и 3.
 
 ---
-
 <!-- SUBSECTION_END: streams-11 -->
+
+
+
+
 <!-- SECTION_END: streams -->
 <!-- SECTION_BEGIN: streams -->
 ## Рекомендации

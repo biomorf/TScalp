@@ -88,4 +88,8 @@ keepDebugSymbols += "..." } }` или `doNotStrip`. Лишний конфиг
 
 
 
+
+
+
+
 <!-- SECTION_END: issues-ci -->

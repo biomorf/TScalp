@@ -20,4 +20,3 @@
 | PLAN | C-10 | CI: actions/cache v4 -> v6 (Node 20 deprecation) | `docs/roadmap/ci-roadmap-plan.md` |
 | PLAN | C-12 | CI: JDK 17 → 25 | `docs/roadmap/ci-roadmap-plan.md` |
 | DEFER | C-4 | Role emulation для тестировщика | `docs/roadmap/ci-roadmap-defer.md` |
-

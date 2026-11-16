@@ -19,6 +19,10 @@ ___
 
 
 
+
+
+
+
 <!-- SUBSECTION_BEGIN: Н30 -->
 ___
 ### Н30 ✅ Н30. BrokerSnapshotApi KDoc — устарел после #9

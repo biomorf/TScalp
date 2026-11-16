@@ -21,11 +21,11 @@ END_RE = re.compile(r"^<!-- SUBSECTION_END: ([A-Za-z0-9_-]+) -->$")
 HEADING_RE = re.compile(r"^### ([A-Za-z0-9_-]+) (.+)$")
 
 
-def collect() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+def collect(root: str = "AGENTS") -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
     """Return (agents_rows, lessons_rows). Row = (id, title, file, anchor)."""
     agents: list[tuple[str, str, str, str]] = []
     lessons: list[tuple[str, str, str, str]] = []
-    for f in sorted(Path("AGENTS").glob("AGENTS-*.md")):
+    for f in sorted(Path(root).rglob("*.md")):
         if f.name in ("AGENTS.md", "AGENTS-LESSONS.md"):
             continue
         lines = f.read_text(encoding="utf-8").splitlines()
@@ -91,18 +91,21 @@ def replace_table(text: str, new_table: str) -> str:
     return "".join(out)
 
 
-def rebuild(apply: bool) -> int:
-    """Regenerate all four index files. Returns 0 on success."""
-    agents_rows, lessons_rows = collect()
+def rebuild(apply: bool, root: str = "AGENTS", index_paths: list[str] | None = None) -> int:
+    """Regenerate index files from <root>/**/*.md, write to index_paths."""
+    agents_rows, lessons_rows = collect(root)
     agents_table = build_table(agents_rows)
     lessons_table = build_table(lessons_rows)
 
-    targets = [
-        ("AGENTS/AGENTS.md", agents_table),
-        ("AGENTS/AGENTS-LESSONS.md", lessons_table),
-        ("AGENTS.md", agents_table),
-        ("AGENTS-LESSONS.md", lessons_table),
-    ]
+    if index_paths is None:
+        index_paths = ["AGENTS/AGENTS.md", "AGENTS/AGENTS-LESSONS.md",
+                       "AGENTS.md", "AGENTS-LESSONS.md"]
+    targets = []
+    for ip in index_paths:
+        if "LESSONS" in ip:
+            targets.append((ip, lessons_table))
+        else:
+            targets.append((ip, agents_table))
     for path, table in targets:
         p = Path(path)
         assert p.exists(), f"missing: {path}"
@@ -129,10 +132,14 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--dry-run", action="store_true")
     g.add_argument("--apply", action="store_true")
+    ap.add_argument("--root", default="AGENTS")
+    ap.add_argument("--index-paths",
+                    default="AGENTS/AGENTS.md,AGENTS/AGENTS-LESSONS.md,AGENTS.md,AGENTS-LESSONS.md")
     args = ap.parse_args()
-    agents_rows, lessons_rows = collect()
+    idx = [x.strip() for x in args.index_paths.split(",") if x.strip()]
+    agents_rows, lessons_rows = collect(args.root)
     print(f"collected: agents={len(agents_rows)} lessons={len(lessons_rows)}")
-    return rebuild(apply=args.apply)
+    return rebuild(apply=args.apply, root=args.root, index_paths=idx)
 
 
 if __name__ == "__main__":

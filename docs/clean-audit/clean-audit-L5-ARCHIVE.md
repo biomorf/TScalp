@@ -22,6 +22,10 @@ ___
 
 
 
+
+
+
+
 <!-- SUBSECTION_BEGIN: Н38 -->
 ___
 ### Н38 ✅ Н38. PriceFlowManager → data.orchestrator.DebugConfig

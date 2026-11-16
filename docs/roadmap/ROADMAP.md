@@ -54,4 +54,3 @@
 | DEFER | T-22 | Плавный переход Hilt → Koin | `docs/roadmap/ROADMAP-defer.md` |
 | DEFER | T-32 | Live-test Broker lifecycle API: BCS/Finam | `docs/roadmap/ROADMAP-defer.md` |
 | DONE | T-13 | Compose UI: test infra + 3 экрана — ✅ done (U0–U4) | `docs/roadmap/ROADMAP-done.md` |
-

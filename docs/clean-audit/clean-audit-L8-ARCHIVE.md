@@ -19,6 +19,10 @@ ___
 
 
 
+
+
+
+
 <!-- SUBSECTION_BEGIN: Н49 -->
 ___
 ### Н49 ✅ Н49. TScalpApplication → util.TInvestErrorMessages + util.AppLogger

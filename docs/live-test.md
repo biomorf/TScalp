@@ -44,10 +44,12 @@ live-вывод в терминал: пользователь смотрит, ч
 и решает, какое действие делать дальше. Вывод — с фильтрацией
 в терминал, опционально дублируется в файл (`tee`).
 
+
+
+
 <!-- SUBSECTION_BEGIN: live-test-1 -->
 ___
 ### live-test-1 Режим A — автоматический (лог в файл)
-
 - **Лимит захвата** — 10 минут (`CAPTURE_SECONDS=600`). Хватает
   на сценарий StreamState (три перехода × три менеджера +
   watchdog-пороги 15/30 сек).
@@ -83,12 +85,20 @@ less /tmp/tscalp-live.log
 
 grep -E "FlowManager: state:|StreamStateTracker|TInvestOrchestrator|TInvestWS|TInvestRest|TInvestMarketData" /tmp/tscalp-live.log
 ```
-
 <!-- SUBSECTION_END: live-test-1 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: live-test-2 -->
 ___
 ### live-test-2 Режим B — ручной (live-вывод в терминал)
-
 Пользователь держит устройство в руках и одновременно смотрит
 в терминал (второй монитор / split screen / телефон + ноутбук).
 Лог идёт с фильтром, только нужные теги; лишнее не отвлекает.
@@ -141,55 +151,20 @@ AGENTS.md 4e, правило 5. В режиме B `grep --line-buffered` — о�
 он читает до конца, а не обрывает pipe.
 
 ---
-
 <!-- SUBSECTION_END: live-test-2 -->
-<!-- SECTION_END: live-test -->
-<!-- SECTION_BEGIN: live-test -->
-## Теги логов
 
-| Компонент | Тег в logcat |
-|---|---|
-| `PositionFlowManager` | `PositionFlowManager` |
-| `PriceFlowManager` | `PriceFlowManager` |
-| `OrderFlowManager` | `OrderFlowManager` |
-| `StreamStateTracker` | tag параметра: `PositionFlowManager` / `PriceFlowManager` / `OrderFlowManager` |
-| `TInvestOrchestrator` | `TInvestOrchestrator` |
-| WS-транспорт | `TInvestWS` / `TInvestWS/prices` / `TInvestWS/orders` |
-| REST-транспорт | `TInvestRest` |
-| gRPC-стримы | `TInvestMarketData` |
 
----
 
-<!-- SECTION_END: live-test -->
-<!-- SECTION_BEGIN: live-test -->
-## Тайминги (watchdog StreamState)
 
-`StreamStateTracker`:
-- tick — раз в **1 сек** (`STATE_TICK_MS`);
-- стрим-молчание для `LIVE → POLLING` — **15 сек**
-  (`streamSilenceMs`);
-- polling-молчание для `→ STALE` — **30 сек** (`staleMs`).
 
-Смена состояния появляется не мгновенно: от триггера до `tick` —
-до 1 сек; до смены — до порога + 1 сек.
 
-**Практика:** после триггера подождать **20–40 сек** перед
-проверкой лога.
 
----
 
-<!-- SECTION_END: live-test -->
-<!-- SECTION_BEGIN: live-test -->
-## Сценарии
 
-Каждый сценарий указывает **режим** (A — автоматический,
-B — ручной). Если сценарий требует действий пользователя
-во время захвата, это режим B.
 
 <!-- SUBSECTION_BEGIN: live-test-3 -->
 ___
 ### live-test-3 StreamState (PR #38, задача `StreamState в data-слое`)
-
 **Режим:** B (ручной) — нужны действия (открыть вкладку
 «Заявки», включить тумблеры, logout).
 
@@ -220,12 +195,20 @@ Position / Price / Order:
 (порог 30s + tick 1s) → три `→ STALE`. Вернуть сеть → ждать
 5–15 сек (polling: Position/Order ~1s, Price ~5s; stream: до
 1s после reconnect) → `STALE → POLLING` или `STALE → LIVE`.
-
 <!-- SUBSECTION_END: live-test-3 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: live-test-4 -->
 ___
 ### live-test-4 Debug-тумблеры (задача `Debug-тумблеры: применить ко всем менеджерам`)
-
 **Режим:** B (ручной).
 
 **Критерий:** 4 репрезентативные комбинации флагов (углы
@@ -293,12 +276,20 @@ ___
 **Если live-тест зелёный** → `docs(roadmap): mark
 debug-toggles done` в `dev`. Дальше — live-тест StreamState
 (полный цикл для трёх менеджеров).
-
 <!-- SUBSECTION_END: live-test-4 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: live-test-5 -->
 ___
 ### live-test-5 DebugConfig (задача `DebugConfig: только для debug-сборок`)
-
 **Критерий:** в debug-сборке — тумблеры видны и работают;
 в release — секция скрыта, флаги всегда `false` (никаких
 `forceRest` / `disableGrpc` / `disableWs` эффектов).
@@ -306,8 +297,11 @@ ___
 Процедура уточняется при старте задачи.
 
 ---
-
 <!-- SUBSECTION_END: live-test-5 -->
+
+
+
+
 <!-- SECTION_END: live-test -->
 <!-- SECTION_BEGIN: live-test -->
 ## Известные ловушки

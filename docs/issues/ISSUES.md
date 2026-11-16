@@ -51,4 +51,3 @@
 | OPEN | I-30 | System: A resource failed to call release (lifecycle-находка) | misc | `docs/issues/ISSUES-misc.md` |
 | DONE | I-31 | ClassCastException в PostOrderUseCase при StopLoss без stopPrice | domain | `docs/issues/ISSUES-domain.md` |
 | OPEN | I-32 | T-Invest rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | brokers | `docs/issues/ISSUES-brokers.md` |
-

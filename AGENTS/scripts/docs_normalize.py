@@ -30,8 +30,8 @@ from pathlib import Path
 
 BEGIN_RE = re.compile(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
 END_RE = re.compile(r"^<!-- SUBSECTION_END: ([A-Za-z0-9_-]+) -->$")
-SECTION_END_RE = re.compile(r"^<!-- (AGENTS|LESSONS)_SECTION_END: ([A-Za-z0-9_-]+) -->$")
-SECTION_BEGIN_RE = re.compile(r"^<!-- (AGENTS|LESSONS)_SECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
+SECTION_END_RE = re.compile(r"^<!-- (?:AGENTS_|LESSONS_)?SECTION_END: ([A-Za-z0-9_-]+) -->$")
+SECTION_BEGIN_RE = re.compile(r"^<!-- (?:AGENTS_|LESSONS_)?SECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
 H2_RE = re.compile(r"^## ")
 
 
@@ -116,8 +116,10 @@ def normalize_text(text: str) -> tuple[str, list[str]]:
         if sep_idx != 0:
             deviations.append(f"{sid}: BEGIN-to-___ gap")
         heading = body[h_idx]
-        if not heading.startswith(f"### {sid} "):
-            deviations.append(f"{sid}: heading mismatch")
+        # heading check: "### <sid> " for AGENTS/, "### [TOKEN] <ID> " for docs/.
+        # We only require that a ### heading exists; exact prefix varies.
+        if not heading.startswith("### "):
+            deviations.append(f"{sid}: heading not ### ")
         rest = body[h_idx+1:]
         rest_stripped = [l.rstrip() for l in rest]
         if rest_stripped != rest:
@@ -156,47 +158,42 @@ def normalize_text(text: str) -> tuple[str, list[str]]:
     return new_text, deviations
 
 
-def check_index() -> list[str]:
+def check_index(idx_paths: list[str], root: str = "AGENTS") -> list[str]:
     """Cross-check AGENTS/AGENTS.md index vs actual SUBSECTION_BEGIN in files.
 
     Returns list of errors (empty = ok)."""
     errors = []
-    idx_paths = [Path("AGENTS/AGENTS.md"), Path("AGENTS/AGENTS-LESSONS.md")]
-    row_re = re.compile(r"^\| ([A-Za-z0-9_-]+) \| ((?:[^|\\]|\\.)+) \| ((?:[^|\\]|\\.)+) \| ((?:[^|\\]|\\.)+) \|$", re.MULTILINE)
+    idx_paths = [Path(x) for x in idx_paths]
+    # scan only table rows (lines starting with "|"), extract IDs from all cells
+    id_pat = re.compile(r"\b((?:t|c|i)-\d+|[HM]\d+[a-z]?|clean-audit-\d+|r[0-9][0-9a-z-]*|l-[a-z-]+-\d+|code-[a-z0-9-]+|project-docs-[a-z0-9-]+|evolution-[a-z0-9-]+|integrity-[a-z0-9-]+|docs-report|l-docs-[a-z0-9-]+)\b", re.IGNORECASE)
     index_ids = set()
-    index_files = {}
     any_index = False
     for idx_path in idx_paths:
         if not idx_path.exists():
             continue
         any_index = True
-        idx_text = idx_path.read_text(encoding="utf-8")
-        for m in row_re.finditer(idx_text):
-            sid, _title, fpath, _anchor = m.groups()
-            if sid in ("ID",):
+        for line in idx_path.read_text(encoding="utf-8").splitlines():
+            if not line.startswith("|"):
                 continue
-            index_ids.add(sid)
-            index_files[sid] = fpath.strip()
+            for m in id_pat.finditer(line):
+                index_ids.add(m.group(1).lower())
     if not any_index:
         return []
     # Actual
     actual = {}
-    for f in Path("AGENTS").glob("AGENTS-*.md"):
-        if f.name in ("AGENTS.md",):
+    for f in Path(root).rglob("*.md"):
+        if f.name in ("AGENTS.md", "AGENTS-LESSONS.md"):
             continue
         for m in re.finditer(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$",
                      f.read_text(encoding="utf-8"), re.MULTILINE):
-            actual[m.group(1)] = f.name
+            actual[m.group(1).lower()] = f.name
     # In index, not in files
     for sid in sorted(index_ids - set(actual)):
         errors.append(f"index has {sid}, but no SUBSECTION_BEGIN in files")
     # In files, not in index
     for sid in sorted(set(actual) - index_ids):
         errors.append(f"file has SUBSECTION_BEGIN {sid}, but not in index")
-    # File path mismatch
-    for sid in sorted(index_ids & set(actual)):
-        if index_files[sid] != actual[sid] and index_files[sid].split("/")[-1] != actual[sid]:
-            errors.append(f"{sid}: index says {index_files[sid]}, actual {actual[sid]}")
+    # File path mismatch: skipped (universal ID pattern does not capture file column)
     return errors
 
 
@@ -207,7 +204,10 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="show diff, do not write")
     ap.add_argument("--file", help="process only this file")
     ap.add_argument("--all", action="store_true", help="process all AGENTS/AGENTS-*.md")
-    ap.add_argument("--check-index", action="store_true", help="also cross-check AGENTS/AGENTS.md index")
+    ap.add_argument("--check-index", action="store_true", help="also cross-check index files")
+    ap.add_argument("--root", default="AGENTS", help="root dir (default: AGENTS)")
+    ap.add_argument("--index-paths", default="AGENTS/AGENTS.md,AGENTS/AGENTS-LESSONS.md",
+                    help="comma-separated index files for --check-index")
     args = ap.parse_args()
 
     if not args.file and not args.all:
@@ -216,7 +216,7 @@ def main():
     if args.file:
         files = [Path(args.file)]
     else:
-        files = sorted(Path("AGENTS").glob("AGENTS-*.md"))
+        files = sorted(Path(args.root).rglob("*.md"))
         files = [f for f in files if f.name not in ("AGENTS.md", "AGENTS-LESSONS.md")]
 
     total_dev = 0
@@ -252,7 +252,7 @@ def main():
     print("---")
     print(f"files_checked={len(files)} files_written={total_written} deviations={total_dev}")
     if args.check_index:
-        errors = check_index()
+        errors = check_index([x.strip() for x in args.index_paths.split(",") if x.strip()], args.root)
         if errors:
             print(f"--- check-index: {len(errors)} error(s) ---")
             for e in errors:

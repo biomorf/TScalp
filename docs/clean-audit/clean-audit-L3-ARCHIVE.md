@@ -19,6 +19,10 @@ ___
 
 
 
+
+
+
+
 <!-- SUBSECTION_BEGIN: Н15 -->
 ___
 ### Н15 ✅ Н15. TradingStateSnapshot — presentation в domain
