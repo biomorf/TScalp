@@ -38,33 +38,33 @@
 | project-docs-diagrams | Диаграммы в документации | AGENTS/AGENTS-project-docs.md | #project-docs-diagrams |
 | project-docs-mobile | Пометка о мобильной работе | AGENTS/AGENTS-project-docs.md | #project-docs-mobile |
 | project-docs-section-order | Порядок секций в плановых документах | AGENTS/AGENTS-project-docs.md | #project-docs-section-order |
-| r1 | Не менять UI без санкции | AGENTS/AGENTS-style.md | #r1 |
-| r2 | Чистота кода — приоритет | AGENTS/AGENTS-style.md | #r2 |
-| r2a | Актуальность решений, не традиция | AGENTS/AGENTS-style.md | #r2a |
-| r2b | Организационные практики — по индустрии | AGENTS/AGENTS-style.md | #r2b |
-| r2c | Проверка решений на соответствие Clean-архитектуре | AGENTS/AGENTS-style.md | #r2c |
-| r2d | Временные решения явно маркируются и закрываются задачей | AGENTS/AGENTS-style.md | #r2d |
-| r2e | Триада обязательных требований к решениям и планам | AGENTS/AGENTS-style.md | #r2e |
-| r3 | Не выдумывать | AGENTS/AGENTS-style.md | #r3 |
-| r3a | Явные дефолты при неполном ответе | AGENTS/AGENTS-style.md | #r3a |
-| r3b | Дефолты не считаются утверждёнными | AGENTS/AGENTS-style.md | #r3b |
-| r4 | Маленькие шаги с проверкой | AGENTS/AGENTS-style.md | #r4 |
-| r4a | Формат показа правок | AGENTS/AGENTS-style.md | #r4a |
-| r4b | Один шаг за раз | AGENTS/AGENTS-style.md | #r4b |
-| r4c | Механические правки — скриптом | AGENTS/AGENTS-style.md | #r4c |
-| r4d | Идемпотентность операций | AGENTS/AGENTS-style.md | #r4d |
-| r4e | Безопасность shell-команд в ответах | AGENTS/AGENTS-style.md | #r4e |
-| r4f | Дорогие операции: правки → гейт → коммит → push | AGENTS/AGENTS-style.md | #r4f |
-| r4g | Git-команды без дефолтов | AGENTS/AGENTS-style.md | #r4g |
-| r4h | Проверка правок на соответствие перед коммитом | AGENTS/AGENTS-style.md | #r4h |
-| r4i | Шаблон bash-скриптов | AGENTS/AGENTS-style.md | #r4i |
-| r4j | Скрипты для AGENTS/ | AGENTS/AGENTS-style.md | #r4j |
-| r5 | Коммит после каждой задачи | AGENTS/AGENTS-style.md | #r5 |
-| r5a | Порядок коммита: локально vs CI | AGENTS/AGENTS-style.md | #r5a |
-| r5b | Правки в docs — сразу с коммитом | AGENTS/AGENTS-style.md | #r5b |
-| r5c | Структура ответа | AGENTS/AGENTS-style.md | #r5c |
-| r5d | Жизненный цикл задачи | AGENTS/AGENTS-style.md | #r5d |
-| r5e | Самодостаточность планов | AGENTS/AGENTS-style.md | #r5e |
-| r5f | Post-PR checklist | AGENTS/AGENTS-style.md | #r5f |
-| r5f-freeze | Ожидание merge: заморозка feature-ветки и dev | AGENTS/AGENTS-style.md | #r5f-freeze |
-| r5g | Работа с задачами в ROADMAP | AGENTS/AGENTS-style.md | #r5g |
+| r3b | Дефолты не считаются утверждёнными | AGENTS/AGENTS-style-core.md | #r3b |
+| r3a | Явные дефолты при неполном ответе | AGENTS/AGENTS-style-core.md | #r3a |
+| r3 | Не выдумывать | AGENTS/AGENTS-style-core.md | #r3 |
+| r2e | Триада обязательных требований к решениям и планам | AGENTS/AGENTS-style-core.md | #r2e |
+| r2d | Временные решения явно маркируются и закрываются задачей | AGENTS/AGENTS-style-core.md | #r2d |
+| r2c | Проверка решений на соответствие Clean-архитектуре | AGENTS/AGENTS-style-core.md | #r2c |
+| r2b | Организационные практики — по индустрии | AGENTS/AGENTS-style-core.md | #r2b |
+| r2a | Актуальность решений, не традиция | AGENTS/AGENTS-style-core.md | #r2a |
+| r2 | Чистота кода — приоритет | AGENTS/AGENTS-style-core.md | #r2 |
+| r1 | Не менять UI без санкции | AGENTS/AGENTS-style-core.md | #r1 |
+| r5c | Структура ответа | AGENTS/AGENTS-style-docs.md | #r5c |
+| r4j | Скрипты для AGENTS/ | AGENTS/AGENTS-style-docs.md | #r4j |
+| r4i | Шаблон bash-скриптов | AGENTS/AGENTS-style-docs.md | #r4i |
+| r4h | Проверка правок на соответствие перед коммитом | AGENTS/AGENTS-style-docs.md | #r4h |
+| r4e | Безопасность shell-команд в ответах | AGENTS/AGENTS-style-docs.md | #r4e |
+| r4d | Идемпотентность операций | AGENTS/AGENTS-style-docs.md | #r4d |
+| r4c | Механические правки — скриптом | AGENTS/AGENTS-style-docs.md | #r4c |
+| r4b | Один шаг за раз | AGENTS/AGENTS-style-docs.md | #r4b |
+| r4a | Формат показа правок | AGENTS/AGENTS-style-docs.md | #r4a |
+| r4 | Маленькие шаги с проверкой | AGENTS/AGENTS-style-docs.md | #r4 |
+| r5g | Работа с задачами в ROADMAP | AGENTS/AGENTS-style-git.md | #r5g |
+| r5f-freeze | Ожидание merge: заморозка feature-ветки и dev | AGENTS/AGENTS-style-git.md | #r5f-freeze |
+| r5f | Post-PR checklist | AGENTS/AGENTS-style-git.md | #r5f |
+| r5e | Самодостаточность планов | AGENTS/AGENTS-style-git.md | #r5e |
+| r5d | Жизненный цикл задачи | AGENTS/AGENTS-style-git.md | #r5d |
+| r5b | Правки в docs — сразу с коммитом | AGENTS/AGENTS-style-git.md | #r5b |
+| r5a | Порядок коммита: локально vs CI | AGENTS/AGENTS-style-git.md | #r5a |
+| r5 | Коммит после каждой задачи | AGENTS/AGENTS-style-git.md | #r5 |
+| r4g | Git-команды без дефолтов | AGENTS/AGENTS-style-git.md | #r4g |
+| r4f | Дорогие операции: правки → гейт → коммит → push | AGENTS/AGENTS-style-git.md | #r4f |

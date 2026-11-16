@@ -399,4 +399,8 @@ base64 -d | strings -n 3` — видит ключи и значения.
 
 
 
+
+
+
+
 <!-- LESSONS_SECTION_END: diagnostics -->
