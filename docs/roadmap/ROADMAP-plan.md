@@ -2206,16 +2206,59 @@ ___
 
 
 
+<!-- SUBSECTION_BEGIN: t-39 -->
+___
+### [PLAN] T-39 Общий RateLimitedException для всех брокеров
+**Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
 
+**Статус:** запланировано.
 
+**Контекст:** T-10 (шаг 1) добавляет `AppError.RateLimited` и маппинг `RateLimitTimeoutException → RateLimited` в `toAppError` (`data/error/AppErrorMapper.kt`). Сейчас `toAppError` импортирует TInvest-specific `RateLimitTimeoutException` из `data/api/tinvest/`. При появлении BCS/Finam rate-limiter'ов (T-30, T-31) — нужен общий `interface RateLimitedException` в `data/api/common/`.
 
+**Соответствие Clean:** соответствует (data → domain, `AppResult`/`AppError` — domain-модели; общий интерфейс — в data/common).
 
+**Нарушенное правило Clean:** —.
 
+**Clean-альтернатива:** —.
 
+**Выгоды (для «отклонение по 2c»):** —.
 
+**MVVM:** — (не применимо, data-слой).
 
+**KMP:** соответствует (`RateLimitedException` — data-слой, в domain не протекает; `AppError.RateLimited` — KMP-safe).
 
+**Предусловия:** T-10 закрыт (`AppError.RateLimited` есть); T-30 / T-31 (BCS/Finam API) — хотя бы один начат.
 
+**Файлы:** `data/api/common/RateLimitedException.kt` (новый интерфейс), `data/api/tinvest/RateLimitTimeoutException.kt` (реализация), `data/api/bcs/...`, `data/api/finam/...`, `data/error/AppErrorMapper.kt` (замена `is RateLimitTimeoutException` на `is RateLimitedException`).
+
+**Шаги:**
+1. `interface RateLimitedException { val waitedMs: Long; val timeoutMs: Long }` в `data/api/common/`.
+2. `TInvestRateLimitTimeoutException : Exception(...), RateLimitedException` — переименовать/расширить существующий.
+3. `toAppError`: `is RateLimitedException -> AppError.RateLimited(...)` — вместо `is RateLimitTimeoutException`.
+4. BCS/Finam rate-limiter'ы (после T-30/T-31) — свои реализации.
+5. Тесты: `AppErrorMapperTest` — кейс на интерфейс; `TInvestRateLimiterTest` — не сломать.
+
+**Тесты:** `AppErrorMapperTest` (обновить кейс), `TInvestRateLimiterTest` (без изменений).
+
+**Референсы:** `docs/architecture.md` → `architecture-23 #4`; T-10 (шаг 1); T-30, T-31.
+
+**Ограничения:**
+- Не менять поведение `toAppError` для остальных исключений.
+- Не трогать stream-исключения (по T-10 — throw).
+
+**Критерий готовности:**
+- `RateLimitedException` — общий интерфейс в `data/api/common/`.
+- `toAppError` не импортирует TInvest-specific исключение.
+- Гейт зелёный.
+
+**Оценка:** ~1–2 ч.
+
+**Зависимости:** T-10 (закрыт), T-30 / T-31 (начат хотя бы один).
+
+**Связано:** `architecture-22` (rate-limiter), `architecture-23 #4`.
+
+**Открытые вопросы:** нет.
+<!-- SUBSECTION_END: t-39 -->
 
 
 
