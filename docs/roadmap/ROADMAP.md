@@ -26,7 +26,11 @@
 | PLAN | T-6 | Search: сократить N+1 unary в findInstruments | `docs/roadmap/ROADMAP-plan.md` |
 | PLAN | T-7 | updateStatuses: skip on cache hit / lazy on select | `docs/roadmap/ROADMAP-plan.md` |
 | PLAN | T-8 | getTradingStatuses: батчинг / concurrency | `docs/roadmap/ROADMAP-plan.md` |
-| PLAN | T-9 | PortfolioScreen: retry с backoff | `docs/roadmap/ROADMAP-plan.md` |
+| PLAN | T-9 | PortfolioScreen: double-load + TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` |
+
+| PLAN | T-40 | PortfolioUiState: passthrough tradingStatuses StateFlow | `docs/roadmap/ROADMAP-plan.md` |
+| PLAN | T-41 | Orders: миграция tradingStatuses на TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` |
+| PLAN | T-42 | TradingStatus: stream API (subscribeTradingStatuses) | `docs/roadmap/ROADMAP-plan.md` |
 | PLAN | T-10 | TInvest*Service + *Api: unary → AppResult | `docs/roadmap/ROADMAP-plan.md` |
 | PLAN | T-11 | C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing) | `docs/roadmap/ROADMAP-plan.md` |
 | PLAN | T-12 | Архитектурный документ (docs/architecture.md) | `docs/roadmap/ROADMAP-plan.md` |
