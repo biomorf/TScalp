@@ -692,4 +692,89 @@ flowchart LR
 
 
 
+
+<!-- SUBSECTION_BEGIN: architecture-23 -->
+___
+### T-10: unary → AppResult — предостережения
+### architecture-23 T-10: unary → AppResult — предостережения
+
+**Контекст:** T-10 (`docs/roadmap/ROADMAP-plan.md`) — унификация контракта data-слоя: unary-методы 6 `TInvest*Service` → `AppResult<T>`, `RateLimitTimeoutException` → `AppError.RateLimited`. Ниже — четыре предостережения, выявленные при диагностике (2026-11-17), с обоснованием. Решения по ним — часть плана T-10, не отдельные задачи (кроме #4).
+
+**Соответствие Clean:** соответствует (data → domain, `AppResult` — domain-модель; исключения не пересекают границу domain↔data).
+**MVVM:** соответствует (presentation получает `AppResult<T>`, не исключение; маппинг `AppError → String` — в presentation-util, не в VM — см. #3).
+**KMP:** соответствует (см. #1 — proto не оборачивается в `AppResult`; `RateLimited` — KMP-safe domain-модель).
+
+#### #1 — `internal`-методы с proto не оборачивать в `AppResult`
+
+**Правило:** `internal`-методы `TInvest*Service`, возвращающие proto-типы (`ru.tinkoff.piapi.contract.v1.*`), **не** оборачиваются в `AppResult<T>`. Остаются как есть (`throw` / nullable).
+
+**Затронуто:** `TInvestInstrumentsService.fetchProtoInstrument(uid): ProtoInstrument?` (internal), `getFuturesMargin(figi): Double?` (internal, fallback на null).
+
+**Обоснование:**
+- **KMP-блокер:** `AppResult<ProtoInstrument>` = proto-тип в domain-модели `AppResult`. Нарушает `architecture-18` → «`io.grpc` не протекает в domain» (категория `transport` в 2e). Proto не должен появляться в generic-параметре domain-модели.
+- **Clean:** proto — транспортный тип data-слоя. Обёртка в `AppResult` «легализует» его в domain-контракте. `internal` — единственная защита; обёртка её снимает.
+- **Практика:** `getFuturesMargin` — обогащение, `null` при ошибке — сознательная деградация (не потеря, не ошибка вызова). `AppResult` здесь не нужен — вызывающий (`TInvestPortfolioService`) уже в data.
+
+**Проверка:** `grep -rn "AppResult<.*Proto\|AppResult<.*ru.tinkoff" app/src/main --include="*.kt"` — пусто.
+
+**Связано:** T-10 (шаги 3b, 3e — не трогают internal-методы); `architecture-18` (KMP-блокеры).
+
+#### #2 — `runCatchingAppResult` убирать только из TInvest-веток
+
+**Правило:** в `*RepositoryImpl` шаг 5 T-10 убирает `runCatchingAppResult` **только** из TInvest-веток (`when (broker) { TINVEST -> ... }`). BCS/Finam-ветки **оставляют** `runCatchingAppResult` — их `*Service` ещё не возвращают `AppResult`.
+
+**Затронуто:** 4 `*RepositoryImpl` (`Accounts`, `MarketData`, `Orders`, `Portfolio`) — 15 callsites, из них TInvest-веток ~8, BCS/Finam-веток ~7.
+
+**Обоснование:**
+- **Clean:** BCS/Finam-сервисы возвращают «сырые» типы (`throw`). Если убрать `runCatchingAppResult` — исключения пересекут границу data→domain, нарушая `code-project` («`AppResult<T>`, не исключения на границах слоёв»).
+- **Согласованность:** граница `data → domain` — **всегда** `AppResult`, независимо от брокера. Убирать обёртку можно только когда **сервис** уже возвращает `AppResult` (шаги 2–3 — только TInvest).
+- **Поэтапность:** BCS/Finam-миграция — отдельные задачи (T-30, T-31). Сейчас — не трогаем.
+
+**Проверка:** `grep -rn "runCatchingAppResult" app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/repository/` — TInvest-ветки без обёртки, BCS/Finam — с обёрткой.
+
+**Связано:** T-10 (шаг 5); T-30, T-31 (BCS/Finam API).
+
+#### #3 — `AppError → String` — в `*Formatter`, не в VM
+
+**Правило:** маппинг `AppError` → UI-сообщение (`RateLimited` → «Слишком много запросов. Подождите», `Network` → «Ошибка сети» и т.д.) — в presentation-util (`*Formatter` / новый `AppErrorFormatter`), **не** в ViewModel.
+
+**Обоснование:**
+- **MVVM (M1):** VM, форматирующая сообщения — делает не-свою обязанность (presentation-форматирование вместо state-менеджмента). `architecture-10` уже фиксирует: «Presentation-формат (Locale / Compose / цвета) — вне domain» — но и вне VM (M7-риск: VM конвертирует domain↔presentation).
+- **M7:** если VM делает `when (error) { is RateLimited -> "..." }` — это конвертация domain-модели (`AppError`) в presentation-строку. Правильно: `AppErrorFormatter.format(error): String` (presentation-util), VM отдаёт `AppError` в state, Composable вызывает formatter.
+- **Тестируемость:** formatter тестируется отдельно (unit-тест, без VM/Compose); VM-тест не зависит от строк.
+- **Локализация:** строки — в `strings.xml` (Android resource), formatter читает оттуда. VM не знает про `R.string.*`.
+
+**Проверка:** `grep -rn "is RateLimited ->" app/src/main/kotlin/com/gitlab/biomorf/tscalp/presentation/` — только в `*Formatter`, не в `*ViewModel`.
+
+**Связано:** T-10 (шаг 6); `architecture-10` (валидация/нормализация по слоям); `docs/clean-audit.md` → M001–M007 (типы MVVM).
+
+#### #4 — общий `RateLimitedException` для всех брокеров (временное решение → задача в ROADMAP)
+
+**Правило:** сейчас `toAppError` (в `data/error/AppErrorMapper.kt`) проверяет `is RateLimitTimeoutException` — TInvest-specific исключение. Это **временное решение** (r2d). При появлении BCS/Finam rate-limiter'ов — вынести общий `interface RateLimitedException` в `data/api/common/`, реализации (`TInvestRateLimitTimeoutException`, `BcsRateLimitTimeoutException`) — в `data/api/<broker>/`.
+
+**Обоснование:**
+- **Clean:** `toAppError` — общий маппер для всех брокеров. Импорт TInvest-specific исключения — временная связанность data→data (не нарушение, но запах). При втором брокере — общий интерфейс.
+- **KMP:** `RateLimitTimeoutException` — data-слой, в domain не протекает. `RateLimited` — domain-модель, KMP-safe. Сейчас — соответствует.
+- **r2d:** временное решение **явно маркируется** и **закрывается задачей** в `docs/ROADMAP.md` в той же сессии. Задача — `### Общий RateLimitedException для всех брокеров` (PLAN, `docs/roadmap/ROADMAP-plan.md`), зависимость — T-30 / T-31 (BCS/Finam API).
+
+**Проверка:** `grep -rn "RateLimitTimeoutException" app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/error/` — только в `toAppError`; маркер `// TODO(T-NN): общий RateLimitedException` — в коде.
+
+**Связано:** T-10 (шаг 1); T-30, T-31; `architecture-22` (rate-limiter).
+
+**Источник:** диагностика 2026-11-17 (T-10, расширенная диагностика); ответы пользователя Q4–Q11 (все утверждены).
+<!-- SUBSECTION_END: architecture-23 -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: architecture -->
