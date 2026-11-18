@@ -138,6 +138,8 @@ def normalize_text(text: str) -> tuple[str, list[str]]:
             out.append("\n" * 10)
 
     tail_lines = [strip_nl(l) for l in lines[last_end+1:]] if last_end >= 0 else []
+    while tail_lines and tail_lines[0].strip() == "":
+        tail_lines.pop(0)
     while tail_lines and tail_lines[-1].strip() == "":
         tail_lines.pop()
     if tail_lines:
