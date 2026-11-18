@@ -153,7 +153,6 @@ ___
 <!-- SUBSECTION_BEGIN: t-9 -->
 ___
 ### [PLAN] T-9 PortfolioScreen: double-load + TradingStatusFlowManager
-
 **Мобильная работа:** полное закрытие (proot + PR; presentation + domain; гейт на CI).
 
 **Статус:** запланировано.
@@ -2297,10 +2296,15 @@ ___
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: t-40 -->
 ___
 ### [PLAN] T-40 PortfolioUiState: passthrough tradingStatuses StateFlow
-
 **Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
 
 **Статус:** запланировано.
@@ -2349,10 +2353,15 @@ ___
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: t-41 -->
 ___
 ### [PLAN] T-41 Orders: миграция tradingStatuses на TradingStatusFlowManager
-
 **Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
 
 **Статус:** запланировано.
@@ -2403,10 +2412,15 @@ ___
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: t-42 -->
 ___
 ### [PLAN] T-42 TradingStatus: stream API (subscribeTradingStatuses)
-
 **Мобильная работа:** полное закрытие (proot + PR; data + domain; гейт на CI).
 
 **Статус:** запланировано.
@@ -2453,6 +2467,90 @@ ___
 
 **Открытые вопросы:** есть ли у T-Invest SDK `MarketDataStreamService.subscribeTradingStatuses` в текущей версии - `grep 'ru.tinkoff.piapi.*TradingStatus'` при старте.
 <!-- SUBSECTION_END: t-42 -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: t-44 -->
+___
+### [PLAN] T-44 SSoT стиля документации (docs/docs-structure.md) + унификация заголовков/разделителей/индексов
+**Мобильная работа:** полное закрытие (proot + PR; docs-only + скрипты, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** стиль оформления `.md`-файлов проекта размазан по: (1) `AGENTS-integrity.md` (маркеры), (2) `project-docs-section-order` (разделители, только ROADMAP), (3) код скриптов (`docs_normalize.py`, `docs_rebuild_index.py` — форматы заголовков/индексов), (4) `r4j` (список скриптов). Код — единственный полный источник истины для форматов. Нарушает SSoT: правка стиля требует синхронной правки AGENTS + кода + индексов, риск рассинхрона. Решения Q43–Q51 (сессия 2026-11-18): `### [TOKEN] <ID> <title>` везде; TOKEN для AGENTS — `[AGENTS]`; маркер `SUBSECTION_BEGIN: <id>` без заголовка; 10 пустых везде; `project-docs-section-order` → перенос таблицы в `docs/docs-structure.md`; `docs_add.py`/`docs_rebuild_index.py` — `--mode` (agents/agents-lessons/roadmap/ci-roadmap); `issues`/`clean-audit` — вне scope.
+
+**Соответствие Clean:** — (не применимо, документация/инструменты).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** — (не применимо).
+
+**Предусловия:** T-39 (rate-limit) — не блокер; T-2 (консолидация скриптов) — не блокер, но пересекается (`r4j` — обновить).
+
+**Файлы:**
+- `docs/docs-structure.md` — новый SSoT (заголовки, маркеры, разделители, индексы, скрипты, Mermaid).
+- `AGENTS/AGENTS-integrity.md` — ссылка на `docs/docs-structure.md` (без дублирования).
+- `AGENTS/AGENTS-project-docs.md` → `project-docs-section-order` — таблица переходов → ссылка на `docs/docs-structure.md`.
+- `AGENTS/AGENTS-style-docs.md` → `r4j` — ссылка на `docs/docs-structure.md`, `--mode`.
+- `AGENTS/scripts/docs_add.py` — `--mode`, `--token` (целевое).
+- `AGENTS/scripts/docs_rebuild_index.py` — `--mode` (4 режима), `HEADING_RE` с TOKEN.
+- `AGENTS/scripts/docs_normalize.py` — `sep_n = 10` везде.
+- Все `AGENTS/AGENTS-*.md` — `### <id> <title>` → `### [AGENTS] <id> <title>` (массовая правка — скриптом, `r4c`).
+
+**Шаги:**
+1. `docs/docs-structure.md` — SSoT (заголовки, маркеры, разделители, индексы, скрипты, Mermaid-диаграмма).
+2. `AGENTS-integrity.md` → ссылка на `docs/docs-structure.md`.
+3. `project-docs-section-order` → таблица переходов переносится в `docs/docs-structure.md`, здесь — ссылка.
+4. `r4j` → ссылка на `docs/docs-structure.md`, `--mode` в списке скриптов.
+5. `docs_normalize.py` — `sep_n = 10` везде (убрать `4 if has_preamble`).
+6. `docs_add.py` — `--mode`, `--token`, валидация формата.
+7. `docs_rebuild_index.py` — `--mode` (agents/agents-lessons/roadmap/ci-roadmap), `HEADING_RE` с TOKEN.
+8. Массовая правка AGENTS-файлов: `### <id> <title>` → `### [AGENTS] <id> <title>` — скриптом (`r4c`), `r4d` (pre/post-assert), `r4h` (проверка).
+9. Тесты: `docs_normalize.py --check --all` → 0; `docs_rebuild_index.py --dry-run` → 4 индекса.
+10. Verify: `docs/docs-structure.md` содержит все форматы; AGENTS-файлы с `[AGENTS]`; индексы пересобраны.
+
+**Тесты:** `docs_normalize.py --check --all` (deviations=0); `docs_rebuild_index.py --dry-run` (agents/agents-lessons/roadmap/ci-roadmap).
+
+**Референсы:** `AGENTS-integrity.md`, `project-docs-section-order`, `r4j`, `docs_add.py`, `docs_normalize.py`, `docs_rebuild_index.py`, `ROADMAP.md` (индекс), `ci-roadmap.md` (индекс), сессия 2026-11-18 (Q43–Q51).
+
+**Ограничения:**
+- `issues` / `clean-audit` — **вне scope** (структура не подтверждена / не табличная).
+- Массовая правка AGENTS — **только скриптом**, не агентом (`r4c`, `r2d`).
+- `docs_add.py` — обратная совместимость: `--mode` по умолчанию `agents` (текущее поведение).
+- Не менять логику `docs_cut.py` (только `--mode` для валидации, если нужно).
+
+**Критерий готовности:**
+- `docs/docs-structure.md` — SSoT (все форматы, диаграмма).
+- `AGENTS-integrity.md`, `project-docs-section-order`, `r4j` — ссылки на `docs/docs-structure.md`, без дублирования стиля.
+- `docs_normalize.py --check --all` → deviations=0.
+- `docs_rebuild_index.py --dry-run` → 4 индекса (agents/agents-lessons/roadmap/ci-roadmap).
+- Все AGENTS-файлы — `### [AGENTS] <id> <title>`.
+- Гейт зелёный (docs-only → mini-gate; скрипты — полный гейт).
+
+**Оценка:** ~4–6 ч.
+
+**Зависимости:** нет (T-2 — пересекается, не блокер).
+
+**Связано:** T-2 (консолидация скриптов), `AGENTS-integrity.md`, `project-docs-section-order`, `r4j`.
+
+**Открытые вопросы:**
+- TOKEN для AGENTS — `[AGENTS]` (единый, Q49). Если позже понадобится дифференциация — отдельная задача.
+- `docs_add.py` — вариант 1/2/3 (Q39) — решить при реализации.
+- `HEADING_RE` для roadmap — TOKEN захватывать (для таблицы `| TOKEN | ID | Title | File |`).
+<!-- SUBSECTION_END: t-44 -->
 
 
 
