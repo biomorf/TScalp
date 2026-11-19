@@ -1,85 +1,118 @@
 #!/usr/bin/env python3
-"""Rebuild index tables in AGENTS/AGENTS.md, AGENTS/AGENTS-LESSONS.md,
-and the thin root pointers AGENTS.md, AGENTS-LESSONS.md.
+"""Rebuild index tables for AGENTS / AGENTS-LESSONS / ROADMAP / ci-roadmap.
 
-Reads all AGENTS/AGENTS-*.md, extracts (file, id, title) from
-"### <id> <title>" inside SUBSECTION_BEGIN/END, and regenerates
-the "## Справочник" table. Idempotent: re-running produces the
-same table.
+SSoT for formatting rules: docs/docs-structure.md
 
-Usage:
-  rebuild_index.py --dry-run   # show new tables, do not write
-  rebuild_index.py --apply     # write
+Modes:
+  agents         — AGENTS/AGENTS-*.md (excl. AGENTS-LESSONS-*) -> AGENTS/AGENTS.md
+  agents-lessons — AGENTS/AGENTS-LESSONS-*.md -> AGENTS/AGENTS-LESSONS.md
+  roadmap        — docs/roadmap/ROADMAP-*.md -> docs/roadmap/ROADMAP.md
+  ci-roadmap     — docs/roadmap/ci-roadmap-*.md -> docs/roadmap/ci-roadmap.md
+  all            — all four (default)
+
+Index format: | TOKEN | ID | Title | File | Anchor |
+Heading format: ### [TOKEN] <ID> <title>
+Anchor: #<id> (short, stable, derived from SUBSECTION id; for cutting/pasting
+        use SUBSECTION_BEGIN/END: <id>, not the anchor).
 """
 import argparse
 import re
 import sys
 from pathlib import Path
 
+HEADING_RE = re.compile(
+    r"^### \[(WIP|PLAN|DEFER|DONE|AGENTS|AGENTS-LESSONS)\] ([A-Za-z0-9_-]+) (.+)$"
+)
 BEGIN_RE = re.compile(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
 END_RE = re.compile(r"^<!-- SUBSECTION_END: ([A-Za-z0-9_-]+) -->$")
-HEADING_RE = re.compile(r"^### (?:\[(?:WIP|PLAN|DEFER|DONE)\]\s+)?([A-Za-z0-9_-]+) (.+)$")
+
+TABLE_HEADER = "| TOKEN | ID | Title | File | Anchor |"
+TABLE_SEP = "|---|---|---|---|---|"
+
+MODE_CONFIG = {
+    "agents": {
+        "root": "AGENTS",
+        "prefix": "AGENTS-",
+        "exclude": ("AGENTS.md", "AGENTS-LESSONS.md", "AGENTS-LESSONS-"),
+        "table_section": "## Справочник (по мере необходимости)",
+        "index_paths": ["AGENTS/AGENTS.md"],
+    },
+    "agents-lessons": {
+        "root": "AGENTS",
+        "prefix": "AGENTS-LESSONS-",
+        "exclude": (),
+        "table_section": "## Справочник (по мере необходимости)",
+        "index_paths": ["AGENTS/AGENTS-LESSONS.md"],
+    },
+    "roadmap": {
+        "root": "docs/roadmap",
+        "prefix": "ROADMAP-",
+        "exclude": ("ROADMAP.md", "ROADMAP-ARCHIVE.md", "ROADMAP-task-template.md"),
+        "table_section": "## Задачи",
+        "index_paths": ["docs/roadmap/ROADMAP.md"],
+    },
+    "ci-roadmap": {
+        "root": "docs/roadmap",
+        "prefix": "ci-roadmap-",
+        "exclude": ("ci-roadmap.md", "CI-ROADMAP-ARCHIVE.md", "ROADMAP-task-template.md"),
+        "table_section": "## Задачи",
+        "index_paths": ["docs/roadmap/ci-roadmap.md"],
+    },
+}
 
 
-def collect(root: str = "AGENTS") -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-    """Return (agents_rows, lessons_rows). Row = (id, title, file, anchor)."""
-    agents: list[tuple[str, str, str, str]] = []
-    lessons: list[tuple[str, str, str, str]] = []
-    for f in sorted(Path(root).rglob("*.md")):
-        if f.name in ("AGENTS.md", "AGENTS-LESSONS.md"):
+def collect(mode: str) -> list[tuple[str, str, str, str, str]]:
+    """Return rows: (token, id, title, file, anchor). Anchor = #<id> (from SUBSECTION id)."""
+    cfg = MODE_CONFIG[mode]
+    root = Path(cfg["root"])
+    rows: list[tuple[str, str, str, str, str]] = []
+    if not root.exists():
+        return rows
+    for f in sorted(root.rglob("*.md")):
+        if not f.name.startswith(cfg["prefix"]):
             continue
+        if any(f.name == e or f.name.startswith(e) for e in cfg["exclude"]):
+            continue
+        rel = f.as_posix()
         lines = f.read_text(encoding="utf-8").splitlines()
-        cur_id = None
-        cur_title = None
+        cur_begin = False
         for line in lines:
-            mb = BEGIN_RE.match(line)
-            if mb:
-                cur_id = mb.group(1)
-                cur_title = None
+            if BEGIN_RE.match(line):
+                cur_begin = True
                 continue
-            me = END_RE.match(line)
-            if me:
-                if cur_id and cur_title:
-                    row = (cur_id, cur_title, f"AGENTS/{f.name}", f"#{cur_id}")
-                    if f.name.startswith("AGENTS-LESSONS-"):
-                        lessons.append(row)
-                    else:
-                        agents.append(row)
-                cur_id = None
-                cur_title = None
+            if END_RE.match(line):
+                cur_begin = False
                 continue
-            if cur_id:
-                mh = HEADING_RE.match(line)
-                if mh:
-                    # any ### heading inside SUBSECTION; do not require id match
-                    cur_title = mh.group(2).strip()
-    return agents, lessons
+            if not cur_begin:
+                continue
+            m = HEADING_RE.match(line)
+            if m:
+                token, sid, title = m.group(1), m.group(2), m.group(3).strip()
+                rows.append((token, sid, title, rel, "#" + sid))
+    return rows
 
 
-def build_table(rows: list[tuple[str, str, str, str]]) -> str:
-    out = ["| ID | Заголовок | Файл | Якорь |", "|---|---|---|---|"]
-    for sid, title, fpath, anchor in rows:
-        # escape pipes in title
+def build_table(rows: list[tuple[str, str, str, str, str]]) -> str:
+    out = [TABLE_HEADER, TABLE_SEP]
+    for token, sid, title, fpath, anchor in rows:
         title_esc = title.replace("|", "\\|")
-        out.append(f"| {sid} | {title_esc} | {fpath} | {anchor} |")
+        out.append(f"| {token} | {sid} | {title_esc} | `{fpath}` | {anchor} |")
     return "\n".join(out) + "\n"
 
 
-def replace_table(text: str, new_table: str) -> str:
-    """Replace the '## Справочник' table block (from header to next '---' or EOF)."""
+def replace_table(text: str, new_table: str, section_header: str) -> str:
+    """Replace the table under section_header (from header to next '---' or EOF)."""
     lines = text.splitlines(keepends=True)
     out: list[str] = []
     i = 0
     n = len(lines)
     replaced = False
     while i < n:
-        if lines[i].strip() == "## Справочник (по мере необходимости)":
+        if lines[i].strip() == section_header:
             out.append(lines[i])
             i += 1
-            # skip blank/non-table lines until table start
             while i < n and not lines[i].startswith("|"):
                 i += 1
-            # skip table body (consecutive lines starting with "|")
             while i < n and lines[i].startswith("|"):
                 i += 1
             out.append("\n")
@@ -88,30 +121,20 @@ def replace_table(text: str, new_table: str) -> str:
             continue
         out.append(lines[i])
         i += 1
-    assert replaced, "## Справочник header not found"
+    assert replaced, f"section header not found: {section_header!r}"
     return "".join(out)
 
 
-def rebuild(apply: bool, root: str = "AGENTS", index_paths: list[str] | None = None) -> int:
-    """Regenerate index files from <root>/**/*.md, write to index_paths."""
-    agents_rows, lessons_rows = collect(root)
-    agents_table = build_table(agents_rows)
-    lessons_table = build_table(lessons_rows)
-
-    if index_paths is None:
-        index_paths = ["AGENTS/AGENTS.md", "AGENTS/AGENTS-LESSONS.md",
-                       "AGENTS.md", "AGENTS-LESSONS.md"]
-    targets = []
-    for ip in index_paths:
-        if "LESSONS" in ip:
-            targets.append((ip, lessons_table))
-        else:
-            targets.append((ip, agents_table))
-    for path, table in targets:
+def rebuild(mode: str, index_path_override: list[str] | None = None, apply: bool = False) -> int:
+    cfg = MODE_CONFIG[mode]
+    rows = collect(mode)
+    table = build_table(rows)
+    targets = index_path_override if index_path_override else cfg["index_paths"]
+    for path in targets:
         p = Path(path)
         assert p.exists(), f"missing: {path}"
         old = p.read_text(encoding="utf-8")
-        new = replace_table(old, table)
+        new = replace_table(old, table, cfg["table_section"])
         if apply:
             if new != old:
                 p.write_text(new, encoding="utf-8")
@@ -123,25 +146,45 @@ def rebuild(apply: bool, root: str = "AGENTS", index_paths: list[str] | None = N
                 print(f"DRY {path}: would change ({len(old)} -> {len(new)} chars)")
             else:
                 print(f"DRY {path}: unchanged")
-
-    print(f"agents_rows={len(agents_rows)} lessons_rows={len(lessons_rows)}")
+    print(f"mode={mode} rows={len(rows)}")
     return 0
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(
+        description="Rebuild index tables for AGENTS / AGENTS-LESSONS / ROADMAP / ci-roadmap. SSoT: docs/docs-structure.md",
+        epilog=(
+            "Examples:\n"
+            "  %(prog)s --dry-run\n"
+            "  %(prog)s --apply --mode roadmap\n"
+            "  %(prog)s --apply --mode all\n"
+            "  %(prog)s --apply --index-path-override docs/roadmap/ROADMAP.md\n"
+            "\n"
+            "Modes: all (default) | agents | agents-lessons | roadmap | ci-roadmap.\n"
+            "Index format: | TOKEN | ID | Title | File | Anchor |.\n"
+            "Heading: ### [TOKEN] <ID> <title>. Anchor: #<id> (from SUBSECTION id).\n"
+            "For cutting/pasting use SUBSECTION_BEGIN/END: <id>, not the anchor.\n"
+            "Note: AGENTS index is empty until headings get [AGENTS]/[AGENTS-LESSONS]\n"
+            "(step 5 of T-44 migration). --apply is safe: it writes the empty table."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--dry-run", action="store_true")
-    g.add_argument("--apply", action="store_true")
-    ap.add_argument("--root", default="AGENTS")
-    ap.add_argument("--index-paths",
-                    default="AGENTS/AGENTS.md,AGENTS/AGENTS-LESSONS.md,AGENTS.md,AGENTS-LESSONS.md")
+    g.add_argument("--dry-run", action="store_true", help="show what would change")
+    g.add_argument("--apply", action="store_true", help="write index files")
+    ap.add_argument("--mode", default="all",
+                    choices=["all", "agents", "agents-lessons", "roadmap", "ci-roadmap"],
+                    help="which index to rebuild (default: all)")
+    ap.add_argument("--index-path-override", nargs="*", default=None, metavar="PATH",
+                    help="override default index paths (space-separated)")
     args = ap.parse_args()
-    idx = [x.strip() for x in args.index_paths.split(",") if x.strip()]
-    agents_rows, lessons_rows = collect(args.root)
-    print(f"collected: agents={len(agents_rows)} lessons={len(lessons_rows)}")
-    return rebuild(apply=args.apply, root=args.root, index_paths=idx)
+
+    modes = ["agents", "agents-lessons", "roadmap", "ci-roadmap"] if args.mode == "all" else [args.mode]
+    rc = 0
+    for m in modes:
+        rc |= rebuild(m, index_path_override=args.index_path_override, apply=args.apply)
+    return rc
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
