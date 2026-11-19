@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 <!-- SECTION_BEGIN: ci-roadmap-wip -->
 ## В работе
 
@@ -98,11 +99,6 @@ ___
 - `build-release` переносить на self-hosted сразу или после стабилизации? (Пока оставить на SaaS.)
 - Кастомный job-образ с Android SDK — отдельная задача после MVP.
 - Если 2 GB RAM на remote окажется мало — увеличить после внедрения.
-
-
-
-
-___
 <!-- SUBSECTION_END: c-5 -->
 
 
@@ -111,12 +107,9 @@ ___
 
 
 
-
-
-
-<!-- SUBSECTION_BEGIN: c-11 -->
-___
-### [WIP] C-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
+<!-- SECTION_END: ci-roadmap-wip -->
+<!-- FILE_END -->
+] C-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
 **Мобильная работа:** полное закрытие (правки `gradle.properties` / `app/build.gradle.kts` / `.github/workflows/` — proot + PR; гейт на CI).
 
 **Статус:** в работе — CDS done (`a3becccc`), cron #944 done (`2e7e3170`); Unsafe blocked on CI JDK 25 upgrade (follow-up).
@@ -191,4 +184,6 @@ ___
 
 
 
+
 <!-- SECTION_END: ci-roadmap-wip -->
+<!-- FILE_END -->

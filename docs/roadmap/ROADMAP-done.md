@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 <!-- SECTION_BEGIN: roadmap-done -->
 ## Сделано (ожидает архивации)
 
@@ -99,4 +100,10 @@ ___
 
 
 
+
+
+
+
+
 <!-- SECTION_END: roadmap-done -->
+<!-- FILE_END -->

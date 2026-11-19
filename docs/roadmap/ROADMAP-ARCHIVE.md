@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # ROADMAP-ARCHIVE
 
 Закрытые задачи из `docs/ROADMAP.md`.
@@ -11959,3 +11960,4 @@ ___
 **Открытые вопросы.**
 - D3 (из umbrella): partial vs full — **решено: partial (SearchItem) + lazy full на select**.
 - `SearchItem.instrumentType` — `InstrumentType` (domain enum) или `String` (proto)? — `InstrumentType`, маппинг в data.
+<!-- FILE_END -->

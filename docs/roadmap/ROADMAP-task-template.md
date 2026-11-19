@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 <!-- SECTION_BEGIN: ROADMAP-template -->
 ## Шаблон задачи
 Все поля обязательные. Задачи без заполненных полей не
@@ -62,15 +63,5 @@ clean-audit.
 ответ.
 ~~~
 
-
-
-
----
-
-
-
-
-<!-- SECTION_END: roadmap -->
-<!-- SECTION_BEGIN: roadmap -->
-
 <!-- SECTION_END: ROADMAP-template -->
+<!-- FILE_END -->

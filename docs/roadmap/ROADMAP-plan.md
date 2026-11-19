@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 <!-- SECTION_BEGIN: roadmap-plan -->
 ## Запланировано
 
@@ -64,8 +65,6 @@ oneoff); `r4j` упоминает все 4; `oneoff/seed_markers.py` в репо
 **Открытые вопросы:** `seed_markers.py` — в `oneoff/` или удалить
 (он одноразовый, применён)? Рекомендую `oneoff/` — история, как
 расставлялись маркеры.
-
-___
 <!-- SUBSECTION_END: t-2 -->
 
 
@@ -141,6 +140,180 @@ ___
 - Кэшировать между запусками (DataStore) или только в памяти? — в памяти для 1-й итерации.
 <!-- SUBSECTION_END: t-4 -->
 
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: t-40 -->
+___
+### [PLAN] T-40 PortfolioUiState: passthrough tradingStatuses StateFlow
+**Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** после T-9 (5b) `PortfolioViewModel` подписан на `tradingStatusRepository.statuses` и кладет результат в `_uiState.tradingStatuses` через `collect`. Orders работает иначе - passthrough: `val tradingStatuses: StateFlow<...> = tradingStatusRepository.statuses` (SSoT напрямую). T-40 - унифицировать Portfolio под паттерн Orders.
+
+**Соответствие Clean:** соответствует - presentation читает domain-контракт (StateFlow из repository), не копирует.
+
+**Нарушенное правило Clean:** -.
+
+**Clean-альтернатива:** -.
+
+**Выгоды (для «отклонение по 2c»):** -.
+
+**MVVM:** соответствует - `M5` предотвращен (нет двух полей на одно значение).
+
+**KMP:** - (не применимо, presentation).
+
+**Предусловия:** T-9 закрыт.
+
+**Файлы:** `presentation/screens/portfolio/PortfolioViewModel.kt`, `PortfolioUiState.kt`, `PortfolioScreen.kt`.
+
+**Шаги:**
+1. В VM: `val tradingStatuses = tradingStatusRepository.statuses` (passthrough).
+2. В `PortfolioUiState`: удалить `val tradingStatuses`.
+3. В Screen: `val tradingStatuses by viewModel.tradingStatuses.collectAsState()`; передавать в `PortfolioAccountBlock`.
+4. Гейт.
+
+**Тесты:** `PortfolioScreenBehaviourTest` - обновить mock если есть.
+
+**Референсы:** `OrdersViewModel.kt:70` (образец passthrough).
+
+**Ограничения:** не менять поведение UI; перенос только источника данных.
+
+**Критерий готовности:** UI получает `tradingStatuses` через passthrough; SSoT - `TradingStatusRepository`; гейт.
+
+**Оценка:** ~20-30 мин.
+
+**Зависимости:** T-9 (5b).
+
+**Связано:** T-9; T-41.
+
+**Открытые вопросы:** нет.
+<!-- SUBSECTION_END: t-40 -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: t-41 -->
+___
+### [PLAN] T-41 Orders: миграция tradingStatuses на TradingStatusFlowManager
+**Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** после T-9 (5b) `TradingStatusFlowManager` есть в domain. `OrdersViewModel` сейчас обновляет статусы on-demand: при смене списка инструментов - `updateTradingStatuses(idsToUpdate)` -> `UpdateTradingStatusesUseCase`. Работает, но: (а) между изменениями списка статусы устаревают (нет polling); (б) ids Portfolio и Orders могут пересекаться - два независимых fetch. Миграция на `TradingStatusFlowManager` даст единый polling + union ids.
+
+**Соответствие Clean:** соответствует - policy в domain-менеджере.
+
+**Нарушенное правило Clean:** -.
+
+**Clean-альтернатива:** -.
+
+**Выгоды (для «отклонение по 2c»):** -.
+
+**MVVM:** соответствует - VM триггерит `start/updateIds`, не оркестрирует polling.
+
+**KMP:** соответствует - manager в domain.
+
+**Предусловия:** T-9 закрыт (manager в проде, обкатан на Portfolio).
+
+**Файлы:** `presentation/screens/orders/OrdersViewModel.kt`, `OrdersCoordViewModel.kt` (если триггерит), `domain/api/managers/TradingStatusFlowManager.kt` (union-id логика).
+
+**Шаги:**
+1. Проверить текущие callsites `updateTradingStatuses` в Orders.
+2. Inject `TradingStatusFlowManager` в `OrdersViewModel`.
+3. `updateTradingStatuses(ids)` -> `manager.updateIds(ids)`.
+4. `onCleared` -> `manager.stop()`.
+5. Проверить union с Portfolio.
+6. Гейт.
+
+**Тесты:** `OrdersViewModelTest` - обновить mock (manager вместо UseCase).
+
+**Референсы:** T-9; `OrdersViewModel.kt:102`.
+
+**Ограничения:** не менять UI; миграция 1:1 по поведению.
+
+**Критерий готовности:** статусы в Orders обновляются через manager; union с Portfolio; гейт.
+
+**Оценка:** ~1-1.5 ч.
+
+**Зависимости:** T-9.
+
+**Связано:** T-9; T-40.
+
+**Открытые вопросы:** как `OrdersViewModel` триггерит `updateTradingStatuses` - на каждом изменении списка или на init? Уточнить при старте.
+<!-- SUBSECTION_END: t-41 -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: t-42 -->
+___
+### [PLAN] T-42 TradingStatus: stream API (subscribeTradingStatuses)
+**Мобильная работа:** полное закрытие (proot + PR; data + domain; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** T-9 реализует `TradingStatusFlowManager` polling-only (1 мин), потому что в `TInvest*Service` нет обертки над `MarketDataStreamService.subscribeTradingStatuses`. По `docs/rate-limits.md`: «На торговые статусы лимита подписок нет» - stream возможен. Полная аналогия с `PriceFlowManager` (stream primary + polling fallback) устранит polling в steady-state.
+
+**Соответствие Clean:** соответствует - stream-обертка в `data/api/tinvest/`, manager в `domain/api/managers/`.
+
+**Нарушенное правило Clean:** -.
+
+**Clean-альтернатива:** -.
+
+**Выгоды (для «отклонение по 2c»):** -.
+
+**MVVM:** - (не применимо, data+domain).
+
+**KMP:** соответствует - manager в domain, stream в data.
+
+**Предусловия:** T-9 закрыт.
+
+**Файлы:** `data/api/tinvest/TInvestTradingService.kt`, `TInvestBrokerApi.kt`, `domain/api/roles/TradingStatusStreamApi.kt` (новый), `domain/api/managers/TradingStatusFlowManager.kt`, `data/orchestrator/TInvestOrchestrator.kt` (если нужен stream-комбинатор).
+
+**Шаги:**
+1. Проверить T-Invest API `MarketDataStreamService.subscribeTradingStatuses` - сигнатура, формат.
+2. Обертка в `TInvestTradingService`: `Flow<TradingStatusStreamItem>`, reconnect через `StreamCombinators.retryWithBackoff`.
+3. Role `TradingStatusStreamApi` в domain.
+4. `TradingStatusFlowManager`: stream primary + polling fallback.
+5. `StreamStateTracker` - LIVE/POLLING/STALE.
+6. Гейт.
+
+**Тесты:** unit на `subscribeTradingStatuses` (mock stream); manager - stream primary vs polling fallback.
+
+**Референсы:** `PriceFlowManager.kt`, `TInvestPricesService.kt:54`, `docs/rate-limits.md:85`, `docs/streams.md`.
+
+**Ограничения:** polling fallback при потере stream; stream-лимит не считать.
+
+**Критерий готовности:** manager stream primary; polling только fallback; `StreamStateTracker` LIVE/POLLING; гейт.
+
+**Оценка:** ~3-4 ч.
+
+**Зависимости:** T-9.
+
+**Связано:** T-9; umbrella T-3 sub-1b (stream connection limiter).
+
+**Открытые вопросы:** есть ли у T-Invest SDK `MarketDataStreamService.subscribeTradingStatuses` в текущей версии - `grep 'ru.tinkoff.piapi.*TradingStatus'` при старте.
+<!-- SUBSECTION_END: t-42 -->
 
 
 
@@ -371,8 +544,6 @@ ___
 **Связано:** M018 (clean-audit), PR-2 (`SaveFormStateUseCase`), PR-4 (Mediator).
 
 **Открытые вопросы:** нет.
-
-___
 <!-- SUBSECTION_END: t-11 -->
 
 
@@ -547,11 +718,6 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 - Clean архитектура (umbrella-задача) — создаётся после
   `docs/architecture.md`, из раздела «Известные долги».
   Не входит в эту задачу.
-
-
-
-
-___
 <!-- SUBSECTION_END: t-12 -->
 
 
@@ -563,1545 +729,16 @@ ___
 
 
 
-<!-- SUBSECTION_BEGIN: t-14 -->
-___
-### [PLAN] T-14 UX-flow Variant D: broker + account до поиска
-**Мобильная работа:** невозможно (desktop; UI-ревизия диалога свойств слота + 6+ файлов + live-test).
 
-**Статус:** запланировано. **UI — требует санкции.**
 
-**Контекст:** follow-up к `### ✅ TradingStateSnapshot: CardIdentity? на слот` (PR #146, merge `071e7f3c`). Сейчас broker слота = `instrument.brokerName` (устанавливается при выборе инструмента), account выбирается **после** создания карточки (`onAccountSaved` / `onPairedAccountSaved`). Коллизия: «broker из инструмента vs broker слота» — если пользователь сменит broker в свойствах слота после выбора, состояние разъедется (сейчас broker после создания не меняется, но семантически — не выражено).
 
-**Variant D:** broker + account задаются в диалоге свойств слота **до** поиска. Поиск — у выбранного брокера. Выбор инструмента → `CardIdentity(broker, account, tscalpInstrumentId)` создаётся целиком. После создания — можно менять **только счёт** (broker зафиксирован).
 
-**Плюсы D:** SSoT (card атомарна), `onAccountSaved` / `onPairedAccountSaved` исчезают, usecase упрощаются, UX яснее.
 
-**Минусы D:** UI-санкция (AccountSelector в `SearchBrokerDialog`); поиск блокируется без инициализированного брокера; `restoreOrderForm` при неинициализированном брокере — «половинчатое» восстановление; scope ~3.5–4 ч.
 
-**Соответствие Clean:** соответствует.
 
-**Нарушенное правило Clean:** —.
 
-**Clean-альтернатива:** —.
 
-**Выгоды (для «отклонение по 2c»):** —.
 
-**MVVM:** соответствует.
-
-**KMP:** — (не применимо, presentation).
-
-**Предусловия:** PR #146 merged.
-
-**Файлы:** `OrderSearchState`, `OrderSearchViewModel`, `OrdersBrokerDialogs`, `OrderDialogsViewModel`, `OrdersDialogsSection`, `OrderFormViewModel`, `SelectInstrumentUseCase`, `SelectPairedInstrumentUseCase`.
-
-**Шаги:**
-1. **UI-санкция** (правило 1).
-2. `OrderSearchState` + `accountId` per slot.
-3. `OrderDialogsViewModel.saveSlotSettings(slot, broker, account)`.
-4. `SearchBrokerDialog` + AccountSelector.
-5. `OrderFormViewModel.onInstrumentSelected(instrument, cardIdentity)`.
-6. Удалить `onAccountSaved` / `onPairedAccountSaved` + callbacks.
-7. `SelectInstrumentUseCase` / `SelectPairedInstrumentUseCase` — упростить.
-8. Тесты.
-9. Live-test 7 сценариев.
-
-**Тесты:** ~10 новых + правки существующих.
-
-**Референсы:** `docs/architecture.md` → «CardIdentity и слоты»; PR #146; `### ✅ TradingStateSnapshot: CardIdentity? на слот`.
-
-**Ограничения:** UI-санкция; `TradingStateSnapshot` не трогать (PR #146); не смешивать с `### UI: кнопка swap слотов`; broker после создания disabled.
-
-**Критерий готовности:** broker+account до поиска; `CardIdentity` атомарна; `onAccountSaved` удалены; смена счёта работает; смена broker disabled; live-test PASS.
-
-**Оценка:** ~3.5–4 ч.
-
-**Зависимости:** PR #146 merged (yes).
-
-**Связано:** `### ✅ TradingStateSnapshot: CardIdentity? на слот` (PR #146); `### UI: кнопка swap слотов`.
-
-**Открытые вопросы:**
-1. Account selector без брокера — disabled или fallback?
-2. `restoreOrderForm` при неинициализированном брокере — ок или retry?
-3. `OrderSearchState` — плоский или `SlotSearchState(broker, account, query)`?
-<!-- SUBSECTION_END: t-14 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-15 -->
-___
-### [PLAN] T-15 Рефакторинг архитектурного долга (detekt-группа 3)
-**Статус:** запланировано.
-
-**Контекст:** при внедрении detekt 2.0.0-alpha.6 (см. задачу
-`detekt` в разделе выше) выявлены 10 групп архитектурного
-долга. Правила `LongMethod`, `CyclomaticComplexMethod`,
-`TooManyFunctions`, `LargeClass` подавлены в коде через
-`@Suppress` со ссылкой на эту секцию. `MagicNumber` (45
-записей) зафиксирован в `app/detekt-baseline.xml`.
-
-**Общие предусловия:**
-- Перед рефакторингом каждой группы — прогнать тесты,
-  зафиксировать текущее поведение.
-
-**Правила active по дефолту (уточнение 2026-10-31).** Задача
-`### detekt: включить архитектурные правила` закрыта слиянием
-с этой: `config/detekt/detekt.yml` использует
-`buildUponDefaultConfig = true`, 4 правила
-(`LongMethod`, `CyclomaticComplexMethod`, `TooManyFunctions`,
-`LargeClass`) не переопределены в `config/detekt/detekt.yml` и
-наследуют дефолт `active: true`. `@Suppress` в коде — реальные
-маркеры долга, а не декоративные (см. `grep "@Suppress\("
-app/src/main/kotlin`). Отдельная задача не нужна.
-- Разбивать на подзадачи: один класс / одна функция за раз,
-  коммит после каждого шага (правило 4b AGENTS.md).
-- После рефакторинга — снять `@Suppress`, убедиться что
-  detekt проходит без него.
-
-**Общие ограничения:**
-- Не менять UI без санкции (правило 1 AGENTS.md).
-- Не ломать публичные контракты без миграции вызывающих.
-- Тесты (63 unit) должны оставаться зелёными.
-
-**Общий критерий готовности:** все `@Suppress` из этой секции
-сняты; `:app:detekt` проходит без новых подавлений; тесты
-зелёные.
-
-**Оценка:** ~15–20 часов суммарно.
-
-**Зависимости:** нет.
-
-
-
-
-___
-
-
-
-
-#### Compose-экраны
-
-**Перенесено в umbrella** `### Compose UI: test infra + 3 экрана (3 проходки)` (см. выше по приоритету; подсекции U0–U3). Здесь оставлен только маркер — не дублировать. `#### Compose-компоненты` — закрыта (2026-11-11, `ROADMAP-ARCHIVE.md`); остаток — Н94 (`clean-audit.md`).
-
-
-
-
-___
-
-
-
-#### BrokerApi-реализации
-
-**Архитектурный долг, вынесено в отдельную задачу.**
-`### Рефакторинг BrokerApi-реализаций (D)` — см. «Планируемые
-задачи». Полный план (TInvest WS/REST split, BCS/Finam
-отложены) — там.
-
-
-
-
-___
-
-
-
-
-#### Репозитории
-
-**Файлы:** `data/repository/InvestRepository.kt` (16 функций),
-`data/repository/SettingsRepository.kt` (15).
-
-**Пути решения:** разбить по доменным областям (аккаунты,
-заявки, портфель, стримы — для `InvestRepository`; токены,
-настройки UI, режим sandbox — для `SettingsRepository`).
-
-**Архитектурный долг, вынесено в отдельную задачу.**
-`InvestRepository` — `### Разбивка InvestRepository по
-доменным областям` (см. «Планируемые задачи»). Полная
-оценка, scope и Clean-граница (`domain.api.repository.*`
-интерфейсы + миграция ViewModel) — там.
-
-`SettingsRepository` — **остаётся здесь** (не в scope той
-задачи, отдельная работа).
-
-**Оценка:** ~2 часа (устаревшая оценка для `InvestRepository`;
-актуально — см. новую задачу, ~5–6 ч с Clean-границей.
-Для `SettingsRepository` — ~2 ч, оценка актуальна).
-
-
-
-
-___
-
-
-
-
-#### Data-слой T-Invest
-
-**Файлы:**
-- `data/api/tinvest/TInvestPortfolioService.kt` —
-  `fetchPortfolioPositions` (was `fetchPositionsSnapshot`; complexity 26).
-- `data/api/tinvest/TInvestInstrumentMapper.kt` — `mapProtoToDomain`
-  (118 строк).
-
-**Пути решения:** `fetchPortfolioPositions` (was `fetchPositionsSnapshot`)
-разбить на `fetchPortfolio` + `enrichWithInstrumentData` +
-`enrichWithMarginData`. `mapProtoToDomain` — на
-`mapFutures` / `mapShares` / `mapDefault`.
-
-**Оценка:** ~2 часа.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-15 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-16 -->
-___
-### [PLAN] T-16 Orders: P&L в песочнице (expectedYield)
-**Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с SBER).
-
-**Статус:** запланировано.
-
-**Контекст:** Pre-existing bug (воспроизведён на `dev` при live-тесте 2026-11-03 после PR #89). На **песочном** счёте `profit` / `profitPercent` на карточке заявки показывают **нули**. На боевом счёте — корректно. Причина по коду:
-- `TInvestPortfolioService.fetchPortfolioPositions`: `expectedYield = pos.expectedYield?.let { it.units + it.nano / 1_000_000_000.0 }` — в sandbox `GetPortfolio.expectedYield` может быть `null` (серверное ограничение / sandbox не считает P&L). `Position.profit = null` → `profitPercent = null`.
-- `refreshLastSelectedInstruments`: `.profit = pos?.profit ?: 0.0`, `.profitPercent = pos?.profitPercent ?: 0.0` — **null превращается в 0.0**. UI показывает «0», не «—».
-
-**Соответствие Clean:** соответствует (баг-фикс).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды:** —.
-
-**Предусловия:** нет. (PR #89 не виноват — идентично `dev` до миграции.)
-
-**Файлы (ожидаемые):**
-- `presentation/screens/orders/OrdersViewModel.kt` — `refreshLastSelectedInstruments` (`?: 0.0`).
-- `presentation/screens/orders/OrdersUiState.kt` — `SelectedInstrumentInfo.profit: Double?` / `profitPercent: Double?` (сейчас `Double`, не `Double?` — проверить).
-- `presentation/screens/orders/OrdersScreen.kt` — отображение P&L (`if (profit == null) "—" else format(...)`).
-- `data/api/tinvest/TInvestPortfolioService.kt` — только диагностика (`expectedYield` в sandbox).
-- `domain/models/Portfolio.kt` — `Position.profitPercent` getter (уже `null`-safe).
-
-**Шаги:**
-
-0. **Диагностика (обязательно до фикса).** В песочнице: 2 счёта, SBER, купить, `logger.d` в `TInvestPortfolioService` (raw `pos.expectedYield` от `GetPortfolio`), `PositionFlowManager.mergePartial` (profit), `updatePositionsFromSheet` (profit/profitPercent), `refreshLastSelectedInstruments` (pos?.profit). Собрать лог. **Гипотеза для проверки:** `GetPortfolio.expectedYield == null` в sandbox.
-1. **По результатам шага 0 — выбрать вариант:**
-    - **A (минимальный, если `expectedYield = null`).** `refreshLastSelectedInstruments`: убрать `?: 0.0` для `profit` / `profitPercent` (сохранять `null`). UI показывает «—» вместо «0». `profitPercent` в `SelectedInstrumentInfo` — `Double?` (если сейчас `Double` — миграция типа). Плюс: P&L не врёт (0 ≠ «неизвестно»). Минус: правка `SelectedInstrumentInfo` (тип) + UI.
-    - **B (client-side fallback).** При `expectedYield == null` и `averagePrice > 0`: `profit = (currentPrice - avgPrice) * quantity * moneyPerPointOfPrice`. Это пересекается с `### P&L: sandbox client-side fallback для Position` (низкий приоритет в ROADMAP). Возможно, объединить — «sandbox P&L» = частный случай client-side fallback.
-    - **C (не чинить).** Признать sandbox-ограничение, документировать в `docs/ISSUES.md` («P&L в песочнице: expectedYield = null, UI показывает 0»). Боевой счёт работает — не блокер.
-
-   **Рекомендация:** **A** + запись в `docs/ISSUES.md` про sandbox-ограничение. B — отдельная задача (`P&L: client-side fallback`).
-2. Если A: `SelectedInstrumentInfo.profit: Double?` / `profitPercent: Double?`; `refreshLastSelectedInstruments` — без `?: 0.0`; `OrdersScreen` — `profit?.let { format(...) } ?: "—"`.
-3. UI-санкция (правило 1): отображение «—» вместо «0» на карточке заявки — согласовать.
-4. Тесты: `refreshLastSelectedInstruments` — unit (если появится mock-инфра). Live: sandbox — «—», prod — корректный P&L.
-5. Гейт.
-
-**Тесты:** live-тест sandbox + prod.
-
-**Референсы:** `### P&L: sandbox client-side fallback для Position` (B-вариант, low priority); `### Position: источники priceChangePercent и lockedQuantity` (`GetPositions` — альтернативный источник P&L); `docs/ISSUES.md`.
-
-**Ограничения:**
-- Не чинить B в этой задаче (отдельная `P&L: client-side fallback`).
-- UI-санкция (правило 1): «—» вместо «0».
-- Не менять `TInvestPortfolioService` без подтверждения диагностики.
-
-**Критерий готовности:**
-- В песочнице: `profit` / `profitPercent` на карточке — «—» (не «0»); в `docs/ISSUES.md` — запись про `expectedYield = null` в sandbox.
-- На боевом счёте — P&L корректный (без регресса).
-- Гейт зелёный; live-тест PASS.
-
-**Оценка:** ~1.5–2 ч (диагностика 30 мин, A-фикс 30 мин, live-тест 30 мин, гейт 15 мин, резерв).
-
-**Зависимости:** нет.
-
-**Связано:** `### P&L: sandbox client-side fallback для Position` (B-вариант, отдельная задача); `### Position: источники priceChangePercent и lockedQuantity`.
-
-**Открытые вопросы:** `expectedYield` в sandbox — `null` или `0`? Определить шагом 0. Если `0` — возможно, UI показывает 0 корректно (нет P&L), но это не отличимо от «реальный ноль»; тогда — отдельный `ISSUES.md` без фикса.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-16 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-17 -->
-___
-### [PLAN] T-17 Margin/risk → TradeCheckResult
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** margin/risk-поля (`initialMarginOnBuy/Sell`, `dlong/kshort`, `dlongMin/dshortMin`, `klong/kshort`) — account-specific. У T-Invest — свойства инструмента в `Future`/`Option`. У Finam — `AssetsService/GetAssetParams` с `account_id` (per-account). Это **не свойство инструмента**, а «доступность в этом счёте». Сейчас лежат в `FutureUi`, что мешает и чистоте (не property of instrument), и мультиброкерности (у BCS/Finam другой источник).
-
-**Соответствие Clean:** соответствует (domain-модель разделяется по ответственности).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** `### Instrument: C-min → sealed interface (две фазы)` — Phase 2 закрыта (в Phase 2 однозначно видно, что margin — Future-specific и account-specific).
-
-**Файлы:**
-- `app/src/main/kotlin/.../domain/models/Instruments.kt` — удалить margin/risk из `Future`, `Option`.
-- `app/src/main/kotlin/.../domain/models/TradingStatus.kt` (или новый `MarginInfo.kt`) — `MarginInfo` (или расширить `TradeCheckResult`).
-- `app/src/main/kotlin/.../data/api/tinvest/` — мапперы T-Invest: margin из `Future`/`GetFuturesMargin`.
-- Finam — при реализации `GetAssetParams`.
-- `app/src/main/kotlin/.../domain/usecases/CalculateTradeDetailsUseCase.kt` — использовать `MarginInfo` (если нужно).
-
-**Шаги:**
-1. Решить форму: новый `MarginInfo` (отдельная модель) или расширение `TradeCheckResult` (`margin: MarginInfo?`).
-2. Удалить margin/risk из `Future`/`Option` (после Phase 2).
-3. Добавить `MarginInfo` (buy/sell margin, klong/kshort, dlong/dshort, dlongMin/dshortMin, dlongClient/dshortClient — nullable).
-4. T-Invest: маппер — из `Future`/`GetFuturesMargin` в `MarginInfo` (через `TradeCheckResult`).
-5. Finam: при реализации `GetAssetParams` — маппинг.
-6. Тесты: `MarginInfo` (T-Invest futures), `TradeCheckResult.margin` (success/failure).
-7. Гейт.
-
-**Тесты:** `MarginInfo` (T-Invest futures), `TradeCheckResult.margin` (success/failure), Finam — при реализации.
-
-**Референсы:** proto T-Invest `Future` (`initial_margin_on_buy/sell`, `dlong*`, `klong/kshort` — deprecated), `GetFuturesMarginResponse`. Finam `GetAssetParams` (`long_initial_margin`, `short_initial_margin`, `long_risk_rate`, `short_risk_rate`, `longable`, `shortable`).
-
-**Ограничения:**
-- Не смешивать с `### Instrument: C-min → sealed interface` — отдельная задача после Phase 2.
-- `klong`/`kshort` — `[deprecated = true]` в T-Invest proto; в `MarginInfo` можно не включать, зафиксировать в KDoc.
-- Не менять UI без санкции.
-
-**Критерий готовности:**
-- `MarginInfo` (или `TradeCheckResult.margin`) создан.
-- Margin/risk не в `Instrument`/`Future`/`Option`.
-- T-Invest маппинг работает (unit-тесты).
-- Finam — заглушка (при реализации).
-- Гейт зелёный.
-
-**Оценка:** ~2 ч.
-
-**Зависимости:** `### Instrument: C-min → sealed interface (две фазы)` — Phase 2.
-
-**Связано:** `docs/domain_models.md` §6 «Вне модели»; `docs/clean-audit.md` → Н5 (концептуальное разделение модели).
-
-**Открытые вопросы:**
-- Форма: отдельный `MarginInfo` или поле в `TradeCheckResult` — решить при старте.
-- `klong`/`kshort` — deprecated в T-Invest; включать в модель или нет — решить при старте.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-17 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-18 -->
-___
-### [PLAN] T-18 T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** в Phase 2 (§8 шаг 3) `mapShare` / `mapFuture` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` принимают `ProtoInstrument` — bulk-тип, в котором **нет** subtype-specific полей. Поэтому `mapShare` возвращает `Share` с `ipoDate = null`, `issueSize = null`, ...; `mapFuture` — `Future` с `firstTradeDate = null`, ...; и т.д. Поля из §5 (`ipoDate`, `issueSize`, `futureType`, `firstTradeDate`, `faceValue`, `couponRate`, `direction`, `strikePrice`, ...) **не заполняются**. Это `0.2`/`0.3` для T-Invest proto — §8 шаг 0.1 говорит «`Share`/`Future`/`Option`/`Instrument` уже получены 2026-11-01», но маппинг не сделан.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `data/api/tinvest/TInvestInstrumentMapper.kt` — переписать `mapShare` / `mapFuture` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` на proto `Share` / `Future` / `Bond` / `Option` / `Etf` / `Currency`.
-- `data/api/tinvest/TInvestInstrumentsService.kt` — `fetchProtoInstrument` возвращает `Instrument` (bulk); для каждого типа — отдельный вызов SDK (`Shares().shareBy` / `Futures().futureBy` / ...) или `Instrument` + `GetInstrumentBy` c `instrumentKind`.
-- `data/api/tinvest/TInvestRestMappers.kt` / `TInvestRestInstrumentMappers.kt` — то же для REST (если REST отдаёт `Share`/`Future`/... — сейчас `RestInstrument` единый).
-- `data/repository/InstrumentRepositoryImpl.kt` — если нужен кэш по типу.
-
-**Шаги:**
-1. Проверить, какие proto-типы T-Invest SDK доступны (`Share` / `Future` / `Bond` / `Option` / `Etf` / `Currency`).
-2. Переписать 6 мапперов на proto-subtype (T-Invest API: `InstrumentsService.Shares` / `Futures` / `Bonds` / `Options` / `Etfs` / `Currencies`).
-3. `fetchProtoInstrument` → `fetchProtoInstrumentByType` (dispatcher по `instrumentType`).
-4. Заполнить subtype-specific в 6 data class.
-5. `Bond` / `Option` / `Etf` / `Currency` — тоже заполнить (не только `Future` / `Share`).
-6. Тесты: 6 мапперов (unit).
-
-**Тесты:** `TInvestInstrumentMapperTest` — 6 функций, каждый subtype-specific-поле проверено.
-
-**Референсы:** proto T-Invest: `ru.tinkoff.piapi.contract.v1.{Share, Future, Bond, Option, Etf, Currency}`; SDK: `InstrumentsService` (`shares` / `futures` / `bonds` / `options` / `etfs` / `currencies`).
-
-**Ограничения:**
-- Не менять `Instrument` интерфейс — только заполнение subtype-specific.
-- `mapOther` — остаётся `Other` без subtype-specific (по §5).
-- REST fallback: `RestInstrument` — единый DTO; если REST не даёт subtype-specific — оставить `null` (см. §8 «при реализации BCS/Finam»).
-
-**Критерий готовности:**
-- `mapShare` / `mapFuture` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` заполняют subtype-specific поля (не `null` по умолчанию).
-- Тесты мапперов — 6 функций, subtype-specific поля проверены.
-- Гейт зелёный.
-
-**Оценка:** ~4–6 ч.
-
-**Зависимости:** нет.
-
-**Связано:** `docs/domain_models.md` §5, §8 шаг 3; `### Пакет C: TInvestMarketDataService split` (образец).
-
-**Открытые вопросы:** какие proto-поля `Bond` / `Etf` / `Currency` точно доступны — при реализации подтвердить.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-18 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-19 -->
-___
-### [PLAN] T-19 Position: источники priceChangePercent и lockedQuantity
-**Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** `Position` (sealed, 7 subtypes) имеет computed-поля `priceChangePercent: Double?` и `lockedQuantity: Double?`, но `PositionStreamItem` их не содержит (коммит «Portfolio: модель портфеля» добавляет конвертер `toPosition` с этими полями = `null`). Нужны источники в мапперах брокеров:
-- **`priceChangePercent`** — изменение цены за торговый день, % от цены открытия. **Не** `(currentPrice - averagePrice) / averagePrice` (это P&L, отдельно). Источники: T-Invest `dailyYieldRelative` (`PositionData`), BCS `dailyPercentPL`, Finam `daily_pnl`.
-- **`lockedQuantity`** — заблокированное количество бумаг. T-Invest `blocked` в позициях `securities`/`futures`/`options`, BCS `locked`, Finam — `null` (у Finam `maintenance_margin` — деньги ГО, не бумаги).
-
-Сейчас в `PositionStreamItem` эти поля отсутствуют, конвертер отдаёт `null` (правило 2d — временное, задача = полное).
-
-**Соответствие Clean:** соответствует (расширение domain-модели + мапперов).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** `### Portfolio: модель портфеля` — закрыта (конвертер `toPosition` реализован).
-
-**Файлы:**
-- `domain/models/Portfolio.kt` — `PositionStreamItem + priceChangePercent: Double? = null + lockedQuantity: Double? = null`.
-- `data/api/tinvest/TInvestPortfolioService.kt` — из `PositionData.dailyYieldRelative`, `PositionsSecurities.blocked`.
-- `data/api/tinvest/TInvestPositionsWsMapper.kt` — из `PositionsStreamResponseDto` (`dailyYieldRelative`, `blocked`).
-- `data/api/tinvest/TInvestRestMappers.kt` / `TInvestRestInstrumentMappers.kt` — из `RestPosition` (если DTO содержит).
-- `data/api/bcs/BcsBrokerApi.kt` — `dailyPercentPL`, `locked`.
-- `data/api/finam/FinamBrokerApi.kt` — `daily_pnl`, `locked = null`.
-- `presentation/screens/portfolio/PortfolioViewModel.kt` — убрать локальный пересчёт `priceChangePercent` из tick-to-tick (`updatePriceFromStream`); брать из `Position`.
-- `presentation/components/AssetPositionCard.kt` — tick-delta для анимации цвета считать локально (из `previousPrice`), не из VM.
-
-**Шаги:**
-1. `PositionStreamItem` — 2 новых поля.
-2. Мапперы T-Invest — заполнить из `dailyYieldRelative` / `blocked`.
-3. Мапперы BCS / Finam — при реализации брокеров (эта задача — только T-Invest; BCS/Finam — заглушки `null`).
-4. `toPosition` — передавать поля в `Position` (без хардкода `null`).
-5. `PortfolioViewModel.updatePriceFromStream` — убрать пересчёт `changePercent`; тик-дельту для цвета считать в `AssetPositionCard` локально.
-6. Тесты мапперов (T-Invest) + `AssetPositionCard` превью с `priceChangePercent != null`.
-7. Гейт.
-
-**Тесты:** `TInvestPositionsWsMapperTest` / `TInvestRestMappersTest` — `priceChangePercent`, `lockedQuantity` заполнены. `PositionTest` (если есть) — `toPosition` передаёт поля.
-
-**Референсы:** proto T-Invest `PositionData.daily_yield_relative`, `PositionsSecurities.blocked`. BCS `https://trade-api.bcs.ru/http/portfolio`. Master-plan `docs/domain_models.md` §4.
-
-**Ограничения:**
-- **UI-санкция** (правило 1): `PortfolioViewModel` перестаёт считать tick-to-tick `priceChangePercent`; `AssetPositionCard` считает локально. Визуально — оба элемента (карточка и P&L-секция) сохраняют цветовую индикацию, но карточка — от `dailyYieldRelative` (стабильно в течение дня, без мигания при каждом тике), P&L-секция — от `profitPercent`.
-- `lockedQuantity` — `Double?`, как и в модели.
-- Не смешивать с `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта` (там `money`/`blocked` валюты) — это про позиции бумаг.
-- Не трогать `PortfolioPosition` (legacy) — миграция в `### OrdersViewModel: миграция на PortfolioSheet`.
-
-**Критерий готовности:**
-- `PositionStreamItem.priceChangePercent` / `lockedQuantity` заполняются в T-Invest мапперах.
-- `Position` (из `toPosition`) содержит значения.
-- `PortfolioViewModel` не пересчитывает `priceChangePercent` через тик-дельту.
-- `AssetPositionCard` анимация цвета — на локальной тик-дельте, цвет — на `position.priceChangePercent`.
-- Гейт зелёный.
-
-**Оценка:** ~2–3 ч (поля 10 мин, T-Invest мапперы 45 мин, `toPosition` 10 мин, VM+Card 1 ч, тесты 30 мин, гейт 15 мин).
-
-**Зависимости:** `### Portfolio: модель портфеля` (blocker).
-
-**Связано:** `### Portfolio: модель портфеля`; `### OrdersViewModel: миграция на PortfolioSheet`; `### UI: разбивка AccountBalance.total на money/blocked в шапке счёта` (разные `blocked`); `docs/domain_models.md` §4.
-
-**Открытые вопросы:**
-- `AssetPositionCard` сейчас принимает `priceChangePercent: Double?` параметром. После задачи — брать из `position.priceChangePercent`? Или оставить параметром (гибче для тестов)? **Рекомендация:** из `position` (модель знает, UI читает).
-
-
-
-
-___
-<!-- SUBSECTION_END: t-19 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-20 -->
-___
-### [PLAN] T-20 UI: кнопка swap слотов (primary ↔ pair)
-**Мобильная работа:** частичное (live-тест UI).
-
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** по `docs/architecture.md` → «CardIdentity и слоты» α-вариант:
-swap карточек между слотами возможен через временный счёт или через
-удаление + пересоздание. UX-неудобно (3–4 действия). Нужна явная кнопка
-swap рядом со slider «Парная торговля».
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** Фаза 1b закрыта (composite key + слоты работают).
-
-**Файлы:**
-- `presentation/screens/orders/OrdersPairTrading.kt` — новый IconButton
-  рядом со slider «Парная торговля».
-- `presentation/screens/orders/OrderFormViewModel.kt` — `swapSlots()`:
-  exchange `selectedInstrument` / `pairedInstrument`, `selectedBroker` /
-  `pairedBroker`, `selectedAccountId` / `pairedAccountId`; `saveState()`.
-- `presentation/screens/orders/OrdersScreen.kt` — передача `onSwapSlots`.
-
-**Шаги:**
-1. **UI-санкция** (правило 1): согласовать иконку, текст, положение
-   относительно slider.
-2. `OrderFormViewModel.swapSlots()` — атомарный swap полей слота.
-3. UI-кнопка.
-4. Live-test: primary SBER(A) + pair SBER(B) → swap → primary SBER(B) +
-   pair SBER(A); сохранить в DataStore; после перезапуска — то же.
-
-**Тесты:** `OrderFormViewModelTest.swapSlots` (unit).
-
-**Референсы:** `docs/architecture.md` → «CardIdentity и слоты»; Фаза 1b.
-
-**Ограничения:** не смешивать с Фазой 1b (отдельный PR). UI-санкция.
-
-**Критерий готовности:** кнопка swap работает; слоты меняются местами;
-переживает перезапуск; гейт зелёный; live-test PASS.
-
-**Оценка:** ~2–3 ч (с UI-санкцией).
-
-**Зависимости:** Фаза 1b.
-
-**Связано:** `### Рефакторинг: tscalpInstrumentId в CardIdentity + весь domain`.
-
-
-
-
----
-<!-- SUBSECTION_END: t-20 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-21 -->
-___
-### [PLAN] T-21 KMP: domain → commonMain
-**Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
-
-**Статус:** запланировано.
-
-**Контекст:** цель — перевести `domain` в `:shared/commonMain` для KMP. Аудит 2026-10-29 (`docs/architecture.md` → «KMP readiness»): 4 блокера. Domain почти готов (repository/api/roles/log — чисты); #1 (`Instant`) и #3 (`currentTimeMillis`) закрыты в PR #73.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** Koin (снимает `javax.inject`), фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`) — задачи ниже. #1 (`Instant`) и #3 (`currentTimeMillis`) закрыты в PR #73.
-
-**Файлы:**
-- `settings.gradle.kts` — новый модуль `:shared` (KMP).
-- `shared/build.gradle.kts` — `commonMain` + `androidMain`.
-- `app/build.gradle.kts` — `:app` depends on `:shared`.
-- Переезд `domain/` → `shared/src/commonMain/kotlin/...`.
-
-**Шаги:**
-1. ✅ Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — закрыто (PR #73).
-2. Фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`).
-3. Koin.
-4. Создать `:shared` (KMP module): `commonMain` + `androidMain`.
-5. `git mv` domain → `shared/src/commonMain/kotlin/...`.
-6. `:app` depends on `:shared`; data импортирует domain из `:shared`.
-7. Тесты domain → `shared/src/commonTest`.
-8. Гейт.
-
-**Тесты:** domain-тесты → `commonTest`.
-
-**Референсы:** `docs/architecture.md` → «KMP readiness».
-
-**Ограничения:** `data` — не в этой задаче (`androidMain` split — отдельная фаза).
-
-**Критерий готовности:** `domain` в `:shared/commonMain`; `:app:compileDebugKotlin` зелёный.
-
-**Оценка:** ~3–4 ч (после #4, Koin).
-
-**Зависимости:** Koin, `### KMP: инжект CoroutineDispatcher вместо Dispatchers.IO`. #1 (`Instant`) и #3 (`currentTimeMillis`) закрыты в PR #73.
-
-**Связано:** `### Плавный переход Hilt → Koin`, `docs/architecture.md`.
-
-**Открытые вопросы:**
-- `:shared` с Android target — `androidLibrary` или `com.android.kotlin.multiplatform.library`? Уточнить при старте.
-- `domain/log/Logger` — остаётся интерфейсом (`AndroidAppLogger` в `:app/data/log`).
-
-
-
-
-___
-<!-- SUBSECTION_END: t-21 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-23 -->
-___
-### [PLAN] T-23 UI: показать executedPrice / executedQuantity на карточке
-**Мобильная работа:** частичное (live-тест UI).
-
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** после Split order (коммит `ec9c7d5`) в `Order.Regular` появились поля `executedPrice: Double?` (фактическая цена исполнения) и `executedQuantity: Long` (фактически исполненное количество, может быть меньше `quantity` при частичном исполнении). Данные приходят из мапперов (gRPC: `lotsExecuted` / `executedOrderPrice`, REST: `lotsExecuted` / `executedOrderPrice`), но `OrderCard` их не отображает. Пользователь пока не определил визуальное размещение.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** `### Split order domain into sealed Regular/Stop` (закрыта, `ec9c7d5`).
-
-**Файлы:**
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/ui/components/OrderCard.kt` — новые параметры, отображение, `@Preview`.
-- `app/src/main/kotlin/com/gitlab/biomorf/tscalp/ui/components/OrdersListDialog.kt` — передача полей из `Order.Regular`.
-
-**Шаги:**
-1. **Санкция на UI** (правило 1): согласовать вариант размещения (A/B/C ниже), тексты, форматирование.
-2. `OrderCard`: добавить `executedPrice: Double? = null`, `executedQuantity: Long = 0L`.
-3. `OrdersListDialog`: для `Order.Regular` передавать `order.executedPrice` / `order.executedQuantity`; для `Order.Stop` — `null` / `0`.
-4. Реализовать отображение по выбранному варианту.
-5. Обновить `@Preview` в `OrderCard`: добавить кейс частичного исполнения.
-6. Гейт: полный.
-
-**Варианты размещения (требуют санкции):**
-- **A. Дополнить правую колонку.** Вместо `"$quantity лотов"` — `"$executedQuantity / $quantity лотов"` (если `executedQuantity > 0`). Под ценой — `formatPrice(executedPrice)` мелким шрифтом. Минимальное изменение, карточка не растёт.
-- **B. Строка в левой колонке.** Под `status` добавить строку `"Исполнено: N лотов по X"` (только при `executedQuantity > 0`). Явно, но удлиняет карточку.
-- **C. Замена при полном исполнении.** При `status == "FILL"` показывать только `executedPrice` / `executedQuantity`, скрывая исходные `price` / `quantity`. Чище визуально, но скрывает информацию о заявке.
-
-Рекомендация: **A**.
-
-**Тесты:** обновить `@Preview` (добавить `Regular` с `executedPrice = 151.0, executedQuantity = 5`). Unit-тестов нет (UI).
-
-**Референсы:** `docs/ROADMAP.md` → `### Split order domain into sealed Regular/Stop` (закрыта). `docs/clean-audit.md` → Н4.
-
-**Ограничения:** не менять модель `Order`. Не менять `OrderCard` без санкции (правило 1). Не смешивать с другими UI-задачами.
-
-**Критерий готовности:** на карточке отображается исполненная цена и количество (для частично/полностью исполненных). Визуальное изменение согласовано. Гейт зелёный.
-
-**Оценка:** ~1–1.5 ч (включая согласование UI).
-
-**Зависимости:** нет.
-
-**Связано:** `### Split order domain into sealed Regular/Stop`; `docs/clean-audit.md` → Н4; `docs/ROADMAP.md` → `### Split order domain into sealed Regular/Stop`.
-
-**Открытые вопросы:** какой вариант размещения (A/B/C)? Показывать ли при `executedQuantity == 0`? Нужно ли отображать для `Order.Stop` (сейчас полей нет — только `null`/`0`)?
-
-
-
-
-___
-<!-- SUBSECTION_END: t-23 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-24 -->
-___
-### [PLAN] T-24 UI-индикатор состояния стримов
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** пользователь не может оценить на глаз,
-актуальны ли данные. Индикатор снимает вопрос
-«это задержка или данные устарели».
-
-**Предусловия:** `StreamState` реализован во всех трёх
-менеджерах (факт), но задача StreamState **не закрыта** —
-deferred closure, ждёт фикса debug-тумблеров и повторного
-live-теста. UI-индикатор блокируется **закрытием** StreamState,
-не реализацией.
-
-**Файлы:**
-- `presentation/.../MainScreen.kt` (или где определён NavBar) —
-  бейдж-точка на иконке вкладки.
-- `presentation/.../SettingsScreen.kt` — раздел «Диагностика».
-- `presentation/.../MainViewModel.kt` (или соответствующие
-  ViewModels) — проброс `StreamState` в UI.
-
-**UI-описание:**
-
-- **Бейдж-точка** на иконке вкладки:
-  - Заявки → `PriceFlowManager.connectionState`;
-  - Портфель → `PositionFlowManager.connectionState`;
-  - POLLING → 🟡 (`MaterialTheme.colorScheme.tertiary`);
-  - STALE → 🔴 (`MaterialTheme.colorScheme.error`);
-  - LIVE / INITIALIZING / STOPPED → **бейджа нет** (тишина = норма).
-- **Snackbar** при переходе в деградацию:
-  - debounce 3 секунды;
-  - тексты: см. п. «Тексты» ниже;
-  - восстановление в LIVE — без Snackbar.
-- **Раздел «Диагностика»** в Настройках:
-  - текущее состояние обоих стримов;
-  - время последнего обновления;
-  - источник (gRPC/REST/WS);
-  - расшифровка цветов бейджа.
-
-**Тексты:**
-- POLLING (цены): «Стрим цен: резервный режим. Обновление раз в 5 секунд.»
-- POLLING (позиции): «Стрим позиций: резервный режим. Обновление раз в 10 секунд.»
-- STALE (цены): «Стрим цен: нет данных. Проверьте соединение.»
-- STALE (позиции): «Стрим позиций: нет данных. Проверьте соединение.»
-
-**Ограничения:**
-- **Не менять** цвет текста NavBar — конфликт с семантикой
-  selected/unselected.
-- **Не делать** long-press на вкладке — не discoverable,
-  конфликт с системным long-press. Подсказка доступна через
-  раздел «Диагностика».
-
-**Критерий готовности:**
-- При переходе стрима в POLLING появляется жёлтая точка
-  и один Snackbar (не повторяется каждые N секунд).
-- При STALE — красная точка и Snackbar.
-- Раздел «Диагностика» показывает актуальное состояние.
-
-**Оценка:** ~2 часа.
-
-**Зависимости:** блокируется StreamState.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-24 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-25 -->
-___
-### [PLAN] T-25 UI: разбивка AccountBalance.total на money/blocked в шапке счёта
-**Мобильная работа:** частичное (live-тест UI).
-
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** в `AccountHeaderCard` (шапка счёта на `PortfolioScreen`) сейчас
-показывается `AccountBalance.total` (= `money + blocked`) через
-`formatDomesticCurrency(total)` или «нет данных». Пользователь не видит
-разбивку: сколько свободно (`money`), сколько заблокировано (`blocked`).
-Для валютных счетов с ненулевым `blocked` (например, средства под
-заявками) эта информация важна. Изначальная задача «UI: отображение
-blocked на валютной карточке» устарела: валютная карточка
-`RUB000UTSTOM` удалена в `Portfolio: модель портфеля`, `money`/`blocked`
-переехали в `AccountBalance`, а не в `PortfolioPosition`.
-
-**Соответствие Clean:** соответствует (presentation-изменение, dependency rule не затронута).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:**
-- `AccountBalance.money` / `.blocked` заполняются в `PositionFlowManager` /
-  `PortfolioRepository` (проверить WS + polling + seed-путь;
-  `docs/architecture.md` → «Data flow: позиции»).
-- Формула связи `money` ↔ `blocked` ↔ `quantity` для валютных счетов —
-  не подтверждена (`docs/ISSUES.md` → «T-Invest WebSocket: решён — канал
-  должен быть в URL path»). До выяснения показывать `money` и `blocked`
-  как **отдельные значения**, не производные.
-
-**Файлы:**
-- `presentation/screens/portfolio/AccountHeaderCard.kt` — отображение
-  (варианты ниже).
-- `presentation/screens/portfolio/PortfolioViewModel.kt` — если нужен
-  `AccountBalance` целиком (сейчас в `AccountHeaderCard` только `rubBalance`).
-
-**Варианты отображения (требуют санкции):**
-
-- **A. Дополнительная строка в шапке.** Под `total` — «Свободно: X ₽ ·
-  Заблокировано: Y ₽». Появляется только при `blocked != null && blocked > 0`.
-  Минимум правок, явно.
-- **B. Развёрнутая шапка по тапу.** Обычный вид — `total`; по тапу
-  детализация `money` / `blocked`. Требует состояния «раскрыта» в
-  `AccountHeaderCard`.
-- **C. Замена `total` на композицию.** `total` → «Свободно: X ₽ ·
-  Заблокировано: Y ₽» в одной строке без отдельной. Сильнее меняет вид.
-
-Рекомендация: **A**.
-
-**Шаги:**
-1. **Санкция на UI** — вариант (A/B/C), тексты, место в шапке,
-   мультивалютность (только RUB или все `AccountBalance`).
-2. `AccountHeaderCard`: принять `money` / `blocked` (или `AccountBalance`),
-   отобразить по выбранному варианту.
-3. `PortfolioViewModel` / `PortfolioUiState`: убедиться, что `money`/
-   `blocked` доступны для выбранного счёта.
-4. Compose Preview: `blocked == null`, `blocked == 0.0`, `blocked > 0.0`.
-5. Гейт + live-тест UI.
-
-**Тесты:** Compose Preview на 3 состояния. Unit-тестов на formatting — нет
-(используется существующий `formatDomesticCurrency`).
-
-**Референсы:**
-- `docs/architecture.md` → «Data flow: позиции» (источники `money`/`blocked`).
-- `docs/domain_models.md` §4 `AccountBalance`.
-- `docs/ISSUES.md` → «T-Invest WebSocket: решён» (ограничение sandbox).
-
-**Ограничения:**
-- UI-санкция (правило 1) — вариант и тексты до правки.
-- Не показывать `blocked` для не-денежных позиций (только `AccountBalance`).
-- Не выводить `money + blocked` как «итог», пока формула не подтверждена —
-  только отдельные значения.
-- Не трогать `OrdersScreen` — карточка там в контексте заявок.
-- Мультивалютность — отдельный вопрос (сейчас только `rubBalance`).
-
-**Критерий готовности:**
-- `AccountHeaderCard` показывает разбивку `money` / `blocked` (по варианту).
-- Не-денежные позиции / не-счета — без изменений.
-- Compose Preview 3 состояния.
-- Гейт зелёный; live-тест UI PASS.
-
-**Оценка:** ~1.5–2 ч (санкция 10 мин, UI 1 ч, превью+тесты 30 мин, live-тест 30 мин).
-
-**Зависимости:** нет.
-
-**Связано:** `### ✅ Portfolio: модель портфеля` (money/blocked → `AccountBalance`);
-`### Ревизия ссылок на PortfolioPosition после H5` (п.1 ревизии);
-`docs/domain_models.md` §4.
-
-**Открытые вопросы:**
-- Вариант A/B/C — нужно решение.
-- Формула `money` ↔ `blocked` ↔ `quantity` — проверить на реальном счёте
-  с ненулевым `blocked`.
-- Мультивалютность: только RUB или все `AccountBalance`?
-- `blocked` в `OrdersScreen` — отдельной задачей при необходимости.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-25 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-26 -->
-___
-### [PLAN] T-26 UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
-**Мобильная работа:** частичное (live-тест UI).
-
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** `GOOD_TILL_DATE` в домене и proto есть, но
-пользователь физически не может его выбрать — UI всегда
-отправляет `GOOD_TILL_CANCEL` (`OrdersUiState.expirationType`
-дефолт, DatePicker'а нет).
-
-Диагностика 2026-10-22 показала: цепочка `expireDate` рвётся
-в **четырёх** местах, а не в одном `parseDate`.
-Восстановление только backend'а (`parseDate` + `setExpireDate`)
-эффекта не даст — `expireDate` из UI не приходит. Это не
-«потерянная логика», а **нереализованная UI-фича**.
-
-**Цепочка (что сломано):**
-1. **UI (`OrdersScreen.kt`)** — нет поля выбора даты
-   (ни DatePicker, ни текстового ввода). `expirationType`
-   не переключается с `GOOD_TILL_CANCEL`.
-2. **`OrdersUiState`** — поле `expireDate: String?` есть,
-   но UI его не заполняет. `expirationType` фиксирован.
-3. **`OrdersViewModel.postOrder`** — не передаёт
-   `state.expireDate` в `PrepareOrderRequestUseCase.prepare`.
-4. **`PrepareOrderRequestUseCase.prepare`** — нет параметра
-   `expireDate`, `StopOrderRequest.expireDate` всегда `null`.
-5. **`TInvestOrdersService.postStopOrder`** — вызов
-   `builder.setExpireDate(parseDate(...))` закомментирован.
-6. **`parseDate`** — закомментирован, в исходной версии
-   возвращал пустой `Timestamp` (ничего не парсил).
-
-**Что уже есть:** домен `StopOrderRequest.expireDate: String?`,
-enum `StopOrderExpirationType { GOOD_TILL_CANCEL,
-GOOD_TILL_DATE }`, proto-поле `PostStopOrderRequest.expire_date`
-(`com.google.protobuf.Timestamp`).
-
-**Файлы:**
-- `presentation/screens/orders/OrdersScreen.kt` — UI:
-  DatePicker или текстовое поле.
-- `presentation/screens/orders/OrdersUiState.kt` — модель
-  (уже есть, не трогать).
-- `presentation/screens/orders/OrdersViewModel.kt` — проброс
-  `expireDate` в use case.
-- `domain/usecases/PrepareOrderRequestUseCase.kt` — параметр
-  `expireDate`, проброс в `StopOrderRequest`.
-- `data/api/tinvest/TInvestOrdersService.kt` — восстановить
-  `parseDate` + `builder.setExpireDate(...)`.
-
-**Шаги:**
-1. **Санкция на UI** (правило 1 AGENTS.md): согласовать
-   формат выбора даты (DatePicker vs текстовое поле) и
-   тексты.
-2. UI: добавить поле выбора даты + переключатель
-   `expirationType`. Показывать дату только при
-   `GOOD_TILL_DATE`.
-3. ViewModel: прокинуть `state.expireDate` в
-   `prepareOrderRequest.prepare(...)`.
-4. UseCase: добавить параметр `expireDate: String?`,
-   пробросить в `StopOrderRequest`.
-5. Service: реализовать `parseDate` — формат из UI →
-   `com.google.protobuf.Timestamp` (seconds + nanos).
-   Восстановить `builder.setExpireDate(...)` при
-   `GOOD_TILL_DATE`. Ошибка парсинга → `AppResult.Failure`.
-6. Тесты: `parseDate` (валидный формат, невалидный → null),
-   `prepare` (expireDate пробрасывается).
-7. Live-тест: stop-заявка с `GOOD_TILL_DATE` создаётся
-   и принимается биржей.
-
-**Референсы:**
-- Документация T-Invest API → PostStopOrder → `expire_date`.
-- `com.google.protobuf.Timestamp` (seconds, nanos).
-- Текущее состояние секции — в git-истории (первоначальная
-  неверная постановка «потерянная логика»).
-
-**Ограничения:**
-- UI-изменение требует санкции (правило 1 AGENTS.md).
-- Не менять публичный контракт `StopOrderRequest` без
-  миграции вызывающих.
-- Не смешивать с «Split order domain into sealed
-  Regular/Stop» — `StopOrderRequest` там не трогается.
-- Формат `expireDate` в домене — `String?` (ISO-8601 или
-  дата без времени — решить при санкции). После парсинга
-  в `Timestamp` — UTC.
-
-**Критерий готовности:**
-- В UI можно выбрать `GOOD_TILL_DATE` и дату.
-- Stop-заявка с датой создаётся и принимается биржей.
-- `expireDate` в `PostStopOrderRequest` совпадает с UI.
-- Ошибка парсинга → `AppResult.Failure` с понятным
-  сообщением (не падение).
-- Покрыто тестами.
-
-**Оценка:** ~2–3 часа (санкция на UI 10 мин, UI 1 ч,
-ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
-тесты 30 мин, live-тест 30 мин).
-
-**Зависимости:** нет. **Разблокирует:** пользовательский
-сценарий `GOOD_TILL_DATE` (сейчас недоступен).
-
-**Открытые вопросы:**
-- Формат выбора: DatePicker (с ограничениями диапазона?) или
-  текстовое поле (ISO-8601)? Решить на санкции.
-- Ограничения T-Invest на `expire_date` — минимальная /
-  максимальная дата? Проверить в документации.
-- Смена типа с `GOOD_TILL_DATE` на `GOOD_TILL_CANCEL` —
-  очищать `expireDate` или оставлять?
-
-
-
-
-___
-<!-- SUBSECTION_END: t-26 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-27 -->
-___
-### [PLAN] T-27 Индикатор доступности инструмента в карточке позиции
-**Статус:** запланировано.
-
-**Файлы:**
-- `ui/components/AssetPositionCard.kt` — параметр
-  `tradingAvailability` объявлен, но не используется.
-
-**Контекст:** данные передаются из UI (`PortfolioScreen`,
-`OrdersScreen`), но визуальный индикатор не реализован.
-UI-изменение требует санкции (правило 1 AGENTS.md).
-
-**Пути решения:** добавить в карточку бейдж или цветовой
-индикатор статуса. Тексты и иконки согласовать заранее.
-
-**Оценка:** ~1 час (после санкции на UI).
-
-**Когда вернуться:** при следующей итерации по UI портфеля.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-27 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-28 -->
-___
-### [PLAN] T-28 P&L: sandbox client-side fallback для Position (низкий приоритет)
-**Мобильная работа:** частичное (live-тест данных в песочнице).
-
-**Статус:** запланировано.
-
-**Контекст:** в **песочнице** T-Invest `GetPortfolio.expectedYield` для ряда позиций приходит `null` (серверное ограничение sandbox — P&L не считается). `Position.profit = expectedYield` в этом случае `null`, UI показывает прочерк вместо расчётного P&L. В **prod** `expectedYield` приходит — там fallback **не нужен и вреден** (маскирует брокерские баги).
-
-Клиентский расчёт `(currentPrice - averagePrice) * quantity * moneyPerPointOfPrice` может дать корректную цифру для sandbox-счетов.
-
-`PositionFlowManager.enrichAndCache` уже подставляет `expectedYield` из кеша для partial-событий, когда polling пришёл. Но если сервер не прислал его в самом polling (sandbox) — fallback отсутствует.
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** H5 закрыт (`PortfolioPosition`, `toPortfolioPosition()`, `mergeWith()`, `calculateProfitPercent` удалены; `Position` — единственная модель, `PositionFlowManager.sheet` — SSoT).
-
-**Файлы:**
-- `domain/models/Portfolio.kt` — новая `fun PositionStreamItem.clientProfit(): Double?` (pure).
-- `domain/api/managers/PositionFlowManager.kt` — при построении `Position` из `PositionStreamItem` применять fallback **только при `sandboxMode == true`**; `sandboxMode` уже доступен в `start(accountKeys, sandboxMode, …)`.
-- `app/src/test/kotlin/com/gitlab/biomorf/tscalp/domain/models/PortfolioTest.kt` (новый) — unit-тесты.
-- `app/src/test/kotlin/.../domain/api/managers/PositionFlowManagerTest.kt` — кейс sandbox vs prod.
-
-**Шаги:**
-1. `fun PositionStreamItem.clientProfit(): Double?`: `val avg = averagePrice ?: return null`; `val price = currentPrice ?: return null`; `if (avg <= 0.0 || quantity == 0.0) return null`; `val point = moneyPerPointOfPrice.takeIf { it > 0.0 } ?: 1.0`; `return (price - avg) * quantity * point`.
-2. `PositionFlowManager`: в пути конструирования `Position` из `PositionStreamItem` (polling + stream merge) — `if (sandboxMode && expectedYield == null) profit = clientProfit() else profit = expectedYield`.
-3. В prod, если `expectedYield == null` — `logger.w("prod: expectedYield == null, fallback disabled")` (аномалия, не подменять).
-4. Тесты:
-   - `clientProfit()`: server (non-null), futures (`moneyPerPointOfPrice`), `averagePrice == null` → null, `quantity == 0.0` → null, убыток (negative client) — 5 кейсов.
-   - `PositionFlowManager`: sandbox + `expectedYield == null` → клиентский P&L; **prod** + `expectedYield == null` → `profit = null`, лог — 2 кейса.
-5. Гейт: `testDebugUnitTest / lintDebug / ktlintCheck / detekt`.
-
-**Тесты:** 5 unit-кейсов `clientProfit()` + 2 кейса `PositionFlowManager` (sandbox vs prod).
-
-**Референсы:**
-- `### Orders: P&L в песочнице (expectedYield)` — исходная диагностика sandbox-ограничения.
-- Закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
-- `data/api/tinvest/TInvestPortfolioService.kt` — passthrough `expectedYield` в `fetchPortfolioPositions`.
-- `domain/api/managers/PositionFlowManager.enrichAndCache` — заполнение из кеша.
-- `docs/architecture.md` → «Data flow: позиции» (`Position`, `PositionStreamItem`).
-
-**Ограничения:**
-- **Fallback — только `sandboxMode == true`.** В prod `expectedYield` авторитетен.
-- В prod при `expectedYield == null` — **лог, не подмена** (не маскировать брокерские баги клиентским расчётом).
-- Не менять модель `Position` (только вычисление `profit` при конструировании).
-- `profitPercent` — computed getter на `Position` (не трогать).
-- Fallback только при `expectedYield == null` (не при `0.0`).
-
-**Критерий готовности:**
-- **Sandbox:** `expectedYield == null && averagePrice != null && currentPrice != null` → `profit` клиентски (UI показывает цифру вместо прочерка).
-- **Prod:** `expectedYield == null` → `profit = null` + `logger.w`; `expectedYield != null` → server (поведение 1:1, без изменений).
-- Тесты 5 + 2, гейт зелёный.
-
-**Оценка:** ~1.5–2 ч (добавлено 0.5 ч на прокидывание `sandboxMode` в путь конструирования и кейсы sandbox/prod).
-
-**Зависимости:** нет.
-
-**Связано:** `### Orders: P&L в песочнице (expectedYield)` (диагностика, отдельная задача); `### ✅ H5. PortfolioPosition removed` (базовая модель); закрытая `### ✅ Рефакторинг расчёта P&L для PortfolioPosition`.
-
-**Открытые вопросы:**
-- В sandbox, если `expectedYield != null` (пришёл), но клиентский расчёт расходится > 5% — логировать? Отложено.
-- Если `averagePrice` устарел — проверка «свежести» отдельная задача.
-
-
-
-
-___
-
-
-
-
-#### Классификатор ошибок
-
-**Файлы:**
-- `util/AppResultExtensions.kt` — `Throwable.toAppError`
-  (66 строк, complexity 26).
-
-**Пути решения:** разбить на per-broker обработчики
-(`toTInvestError`, `toBcsError`, `toFinamError`) с
-диспетчеризацией по `BrokerName`.
-
-**Оценка:** ~1 час.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-28 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-29 -->
-___
-### [PLAN] T-29 Полировка debug-переключателей
-**Мобильная работа:** частичное (live-тест 8 комбинаций тумблеров).
-
-**Статус:** запланировано.
-
-**Контекст:** в рамках задачи «Ktor REST transport для polling»
-добавлены три независимых тумблера (gRPC, WS, REST) для
-динамической проверки транспортов. Проверены базовые сценарии
-(bypass REST, отключение gRPC/WS). Однако не проверены все 8
-возможных комбинаций, особенно при резких переключениях
-(race conditions, корректность жизненного цикла корутин,
-залипание состояний).
-
-**Триггер:** обнаружение аномалий (зависания, лишние
-переподключения, дубли логов) в следующих задачах (например,
-`GrpcExceptionGuard`). **Триггер сработал (2026-10-22):** дубли
-подключений (gRPC и WS) в logcat при старте приложения — см.
-`docs/ISSUES.md` → «Race в start/stop *FlowManager —
-дублирование стримов».
-
-**Файлы:**
-- `presentation/screens/settings/SettingsViewModel.kt`
-- `presentation/screens/settings/SettingsScreen.kt`
-- `domain/api/PriceFlowManager.kt`
-- `domain/api/PositionFlowManager.kt`
-
-**Шаги:**
-1. Прогнать все 8 комбинаций тумблеров.
-2. Исправить найденные race conditions.
-3. Добавить сохранение состояния тумблеров в DataStore
-   (опционально).
-
-**Находка из live-теста 2026-10-22 (PR #35,
-`settingsvm-duplicate-init`):** проверка `forceRest` требует
-**непустого union** цен — быть на экране «Заявки» или
-«Портфель», не в «Настройках». Иначе
-`PriceFlowManager.restart(emptySet())` ничего не запускает,
-ветка `forceRest` не проверяется (в логе — `Union empty,
-gRPC stream stopped`). Покрыто отдельно в live-тесте PR #34
-(`pricesSnapshot: forceRest=true` → `TInvestRest: POST
-.../GetLastPrices` → `[manager/polling]`). При прогоне
-8 комбинаций — учитывать: сначала открыть экран с
-активными ценами, потом переключать.
-
-**Оценка:** ~1–2 часа.
-
-**Зависимости:** нет. Разблокирована — фикс race в
-`reapplyDebugFlags` в `dev` (PR #34). См.
-`docs/ROADMAP.md` → закрытая «Race в start/stop `*FlowManager`».
-
-
-
-
-___
-<!-- SUBSECTION_END: t-29 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-30 -->
-___
-### [PLAN] T-30 Реализация BCS Broker API
-**Мобильная работа:** частичное (live-тест BCS API).
-
-**Статус:** запланировано.
-
-**Контекст:** `BcsBrokerApi` — заглушка. Из 25 методов работают 3-4: `getAccounts` (HTTP GET к портфелю), `postOrder` (HTTP POST). Остальные — `emptyList`, `UnsupportedOperationException`, no-op. `userInstruments = null`, `streams = null`, `sandbox = null`, `lifecycle` — есть. BCS REST + WebSocket — отдельная история (docs `https://trade-api.bcs.ru/`). Закрывает §8 шаг 0.2 (BCS mapping subtype-полей: `emissionDate` ↔ `ipoDate`, `subType` ↔ `shareType`, `baseAssetFuture` ↔ `futuresType`, `faceValue` ↔ `nominal`, `dividendYield` vs `divYieldFlag`, `liquidityRating` vs `liquidityFlag` — 6 `(?)` в `docs/domain_models.md` §9).
-
-**Соответствие Clean:** соответствует.
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `data/api/bcs/BcsBrokerApi.kt` — реализация.
-- `data/api/bcs/BcsModels.kt` (новый) — DTO для JSON-ответов BCS.
-- `data/api/bcs/BcsMappers.kt` (новый) — конвертеры JSON ↔ domain.
-- `docs/domain_models.md` §9 — снять `(?)` для BCS-колонки.
-- `docs/domain_models.md` §10 — закрыть или обновить открытые вопросы.
-
-**Шаги:**
-1. Изучить BCS API: базовый URL (`https://trade-api.bcs.ru/`), авторизация (OAuth2 через Keycloak, refresh-token 90 дней), REST-эндпоинты, WS (`wss://ws.broker.ru/trade-api-*/api/v1/.../ws`).
-2. Реализовать `getAccounts`, `fetchPortfolioPositions`, `getBalance`, `findInstruments`, `getTradingStatuses`.
-3. Реализовать `postOrder` (уже есть), `postStopOrder`, `getOrders`, `getStopOrders`, `cancelOrder`, `cancelStopOrder` — реально или `null` (по nullable-val).
-4. Реализовать `userInstruments` (если BCS даёт поиск — `findInstruments` + `getTradingStatuses`).
-5. Реализовать `streams` (BCS WS: котировки, статус заявок, лимиты). BCS WS — `type` + payload.
-6. BCS mapping subtype-полей (6 `(?)` в §9).
-7. Закрыть §8 шаг 0.2.
-
-**Тесты:** unit-тесты мапперов (моки OkHttp/JSON). Live-тест на реальном BCS-счёте (согласование с руководителем).
-
-**Референсы:** `docs/brokers.md` → BCS; `https://trade-api.bcs.ru/`; `https://trade-api.bcs.ru/http/information`; `### Реализация Finam Broker API` (образец).
-
-**Ограничения:**
-- Не менять `BcsBrokerApi` публичный контракт — только реализация.
-- `BcsBrokerApi.orders = null` → **не** ставить supertype `OrdersApi`, если не все 6 методов работают (nullable-val правило).
-- `sandbox = null` у BCS не будет по природе брокера (нет песочницы).
-
-**Критерий готовности:**
-- `BcsBrokerApi` реализует `AccountsApi`, `PortfolioApi`, `MarketDataApi`, `UserInstrumentsApi`, `StreamsApi`, `OrdersApi` (кроме неработающих — `null`).
-- BCS-mapping subtype-полей: 0 `(?)` в BCS-колонке §9.
-- §8 шаг 0.2 — `[x]`.
-- Live-тест PASS.
-
-**Оценка:** ~15–20 ч (зависит от BCS API и сложности WS).
-
-**Зависимости:** нет.
-
-**Связано:** `### Реализация Finam Broker API` (образец); `docs/domain_models.md` §8 шаг 0.2; `### Пакет C: TInvestMarketDataService split` (образец data-слоя).
-
-**Открытые вопросы:** BCS WS `type` + payload формат — по `https://trade-api.bcs.ru/websocket/portfolio/`; при реализации подтвердить.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-30 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-31 -->
-___
-### [PLAN] T-31 Реализация Finam Broker API
-**Статус:** запланировано.
-
-**Контекст:** `FinamBrokerApi` — заглушка. Все методы
-`BrokerApi` либо возвращают пустые значения (`emptyList`,
-`emptyMap`, `0.0`), либо бросают `NotImplementedError` через
-`TODO("Not yet implemented")`. Брокер зарегистрирован
-в `DataModule` наравне с T-Invest и BCS, но фактически
-не работает.
-
-**Предусловия:**
-- Доступ к Finam API (документация, тестовый токен).
-- Завершена задача «Оркестратор стримов и Ktor WS transport» —
-  `:transport-ktor` даёт HTTP-клиент для REST и WS.
-  У Finam есть gRPC, WS и REST — все три транспорта,
-  как у T-Invest.
-
-**Файлы:**
-- `data/api/finam/FinamBrokerApi.kt` — основная реализация.
-- `util/FinamErrorMessages.kt` — расшифровка кодов ошибок
-  (может не существовать, см. ROADMAP → «Расшифровка
-  кодов ошибок брокеров»).
-- `data/api/finam/FinamModels.kt` (новый) — data-классы для
-  JSON-ответов API.
-- `data/api/finam/FinamConverters.kt` (новый) — конвертеры
-  JSON ↔ доменные модели.
-
-**Шаги:**
-
-1. Изучить документацию Finam API: базовый URL
-   (боевой и sandbox), авторизация, формат запросов
-   и ответов.
-2. Реализовать `getAccounts(sandboxMode)`.
-3. Реализовать `fetchPortfolioPositions(accountId, sandboxMode)`
-   (was `fetchPositionsSnapshot`).
-4. Реализовать `getBalance(accountId)`.
-5. Реализовать `findInstruments(query)`.
-6. Реализовать `postOrder` / `postStopOrder` /
-   `cancelOrder` / `cancelStopOrder`.
-7. Реализовать `getOrders` / `getStopOrders`.
-8. Реализовать `getLastPricesByTscalpInstrumentId`.
-9. Реализовать `getTradingStatuses`.
-10. Реализовать стримы (`subscribePositions`,
-    `subscribeOrderState`, `subscribeLastPrices`):
-    gRPC-stream — primary, WS — fallback, REST — polling.
-    Композиция через `FinamOrchestrator` по образцу
-    `TInvestOrchestrator`.
-11. Заполнить `FinamErrorMessages.kt` по мере
-    появления кодов ошибок.
-12. Покрыть unit-тестами (моки OkHttp).
-
-**Референсы:**
-- Официальная документация Finam API:
-    - gRPC: https://api.finam.ru/docs/grpc/#introduction
-    - WebSocket (AsyncAPI): https://api.finam.ru/docs/async-api/
-    - REST: https://api.finam.ru/docs/rest/
-- Существующая реализация `BcsBrokerApi` — образец
-  REST-клиента.
-- `TInvestOrchestrator` — образец композиции транспортов
-  с fallback'ами.
-
-**Ограничения:**
-- **Не оставлять `TODO("Not yet implemented")`** в коде,
-  который может быть вызван: заменять на явный
-  `AppResult.Failure` или `emptyList` с KDoc, если операция
-  не поддерживается.
-- Логирование — через `AppLogger`, не `printStackTrace`.
-- Идентификаторы инструментов — через `tscalpInstrumentId`
-  в domain-слое (см. AGENTS.md).
-
-**Критерий готовности:**
-- Все методы `BrokerApi` реализованы через REST-запросы
-  к Finam API.
-- `TODO("Not yet implemented")` в `FinamBrokerApi.kt`
-  отсутствуют.
-- В UI Finam выбирается наравне с T-Invest и BCS,
-  выполняет базовые операции (счёт, портфель, заявка).
-
-**Оценка:** ~8–12 часов (зависит от документации
-и наличия тестового доступа).
-
-**Зависимости:** нет. Блокирует полноценное использование
-Finam в UI.
-
-
-
-
-___
-<!-- SUBSECTION_END: t-31 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-35 -->
-___
-### [PLAN] T-35 OrdersListDialog: empty-state
-**Мобильная работа:** частичное (live-тест UI).
-
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** в `OrdersListViewModel` до M016 было сообщение `"Нет активных заявок"`, эмитившееся через `statusMessage` когда `orders.isEmpty() && hasLoaded`. При этом **никто это сообщение не читал**: `OrdersListDialog` подписан на `uiState.orders` и `uiState.isLoading`, но не на `statusMessage`. В рамках M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) `statusMessage` из `OrdersListState` удалён как dead code (2d — задача = этот follow-up). Теперь empty-state надо реализовать явно, если он нужен.
-
-**Соответствие Clean:** соответствует (UI-фича; empty-state — presentation).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** M016 закрыт (PR #112).
-
-**Файлы:**
-- `presentation/components/OrdersListDialog.kt` — empty-state.
-
-**Шаги:**
-1. **UI-санкция** (правило 1): согласовать текст («Нет активных заявок» / «Заявок нет» / иконка), размещение.
-2. UI: `if (orders.isEmpty() && !isLoading) { EmptyState() } else { LazyColumn { … } }` в `OrdersListDialog`.
-3. `@Preview` для empty-state (если превью уже есть — иначе отдельная задача).
-
-**Тесты:** UI-превью (по согласованию), unit-тестов нет.
-
-**Референсы:** `OrdersListDialog.kt`, M016 (PR #112) — где удалён dead-code `"Нет активных заявок"`.
-
-**Ограничения:**
-- Не менять `OrdersListState` (только UI-check `orders.isEmpty()`).
-- Не смешивать с другими UI-задачами.
-
-**Критерий готовности:**
-- В `OrdersListDialog` отображается пустое состояние, когда `orders.isEmpty() && !isLoading`.
-- Текст и стиль согласованы (UI-санкция).
-- Гейт зелёный; live-test UI PASS.
-
-**Оценка:** ~30–45 мин (с санкцией).
-
-**Зависимости:** нет.
-
-**Связано:** M016 (PR #112), `### M6: Portfolio + Settings panels`.
-
-**Открытые вопросы:** нужен ли empty-state в UI вообще? Решить на санкции.
-
-
-
-___
-<!-- SUBSECTION_END: t-35 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-36 -->
-___
-### [PLAN] T-36 Settings: inline status card vs snackbar
-**Мобильная работа:** частичное (live-тест UI).
-
-**Статус:** запланировано. **UI — требует санкции.**
-
-**Контекст:** (2d) в M6 umbrella (`### ✅ M6: finish one-shot events`, PR #114) три Settings panel-VM (`TInvestSettingsViewModel`, `BcsSettingsViewModel`, `FinamSettingsViewModel`) **не** переведены на `Channel<StatusEvent>`. Причина: `SettingsScreen` рендерит `statusMessage` / `isError` как **inline `Card`** прямо в layout (`uiState.statusMessage?.let { Card { Text(message) } }`), а не как snackbar. У `SettingsScreen` нет `SnackbarHostState`. Это не M6-баг, а другой UI-паттерн. Umbrella закрыта по U0+U1+U2; U3/Settings вынесен отдельно.
-
-**Соответствие Clean:** отклонение по 2c (принято).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** оставить как есть (inline Card — нормальный state-паттерн для Settings: статус подключения — не transient event). Плюсы: просто, без Channel; Card видна, пока не закроют (в отличие от snackbar, который auto-dismiss). Минусы: UX отличается от Orders/Portfolio (там snackbar).
-
-**Выгоды (для «отклонение по 2c»):** Settings — «состояние подключения» (persistent, а не one-shot). Snackbar скроется через N секунд, пользователь может не успеть прочитать. Inline Card лучше подходит для такого контента. Смена на snackbar — **UX-регресс** для Settings.
-
-**Предусловия:** нет. `StatusEvent` + `StatusEventEffect` + `StatusSnackbarHost` — уже общие (`presentation/util|components`, PR #114).
-
-**Файлы:**
-- (вариант A: «оставить inline Card», 2c-принято) — ничего, только явная запись в clean-audit `### M6: Settings — inline Card, не M6`.
-- (вариант B: snackbar) — `presentation/screens/settings/{TInvest,Bcs,Finam}SettingsViewModel.kt` + `SettingsScreen.kt` + `StatusEventEffect` (общий).
-
-**Шаги (вариант B, если санкция «snackbar»):**
-1. UI-санкция (правило 1): согласовать «snackbar вместо inline Card» для 3 панелей — визуал меняется.
-2. Каждая panel-VM: `Channel<StatusEvent>` + `val status: Flow<StatusEvent>`.
-3. State (`TInvestUiState` / `BcsUiState` / `FinamUiState`): −`statusMessage`/`isError`.
-4. `SettingsScreen`: 3× `StatusEventEffect(viewModel.status)` + `StatusSnackbarHost`.
-5. Тесты: 1 кейс на панель (status Flow), если mock-инфра.
-6. Live-test UI (3 панели: подключение / ошибка / отключение).
-
-**Тесты:** 3 VM (1 кейс на панель), live-test UI 3 сценария.
-
-**Референсы:** M6 umbrella (PR #114), `OrderSearchViewModelTest` / `OrderFormViewModelTest` (pattern), `StatusEventEffect` / `StatusSnackbarHost` (`presentation/components/`).
-
-**Ограничения:**
-- UI-санкция обязательна (правило 1): меняется визуал (Card → snackbar).
-- Не смешивать с `### OrdersListDialog: empty-state` (тоже UI, отдельно).
-- Если «оставить inline Card» — задача закрывается как `accepted (2c)` с записью в clean-audit, без правок.
-
-**Критерий готовности:**
-- (вариант A: «оставить») — clean-audit `### M6: Settings — inline Card, не M6` (2c), задача → ARCHIVE.
-- (вариант B: snackbar) — 3 panel-VM на `Channel<StatusEvent>`, state −2 поля, `SettingsScreen` — 3× `StatusEventEffect`, live-test UI PASS, gate green.
-
-**Оценка:** вариант B — ~2 ч; вариант A — ~10 мин (запись в clean-audit).
-
-**Зависимости:** нет.
-
-**Связано:** M6 umbrella (`### ✅ M6: finish one-shot events`, PR #114).
-
-**Открытые вопросы:** нужен ли snackbar в Settings (единый UX с Orders/Portfolio) или inline Card — окончательный выбор? Решить на санкции.
-
-
-
-
-
-
-___
-<!-- SUBSECTION_END: t-36 -->
 
 
 
@@ -2157,20 +794,6 @@ ___
 **Связано:** U0 (PR #115).
 
 **Открытые вопросы:** нет.
-
-
-
-
-
-
-
-
-
-___
-
-
-
-___
 <!-- SUBSECTION_END: t-37 -->
 
 
@@ -2239,321 +862,6 @@ ___
 
 
 
-<!-- SUBSECTION_BEGIN: t-39 -->
-___
-### [PLAN] T-39 Общий RateLimitedException для всех брокеров
-**Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** T-10 (шаг 1) добавляет `AppError.RateLimited` и маппинг `RateLimitTimeoutException → RateLimited` в `toAppError` (`data/error/AppErrorMapper.kt`). Сейчас `toAppError` импортирует TInvest-specific `RateLimitTimeoutException` из `data/api/tinvest/`. При появлении BCS/Finam rate-limiter'ов (T-30, T-31) — нужен общий `interface RateLimitedException` в `data/api/common/`.
-
-**Соответствие Clean:** соответствует (data → domain, `AppResult`/`AppError` — domain-модели; общий интерфейс — в data/common).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**MVVM:** — (не применимо, data-слой).
-
-**KMP:** соответствует (`RateLimitedException` — data-слой, в domain не протекает; `AppError.RateLimited` — KMP-safe).
-
-**Предусловия:** T-10 закрыт (`AppError.RateLimited` есть); T-30 / T-31 (BCS/Finam API) — хотя бы один начат.
-
-**Файлы:** `data/api/common/RateLimitedException.kt` (новый интерфейс), `data/api/tinvest/RateLimitTimeoutException.kt` (реализация), `data/api/bcs/...`, `data/api/finam/...`, `data/error/AppErrorMapper.kt` (замена `is RateLimitTimeoutException` на `is RateLimitedException`).
-
-**Шаги:**
-1. `interface RateLimitedException { val waitedMs: Long; val timeoutMs: Long }` в `data/api/common/`.
-2. `TInvestRateLimitTimeoutException : Exception(...), RateLimitedException` — переименовать/расширить существующий.
-3. `toAppError`: `is RateLimitedException -> AppError.RateLimited(...)` — вместо `is RateLimitTimeoutException`.
-4. BCS/Finam rate-limiter'ы (после T-30/T-31) — свои реализации.
-5. Тесты: `AppErrorMapperTest` — кейс на интерфейс; `TInvestRateLimiterTest` — не сломать.
-
-**Тесты:** `AppErrorMapperTest` (обновить кейс), `TInvestRateLimiterTest` (без изменений).
-
-**Референсы:** `docs/architecture.md` → `architecture-23 #4`; T-10 (шаг 1); T-30, T-31.
-
-**Ограничения:**
-- Не менять поведение `toAppError` для остальных исключений.
-- Не трогать stream-исключения (по T-10 — throw).
-
-**Критерий готовности:**
-- `RateLimitedException` — общий интерфейс в `data/api/common/`.
-- `toAppError` не импортирует TInvest-specific исключение.
-- Гейт зелёный.
-
-**Оценка:** ~1–2 ч.
-
-**Зависимости:** T-10 (закрыт), T-30 / T-31 (начат хотя бы один).
-
-**Связано:** `architecture-22` (rate-limiter), `architecture-23 #4`.
-
-**Открытые вопросы:** нет.
-<!-- SUBSECTION_END: t-39 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-40 -->
-___
-### [PLAN] T-40 PortfolioUiState: passthrough tradingStatuses StateFlow
-**Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** после T-9 (5b) `PortfolioViewModel` подписан на `tradingStatusRepository.statuses` и кладет результат в `_uiState.tradingStatuses` через `collect`. Orders работает иначе - passthrough: `val tradingStatuses: StateFlow<...> = tradingStatusRepository.statuses` (SSoT напрямую). T-40 - унифицировать Portfolio под паттерн Orders.
-
-**Соответствие Clean:** соответствует - presentation читает domain-контракт (StateFlow из repository), не копирует.
-
-**Нарушенное правило Clean:** -.
-
-**Clean-альтернатива:** -.
-
-**Выгоды (для «отклонение по 2c»):** -.
-
-**MVVM:** соответствует - `M5` предотвращен (нет двух полей на одно значение).
-
-**KMP:** - (не применимо, presentation).
-
-**Предусловия:** T-9 закрыт.
-
-**Файлы:** `presentation/screens/portfolio/PortfolioViewModel.kt`, `PortfolioUiState.kt`, `PortfolioScreen.kt`.
-
-**Шаги:**
-1. В VM: `val tradingStatuses = tradingStatusRepository.statuses` (passthrough).
-2. В `PortfolioUiState`: удалить `val tradingStatuses`.
-3. В Screen: `val tradingStatuses by viewModel.tradingStatuses.collectAsState()`; передавать в `PortfolioAccountBlock`.
-4. Гейт.
-
-**Тесты:** `PortfolioScreenBehaviourTest` - обновить mock если есть.
-
-**Референсы:** `OrdersViewModel.kt:70` (образец passthrough).
-
-**Ограничения:** не менять поведение UI; перенос только источника данных.
-
-**Критерий готовности:** UI получает `tradingStatuses` через passthrough; SSoT - `TradingStatusRepository`; гейт.
-
-**Оценка:** ~20-30 мин.
-
-**Зависимости:** T-9 (5b).
-
-**Связано:** T-9; T-41.
-
-**Открытые вопросы:** нет.
-<!-- SUBSECTION_END: t-40 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-41 -->
-___
-### [PLAN] T-41 Orders: миграция tradingStatuses на TradingStatusFlowManager
-**Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** после T-9 (5b) `TradingStatusFlowManager` есть в domain. `OrdersViewModel` сейчас обновляет статусы on-demand: при смене списка инструментов - `updateTradingStatuses(idsToUpdate)` -> `UpdateTradingStatusesUseCase`. Работает, но: (а) между изменениями списка статусы устаревают (нет polling); (б) ids Portfolio и Orders могут пересекаться - два независимых fetch. Миграция на `TradingStatusFlowManager` даст единый polling + union ids.
-
-**Соответствие Clean:** соответствует - policy в domain-менеджере.
-
-**Нарушенное правило Clean:** -.
-
-**Clean-альтернатива:** -.
-
-**Выгоды (для «отклонение по 2c»):** -.
-
-**MVVM:** соответствует - VM триггерит `start/updateIds`, не оркестрирует polling.
-
-**KMP:** соответствует - manager в domain.
-
-**Предусловия:** T-9 закрыт (manager в проде, обкатан на Portfolio).
-
-**Файлы:** `presentation/screens/orders/OrdersViewModel.kt`, `OrdersCoordViewModel.kt` (если триггерит), `domain/api/managers/TradingStatusFlowManager.kt` (union-id логика).
-
-**Шаги:**
-1. Проверить текущие callsites `updateTradingStatuses` в Orders.
-2. Inject `TradingStatusFlowManager` в `OrdersViewModel`.
-3. `updateTradingStatuses(ids)` -> `manager.updateIds(ids)`.
-4. `onCleared` -> `manager.stop()`.
-5. Проверить union с Portfolio.
-6. Гейт.
-
-**Тесты:** `OrdersViewModelTest` - обновить mock (manager вместо UseCase).
-
-**Референсы:** T-9; `OrdersViewModel.kt:102`.
-
-**Ограничения:** не менять UI; миграция 1:1 по поведению.
-
-**Критерий готовности:** статусы в Orders обновляются через manager; union с Portfolio; гейт.
-
-**Оценка:** ~1-1.5 ч.
-
-**Зависимости:** T-9.
-
-**Связано:** T-9; T-40.
-
-**Открытые вопросы:** как `OrdersViewModel` триггерит `updateTradingStatuses` - на каждом изменении списка или на init? Уточнить при старте.
-<!-- SUBSECTION_END: t-41 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-42 -->
-___
-### [PLAN] T-42 TradingStatus: stream API (subscribeTradingStatuses)
-**Мобильная работа:** полное закрытие (proot + PR; data + domain; гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** T-9 реализует `TradingStatusFlowManager` polling-only (1 мин), потому что в `TInvest*Service` нет обертки над `MarketDataStreamService.subscribeTradingStatuses`. По `docs/rate-limits.md`: «На торговые статусы лимита подписок нет» - stream возможен. Полная аналогия с `PriceFlowManager` (stream primary + polling fallback) устранит polling в steady-state.
-
-**Соответствие Clean:** соответствует - stream-обертка в `data/api/tinvest/`, manager в `domain/api/managers/`.
-
-**Нарушенное правило Clean:** -.
-
-**Clean-альтернатива:** -.
-
-**Выгоды (для «отклонение по 2c»):** -.
-
-**MVVM:** - (не применимо, data+domain).
-
-**KMP:** соответствует - manager в domain, stream в data.
-
-**Предусловия:** T-9 закрыт.
-
-**Файлы:** `data/api/tinvest/TInvestTradingService.kt`, `TInvestBrokerApi.kt`, `domain/api/roles/TradingStatusStreamApi.kt` (новый), `domain/api/managers/TradingStatusFlowManager.kt`, `data/orchestrator/TInvestOrchestrator.kt` (если нужен stream-комбинатор).
-
-**Шаги:**
-1. Проверить T-Invest API `MarketDataStreamService.subscribeTradingStatuses` - сигнатура, формат.
-2. Обертка в `TInvestTradingService`: `Flow<TradingStatusStreamItem>`, reconnect через `StreamCombinators.retryWithBackoff`.
-3. Role `TradingStatusStreamApi` в domain.
-4. `TradingStatusFlowManager`: stream primary + polling fallback.
-5. `StreamStateTracker` - LIVE/POLLING/STALE.
-6. Гейт.
-
-**Тесты:** unit на `subscribeTradingStatuses` (mock stream); manager - stream primary vs polling fallback.
-
-**Референсы:** `PriceFlowManager.kt`, `TInvestPricesService.kt:54`, `docs/rate-limits.md:85`, `docs/streams.md`.
-
-**Ограничения:** polling fallback при потере stream; stream-лимит не считать.
-
-**Критерий готовности:** manager stream primary; polling только fallback; `StreamStateTracker` LIVE/POLLING; гейт.
-
-**Оценка:** ~3-4 ч.
-
-**Зависимости:** T-9.
-
-**Связано:** T-9; umbrella T-3 sub-1b (stream connection limiter).
-
-**Открытые вопросы:** есть ли у T-Invest SDK `MarketDataStreamService.subscribeTradingStatuses` в текущей версии - `grep 'ru.tinkoff.piapi.*TradingStatus'` при старте.
-<!-- SUBSECTION_END: t-42 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: t-44 -->
-___
-### [PLAN] T-44 SSoT стиля документации (docs/docs-structure.md) + унификация заголовков/разделителей/индексов
-**Мобильная работа:** полное закрытие (proot + PR; docs-only + скрипты, гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** стиль оформления `.md`-файлов проекта размазан по: (1) `AGENTS-integrity.md` (маркеры), (2) `project-docs-section-order` (разделители, только ROADMAP), (3) код скриптов (`docs_normalize.py`, `docs_rebuild_index.py` — форматы заголовков/индексов), (4) `r4j` (список скриптов). Код — единственный полный источник истины для форматов. Нарушает SSoT: правка стиля требует синхронной правки AGENTS + кода + индексов, риск рассинхрона. Решения Q43–Q51 (сессия 2026-11-18): `### [TOKEN] <ID> <title>` везде; TOKEN для AGENTS — `[AGENTS]`; маркер `SUBSECTION_BEGIN: <id>` без заголовка; 10 пустых везде; `project-docs-section-order` → перенос таблицы в `docs/docs-structure.md`; `docs_add.py`/`docs_rebuild_index.py` — `--mode` (agents/agents-lessons/roadmap/ci-roadmap); `issues`/`clean-audit` — вне scope.
-
-**Соответствие Clean:** — (не применимо, документация/инструменты).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**MVVM:** — (не применимо).
-
-**KMP:** — (не применимо).
-
-**Предусловия:** T-39 (rate-limit) — не блокер; T-2 (консолидация скриптов) — не блокер, но пересекается (`r4j` — обновить).
-
-**Файлы:**
-- `docs/docs-structure.md` — новый SSoT (заголовки, маркеры, разделители, индексы, скрипты, Mermaid).
-- `AGENTS/AGENTS-integrity.md` — ссылка на `docs/docs-structure.md` (без дублирования).
-- `AGENTS/AGENTS-project-docs.md` → `project-docs-section-order` — таблица переходов → ссылка на `docs/docs-structure.md`.
-- `AGENTS/AGENTS-style-docs.md` → `r4j` — ссылка на `docs/docs-structure.md`, `--mode`.
-- `AGENTS/scripts/docs_add.py` — `--mode`, `--token` (целевое).
-- `AGENTS/scripts/docs_rebuild_index.py` — `--mode` (4 режима), `HEADING_RE` с TOKEN.
-- `AGENTS/scripts/docs_normalize.py` — `sep_n = 10` везде.
-- Все `AGENTS/AGENTS-*.md` — `### <id> <title>` → `### [AGENTS] <id> <title>` (массовая правка — скриптом, `r4c`).
-
-**Шаги:**
-1. `docs/docs-structure.md` — SSoT (заголовки, маркеры, разделители, индексы, скрипты, Mermaid-диаграмма).
-2. `AGENTS-integrity.md` → ссылка на `docs/docs-structure.md`.
-3. `project-docs-section-order` → таблица переходов переносится в `docs/docs-structure.md`, здесь — ссылка.
-4. `r4j` → ссылка на `docs/docs-structure.md`, `--mode` в списке скриптов.
-5. `docs_normalize.py` — `sep_n = 10` везде (убрать `4 if has_preamble`).
-6. `docs_add.py` — `--mode`, `--token`, валидация формата.
-7. `docs_rebuild_index.py` — `--mode` (agents/agents-lessons/roadmap/ci-roadmap), `HEADING_RE` с TOKEN.
-8. Массовая правка AGENTS-файлов: `### <id> <title>` → `### [AGENTS] <id> <title>` — скриптом (`r4c`), `r4d` (pre/post-assert), `r4h` (проверка).
-9. Тесты: `docs_normalize.py --check --all` → 0; `docs_rebuild_index.py --dry-run` → 4 индекса.
-10. Verify: `docs/docs-structure.md` содержит все форматы; AGENTS-файлы с `[AGENTS]`; индексы пересобраны.
-
-**Тесты:** `docs_normalize.py --check --all` (deviations=0); `docs_rebuild_index.py --dry-run` (agents/agents-lessons/roadmap/ci-roadmap).
-
-**Референсы:** `AGENTS-integrity.md`, `project-docs-section-order`, `r4j`, `docs_add.py`, `docs_normalize.py`, `docs_rebuild_index.py`, `ROADMAP.md` (индекс), `ci-roadmap.md` (индекс), сессия 2026-11-18 (Q43–Q51).
-
-**Ограничения:**
-- `issues` / `clean-audit` — **вне scope** (структура не подтверждена / не табличная).
-- Массовая правка AGENTS — **только скриптом**, не агентом (`r4c`, `r2d`).
-- `docs_add.py` — обратная совместимость: `--mode` по умолчанию `agents` (текущее поведение).
-- Не менять логику `docs_cut.py` (только `--mode` для валидации, если нужно).
-
-**Критерий готовности:**
-- `docs/docs-structure.md` — SSoT (все форматы, диаграмма).
-- `AGENTS-integrity.md`, `project-docs-section-order`, `r4j` — ссылки на `docs/docs-structure.md`, без дублирования стиля.
-- `docs_normalize.py --check --all` → deviations=0.
-- `docs_rebuild_index.py --dry-run` → 4 индекса (agents/agents-lessons/roadmap/ci-roadmap).
-- Все AGENTS-файлы — `### [AGENTS] <id> <title>`.
-- Гейт зелёный (docs-only → mini-gate; скрипты — полный гейт).
-
-**Оценка:** ~4–6 ч.
-
-**Зависимости:** нет (T-2 — пересекается, не блокер).
-
-**Связано:** T-2 (консолидация скриптов), `AGENTS-integrity.md`, `project-docs-section-order`, `r4j`.
-
-**Открытые вопросы:**
-- TOKEN для AGENTS — `[AGENTS]` (единый, Q49). Если позже понадобится дифференциация — отдельная задача.
-- `docs_add.py` — вариант 1/2/3 (Q39) — решить при реализации.
-- `HEADING_RE` для roadmap — TOKEN захватывать (для таблицы `| TOKEN | ID | Title | File |`).
-<!-- SUBSECTION_END: t-44 -->
-
-
-
-
 
 <!-- SECTION_END: roadmap-plan -->
+<!-- FILE_END -->
