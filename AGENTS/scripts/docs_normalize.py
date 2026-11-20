@@ -233,11 +233,15 @@ def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
             deviations.append(f"{sid}: blank after ###")
 
         body_out = [l.rstrip() for l in rest]
-        body_out = [l for l in body_out if l.strip() not in ("___", "---")]
         while body_out and body_out[0] == "":
             body_out.pop(0)
         while body_out and body_out[-1] == "":
             body_out.pop()
+        # only the trailing separator is regenerated; --- inside body (fences) stays
+        if body_out and body_out[-1].strip() == "---":
+            body_out.pop()
+            while body_out and body_out[-1].strip() == "":
+                body_out.pop()
 
         out.append(f"<!-- SUBSECTION_BEGIN: {sid} -->\n")
         out.append(anchor + "\n")
