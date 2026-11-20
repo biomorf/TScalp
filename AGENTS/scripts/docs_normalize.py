@@ -288,14 +288,11 @@ def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
             out.append("\n" * 10)
 
     tail_lines = [strip_nl(l) for l in lines[last_end+1:]] if last_end >= 0 else []
-    while tail_lines and tail_lines[0].strip() == "":
-        tail_lines.pop(0)
     while tail_lines and tail_lines[-1].strip() == "":
         tail_lines.pop()
-    if tail_lines:
-        out.append("\n" * 10)
-        for l in tail_lines:
-            out.append(l + "\n")
+    # gap before SECTION_END / FILE_END is owned by _enforce_transitions
+    for l in tail_lines:
+        out.append(l + "\n")
 
     out, trans_fixed = _enforce_transitions(out)
     if trans_fixed:
