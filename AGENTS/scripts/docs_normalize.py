@@ -270,12 +270,31 @@ def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
             body_out.pop(0)
         while body_out and body_out[-1] == "":
             body_out.pop()
-        # only the trailing separator is regenerated; --- inside body (fences) stays
+        # trailing separator is canonical, not a stray: pop it before scanning
         if body_out and body_out[-1].strip() == "---":
             body_out.pop()
             while body_out and body_out[-1].strip() == "":
                 body_out.pop()
 
+        cleaned = []
+        in_fence = False
+        dropped = 0
+        for l in body_out:
+            s = l.strip()
+            if s.startswith("```") or s.startswith("~~~"):
+                in_fence = not in_fence
+                cleaned.append(l)
+                continue
+            if not in_fence and s in ("---", "___"):
+                dropped += 1
+                continue
+            cleaned.append(l)
+        if dropped:
+            deviations.append(f"{sid}: removed {dropped} stray separator(s) from body")
+        body_out = cleaned
+        while body_out and body_out[-1] == "":
+            body_out.pop()
+        # only the trailing separator is regenerated; --- inside body (fences) stays
         out.append(f"<!-- SUBSECTION_BEGIN: {sid} -->\n")
         out.append(anchor + "\n")
         out.append(heading + "\n")

@@ -366,7 +366,6 @@ Next steps:
 
 Расширение урока 77 (`strict pre-check`) и 5a (CI/CD — порядок «коммит → push → CI»).
 
----
 
 
 ## Kotlin / Compose

@@ -158,7 +158,6 @@
 
 **Связано:** AGENTS 2c, урок 29 (не по памяти), `docs/ISSUES.md` → «OrderSearchViewModel: selectedBroker не влияет на API поиска (решён)».
 
----
 
 ## Диагностика
 
