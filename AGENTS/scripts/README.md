@@ -28,6 +28,7 @@
 | `live-test-capture-interactive.sh` | Режим B (live) | — | `bash AGENTS/scripts/live-test-capture-interactive.sh` |
 | `post-pr.sh` | 5f чек-лист (+ ROADMAP verify) | `<branch> [--task T-N]` | `bash AGENTS/scripts/post-pr.sh feature/... --task T-44` |
 | `docs-gate.sh` | 5a docs-only gate | `[files...]` | `bash AGENTS/scripts/docs-gate.sh` |
+| `check-docs.sh` | Гейт канона документации: 11 проверок §6 `docs/docs-structure.md` (маркеры, вложенность, якоря, токены, сепараторы, паддинг, id, `Next ID`, статус) | — (вся область) | `bash AGENTS/scripts/check-docs.sh` |
 
 ---
 <!-- SUBSECTION_END: tools -->
