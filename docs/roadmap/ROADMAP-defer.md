@@ -8,9 +8,12 @@
 
 
 
+
+
+
 <!-- SUBSECTION_BEGIN: t-21 -->
-___
-### [PLAN] T-21 KMP: domain → commonMain
+<a id="t-21"></a>
+### [DEFER] T-21 KMP: domain → commonMain
 **Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
 
 **Статус:** запланировано.
@@ -60,6 +63,8 @@ ___
 **Открытые вопросы:**
 - `:shared` с Android target — `androidLibrary` или `com.android.kotlin.multiplatform.library`? Уточнить при старте.
 - `domain/log/Logger` — остаётся интерфейсом (`AndroidAppLogger` в `:app/data/log`).
+
+---
 <!-- SUBSECTION_END: t-21 -->
 
 
@@ -70,8 +75,9 @@ ___
 
 
 
+
 <!-- SUBSECTION_BEGIN: t-22 -->
-___
+<a id="t-22"></a>
 ### [DEFER] T-22 Плавный переход Hilt → Koin
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -229,15 +235,22 @@ iOS-задачи миграция станет обязательной. Сей�
 - `startKoin` до Hilt — что именно «до»: в `onCreate`
   перед `super.onCreate()` или после? Проверить по
   документации bridge.
+
+---
 <!-- SUBSECTION_END: t-22 -->
 
 
 
 
 
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: t-34 -->
-___
-### [WIP] T-34 Расшифровка кодов ошибок брокеров
+<a id="t-34"></a>
+### [DEFER] T-34 Расшифровка кодов ошибок брокеров
 **Статус:** в работе.
 
 **Сделано:**
@@ -255,6 +268,8 @@ ___
 - Дополнять T-Invest таблицу новыми кодами по мере появления в логах.
 
 **Оценка:** 15 минут на нового брокера + 5 минут на новый код.
+
+---
 <!-- SUBSECTION_END: t-34 -->
 
 
@@ -263,9 +278,12 @@ ___
 
 
 
+
+
+
 <!-- SUBSECTION_BEGIN: t-14 -->
-___
-### [PLAN] T-14 UX-flow Variant D: broker + account до поиска
+<a id="t-14"></a>
+### [DEFER] T-14 UX-flow Variant D: broker + account до поиска
 **Мобильная работа:** невозможно (desktop; UI-ревизия диалога свойств слота + 6+ файлов + live-test).
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -323,6 +341,8 @@ ___
 1. Account selector без брокера — disabled или fallback?
 2. `restoreOrderForm` при неинициализированном брокере — ок или retry?
 3. `OrderSearchState` — плоский или `SlotSearchState(broker, account, query)`?
+
+---
 <!-- SUBSECTION_END: t-14 -->
 
 
@@ -335,8 +355,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-15 -->
-___
-### [PLAN] T-15 Рефакторинг архитектурного долга (detekt-группа 3)
+<a id="t-15"></a>
+### [DEFER] T-15 Рефакторинг архитектурного долга (detekt-группа 3)
 **Статус:** запланировано.
 
 **Контекст:** при внедрении detekt 2.0.0-alpha.6 (см. задачу
@@ -380,7 +400,6 @@ app/src/main/kotlin`). Отдельная задача не нужна.
 
 
 
-___
 
 
 
@@ -392,7 +411,6 @@ ___
 
 
 
-___
 
 
 
@@ -406,7 +424,6 @@ ___
 
 
 
-___
 
 
 
@@ -436,7 +453,6 @@ ___
 
 
 
-___
 
 
 
@@ -455,6 +471,8 @@ ___
 `mapFutures` / `mapShares` / `mapDefault`.
 
 **Оценка:** ~2 часа.
+
+---
 <!-- SUBSECTION_END: t-15 -->
 
 
@@ -467,8 +485,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-16 -->
-___
-### [PLAN] T-16 Orders: P&L в песочнице (expectedYield)
+<a id="t-16"></a>
+### [DEFER] T-16 Orders: P&L в песочнице (expectedYield)
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с SBER).
 
 **Статус:** запланировано.
@@ -529,6 +547,8 @@ ___
 **Связано:** `### P&L: sandbox client-side fallback для Position` (B-вариант, отдельная задача); `### Position: источники priceChangePercent и lockedQuantity`.
 
 **Открытые вопросы:** `expectedYield` в sandbox — `null` или `0`? Определить шагом 0. Если `0` — возможно, UI показывает 0 корректно (нет P&L), но это не отличимо от «реальный ноль»; тогда — отдельный `ISSUES.md` без фикса.
+
+---
 <!-- SUBSECTION_END: t-16 -->
 
 
@@ -541,8 +561,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-17 -->
-___
-### [PLAN] T-17 Margin/risk → TradeCheckResult
+<a id="t-17"></a>
+### [DEFER] T-17 Margin/risk → TradeCheckResult
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
 **Статус:** запланировано.
@@ -600,6 +620,8 @@ ___
 **Открытые вопросы:**
 - Форма: отдельный `MarginInfo` или поле в `TradeCheckResult` — решить при старте.
 - `klong`/`kshort` — deprecated в T-Invest; включать в модель или нет — решить при старте.
+
+---
 <!-- SUBSECTION_END: t-17 -->
 
 
@@ -612,8 +634,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-18 -->
-___
-### [PLAN] T-18 T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
+<a id="t-18"></a>
+### [DEFER] T-18 T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
 **Статус:** запланировано.
@@ -665,6 +687,8 @@ ___
 **Связано:** `docs/domain_models.md` §5, §8 шаг 3; `### Пакет C: TInvestMarketDataService split` (образец).
 
 **Открытые вопросы:** какие proto-поля `Bond` / `Etf` / `Currency` точно доступны — при реализации подтвердить.
+
+---
 <!-- SUBSECTION_END: t-18 -->
 
 
@@ -676,17 +700,9 @@ ___
 
 
 
-
-
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-19 -->
-___
-### [PLAN] T-19 Position: источники priceChangePercent и lockedQuantity
+<a id="t-19"></a>
+### [DEFER] T-19 Position: источники priceChangePercent и lockedQuantity
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
 **Статус:** запланировано.
@@ -711,7 +727,7 @@ ___
 - `domain/models/Portfolio.kt` — `PositionStreamItem + priceChangePercent: Double? = null + lockedQuantity: Double? = null`.
 - `data/api/tinvest/TInvestPortfolioService.kt` — из `PositionData.dailyYieldRelati
 
-
+---
 <!-- SUBSECTION_END: t-19 -->
 
 
@@ -723,9 +739,8 @@ ___
 
 
 
-
 <!-- SUBSECTION_BEGIN: t-32 -->
-___
+<a id="t-32"></a>
 ### [DEFER] T-32 Live-test Broker lifecycle API: BCS/Finam
 **Мобильная работа:** невозможно (нужен девайс/эмулятор + adb).
 
@@ -796,6 +811,8 @@ success, стримы не идут» — не проверка, а конста
 - `### Реализация BCS Broker API`, `### Реализация Finam Broker API`.
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: t-32 -->
 
 
@@ -808,7 +825,7 @@ success, стримы не идут» — не проверка, а конста
 
 
 <!-- SUBSECTION_BEGIN: t-39 -->
-___
+<a id="t-39"></a>
 ### [DEFER] T-39 Search: drop statuses (variant D for T-7)
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
@@ -867,6 +884,8 @@ ___
 **Открытые вопросы.**
 - Интервал periodic (1 мин / 5 мин).
 - Что делать при cache hit + periodic — пропускать?
+
+---
 <!-- SUBSECTION_END: t-39 -->
 
 
@@ -879,8 +898,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-23 -->
-___
-### [PLAN] T-23 UI: показать executedPrice / executedQuantity на карточке
+<a id="t-23"></a>
+### [DEFER] T-23 UI: показать executedPrice / executedQuantity на карточке
 **Мобильная работа:** частичное (live-тест UI).
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -931,6 +950,8 @@ ___
 **Связано:** `### Split order domain into sealed Regular/Stop`; `docs/clean-audit.md` → Н4; `docs/ROADMAP.md` → `### Split order domain into sealed Regular/Stop`.
 
 **Открытые вопросы:** какой вариант размещения (A/B/C)? Показывать ли при `executedQuantity == 0`? Нужно ли отображать для `Order.Stop` (сейчас полей нет — только `null`/`0`)?
+
+---
 <!-- SUBSECTION_END: t-23 -->
 
 
@@ -943,8 +964,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-24 -->
-___
-### [PLAN] T-24 UI-индикатор состояния стримов
+<a id="t-24"></a>
+### [DEFER] T-24 UI-индикатор состояния стримов
 **Статус:** запланировано. **UI — требует санкции.**
 
 **Контекст:** пользователь не может оценить на глаз,
@@ -1004,6 +1025,8 @@ live-теста. UI-индикатор блокируется **закрытие
 **Оценка:** ~2 часа.
 
 **Зависимости:** блокируется StreamState.
+
+---
 <!-- SUBSECTION_END: t-24 -->
 
 
@@ -1016,8 +1039,8 @@ live-теста. UI-индикатор блокируется **закрытие
 
 
 <!-- SUBSECTION_BEGIN: t-25 -->
-___
-### [PLAN] T-25 UI: разбивка AccountBalance.total на money/blocked в шапке счёта
+<a id="t-25"></a>
+### [DEFER] T-25 UI: разбивка AccountBalance.total на money/blocked в шапке счёта
 **Мобильная работа:** частичное (live-тест UI).
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -1114,6 +1137,8 @@ blocked на валютной карточке» устарела: валютн�
   с ненулевым `blocked`.
 - Мультивалютность: только RUB или все `AccountBalance`?
 - `blocked` в `OrdersScreen` — отдельной задачей при необходимости.
+
+---
 <!-- SUBSECTION_END: t-25 -->
 
 
@@ -1126,8 +1151,8 @@ blocked на валютной карточке» устарела: валютн�
 
 
 <!-- SUBSECTION_BEGIN: t-26 -->
-___
-### [PLAN] T-26 UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
+<a id="t-26"></a>
+### [DEFER] T-26 UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
 **Мобильная работа:** частичное (live-тест UI).
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -1233,6 +1258,8 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
   максимальная дата? Проверить в документации.
 - Смена типа с `GOOD_TILL_DATE` на `GOOD_TILL_CANCEL` —
   очищать `expireDate` или оставлять?
+
+---
 <!-- SUBSECTION_END: t-26 -->
 
 
@@ -1245,8 +1272,8 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 
 
 <!-- SUBSECTION_BEGIN: t-27 -->
-___
-### [PLAN] T-27 Индикатор доступности инструмента в карточке позиции
+<a id="t-27"></a>
+### [DEFER] T-27 Индикатор доступности инструмента в карточке позиции
 **Статус:** запланировано.
 
 **Файлы:**
@@ -1263,6 +1290,8 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 **Оценка:** ~1 час (после санкции на UI).
 
 **Когда вернуться:** при следующей итерации по UI портфеля.
+
+---
 <!-- SUBSECTION_END: t-27 -->
 
 
@@ -1271,9 +1300,12 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 
 
+
+
+
 <!-- SUBSECTION_BEGIN: t-35 -->
-___
-### [PLAN] T-35 OrdersListDialog: empty-state
+<a id="t-35"></a>
+### [DEFER] T-35 OrdersListDialog: empty-state
 **Мобильная работа:** частичное (live-тест UI).
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -1318,6 +1350,8 @@ ___
 **Связано:** M016 (PR #112), `### M6: Portfolio + Settings panels`.
 
 **Открытые вопросы:** нужен ли empty-state в UI вообще? Решить на санкции.
+
+---
 <!-- SUBSECTION_END: t-35 -->
 
 
@@ -1330,8 +1364,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-36 -->
-___
-### [PLAN] T-36 Settings: inline status card vs snackbar
+<a id="t-36"></a>
+### [DEFER] T-36 Settings: inline status card vs snackbar
 **Мобильная работа:** частичное (live-тест UI).
 
 **Статус:** запланировано. **UI — требует санкции.**
@@ -1380,6 +1414,8 @@ ___
 **Связано:** M6 umbrella (`### ✅ M6: finish one-shot events`, PR #114).
 
 **Открытые вопросы:** нужен ли snackbar в Settings (единый UX с Orders/Portfolio) или inline Card — окончательный выбор? Решить на санкции.
+
+---
 <!-- SUBSECTION_END: t-36 -->
 
 
@@ -1391,11 +1427,9 @@ ___
 
 
 
-
-
 <!-- SUBSECTION_BEGIN: t-39 -->
-___
-### [PLAN] T-39 Общий RateLimitedException для всех брокеров
+<a id="t-39"></a>
+### [DEFER] T-39 Общий RateLimitedException для всех брокеров
 **Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
 
 **Статус:** запланировано.
@@ -1445,6 +1479,8 @@ ___
 **Связано:** `architecture-22` (rate-limiter), `architecture-23 #4`.
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: t-39 -->
 
 
@@ -1456,15 +1492,9 @@ ___
 
 
 
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-28 -->
-___
-### [PLAN] T-28 P&L: sandbox client-side fallback для Position (низкий приоритет)
+<a id="t-28"></a>
+### [DEFER] T-28 P&L: sandbox client-side fallback для Position (низкий приоритет)
 **Мобильная работа:** частичное (live-тест данных в песочнице).
 
 **Статус:** запланировано.
@@ -1534,7 +1564,6 @@ ___
 
 
 
-___
 
 
 
@@ -1547,6 +1576,8 @@ ___
 
 **Пути решения:** разбить на per-broker обработчики
 (`toTInvestError`, `toBcsError`
+
+---
 <!-- SUBSECTION_END: t-28 -->
 
 
@@ -1559,4 +1590,14 @@ ___
 
 
 <!-- SECTION_END: roadmap-defer -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->

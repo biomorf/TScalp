@@ -5,79 +5,118 @@
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: t-44 -->
-___
-### [PLAN] T-44 SSoT стиля документации (docs/docs-structure.md) + унификация заголовков/разделителей/индексов
-**Мобильная работа:** полное закрытие (proot + PR; docs-only + скрипты, гейт на CI).
+<a id="t-44"></a>
+### [WIP] T-44 SSoT стиля документации (docs/docs-structure.md) + миграция всех файлов и инструментов
+**Мобильная работа:** полное закрытие (proot + PR; docs + скрипты, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** в работе. Ревизия 2026-11-20: исходная задача переписана под принятые решения.
 
-**Контекст:** стиль оформления `.md`-файлов проекта размазан по: (1) `AGENTS-integrity.md` (маркеры), (2) `project-docs-section-order` (разделители, только ROADMAP), (3) код скриптов (`docs_normalize.py`, `docs_rebuild_index.py` — форматы заголовков/индексов), (4) `r4j` (список скриптов). Код — единственный полный источник истины для форматов. Нарушает SSoT: правка стиля требует синхронной правки AGENTS + кода + индексов, риск рассинхрона. Решения Q43–Q51 (сессия 2026-11-18): `### [TOKEN] <ID> <title>` везде; TOKEN для AGENTS — `[AGENTS]`; маркер `SUBSECTION_BEGIN: <id>` без заголовка; 10 пустых везде; `project-docs-section-order` → перенос таблицы в `docs/docs-structure.md`; `docs_add.py`/`docs_rebuild_index.py` — `--mode` (agents/agents-lessons/roadmap/ci-roadmap); `issues`/`clean-audit` — вне scope.
+**Контекст:** стиль оформления `.md` размазан по 4 источникам: (1) `AGENTS-integrity.md` — маркеры; (2) `project-docs-section-order` — разделители; (3) код скриптов (`docs_normalize.py`, `docs_rebuild_index.py`) — форматы заголовков и индексов; (4) `r4j` — список инструментов. «Код — единственный полный источник истины для форматов» — это не SSoT, это четыре канона, расходящихся друг с другом. Результат: любая правка стиля требует синхронной правки AGENTS + кода + индексов, и риск рассинхрона растёт с каждым коммитом. Решение — **один канон-документ**, в котором прописаны инварианты, а скрипты и AGENTS ссылаются на него, а не определяют сами.
+
+**Ревизия 2026-11-20 — принятые решения:**
+1. Канон — `docs/docs-structure.md`. Скрипты — реализация.
+2. Индексы — 5 колонок `| TOKEN | ID | Title | File | Anchor |`. Anchor — кликабельная ссылка `File#id`.
+3. Счётчик `Next ID` в шапке индекса. Архив не читается.
+4. Маркеры plain (`<!-- FILE_BEGIN -->`), префиксы `AGENTS_FILE_BEGIN` / `LESSONS_FILE_BEGIN` запрещены и заменяются (не дополняются).
+5. Область применения — три уровня: (а) все `.md` — `FILE_BEGIN/END`; (б) `.md` с `##` — `SECTION_BEGIN/END`; (в) семейства AGENTS/LESSONS/roadmap/ci-roadmap — `SUBSECTION_BEGIN/END` + токены + ID + якоря + индексы.
+6. Заголовки: `### [TOKEN] <ID> <title>`. TOKEN выводится из имени файла: `AGENTS-LESSONS-*` → `[AGENTS-LESSONS]` (приоритет), иначе `AGENTS-*` → `[AGENTS]`; roadmap → `WIP/PLAN/DEFER/DONE`; ci-roadmap → то же.
+7. Регистр ID: UPPER для roadmap/ci-roadmap (`T-44`, `C-5`); kebab-case lower для AGENTS (`r4k`, `l-kotlin-115`). Маркер — всегда kebab-case lower. Связь `marker.id` ↔ `heading.ID`: для roadmap `marker.id == lower(heading.ID)`; для AGENTS — точное строковое равенство.
+8. Якорь `<a id="<id>"></a>` — производный от маркера, первая строка тела. Проверка: наличие, позиция, совпадение с id маркера.
+9. Разделители: единственный визуальный разделитель — `---` **перед** `SUBSECTION_END`, отделён от тела **ровно одной** пустой строкой. `___` убирается полностью. Между блоками и перед `SECTION_END` / `FILE_END` — ровно 10 пустых строк. Таблица переходов §4.4 упраздняется.
+10. Цепочка статусов: имя файла → токен → строка `**Статус:**`. Смена статуса = перенос блока в другой файл, а не правка текста.
+11. `AGENTS-integrity.md` превращается в ссылку на SSoT (прекращает определять маркеры).
+12. Описание CLI (§6 старого документа) уходит в `AGENTS/scripts/README.md` (стык с T-2).
+13. Корневой `AGENTS.md` — тонкий указатель, без дублирования полного индекса.
 
 **Соответствие Clean:** — (не применимо, документация/инструменты).
 
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**MVVM:** — (не применимо).
-
-**KMP:** — (не применимо).
-
-**Предусловия:** T-39 (rate-limit) — не блокер; T-2 (консолидация скриптов) — не блокер, но пересекается (`r4j` — обновить).
-
 **Файлы:**
-- `docs/docs-structure.md` — новый SSoT (заголовки, маркеры, разделители, индексы, скрипты, Mermaid).
-- `AGENTS/AGENTS-integrity.md` — ссылка на `docs/docs-structure.md` (без дублирования).
-- `AGENTS/AGENTS-project-docs.md` → `project-docs-section-order` — таблица переходов → ссылка на `docs/docs-structure.md`.
-- `AGENTS/AGENTS-style-docs.md` → `r4j` — ссылка на `docs/docs-structure.md`, `--mode`.
-- `AGENTS/scripts/docs_add.py` — `--mode`, `--token` (целевое).
-- `AGENTS/scripts/docs_rebuild_index.py` — `--mode` (4 режима), `HEADING_RE` с TOKEN.
-- `AGENTS/scripts/docs_normalize.py` — `sep_n = 10` везде.
-- Все `AGENTS/AGENTS-*.md` — `### <id> <title>` → `### [AGENTS] <id> <title>` (массовая правка — скриптом, `r4c`).
+- `docs/docs-structure.md` — новый SSoT (инварианты, не миграция).
+- `AGENTS/AGENTS-integrity.md` — ссылка на SSoT, убрать определения маркеров.
+- `AGENTS/AGENTS-project-docs.md` → `project-docs-section-order` — ссылка на SSoT, убрать таблицу переходов.
+- `AGENTS/AGENTS-style-docs.md` → `r4j` — ссылка на `AGENTS/scripts/README.md`, убрать описание CLI.
+- `AGENTS/AGENTS.md` — тонкий указатель, SECTION-маркеры, без дублирования полного индекса.
+- `AGENTS/scripts/README.md` — описание инструментов (новый).
+- `AGENTS/scripts/docs_normalize.py` — убрать `___`; добавить `---` + одна пустая перед `SUBSECTION_END`; якорь как первая строка тела; замена префиксных маркеров.
+- `AGENTS/scripts/docs_rebuild_index.py` — 5 колонок с Anchor; счётчик `Next ID`; `HEADING_RE` с TOKEN.
+- `AGENTS/scripts/docs_add.py` / `docs_cut.py` — соответствие новому формату.
+- `docs/scripts/check-docs.sh` — синхронизация с новым CLI (`--root` / `--check-index` больше нет); новые проверки канона (см. «Шаги»).
+- Все `AGENTS/AGENTS-*.md` и `AGENTS/AGENTS-LESSONS-*.md` — массовая правка (скриптом, r4c).
+- Все `docs/roadmap/ROADMAP-*.md` и `docs/roadmap/ci-roadmap-*.md` — массовая правка (скриптом, r4c).
 
 **Шаги:**
-1. `docs/docs-structure.md` — SSoT (заголовки, маркеры, разделители, индексы, скрипты, Mermaid-диаграмма).
-2. `AGENTS-integrity.md` → ссылка на `docs/docs-structure.md`.
-3. `project-docs-section-order` → таблица переходов переносится в `docs/docs-structure.md`, здесь — ссылка.
-4. `r4j` → ссылка на `docs/docs-structure.md`, `--mode` в списке скриптов.
-5. `docs_normalize.py` — `sep_n = 10` везде (убрать `4 if has_preamble`).
-6. `docs_add.py` — `--mode`, `--token`, валидация формата.
-7. `docs_rebuild_index.py` — `--mode` (agents/agents-lessons/roadmap/ci-roadmap), `HEADING_RE` с TOKEN.
-8. Массовая правка AGENTS-файлов: `### <id> <title>` → `### [AGENTS] <id> <title>` — скриптом (`r4c`), `r4d` (pre/post-assert), `r4h` (проверка).
-9. Тесты: `docs_normalize.py --check --all` → 0; `docs_rebuild_index.py --dry-run` → 4 индекса.
-10. Verify: `docs/docs-structure.md` содержит все форматы; AGENTS-файлы с `[AGENTS]`; индексы пересобраны.
+1. **Написать новый `docs/docs-structure.md`:** инварианты (разделы 1–5 из скелета ревизии), без раздела «Скрипты» (уходит в README) и без таблицы переходов. Поле статуса для каждого правила — три значения: Правило / Инструмент / Файлы.
+2. **Переписать `AGENTS-integrity.md`:** убрать определения маркеров (FILE/SECTION/SUBSECTION), оставить только роль integrity-policy (отчёт о прочтении) и ссылку на SSoT.
+3. **Переписать `project-docs-section-order`:** убрать таблицу переходов, оставить ссылку на SSoT §4.
+4. **Переписать `r4j`:** убрать описание CLI, оставить ссылку на `AGENTS/scripts/README.md`.
+5. **Написать `AGENTS/scripts/README.md`:** таблица «скрипт / назначение / аргументы / пример» для 4 штатных скриптов.
+6. **Переписать `docs_normalize.py`:** убрать `___` как обязательный; добавить генерацию `---` + одна пустая перед `SUBSECTION_END`; якорь `<a id="<id>"></a>` как первая строка тела; замена (не дополнение) префиксных маркеров; сохранение `rstrip` на каждой строке тела; 10 пустых везде между блоками.
+7. **Переписать `docs_rebuild_index.py`:** 5 колонок; ячейка Anchor — кликабельная ссылка `File#id`; счётчик `Next ID` в шапке индекса; `HEADING_RE` с захватом TOKEN; вывод `--mode` в 4 режимах (agents / agents-lessons / roadmap / ci-roadmap).
+8. **Обновить `docs_add.py` / `docs_cut.py`:** соответствие новому формату блока (якорь, `---` перед END).
+9. **Переписать `docs/scripts/check-docs.sh`:** убрать удалённые флаги `--root` / `--check-index`; добавить новые проверки канона:
+   - `FILE_BEGIN` — первая строка, `FILE_END` — последняя;
+   - отсутствие префиксных маркеров (`AGENTS_*`, `LESSONS_*`);
+   - `marker.id` ↔ `heading.ID` (с учётом регистра по семействам);
+   - уникальность `id` в пределах индекса (для AGENTS и ROADMAP — раздельно);
+   - наличие якоря `<a id="...">` первой строкой тела;
+   - `---` перед каждым `SUBSECTION_END` с ровно одной пустой строкой перед ним;
+   - отсутствие `___` в файлах области;
+   - соответствие токена имени файла (TOKEN ↔ File);
+   - соответствие `**Статус:**` токену (`WIP → в работе` и т. д.).
+10. **Массовая правка AGENTS-файлов (скриптом, r4c, r4d):** `### <id> <title>` → `### [AGENTS] <id> <title>` (или `[AGENTS-LESSONS]`); добавить якоря; убрать `___`; добавить `---` + одна пустая перед `SUBSECTION_END`; нормализовать 10 пустых.
+11. **Массовая правка ROADMAP-файлов (скриптом, r4c, r4d):** то же, но с токенами `WIP/PLAN/DEFER/DONE`; приведение ID заголовков к UPPER; токены в строках индекса.
+12. **Корневой `AGENTS.md` — тонкий указатель:** гейт обязательного чтения, ссылка на полный индекс `AGENTS/AGENTS.md`, без дублирования таблицы.
+13. **Пересобрать индексы:** `docs_rebuild_index.py --apply` — 4 индекса, в каждом `Next ID`, 5 колонок.
+14. **Verify:**
+    - `docs_normalize.py --check --all` → 0 deviations;
+    - `docs_rebuild_index.py --dry-run` → 4 индекса consistent;
+    - `check-docs.sh` → зелёный;
+    - рендер якоря на GitHub на одном файле (эмпирическая проверка: `File#t-44` прокручивает к блоку).
 
-**Тесты:** `docs_normalize.py --check --all` (deviations=0); `docs_rebuild_index.py --dry-run` (agents/agents-lessons/roadmap/ci-roadmap).
+**Тесты:**
+- `docs_normalize.py --check --all` (deviations=0);
+- `docs_rebuild_index.py --dry-run` (4 индекса consistent);
+- `check-docs.sh` (все проверки зелёные);
+- эмпирическая проверка рендера якоря на GitHub (1 файл, вручную после merge).
 
-**Референсы:** `AGENTS-integrity.md`, `project-docs-section-order`, `r4j`, `docs_add.py`, `docs_normalize.py`, `docs_rebuild_index.py`, `ROADMAP.md` (индекс), `ci-roadmap.md` (индекс), сессия 2026-11-18 (Q43–Q51).
+**Референсы:** сессия ревизии 2026-11-20; `AGENTS-integrity.md`; `project-docs-section-order`; `r4j`; `docs_add.py` / `docs_cut.py` / `docs_normalize.py` / `docs_rebuild_index.py`; `check-docs.sh`; `ROADMAP.md` (индекс); `ci-roadmap.md` (индекс).
 
 **Ограничения:**
-- `issues` / `clean-audit` — **вне scope** (структура не подтверждена / не табличная).
-- Массовая правка AGENTS — **только скриптом**, не агентом (`r4c`, `r2d`).
-- `docs_add.py` — обратная совместимость: `--mode` по умолчанию `agents` (текущее поведение).
-- Не менять логику `docs_cut.py` (только `--mode` для валидации, если нужно).
+- `issues/` / `clean-audit/` — **вне scope** (структура не подтверждена, не табличная).
+- Массовая правка AGENTS и ROADMAP — **только скриптом**, не агентом (r4c, r2d).
+- Архивы (`ROADMAP-ARCHIVE.md`, `CI-ROADMAP-ARCHIVE.md`) не трогаем: FILE-маркеры расставляются (уровень 1), структурный стиль не применяется.
+- Не менять логику `docs_cut.py` (кроме соответствия новому формату блока).
+- Счётчик `Next ID` — в шапке индекса; при выдаче инкремент; первичная установка — разовым скриптом по максимуму индекса и архива (скрипт архив читает, контекст ассистента — нет).
 
 **Критерий готовности:**
-- `docs/docs-structure.md` — SSoT (все форматы, диаграмма).
-- `AGENTS-integrity.md`, `project-docs-section-order`, `r4j` — ссылки на `docs/docs-structure.md`, без дублирования стиля.
+- `docs/docs-structure.md` — SSoT (все инварианты, без §6 и таблицы переходов).
+- `AGENTS-integrity.md`, `project-docs-section-order`, `r4j` — ссылки на SSoT / `scripts/README.md`, без дублирования стиля.
+- `AGENTS/scripts/README.md` — описание 4 инструментов.
+- Скрипты обеспечивают описанный порядок (создание и поддержание).
+- Все AGENTS-файлы — `### [AGENTS] <id> <title>` (или `[AGENTS-LESSONS]`), якоря, `---` перед END, 10 пустых.
+- Все ROADMAP-файлы — `### [WIP|PLAN|DEFER|DONE] <ID> <title>` (UPPER), якоря, `---` перед END, 10 пустых.
+- 4 индекса — 5 колонок, `Next ID`, consistent.
 - `docs_normalize.py --check --all` → deviations=0.
-- `docs_rebuild_index.py --dry-run` → 4 индекса (agents/agents-lessons/roadmap/ci-roadmap).
-- Все AGENTS-файлы — `### [AGENTS] <id> <title>`.
-- Гейт зелёный (docs-only → mini-gate; скрипты — полный гейт).
+- `check-docs.sh` → ALL CHECKS PASSED.
+- Рендер якоря на GitHub проверен.
+- Гейт зелёный.
 
-**Оценка:** ~4–6 ч.
+**Оценка:** ~10–14 ч. (SSoT 1 ч, переписывание AGENTS-директив 1 ч, скрипты 3 ч, `check-docs.sh` 1.5 ч, миграция AGENTS 2 ч, миграция ROADMAP 1.5 ч, индексы 0.5 ч, verify 1 ч, фиксы по ходу 2–3 ч).
 
-**Зависимости:** нет (T-2 — пересекается, не блокер).
+**Зависимости:** T-2 (консолидация скриптов) — пересекается в `AGENTS/scripts/README.md`, не блокер; решается в шаге 5.
 
-**Связано:** T-2 (консолидация скриптов), `AGENTS-integrity.md`, `project-docs-section-order`, `r4j`.
+**Связано:** T-2 (консолидация скриптов), `AGENTS-integrity.md`, `project-docs-section-order`, `r4j`, `AGENTS-report.md`.
 
-**Открытые вопросы:**
-- TOKEN для AGENTS — `[AGENTS]` (единый, Q49). Если позже понадобится дифференциация — отдельная задача.
-- `docs_add.py` — вариант 1/2/3 (Q39) — решить при реализации.
-- `HEADING_RE` для roadmap — TOKEN захватывать (для таблицы `| TOKEN | ID | Title | File |`).
+**Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: t-44 -->
 
 
@@ -89,9 +128,8 @@ ___
 
 
 
-
 <!-- SUBSECTION_BEGIN: t-3 -->
-___
+<a id="t-3"></a>
 ### [WIP] T-3 Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED
 **Мобильная работа:** полное закрытие (proot + PR; гейт на CI).
 
@@ -184,7 +222,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-33 -->
-___
+<a id="t-33"></a>
 ### [WIP] T-33 Установка GrpcExceptionGuard
 **Мобильная работа:** частичное (live-тест на устройстве).
 
@@ -264,10 +302,7 @@ guard не срабатывает, разбираться отдельно.
 
 **Оценка:** ~1 час.
 
-
-
-
-___
+---
 <!-- SUBSECTION_END: t-33 -->
 
 
@@ -279,15 +314,15 @@ ___
 
 
 
-
-
-
-
-
-
-
-
-
-
 <!-- SECTION_END: roadmap-wip -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->

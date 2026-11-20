@@ -6,9 +6,14 @@
 
 
 
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: c-11 -->
-___
-### [WIP] C-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
+<a id="c-11"></a>
+### [DEFER] C-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
 **Мобильная работа:** полное закрытие (правки `gradle.properties` / `app/build.gradle.kts` / `.github/workflows/` — proot + PR; гейт на CI).
 
 **Статус:** в работе — CDS done (`a3becccc`), cron #944 done (`2e7e3170`); Unsafe blocked on CI JDK 25 upgrade (follow-up).
@@ -69,14 +74,22 @@ ___
 **Открытые вопросы:**
 - `### CI: JDK 17 → 25` — scope (AGP 9 / KSP / Hilt / toolchain / foojay) и риск — отдельная сессия, не в этом PR.
 - Точная версия ktlint-gradle с фиксом #944 — неизвестна, cron уведомит.
+
+---
 <!-- SUBSECTION_END: c-11 -->
 
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: c-10 -->
-___
-### [PLAN] C-10 CI: actions/cache v4 -> v6 (Node 20 deprecation)
+<a id="c-10"></a>
+### [DEFER] C-10 CI: actions/cache v4 -> v6 (Node 20 deprecation)
 **Мобильная работа:** полное закрытие (proot + PR; правка `ci.yml` в 3 местах, gate на CI).
 
 **Статус:** запланировано.
@@ -125,6 +138,8 @@ ___
 
 **Открытые вопросы:**
 - Точная версия `actions/cache` на 2026-11 (v6 подтверждён пользователем; проверить при apply — `latest` в репозитории action'а).
+
+---
 <!-- SUBSECTION_END: c-10 -->
 
 
@@ -137,8 +152,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: c-12 -->
-___
-### [PLAN] C-12 CI: JDK 17 → 25
+<a id="c-12"></a>
+### [DEFER] C-12 CI: JDK 17 → 25
 **Мобильная работа:** полное закрытие (правки `.yml` / `.kts` через proot; гейт на CI).
 
 **Статус:** запланировано. **Блокер для** `### Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944` (Unsafe-часть).
@@ -199,6 +214,8 @@ ___
 - `setup-java@v5` + `temurin` + `java-version: '25'` — доступна ли 25 LTS через setup-java (или нужен `'25-ea'` / `'25.0.x'`)? Проверить при apply.
 - AGP 9 / KSP / Hilt на JDK 25 — есть ли известные несовместимости? Проверить в отдельной ветке (пункт 1 шагов).
 - `jvmToolchain(17)` при daemon 25: нужен ли foojay auto-provision для toolchain 17? Проверить (если нет — `jvmToolchain(25)` + `jvmTarget 17` всё равно работает для bytecode).
+
+---
 <!-- SUBSECTION_END: c-12 -->
 
 
@@ -209,8 +226,9 @@ ___
 
 
 
+
 <!-- SUBSECTION_BEGIN: c-4 -->
-___
+<a id="c-4"></a>
 ### [DEFER] C-4 Role emulation для тестировщика
 **Мобильная работа:** полное закрытие. Всё делается через
 web Settings GitHub + правка `docs/git-flow.md`.
@@ -270,6 +288,8 @@ web Settings GitHub + правка `docs/git-flow.md`.
 **Открытые вопросы:**
 - Роль второго участника: Write или Maintainer? Решить
   при появлении. Для approve достаточно Write.
+
+---
 <!-- SUBSECTION_END: c-4 -->
 
 
@@ -278,9 +298,12 @@ web Settings GitHub + правка `docs/git-flow.md`.
 
 
 
+
+
+
 <!-- SUBSECTION_BEGIN: c-7 -->
-___
-### [PLAN] C-7 Play Store Internal Testing
+<a id="c-7"></a>
+### [DEFER] C-7 Play Store Internal Testing
 **Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
 **Статус:** запланировано. **Заблокировано** созданием
@@ -352,6 +375,8 @@ Service Account).
   Account).
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: c-7 -->
 
 
@@ -364,8 +389,8 @@ Service Account).
 
 
 <!-- SUBSECTION_BEGIN: c-8 -->
-___
-### [PLAN] C-8 Play Store Production
+<a id="c-8"></a>
+### [DEFER] C-8 Play Store Production
 **Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
 **Статус:** запланировано. **Заблокировано** «Play Store
@@ -417,6 +442,8 @@ Production track Play Store. Привязан к тегу `v*` на
 **Зависимости:** блокируется «Play Store Internal Testing».
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: c-8 -->
 
 
@@ -429,4 +456,14 @@ Production track Play Store. Привязан к тегу `v*` на
 
 
 <!-- SECTION_END: ci-roadmap-defer -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->

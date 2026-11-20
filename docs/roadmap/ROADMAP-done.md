@@ -12,11 +12,11 @@
 
 
 <!-- SUBSECTION_BEGIN: t-13 -->
-___
+<a id="t-13"></a>
 ### [DONE] T-13 Compose UI: test infra + 3 экрана — ✅ done (U0–U4)
 См. `ROADMAP-ARCHIVE.md` → `### ✅ Compose UI: test infra + 3 экрана (U0–U4)`.
 
-___
+---
 <!-- SUBSECTION_END: t-13 -->
 
 
@@ -29,7 +29,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-1 -->
-___
+<a id="t-1"></a>
 ### [DONE] T-1 docs/: рефакторинг журналов (ROADMAP, ci-roadmap, ISSUES, clean-audit)
 **Статус:** выполнено (2026-11-16)
 **Мобильная работа:** полное закрытие
@@ -93,7 +93,7 @@ rebuild_index) — есть; `seed_markers_docs.py` (oneoff) — создан.
 **Зависимости:** — (Фаза 0 уже начата).
 **Открытые вопросы:** —
 
-___
+---
 <!-- SUBSECTION_END: t-1 -->
 
 
@@ -106,4 +106,14 @@ ___
 
 
 <!-- SECTION_END: roadmap-done -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->
