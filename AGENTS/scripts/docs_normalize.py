@@ -16,23 +16,85 @@ H2_RE = re.compile(r"^## ")
 FILE_BEGIN_LINE = "<!-- FILE_BEGIN -->"
 FILE_END_LINE = "<!-- FILE_END -->"
 
+PREFIX_RE = re.compile(
+    r"^<!-- (?:AGENTS_|LESSONS_)(FILE|SECTION|SUBSECTION)_(BEGIN|END)(?:: ([A-Za-z0-9_-]+))? -->$"
+)
 
-def normalize_text(text: str) -> tuple[str, list[str]]:
+
+def _strip_prefix(line: str) -> tuple[str, bool]:
+    """Replace prefixed markers (AGENTS_FILE_BEGIN, LESSONS_SECTION_END) with plain ones."""
+    m = PREFIX_RE.match(line)
+    if not m:
+        return line, False
+    kind, bound, mid = m.group(1), m.group(2), m.group(3)
+    plain = f"<!-- {kind}_{bound}: {mid} -->" if mid else f"<!-- {kind}_{bound} -->"
+    return plain, True
+
+
+TOKEN_BY_FILE = {
+    "ROADMAP-plan.md": "PLAN",
+    "ROADMAP-defer.md": "DEFER",
+    "ROADMAP-wip.md": "WIP",
+    "ROADMAP-done.md": "DONE",
+    "ci-roadmap-plan.md": "PLAN",
+    "ci-roadmap-defer.md": "DEFER",
+    "ci-roadmap-wip.md": "WIP",
+    "ci-roadmap-done.md": "DONE",
+}
+
+
+def _detect_expected_token(file_path: str) -> str | None:
+    """Return expected TOKEN for file_path, or None if not applicable."""
+    name = Path(file_path).name
+    if name in TOKEN_BY_FILE:
+        return TOKEN_BY_FILE[name]
+    if name.startswith("AGENTS-LESSONS-") and name.endswith(".md"):
+        return "AGENTS-LESSONS"
+    if name.startswith("AGENTS-") and name.endswith(".md") and not name.startswith("AGENTS-LESSONS-"):
+        return "AGENTS"
+    return None
+
+
+def _fix_token_heading(line: str, expected: str) -> tuple[str, bool]:
+    """If line is a ### [TOKEN] ... heading with wrong TOKEN, replace. Returns (line, changed)."""
+    import re as _re
+    m = _re.match(r"^(### )\[([A-Z-]+)\] (.*)$", line)
+    if not m:
+        return line, False
+    cur = m.group(2)
+    if cur == expected:
+        return line, False
+    return f"{m.group(1)}[{expected}] {m.group(3)}", True
+
+
+def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
     """Return (new_text, deviations). Idempotent: if already normal, deviations = [].
 
     Rules (SSoT: docs/docs-structure.md):
     - FILE_BEGIN / FILE_END: first / last line, exactly one each.
     - 10 blank lines between SUBSECTION blocks; 10 before SECTION_END.
-    - ___ after BEGIN, ### after ___; no leading/trailing blanks in body.
+    - anchor <a id="id"></a> right after BEGIN; ### heading right after anchor.
+    - --- before SUBSECTION_END, exactly one blank line before it.
     - rstrip every line; one trailing newline at EOF.
     """
     deviations: list[str] = []
+    expected_token = _detect_expected_token(file_path) if file_path else None
     lines = text.splitlines(keepends=True)
 
     def strip_nl(s: str) -> str:
         return s[:-1] if s.endswith("\n") else s
 
     raw_lines = [strip_nl(l) for l in lines]
+
+    prefix_fixed = 0
+    for i, l in enumerate(raw_lines):
+        fixed, changed = _strip_prefix(l)
+        if changed:
+            raw_lines[i] = fixed
+            prefix_fixed += 1
+    if prefix_fixed:
+        deviations.append(f"prefix markers replaced: {prefix_fixed}")
+
     has_file_begin = any(l == FILE_BEGIN_LINE for l in raw_lines)
     has_file_end = any(l == FILE_END_LINE for l in raw_lines)
     if not has_file_begin:
@@ -99,40 +161,52 @@ def normalize_text(text: str) -> tuple[str, list[str]]:
 
     for bi, (b, e, sid) in enumerate(blocks):
         body = [strip_nl(l) for l in lines[b+1:e]]
-        try:
-            sep_idx = next(j for j, l in enumerate(body) if l.strip() == "___")
-        except StopIteration:
-            raise AssertionError(f"{sid}: no ___ separator")
+        anchor = f'<a id="{sid}"></a>'
+
         try:
             h_idx = next(j for j, l in enumerate(body) if l.startswith("### "))
         except StopIteration:
             raise AssertionError(f"{sid}: no ### heading")
-        if h_idx != sep_idx + 1:
-            deviations.append(f"{sid}: ___-to-### gap")
-        if sep_idx != 0:
-            deviations.append(f"{sid}: BEGIN-to-___ gap")
+
+        pre = [l for l in body[:h_idx] if l.strip() not in ("", "___")]
+        if not pre:
+            deviations.append(f"{sid}: missing anchor")
+        elif pre != [anchor]:
+            deviations.append(f"{sid}: unexpected lines before ###: {pre[:2]}")
+
         heading = body[h_idx]
+        if expected_token:
+            heading_fixed, changed = _fix_token_heading(heading, expected_token)
+            if changed:
+                m = re.match(r"^### \[([A-Z-]+)\] ", heading)
+                cur = m.group(1) if m else "?"
+                deviations.append(f"{sid}: TOKEN mismatch: [{cur}] (expected [{expected_token}])")
+                heading = heading_fixed
         if not heading.startswith("### "):
             deviations.append(f"{sid}: heading not ### ")
-        rest = body[h_idx+1:]
-        rest_stripped = [l.rstrip() for l in rest]
-        if rest_stripped != rest:
-            deviations.append(f"{sid}: trailing whitespace")
-        if rest_stripped and rest_stripped[0] == "":
-            deviations.append(f"{sid}: blank after ###")
-        if rest_stripped and rest_stripped[-1] == "":
-            deviations.append(f"{sid}: blank before END")
 
-        out.append(f"<!-- SUBSECTION_BEGIN: {sid} -->\n")
-        out.append("___\n")
-        out.append(heading + "\n")
-        body_out = list(rest_stripped)
+        rest = body[h_idx + 1:]
+        if any(l.rstrip() != l for l in rest):
+            deviations.append(f"{sid}: trailing whitespace")
+        if any(l.strip() == "___" for l in rest):
+            deviations.append(f"{sid}: ___ separator (forbidden; use --- before END)")
+        if rest and rest[0].strip() == "":
+            deviations.append(f"{sid}: blank after ###")
+
+        body_out = [l.rstrip() for l in rest]
+        body_out = [l for l in body_out if l.strip() not in ("___", "---")]
         while body_out and body_out[0] == "":
             body_out.pop(0)
         while body_out and body_out[-1] == "":
             body_out.pop()
+
+        out.append(f"<!-- SUBSECTION_BEGIN: {sid} -->\n")
+        out.append(anchor + "\n")
+        out.append(heading + "\n")
         for l in body_out:
             out.append(l + "\n")
+        out.append("\n")
+        out.append("---\n")
         out.append(f"<!-- SUBSECTION_END: {sid} -->\n")
         if bi < len(blocks) - 1:
             out.append("\n" * 10)
@@ -164,7 +238,7 @@ def main():
             "  %(prog)s --all AGENTS/AGENTS-code.md AGENTS/AGENTS-style-core.md --apply\n"
             "  %(prog)s --all AGENTS/AGENTS-code.md --dry-run\n"
             "\n"
-            "Rules: FILE_BEGIN first / FILE_END last; 10 blanks between SUBSECTION blocks and before SECTION_END; ___ after BEGIN; ### after ___; rstrip; fence parity. Exit: 0 ok, 1 deviations, 2 abort (structure broken)."
+            "Rules: FILE_BEGIN first / FILE_END last; 10 blanks between SUBSECTION blocks and before SECTION_END; anchor after BEGIN; --- before END; rstrip; fence parity. Exit: 0 ok, 1 deviations, 2 abort (structure broken)."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -193,7 +267,7 @@ def main():
             continue
         text = f.read_text(encoding="utf-8")
         try:
-            new_text, devs = normalize_text(text)
+            new_text, devs = normalize_text(text, str(f))
         except AssertionError as e:
             print(f"ABORT {f.name}: {e}")
             sys.exit(2)
