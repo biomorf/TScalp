@@ -12,7 +12,7 @@
 
 
 <!-- SUBSECTION_BEGIN: t-2 -->
-___
+<a id="t-2"></a>
 ### [PLAN] T-2 AGENTS: консолидация скриптов в AGENTS/scripts + инструкции отдельно
 **Статус:** запланировано.
 **Мобильная работа:** полное закрытие
@@ -65,6 +65,8 @@ oneoff); `r4j` упоминает все 4; `oneoff/seed_markers.py` в репо
 **Открытые вопросы:** `seed_markers.py` — в `oneoff/` или удалить
 (он одноразовый, применён)? Рекомендую `oneoff/` — история, как
 расставлялись маркеры.
+
+---
 <!-- SUBSECTION_END: t-2 -->
 
 
@@ -77,7 +79,7 @@ oneoff); `r4j` упоминает все 4; `oneoff/seed_markers.py` в репо
 
 
 <!-- SUBSECTION_BEGIN: t-4 -->
-___
+<a id="t-4"></a>
 ### [PLAN] T-4 Rate-limiter: GetUserTariff (dynamic limits)
 **Мобильная работа:** полное закрытие (proot + PR; data-слой, гейт на CI).
 
@@ -138,6 +140,8 @@ ___
 **Открытые вопросы:**
 - Bootstrap: `GetUserTariff` под глобальным rate-limiter? — да, но с повышенным таймаутом.
 - Кэшировать между запусками (DataStore) или только в памяти? — в памяти для 1-й итерации.
+
+---
 <!-- SUBSECTION_END: t-4 -->
 
 
@@ -150,7 +154,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-40 -->
-___
+<a id="t-40"></a>
 ### [PLAN] T-40 PortfolioUiState: passthrough tradingStatuses StateFlow
 **Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
 
@@ -195,6 +199,8 @@ ___
 **Связано:** T-9; T-41.
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: t-40 -->
 
 
@@ -207,7 +213,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-41 -->
-___
+<a id="t-41"></a>
 ### [PLAN] T-41 Orders: миграция tradingStatuses на TradingStatusFlowManager
 **Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
 
@@ -254,6 +260,8 @@ ___
 **Связано:** T-9; T-40.
 
 **Открытые вопросы:** как `OrdersViewModel` триггерит `updateTradingStatuses` - на каждом изменении списка или на init? Уточнить при старте.
+
+---
 <!-- SUBSECTION_END: t-41 -->
 
 
@@ -266,7 +274,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-42 -->
-___
+<a id="t-42"></a>
 ### [PLAN] T-42 TradingStatus: stream API (subscribeTradingStatuses)
 **Мобильная работа:** полное закрытие (proot + PR; data + domain; гейт на CI).
 
@@ -313,6 +321,8 @@ ___
 **Связано:** T-9; umbrella T-3 sub-1b (stream connection limiter).
 
 **Открытые вопросы:** есть ли у T-Invest SDK `MarketDataStreamService.subscribeTradingStatuses` в текущей версии - `grep 'ru.tinkoff.piapi.*TradingStatus'` при старте.
+
+---
 <!-- SUBSECTION_END: t-42 -->
 
 
@@ -323,8 +333,9 @@ ___
 
 
 
+
 <!-- SUBSECTION_BEGIN: t-9 -->
-___
+<a id="t-9"></a>
 ### [PLAN] T-9 PortfolioScreen: double-load + TradingStatusFlowManager
 **Мобильная работа:** полное закрытие (proot + PR; presentation + domain; гейт на CI).
 
@@ -403,6 +414,8 @@ ___
 **Связано:** T-3 umbrella sub-5; T-8 (закрыт - batch+singular); T-40; T-41; T-42; `docs/rate-limits.md`.
 
 **Открытые вопросы:** как называется DI-модуль для manager'ов (`ManagerModule.kt` есть? или binding в `RepositoryBindingModule`?) - `grep` перед PR 5b.
+
+---
 <!-- SUBSECTION_END: t-9 -->
 
 
@@ -415,7 +428,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-10 -->
-___
+<a id="t-10"></a>
 ### [PLAN] T-10 TInvest*Service + *Api: unary → AppResult
 **Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
 
@@ -475,6 +488,8 @@ ___
 **Открытые вопросы:**
 - `AppError.RateLimited` — отдельный подтип или флаг `retryable` на `AppError.Unknown`? **Рекомендация:** отдельный подтип.
 - Streaming (`Flow`) — throw или тоже `AppResult` в `first()`? **Рекомендация:** throw.
+
+---
 <!-- SUBSECTION_END: t-10 -->
 
 
@@ -487,7 +502,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-11 -->
-___
+<a id="t-11"></a>
 ### [PLAN] T-11 C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing)
 **Мобильная работа:** полное закрытие (proot + PR; domain + presentation, гейт на CI).
 
@@ -544,6 +559,8 @@ ___
 **Связано:** M018 (clean-audit), PR-2 (`SaveFormStateUseCase`), PR-4 (Mediator).
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: t-11 -->
 
 
@@ -556,7 +573,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-12 -->
-___
+<a id="t-12"></a>
 ### [PLAN] T-12 Архитектурный документ (docs/architecture.md)
 **Мобильная работа:** полное закрытие (правки .md — через proot;
 mermaid-рендер — визуальная проверка, не блокирует).
@@ -718,6 +735,8 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 - Clean архитектура (umbrella-задача) — создаётся после
   `docs/architecture.md`, из раздела «Известные долги».
   Не входит в эту задачу.
+
+---
 <!-- SUBSECTION_END: t-12 -->
 
 
@@ -729,28 +748,8 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-37 -->
-___
+<a id="t-37"></a>
 ### [PLAN] T-37 docs/live-test.md: mobile-ограничения (Robolectric vs device)
 **Мобильная работа:** полное закрытие (docs-only, proot).
 
@@ -794,6 +793,8 @@ ___
 **Связано:** U0 (PR #115).
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: t-37 -->
 
 
@@ -806,7 +807,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: t-38 -->
-___
+<a id="t-38"></a>
 ### [PLAN] T-38 Live-test: C2 Orders form 7 сценариев
 **Мобильная работа:** невозможно (live-test на устройстве).
 
@@ -851,6 +852,8 @@ ___
 **Связано:** `### ✅ OrderFormViewModel: split на sub-VM (C2, снятие @Suppress) + 2 test infra prereqs` (`docs/roadmap/ROADMAP-ARCHIVE.md`).
 
 **Открытые вопросы:** нет.
+
+---
 <!-- SUBSECTION_END: t-38 -->
 
 
@@ -862,6 +865,87 @@ ___
 
 
 
+<!-- SUBSECTION_BEGIN: t-45 -->
+<a id="t-45"></a>
+### [PLAN] T-45 Миграция docs/*.md под канон
+**Мобильная работа:** полное закрытие (proot + PR; docs, гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** канон `docs/docs-structure.md` (§1) требует `FILE_BEGIN`/`FILE_END` от **любого** `.md` без исключений. Двенадцать файлов `docs/` не имеют этих маркеров вообще: часть — вообще без структурных маркеров, часть — со старым `___` вместо `---` и без якорей. Пока они такие, гейт `AGENTS/scripts/check-docs.sh` не может быть зелёным по всей области, поэтому в T-44 его область сужена до `AGENTS/` + `docs/roadmap/`. Задача закрывает остаток и снимает сужение.
+
+**Соответствие Clean:** — (не применимо, документация).
+
+**Нарушенное правило Clean:** —
+
+**Clean-альтернатива:** —
+
+**Выгоды (для «отклонение по 2c»):** —
+
+**MVVM:** — (не применимо).
+
+**KMP:** — (не применимо).
+
+**Предусловия:** T-44 закрыт (канон, нормализатор, гейт).
+
+**Файлы:**
+- `docs/architecture.md`
+- `docs/brokers.md`
+- `docs/ci-cd.md`
+- `docs/domain_models.md`
+- `docs/git-flow.md`
+- `docs/gradle-setup.md`
+- `docs/ISSUES.md`
+- `docs/live-test.md`
+- `docs/rate-limits.md`
+- `docs/release-process.md`
+- `docs/repo-protection.md`
+- `docs/streams.md`
+
+**Шаги:**
+1. По каждому файлу — `docs_normalize.py --check --file`, зафиксировать отклонения в задаче.
+2. Снять сужение области в `AGENTS/scripts/check-docs.sh`: вернуть `docs/**` в `SCOPE_DIRS`.
+3. Прогон `docs_normalize.py --apply` по файлам от малых к крупным (`repair-process`, `repo-protection`, затем `git-flow`, `gradle-setup`, в конце `streams` и `architecture`), после каждого — `git diff` глазами.
+4. `docs/streams.md` — отдельным коммитом: там ожидаемо больше всего расхождений (нет FILE/SECTION-маркеров).
+5. `docs/ISSUES.md` — уточнить при старте, нужен ли табличный индекс: формат журнала не табличный, но §1 требует маркеры и секции.
+
+**Тесты:** `docs_normalize.py --check` по каждому файлу → `deviations=0`; `check-docs.sh` по всей области → `ALL CHECKS PASSED`.
+
+**Референсы:** `docs/docs-structure.md` §1–§4; T-44 (канон и инструменты); `AGENTS/scripts/README.md`.
+
+**Ограничения:** содержательный текст не менять — только скелет (маркеры, якоря, `---`, отступы). `docs/issues/` и `docs/clean-audit/` вне области (§1). Архивы — только уровень 1.
+
+**Критерий готовности:** все 12 файлов проходят `docs_normalize.py --check` в ноль; гейт зелёный по `docs/**`; сужение области в гейте снято.
+
+**Оценка:** 3–5 ч. (малые файлы по 15–20 мин, `streams.md` 1–1.5 ч).
+
+**Зависимости:** T-44.
+
+**Связано:** T-2 (консолидация скриптов), T-44.
+
+**Открытые вопросы:** нужен ли `docs/ISSUES.md` табличный индекс — или достаточно маркеров и секций; решается на шаге 5.
+
+---
+<!-- SUBSECTION_END: t-45 -->
+
+
+
+
+
+
+
+
+
 
 <!-- SECTION_END: roadmap-plan -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->
