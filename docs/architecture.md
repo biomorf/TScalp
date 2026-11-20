@@ -755,7 +755,7 @@ ___
 **Обоснование:**
 - **Clean:** `toAppError` — общий маппер для всех брокеров. Импорт TInvest-specific исключения — временная связанность data→data (не нарушение, но запах). При втором брокере — общий интерфейс.
 - **KMP:** `RateLimitTimeoutException` — data-слой, в domain не протекает. `RateLimited` — domain-модель, KMP-safe. Сейчас — соответствует.
-- **r2d:** временное решение **явно маркируется** и **закрывается задачей** в `docs/ROADMAP.md` в той же сессии. Задача — `### Общий RateLimitedException для всех брокеров` (PLAN, `docs/roadmap/ROADMAP-plan.md`), зависимость — T-30 / T-31 (BCS/Finam API).
+- **r2d:** временное решение **явно маркируется** и **закрывается задачей** в `docs/ROADMAP.md` в той же сессии. Задача — `### Общий RateLimitedException для всех брокеров` (DEFER, `docs/roadmap/ROADMAP-defer.md`), зависимость — T-30 / T-31 (BCS/Finam API).
 
 **Проверка:** `grep -rn "RateLimitTimeoutException" app/src/main/kotlin/com/gitlab/biomorf/tscalp/data/error/` — только в `toAppError`; маркер `// TODO(T-NN): общий RateLimitedException` — в коде.
 

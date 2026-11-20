@@ -19,7 +19,7 @@ HEADING_RE = re.compile(r"^### \[(WIP|PLAN|DEFER|DONE|AGENTS|AGENTS-LESSONS)\] (
 BEGIN_RE = re.compile(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
 END_RE = re.compile(r"^<!-- SUBSECTION_END: ([A-Za-z0-9_-]+) -->$")
 NEXT_RE = re.compile(r"^\*\*Next ID:\*\* ([TC])-(\d+)$")
-ID_ANY_RE = re.compile(r"\b([TC])-(\d+)\b")
+ID_ANY_RE = re.compile(r"\b([TC])-(\d+)\b", re.IGNORECASE)
 
 TABLE_HEADER = "| TOKEN | ID | Title | File | Anchor |"
 TABLE_SEP = "|---|---|---|---|---|"

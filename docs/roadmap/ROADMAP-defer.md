@@ -1427,9 +1427,9 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 
 
 
-<!-- SUBSECTION_BEGIN: t-39 -->
-<a id="t-39"></a>
-### [DEFER] T-39 Общий RateLimitedException для всех брокеров
+<!-- SUBSECTION_BEGIN: t-46 -->
+<a id="t-46"></a>
+### [DEFER] T-46 Общий RateLimitedException для всех брокеров
 **Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
 
 **Статус:** отложено.
@@ -1481,7 +1481,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 **Открытые вопросы:** нет.
 
 ---
-<!-- SUBSECTION_END: t-39 -->
+<!-- SUBSECTION_END: t-46 -->
 
 
 
