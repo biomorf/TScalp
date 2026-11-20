@@ -14,6 +14,8 @@
 <!-- SUBSECTION_BEGIN: t-13 -->
 <a id="t-13"></a>
 ### [DONE] T-13 Compose UI: test infra + 3 экрана — ✅ done (U0–U4)
+**Статус:** выполнено.
+
 См. `ROADMAP-ARCHIVE.md` → `### ✅ Compose UI: test infra + 3 экрана (U0–U4)`.
 
 ---

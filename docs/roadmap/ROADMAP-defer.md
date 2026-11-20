@@ -16,7 +16,7 @@
 ### [DEFER] T-21 KMP: domain → commonMain
 **Мобильная работа:** невозможно (сборка KMP-модуля, desktop).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** цель — перевести `domain` в `:shared/commonMain` для KMP. Аудит 2026-10-29 (`docs/architecture.md` → «KMP readiness»): 4 блокера. Domain почти готов (repository/api/roles/log — чисты); #1 (`Instant`) и #3 (`currentTimeMillis`) закрыты в PR #73.
 
@@ -251,7 +251,7 @@ iOS-задачи миграция станет обязательной. Сей�
 <!-- SUBSECTION_BEGIN: t-34 -->
 <a id="t-34"></a>
 ### [DEFER] T-34 Расшифровка кодов ошибок брокеров
-**Статус:** в работе.
+**Статус:** отложено.
 
 **Сделано:**
 - `util/BrokerErrorMessages.kt` — центральный реестр
@@ -286,7 +286,7 @@ iOS-задачи миграция станет обязательной. Сей�
 ### [DEFER] T-14 UX-flow Variant D: broker + account до поиска
 **Мобильная работа:** невозможно (desktop; UI-ревизия диалога свойств слота + 6+ файлов + live-test).
 
-**Статус:** запланировано. **UI — требует санкции.**
+**Статус:** отложено. **UI — требует санкции.**
 
 **Контекст:** follow-up к `### ✅ TradingStateSnapshot: CardIdentity? на слот` (PR #146, merge `071e7f3c`). Сейчас broker слота = `instrument.brokerName` (устанавливается при выборе инструмента), account выбирается **после** создания карточки (`onAccountSaved` / `onPairedAccountSaved`). Коллизия: «broker из инструмента vs broker слота» — если пользователь сменит broker в свойствах слота после выбора, состояние разъедется (сейчас broker после создания не меняется, но семантически — не выражено).
 
@@ -357,7 +357,7 @@ iOS-задачи миграция станет обязательной. Сей�
 <!-- SUBSECTION_BEGIN: t-15 -->
 <a id="t-15"></a>
 ### [DEFER] T-15 Рефакторинг архитектурного долга (detekt-группа 3)
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** при внедрении detekt 2.0.0-alpha.6 (см. задачу
 `detekt` в разделе выше) выявлены 10 групп архитектурного
@@ -489,7 +489,7 @@ app/src/main/kotlin`). Отдельная задача не нужна.
 ### [DEFER] T-16 Orders: P&L в песочнице (expectedYield)
 **Мобильная работа:** частичное (live-тест в песочнице: 2 счёта с SBER).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** Pre-existing bug (воспроизведён на `dev` при live-тесте 2026-11-03 после PR #89). На **песочном** счёте `profit` / `profitPercent` на карточке заявки показывают **нули**. На боевом счёте — корректно. Причина по коду:
 - `TInvestPortfolioService.fetchPortfolioPositions`: `expectedYield = pos.expectedYield?.let { it.units + it.nano / 1_000_000_000.0 }` — в sandbox `GetPortfolio.expectedYield` может быть `null` (серверное ограничение / sandbox не считает P&L). `Position.profit = null` → `profitPercent = null`.
@@ -565,7 +565,7 @@ app/src/main/kotlin`). Отдельная задача не нужна.
 ### [DEFER] T-17 Margin/risk → TradeCheckResult
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** margin/risk-поля (`initialMarginOnBuy/Sell`, `dlong/kshort`, `dlongMin/dshortMin`, `klong/kshort`) — account-specific. У T-Invest — свойства инструмента в `Future`/`Option`. У Finam — `AssetsService/GetAssetParams` с `account_id` (per-account). Это **не свойство инструмента**, а «доступность в этом счёте». Сейчас лежат в `FutureUi`, что мешает и чистоте (не property of instrument), и мультиброкерности (у BCS/Finam другой источник).
 
@@ -638,7 +638,7 @@ app/src/main/kotlin`). Отдельная задача не нужна.
 ### [DEFER] T-18 T-Invest: subtype-specific поля в mapShare / mapFuture / mapBond / mapOption / mapEtf / mapCurrency
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** в Phase 2 (§8 шаг 3) `mapShare` / `mapFuture` / `mapBond` / `mapOption` / `mapEtf` / `mapCurrency` принимают `ProtoInstrument` — bulk-тип, в котором **нет** subtype-specific полей. Поэтому `mapShare` возвращает `Share` с `ipoDate = null`, `issueSize = null`, ...; `mapFuture` — `Future` с `firstTradeDate = null`, ...; и т.д. Поля из §5 (`ipoDate`, `issueSize`, `futureType`, `firstTradeDate`, `faceValue`, `couponRate`, `direction`, `strikePrice`, ...) **не заполняются**. Это `0.2`/`0.3` для T-Invest proto — §8 шаг 0.1 говорит «`Share`/`Future`/`Option`/`Instrument` уже получены 2026-11-01», но маппинг не сделан.
 
@@ -705,7 +705,7 @@ app/src/main/kotlin`). Отдельная задача не нужна.
 ### [DEFER] T-19 Position: источники priceChangePercent и lockedQuantity
 **Мобильная работа:** полное закрытие (proot + PR, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** `Position` (sealed, 7 subtypes) имеет computed-поля `priceChangePercent: Double?` и `lockedQuantity: Double?`, но `PositionStreamItem` их не содержит (коммит «Portfolio: модель портфеля» добавляет конвертер `toPosition` с этими полями = `null`). Нужны источники в мапперах брокеров:
 - **`priceChangePercent`** — изменение цены за торговый день, % от цены открытия. **Не** `(currentPrice - averagePrice) / averagePrice` (это P&L, отдельно). Источники: T-Invest `dailyYieldRelative` (`PositionData`), BCS `dailyPercentPL`, Finam `daily_pnl`.
@@ -902,7 +902,7 @@ success, стримы не идут» — не проверка, а конста
 ### [DEFER] T-23 UI: показать executedPrice / executedQuantity на карточке
 **Мобильная работа:** частичное (live-тест UI).
 
-**Статус:** запланировано. **UI — требует санкции.**
+**Статус:** отложено. **UI — требует санкции.**
 
 **Контекст:** после Split order (коммит `ec9c7d5`) в `Order.Regular` появились поля `executedPrice: Double?` (фактическая цена исполнения) и `executedQuantity: Long` (фактически исполненное количество, может быть меньше `quantity` при частичном исполнении). Данные приходят из мапперов (gRPC: `lotsExecuted` / `executedOrderPrice`, REST: `lotsExecuted` / `executedOrderPrice`), но `OrderCard` их не отображает. Пользователь пока не определил визуальное размещение.
 
@@ -966,7 +966,7 @@ success, стримы не идут» — не проверка, а конста
 <!-- SUBSECTION_BEGIN: t-24 -->
 <a id="t-24"></a>
 ### [DEFER] T-24 UI-индикатор состояния стримов
-**Статус:** запланировано. **UI — требует санкции.**
+**Статус:** отложено. **UI — требует санкции.**
 
 **Контекст:** пользователь не может оценить на глаз,
 актуальны ли данные. Индикатор снимает вопрос
@@ -1043,7 +1043,7 @@ live-теста. UI-индикатор блокируется **закрытие
 ### [DEFER] T-25 UI: разбивка AccountBalance.total на money/blocked в шапке счёта
 **Мобильная работа:** частичное (live-тест UI).
 
-**Статус:** запланировано. **UI — требует санкции.**
+**Статус:** отложено. **UI — требует санкции.**
 
 **Контекст:** в `AccountHeaderCard` (шапка счёта на `PortfolioScreen`) сейчас
 показывается `AccountBalance.total` (= `money + blocked`) через
@@ -1155,7 +1155,7 @@ blocked на валютной карточке» устарела: валютн�
 ### [DEFER] T-26 UI выбора даты истечения стоп-заявки (GOOD_TILL_DATE)
 **Мобильная работа:** частичное (live-тест UI).
 
-**Статус:** запланировано. **UI — требует санкции.**
+**Статус:** отложено. **UI — требует санкции.**
 
 **Контекст:** `GOOD_TILL_DATE` в домене и proto есть, но
 пользователь физически не может его выбрать — UI всегда
@@ -1274,7 +1274,7 @@ ViewModel+UseCase 30 мин, Service+parseDate 30 мин,
 <!-- SUBSECTION_BEGIN: t-27 -->
 <a id="t-27"></a>
 ### [DEFER] T-27 Индикатор доступности инструмента в карточке позиции
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Файлы:**
 - `ui/components/AssetPositionCard.kt` — параметр
@@ -1308,7 +1308,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 ### [DEFER] T-35 OrdersListDialog: empty-state
 **Мобильная работа:** частичное (live-тест UI).
 
-**Статус:** запланировано. **UI — требует санкции.**
+**Статус:** отложено. **UI — требует санкции.**
 
 **Контекст:** в `OrdersListViewModel` до M016 было сообщение `"Нет активных заявок"`, эмитившееся через `statusMessage` когда `orders.isEmpty() && hasLoaded`. При этом **никто это сообщение не читал**: `OrdersListDialog` подписан на `uiState.orders` и `uiState.isLoading`, но не на `statusMessage`. В рамках M016 (`### ✅ 4. M6: one-shot events (StatusEvent)`, PR #112) `statusMessage` из `OrdersListState` удалён как dead code (2d — задача = этот follow-up). Теперь empty-state надо реализовать явно, если он нужен.
 
@@ -1368,7 +1368,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 ### [DEFER] T-36 Settings: inline status card vs snackbar
 **Мобильная работа:** частичное (live-тест UI).
 
-**Статус:** запланировано. **UI — требует санкции.**
+**Статус:** отложено. **UI — требует санкции.**
 
 **Контекст:** (2d) в M6 umbrella (`### ✅ M6: finish one-shot events`, PR #114) три Settings panel-VM (`TInvestSettingsViewModel`, `BcsSettingsViewModel`, `FinamSettingsViewModel`) **не** переведены на `Channel<StatusEvent>`. Причина: `SettingsScreen` рендерит `statusMessage` / `isError` как **inline `Card`** прямо в layout (`uiState.statusMessage?.let { Card { Text(message) } }`), а не как snackbar. У `SettingsScreen` нет `SnackbarHostState`. Это не M6-баг, а другой UI-паттерн. Umbrella закрыта по U0+U1+U2; U3/Settings вынесен отдельно.
 
@@ -1432,7 +1432,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 ### [DEFER] T-39 Общий RateLimitedException для всех брокеров
 **Мобильная работа:** полное закрытие (proot + PR; data + domain + presentation, гейт на CI).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** T-10 (шаг 1) добавляет `AppError.RateLimited` и маппинг `RateLimitTimeoutException → RateLimited` в `toAppError` (`data/error/AppErrorMapper.kt`). Сейчас `toAppError` импортирует TInvest-specific `RateLimitTimeoutException` из `data/api/tinvest/`. При появлении BCS/Finam rate-limiter'ов (T-30, T-31) — нужен общий `interface RateLimitedException` в `data/api/common/`.
 
@@ -1497,7 +1497,7 @@ UI-изменение требует санкции (правило 1 AGENTS.md)
 ### [DEFER] T-28 P&L: sandbox client-side fallback для Position (низкий приоритет)
 **Мобильная работа:** частичное (live-тест данных в песочнице).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Контекст:** в **песочнице** T-Invest `GetPortfolio.expectedYield` для ряда позиций приходит `null` (серверное ограничение sandbox — P&L не считается). `Position.profit = expectedYield` в этом случае `null`, UI показывает прочерк вместо расчётного P&L. В **prod** `expectedYield` приходит — там fallback **не нужен и вреден** (маскирует брокерские баги).
 

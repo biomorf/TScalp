@@ -16,7 +16,7 @@
 ### [DEFER] C-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
 **Мобильная работа:** полное закрытие (правки `gradle.properties` / `app/build.gradle.kts` / `.github/workflows/` — proot + PR; гейт на CI).
 
-**Статус:** в работе — CDS done (`a3becccc`), cron #944 done (`2e7e3170`); Unsafe blocked on CI JDK 25 upgrade (follow-up).
+**Статус:** отложено — CDS done (`a3becccc`), cron #944 done (`2e7e3170`); Unsafe blocked on CI JDK 25 upgrade (follow-up).
 
 **Контекст:** два JVM warning'а шумят в `gate` логах:
 1. `sun.misc.Unsafe::objectFieldOffset` — от `kotlin-compiler-embeddable 2.1.0` (IntelliJ `com.intellij.util.containers.Unsafe`), тянут ktlint / detekt Gradle-плагины. Warning включён с JDK 24+ (локальный — 25.0.4). Upstream: `JLLeitschuh/ktlint-gradle#944` — открыт с 2025-08-21; последний релиз 14.2.0 (2026-03-12) его не содержит. Warning подавлен только в ktlint CLI (#3040), не в Gradle-плагине.
@@ -92,7 +92,7 @@
 ### [DEFER] C-10 CI: actions/cache v4 -> v6 (Node 20 deprecation)
 **Мобильная работа:** полное закрытие (proot + PR; правка `ci.yml` в 3 местах, gate на CI).
 
-**Статус:** запланировано.
+**Статус:** отложено.
 
 **Триггер:** 2026-11-14, PR #152 (`bugfix/ci-robolectric-cache`). GitHub Actions warning в каждом CI-run:
 `Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4.`
@@ -156,7 +156,7 @@
 ### [DEFER] C-12 CI: JDK 17 → 25
 **Мобильная работа:** полное закрытие (правки `.yml` / `.kts` через proot; гейт на CI).
 
-**Статус:** запланировано. **Блокер для** `### Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944` (Unsafe-часть).
+**Статус:** отложено. **Блокер для** `### Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944` (Unsafe-часть).
 
 **Контекст:** JDK 25 даёт флаг `--sun-misc-unsafe-memory-access=allow` (JEP 471), который подавляет warning `sun.misc.Unsafe::objectFieldOffset` от `kotlin-compiler-embeddable 2.1.0` (тянут ktlint / detekt Gradle-плагины). Без JDK 25 на CI флаг = `Unrecognized option` → daemon падает → нельзя снять Unsafe-warning (см. `### Build: suppress JVM warnings` → шаг 3, статус `blocked`). Локально у нас JDK 25.0.4 — warning виден только потому, что gate на desktop; на CI (JDK 17) warning не появляется, но и флаг не применить.
 
@@ -306,7 +306,7 @@ web Settings GitHub + правка `docs/git-flow.md`.
 ### [DEFER] C-7 Play Store Internal Testing
 **Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
-**Статус:** запланировано. **Заблокировано** созданием
+**Статус:** отложено. **Заблокировано** созданием
 Google Play Console listing.
 
 **Контекст:** после этапа 4a (Environment secrets для
@@ -393,7 +393,7 @@ Service Account).
 ### [DEFER] C-8 Play Store Production
 **Мобильная работа:** полное закрытие (Play Console через web, .aab на CI).
 
-**Статус:** запланировано. **Заблокировано** «Play Store
+**Статус:** отложено. **Заблокировано** «Play Store
 Internal Testing» (общий Service Account).
 
 **Контекст:** production-tier — публикация релиза в
