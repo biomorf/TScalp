@@ -26,6 +26,8 @@ def main():
     g.add_argument("--after", help="insert after this existing id")
     g.add_argument("--at-end", action="store_true", help="append at end (before SECTION_END)")
     ap.add_argument("--apply", action="store_true", help="write (default: dry-run)")
+    ap.add_argument("--no-rebuild", action="store_true",
+                    help="skip index rebuild after apply (indexes frozen)")
     args = ap.parse_args()
 
     f = Path(args.file)
@@ -41,9 +43,11 @@ def main():
 
     block_lines = [
         begin_tag,
-        "___",
+        f'<a id="{args.id}"></a>',
         f"### {args.title}",
         body.rstrip("\n"),
+        "",
+        "---",
         f"<!-- SUBSECTION_END: {args.id} -->",
     ]
     block = "\n".join(block_lines) + "\n"
@@ -63,7 +67,7 @@ def main():
         new_text = text[:idx] + "\n" + block + text[idx:]
 
     # normalize the whole file
-    new_text, devs = normalize_text(new_text)
+    new_text, devs = normalize_text(new_text, str(f))
     if devs:
         print(f"WARN: normalize deviations in target: {len(devs)} (should be 0 after normalize)")
 
@@ -74,8 +78,11 @@ def main():
     if args.apply:
         f.write_text(new_text, encoding="utf-8")
         print(f"APPLIED: {args.id} into {f}")
-        from docs_rebuild_index import rebuild
-        rebuild(apply=True)
+        if not args.no_rebuild:
+            from docs_rebuild_index import rebuild
+            rebuild(apply=True)
+        else:
+            print("SKIP: index rebuild (--no-rebuild)")
     else:
         print(f"DRY: would insert {args.id} into {f} (pass --apply)")
     return 0

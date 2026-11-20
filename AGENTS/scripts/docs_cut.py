@@ -33,6 +33,8 @@ def main():
     ap.add_argument("--id", required=True)
     ap.add_argument("--force", action="store_true", help="overwrite existing tmp")
     ap.add_argument("--apply", action="store_true", help="write (default: dry-run)")
+    ap.add_argument("--no-rebuild", action="store_true",
+                    help="skip index rebuild after apply (indexes frozen)")
     args = ap.parse_args()
 
     f = Path(args.file)
@@ -55,7 +57,7 @@ def main():
     after = text[ei:].lstrip()
     new_text = before + "\n" + after
 
-    new_text, devs = normalize_text(new_text)
+    new_text, devs = normalize_text(new_text, str(f))
     if devs:
         print(f"WARN: normalize deviations after cut: {len(devs)}")
 
@@ -70,8 +72,11 @@ def main():
         f.write_text(new_text, encoding="utf-8")
         out.write_text(block, encoding="utf-8")
         print(f"CUT: {args.id} from {f} -> {out}")
-        from docs_rebuild_index import rebuild
-        rebuild(apply=True)
+        if not args.no_rebuild:
+            from docs_rebuild_index import rebuild
+            rebuild(apply=True)
+        else:
+            print("SKIP: index rebuild (--no-rebuild)")
     else:
         print(f"DRY: would cut {args.id} from {f} -> {out}")
     return 0
