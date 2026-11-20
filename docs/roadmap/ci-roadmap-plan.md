@@ -12,7 +12,7 @@
 
 
 <!-- SUBSECTION_BEGIN: c-1 -->
-___
+<a id="c-1"></a>
 ### [PLAN] C-1 Markdown linter в CI
 **Мобильная работа:** полное закрытие. Всё через proot
 (правки `.yml`) + web (проверка PR). Локальная сборка
@@ -106,10 +106,7 @@ job 15, проверка на PR 10).
   Рекомендация — отдельный job: доки не должны попадать
   в required gate, но должны быть проверены.
 
-
-
-
-___
+---
 <!-- SUBSECTION_END: c-1 -->
 
 
@@ -122,7 +119,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: c-2 -->
-___
+<a id="c-2"></a>
 ### [PLAN] C-2 GitHub → GitLab mirror через GitHub Action
 **Мобильная работа:** полное закрытие. Всё через proot
 (правки `.yml`) + web (настройка токенов). Локальная
@@ -254,10 +251,7 @@ GitLab» — без зеркала переключение на резерв н
   игнорировать до реального сбоя, но добавить в
   monitoring, когда он появится.
 
-
-
-
-___
+---
 <!-- SUBSECTION_END: c-2 -->
 
 
@@ -270,7 +264,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: c-3 -->
-___
+<a id="c-3"></a>
 ### [PLAN] C-3 Codecov: diff coverage в PR и бейдж покрытия
 **Мобильная работа:** полное закрытие. Всё делается через
 proot (правки `.yml`) + web (регистрация, настройка,
@@ -411,10 +405,7 @@ coverage в PR; может стать обязательным чеком в Rul
   Rulesets сразу или после стабилизации. Рекомендация —
   после.
 
-
-
-
-___
+---
 <!-- SUBSECTION_END: c-3 -->
 
 
@@ -427,7 +418,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: c-6 -->
-___
+<a id="c-6"></a>
 ### [PLAN] C-6 Hot-swap CI на GitLab
 **Мобильная работа:** частичное (live-тест пайплайна после self-hosted runner).
 
@@ -526,10 +517,7 @@ Actions, которая сама будет перестроена на этап
   или допускается расхождение в деталях? Решить на
   этапе детализации после GitFlow.
 
-
-
-
-___
+---
 <!-- SUBSECTION_END: c-6 -->
 
 
@@ -541,11 +529,8 @@ ___
 
 
 
-
-
-
 <!-- SUBSECTION_BEGIN: c-9 -->
-___
+<a id="c-9"></a>
 ### [PLAN] C-9 Desktop: pre-push hook (ktlintFormat + ktlintCheck)
 **Мобильная работа:** полное закрытие (desktop; на mobile hook не работает — Gradle в proot нестабилен).
 
@@ -612,136 +597,7 @@ ___
 
 **Открытые вопросы:** `pre-push` vs `pre-commit`? Рекомендую `pre-push` (не блокирует локальные коммиты, ktlint-fix обычно делается в самом конце).
 
-
-
-___
-<!-- SUBSECTION_END: c-9 -->
-
-
-
-
-
-<!-- SECTION_END: ci-roadmap-plan -->
-<!-- FILE_END -->
-ть job
-  `build-and-release`.
-
-**Шаги:**
-
-1. Добавить в `release.yml` после шага «Create GitHub
-   Release»:
-    - сборка `:app:bundleRelease`;
-    - upload `.aab` в Play Production (track `production`,
-      status `draft` для ручного approve в Play Console).
-2. Проверить, что Environment `release` уже привязан к
-   job'у (сделано в 4a).
-3. Тестовый прогон: пробный тег `v0.0.x-test` → дождаться
-   зелёного workflow → проверить, что `.aab` появился в
-   Play Console как draft → удалить draft и тег.
-
-**Референсы:**
-- `r0adkll/upload-google-play` → параметр `status: draft`.
-- `docs/git-flow.md` → «Жизненный цикл релиза».
-
-**Ограничения:**
-- Публикация в Production — только `status: draft`. Релиз
-  в прод делает человек через Play Console.
-- Не менять сборку APK для GitHub Releases — она остаётся
-  как есть, `.aab` собирается дополнительно.
-
-**Критерий готовности:**
-- Tag `vX.Y.Z` на `master` создаёт:
-    - GitHub Release с APK (как раньше);
-    - `.aab` в Play Console Production track со статусом
-      `draft`.
-
-**Оценка:** ~2 часа.
-
-**Зависимости:** блокируется «Play Store Internal Testing».
-
-**Открытые вопросы:** нет.
-
-
-
-___
-<!-- SUBSECTION_END: c-8 -->
-
-
-
-
-
-
-
-
-
-
-<!-- SUBSECTION_BEGIN: c-9 -->
-___
-### [PLAN] C-9 Desktop: pre-push hook (ktlintFormat + ktlintCheck)
-**Мобильная работа:** полное закрытие (desktop; на mobile hook не работает — Gradle в proot нестабилен).
-
-**Статус:** запланировано.
-
-**Контекст:** на desktop `./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck` — ~10 сек. В CI — 2–3 мин на цикл. `pre-push` hook запускает ktlint **до** push, экономит цикл CI на чисто-стилевых ошибках. На mobile (proot) hook не работает — там CI остаётся единственным гейтом. Для docs-only изменений hook запускает `.md` mini-gate из `AGENTS.md` 5a (trailing ws, double `---`, fence parity, broken `docs/*.md`) — ~5 сек вместо полного Gradle-гейта.
-
-**Соответствие Clean:** соответствует (организационный слой, 2b).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `scripts/pre-push.sh` (новый).
-- `docs/gradle-setup.md` — инструкция по установке (или `docs/ci-cd.md` — выбрать при старте).
-
-**Шаги:**
-1. `scripts/pre-push.sh`:
-   - `set -euo pipefail`
-   - `./gradlew :app:ktlintMainSourceSetCheck :app:ktlintTestSourceSetCheck`
-   - echo-заголовок; exit-код = gradle.
-   - **Не** `ktlintFormat` (format меняет файлы — только по явному `--fix`).
-2. `chmod +x scripts/pre-push.sh`.
-3. `docs/gradle-setup.md` — раздел «Pre-push hook»:
-   - `ln -sf ../../scripts/pre-push.sh .git/hooks/pre-push`
-   - bypass: `git push --no-verify` (редко, осознанно).
-4. Тест: на desktop, `git push` с намеренной ktlint-ошибкой → hook блокирует. `git push --no-verify` — проходит.
-5. Commit script + docs.
-6. `.md` mini-gate в `scripts/pre-push.sh` — **только когда в staged есть `.md`** (по 5a, Gradle ktlint для docs бесполезен):
-   - `git diff --cached --check` (trailing ws);
-   - `awk` double `---`;
-   - `grep -cE '^(```|~~~)'` parity;
-   - broken `docs/*.md` loop (по extract'у каждого файла, не глобально).
-   - Источник: `AGENTS.md` 5a mini-gate.
-   - bypass: `git push --no-verify` (тот же, что для ktlint).
-
-**Тесты:** shell-hook (не unit).
-
-**Референсы:** M016 (PR #112) — 4 push-цикла, мотивация; AGENTS 4f; `gradle/actions/setup-gradle@v5`; **`AGENTS.md` 5a — mini-gate (4 команды, источник для `.md`)**.
-
-**Ограничения:**
-- Не заменяет CI (mobile не покрывает).
-- `git push --no-verify` — escape, не запрещать.
-- Не смешивать с задачей `CI: fast-ktlint job`.
-- На mobile hook не устанавливается — документация это явно говорит.
-
-**Критерий готовности:**
-- `scripts/pre-push.sh` коммитится, исполняемый.
-- `docs/gradle-setup.md` — инструкция + bypass.
-- На desktop: push с ktlint-ошибкой блокируется; `--no-verify` проходит.
-- На desktop: push с docs-изменением + broken link → hook блокирует (mini-gate).
-- CI `fast-ktlint` — окончательный гейт (как раньше).
-
-**Оценка:** ~1 ч.
-
-**Зависимости:** нет.
-
-**Связано:** `### CI: fast-ktlint job` (предыдущая).
-
-**Открытые вопросы:** `pre-push` vs `pre-commit`? Рекомендую `pre-push` (не блокирует локальные коммиты, ktlint-fix обычно делается в самом конце).
+---
 <!-- SUBSECTION_END: c-9 -->
 
 
@@ -749,5 +605,19 @@ ___
 
 
 
+
+
+
+
 <!-- SECTION_END: ci-roadmap-plan -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->

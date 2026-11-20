@@ -12,7 +12,7 @@
 
 
 <!-- SUBSECTION_BEGIN: c-5 -->
-___
+<a id="c-5"></a>
 ### [WIP] C-5 Self-hosted GitLab Runner через Ansible + Podman
 **Мобильная работа:** частичное (live-тест разворачивания на удалённом сервере).
 
@@ -99,6 +99,8 @@ ___
 - `build-release` переносить на self-hosted сразу или после стабилизации? (Пока оставить на SaaS.)
 - Кастомный job-образ с Android SDK — отдельная задача после MVP.
 - Если 2 GB RAM на remote окажется мало — увеличить после внедрения.
+
+---
 <!-- SUBSECTION_END: c-5 -->
 
 
@@ -107,83 +109,18 @@ ___
 
 
 
-<!-- SECTION_END: ci-roadmap-wip -->
-<!-- FILE_END -->
-] C-11 Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944
-**Мобильная работа:** полное закрытие (правки `gradle.properties` / `app/build.gradle.kts` / `.github/workflows/` — proot + PR; гейт на CI).
-
-**Статус:** в работе — CDS done (`a3becccc`), cron #944 done (`2e7e3170`); Unsafe blocked on CI JDK 25 upgrade (follow-up).
-
-**Контекст:** два JVM warning'а шумят в `gate` логах:
-1. `sun.misc.Unsafe::objectFieldOffset` — от `kotlin-compiler-embeddable 2.1.0` (IntelliJ `com.intellij.util.containers.Unsafe`), тянут ktlint / detekt Gradle-плагины. Warning включён с JDK 24+ (локальный — 25.0.4). Upstream: `JLLeitschuh/ktlint-gradle#944` — открыт с 2025-08-21; последний релиз 14.2.0 (2026-03-12) его не содержит. Warning подавлен только в ktlint CLI (#3040), не в Gradle-плагине.
-2. `Sharing is only supported for boot loader classes because bootstrap classpath has been appended` — CDS warning от JVMTI-агентов (Robolectric / JaCoCo), модифицирующих bootclasspath в test JVM.
-
-**Соответствие Clean:** соответствует (организационный слой, 2b).
-
-**Нарушенное правило Clean:** —.
-
-**Clean-альтернатива:** —.
-
-**Выгоды (для «отклонение по 2c»):** —.
-
-**MVVM:** — (не применимо).
-
-**KMP:** — (не применимо).
-
-**Предусловия:** нет.
-
-**Файлы:**
-- `app/build.gradle.kts` — `tasks.withType<Test>` (jvmArgs).
-- `gradle.properties` — `org.gradle.jvmargs` (для C1, blocked).
-- `.github/workflows/ktlint-gradle-944.yml` — cron-check.
-- `docs/ci-roadmap.md` — эта задача.
-
-**Шаги:**
-1. ✅ CDS: `jvmArgs("-Xshare:off")` в `tasks.withType<Test>` (`a3becccc`). Синтаксис — с двоеточием (`-Xshare:off`), не с равенством (`-Xshare=off` = `Unrecognized option` на JDK 17+).
-2. ✅ Cron-check ktlint-gradle #944 (`.github/workflows/ktlint-gradle-944.yml`, `2e7e3170`): daily 09:00 UTC + `workflow_dispatch`; при `state == 'CLOSED'` создаёт issue с label `ktlint-gradle-944` и инструкцией снять флаг.
-2a. ⏳ YAML hotfix: PR #158 (`45052d05`) ввёл `.github/workflows/ktlint-gradle-944.yml` с невалидным `run: |` (block scalar, нулевой отступ на строке 64 → `Invalid workflow file ...#L64`). Hotfix `5ce9dbf4` (PR #159): `BODY="..."` → `cat > body.txt <<EOF … EOF` + `--body-file body.txt`. После merge — smoke-test через `workflow_dispatch`. Урок 114.
-3. ⏳ Unsafe — **blocked**: `--sun-misc-unsafe-memory-access=allow` появился в JDK 23 (JEP 471); CI на JDK 17 (temurin, `setup-java@v5`) → флаг = `Unrecognized option` → daemon падает. Нужен upgrade CI до JDK 25 (отдельная задача `### CI: JDK 17 → 25`, follow-up). Когда CI JDK 25 + ktlint-gradle #944 закрыт (cron уведомит) — снять флаг и проверить `grep sun.misc.Unsafe::objectFieldOffset`.
-
-**Тесты:** нет (build-конфиг). Verify — по `gate` логам (CDS warning = 0; Unsafe — ждёт JDK 25).
-
-**Референсы:**
-- ktlint-gradle #944 (issue, открыт).
-- JEP 471 (`sun.misc.Unsafe` deprecation, JDK 23+).
-- `-Xshare:off` в JVM docs (Oracle).
-
-**Ограничения:**
-- Не добавлять `--sun-misc-unsafe-memory-access=allow` в `org.gradle.jvmargs` до JDK 25 на CI (daemon падает).
-- Не путать с C2-правкой (`-Xshare:off`) — она уже в `app/build.gradle.kts`.
-- Cron-check — только при закрытии #944; не при каждом релизе.
-
-**Критерий готовности:**
-- CDS warning — 0 в `gate` логах (локально и на CI). ✅
-- Cron-check #944 — workflow зелёный, при закрытии issue — создаётся issue с label `ktlint-gradle-944`. ✅ (проверить на PR)
-- Unsafe warning — 0 в `gate` логах (после upgrade CI до JDK 25 + закрытия #944). ⏳
-
-**Оценка:** CDS + cron ~30 мин (сделано); Unsafe — блокер (CI JDK 17 → 25, отдельная задача).
-
-**Зависимости:** `### CI: JDK 17 → 25` (для Unsafe); ktlint-gradle #944 (upstream, cron уведомит).
-
-**Связано:** `docs/ci-roadmap.md` → `### Compose UI tests: миграция на v2` (закрыт в этом PR); `### CI: JDK 17 → 25` (follow-up, не заведена — завести отдельной docs-задачей после merge).
-
-**Открытые вопросы:**
-- `### CI: JDK 17 → 25` — scope (AGP 9 / KSP / Hilt / toolchain / foojay) и риск — отдельная сессия, не в этом PR.
-- Точная версия ktlint-gradle с фиксом #944 — неизвестна, cron уведомит.
-
-
-
-___
-<!-- SUBSECTION_END: c-11 -->
-
-
-
-
-
-
-
 
 
 
 <!-- SECTION_END: ci-roadmap-wip -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->
