@@ -1,188 +1,217 @@
 #!/usr/bin/env python3
-"""Rebuild index tables for AGENTS / AGENTS-LESSONS / ROADMAP / ci-roadmap.
+"""Rebuild canonical index tables for AGENTS / AGENTS-LESSONS / ROADMAP / ci-roadmap.
 
-SSoT for formatting rules: docs/docs-structure.md
+SSoT for formatting rules: docs/docs-structure.md (section 5).
 
-Modes:
-  agents         — AGENTS/AGENTS-*.md (excl. AGENTS-LESSONS-*) -> AGENTS/AGENTS.md
-  agents-lessons — AGENTS/AGENTS-LESSONS-*.md -> AGENTS/AGENTS-LESSONS.md
-  roadmap        — docs/roadmap/ROADMAP-*.md -> docs/roadmap/ROADMAP.md
-  ci-roadmap     — docs/roadmap/ci-roadmap-*.md -> docs/roadmap/ci-roadmap.md
-  all            — all four (default)
+Ordering: roadmap families follow status order (wip, plan, defer, done); rows inside
+a file follow block order. Manual priority in the files is therefore preserved.
+AGENTS families are alphabetical by file name.
 
 Index format: | TOKEN | ID | Title | File | Anchor |
-Heading format: ### [TOKEN] <ID> <title>
-Anchor: #<id> (short, stable, derived from SUBSECTION id; for cutting/pasting
-        use SUBSECTION_BEGIN/END: <id>, not the anchor).
+Anchor cell:  [#<id>](<File>#<id>)
 """
 import argparse
 import re
 import sys
 from pathlib import Path
 
-HEADING_RE = re.compile(
-    r"^### \[(WIP|PLAN|DEFER|DONE|AGENTS|AGENTS-LESSONS)\] ([A-Za-z0-9_-]+) (.+)$"
-)
+HEADING_RE = re.compile(r"^### \[(WIP|PLAN|DEFER|DONE|AGENTS|AGENTS-LESSONS)\] ([A-Za-z0-9_-]+) (.+)$")
 BEGIN_RE = re.compile(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
 END_RE = re.compile(r"^<!-- SUBSECTION_END: ([A-Za-z0-9_-]+) -->$")
+NEXT_RE = re.compile(r"^\*\*Next ID:\*\* ([TC])-(\d+)$")
+ID_ANY_RE = re.compile(r"\b([TC])-(\d+)\b")
 
 TABLE_HEADER = "| TOKEN | ID | Title | File | Anchor |"
 TABLE_SEP = "|---|---|---|---|---|"
 
-MODE_CONFIG = {
+STATUS_ORDER = {
+    "roadmap": ("ROADMAP-wip.md", "ROADMAP-plan.md", "ROADMAP-defer.md", "ROADMAP-done.md"),
+    "ci-roadmap": ("ci-roadmap-wip.md", "ci-roadmap-plan.md",
+                   "ci-roadmap-defer.md", "ci-roadmap-done.md"),
+}
+ARCHIVE = {
+    "roadmap": "docs/roadmap/ROADMAP-ARCHIVE.md",
+    "ci-roadmap": "docs/roadmap/CI-ROADMAP-ARCHIVE.md",
+}
+
+MODES = {
     "agents": {
-        "root": "AGENTS",
-        "prefix": "AGENTS-",
-        "exclude": ("AGENTS.md", "AGENTS-LESSONS.md", "AGENTS-LESSONS-"),
-        "table_section": "## Справочник (по мере необходимости)",
-        "index_paths": ["AGENTS/AGENTS.md"],
+        "index": "AGENTS/AGENTS.md",
+        "section": "## Справочник (по мере необходимости)",
+        "next_prefix": None,
     },
     "agents-lessons": {
-        "root": "AGENTS",
-        "prefix": "AGENTS-LESSONS-",
-        "exclude": (),
-        "table_section": "## Справочник (по мере необходимости)",
-        "index_paths": ["AGENTS/AGENTS-LESSONS.md"],
+        "index": "AGENTS/AGENTS-LESSONS.md",
+        "section": "## Справочник (по мере необходимости)",
+        "next_prefix": None,
     },
     "roadmap": {
-        "root": "docs/roadmap",
-        "prefix": "ROADMAP-",
-        "exclude": ("ROADMAP.md", "ROADMAP-ARCHIVE.md", "ROADMAP-task-template.md"),
-        "table_section": "## Задачи",
-        "index_paths": ["docs/roadmap/ROADMAP.md"],
+        "index": "docs/roadmap/ROADMAP.md",
+        "section": "## Задачи",
+        "next_prefix": "T",
     },
     "ci-roadmap": {
-        "root": "docs/roadmap",
-        "prefix": "ci-roadmap-",
-        "exclude": ("ci-roadmap.md", "CI-ROADMAP-ARCHIVE.md", "ROADMAP-task-template.md"),
-        "table_section": "## Задачи",
-        "index_paths": ["docs/roadmap/ci-roadmap.md"],
+        "index": "docs/roadmap/ci-roadmap.md",
+        "section": "## Задачи",
+        "next_prefix": "C",
     },
 }
 
 
-def collect(mode: str) -> list[tuple[str, str, str, str, str]]:
-    """Return rows: (token, id, title, file, anchor). Anchor = #<id> (from SUBSECTION id)."""
-    cfg = MODE_CONFIG[mode]
-    root = Path(cfg["root"])
-    rows: list[tuple[str, str, str, str, str]] = []
-    if not root.exists():
-        return rows
-    for f in sorted(root.rglob("*.md")):
-        if not f.name.startswith(cfg["prefix"]):
+def files_for(mode: str) -> list[Path]:
+    if mode == "agents":
+        return sorted(p for p in Path("AGENTS").glob("AGENTS-*.md")
+                      if not p.name.startswith("AGENTS-LESSONS-"))
+    if mode == "agents-lessons":
+        return sorted(Path("AGENTS").glob("AGENTS-LESSONS-*.md"))
+    root = Path("docs/roadmap")
+    return [root / name for name in STATUS_ORDER[mode] if (root / name).exists()]
+
+
+def rows_for(f: Path) -> list[tuple[str, str, str, str]]:
+    """Return (token, marker_id, heading_id, title) in block order."""
+    rows = []
+    marker_id = None
+    for line in f.read_text(encoding="utf-8").splitlines():
+        mb = BEGIN_RE.match(line)
+        if mb:
+            marker_id = mb.group(1)
             continue
-        if any(f.name == e or f.name.startswith(e) for e in cfg["exclude"]):
+        if END_RE.match(line):
+            marker_id = None
             continue
-        rel = f.as_posix()
-        lines = f.read_text(encoding="utf-8").splitlines()
-        cur_begin = False
-        for line in lines:
-            if BEGIN_RE.match(line):
-                cur_begin = True
-                continue
-            if END_RE.match(line):
-                cur_begin = False
-                continue
-            if not cur_begin:
-                continue
-            m = HEADING_RE.match(line)
-            if m:
-                token, sid, title = m.group(1), m.group(2), m.group(3).strip()
-                rows.append((token, sid, title, rel, "#" + sid))
+        if marker_id is None:
+            continue
+        m = HEADING_RE.match(line)
+        if m:
+            rows.append((m.group(1), marker_id, m.group(2), m.group(3).strip()))
     return rows
 
 
-def build_table(rows: list[tuple[str, str, str, str, str]]) -> str:
-    out = [TABLE_HEADER, TABLE_SEP]
-    for token, sid, title, fpath, anchor in rows:
-        title_esc = title.replace("|", "\\|")
-        out.append(f"| {token} | {sid} | {title_esc} | `{fpath}` | {anchor} |")
-    return "\n".join(out) + "\n"
+def collect(mode: str) -> list[tuple[str, str, str, str, str]]:
+    out = []
+    for f in files_for(mode):
+        for token, marker_id, heading_id, title in rows_for(f):
+            out.append((token, marker_id, heading_id, title, f.as_posix()))
+    return out
 
 
-def replace_table(text: str, new_table: str, section_header: str) -> str:
-    """Replace the table under section_header (from header to next '---' or EOF)."""
+def build_table(rows) -> str:
+    lines = [TABLE_HEADER, TABLE_SEP]
+    for token, marker_id, heading_id, title, path in rows:
+        safe = title.replace("|", "\\|")
+        anchor = f"[#{marker_id}]({path}#{marker_id})"
+        lines.append(f"| {token} | {heading_id} | {safe} | `{path}` | {anchor} |")
+    return "\n".join(lines) + "\n"
+
+
+def max_id(mode: str) -> int:
+    best = 0
+    for f in files_for(mode):
+        for _, marker_id, _, _ in rows_for(f):
+            m = ID_ANY_RE.search(marker_id)
+            if m:
+                best = max(best, int(m.group(2)))
+    archive = Path(ARCHIVE[mode])
+    if archive.exists():
+        for m in ID_ANY_RE.finditer(archive.read_text(encoding="utf-8")):
+            best = max(best, int(m.group(2)))
+    return best
+
+
+def replace_table(text: str, new_table: str, section: str, next_line: str | None) -> str:
     lines = text.splitlines(keepends=True)
-    out: list[str] = []
+    out = []
     i = 0
-    n = len(lines)
     replaced = False
-    while i < n:
-        if lines[i].strip() == section_header:
+    while i < len(lines):
+        if lines[i].strip() == section:
             out.append(lines[i])
             i += 1
-            while i < n and not lines[i].startswith("|"):
+            while i < len(lines) and not lines[i].startswith("|"):
+                if lines[i].strip().startswith("**Next ID:**"):
+                    i += 1
+                    continue
+                out.append(lines[i])
                 i += 1
-            while i < n and lines[i].startswith("|"):
+            while i < len(lines) and lines[i].startswith("|"):
                 i += 1
+            while out and out[-1].strip() == "":
+                out.pop()
+            out.append("\n")
+            if next_line:
+                out.append(next_line + "\n")
             out.append("\n")
             out.append(new_table)
             replaced = True
             continue
         out.append(lines[i])
         i += 1
-    assert replaced, f"section header not found: {section_header!r}"
+    if not replaced:
+        raise AssertionError(f"section header not found: {section!r}")
     return "".join(out)
 
 
-def rebuild(mode: str, index_path_override: list[str] | None = None, apply: bool = False) -> int:
-    cfg = MODE_CONFIG[mode]
+def rebuild(mode: str, apply: bool) -> int:
+    cfg = MODES[mode]
     rows = collect(mode)
     table = build_table(rows)
-    targets = index_path_override if index_path_override else cfg["index_paths"]
-    for path in targets:
-        p = Path(path)
-        assert p.exists(), f"missing: {path}"
-        old = p.read_text(encoding="utf-8")
-        new = replace_table(old, table, cfg["table_section"])
-        if apply:
-            if new != old:
-                p.write_text(new, encoding="utf-8")
-                print(f"APPLIED {path}")
-            else:
-                print(f"OK (unchanged) {path}")
+    path = Path(cfg["index"])
+    if not path.exists():
+        print(f"SKIP missing index: {path}")
+        return 0
+    old = path.read_text(encoding="utf-8")
+
+    next_line = None
+    if cfg["next_prefix"]:
+        want = max_id(mode) + 1
+        existing = None
+        for line in old.splitlines():
+            m = NEXT_RE.match(line)
+            if m:
+                existing = int(m.group(2))
+                break
+        nxt = want if existing is None or existing < want else existing
+        next_line = f"**Next ID:** {cfg['next_prefix']}-{nxt}"
+
+    new = replace_table(old, table, cfg["section"], next_line)
+    tok = sum(1 for r in rows)
+    if apply:
+        if new != old:
+            path.write_text(new, encoding="utf-8")
+            print(f"APPLIED {path} rows={tok}")
         else:
-            if new != old:
-                print(f"DRY {path}: would change ({len(old)} -> {len(new)} chars)")
-            else:
-                print(f"DRY {path}: unchanged")
-    print(f"mode={mode} rows={len(rows)}")
+            print(f"OK unchanged {path} rows={tok}")
+    else:
+        print(f"DRY {path} rows={tok} changed={new != old}")
     return 0
 
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Rebuild index tables for AGENTS / AGENTS-LESSONS / ROADMAP / ci-roadmap. SSoT: docs/docs-structure.md",
+        description="Rebuild canonical index tables. SSoT: docs/docs-structure.md section 5.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
             "  %(prog)s --dry-run\n"
             "  %(prog)s --apply --mode roadmap\n"
-            "  %(prog)s --apply --mode all\n"
-            "  %(prog)s --apply --index-path-override docs/roadmap/ROADMAP.md\n"
+            "  %(prog)s --apply\n"
             "\n"
-            "Modes: all (default) | agents | agents-lessons | roadmap | ci-roadmap.\n"
-            "Index format: | TOKEN | ID | Title | File | Anchor |.\n"
-            "Heading: ### [TOKEN] <ID> <title>. Anchor: #<id> (from SUBSECTION id).\n"
-            "For cutting/pasting use SUBSECTION_BEGIN/END: <id>, not the anchor.\n"
-            "Note: AGENTS index is empty until headings get [AGENTS]/[AGENTS-LESSONS]\n"
-            "(step 5 of T-44 migration). --apply is safe: it writes the empty table."
+            "Order: wip, plan, defer, done; rows follow block order (priority preserved).\n"
+            "Anchor: [#<id>](<File>#<id>). Next ID: max + 1, archive read once.\n"
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--dry-run", action="store_true", help="show what would change")
-    g.add_argument("--apply", action="store_true", help="write index files")
+    g.add_argument("--dry-run", action="store_true")
+    g.add_argument("--apply", action="store_true")
     ap.add_argument("--mode", default="all",
-                    choices=["all", "agents", "agents-lessons", "roadmap", "ci-roadmap"],
-                    help="which index to rebuild (default: all)")
-    ap.add_argument("--index-path-override", nargs="*", default=None, metavar="PATH",
-                    help="override default index paths (space-separated)")
+                    choices=["all", "agents", "agents-lessons", "roadmap", "ci-roadmap"])
     args = ap.parse_args()
 
-    modes = ["agents", "agents-lessons", "roadmap", "ci-roadmap"] if args.mode == "all" else [args.mode]
+    modes = list(MODES) if args.mode == "all" else [args.mode]
     rc = 0
     for m in modes:
-        rc |= rebuild(m, index_path_override=args.index_path_override, apply=args.apply)
+        rc |= rebuild(m, apply=args.apply)
     return rc
 
 
