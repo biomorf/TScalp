@@ -55,16 +55,58 @@ def _detect_expected_token(file_path: str) -> str | None:
     return None
 
 
-def _fix_token_heading(line: str, expected: str) -> tuple[str, bool]:
-    """If line is a ### [TOKEN] ... heading with wrong TOKEN, replace. Returns (line, changed)."""
-    import re as _re
-    m = _re.match(r"^(### )\[([A-Z-]+)\] (.*)$", line)
-    if not m:
-        return line, False
-    cur = m.group(2)
-    if cur == expected:
-        return line, False
-    return f"{m.group(1)}[{expected}] {m.group(3)}", True
+ROADMAP_TOKENS = {"WIP", "PLAN", "DEFER", "DONE"}
+
+ID_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9-]*\Z")
+
+
+def _looks_like_id(word: str) -> bool:
+    """True for marker-id-like words (code-project, r4k, T-44); titles do not match."""
+    if not ID_WORD_RE.fullmatch(word):
+        return False
+    return any(c.isdigit() or c == "-" for c in word)
+
+
+def _normalize_heading(heading: str, sid: str, expected_token: str | None) -> tuple[str, list[str]]:
+    """Return '### [TOKEN] <ID> <title>' for level-3 families, plus deviations.
+
+    expected_token is None for files outside AGENTS / AGENTS-LESSONS / ROADMAP /
+    ci-roadmap families: their headings are left untouched.
+    """
+    devs: list[str] = []
+    if expected_token is None:
+        return heading, devs
+
+    body = heading[4:]
+    cur_tok = None
+    m = re.match(r"^\[([A-Za-z-]+)\] (.*)$", body)
+    if m:
+        cur_tok = m.group(1)
+        body = m.group(2)
+
+    want_id = sid.upper() if expected_token in ROADMAP_TOKENS else sid
+
+    parts = body.split(" ", 1)
+    first = parts[0] if parts else ""
+    if first.lower() == sid.lower() or _looks_like_id(first):
+        got_id, title = first, (parts[1] if len(parts) == 2 else "")
+    else:
+        got_id, title = None, body
+
+    if cur_tok is None:
+        devs.append(f"missing TOKEN (expected [{expected_token}])")
+    elif cur_tok != expected_token:
+        devs.append(f"TOKEN mismatch: [{cur_tok}] (expected [{expected_token}])")
+
+    if got_id is None:
+        devs.append(f"missing heading ID (expected {want_id!r})")
+    elif got_id != want_id:
+        devs.append(f"heading ID {got_id!r} != {want_id!r}")
+
+    out = f"### [{expected_token}] {want_id}"
+    if title:
+        out += f" {title}"
+    return out, devs
 
 
 def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
@@ -175,15 +217,12 @@ def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
             deviations.append(f"{sid}: unexpected lines before ###: {pre[:2]}")
 
         heading = body[h_idx]
-        if expected_token:
-            heading_fixed, changed = _fix_token_heading(heading, expected_token)
-            if changed:
-                m = re.match(r"^### \[([A-Z-]+)\] ", heading)
-                cur = m.group(1) if m else "?"
-                deviations.append(f"{sid}: TOKEN mismatch: [{cur}] (expected [{expected_token}])")
-                heading = heading_fixed
         if not heading.startswith("### "):
             deviations.append(f"{sid}: heading not ### ")
+        else:
+            heading, head_devs = _normalize_heading(heading, sid, expected_token)
+            for d in head_devs:
+                deviations.append(f"{sid}: {d}")
 
         rest = body[h_idx + 1:]
         if any(l.rstrip() != l for l in rest):
