@@ -1490,4 +1490,14 @@ adb logcat` без `--foreground` — Ctrl+C не работал, ждали п�
 
 
 <!-- SECTION_END: scripts -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->

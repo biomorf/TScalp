@@ -109,6 +109,39 @@ def _normalize_heading(heading: str, sid: str, expected_token: str | None) -> tu
     return out, devs
 
 
+PAD_LINES = 10
+SECTION_BEGIN_PREFIX = "<!-- SECTION_BEGIN: "
+SECTION_END_PREFIX = "<!-- SECTION_END: "
+
+
+def _enforce_transitions(lines: list[str]) -> tuple[list[str], int]:
+    """Exactly PAD_LINES blanks before SECTION_END, FILE_END and SECTION_BEGIN.
+
+    The first SECTION_BEGIN sits right after FILE_BEGIN with no blank lines.
+    """
+    out: list[str] = []
+    fixed = 0
+    for line in lines:
+        s = line.strip()
+        target = None
+        if s.startswith(SECTION_END_PREFIX) or s == FILE_END_LINE:
+            target = PAD_LINES
+        elif s.startswith(SECTION_BEGIN_PREFIX):
+            prev = out[-1].strip() if out else ""
+            target = 0 if prev == FILE_BEGIN_LINE else PAD_LINES
+        if target is not None:
+            had = 0
+            while out and out[-1].strip() == "":
+                out.pop()
+                had += 1
+            if out:
+                out.extend(["\n"] * target)
+                if had != target:
+                    fixed += 1
+        out.append(line)
+    return out, fixed
+
+
 def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
     """Return (new_text, deviations). Idempotent: if already normal, deviations = [].
 
@@ -263,6 +296,10 @@ def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
         out.append("\n" * 10)
         for l in tail_lines:
             out.append(l + "\n")
+
+    out, trans_fixed = _enforce_transitions(out)
+    if trans_fixed:
+        deviations.append(f"transition padding fixed: {trans_fixed}")
 
     new_text = "".join(out)
     if not new_text.endswith("\n"):

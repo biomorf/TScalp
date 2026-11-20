@@ -577,4 +577,14 @@ wrapping, имена тест-функций. Плюс `cat -A` затронут
 
 
 <!-- SECTION_END: kotlin -->
+
+
+
+
+
+
+
+
+
+
 <!-- FILE_END -->
