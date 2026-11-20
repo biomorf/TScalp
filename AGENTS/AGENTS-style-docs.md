@@ -72,54 +72,22 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: r4j -->
-___
-### r4j Скрипты для AGENTS/
-Ассистент **не форматирует** `SUBSECTION_*`-блоки вручную.
+### [AGENTS] r4j Скрипты для AGENTS/
+<a id="r4j"></a>
+Описание инструментов (аргументы, примеры, список) — в
+`AGENTS/scripts/README.md`. Здесь — только директивы:
 
-**Вставка подраздела** — `docs_add.py`:
+- **Использовать фиксированные скрипты, не inline** — любая операция
+  из списка в README — через `AGENTS/scripts/*.sh`.
+- **`docs_normalize.py --check` входит в 4h pre-commit checklist**:
+  перед коммитом — `--check --all` → `deviations=0`.
+- **Запрещено** править паддинги, `___`, `SUBSECTION_*` вручную —
+  только скрипты (единый формат, идемпотентность).
+- Live-test: см. `docs/live-test.md`.
 
-    python3 AGENTS/scripts/docs_add.py --file <path> --id <id> \
-      --title '<title>' --body-file <path> \
-      [--after <existing_id> | --at-end] --apply
-
-**Удаление подраздела** — `docs_cut.py` (вырезает в `/tmp/agents-cut-<id>.md`,
-fallback `$HOME/deepseek/`; вставить обратно — `docs_add.py`):
-
-    python3 AGENTS/scripts/docs_cut.py --file <path> --id <id> --apply
-
-**Нормализация** (паддинги, `___`, `rstrip`, fence parity) — `docs_normalize.py`:
-
-    python3 AGENTS/scripts/docs_normalize.py --check --all   # CI, exit 1 при отклонении
-    python3 AGENTS/scripts/docs_normalize.py --apply --all   # запись
-
-**Live-test / post-PR** — `AGENTS/scripts/*.sh`. Запуск — всегда явно
-через `bash`, без `./` (не зависит от exec-бита, shebang, cwd;
-консистентно с 4g — без умолчаний):
-
-    bash AGENTS/scripts/live-test-build.sh                  # installDebug + force-stop
-    bash AGENTS/scripts/live-test-capture.sh                # режим A (файл), CAPTURE_SECONDS
-    bash AGENTS/scripts/live-test-capture-interactive.sh    # режим B (live, --line-buffered)
-    bash AGENTS/scripts/post-pr.sh <branch> [--task T-N]   # 5f чек-лист (+ ROADMAP verify)
-    bash AGENTS/scripts/docs-gate.sh [files...]        # 5a docs-only gate
-
-**Фиксированные скрипты — использовать, не inline.** Любая операция
-из списка выше — через `AGENTS/scripts/*.sh`, не inline-дубликатом.
-Вызов скрипта — **тоже bash-блок**: оборачивать по `4i` шаблон 1
-(heredoc, `tee`, `RC`, `wc`, `exit`), не bare-строкой.
-Inline в правилах допустим только как «что делает скрипт» (справка
-для чтения), не для запуска. Если скрипт недоступен (нет файла /
-не та ОС) — зафиксировать причину в ответе; иначе inline запрещён.
-Причина: `evolution-workflow` (защита от повторения ошибок),
-`5b`/`r5b` (не переизобретать текст для копирования).
-
-Шапки скриптов содержат зависимости, аргументы и примеры. См. `docs/live-test.md`.
-
-**`normalize.py --check` входит в 4h pre-commit checklist** для `AGENTS/`:
-перед коммитом — `--check --all` → `deviations=0`.
-
-**Запрещено** править паддинги, `___`, `SUBSECTION_*` вручную — только
-скрипты. Причина: единый формат, идемпотентность, нет «съехавших» отступов.
+---
 <!-- SUBSECTION_END: r4j -->
+
 
 
 
