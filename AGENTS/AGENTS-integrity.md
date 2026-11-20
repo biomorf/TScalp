@@ -1,34 +1,23 @@
-<!-- AGENTS_SECTION_BEGIN: integrity -->
-## Маркеры целостности (инициализационное)
+<!-- FILE_BEGIN -->
+# Целостность и маркеры
 
-Каждый `AGENTS.md` / `AGENTS-LESSONS.md` обёрнут парой
-`FILE_BEGIN` / `FILE_END`. Каждый `##`-раздел (и, для §Стиль работы,
-каждое `### N`-правило) — парой `SECTION_BEGIN: <id>` /
-`SECTION_END: <id>` с коротким ASCII-id.
+Форматы маркеров (`FILE`, `SECTION`, `SUBSECTION`), вложенность,
+уникальность и якоря описаны в `docs/docs-structure.md` (§3). Здесь —
+только роль маркеров в отчётах о прочтении.
 
-**Формат маркеров** — HTML-комментарии, не видны в рендере
-(шаблон схематичный, реальные маркеры — в файле, не в этом блоке):
+<!-- SECTION_BEGIN: integrity -->
+## Роль маркеров
 
-    FILE_BEGIN
-    ...
-    SECTION_BEGIN: docs
-    ## Обязательные документы
-    ...
-    SECTION_END: docs
-    ...
-    FILE_END
+`FILE_BEGIN` / `FILE_END` задают границы вырезки/вставки и нужны для
+верификации прочтения. `SECTION` / `SUBSECTION` — границы разделов и
+подсекций. Отчёт о прочтении оглашает, какие маркеры видны, чтобы
+отличить «прочитал всё» от «прочитал первые 500 строк».
 
-Полный список `<id>` — в первом ответе ассистента.
 
-**ID секций AGENTS.md:**
-`integrity` (§Маркеры целостности), `docs` (§Обязательные документы),
-`style` (§Стиль работы) + подправила `r1`–`r5g`, `r5f-freeze` (§Ожидание merge), `code` (§Работа с кодом),
-`forbidden` (§Запрещено), `project-docs` (§Документы проекта),
-`evolution` (§Эволюция директив), `comm` (§Коммуникация).
 
-**ID секций AGENTS-LESSONS.md:**
-`template`, `structure`, `scripts`, `kotlin`, `diagnostics`,
-`clean-audit`, `ui`, `ci`, `estimates`, `process`, `application`.
+
+
+
 
 
 
@@ -47,4 +36,8 @@ ___
 
 
 
-<!-- AGENTS_SECTION_END: integrity -->
+
+
+<!-- SECTION_END: integrity -->
+
+<!-- FILE_END -->
