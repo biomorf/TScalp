@@ -23,10 +23,12 @@
 
 
 <!-- SUBSECTION_BEGIN: integrity-report -->
-___
-### integrity-report Формат отчёта
+<a id="integrity-report"></a>
+### [AGENTS] integrity-report Формат отчёта
 См. `AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении
 (раздел «Обязанность оглашения при получении»).
+
+---
 <!-- SUBSECTION_END: integrity-report -->
 
 

@@ -1,4 +1,5 @@
-<!-- AGENTS_SECTION_BEGIN: forbidden -->
+<!-- FILE_BEGIN -->
+<!-- SECTION_BEGIN: forbidden -->
 ## Запрещено
 
 - Менять UI без явной санкции.
@@ -23,4 +24,5 @@
 
 ---
 
-<!-- AGENTS_SECTION_END: forbidden -->
+<!-- SECTION_END: forbidden -->
+<!-- FILE_END -->

@@ -1,4 +1,5 @@
-<!-- LESSONS_SECTION_BEGIN: template -->
+<!-- FILE_BEGIN -->
+<!-- SECTION_BEGIN: template -->
 ## Шаблон записи
 
     ### <Короткое название правила>
@@ -11,4 +12,5 @@
 
 ---
 
-<!-- LESSONS_SECTION_END: template -->
+<!-- SECTION_END: template -->
+<!-- FILE_END -->

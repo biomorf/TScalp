@@ -1,4 +1,5 @@
-<!-- AGENTS_SECTION_BEGIN: evolution -->
+<!-- FILE_BEGIN -->
+<!-- SECTION_BEGIN: evolution -->
 ## Эволюция директив
 
 Этот документ — живой. Правила уточняются по ходу работы,
@@ -7,9 +8,15 @@
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: evolution-priority -->
-___
-### evolution-priority Правки директив приоритетнее любой деятельности
+<a id="evolution-priority"></a>
+### [AGENTS] evolution-priority Правки директив приоритетнее любой деятельности
 Правка этого документа (AGENTS.md) — **срочная и неотложная
 задача**. Если в ходе работы обнаружено, что правило устарело,
 неполно, неоднозначно или противоречит реальности:
@@ -33,6 +40,8 @@ ___
 **Не путать с workflow-находками:** находка (ниже) — про то,
 что зафиксировать. Это правило — про **приоритет** фиксации
 перед другой работой.
+
+---
 <!-- SUBSECTION_END: evolution-priority -->
 
 
@@ -45,8 +54,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: evolution-workflow -->
-___
-### evolution-workflow Workflow-находки фиксируются сразу
+<a id="evolution-workflow"></a>
+### [AGENTS] evolution-workflow Workflow-находки фиксируются сразу
 Если при работе над задачей обнаружено улучшение workflow
 (защитный паттерн, новый assert, способ избежать
 повторяющейся ошибки, найденная особенность платформы) —
@@ -90,4 +99,7 @@ trailing spaces, `rstrip()` каждой строки» — зафиксиров
 
 
 
-<!-- AGENTS_SECTION_END: evolution -->
+
+
+<!-- SECTION_END: evolution -->
+<!-- FILE_END -->

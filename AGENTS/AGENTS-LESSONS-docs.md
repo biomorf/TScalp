@@ -1,4 +1,5 @@
-<!-- LESSONS_SECTION_BEGIN: docs -->
+<!-- FILE_BEGIN -->
+<!-- SECTION_BEGIN: docs -->
 ## Обязательные файлы LESSONS
 
 Документ описывает обязательные файлы набора `AGENTS-LESSONS-*.md`
@@ -8,9 +9,15 @@
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: l-docs-obligatory-files -->
-___
-### l-docs-obligatory-files Обязательные файлы
+<a id="l-docs-obligatory-files"></a>
+### [AGENTS-LESSONS] l-docs-obligatory-files Обязательные файлы
 В начале каждой сессии ассистент **настойчиво требует** и читает:
 
 - **`AGENTS-LESSONS-scripts.md`** — уроки по скриптам и правкам
@@ -31,6 +38,8 @@ ___
   (start/feature, stash, reset --hard, revert).
 - **`AGENTS-LESSONS-application.md`** — уроки по применению
   (merge origin/dev, 4f, 5f-freeze, test → feature).
+
+---
 <!-- SUBSECTION_END: l-docs-obligatory-files -->
 
 
@@ -43,9 +52,11 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: l-docs-report-format -->
-___
-### l-docs-report-format Формат отчёта
+<a id="l-docs-report-format"></a>
+### [AGENTS-LESSONS] l-docs-report-format Формат отчёта
 См. `AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении.
+
+---
 <!-- SUBSECTION_END: l-docs-report-format -->
 
 
@@ -58,11 +69,13 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: l-docs-reason -->
-___
-### l-docs-reason Причина
+<a id="l-docs-reason"></a>
+### [AGENTS-LESSONS] l-docs-reason Причина
 Без оглашения ассистент не отличает «прочитал всё» от «прочитал
 первые 500 строк». Оглашение — единственная точка, где
 пользователь видит, что контекст неполный, до начала работы.
+
+---
 <!-- SUBSECTION_END: l-docs-reason -->
 
 
@@ -72,4 +85,7 @@ ___
 
 
 
-<!-- LESSONS_SECTION_END: docs -->
+
+
+<!-- SECTION_END: docs -->
+<!-- FILE_END -->

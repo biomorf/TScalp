@@ -31,6 +31,7 @@
 
 
 <!-- SUBSECTION_BEGIN: project-docs-all-planned -->
+<a id="project-docs-all-planned"></a>
 ### [AGENTS] project-docs-all-planned Всё планируемое — в документах
 <a id="project-docs-all-planned"></a>
 Любое решение, план, улучшение или отложенная идея, о которых
@@ -64,6 +65,7 @@
 
 
 <!-- SUBSECTION_BEGIN: project-docs-diagrams -->
+<a id="project-docs-diagrams"></a>
 ### [AGENTS] project-docs-diagrams Диаграммы в документации
 <a id="project-docs-diagrams"></a>
 Документация проекта обогащается **Mermaid-диаграммами**
@@ -127,6 +129,7 @@
 
 
 <!-- SUBSECTION_BEGIN: project-docs-mobile -->
+<a id="project-docs-mobile"></a>
 ### [AGENTS] project-docs-mobile Пометка о мобильной работе
 <a id="project-docs-mobile"></a>
 Каждая задача в `docs/ROADMAP.md` получает **пометку о
@@ -186,9 +189,6 @@ Gradle-сборки (тяжело для proot, нестабильно). ADB
 (по правилу обогащения документации — см. «Диаграммы
 в документации»).
 
-
-
-
 ---
 <!-- SUBSECTION_END: project-docs-mobile -->
 
@@ -202,6 +202,7 @@ Gradle-сборки (тяжело для proot, нестабильно). ADB
 
 
 <!-- SUBSECTION_BEGIN: project-docs-section-order -->
+<a id="project-docs-section-order"></a>
 ### [AGENTS] project-docs-section-order Порядок секций в плановых документах
 <a id="project-docs-section-order"></a>
 В `docs/ROADMAP.md` и `docs/ci-roadmap.md` — два раздела с разной

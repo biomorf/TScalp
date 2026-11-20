@@ -1,4 +1,5 @@
-<!-- AGENTS_SECTION_BEGIN: docs -->
+<!-- FILE_BEGIN -->
+<!-- SECTION_BEGIN: docs -->
 ## Обязательные документы
 
 В начале сессии ассистент **настойчиво требует** у пользователя
@@ -22,10 +23,18 @@
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: docs-report -->
-___
-### docs-report Формат отчёта
+<a id="docs-report"></a>
+### [AGENTS] docs-report Формат отчёта
 См. `AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении.
+
+---
 <!-- SUBSECTION_END: docs-report -->
 
 
@@ -35,4 +44,7 @@ ___
 
 
 
-<!-- AGENTS_SECTION_END: docs -->
+
+
+<!-- SECTION_END: docs -->
+<!-- FILE_END -->

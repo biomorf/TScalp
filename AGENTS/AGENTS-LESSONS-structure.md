@@ -1,4 +1,5 @@
-<!-- LESSONS_SECTION_BEGIN: structure -->
+<!-- FILE_BEGIN -->
+<!-- SECTION_BEGIN: structure -->
 ## Структура файла
 
 Уроки сгруппированы по темам: «Скрипты и правки», «CI»,
@@ -19,4 +20,5 @@
 
 ---
 
-<!-- LESSONS_SECTION_END: structure -->
+<!-- SECTION_END: structure -->
+<!-- FILE_END -->
