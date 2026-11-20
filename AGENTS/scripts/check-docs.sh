@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # check-docs.sh — gate for the docs-structure canon (docs/docs-structure.md, section 6).
+# Scope: AGENTS/**, docs/roadmap/** and the four root pointers.
+# Other docs/*.md are out of scope until the docs migration task lands.
 # Read-only. Exit 0 = all checks pass, 1 = at least one FAIL.
 set -uo pipefail
 REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
@@ -42,13 +44,17 @@ def expected_token(name):
     return None
 
 
+SCOPE_DIRS = ("AGENTS", "docs/roadmap")
+SCOPE_FILES = ("AGENTS.md", "AGENTS-LESSONS.md", "docs/ROADMAP.md", "docs/ci-roadmap.md")
+
+
 def gather():
     out = []
-    for base in ("AGENTS", "docs"):
+    for base in SCOPE_DIRS:
         d = Path(base)
         if d.is_dir():
             out.extend(sorted(d.rglob("*.md")))
-    for extra in ("AGENTS.md", "AGENTS-LESSONS.md"):
+    for extra in SCOPE_FILES:
         p = Path(extra)
         if p.exists():
             out.append(p)
