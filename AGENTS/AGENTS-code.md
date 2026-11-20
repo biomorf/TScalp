@@ -1,4 +1,5 @@
-<!-- AGENTS_SECTION_BEGIN: code -->
+<!-- FILE_BEGIN -->
+<!-- SECTION_BEGIN: code -->
 ## Работа с кодом
 
 
@@ -11,8 +12,8 @@
 
 
 <!-- SUBSECTION_BEGIN: code-project -->
-___
-### code-project Проект
+<a id="code-project"></a>
+### [AGENTS] code-project Проект
 - **Стек:** Kotlin, Jetpack Compose, Hilt, Coroutines/Flow,
   gRPC (T-Invest SDK), REST (BCS, Finam).
 - **Слои:** `presentation → domain → data`. ViewModel не ходит
@@ -46,6 +47,8 @@ ___
   `broker.subscribeLastPrices` и `repository.getLastPricesResult`
   из ViewModel напрямую. Регистрировать интерес через
   `setInterest(PriceConsumer, uids)`.
+
+---
 <!-- SUBSECTION_END: code-project -->
 
 
@@ -58,8 +61,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: code-workflows -->
-___
-### code-workflows Рабочие сценарии: mobile (proot) и desktop (Bluefin)
+<a id="code-workflows"></a>
+### [AGENTS] code-workflows Рабочие сценарии: mobile (proot) и desktop (Bluefin)
 Проект разрабатывается в двух окружениях. Правила 5/5a
 действуют в обоих, но доступные инструменты и порядок работы
 различаются.
@@ -101,6 +104,8 @@ ___
 использовался в заголовке как стандартный (`wip(domain): ...`).
 Это отклонение от 5 (список типов закрытый); переписывать историю
 нельзя (force-push, 5a). Впредь — стандартный тип + `WIP` в теле.
+
+---
 <!-- SUBSECTION_END: code-workflows -->
 
 
@@ -113,8 +118,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: code-instrument-ids -->
-___
-### code-instrument-ids Идентификаторы инструментов
+<a id="code-instrument-ids"></a>
+### [AGENTS] code-instrument-ids Идентификаторы инструментов
 - **Domain-слой** оперирует `tscalpInstrumentId` — универсальным
   идентификатором инструмента. В domain-моделях, usecase'ах и
   domain-API (`PriceFlowManager`, `PositionFlowManager`)
@@ -125,6 +130,8 @@ ___
   `ticker` + `exchange` (Finam) честно отражают формат брокера.
 - **Трансляция** `tscalpInstrumentId ↔ broker-specific-id`
   происходит в репозитории или в брокере.
+
+---
 <!-- SUBSECTION_END: code-instrument-ids -->
 
 
@@ -137,8 +144,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: code-before-edits -->
-___
-### code-before-edits Перед правками
+<a id="code-before-edits"></a>
+### [AGENTS] code-before-edits Перед правками
 - Ассистент запрашивает актуальные версии файлов, которые
   собирается менять. Не полагается на память о предыдущих
   сессиях.
@@ -204,6 +211,8 @@ ___
   `ktlintMainSourceSetCheck`. Решение: сортировать набор
   импортов alphabetically перед вставкой, либо прогонять
   `ktlintFormat` после каждой правки импортов.
+
+---
 <!-- SUBSECTION_END: code-before-edits -->
 
 
@@ -216,12 +225,14 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: code-after-edits -->
-___
-### code-after-edits После правок
+<a id="code-after-edits"></a>
+### [AGENTS] code-after-edits После правок
 - Сборка: `./gradlew :app:clean :app:testDebugUnitTest --rerun-tasks 2>&1 | grep -E '\[warn\]|\[error\]|^w:|^e:'`
 - Ожидаемый результат: 84 теста зелёных, только известные
   warning'и (список — в `docs/ISSUES.md`).
 - Новые warning'и, новые ошибки — разбираются, не игнорируются.
+
+---
 <!-- SUBSECTION_END: code-after-edits -->
 
 
@@ -234,8 +245,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: code-unit-mockk-suspend -->
-___
-### code-unit-mockk-suspend Unit-тесты: mockk для suspend-функций
+<a id="code-unit-mockk-suspend"></a>
+### [AGENTS] code-unit-mockk-suspend Unit-тесты: mockk для suspend-функций
 Для `suspend`-функций в mockk — **только** `coEvery` / `coVerify`
 (или `coAnswers`), не `every` / `verify`. На неверную версию
 компилятор ругается `Suspension functions can only be called
@@ -263,6 +274,8 @@ within coroutine body` — ошибка указывает на строку `ve
 `testOptions { unitTests.isReturnDefaultValues = true }` в
 `app/build.gradle.kts`. Уже включено; причина — в
 `docs/gradle-setup.md` → «Unit-тесты».
+
+---
 <!-- SUBSECTION_END: code-unit-mockk-suspend -->
 
 
@@ -275,8 +288,8 @@ within coroutine body` — ошибка указывает на строку `ve
 
 
 <!-- SUBSECTION_BEGIN: code-self-contained-scripts -->
-___
-### code-self-contained-scripts Самодостаточность инфраструктурных скриптов
+<a id="code-self-contained-scripts"></a>
+### [AGENTS] code-self-contained-scripts Самодостаточность инфраструктурных скриптов
 Любой скрипт, Ansible-роль, playbook, Dockerfile или CI-конфиг, который
 ассистент пишет или правит, обязан:
 
@@ -296,6 +309,8 @@ ___
 скрытых сюрпризов. Скрипт должен воспроизводиться с нуля на чистой
 системе, без неявных предпосылок. Проверка «всё поставилось и
 работает» — часть задачи, а не опция.
+
+---
 <!-- SUBSECTION_END: code-self-contained-scripts -->
 
 
@@ -308,8 +323,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: code-git-workflow-origin -->
-___
-### code-git-workflow-origin Git workflow: синхронизация с origin
+<a id="code-git-workflow-origin"></a>
+### [AGENTS] code-git-workflow-origin Git workflow: синхронизация с origin
 Для синхронизации локальной ветки с origin используем
 **двухшаговую схему**:
 
@@ -345,6 +360,8 @@ ___
 через `git merge --no-ff` или через web PR, как зафиксировано
 в ROADMAP. Правило выше — только про синхронизацию **текущей
 ветки с её origin-копией**.
+
+---
 <!-- SUBSECTION_END: code-git-workflow-origin -->
 
 
@@ -357,8 +374,8 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: code-git-workflow-pr -->
-___
-### code-git-workflow-pr Git workflow: ветки и PR
+<a id="code-git-workflow-pr"></a>
+### [AGENTS] code-git-workflow-pr Git workflow: ветки и PR
 Полное соглашение о ветвлении — в `docs/git-flow.md`. Здесь —
 краткая карта для быстрой ориентации.
 
@@ -405,4 +422,7 @@ ___
 
 
 
-<!-- AGENTS_SECTION_END: code -->
+
+
+<!-- SECTION_END: code -->
+<!-- FILE_END -->
