@@ -15,56 +15,72 @@
 <a id="t-2"></a>
 ### [PLAN] T-2 AGENTS: консолидация скриптов в AGENTS/scripts + инструкции отдельно
 **Статус:** запланировано.
-**Мобильная работа:** полное закрытие
-**Контекст:** скрипты для работы с `AGENTS/` частично в репо
-(`AGENTS/scripts/`: `docs_normalize.py`, `docs_add.py`, `docs_cut.py`,
-`docs_rebuild_index.py`), частично вне (`$HOME/deepseek/seed_markers.py`
-— одноразовый, но не сохранён). Инструкция `4j` упоминает только
-`add`/`cut`/`normalize`, не `rebuild_index`. Нужно: (1) все штатные
-скрипты — в `AGENTS/scripts/`; (2) `4j` — полный список инструментов;
-(3) одноразовые — в `AGENTS/scripts/oneoff/` или задокументированы
-как «не штатные».
-**Соответствие Clean:** — (не применимо, инструменты документации)
-**Нарушенное правило Clean:** —
-**Clean-альтернатива:** —
-**Выгоды:** —
-**MVVM:** — (не применимо)
-**KMP:** — (не применимо)
-**Предусловия:** `AGENTS/scripts/` с 4 скриптами (есть,
-`bc9673e5`/`b814a5fd`/`c99b302b`/`e12aed55`).
+
+**Мобильная работа:** полное закрытие (proot + PR; только `AGENTS/scripts` и директивы, гейт на CI).
+
+**Контекст:** T-44 свёл правила документации в `docs_canon_lib.py`, но вокруг них остались дубли и пробелы:
+
+- проверка имеет два входа — `docs_normalize.py --check` и `docs_lint.py`;
+- `docs_add.py` и `docs_cut.py` дублируют tmp-политику (4k), вызов `docs_rebuild_index`, argparse-каркас и поиск границ блока;
+- `post-pr.sh` содержит собственную копию проверок ROADMAP (`### ✅ T-N`, `**Подтверждение:**`) — третий источник правил;
+- таблица `AGENTS/scripts/README.md` неполна: `run-local-gate.sh` без строки, `oneoff/` не описан (упоминаний в README — 0);
+- полноту таблицы ничто не проверяет, расхождение накапливается молча.
+
+Первоначальная формулировка T-2 — перенести 4 скрипта в `AGENTS/scripts/`, завести README, завести `oneoff/` — выполнена в ходе T-44: README есть, `r4j` ссылается на него, `oneoff/seed_markers*.py` в репозитории. Здесь она не повторяется.
+
+**Соответствие Clean:** — (не применимо, инструменты документации).
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды:** —.
+
+**MVVM:** — (не применимо).
+
+**KMP:** — (не применимо).
+
+**Предусловия:** T-44 закрыт — `docs_canon_lib.py` и `docs_lint.py` в репозитории, гейт зелёный.
+
 **Файлы:**
-- `AGENTS/scripts/README.md` — что каждый скрипт делает, аргументы,
-  примеры (инструменты).
-- `AGENTS/AGENTS-style-docs.md` (r4j) — обновить: полный список
-  (`normalize`, `add`, `cut`, `rebuild_index`), ссылка на
-  `scripts/README.md`.
-- `AGENTS/scripts/oneoff/` — `seed_markers.py` (перенести из
-  `$HOME/deepseek/`, пометить «одноразовый, не запускать повторно»).
-- `$HOME/deepseek/` — почистить бэкапы/временные.
+- `AGENTS/scripts/docs_normalize.py` — убрать `--check`.
+- `AGENTS/scripts/docs_canon_lib.py` — добавить `find_block()`, `tmp_path()`.
+- `AGENTS/scripts/docs_add.py`, `AGENTS/scripts/docs_cut.py` — на общие хелперы.
+- `AGENTS/scripts/post-pr.sh` — верификация ROADMAP через `docs_lint.py`.
+- `AGENTS/scripts/README.md` — строка `run-local-gate.sh`, раздел «одноразовые».
+- `AGENTS/scripts/docs_lint.py` — проверка полноты README.
+- `AGENTS/AGENTS-style-docs.md` → `r4j` — снять упоминание `--check`.
+
 **Шаги:**
-1. `AGENTS/scripts/README.md` — таблица: скрипт, назначение,
-   аргументы, пример.
-2. `seed_markers.py` — `cp $HOME/deepseek/seed_markers.py
-   AGENTS/scripts/oneoff/`, шапка «одноразовый, не запускать
-   повторно (уже применён в 2658a54c)».
-3. `r4j`: добавить `docs_rebuild_index.py` в список; ссылка на
-   `README.md`.
-4. `$HOME/deepseek/` — `rm normalize.py.bak*`, `4j-body.md`,
-   `smoke-body.md`, `agents-cut-*.md`.
-5. Verify: `r4j` содержит все 4 скрипта; `README.md` содержит
-   все 4; `--check-index` 0.
-**Референсы:** `AGENTS/scripts/*.py`, `r4j`,
-`$HOME/deepseek/seed_markers.py`.
-**Ограничения:** не менять логику скриптов — только документация
-и перенос. `seed_markers.py` — не запускать (уже применён).
-**Критерий готовности:** `AGENTS/scripts/README.md` (4 скрипта +
-oneoff); `r4j` упоминает все 4; `oneoff/seed_markers.py` в репо;
-`$HOME/deepseek/` чист от временных; `--check-index` 0.
-**Оценка:** ~30–40 мин.
-**Зависимости:** —.
-**Открытые вопросы:** `seed_markers.py` — в `oneoff/` или удалить
-(он одноразовый, применён)? Рекомендую `oneoff/` — история, как
-расставлялись маркеры.
+1. `docs_normalize.py`: убрать `--check`; при запуске без `--apply` работать как `--dry-run`. Проверка — только `docs_lint.py`.
+2. `docs_canon_lib`: `find_block(lines, sid)` → `(begin, end)` и `tmp_path(name)` по 4k; `docs_add` / `docs_cut` перевести на них, локальные копии удалить.
+3. `post-pr.sh`: шаг ROADMAP-верификации выполнять через `docs_lint.py --file docs/roadmap/ROADMAP-wip.md` и `docs_lint.py --file docs/roadmap/ROADMAP-ARCHIVE.md` — вместо inline-регулярок в bash. Отдельный предикат для `**Подтверждение:**` не писать, пока линтер покрывает поле.
+4. `README.md`: строка `run-local-gate.sh` в таблицу; раздел «одноразовые скрипты» для `oneoff/seed_markers.py` и `oneoff/seed_markers_docs.py` с пометкой «не запускать повторно».
+5. `docs_lint.py`: проверка «каждый штатный скрипт в `AGENTS/scripts/` имеет строку в README»; `oneoff/` и `README.md` исключены.
+6. Verify: `docs_lint.py --all` → `ALL CHECKS PASSED`; негативный тест на удалённую строку README; `docs_add` + `docs_cut` round-trip на копии.
+
+**Тесты:**
+- `docs_lint.py --all` → 0 ошибок, включая новую проверку полноты;
+- негативный тест: временно убрать строку `run-local-gate.sh` из README → линтер обязан упасть;
+- `docs_add` + `docs_cut` round-trip на копии — файл восстанавливается байт в байт;
+- `post-pr.sh --task T-45 --dry-run` (или ручной прогон) не падает на отсутствующем архиве.
+
+**Референсы:** `docs/docs-structure.md` §5–§6; `AGENTS/scripts/docs_canon_lib.py`; `AGENTS/scripts/docs_lint.py`; `AGENTS/scripts/README.md`; уроки `l-scripts-*`.
+
+**Ограничения:**
+- Не менять логику `docs_cut.py` сверх выноса хелперов.
+- `live-test-*.sh` и 4i-обёртку не трогать — отдельная задача, другой scope.
+- `oneoff/` только документировать, не запускать.
+
+**Критерий готовности:** правила каждого вида определены ровно в одном месте — линтер проверяет, нормализатор исправляет, `post-pr.sh` верифицирует через линтер; `docs_lint --all` зелёный с новой проверкой полноты; в README нет скрипта без строки и строки без скрипта.
+
+**Оценка:** ~1.5–2 ч.
+
+**Зависимости:** T-44 (закрыт `eea7cc1e`).
+
+**Связано:** T-44, `docs_canon_lib.py`, `r4j`.
+
+**Открытые вопросы:** нет.
 
 ---
 <!-- SUBSECTION_END: t-2 -->
