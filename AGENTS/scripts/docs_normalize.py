@@ -8,138 +8,22 @@ import re
 import sys
 from pathlib import Path
 
-BEGIN_RE = re.compile(r"^<!-- SUBSECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
-END_RE = re.compile(r"^<!-- SUBSECTION_END: ([A-Za-z0-9_-]+) -->$")
-SECTION_END_RE = re.compile(r"^<!-- (?:AGENTS_|LESSONS_)?SECTION_END: ([A-Za-z0-9_-]+) -->$")
-SECTION_BEGIN_RE = re.compile(r"^<!-- (?:AGENTS_|LESSONS_)?SECTION_BEGIN: ([A-Za-z0-9_-]+) -->$")
-H2_RE = re.compile(r"^## ")
-FILE_BEGIN_LINE = "<!-- FILE_BEGIN -->"
-FILE_END_LINE = "<!-- FILE_END -->"
-
-PREFIX_RE = re.compile(
-    r"^<!-- (?:AGENTS_|LESSONS_)(FILE|SECTION|SUBSECTION)_(BEGIN|END)(?:: ([A-Za-z0-9_-]+))? -->$"
+from docs_canon_lib import (  # noqa: E402
+    BEGIN_RE,
+    END_RE,
+    FILE_BEGIN_LINE,
+    FILE_END_LINE,
+    PAD_LINES,
+    PREFIX_RE,
+    ROADMAP_TOKENS,
+    SECTION_BEGIN_PREFIX,
+    SECTION_END_PREFIX,
+    TOKEN_BY_FILE,
+    enforce_transitions as _enforce_transitions,
+    expected_token as _detect_expected_token,
+    normalize_heading as _normalize_heading,
+    strip_prefix as _strip_prefix,
 )
-
-
-def _strip_prefix(line: str) -> tuple[str, bool]:
-    """Replace prefixed markers (AGENTS_FILE_BEGIN, LESSONS_SECTION_END) with plain ones."""
-    m = PREFIX_RE.match(line)
-    if not m:
-        return line, False
-    kind, bound, mid = m.group(1), m.group(2), m.group(3)
-    plain = f"<!-- {kind}_{bound}: {mid} -->" if mid else f"<!-- {kind}_{bound} -->"
-    return plain, True
-
-
-TOKEN_BY_FILE = {
-    "ROADMAP-plan.md": "PLAN",
-    "ROADMAP-defer.md": "DEFER",
-    "ROADMAP-wip.md": "WIP",
-    "ROADMAP-done.md": "DONE",
-    "ci-roadmap-plan.md": "PLAN",
-    "ci-roadmap-defer.md": "DEFER",
-    "ci-roadmap-wip.md": "WIP",
-    "ci-roadmap-done.md": "DONE",
-}
-
-
-def _detect_expected_token(file_path: str) -> str | None:
-    """Return expected TOKEN for file_path, or None if not applicable."""
-    name = Path(file_path).name
-    if name in TOKEN_BY_FILE:
-        return TOKEN_BY_FILE[name]
-    if name.startswith("AGENTS-LESSONS-") and name.endswith(".md"):
-        return "AGENTS-LESSONS"
-    if name.startswith("AGENTS-") and name.endswith(".md") and not name.startswith("AGENTS-LESSONS-"):
-        return "AGENTS"
-    return None
-
-
-ROADMAP_TOKENS = {"WIP", "PLAN", "DEFER", "DONE"}
-
-ID_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9-]*\Z")
-
-
-def _looks_like_id(word: str) -> bool:
-    """True for marker-id-like words (code-project, r4k, T-44); titles do not match."""
-    if not ID_WORD_RE.fullmatch(word):
-        return False
-    return any(c.isdigit() or c == "-" for c in word)
-
-
-def _normalize_heading(heading: str, sid: str, expected_token: str | None) -> tuple[str, list[str]]:
-    """Return '### [TOKEN] <ID> <title>' for level-3 families, plus deviations.
-
-    expected_token is None for files outside AGENTS / AGENTS-LESSONS / ROADMAP /
-    ci-roadmap families: their headings are left untouched.
-    """
-    devs: list[str] = []
-    if expected_token is None:
-        return heading, devs
-
-    body = heading[4:]
-    cur_tok = None
-    m = re.match(r"^\[([A-Za-z-]+)\] (.*)$", body)
-    if m:
-        cur_tok = m.group(1)
-        body = m.group(2)
-
-    want_id = sid.upper() if expected_token in ROADMAP_TOKENS else sid
-
-    parts = body.split(" ", 1)
-    first = parts[0] if parts else ""
-    if first.lower() == sid.lower() or _looks_like_id(first):
-        got_id, title = first, (parts[1] if len(parts) == 2 else "")
-    else:
-        got_id, title = None, body
-
-    if cur_tok is None:
-        devs.append(f"missing TOKEN (expected [{expected_token}])")
-    elif cur_tok != expected_token:
-        devs.append(f"TOKEN mismatch: [{cur_tok}] (expected [{expected_token}])")
-
-    if got_id is None:
-        devs.append(f"missing heading ID (expected {want_id!r})")
-    elif got_id != want_id:
-        devs.append(f"heading ID {got_id!r} != {want_id!r}")
-
-    out = f"### [{expected_token}] {want_id}"
-    if title:
-        out += f" {title}"
-    return out, devs
-
-
-PAD_LINES = 10
-SECTION_BEGIN_PREFIX = "<!-- SECTION_BEGIN: "
-SECTION_END_PREFIX = "<!-- SECTION_END: "
-
-
-def _enforce_transitions(lines: list[str]) -> tuple[list[str], int]:
-    """Exactly PAD_LINES blanks before SECTION_END, FILE_END and SECTION_BEGIN.
-
-    The first SECTION_BEGIN sits right after FILE_BEGIN with no blank lines.
-    """
-    out: list[str] = []
-    fixed = 0
-    for line in lines:
-        s = line.strip()
-        target = None
-        if s.startswith(SECTION_END_PREFIX) or s == FILE_END_LINE:
-            target = PAD_LINES
-        elif s.startswith(SECTION_BEGIN_PREFIX):
-            prev = out[-1].strip() if out else ""
-            target = 0 if prev == FILE_BEGIN_LINE else PAD_LINES
-        if target is not None:
-            had = 0
-            while out and out[-1].strip() == "":
-                out.pop()
-                had += 1
-            if out:
-                out.extend(["\n"] * target)
-                if had != target:
-                    fixed += 1
-        out.append(line)
-    return out, fixed
 
 
 def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
