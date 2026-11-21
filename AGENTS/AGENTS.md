@@ -1,6 +1,5 @@
 <!-- FILE_BEGIN -->
-# AGENTS — полный индекс
-
+<!-- SECTION_BEGIN: mandatory-reading -->
 ## Обязательное чтение (гейт запуска)
 
 До любой работы — по порядку:
@@ -12,6 +11,29 @@
 `AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении.
 5. Отчёт по формату из `AGENTS/AGENTS-docs.md` и `AGENTS/AGENTS-LESSONS-docs.md`.
 
+---
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: mandatory-reading -->
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_BEGIN: reference -->
 ## Справочник (по мере необходимости)
 
 
@@ -65,6 +87,29 @@
 | AGENTS | r5 | Коммит после каждой задачи | `AGENTS/AGENTS-style-git.md` | [#r5](AGENTS/AGENTS-style-git.md#r5) |
 | AGENTS | r4g | Git-команды без дефолтов | `AGENTS/AGENTS-style-git.md` | [#r4g](AGENTS/AGENTS-style-git.md#r4g) |
 | AGENTS | r4f | Дорогие операции: правки → гейт → коммит → push | `AGENTS/AGENTS-style-git.md` | [#r4f](AGENTS/AGENTS-style-git.md#r4f) |
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: reference -->
 
 
 

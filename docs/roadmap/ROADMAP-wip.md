@@ -47,7 +47,7 @@
 - `AGENTS/scripts/docs_normalize.py` — убрать `___`; добавить `---` + одна пустая перед `SUBSECTION_END`; якорь как первая строка тела; замена префиксных маркеров.
 - `AGENTS/scripts/docs_rebuild_index.py` — 5 колонок с Anchor; счётчик `Next ID`; `HEADING_RE` с TOKEN.
 - `AGENTS/scripts/docs_add.py` / `docs_cut.py` — соответствие новому формату.
-- `docs/scripts/check-docs.sh` — синхронизация с новым CLI (`--root` / `--check-index` больше нет); новые проверки канона (см. «Шаги»).
+- `AGENTS/scripts/check-docs.sh` — синхронизация с новым CLI (`--root` / `--check-index` больше нет); новые проверки канона (см. «Шаги»).
 - Все `AGENTS/AGENTS-*.md` и `AGENTS/AGENTS-LESSONS-*.md` — массовая правка (скриптом, r4c).
 - Все `docs/roadmap/ROADMAP-*.md` и `docs/roadmap/ci-roadmap-*.md` — массовая правка (скриптом, r4c).
 
@@ -60,7 +60,7 @@
 6. **Переписать `docs_normalize.py`:** убрать `___` как обязательный; добавить генерацию `---` + одна пустая перед `SUBSECTION_END`; якорь `<a id="<id>"></a>` как первая строка тела; замена (не дополнение) префиксных маркеров; сохранение `rstrip` на каждой строке тела; 10 пустых везде между блоками.
 7. **Переписать `docs_rebuild_index.py`:** 5 колонок; ячейка Anchor — кликабельная ссылка `File#id`; счётчик `Next ID` в шапке индекса; `HEADING_RE` с захватом TOKEN; вывод `--mode` в 4 режимах (agents / agents-lessons / roadmap / ci-roadmap).
 8. **Обновить `docs_add.py` / `docs_cut.py`:** соответствие новому формату блока (якорь, `---` перед END).
-9. **Переписать `docs/scripts/check-docs.sh`:** убрать удалённые флаги `--root` / `--check-index`; добавить новые проверки канона:
+9. **Переписать `AGENTS/scripts/check-docs.sh`:** убрать удалённые флаги `--root` / `--check-index`; добавить новые проверки канона:
    - `FILE_BEGIN` — первая строка, `FILE_END` — последняя;
    - отсутствие префиксных маркеров (`AGENTS_*`, `LESSONS_*`);
    - `marker.id` ↔ `heading.ID` (с учётом регистра по семействам);

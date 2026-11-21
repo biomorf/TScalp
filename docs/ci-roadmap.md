@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # CI-ROADMAP — указатель
 
 Полный индекс — `docs/roadmap/ci-roadmap.md`.
@@ -9,3 +10,14 @@
 - `docs/roadmap/ci-roadmap-plan.md`
 - `docs/roadmap/ci-roadmap-defer.md`
 - `docs/roadmap/ci-roadmap-done.md`
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->

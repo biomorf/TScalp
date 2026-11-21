@@ -1,10 +1,5 @@
 <!-- FILE_BEGIN -->
-# CI-ROADMAP — индекс
-
-План CI/CD, ветвления, релизного процесса, code quality.
-Актуальное — в файлах по статусу. Архив — `CI-ROADMAP-ARCHIVE.md`.
-Шаблон задачи — `ROADMAP-task-template.md` (общий с ROADMAP).
-
+<!-- SECTION_BEGIN: tasks -->
 ## Задачи
 
 **Next ID:** C-13
@@ -23,6 +18,29 @@
 | DEFER | C-4 | Role emulation для тестировщика | `docs/roadmap/ci-roadmap-defer.md` | [#c-4](docs/roadmap/ci-roadmap-defer.md#c-4) |
 | DEFER | C-7 | Play Store Internal Testing | `docs/roadmap/ci-roadmap-defer.md` | [#c-7](docs/roadmap/ci-roadmap-defer.md#c-7) |
 | DEFER | C-8 | Play Store Production | `docs/roadmap/ci-roadmap-defer.md` | [#c-8](docs/roadmap/ci-roadmap-defer.md#c-8) |
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: tasks -->
 
 
 

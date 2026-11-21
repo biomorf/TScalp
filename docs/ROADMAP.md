@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # ROADMAP — указатель
 
 Полный индекс — `docs/roadmap/ROADMAP.md`.
@@ -9,3 +10,14 @@
 - `docs/roadmap/ROADMAP-plan.md`
 - `docs/roadmap/ROADMAP-defer.md`
 - `docs/roadmap/ROADMAP-done.md`
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->

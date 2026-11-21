@@ -1,10 +1,5 @@
 <!-- FILE_BEGIN -->
-# ROADMAP — индекс
-
-План задач проекта TScalp. Актуальное — в файлах по статусу.
-Архив — `ROADMAP-ARCHIVE.md`. Шаблон задачи —
-`ROADMAP-task-template.md`.
-
+<!-- SECTION_BEGIN: gate -->
 ## Гейт
 
 - `-wip` — в работе (ближайшее к выполнению).
@@ -13,6 +8,29 @@
 - `-done` — сделано, ожидает `mark done` → архив.
 - `ROADMAP-ARCHIVE.md` — закрытые (не трогать без mark done).
 
+---
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: gate -->
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_BEGIN: tasks -->
 ## Задачи
 
 **Next ID:** T-47
@@ -87,6 +105,29 @@
 | DEFER | T-22 | Плавный переход Hilt → Koin | `docs/roadmap/ROADMAP-defer.md` |
 | DEFER | T-32 | Live-test Broker lifecycle API: BCS/Finam | `docs/roadmap/ROADMAP-defer.md` |
 | DONE | T-13 | Compose UI: test infra + 3 экрана — ✅ done (U0–U4) | `docs/roadmap/ROADMAP-done.md` |
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: tasks -->
 
 
 

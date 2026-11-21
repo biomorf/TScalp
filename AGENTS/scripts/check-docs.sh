@@ -85,6 +85,13 @@ def check(f, ids_by_family):
     if lines.count(FILE_END) != 1:
         errs.append(f"FILE_END count = {lines.count(FILE_END)}")
 
+    has_h2 = any(l.startswith("## ") for l in lines)
+    has_section = any(
+        (m := BEGIN_RE.match(l)) and m.group(1) == "SECTION" for l in lines
+    )
+    if has_h2 and not has_section:
+        errs.append("file has ## sections but no SECTION markers (level 2)")
+
     fence = []
     inside = False
     for l in lines:

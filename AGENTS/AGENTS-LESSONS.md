@@ -1,6 +1,5 @@
 <!-- FILE_BEGIN -->
-# AGENTS-LESSONS — полный индекс
-
+<!-- SECTION_BEGIN: mandatory-reading -->
 ## Обязательное чтение (гейт запуска)
 
 До любой работы — по порядку:
@@ -11,6 +10,29 @@
 3. Все `AGENTS/AGENTS-LESSONS-*.md` — уроки.
 4. Отчёт по формату из `AGENTS/AGENTS-LESSONS-docs.md`.
 
+---
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: mandatory-reading -->
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_BEGIN: reference -->
 ## Справочник (по мере необходимости)
 
 
@@ -135,6 +157,29 @@
 | AGENTS-LESSONS | l-scripts-101 | `grep -cE` с неэкранированной `(` — Unmatched; для unused-import — `grep -cF` + skip wildcards | `AGENTS/AGENTS-LESSONS-scripts.md` | [#l-scripts-101](AGENTS/AGENTS-LESSONS-scripts.md#l-scripts-101) |
 | AGENTS-LESSONS | l-scripts-115 | adb в heredoc: `< /dev/null`, `timeout --foreground`, `--pid` | `AGENTS/AGENTS-LESSONS-scripts.md` | [#l-scripts-115](AGENTS/AGENTS-LESSONS-scripts.md#l-scripts-115) |
 | AGENTS-LESSONS | l-ui-39 | Дизайн/стили/иконки — только по явному указанию | `AGENTS/AGENTS-LESSONS-ui.md` | [#l-ui-39](AGENTS/AGENTS-LESSONS-ui.md#l-ui-39) |
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: reference -->
 
 
 
