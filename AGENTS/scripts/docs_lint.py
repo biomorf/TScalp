@@ -286,11 +286,18 @@ def check_next_id(path: str) -> list[str]:
 def check_task_state(task: str) -> list[str]:
     """Closed task lives in the archive; deferred one carries a Подтверждение field."""
     tid = task.lower()
-    archive = Path("docs/roadmap/ROADMAP-ARCHIVE.md")
-    if archive.exists():
-        for line in archive.read_text(encoding="utf-8").split("\n"):
-            if line.startswith("### ✅") and re.search(rf"\b{re.escape(task)}\b", line, re.I):
-                return []
+    for name in ("ROADMAP-done.md", "ci-roadmap-done.md"):
+        p = Path("docs/roadmap") / name
+        if not p.exists():
+            continue
+        lines = p.read_text(encoding="utf-8").split("\n")
+        try:
+            b, e = find_block(lines, tid)
+        except ValueError:
+            continue
+        heading = next((l for l in lines[b:e] if l.startswith("### ")), "")
+        if heading.startswith("### [DONE]"):
+            return []
     for name in ("ROADMAP-wip.md", "ROADMAP-plan.md", "ROADMAP-defer.md",
                  "ci-roadmap-wip.md", "ci-roadmap-plan.md", "ci-roadmap-defer.md"):
         p = Path("docs/roadmap") / name
@@ -303,7 +310,7 @@ def check_task_state(task: str) -> list[str]:
             continue
         if any(l.startswith("**Подтверждение:**") for l in lines[b:e]):
             return []
-    return [f"task {task}: not archived as ✅ and no Подтверждение field"]
+    return [f"task {task}: not in *-done.md and no Подтверждение field"]
 
 
 def main() -> int:

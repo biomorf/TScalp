@@ -19,6 +19,8 @@ from docs_canon_lib import (  # noqa: E402
     SECTION_BEGIN_PREFIX,
     SECTION_END_PREFIX,
     TOKEN_BY_FILE,
+    TOKEN_STATUS,
+    apply_status,
     enforce_transitions as _enforce_transitions,
     expected_token as _detect_expected_token,
     normalize_heading as _normalize_heading,
@@ -176,6 +178,11 @@ def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
         if dropped:
             deviations.append(f"{sid}: removed {dropped} stray separator(s) from body")
         body_out = cleaned
+
+        if expected_token in ROADMAP_TOKENS:
+            body_out, status_devs = apply_status(body_out, TOKEN_STATUS[expected_token])
+            for d in status_devs:
+                deviations.append(f"{sid}: {d}")
         while body_out and body_out[-1] == "":
             body_out.pop()
         # only the trailing separator is regenerated; --- inside body (fences) stays

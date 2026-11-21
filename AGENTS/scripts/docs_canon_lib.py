@@ -179,3 +179,35 @@ def tmp_path(name: str) -> Path:
     home_tmp = Path.home() / "tmp"
     home_tmp.mkdir(parents=True, exist_ok=True)
     return home_tmp / name
+
+STATUS_WORDS = ("запланировано", "в работе", "отложено", "выполнено")
+
+
+def apply_status(lines: list[str], want: str) -> tuple[list[str], list[str]]:
+    """Force the status line to match the file token; insert one if missing.
+
+    Returns (lines, deviations). Only the leading status word is rewritten,
+    any trailing note is kept verbatim.
+    """
+    devs: list[str] = []
+    for i, line in enumerate(lines):
+        m = STATUS_RE.match(line)
+        if not m:
+            continue
+        old = m.group(1).strip()
+        if old.lower().startswith(want):
+            return lines, devs
+        tail = old
+        for w in STATUS_WORDS:
+            if tail.lower().startswith(w):
+                tail = tail[len(w):]
+                break
+        out = list(lines)
+        out[i] = f"**Статус:** {want}{tail}"
+        devs.append(f"status {old[:48]!r} -> {want!r}")
+        return out, devs
+
+    pos = next((i + 1 for i, l in enumerate(lines) if l.startswith("**Мобильная работа:**")), 0)
+    out = list(lines[:pos]) + [f"**Статус:** {want}.", ""] + list(lines[pos:])
+    devs.append(f"status line added: {want!r}")
+    return out, devs
