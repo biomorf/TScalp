@@ -253,6 +253,31 @@ def check_scripts_readme() -> list[str]:
     return errs
 
 
+def check_index_sync() -> list[str]:
+    """Index tables must match what docs_rebuild_index would produce."""
+    from docs_rebuild_index import MODES, TABLE_HEADER, build_table, collect
+
+    errs: list[str] = []
+    for mode, cfg in MODES.items():
+        path = Path(cfg["index"])
+        if not path.exists():
+            continue
+        lines = path.read_text(encoding="utf-8").split("\n")
+        try:
+            start = next(i for i, l in enumerate(lines) if l.strip() == TABLE_HEADER)
+        except StopIteration:
+            errs.append(f"{path}: table header missing")
+            continue
+        end = start
+        while end < len(lines) and lines[end].startswith("|"):
+            end += 1
+        current = "\n".join(lines[start:end])
+        expected = build_table(collect(mode), path).rstrip("\n")
+        if current != expected:
+            errs.append(f"{path}: index out of sync with files (run docs_rebuild_index.py --apply)")
+    return errs
+
+
 def family_of(f: Path) -> str | None:
     tok = expected_token(f.name)
     if tok in ("AGENTS", "AGENTS-LESSONS"):
@@ -373,6 +398,10 @@ def main() -> int:
 
     for msg in check_scripts_readme():
         per_file.setdefault(SCRIPTS_README, []).append(msg)
+
+    for msg in check_index_sync():
+        idx = Path(msg.split(":")[0])
+        per_file.setdefault(idx, []).append(msg.split(": ", 1)[1])
 
     for idx in ("docs/roadmap/ROADMAP.md", "docs/roadmap/ci-roadmap.md"):
         for msg in check_next_id(idx):
