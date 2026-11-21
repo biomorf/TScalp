@@ -37,7 +37,6 @@
 
 | TOKEN | ID | Title | File | Anchor |
 |---|---|---|---|---|
-| WIP | T-44 | SSoT стиля документации (docs/docs-structure.md) + миграция всех файлов и инструментов | `docs/roadmap/ROADMAP-wip.md` | [#t-44](docs/roadmap/ROADMAP-wip.md#t-44) |
 | WIP | T-3 | Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | `docs/roadmap/ROADMAP-wip.md` | [#t-3](docs/roadmap/ROADMAP-wip.md#t-3) |
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` | [#t-33](docs/roadmap/ROADMAP-wip.md#t-33) |
 | PLAN | T-2 | AGENTS: консолидация скриптов в AGENTS/scripts + инструкции отдельно | `docs/roadmap/ROADMAP-plan.md` | [#t-2](docs/roadmap/ROADMAP-plan.md#t-2) |
