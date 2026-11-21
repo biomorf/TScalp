@@ -8,23 +8,12 @@ Output tmp: /tmp/agents-cut-<id>.md (fallback: $HOME/tmp/agents-cut-<id>.md).
 Idempotent: if SUBSECTION_BEGIN: <id> not in file, print "already absent" and exit 0.
 """
 import argparse
-import os
-import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from docs_canon_lib import find_block, tmp_path  # noqa: E402
 from docs_normalize import normalize_text  # noqa: E402
-
-
-def tmp_path(id_: str) -> Path:
-    """tmp policy (AGENTS-style-docs.md 4k): primary /tmp, fallback $HOME/tmp."""
-    primary = Path("/tmp")
-    if primary.is_dir() and os.access(primary, os.W_OK):
-        return primary / f"agents-cut-{id_}.md"
-    home_tmp = Path.home() / "tmp"
-    home_tmp.mkdir(parents=True, exist_ok=True)
-    return home_tmp / f"agents-cut-{id_}.md"
 
 
 def main():
@@ -48,14 +37,10 @@ def main():
         print(f"already absent: {args.id}")
         return 0
 
-    bi = text.index(begin_tag)
-    ei = text.index(end_tag) + len(end_tag)
-    block = text[bi:ei]
-
-    # Remove block + surrounding padding
-    before = text[:bi].rstrip()
-    after = text[ei:].lstrip()
-    new_text = before + "\n" + after
+    lines = text.split("\n")
+    b, e = find_block(lines, args.id)
+    block = "\n".join(lines[b:e + 1])
+    new_text = "\n".join(lines[:b] + lines[e + 1:])
 
     new_text, devs = normalize_text(new_text, str(f))
     if devs:
@@ -63,7 +48,7 @@ def main():
 
     assert begin_tag not in new_text, "block still present after cut"
 
-    out = tmp_path(args.id)
+    out = tmp_path(f"agents-cut-{args.id}.md")
     if out.exists() and not args.force:
         print(f"ERROR: {out} exists (use --force)")
         return 2

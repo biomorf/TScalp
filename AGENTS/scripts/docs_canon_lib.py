@@ -3,7 +3,9 @@
 SSoT for the rules: docs/docs-structure.md
 Used by: docs_normalize.py (fixer), docs_lint.py (gate), docs_add.py / docs_cut.py.
 """
+import os
 import re
+from pathlib import Path
 
 PAD_LINES = 10
 
@@ -143,3 +145,37 @@ def enforce_transitions(lines: list[str]) -> tuple[list[str], int]:
                     fixed += 1
         out.append(line)
     return out, fixed
+
+def find_block(lines: list[str], sid: str) -> tuple[int, int]:
+    """Return (begin, end) line indexes of the SUBSECTION block with marker id sid."""
+    begin = f"<!-- SUBSECTION_BEGIN: {sid} -->"
+    end = f"<!-- SUBSECTION_END: {sid} -->"
+    try:
+        b = lines.index(begin)
+    except ValueError as exc:
+        raise ValueError(f"block not found: {sid}") from exc
+    try:
+        e = lines.index(end)
+    except ValueError as exc:
+        raise ValueError(f"block end not found: {sid}") from exc
+    if e < b:
+        raise ValueError(f"block markers out of order: {sid}")
+    return b, e
+
+
+def find_section_end(lines: list[str]) -> int:
+    """Return the index of the first SECTION_END line."""
+    for i, line in enumerate(lines):
+        if line.startswith(SECTION_END_PREFIX):
+            return i
+    raise ValueError("SECTION_END not found")
+
+
+def tmp_path(name: str) -> Path:
+    """tmp policy (4k): primary /tmp, fallback $HOME/tmp."""
+    primary = Path("/tmp")
+    if primary.is_dir() and os.access(primary, os.W_OK):
+        return primary / name
+    home_tmp = Path.home() / "tmp"
+    home_tmp.mkdir(parents=True, exist_ok=True)
+    return home_tmp / name

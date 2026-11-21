@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from docs_canon_lib import find_block, find_section_end  # noqa: E402
 from docs_normalize import normalize_text  # noqa: E402
 
 
@@ -52,19 +53,14 @@ def main():
     ]
     block = "\n".join(block_lines) + "\n"
 
+    lines = text.split("\n")
+    block_rows = block.split("\n")
     if args.at_end:
-        # insert before SECTION_END of this file
-        import re
-        m = re.search(r"^<!-- (?:AGENTS_|LESSONS_)?SECTION_END: [A-Za-z0-9_-]+ -->$",
-                      text, re.MULTILINE)
-        assert m, "SECTION_END not found"
-        idx = m.start()
-        new_text = text[:idx] + block + "\n" + text[idx:]
+        idx = find_section_end(lines)
+        new_text = "\n".join(lines[:idx] + block_rows + lines[idx:])
     else:
-        end_tag = f"<!-- SUBSECTION_END: {args.after} -->"
-        assert end_tag in text, f"--after id not found: {args.after}"
-        idx = text.index(end_tag) + len(end_tag)
-        new_text = text[:idx] + "\n" + block + text[idx:]
+        _, e = find_block(lines, args.after)
+        new_text = "\n".join(lines[:e + 1] + block_rows + lines[e + 1:])
 
     # normalize the whole file
     new_text, devs = normalize_text(new_text, str(f))
