@@ -89,18 +89,9 @@ git status
 echo
 
 if [ -n "$TASK" ]; then
-  echo "=== 8. ROADMAP check for $TASK ==="
-  ARCHIVE=docs/roadmap/ROADMAP-ARCHIVE.md
-  WIP=docs/roadmap/ROADMAP-wip.md
-  if [ -f "$ARCHIVE" ] && grep -qE "^### ✅ ${TASK} " "$ARCHIVE"; then
-    echo "  OK: $TASK in $ARCHIVE (### ✅)"
-  elif [ -f "$WIP" ] && awk -v t="$TASK" '
-      $0 ~ "^### \[(WIP|PLAN|DEFER)\] "t" " {in_block=1; next}
-      in_block && /^### / {in_block=0}
-      in_block && /\*\*Подтверждение:\*\*/ {found=1}
-      END {exit !found}
-    ' "$WIP" 2>/dev/null; then
-    echo "  OK: $TASK deferred in $WIP (Подтверждение present)"
+  echo "=== 8. ROADMAP check for $TASK (docs_lint) ==="
+  if python3 AGENTS/scripts/docs_lint.py --task "$TASK"; then
+    echo "  OK: $TASK state accepted"
   else
     echo "  ERROR: mark done missing for $TASK" >&2
     echo "  fix: docs(roadmap): mark $TASK done (docs-only commit in dev)" >&2

@@ -28,6 +28,7 @@ from docs_canon_lib import (
     STATUS_RE,
     TOKEN_STATUS,
     expected_token,
+    find_block,
 )
 
 MAX_ERRORS = 8
@@ -282,6 +283,29 @@ def check_next_id(path: str) -> list[str]:
     return []
 
 
+def check_task_state(task: str) -> list[str]:
+    """Closed task lives in the archive; deferred one carries a Подтверждение field."""
+    tid = task.lower()
+    archive = Path("docs/roadmap/ROADMAP-ARCHIVE.md")
+    if archive.exists():
+        for line in archive.read_text(encoding="utf-8").split("\n"):
+            if line.startswith("### ✅") and re.search(rf"\b{re.escape(task)}\b", line, re.I):
+                return []
+    for name in ("ROADMAP-wip.md", "ROADMAP-plan.md", "ROADMAP-defer.md",
+                 "ci-roadmap-wip.md", "ci-roadmap-plan.md", "ci-roadmap-defer.md"):
+        p = Path("docs/roadmap") / name
+        if not p.exists():
+            continue
+        lines = p.read_text(encoding="utf-8").split("\n")
+        try:
+            b, e = find_block(lines, tid)
+        except ValueError:
+            continue
+        if any(l.startswith("**Подтверждение:**") for l in lines[b:e]):
+            return []
+    return [f"task {task}: not archived as ✅ and no Подтверждение field"]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Docs gate: markdown canon checks. SSoT: docs/docs-structure.md",
@@ -297,7 +321,17 @@ def main() -> int:
     g.add_argument("--all", action="store_true", help="canonical scope (default)")
     g.add_argument("--changed", action="store_true", help="changed and untracked .md files")
     g.add_argument("--file", help="single file")
+    g.add_argument("--task", help="verify ROADMAP state for a task id, e.g. T-45")
     args = ap.parse_args()
+
+    if args.task:
+        errs = check_task_state(args.task)
+        for e in errs:
+            print(f"FAIL {e}")
+        if errs:
+            return 1
+        print(f"OK {args.task}: state accepted")
+        return 0
 
     if args.file:
         files = [Path(args.file)]
