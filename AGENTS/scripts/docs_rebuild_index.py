@@ -96,13 +96,19 @@ def collect(mode: str) -> list[tuple[str, str, str, str, str]]:
     return out
 
 
-def build_table(rows) -> str:
-    lines = [TABLE_HEADER, TABLE_SEP]
+def build_table(rows, index_path: Path) -> str:
+    """Anchor href is relative to the index file, so it works on GitHub."""
+    base = index_path.parent
+    out = [TABLE_HEADER, TABLE_SEP]
     for token, marker_id, heading_id, title, path in rows:
         safe = title.replace("|", "\\|")
-        anchor = f"[#{marker_id}]({path}#{marker_id})"
-        lines.append(f"| {token} | {heading_id} | {safe} | `{path}` | {anchor} |")
-    return "\n".join(lines) + "\n"
+        try:
+            rel = Path(path).relative_to(base).as_posix()
+        except ValueError:
+            rel = path
+        anchor = f"[#{marker_id}]({rel}#{marker_id})"
+        out.append(f"| {token} | {heading_id} | {safe} | `{path}` | {anchor} |")
+    return "\n".join(out) + "\n"
 
 
 def max_id(mode: str) -> int:
@@ -155,8 +161,8 @@ def replace_table(text: str, new_table: str, section: str, next_line: str | None
 def rebuild(mode: str, apply: bool) -> int:
     cfg = MODES[mode]
     rows = collect(mode)
-    table = build_table(rows)
     path = Path(cfg["index"])
+    table = build_table(rows, path)
     if not path.exists():
         print(f"SKIP missing index: {path}")
         return 0

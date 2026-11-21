@@ -27,8 +27,8 @@
 | `live-test-capture.sh` | Режим A (файл) | `CAPTURE_SECONDS` | `bash AGENTS/scripts/live-test-capture.sh` |
 | `live-test-capture-interactive.sh` | Режим B (live) | — | `bash AGENTS/scripts/live-test-capture-interactive.sh` |
 | `post-pr.sh` | 5f чек-лист (+ ROADMAP verify) | `<branch> [--task T-N]` | `bash AGENTS/scripts/post-pr.sh feature/... --task T-44` |
-| `docs-gate.sh` | 5a docs-only gate | `[files...]` | `bash AGENTS/scripts/docs-gate.sh` |
-| `check-docs.sh` | Гейт канона документации: 11 проверок §6 `docs/docs-structure.md` (маркеры, вложенность, якоря, токены, сепараторы, паддинг, id, `Next ID`, статус) | — (вся область) | `bash AGENTS/scripts/check-docs.sh` |
+| `docs_lint.py` | Гейт канона: 17 проверок §6 + ссылки, trailing ws, fence parity | `--all` (область), `--changed`, `--file <path>` | `python3 AGENTS/scripts/docs_lint.py --all` |
+| `docs_canon_lib.py` | Общая библиотека правил — не запускается, только импорт | — | `from docs_canon_lib import expected_token` |
 
 ---
 <!-- SUBSECTION_END: tools -->
