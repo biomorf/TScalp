@@ -21,10 +21,10 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 // Ktor Client — ядро и WebSocket
-                implementation("io.ktor:ktor-client-core:3.6.0")
-                implementation("io.ktor:ktor-client-websockets:3.6.0")
-                implementation("io.ktor:ktor-client-content-negotiation:3.6.0")
-                implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
+                implementation("io.ktor:ktor-client-core:3.6.1")
+                implementation("io.ktor:ktor-client-websockets:3.6.1")
+                implementation("io.ktor:ktor-client-content-negotiation:3.6.1")
+                implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.1")
                 // Coroutines и Flow
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
             }
@@ -32,7 +32,7 @@ kotlin {
         val androidMain by getting {
             dependencies {
                 // OkHttp engine для Android
-                implementation("io.ktor:ktor-client-okhttp:3.6.0")
+                implementation("io.ktor:ktor-client-okhttp:3.6.1")
             }
         }
         val commonTest by getting {
