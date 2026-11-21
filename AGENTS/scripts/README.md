@@ -27,8 +27,11 @@
 | `live-test-capture.sh` | Режим A (файл) | `CAPTURE_SECONDS` | `bash AGENTS/scripts/live-test-capture.sh` |
 | `live-test-capture-interactive.sh` | Режим B (live) | — | `bash AGENTS/scripts/live-test-capture-interactive.sh` |
 | `post-pr.sh` | 5f чек-лист (+ ROADMAP verify) | `<branch> [--task T-N]` | `bash AGENTS/scripts/post-pr.sh feature/... --task T-44` |
+| `run-local-gate.sh` | Локальный гейт desktop: ktlint, lint, detekt, unit-тесты, Roborazzi verify | `--no-build-cache` | `bash AGENTS/scripts/run-local-gate.sh` |
 | `docs_lint.py` | Гейт канона: 17 проверок §6 + ссылки, trailing ws, fence parity | `--all` (область), `--changed`, `--file <path>` | `python3 AGENTS/scripts/docs_lint.py --all` |
 | `docs_canon_lib.py` | Общая библиотека правил — не запускается, только импорт | — | `from docs_canon_lib import expected_token` |
+
+Одноразовые скрипты лежат в `AGENTS/scripts/oneoff/`; в таблицу выше не входят, повторно не запускаются (уже применены): `seed_markers.py`, `seed_markers_docs.py`.
 
 ---
 <!-- SUBSECTION_END: tools -->

@@ -234,6 +234,24 @@ def check_links(f: Path) -> list[str]:
     return errs
 
 
+SCRIPTS_DIR = Path("AGENTS/scripts")
+SCRIPTS_README = Path("AGENTS/scripts/README.md")
+
+
+def check_scripts_readme() -> list[str]:
+    """Every top-level script must have a row in the scripts README."""
+    if not SCRIPTS_README.exists():
+        return [f"{SCRIPTS_README}: missing"]
+    text = SCRIPTS_README.read_text(encoding="utf-8")
+    errs = []
+    for f in sorted(SCRIPTS_DIR.glob("*")):
+        if not f.is_file() or f.suffix not in (".py", ".sh"):
+            continue
+        if f.name not in text:
+            errs.append(f"{f.name}: no row in scripts README")
+    return errs
+
+
 def family_of(f: Path) -> str | None:
     tok = expected_token(f.name)
     if tok in ("AGENTS", "AGENTS-LESSONS"):
@@ -311,6 +329,9 @@ def main() -> int:
                 per_file[f].append(f"duplicate id {sid!r} also in {seen[key]}")
             else:
                 seen[key] = f
+
+    for msg in check_scripts_readme():
+        per_file.setdefault(SCRIPTS_README, []).append(msg)
 
     for idx in ("docs/roadmap/ROADMAP.md", "docs/roadmap/ci-roadmap.md"):
         for msg in check_next_id(idx):
