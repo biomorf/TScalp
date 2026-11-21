@@ -919,19 +919,19 @@ KDoc. Нет единой точки входа. Нужен `docs/architecture.m
 - `docs/streams.md`
 
 **Шаги:**
-1. По каждому файлу — `docs_normalize.py --check --file`, зафиксировать отклонения в задаче.
+1. По каждому файлу — `docs_lint.py --file`, зафиксировать отклонения в задаче.
 2. Снять сужение области в `AGENTS/scripts/docs_lint.py --all`: вернуть `docs/**` в `SCOPE_DIRS`.
 3. Прогон `docs_normalize.py --apply` по файлам от малых к крупным (`repair-process`, `repo-protection`, затем `git-flow`, `gradle-setup`, в конце `streams` и `architecture`), после каждого — `git diff` глазами.
 4. `docs/streams.md` — отдельным коммитом: там ожидаемо больше всего расхождений (нет FILE/SECTION-маркеров).
 5. `docs/ISSUES.md` — уточнить при старте, нужен ли табличный индекс: формат журнала не табличный, но §1 требует маркеры и секции.
 
-**Тесты:** `docs_normalize.py --check` по каждому файлу → `deviations=0`; `docs_lint.py --all` по всей области → `ALL CHECKS PASSED`.
+**Тесты:** `docs_lint.py --file` по каждому файлу → 0 ошибок; `docs_lint.py --all` по всей области → `ALL CHECKS PASSED`.
 
 **Референсы:** `docs/docs-structure.md` §1–§4; T-44 (канон и инструменты); `AGENTS/scripts/README.md`.
 
 **Ограничения:** содержательный текст не менять — только скелет (маркеры, якоря, `---`, отступы). `docs/issues/` и `docs/clean-audit/` вне области (§1). Архивы — только уровень 1.
 
-**Критерий готовности:** все 12 файлов проходят `docs_normalize.py --check` в ноль; гейт зелёный по `docs/**`; сужение области в гейте снято.
+**Критерий готовности:** все 12 файлов проходят `docs_lint.py --file` в ноль; гейт зелёный по `docs/**`; сужение области в гейте снято.
 
 **Оценка:** 3–5 ч. (малые файлы по 15–20 мин, `streams.md` 1–1.5 ч).
 

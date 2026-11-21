@@ -213,7 +213,7 @@ def main():
         description="Normalize Markdown files: FILE markers, 10-blank separators, rstrip, fence parity, SUBSECTION/SECTION structure. SSoT: docs/docs-structure.md",
         epilog=(
             "Examples:\n"
-            "  %(prog)s --file docs/roadmap/ROADMAP-plan.md --check\n"
+            "  %(prog)s --file docs/roadmap/ROADMAP-plan.md --dry-run\n"
             "  %(prog)s --file docs/roadmap/ROADMAP-plan.md --apply\n"
             "  %(prog)s --all AGENTS/AGENTS-code.md AGENTS/AGENTS-style-core.md --apply\n"
             "  %(prog)s --all AGENTS/AGENTS-code.md --dry-run\n"
@@ -222,8 +222,7 @@ def main():
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--apply", action="store_true", help="write files (default: check)")
-    ap.add_argument("--check", action="store_true", help="exit 1 on deviations (default if no --apply)")
+    ap.add_argument("--apply", action="store_true", help="write files (default: dry-run)")
     ap.add_argument("--dry-run", action="store_true", help="show what would change, do not write")
     ap.add_argument("--file", help="process one file")
     ap.add_argument("--all", nargs="*", default=None, metavar="FILE", help="process explicit files (space-separated); --all with no args is an error")

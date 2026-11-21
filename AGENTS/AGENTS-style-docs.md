@@ -94,8 +94,8 @@ backup) — в `/tmp/`. Если `/tmp/` не writable — `${HOME}/tmp/`.
 
 - **Использовать фиксированные скрипты, не inline** — любая операция
   из списка в README — через `AGENTS/scripts/*.sh`.
-- **`docs_normalize.py --check` входит в 4h pre-commit checklist**:
-  перед коммитом — `--check --all` → `deviations=0`.
+- **`docs_lint.py --all` входит в 4h pre-commit checklist**:
+  перед коммитом — `ALL CHECKS PASSED`.
 - **Запрещено** править паддинги, `___`, `SUBSECTION_*` вручную —
   только скрипты (единый формат, идемпотентность).
 - Live-test: см. `docs/live-test.md`.
