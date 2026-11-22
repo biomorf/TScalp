@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Post-PR checklist (AGENTS 5f) — run after a PR is merged.
+# Post-PR checklist (AGENTS 5f) \u2014 run after a PR is merged.
 # Steps: stash (if any) -> checkout dev -> remote update ->
 # merge --ff-only origin/dev -> stash pop (if was stashed) ->
 # delete local branch -> delete remote branch -> verify.
@@ -14,7 +14,7 @@
 #
 # Note (l-scripts-100): stash pop only if push actually created a stash.
 
-set -uo pipefail
+set -euo pipefail
 BRANCH=""
 TASK=""
 while [ "$#" -gt 0 ]; do
@@ -44,7 +44,10 @@ echo
 echo "=== 1. stash (if any) ==="
 STASHED=0
 if [ -n "$(git status --porcelain)" ]; then
-  git stash push -u -m "post-pr: $BRANCH"
+  git stash push -u -m "post-pr: $BRANCH" || {
+    echo "ERROR: git stash push failed \u2014 tree not saved, abort" >&2
+    exit 1
+  }
   STASHED=1
   echo "  stashed"
 else
@@ -53,14 +56,29 @@ fi
 echo
 
 echo "=== 2. checkout dev + sync ==="
-git checkout dev
-git remote update
-git merge --ff-only origin/dev
+git checkout dev || { echo "ERROR: git checkout dev failed, abort" >&2; exit 1; }
+
+UPD_OUT=""
+if ! UPD_OUT="$(git remote update --prune 2>&1)"; then
+  printf '%s\n' "$UPD_OUT" >&2
+  echo "ERROR: git remote update failed \u2014 dev is NOT synced with origin, abort" >&2
+  exit 1
+fi
+printf '%s\n' "$UPD_OUT"
+
+git rev-parse --verify -q origin/dev >/dev/null || {
+  echo "ERROR: origin/dev not found after remote update, abort" >&2
+  exit 1
+}
+git merge --ff-only origin/dev || {
+  echo "ERROR: git merge --ff-only origin/dev failed, abort" >&2
+  exit 1
+}
 echo
 
 echo "=== 3. stash pop (if stashed) ==="
 if [ "$STASHED" = "1" ]; then
-  git stash pop || { echo "POP CONFLICT — resolve manually"; exit 1; }
+  git stash pop || { echo "POP CONFLICT \u2014 resolve manually"; exit 1; }
 else
   echo "  nothing to pop"
 fi
@@ -75,10 +93,15 @@ git push origin --delete "$BRANCH" 2>&1 || echo "  skip: remote already gone"
 echo
 
 echo "=== 6. verify remote branch gone ==="
-sleep 2
+i=0
+while [ "$i" -lt 5 ] && git branch -r | grep -q "$BRANCH"; do
+  i=$((i + 1))
+  sleep 2
+  git fetch --prune --quiet origin || break
+done
 if git branch -r | grep -q "$BRANCH"; then
   echo "  STILL EXISTS (check manually!)"
-  git remote prune origin
+  git remote prune origin || true
   exit 1
 fi
 echo "  remote branch deleted"
