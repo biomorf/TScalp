@@ -257,7 +257,7 @@
 
 **Статус:** запланировано.
 
-**Контекст:** `PortfolioScreen:38-42` — `LaunchedEffect(lifecycleOwner) { repeatOnLifecycle(RESUMED) { refresh() } }` дергает полный `loadPortfolio()` при каждом входе в RESUMED (back-stack, foreground, поворот). Плюс `init { brokerManager.anyInitialized.collect { checkApiInitialization() } }` — ещё один `loadPortfolio()` при первом `anyInitialized` (`PortfolioViewModel:69-75`, `:95-105`). Итог: 2+ полных загрузки на cold start. `refresh()` = `viewModelScope.launch { loadPortfolio() }`, а `loadPortfolio()` сам делает `viewModelScope.launch` — двойной launch (`:262-264`, `:128-129`); retry/backoff отсутствует (`:44-46` — синхронизация `isRefreshing`, umbrella-диагноз T-3 про «infinite retry» устарел). Дополнительно: `tradingStatuses` в `PortfolioUiState` — своё поле (`PortfolioUiState:22`), VM поллит `while (isActive) { delay(5 min); updateTradingStatuses() }` (`:83-91`) и сам вызывает `marketDataRepository.getTradingStatusesResult` (`:214-235`) — дублирует `UpdateTradingStatusesUseCase` + `TradingStatusRepository` (M2/M5). Orders уже работает passthrough (`OrdersViewModel:70`), Portfolio — нет: два независимых кэша одного значения.
+**Контекст:** `PortfolioScreen:38-42` — `LaunchedEffect(lifecycleOwner) { repeatOnLifecycle(RESUMED) { refresh() } }` дергает полный `loadPortfolio()` при каждом входе в RESUMED (back-stack, foreground, поворот). Плюс `init { brokerManager.anyInitialized.collect { checkApiInitialization() } }` — ещё один `loadPortfolio()` при первом `anyInitialized` (`PortfolioViewModel:69-75`, `:95-105`). Итог: 2+ полных загрузки на cold start. `refresh()` = `viewModelScope.launch { loadPortfolio() }`, а `loadPortfolio()` сам делает `viewModelScope.launch` — двойной launch (`:262-264`, `:128-129`); retry/backoff отсутствует (см. «Связано»: T-3 sub-5 поглощается T-9; «infinite retry» — баг LaunchedEffect(isLoading), устраняется PR 5a). Дополнительно: `tradingStatuses` в `PortfolioUiState` — своё поле (`PortfolioUiState:22`), VM поллит `while (isActive) { delay(5 min); updateTradingStatuses() }` (`:83-91`) и сам вызывает `marketDataRepository.getTradingStatusesResult` (`:214-235`) — дублирует `UpdateTradingStatusesUseCase` + `TradingStatusRepository` (M2/M5). Orders уже работает passthrough (`OrdersViewModel:70`), Portfolio — нет: два независимых кэша одного значения.
 
 **Соответствие Clean:** отклонение по 2c (принято) — менеджер поллинга в `domain/api/managers/` (по образцу `PositionFlowManager`/`PriceFlowManager`), не в VM/presentation.
 
@@ -331,7 +331,7 @@
 
 **Поглощает:** T-40 `PortfolioUiState: passthrough tradingStatuses StateFlow` — реализуется шагами 3-4 PR 5b; отдельный PR не нужен. Секция T-40 вырезана из `ROADMAP-plan.md` (текст — в истории git).
 
-**Связано:** T-3 umbrella sub-5; T-8 (закрыт — batch+singular); T-41; T-42; `docs/rate-limits.md`.
+**Связано:** T-3 umbrella sub-5 (поглощается T-9: double-load + guard + payInSandbox); T-8 (закрыт — batch+singular); T-41 (подключение ORDERS к TradingStatusFlowManager); T-42; `docs/rate-limits.md`.
 
 **Открытые вопросы:** нет. DI-модуль для менеджера не нужен: `PositionFlowManager`/`PriceFlowManager` — конкретные `@Singleton @Inject`; `DispatcherModule:26` уже провайдит `CoroutineDispatcher`.
 

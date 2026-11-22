@@ -37,7 +37,7 @@
 | 2 | `Search: сократить N+1 unary в findInstruments` (new) | оптимизация | UX search |
 | 3 | `updateStatuses: skip on cache hit / lazy on select` (new) | оптимизация | rate-budget |
 | 4 | `getTradingStatuses: батчинг / concurrency` (new; поглощает `clean-audit` Н66) | оптимизация | rate-budget |
-| 5 | `PortfolioScreen: retry с backoff` (new; **не rate-limit**, UX) | UX | live-test 6 |
+| 5 | `PortfolioScreen: double-load + guard` (поглощена T-9; **не rate-limit**, UX) | UX | live-test 6 |
 
 **Порядок:** **1a → 1b → (2, 3, 4 параллельно) → 5.**
 **Обоснование:** (1a) — фундамент unary: без защиты любая новая фича / фоновый запрос / periodic может снова выбить unary-лимит. (1b) — фундамент stream: WS-реконнект-шторм может выбить stream-лимит (32/16/11) молча; сокращение без защиты — «бег на месте». После (1) каждая оптимизация — безопасный refactor: «стало 2N+1 → N+1 → 1» на фоне гарантии ≤ 50/sec. (5) независима от rate-limit, но блокирует live-test 6 (restore).
