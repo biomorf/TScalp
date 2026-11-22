@@ -20,7 +20,7 @@
 | Скрипт | Назначение | Аргументы | Пример |
 |---|---|---|---|
 | `docs_add.py` | Вставка подраздела | `--file`, `--id`, `--title`, `--body-file`, `--after` / `--at-end`, `--apply` | `python3 AGENTS/scripts/docs_add.py --file ... --id ... --title ... --body-file ... --after ... --apply` |
-| `docs_cut.py` | Удаление подраздела (в `/tmp`, fallback `$HOME/tmp`) | `--file`, `--id`, `--force`, `--apply` | `python3 AGENTS/scripts/docs_cut.py --file ... --id ... --apply` |
+| `docs_cut.py` | Удаление подраздела; два выхода: блок (`agents-cut-<id>.md`) и тело (`agents-body-<id>.md`), оба в `/tmp`, fallback `$HOME/tmp` | `--file`, `--id`, `--force`, `--apply`, `--no-rebuild` | `python3 AGENTS/scripts/docs_cut.py --file ... --id ... --apply` |
 | `docs_normalize.py` | Нормализация (10 пустых, `rstrip`, fence parity, `FILE`/`SECTION`/`SUBSECTION`, `---` перед `SUBSECTION_END`) | `--file`, `--all` (явные имена), `--apply`, `--dry-run` | `python3 AGENTS/scripts/docs_normalize.py --dry-run --file ...` |
 | `docs_rebuild_index.py` | Пересборка индексов (5 колонок, `Anchor`, `Next ID`) | `--mode` (`all` / `agents` / `agents-lessons` / `roadmap` / `ci-roadmap`), `--index-path-override`, `--dry-run`, `--apply` | `python3 AGENTS/scripts/docs_rebuild_index.py --apply --mode all` |
 | `live-test-build.sh` | installDebug + force-stop | — | `bash AGENTS/scripts/live-test-build.sh` |
@@ -32,6 +32,7 @@
 | `docs_canon_lib.py` | Общая библиотека правил — не запускается, только импорт | — | `from docs_canon_lib import expected_token` |
 
 Одноразовые скрипты лежат в `AGENTS/scripts/oneoff/`; в таблицу выше не входят, повторно не запускаются (уже применены): `seed_markers.py`, `seed_markers_docs.py`.
+`WARN: normalize deviations in target` у `docs_add.py` — ожидаемо при вставке в конец файла: нормализатор правит отступы на стыке с `SECTION_END`, а записывается уже нормализованный текст.
 
 ---
 <!-- SUBSECTION_END: tools -->
