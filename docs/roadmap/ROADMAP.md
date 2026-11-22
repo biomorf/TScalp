@@ -39,8 +39,8 @@
 |---|---|---|---|---|
 | WIP | T-3 | Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | `docs/roadmap/ROADMAP-wip.md` | [#t-3](ROADMAP-wip.md#t-3) |
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` | [#t-33](ROADMAP-wip.md#t-33) |
+| WIP | T-49 | docs_lint: состояние задачи для wip и plan | `docs/roadmap/ROADMAP-wip.md` | [#t-49](ROADMAP-wip.md#t-49) |
 | PLAN | T-4 | Rate-limiter: GetUserTariff (dynamic limits) | `docs/roadmap/ROADMAP-plan.md` | [#t-4](ROADMAP-plan.md#t-4) |
-| PLAN | T-49 | docs_lint: состояние задачи для wip и plan | `docs/roadmap/ROADMAP-plan.md` | [#t-49](ROADMAP-plan.md#t-49) |
 | PLAN | T-40 | PortfolioUiState: passthrough tradingStatuses StateFlow | `docs/roadmap/ROADMAP-plan.md` | [#t-40](ROADMAP-plan.md#t-40) |
 | PLAN | T-41 | Orders: миграция tradingStatuses на TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` | [#t-41](ROADMAP-plan.md#t-41) |
 | PLAN | T-42 | TradingStatus: stream API (subscribeTradingStatuses) | `docs/roadmap/ROADMAP-plan.md` | [#t-42](ROADMAP-plan.md#t-42) |
