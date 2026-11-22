@@ -230,7 +230,7 @@ guard не срабатывает, разбираться отдельно.
 
 **Шаги (S2 — два PR):**
 
-**Прогресс:** PR 5a merged (PR #174, `7ceacadc`); PR 5b — not started.
+**Прогресс:** PR 5a merged (PR #174, `7ceacadc`); PR 5b реализован в feature-ветке (`4b2cbebe`, `111b6089`, `0958b736`), локальный гейт зелёный; PR не открыт.
 
 **PR 5a (~20-30 мин):**
 1. `PortfolioScreen.kt:38-42`: `LaunchedEffect(lifecycleOwner) { lifecycleOwner.lifecycle.repeatOnLifecycle(RESUMED) { refresh() } }` → `LaunchedEffect(Unit) { viewModel.refresh() }`; импорты `Lifecycle`, `repeatOnLifecycle`, `LocalLifecycleOwner` удалить, если больше не используются.
@@ -240,10 +240,10 @@ guard не срабатывает, разбираться отдельно.
 
 **PR 5b (~2-2.5 ч):**
 1. `TradingStatusFlowManager` — конкретный `@Singleton` с `@Inject constructor` (DI-модуль не нужен, как у `PositionFlowManager`):
-   - `setInterest(consumer: TradingStatusConsumer, ids: Set<String>)` — регистрирует/заменяет интерес потребителя; при первом непустом объединении — immediate fetch + `while (isActive) { delay(INTERVAL_MS); fetchAndUpdate() }`;
+   - `setInterest(consumer: TradingStatusConsumer, byBroker: Map<BrokerName, Set<String>>)` — регистрирует/заменяет интерес потребителя целиком по всем брокерам за один вызов (один рестарт polling, один раунд fetch); при первом непустом объединении — immediate fetch + `while (isActive) { delay(intervalMs); fetchAndUpdate() }`;
    - `clearInterest(consumer)` — снимает интерес; при пустом объединении polling останавливается;
    - `fetchAndUpdate()` — группирует объединение ids по `brokerName` (как `PortfolioViewModel:214-229`) и вызывает `UpdateTradingStatusesUseCase.execute(brokerName, ids)` (готовый fetch+update; дублировать нельзя);
-   - `INTERVAL_MS = 60_000L`; scope — `CoroutineDispatcher` из `DispatcherModule` + `limitedParallelism(1)` + `SupervisorJob` + `CoroutineExceptionHandler`.
+   - `INTERVAL_MS = 60_000L` (прод-дефолт; тестовый шов — internal-конструктор с `intervalMs`); scope — `CoroutineDispatcher` из `DispatcherModule` + `limitedParallelism(1)` + `SupervisorJob` + `CoroutineExceptionHandler`.
 2. `TradingStatusConsumer` (enum рядом с менеджером): `PORTFOLIO`, `ORDERS` — аналог `PriceConsumer`.
 3. `PortfolioViewModel`:
    - убрать `while (isActive)` и свой `updateTradingStatuses`;
@@ -255,7 +255,7 @@ guard не срабатывает, разбираться отдельно.
 4. `PortfolioUiState`: удалить `tradingStatuses`; `PortfolioScreen:111` — `val tradingStatuses by viewModel.tradingStatuses.collectAsState()`.
 5. Гейт на CI.
 
-**Тесты:** `TradingStatusFlowManagerTest` — `setInterest` стартует и грузит сразу; два потребителя → union ids; `clearInterest` одного не останавливает polling; `clearInterest` последнего → polling остановлен; интервал 60 с (`advanceTimeBy`); broker-группировка (2 брокера → 2 вызова usecase). `PortfolioScreenBehaviourTest` не ломать: в тесте реальный граф Hilt, новых биндингов не требуется (`TradingStatusRepository` биндится в `RepositoryBindingModule:82`, менеджер — `@Inject`).
+**Тесты:** `TradingStatusFlowManagerTest` — `setInterest` стартует и грузит сразу; два потребителя → union ids; `clearInterest` одного не останавливает polling; `clearInterest` последнего → polling остановлен; периодичность на коротком инжектированном интервале 50 мс (`advanceTimeBy` невозможен: `UpdateTradingStatusesUseCase` final → только mockk, а `runTest` + `limitedParallelism(1)` + mockk даёт deadlock); batch-вызов → один раунд fetch; broker-группировка (2 брокера → 2 вызова usecase). `PortfolioScreenBehaviourTest` не ломать: в тесте реальный граф Hilt, новых биндингов не требуется (`TradingStatusRepository` биндится в `RepositoryBindingModule:82`, менеджер — `@Inject`).
 
 **Референсы:** `PositionFlowManager.kt:66-105` (scope, `startLock`, `limitedParallelism`), `PriceFlowManager.kt` + `PriceConsumer.kt` (interest-паттерн), `TradingStatusRepository.kt`, `UpdateTradingStatusesUseCase.kt:37-60`, `OrdersViewModel.kt:70` (passthrough), `TInvestTradingService.kt:52-160` (batch primary + singular fallback), live-log C2 (2026-11-15).
 
