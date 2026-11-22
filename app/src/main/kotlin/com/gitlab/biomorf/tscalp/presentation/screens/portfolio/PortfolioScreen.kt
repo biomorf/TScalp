@@ -28,6 +28,7 @@ fun PortfolioScreen(
     viewModel: PortfolioViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val tradingStatuses by viewModel.tradingStatuses.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -102,7 +103,7 @@ fun PortfolioScreen(
                             accountPortfolio = account,
                             prices = uiState.prices,
                             priceChangePercents = uiState.priceChangePercents,
-                            tradingStatuses = uiState.tradingStatuses,
+                            tradingStatuses = tradingStatuses,
                             sandboxMode = uiState.sandboxMode,
                             onPayIn = { viewModel.payInSandbox(key.accountId) },
                         )
