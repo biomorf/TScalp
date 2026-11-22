@@ -130,19 +130,18 @@ class PortfolioViewModel
                         _uiState.update {
                             it.copy(sheet = data.sheet, isLoading = false)
                         }
-                        val accountBrokers =
-                            data.sheet.accounts.keys
-                                .map { it.brokerName }
-                                .distinct()
                         val ids =
                             data.sheet.accounts.values
                                 .flatMap { it.positions }
                                 .map { it.instrument.tscalpInstrumentId }
                                 .filter { it.isNotBlank() }
                                 .toSet()
-                        accountBrokers.forEach { broker ->
-                            tradingStatusFlowManager.setInterest(TradingStatusConsumer.PORTFOLIO, broker, ids)
-                        }
+                        val byBroker =
+                            data.sheet.accounts.keys
+                                .map { it.brokerName }
+                                .distinct()
+                                .associateWith { ids }
+                        tradingStatusFlowManager.setInterest(TradingStatusConsumer.PORTFOLIO, byBroker)
                         if (data.accounts.isEmpty()) return@launch
                         val keys = data.accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
                         startPositionUpdates(keys, sandbox, seed = data.sheet)

@@ -22,15 +22,19 @@ import javax.inject.Singleton
  * всего приложения.
  *
  * ViewModel декларируют интерес через [setInterest] / [clearInterest].
+ * Интерес задаётся **сразу по всем брокерам** (`Map<BrokerName,
+ * Set<String>>`): один вызов — один рестарт polling и один раунд
+ * fetch. Покомпонентный вызов по брокерам давал бы N рестартов и
+ * N лишних раундов на одну загрузку (rate-limit, T-9).
+ *
  * Менеджер держит объединение всех активных наборов
- * `tscalpInstrumentId` по брокерам и раз в [INTERVAL_MS] обновляет
- * статусы через [UpdateTradingStatusesUseCase]. SSoT —
- * `TradingStatusRepository` (обновляется внутри usecase), VM читают
- * его напрямую (passthrough).
+ * `tscalpInstrumentId` и раз в [intervalMs] обновляет статусы через
+ * [UpdateTradingStatusesUseCase]. SSoT — `TradingStatusRepository`
+ * (обновляется внутри usecase), VM читают его напрямую (passthrough).
  *
  * Жизненный цикл polling:
  * - пустой union -> ничего не запущено;
- * - непустой union -> immediate fetch + periodic polling раз в [INTERVAL_MS];
+ * - непустой union -> immediate fetch + periodic polling раз в [intervalMs];
  * - фактическое изменение union -> перезапуск polling;
  * - совпадающий union -> перезапуска нет.
  *
@@ -48,6 +52,24 @@ class TradingStatusFlowManager
         private val logger: Logger,
         private val managerDispatcher: CoroutineDispatcher,
     ) {
+        /**
+         * Тестовый шов (2d): интервал polling. В проде — [INTERVAL_MS];
+         * переопределяется только internal-конструктором, чтобы тест
+         * периодичности не ждал 60 с. `Long` в DI-граф не попадает:
+         * Hilt использует трехаргументный `@Inject`-конструктор.
+         */
+        internal var intervalMs: Long = INTERVAL_MS
+            private set
+
+        internal constructor(
+            updateTradingStatusesUseCase: UpdateTradingStatusesUseCase,
+            logger: Logger,
+            managerDispatcher: CoroutineDispatcher,
+            intervalMs: Long,
+        ) : this(updateTradingStatusesUseCase, logger, managerDispatcher) {
+            this.intervalMs = intervalMs
+        }
+
         companion object {
             private const val TAG = "TradingStatusFlowManager"
             private const val INTERVAL_MS = 60_000L
@@ -80,23 +102,22 @@ class TradingStatusFlowManager
             )
 
         /**
-         * Регистрирует или обновляет интерес потребителя по брокеру.
-         * При первом непустом объединении — immediate fetch и старт
-         * periodic polling. Если фактический union не изменился —
-         * polling не трогаем.
+         * Регистрирует или обновляет интерес потребителя целиком
+         * (все брокеры за один вызов). При первом непустом
+         * объединении — immediate fetch и старт periodic polling.
+         * Если фактический union не изменился — polling не трогаем.
          */
         fun setInterest(
             consumer: TradingStatusConsumer,
-            brokerName: BrokerName,
-            ids: Set<String>,
+            byBroker: Map<BrokerName, Set<String>>,
         ) = synchronized(startLock) {
             val oldUnion = currentUnion()
             interests.update { current ->
-                current + (consumer to (current[consumer].orEmpty() + (brokerName to ids)))
+                current + (consumer to byBroker.filterValues { it.isNotEmpty() })
             }
             val newUnion = currentUnion()
             if (newUnion != oldUnion) {
-                logger.d(TAG, "setInterest($consumer, ${brokerName.displayName}, size=${ids.size}), union changed: ${oldUnion.size} -> ${newUnion.size}")
+                logger.d(TAG, "setInterest($consumer, brokers=${byBroker.size}), union changed: ${oldUnion.size} -> ${newUnion.size}")
                 restart(newUnion)
             }
         }
@@ -139,10 +160,10 @@ class TradingStatusFlowManager
             logger.d(TAG, "Starting polling for ${union.size} instruments")
             job =
                 scope.launch {
-                    fetchAndUpdate(currentUnion())
+                    fetchAndUpdate()
                     while (isActive) {
-                        delay(INTERVAL_MS)
-                        fetchAndUpdate(currentUnion())
+                        delay(intervalMs)
+                        fetchAndUpdate()
                     }
                 }
         }
@@ -152,8 +173,7 @@ class TradingStatusFlowManager
          * ids по брокеру и вызывает
          * [UpdateTradingStatusesUseCase.execute] на каждого брокера.
          */
-        private suspend fun fetchAndUpdate(union: Set<String>) {
-            if (union.isEmpty()) return
+        private suspend fun fetchAndUpdate() {
             val byBroker =
                 interests.value.values
                     .flatMap { it.entries }
