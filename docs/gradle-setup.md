@@ -1,8 +1,18 @@
+<!-- FILE_BEGIN -->
 ###################################################
 # Настройка Gradle в Android Studio
 
 Документ описывает нюансы запуска приложения из Android Studio
 и работы с APK-файлами в TScalp.
+
+
+
+
+
+
+
+
+
 
 <!-- SECTION_BEGIN: gradle-setup -->
 ## Автоматический `clean assembleDebug` перед запуском
@@ -22,8 +32,14 @@
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: gradle-setup-1 -->
-___
+<a id="gradle-setup-1"></a>
 ### gradle-setup-1 Пошагово
 1. **Run → Edit Configurations…**
 2. Выбрать конфигурацию `app`.
@@ -32,6 +48,8 @@ ___
 5. В поле **Gradle project** указать директорию проекта.
 6. В поле **Tasks** задать: `clean assembleDebug`
 7. Нажать **OK**.
+
+---
 <!-- SUBSECTION_END: gradle-setup-1 -->
 
 
@@ -44,7 +62,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: gradle-setup-2 -->
-___
+<a id="gradle-setup-2"></a>
 ### gradle-setup-2 Результат
 При каждом Shift+F10:
 1. Выполнится `clean assembleDebug` — полная пересборка APK с нуля.
@@ -53,6 +71,8 @@ ___
 
 Красивое имя APK (`tscalp-debug-v1.XXX.apk`) появляется
 автоматически через `finalizedBy` на `assembleDebug`.
+
+---
 <!-- SUBSECTION_END: gradle-setup-2 -->
 
 
@@ -65,7 +85,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: gradle-setup-3 -->
-___
+<a id="gradle-setup-3"></a>
 ### gradle-setup-3 Зависимости (app/build.gradle.kts)
 - `testImplementation("androidx.compose.ui:ui-test-junit4")` (BOM уже в проекте).
 - `testImplementation("org.robolectric:robolectric:4.14.1")`.
@@ -73,6 +93,8 @@ ___
 - `testImplementation("androidx.test.ext:junit:1.2.1")`.
 - `debugImplementation("androidx.compose.ui:ui-test-manifest")` — уже есть.
 - `testOptions { unitTests.isIncludeAndroidResources = true }` — обязательно для Robolectric.
+
+---
 <!-- SUBSECTION_END: gradle-setup-3 -->
 
 
@@ -85,7 +107,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: gradle-setup-4 -->
-___
+<a id="gradle-setup-4"></a>
 ### gradle-setup-4 Как писать тест
 ~~~kotlin
 @RunWith(AndroidJUnit4::class)
@@ -102,6 +124,8 @@ class XTest {
     }
 }
 ~~~
+
+---
 <!-- SUBSECTION_END: gradle-setup-4 -->
 
 
@@ -114,11 +138,13 @@ class XTest {
 
 
 <!-- SUBSECTION_BEGIN: gradle-setup-5 -->
-___
+<a id="gradle-setup-5"></a>
 ### gradle-setup-5 Ограничения Robolectric
 - нет RenderThread, bitmap, accessibility-дерева;
 - нет реального IME, insets, edge-to-edge, WebView, камеры/биометрии;
 - для таких — instrumented (`androidTest` + эмулятор), у нас пока не требуется.
+
+---
 <!-- SUBSECTION_END: gradle-setup-5 -->
 
 
@@ -131,12 +157,14 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: gradle-setup-6 -->
-___
+<a id="gradle-setup-6"></a>
 ### gradle-setup-6 Полезные API
 - `onNodeWithText / onNodeWithContentDescription / onNode(hasTestTag(...))`;
 - `performClick / performTextInput / performScrollToIndex`;
 - `waitForIdle()` — дожать recomposition/animations;
 - `mainClock.autoAdvance = false` + `mainClock.advanceTimeBy(ms)` — кадровый контроль (`LaunchedEffect`-задержки).
+
+---
 <!-- SUBSECTION_END: gradle-setup-6 -->
 
 
@@ -149,7 +177,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: gradle-setup-7 -->
-___
+<a id="gradle-setup-7"></a>
 ### gradle-setup-7 Screenshot tests (Roborazzi)
 Rendering-regression guard для UI: PNG-baseline в git, pixel-diff в CI.
 Плагин `io.github.takahirom.roborazzi:1.79.0` (root + app), baseline в
@@ -179,6 +207,8 @@ artifact `roborazzi-results`.
 
 **Связано:** `docs/ROADMAP.md` → `### OrderFormViewModel: split на sub-VM`
 (предзадача «Roborazzi screenshot tests»).
+
+---
 <!-- SUBSECTION_END: gradle-setup-7 -->
 
 
@@ -191,16 +221,34 @@ artifact `roborazzi-results`.
 
 
 <!-- SUBSECTION_BEGIN: gradle-setup-8 -->
-___
+<a id="gradle-setup-8"></a>
 ### gradle-setup-8 Desktop
 На desktop `./gradlew :app:testDebugUnitTest` работает локально; на mobile
 (proot) — только CI (`fast-check`), локальный Gradle не поднимается.
+
+---
 <!-- SUBSECTION_END: gradle-setup-8 -->
 
 
 
 
+
+
+
+
+
+
 <!-- SECTION_END: gradle-setup -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: gradle-setup -->
 ## Замечания
 
@@ -211,4 +259,26 @@ ___
 - **Время сборки:** `clean` замедляет запуск. Если мешает —
   уберите `clean`, положившись на инкрементальную сборку.
 - **Release:** аналогично можно создать отдельную конфигурацию
-  с задачей `clean assembleRelease`.<!-- SECTION_END: gradle-setup -->
+  с задачей `clean assembleRelease`.
+
+
+
+
+
+
+
+
+
+
+<!-- SECTION_END: gradle-setup -->
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->

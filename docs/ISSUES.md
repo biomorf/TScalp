@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # ISSUES — указатель
 
 Полный индекс — `docs/issues/ISSUES.md`.
@@ -13,3 +14,14 @@
 - `docs/issues/ISSUES-ci.md`
 - `docs/issues/ISSUES-ui.md`
 - `docs/issues/ISSUES-misc.md`
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->

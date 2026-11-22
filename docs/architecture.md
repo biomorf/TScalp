@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # Architecture
 
 Справочник архитектурных решений TScalp. Читается вместе с `AGENTS.md`
@@ -7,14 +8,29 @@
 KMP-ready — `AGENTS.md` → 2e. Три поля фиксации в задаче:
 `**Соответствие Clean:**`, `**MVVM:**`, `**KMP:**`.
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: architecture -->
 ## Data flow: позиции (portfolio positions)
 
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: architecture-1 -->
-___
+<a id="architecture-1"></a>
 ### architecture-1 Модели
 **Domain (`domain/models/Portfolio.kt`):**
 
@@ -51,6 +67,8 @@ ___
 удалён; `Position` (sealed) — единственная модель. Presentation-поля
 (`priceChangePercent` day-change, цвета) — в `PositionFormatter` и
 presentation-util.
+
+---
 <!-- SUBSECTION_END: architecture-1 -->
 
 
@@ -63,7 +81,7 @@ presentation-util.
 
 
 <!-- SUBSECTION_BEGIN: architecture-2 -->
-___
+<a id="architecture-2"></a>
 ### architecture-2 Обогащение (SSoT)
 **Владелец:** `PositionFlowManager` (`domain/api/managers/PositionFlowManager.kt`).
 
@@ -103,6 +121,8 @@ partial-событий — в manager.
 
 **Окно отката:** polling раз в 10 сек может «откатить» свежее WS-обновление
 (≤10 сек). Приемлемо.
+
+---
 <!-- SUBSECTION_END: architecture-2 -->
 
 
@@ -115,7 +135,7 @@ partial-событий — в manager.
 
 
 <!-- SUBSECTION_BEGIN: architecture-3 -->
-___
+<a id="architecture-3"></a>
 ### architecture-3 ViewModels
 #### `PortfolioViewModel`
 
@@ -183,6 +203,8 @@ flowchart LR
 ```
 
 Подпись: 4-VM структура `Orders` после split 13d — 4 state, 5 cross-VM связей через domain / UI-orchestration, ноль `_uiState`-чтений.
+
+---
 <!-- SUBSECTION_END: architecture-3 -->
 
 
@@ -195,7 +217,7 @@ flowchart LR
 
 
 <!-- SUBSECTION_BEGIN: architecture-4 -->
-___
+<a id="architecture-4"></a>
 ### architecture-4 Границы (dependency rule)
 ~~~
 presentation → domain ← data
@@ -206,6 +228,8 @@ presentation → domain ← data
 - `data` создаёт `PositionStreamItem` (raw) и `AccountPortfolio`
   (полный polling-снимок), отдаёт менеджеру.
 - `presentation` читает `PortfolioSheet` (готовый), не мержит.
+
+---
 <!-- SUBSECTION_END: architecture-4 -->
 
 
@@ -218,7 +242,7 @@ presentation → domain ← data
 
 
 <!-- SUBSECTION_BEGIN: architecture-5 -->
-___
+<a id="architecture-5"></a>
 ### architecture-5 Связанные документы
 - `docs/domain_models.md` → `## Портфель (Portfolio)` §1–§12 —
   проектный мастер-план.
@@ -232,6 +256,8 @@ ___
   `### Position: источники priceChangePercent и lockedQuantity`
   (day-change, lockedQuantity, balances),
   `### P&L: sandbox client-side fallback для Position` (отдельная задача).
+
+---
 <!-- SUBSECTION_END: architecture-5 -->
 
 
@@ -244,7 +270,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-6 -->
-___
+<a id="architecture-6"></a>
 ### architecture-6 Модели и контракт
 **`OrderRequest` (`domain/models/OrderModels.kt`)** — sealed interface для
 готовой к отправке заявки. Два подтипа: `Broker(BrokerOrderRequest)` и
@@ -262,6 +288,8 @@ ___
 **`PostOrderUseCase.execute(input)`** — orchestration: `checkAvailability` →
 `prepare` → `postPrimary` → (если `paired != null`) `postPaired`. Все `when`
 по `OrderRequest` — exhaustive, 0 `as`-cast.
+
+---
 <!-- SUBSECTION_END: architecture-6 -->
 
 
@@ -274,7 +302,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-7 -->
-___
+<a id="architecture-7"></a>
 ### architecture-7 Диаграмма — поток заявки
 ```mermaid
 flowchart LR
@@ -300,6 +328,8 @@ flowchart LR
 разделяет «проверка» (checkAvailability), «подготовка» (prepare →
 PrepareResult) и «отправка» (postPrimary / postPaired по sealed OrderRequest).
 `PrepareResult.Invalid` — единственная точка валидации до API.
+
+---
 <!-- SUBSECTION_END: architecture-7 -->
 
 
@@ -312,7 +342,7 @@ PrepareResult) и «отправка» (postPrimary / postPaired по sealed Ord
 
 
 <!-- SUBSECTION_BEGIN: architecture-8 -->
-___
+<a id="architecture-8"></a>
 ### architecture-8 Границы (dependency rule)
 - **`domain`** — `OrderRequest`, `PrepareResult`, `BrokerOrderRequest`,
   `StopOrderRequest`.
@@ -321,6 +351,8 @@ ___
   (`when (OrderRequest) { is Broker -> ...; is Stop -> ... }`).
 - **`presentation`** — `PostOrderOutcome` (Success / InsufficientFunds /
   Error / InvalidRequest); сообщения и форматирование — в `OrderExecutionViewModel`.
+
+---
 <!-- SUBSECTION_END: architecture-8 -->
 
 
@@ -333,12 +365,14 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-9 -->
-___
+<a id="architecture-9"></a>
 ### architecture-9 Atomicity парной сделки
 Идеально — 2 заявки одной транзакцией. T-Invest / BCS / Finam **не
 поддерживают batch**: primary уходит → paired отдельно; `PairedOutcome.Failed`
 не откатывает primary. **Вне scope** (broker limitation). При появлении
 потребности — `cancelOnPairedFailure` rollback отдельной задачей.
+
+---
 <!-- SUBSECTION_END: architecture-9 -->
 
 
@@ -351,7 +385,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-10 -->
-___
+<a id="architecture-10"></a>
 ### architecture-10 Валидация и нормализация: по слоям
 Валидация рассредоточена по трём слоям, с чётким разделением ролей.
 
@@ -373,6 +407,8 @@ ___
 - Роль: **окончательное** решение.
 
 **Связанные:** `docs/clean-audit.md` → M017, M013, M018. C2 выполнен: `OrderFormViewModel` удалён в Phase 6.1, `OrderFormState` / `OrderFormStateMapper` — в Phase 7.1.
+
+---
 <!-- SUBSECTION_END: architecture-10 -->
 
 
@@ -385,11 +421,13 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-11 -->
-___
+<a id="architecture-11"></a>
 ### architecture-11 Связанные документы
 - `docs/roadmap/ROADMAP-ARCHIVE.md` → `### ✅ PrepareOrderRequestUseCase: sealed OrderRequest + decompose (B1+B2)`.
 - `docs/ISSUES.md` → `ClassCastException в PostOrderUseCase при StopLoss без stopPrice` (решён, PR #132).
 - `docs/clean-audit.md` → M017 (`buildPlaceOrderRequest`), M013 / A2 (orchestration) — контекст оркестрации заявок.
+
+---
 <!-- SUBSECTION_END: architecture-11 -->
 
 
@@ -402,7 +440,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-12 -->
-___
+<a id="architecture-12"></a>
 ### architecture-12 CardIdentity — иммутабельный identity
 `CardIdentity(tscalpInstrumentId, brokerName, accountId)` — **иммутабельная**
 identity карточки. Все три поля задаются при создании и не меняются до
@@ -425,6 +463,8 @@ identity карточки. Все три поля задаются при соз
 
 `ticker` в identity **не входит** — только data-граница (BCS/Finam-запросы)
 и display.
+
+---
 <!-- SUBSECTION_END: architecture-12 -->
 
 
@@ -437,7 +477,7 @@ identity карточки. Все три поля задаются при соз
 
 
 <!-- SUBSECTION_BEGIN: architecture-13 -->
-___
+<a id="architecture-13"></a>
 ### architecture-13 Создание карточки
 1. Пользователь задаёт брокера в свойствах слота (до поиска).
 2. В строке поиска ищет инструмент у этого брокера.
@@ -451,6 +491,8 @@ ___
 **Смена счёта — пересоздание identity, не мутация.** `SaveCardSettings` —
 не «обновляет account в карточке», а «удаляет старую identity + создаёт
 новую».
+
+---
 <!-- SUBSECTION_END: architecture-13 -->
 
 
@@ -463,7 +505,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-14 -->
-___
+<a id="architecture-14"></a>
 ### architecture-14 Слоты (primary / pair)
 На экране «Заявки» два независимых слота: основной и парный. В каждом —
 своя **активная карточка** (или none до выбора).
@@ -475,6 +517,8 @@ ___
   `(uid, broker, accountId)`.
 - Один и тот же инструмент в двух слотах — **две разные** карточки
   (разные `accountId` или разные `broker`).
+
+---
 <!-- SUBSECTION_END: architecture-14 -->
 
 
@@ -487,7 +531,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-15 -->
-___
+<a id="architecture-15"></a>
 ### architecture-15 Коллизия при смене счёта
 Если пользователь в свойствах карточки выбирает `accountId`, который
 уже занят **другой** карточкой того же `(uid, broker)` в этом или
@@ -499,6 +543,8 @@ ___
 **Swap слотов** при α: через временный счёт или удаление + пересоздание.
 Быстрый swap отдельной кнопкой рядом со slider «Парная торговля» —
 отдельная задача (`### UI: кнопка swap слотов`).
+
+---
 <!-- SUBSECTION_END: architecture-15 -->
 
 
@@ -511,12 +557,14 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-16 -->
-___
+<a id="architecture-16"></a>
 ### architecture-16 Портфель на карточке
 Если инструмент `(uid, broker, accountId)` уже есть в портфеле (на этом
 счёте у этого брокера) — карточка показывает `quantity` / `averagePrice`
 / `profit` как на вкладке «Портфель». Источник —
 `PositionFlowManager.sheet`, ключ `AccountKey(broker, accountId)`.
+
+---
 <!-- SUBSECTION_END: architecture-16 -->
 
 
@@ -529,13 +577,15 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-17 -->
-___
+<a id="architecture-17"></a>
 ### architecture-17 Границы (Clean)
 `CardIdentity` — domain-модель. Presentation конструирует её только через
 usecase (`SelectInstrumentUseCase` / `SaveCardSettingsUseCase`); прямая
 конструкция в UI запрещена (M4). `SaveCardSettings` и `OpenCardDialog` —
 usecase с I/O и бизнес-правилом (пересоздание карточки / коллизия), не
 presentation-функции.
+
+---
 <!-- SUBSECTION_END: architecture-17 -->
 
 
@@ -548,7 +598,7 @@ presentation-функции.
 
 
 <!-- SUBSECTION_BEGIN: architecture-18 -->
-___
+<a id="architecture-18"></a>
 ### architecture-18 Блокеры в domain
 | # | Что | Где | Фикс |
 |---|---|---|---|
@@ -573,6 +623,8 @@ split одного `UseCaseModule.kt` — detekt `TooManyFunctions`).
 **Исправлено (PR #74, `dev`, 2026-10-30):**
 
 - #4 — `Dispatchers.IO` → инжект `CoroutineDispatcher` через DI (`di/DispatcherModule.kt`); `limitedParallelism(1)` сохранён (доменная сериализация); 3 менеджера + тесты.
+
+---
 <!-- SUBSECTION_END: architecture-18 -->
 
 
@@ -585,7 +637,7 @@ split одного `UseCaseModule.kt` — detekt `TooManyFunctions`).
 
 
 <!-- SUBSECTION_BEGIN: architecture-19 -->
-___
+<a id="architecture-19"></a>
 ### architecture-19 Чисто (KMP-safe)
 - `domain/models/*` — KMP-safe (PR #73: `kotlin.time.Instant`).
 - `domain/api/repository/*` (8 интерфейсов) — ноль platform.
@@ -596,6 +648,8 @@ ___
   DI через `@Provides` в 6 доменных `*UseCaseModule.kt`.
   `CalculateTradeDetailsUseCase` / `PrepareOrderRequestUseCase` —
   уже были чистыми.
+
+---
 <!-- SUBSECTION_END: architecture-19 -->
 
 
@@ -608,10 +662,12 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-20 -->
-___
+<a id="architecture-20"></a>
 ### architecture-20 Не в этой фазе
 - `data/` — не готов к `commonMain` (`android.*`: Context, DataStore, CustomTrustManager → `androidMain`; `java.*` в 8 файлах; `javax.inject` → уйдёт с Koin).
 - Koin — предусловие (задача `### Плавный переход Hilt → Koin`).
+
+---
 <!-- SUBSECTION_END: architecture-20 -->
 
 
@@ -624,13 +680,15 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-21 -->
-___
+<a id="architecture-21"></a>
 ### architecture-21 Порядок
 1. ✅ Фикс #1 (`Instant`) + #3 (`currentTimeMillis`) — закрыто в PR #73.
 2. ✅ Фикс #4 (`Dispatchers.IO` → инжект `CoroutineDispatcher`) — закрыто (PR #74).
 3. Koin — снимает #2.
 4. `domain` → `:shared/commonMain` (umbrella-задача `### KMP: domain → commonMain`).
 5. `data` → split `commonMain`/`androidMain` (отдельная фаза).
+
+---
 <!-- SUBSECTION_END: architecture-21 -->
 
 
@@ -643,7 +701,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: architecture-22 -->
-___
+<a id="architecture-22"></a>
 ### architecture-22 Rate-limiter (transport layer)
 **Что/зачем.** Ограничитель частоты unary-запросов к брокеру. Защищает от `RESOURCE_EXHAUSTED` при burst (поиск, cold start, polling). Broker-agnostic интерфейс; domain про лимиты не знает — это свойство транспорта (2a, 2e).
 
@@ -682,6 +740,8 @@ flowchart LR
 **Clean:** соответствует — data-layer infrastructure, domain не знает. **KMP:** `kotlin.time.Clock` (injected), `kotlinx.coroutines.sync.*` — без `java.*` / `android.*`.
 
 **Связанные:** T-3 umbrella (`docs/roadmap/ROADMAP-wip.md`); PR #162 (burst-capacity fix); `docs/rate-limits.md` (лимиты API); `l-kotlin-115` (bucket capacity); 1b (stream limiter, план).
+
+---
 <!-- SUBSECTION_END: architecture-22 -->
 
 
@@ -694,7 +754,7 @@ flowchart LR
 
 
 <!-- SUBSECTION_BEGIN: architecture-23 -->
-___
+<a id="architecture-23"></a>
 ### T-10: unary → AppResult — предостережения
 ### architecture-23 T-10: unary → AppResult — предостережения
 
@@ -762,6 +822,8 @@ ___
 **Связано:** T-10 (шаг 1); T-30, T-31; `architecture-22` (rate-limiter).
 
 **Источник:** диагностика 2026-11-17 (T-10, расширенная диагностика); ответы пользователя Q4–Q11 (все утверждены).
+
+---
 <!-- SUBSECTION_END: architecture-23 -->
 
 
@@ -773,8 +835,15 @@ ___
 
 
 
-
-
-
-
 <!-- SECTION_END: architecture -->
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->

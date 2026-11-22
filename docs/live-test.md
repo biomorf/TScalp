@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # Live test
 
 Процедура проверки задачи на устройстве через `adb logcat`.
@@ -10,6 +11,15 @@ Deferred closure — правило 5g п.4 AGENTS.md. Процедура —
 часть подтверждения, не отдельная задача.
 
 ---
+
+
+
+
+
+
+
+
+
 
 <!-- SECTION_BEGIN: live-test -->
 ## Предусловия
@@ -25,7 +35,26 @@ Deferred closure — правило 5g п.4 AGENTS.md. Процедура —
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: live-test -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: live-test -->
 ## Два режима захвата
 
@@ -49,8 +78,14 @@ live-вывод в терминал: пользователь смотрит, ч
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: live-test-1 -->
-___
+<a id="live-test-1"></a>
 ### live-test-1 Режим A — автоматический (лог в файл)
 - **Лимит захвата** — 10 минут (`CAPTURE_SECONDS=600`). Хватает
   на сценарий StreamState (три перехода × три менеджера +
@@ -87,6 +122,8 @@ less /tmp/tscalp-live.log
 
 grep -E "FlowManager: state:|StreamStateTracker|TInvestOrchestrator|TInvestWS|TInvestRest|TInvestMarketData" /tmp/tscalp-live.log
 ```
+
+---
 <!-- SUBSECTION_END: live-test-1 -->
 
 
@@ -99,7 +136,7 @@ grep -E "FlowManager: state:|StreamStateTracker|TInvestOrchestrator|TInvestWS|TI
 
 
 <!-- SUBSECTION_BEGIN: live-test-2 -->
-___
+<a id="live-test-2"></a>
 ### live-test-2 Режим B — ручной (live-вывод в терминал)
 Пользователь держит устройство в руках и одновременно смотрит
 в терминал (второй монитор / split screen / телефон + ноутбук).
@@ -165,7 +202,7 @@ AGENTS.md 4e, правило 5. В режиме B `grep --line-buffered` — о�
 
 
 <!-- SUBSECTION_BEGIN: live-test-3 -->
-___
+<a id="live-test-3"></a>
 ### live-test-3 StreamState (PR #38, задача `StreamState в data-слое`)
 **Режим:** B (ручной) — нужны действия (открыть вкладку
 «Заявки», включить тумблеры, logout).
@@ -197,6 +234,8 @@ Position / Price / Order:
 (порог 30s + tick 1s) → три `→ STALE`. Вернуть сеть → ждать
 5–15 сек (polling: Position/Order ~1s, Price ~5s; stream: до
 1s после reconnect) → `STALE → POLLING` или `STALE → LIVE`.
+
+---
 <!-- SUBSECTION_END: live-test-3 -->
 
 
@@ -209,7 +248,7 @@ Position / Price / Order:
 
 
 <!-- SUBSECTION_BEGIN: live-test-4 -->
-___
+<a id="live-test-4"></a>
 ### live-test-4 Debug-тумблеры (задача `Debug-тумблеры: применить ко всем менеджерам`)
 **Режим:** B (ручной).
 
@@ -278,6 +317,8 @@ ___
 **Если live-тест зелёный** → `docs(roadmap): mark
 debug-toggles done` в `dev`. Дальше — live-тест StreamState
 (полный цикл для трёх менеджеров).
+
+---
 <!-- SUBSECTION_END: live-test-4 -->
 
 
@@ -290,7 +331,7 @@ debug-toggles done` в `dev`. Дальше — live-тест StreamState
 
 
 <!-- SUBSECTION_BEGIN: live-test-5 -->
-___
+<a id="live-test-5"></a>
 ### live-test-5 DebugConfig (задача `DebugConfig: только для debug-сборок`)
 **Критерий:** в debug-сборке — тумблеры видны и работают;
 в release — секция скрыта, флаги всегда `false` (никаких
@@ -304,7 +345,23 @@ ___
 
 
 
+
+
+
+
+
+
 <!-- SECTION_END: live-test -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: live-test -->
 ## Известные ловушки
 
@@ -327,7 +384,26 @@ ___
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: live-test -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: live-test -->
 ## Связанные документы
 
@@ -336,4 +412,25 @@ ___
 - `docs/streams.md` — стримы, WS, polling.
 - `docs/gradle-setup.md` — сборка, unit-тесты, `android.util.Log`.
 - `docs/ROADMAP.md` — задачи с `**Подтверждение:**`.
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: live-test -->
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->

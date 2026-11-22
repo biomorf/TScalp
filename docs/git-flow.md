@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # Git-flow
 
 Соглашение о ветвлении и слияниях в проекте TScalp.
@@ -10,6 +11,15 @@
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: git-flow -->
 ## Схема веток
 
@@ -20,8 +30,14 @@
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: git-flow-1 -->
-___
+<a id="git-flow-1"></a>
 ### git-flow-1 Диаграмма — gitGraph
 Показывает историю как её видит git: коммиты, точки
 ветвления, моменты merge. Точнее отражает механику —
@@ -49,6 +65,8 @@ gitGraph
     checkout dev
     merge master
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-1 -->
 
 
@@ -61,7 +79,7 @@ gitGraph
 
 
 <!-- SUBSECTION_BEGIN: git-flow-2 -->
-___
+<a id="git-flow-2"></a>
 ### git-flow-2 Диаграмма — flowchart
 Схема процесса без детализации коммитов. Проще читается,
 если цель — понять поток, а не механику git.
@@ -89,7 +107,7 @@ flowchart LR
 
 
 <!-- SUBSECTION_BEGIN: git-flow-3 -->
-___
+<a id="git-flow-3"></a>
 ### git-flow-3 `master`
 Релизная ветка. Содержит только принятый, готовый к продакшену
 код. Любой коммит в `master` — потенциальный релиз.
@@ -98,6 +116,8 @@ ___
 - Изменения — только через PR.
 - Источник PR: `release/*` или `hotfix/*`.
 - Каждый merge в `master` сопровождается тегом `vX.Y.Z`.
+
+---
 <!-- SUBSECTION_END: git-flow-3 -->
 
 
@@ -110,7 +130,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: git-flow-4 -->
-___
+<a id="git-flow-4"></a>
 ### git-flow-4 `dev`
 Интеграционная ветка. Здесь встречается код из feature- и
 bugfix-веток. Отражает текущее состояние разработки — то,
@@ -139,7 +159,7 @@ bugfix-веток. Отражает текущее состояние разра
 
 
 <!-- SUBSECTION_BEGIN: git-flow-5 -->
-___
+<a id="git-flow-5"></a>
 ### git-flow-5 `feature/<name>`
 Одна фича — одна ветка. Отпочковывается от `dev`, после
 завершения сливается обратно в `dev`.
@@ -159,6 +179,8 @@ git checkout -b feature/positions-stream-grpc
 git push -u origin feature/positions-stream-grpc
 # PR feature/positions-stream-grpc -> dev через web
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-5 -->
 
 
@@ -171,7 +193,7 @@ git push -u origin feature/positions-stream-grpc
 
 
 <!-- SUBSECTION_BEGIN: git-flow-6 -->
-___
+<a id="git-flow-6"></a>
 ### git-flow-6 `bugfix/<issue-id>`
 Один баг — одна ветка. Отпочковывается от `dev`, сливается
 обратно в `dev`. Используется, когда баг не в проде, а в
@@ -189,6 +211,8 @@ git checkout -b bugfix/123-empty-positions-list
 # ... фикс ...
 git push -u origin bugfix/123-empty-positions-list
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-6 -->
 
 
@@ -201,7 +225,7 @@ git push -u origin bugfix/123-empty-positions-list
 
 
 <!-- SUBSECTION_BEGIN: git-flow-7 -->
-___
+<a id="git-flow-7"></a>
 ### git-flow-7 `release/vX.Y.Z`
 Стабилизация перед релизом. Отпочковывается от `dev`, когда
 все фичи для релиза готовы. Сливается в `master` с тегом.
@@ -223,6 +247,8 @@ git push -u origin release/v1.1.0
 # PR release/v1.1.0 -> master через web
 # После merge: тег, затем обратный merge master -> dev
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-7 -->
 
 
@@ -235,7 +261,7 @@ git push -u origin release/v1.1.0
 
 
 <!-- SUBSECTION_BEGIN: git-flow-8 -->
-___
+<a id="git-flow-8"></a>
 ### git-flow-8 `hotfix/vX.Y.Z`
 Экстренный фикс прода. Отпочковывается от **тега** на
 `master` (не от `master`-ветки — именно от проблемной
@@ -273,7 +299,7 @@ git push -u origin hotfix/v1.0.1
 
 
 <!-- SUBSECTION_BEGIN: git-flow-9 -->
-___
+<a id="git-flow-9"></a>
 ### git-flow-9 Работа над фичами
 Разработчики создают `feature/*` от `dev`, вливают через PR.
 
@@ -284,6 +310,8 @@ git checkout -b feature/<name>
 git push -u origin feature/<name>
 # PR feature/<name> -> dev
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-9 -->
 
 
@@ -296,7 +324,7 @@ git push -u origin feature/<name>
 
 
 <!-- SUBSECTION_BEGIN: git-flow-10 -->
-___
+<a id="git-flow-10"></a>
 ### git-flow-10 Срез `release/*`
 Когда все фичи для релиза в `dev`, создаётся release-ветка.
 
@@ -305,6 +333,8 @@ git checkout dev && git pull
 git checkout -b release/v1.1.0
 git push -u origin release/v1.1.0
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-10 -->
 
 
@@ -317,10 +347,12 @@ git push -u origin release/v1.1.0
 
 
 <!-- SUBSECTION_BEGIN: git-flow-11 -->
-___
+<a id="git-flow-11"></a>
 ### git-flow-11 Стабилизация
 Только фиксы. Каждый фикс — отдельный коммит в
 `release/v1.1.0`.
+
+---
 <!-- SUBSECTION_END: git-flow-11 -->
 
 
@@ -333,7 +365,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: git-flow-12 -->
-___
+<a id="git-flow-12"></a>
 ### git-flow-12 Merge в `master`
 ```bash
 # PR release/v1.1.0 -> master через web (Merge commit)
@@ -344,6 +376,8 @@ git push origin v1.1.0
 
 CI на тег запускает `release.yml`: сборка release APK,
 публикация в GitHub Releases.
+
+---
 <!-- SUBSECTION_END: git-flow-12 -->
 
 
@@ -356,7 +390,7 @@ CI на тег запускает `release.yml`: сборка release APK,
 
 
 <!-- SUBSECTION_BEGIN: git-flow-13 -->
-___
+<a id="git-flow-13"></a>
 ### git-flow-13 Обратный merge в `dev`
 Чтобы фиксы стабилизации не потерялись при следующем
 релизе.
@@ -402,7 +436,7 @@ gitGraph
 
 
 <!-- SUBSECTION_BEGIN: git-flow-14 -->
-___
+<a id="git-flow-14"></a>
 ### git-flow-14 Диаграмма — gitGraph
 ```mermaid
 gitGraph
@@ -415,6 +449,8 @@ gitGraph
     checkout dev
     merge hotfix/v1.0.1
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-14 -->
 
 
@@ -427,7 +463,7 @@ gitGraph
 
 
 <!-- SUBSECTION_BEGIN: git-flow-15 -->
-___
+<a id="git-flow-15"></a>
 ### git-flow-15 Диаграмма — flowchart
 ```mermaid
 flowchart LR
@@ -437,6 +473,8 @@ flowchart LR
     H -->|PR + Merge commit<br/>чтобы баг не вернулся| D[dev]
     M -->|публикация| P[GitHub Release]
 ```
+
+---
 <!-- SUBSECTION_END: git-flow-15 -->
 
 
@@ -449,7 +487,7 @@ flowchart LR
 
 
 <!-- SUBSECTION_BEGIN: git-flow-16 -->
-___
+<a id="git-flow-16"></a>
 ### git-flow-16 Шаги
 1. **Срез от тега.**
 
@@ -497,7 +535,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: git-flow-17 -->
-___
+<a id="git-flow-17"></a>
 ### git-flow-17 Имя ветки `dev` вместо `develop`
 **Канон:** `develop`.
 
@@ -512,6 +550,8 @@ workflows, документации, локальных ветвей у всех
 `git-flow`) имя базовой ветки по умолчанию `develop` — при
 использовании плагина переопределяется флагом
 (`git flow init -d` с указанием `dev`).
+
+---
 <!-- SUBSECTION_END: git-flow-17 -->
 
 
@@ -524,7 +564,7 @@ workflows, документации, локальных ветвей у всех
 
 
 <!-- SUBSECTION_BEGIN: git-flow-18 -->
-___
+<a id="git-flow-18"></a>
 ### git-flow-18 Merge commit везде, без Squash
 **Канон:** Squash и merge для feature-ветвей — «схлопнуть
 50 коммитов в один чистый». Rebase — линейная история.
@@ -552,7 +592,23 @@ SHA коммитов из `feature/*`, ветки не расходятся,
 
 
 
+
+
+
+
+
+
 <!-- SECTION_END: git-flow -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: git-flow -->
 ## Защита веток и тегов
 
@@ -568,7 +624,26 @@ Maintainers.
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: git-flow -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: git-flow -->
 ## Связанные документы
 
@@ -586,4 +661,23 @@ Maintainers.
   воспроизводятся по индустриальным стандартам.
 
 
+
+
+
+
+
+
+
+
 <!-- SECTION_END: git-flow -->
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->
