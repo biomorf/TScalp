@@ -126,6 +126,7 @@ class PortfolioViewModel
         }
 
         fun loadPortfolio() {
+            if (_uiState.value.isLoading) return
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }
                 val sandbox = sandboxPreferencesRepository.isSandboxMode()
@@ -236,7 +237,6 @@ class PortfolioViewModel
 
         fun payInSandbox(accountId: String) {
             viewModelScope.launch {
-                _uiState.update { it.copy(isLoading = true) }
                 logger.d(TAG, "Пополнение счёта $accountId через ${BrokerName.TINVEST.displayName}")
 
                 when (
@@ -260,6 +260,6 @@ class PortfolioViewModel
         }
 
         fun refresh() {
-            viewModelScope.launch { loadPortfolio() }
+            loadPortfolio()
         }
     }

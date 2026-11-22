@@ -15,9 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import com.gitlab.biomorf.tscalp.presentation.components.ApiNotInitializedCard
 import com.gitlab.biomorf.tscalp.presentation.components.StatusEventEffect
 import com.gitlab.biomorf.tscalp.presentation.components.StatusSnackbarHost
@@ -34,11 +31,8 @@ fun PortfolioScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            viewModel.refresh()
-        }
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
     }
 
     LaunchedEffect(uiState.isLoading) {
