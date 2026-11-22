@@ -30,6 +30,7 @@
 | `run-local-gate.sh` | Локальный гейт desktop: ktlint, lint, detekt, unit-тесты, Roborazzi verify | `--no-build-cache` | `bash AGENTS/scripts/run-local-gate.sh` |
 | `docs_lint.py` | Гейт канона: 17 проверок §6 + ссылки, trailing ws, fence parity | `--all` (область), `--changed`, `--file <path>` | `python3 AGENTS/scripts/docs_lint.py --all` |
 | `docs_canon_lib.py` | Общая библиотека правил — не запускается, только импорт | — | `from docs_canon_lib import expected_token` |
+| `inline.sh` | Каркас inline-блоков (`r4i`): тело со stdin исполняется отдельным `bash`, вывод в лог, `RC`, `wc -l` | `--log`, `--keep` | `bash AGENTS/scripts/inline.sh <<'BASH_END' … BASH_END` |
 
 Одноразовые скрипты лежат в `AGENTS/scripts/oneoff/`; в таблицу выше не входят, повторно не запускаются (уже применены): `seed_markers.py`, `seed_markers_docs.py`.
 `WARN: normalize deviations in target` у `docs_add.py` — ожидаемо при вставке в конец файла: нормализатор правит отступы на стыке с `SECTION_END`, а записывается уже нормализованный текст.
