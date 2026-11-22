@@ -125,13 +125,13 @@ backup) — в `/tmp/`. Если `/tmp/` не writable — `${HOME}/tmp/`.
 в ответе ассистента **строится по шаблону** из этого раздела
 («Шаблон 1» / «Шаблон 2» / «Шаблон 4»), **не переписывается по
 памяти**. Запрещено:
-- Заменять `} 2>&1 | tee "$HOME/deepseek-chat.txt"` на
-  `} > "$HOME/deepseek-chat.txt" 2>&1` — без `tee` нет
-  одновременного вывода в терминал и файл.
 - Забывать закрывающий `BASH_END` — терминал **зависает**,
   ожидая ввод; пользователь видит «жду ввода» и нажимает `^C`.
-- Пропускать `RC=${PIPESTATUS[0]}` и `exit $RC` — теряется
-  exit-код, скрипт «успешен» даже при падении.
+- Дублировать каркас в теле (`tee`, `RC`, `wc`, `exit`) — он
+  уже внутри `inline.sh`; двойной `tee` перезаписывает лог,
+  двойной `exit` съедает метаданные.
+- Отключать `-e` в шапке вместо `set +e` вокруг вызова —
+  теряются все остальные проверки тела (инцидент 44).
 - Импровизировать regex/line-based правки без **диагностики
   по факту** (3 подряд сломанных apply на ROADMAP — цена
   импровизации).
@@ -148,70 +148,71 @@ backup) — в `/tmp/`. Если `/tmp/` не writable — `${HOME}/tmp/`.
 инциденты 41 (`mv` без `-f`), 42 (`.tmp` в коммите), 43
 (потеря `MSGEOF`), 44 (продолжение после падения).
 
+**Тело — обычный скрипт.** `set -euo pipefail` + команды. Тело
+самодостаточно: без обёртки запускается так же (см. «Запуск»).
+
+**Запуск — две равноправные формы.**
+
+    bash AGENTS/scripts/inline.sh << 'BASH_END'
+    set -euo pipefail
+    <тело>
+    BASH_END
+
+    bash << 'BASH_END'
+    set -euo pipefail
+    <тело>
+    BASH_END
+
+`inline.sh` добавляет только каркас: `tee` в
+`$HOME/deepseek-chat.txt`, `RC`, `echo&&echo "---"`, `wc -l`,
+`exit $RC`. Тело исполняется отдельным `bash`: `exit` и `cd`
+внутри тела не задевают обёртку, код возврата тела — код блока.
+Без скрипта (вторая форма) результат тот же — нет только лога и
+метаданных. Опции: `--log <file>`, `--keep`.
+
+**Захват кода возврата.** Если код нужен (`GATE=$?`), `-e`
+снимается **только вокруг вызова**, а не в шапке:
+
+    set +e
+    <command>
+    CODE=$?
+    set -e
+
 **Шаблон 1 — единый интерактивный блок** (4c + 4d + 4f + 4g):
 правка файла, git-операция, read-only диагностика.
 
-    bash << 'BASH_END'
-    set -uo pipefail
-    {
-      set -euo pipefail
-      echo&&echo "---"
-      <commands>
-    } 2>&1 | tee "$HOME/deepseek-chat.txt"
-    RC=${PIPESTATUS[0]}
+    bash AGENTS/scripts/inline.sh << 'BASH_END'
+    set -euo pipefail
     echo&&echo "---"
-    wc -l "$HOME/deepseek-chat.txt"
-    exit $RC
+    <commands>
+    echo
+    echo "--- verify ---"
+    <verify>
     BASH_END
 
-- `-e` в шапке — нет (см. «Форматирование блоков»).
-- `-e` внутри группы — падение команды останавливает группу
-  немедленно (инцидент 44).
-- `RC=${PIPESTATUS[0]}` — exit-код группы, не `tee`.
-- `exit $RC` — после `echo&&echo` и `wc`.
-- `tee` — в `$HOME/deepseek-chat.txt` (перезапись, фиксированный
-  файл): одновременно в терминал и в файл.
+- `-e` в теле — обязателен; в шапке не отключается.
+- нужен код возврата — `set +e` вокруг вызова, `CODE=$?`,
+  затем `set -e` (см. «Захват кода возврата»).
+- `tee` / `RC` / `wc` / `exit` в теле не пишутся — их делает
+  `inline.sh`.
+- `verify` — в том же блоке (4c), после пустого `echo` и
+  `--- verify ---`.
 
 Для правки через `python3` — та же структура: `python3 <<'PYEOF'`
-с pre-assert + post-assert (4d) внутри группы.
+с pre-assert + post-assert (4d) внутри тела.
 
-**Шаблон 2 — гейт** (4f, блок 2):
+**Шаблон 2 — гейт и коммит — скрипт `gate-commit.sh`** (4f, блок 2):
 
-    bash << 'BASH_END'
-    set -uo pipefail
-    ./gradlew :app:clean :app:ktlintCheck :app:lintDebug :app:detekt :app:testDebugUnitTest --continue --rerun-tasks > /tmp/gate.log 2>&1
-    GATE=$?
-    {
-      set -euo pipefail
-      echo&&echo "---"
-      echo "gate exit=$GATE"
-      grep -E '\[warn\]|\[error\]|^w:|^e:|FAILED|BUILD|\.kt:[0-9]+:[0-9]+' /tmp/gate.log || true
-      echo "---"
-      tail -3 /tmp/gate.log
-      if [ "$GATE" -eq 0 ]; then
-        git add <files>
-        git commit -F "$HOME/.msg.txt"
-        if [ "$BRANCH" = "dev" ] || [ "$BRANCH" = "master" ]; then
-          git push origin "$BRANCH"
-          echo "PUSHED to origin $BRANCH"
-        else
-          echo "COMMITTED (not pushed — batch before PR, 4f)"
-        fi
-      else
-        echo "GATE RED — commit/push skipped"
-        exit 1
-      fi
-    } 2>&1 | tee "$HOME/deepseek-chat.txt"
-    RC=${PIPESTATUS[0]}
-    echo&&echo "---"
-    wc -l "$HOME/deepseek-chat.txt"
-    exit $RC
-    BASH_END
+    bash AGENTS/scripts/gate-commit.sh --msg-file "$HOME/.msg.txt" \
+      --files docs/a.md docs/b.md --push
 
-- `./gradlew` — **до** группы (иначе pipe с `tee` — 4e).
-- `GATE=$?` — сразу после gradlew.
-- `grep ... || true` — `set -e` иначе убьёт группу на пустом grep.
-- `exit 1` в `else` — GATE RED сигнализируется и на shell-уровне.
+- `gate-commit.sh` — единственное место, где живёт `gradlew`-гейт
+  и логика «красный → коммита нет». Руками этот блок не пишется.
+- Гейт внутри — `run-local-gate.sh` (desktop: ktlint, lint, detekt,
+  unit-тесты, Roborazzi); на телефоне гейт — CI.
+- `--files` — только явный список (4g); `--push` — только явно.
+- Сообщение коммита готовится до вызова: `printf` в
+  `$HOME/.msg.txt` (урок 43); кириллицу проверяет сам скрипт.
 - `<branch>` — имя текущей ветки. Для `dev` / `master` —
   push после коммита; для feature (desktop) — **не пушим**
   (`COMMITTED (not pushed — batch before PR)`, 4f), push
@@ -221,10 +222,10 @@ backup) — в `/tmp/`. Если `/tmp/` не writable — `${HOME}/tmp/`.
 На телефоне (proot) — `printf` для commit message (урок 43),
 не `<<'MSGEOF'`.
 
-**Шаблон 3 — диагностика** — покрыт «Шаблон 1» (единый
-интерактивный блок): read-only команды (`grep`, `wc`,
-`git diff`, `git log`) идут в группу как `<commands>`, вывод —
-в `tee "$HOME/deepseek-chat.txt"`. Отдельный шаблон не нужен.
+**Шаблон 3 — диагностика** — покрыт «Шаблон 1» (единый блок):
+read-only команды (`grep`, `wc`, `git diff`, `git log`) идут в
+тело как `<commands>`, вывод — в `$HOME/deepseek-chat.txt` через
+`inline.sh`. Отдельный шаблон не нужен.
 
 **Шаблон 4 — workflow: правки → пауза → сохранение** (4f):
 
@@ -236,26 +237,23 @@ backup) — в `/tmp/`. Если `/tmp/` не writable — `${HOME}/tmp/`.
 без гейта: `git add` → `git commit` → `git push origin <branch>`
 («Шаблон 1», единый).
 
-Реализация блока 2 (когда гейт нужен) — «Шаблон 2» (гейт).
+Реализация блока 2, когда нужен гейт desktop, — `gate-commit.sh`
+(«Шаблон 2»): гейт, сверка индекса, коммит, push по `--push`.
 Реализация блока 1 (правки/verify) — «Шаблон 1» (единый).
 
 **Форматирование блоков.**
 
 - Каждый `&&` — на отдельной строке (вертикальное чтение).
   Не в конце предыдущей строки.
-- Единый шаблон (см. «Шаблон 1» в 4i): `bash << 'BASH_END'` +
-  `set -uo pipefail` (без `-e`) + `{ set -euo pipefail; ... }`
-  (с `-e` внутри группы) + `2>&1 | tee "$HOME/deepseek-chat.txt"`
-  + `RC=${PIPESTATUS[0]}` + `echo&&echo "---"` + `wc -l` +
-  `exit $RC` в конце.
-  - `-e` **в шапке запрещён**: `set -e` + `pipefail` убьют
-    скрипт до `RC=${PIPESTATUS[0]}` — exit-код группы
-    потеряется.
-  - `-e` **внутри группы обязателен**: падение команды
-    останавливает группу (инцидент 44).
-  - `RC=${PIPESTATUS[0]}` — exit-код группы, не `tee`.
-  - `exit $RC` — **после** `echo&&echo` и `wc`: `exit` в
-    начале съест вывод и счётчик.
+- Единый запуск (см. «Шаблон 1» в 4i): `bash AGENTS/scripts/inline.sh
+  << 'BASH_END'` + тело с `set -euo pipefail`. Каркас (`tee`,
+  `RC=${PIPESTATUS[0]}`, `echo&&echo "---"`, `wc -l`, `exit $RC`)
+  живёт в `inline.sh`; в теле не дублируется.
+  - `-e` **в теле обязателен** и в шапке не отключается
+    (инцидент 44). Нужен код возврата — `set +e` вокруг
+    вызова, затем `set -e` (см. «Захват кода возврата»).
+  - `RC` и `exit` в теле не пишутся: `exit` завершает только
+    тело, каркас печатает код и метаданные.
   - `bash -c "..."` — альтернатива, только если внутри нет
     `$`-интерполяции (`$HOME`, `$(...)`, `${VAR}`): в двойных
     кавычках родительский shell подставит значения до передачи
@@ -263,26 +261,27 @@ backup) — в `/tmp/`. Если `/tmp/` не writable — `${HOME}/tmp/`.
     одинарных кавычек в теле (AGENTS-LESSONS урок 51).
 - Перед закрывающим якорем heredoc — `echo&&echo "---"`
   (две пустые строки, затем `---`): визуальная граница между
-  выводом скрипта и shell-промптом. Одна такая же строка —
-  в начале группы (до первого `echo`).
+  выводом скрипта и shell-промптом. Такая же строка — в начале
+  тела (до первой команды).
 - Вывод скрипта — в `$HOME/deepseek-chat.txt` через `tee`
   (фиксированный файл, перезапись): одновременно в терминал
   и в файл. `wc -l` после `echo&&echo` — метаданные. Для
   read-only диагностики — то же самое (отдельного шаблона нет).
-- **Гейт-блок (4f, блок 2) — особенность:** `./gradlew` идёт
-  **до** группы (иначе pipe с `tee` — 4e); `GATE=$?` сразу
-  после; `grep ... || true` (иначе `set -e` убьёт группу на
-  пустом grep); `exit 1` в `else` — GATE RED на shell-уровне.
-  Пример — «Шаблон 2» в 4i.
+- **Гейт-блок (4f, блок 2)** — не пишется в теле: это вызов
+  `gate-commit.sh` («Шаблон 2»). `./gradlew`, `GATE=$?`, фильтр
+  `grep ... || true` и `exit 1` живут внутри скрипта.
 - Перед строкой `--- verify ---` — пустая строка (в bash
   и python-блоках). В bash-выводе задаётся пустым `echo` перед `echo "--- verify ---"`. Визуальная граница «правки / проверка».
 
 **Чек-лист перед отправкой скрипта:**
 
 - разделён на блок 1 (правки) и блок 2 (сохранение) — 4f;
-- `set -uo pipefail` в шапке, `set -euo pipefail` внутри группы — есть;
-- `2>&1 | tee "$HOME/deepseek-chat.txt"` + `RC=${PIPESTATUS[0]}` +
-  `exit $RC` после `echo&&echo` и `wc` — есть;
+- `set -euo pipefail` в теле — есть;
+- запуск через `bash AGENTS/scripts/inline.sh << 'BASH_END'`;
+  каркас (`tee`, `RC`, `wc`, `exit`) в теле не дублируется;
+- тело работает и без обёртки: `bash << 'BASH_END'` даёт тот же
+  результат;
+- захват кода — `set +e` вокруг вызова, затем `set -e`;
 - пути и файлы — явные (4g);
 - pre-assert + post-assert — оба с сообщением (4d, урок 27);
 - маркер post-assert уникален (4d);

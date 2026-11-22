@@ -20,7 +20,7 @@ LOG=/tmp/gate.log
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --no-build-cache) NO_BUILD_CACHE=1; shift ;;
-    --keep) KEEP=1 ;;
+    --keep) KEEP=1; shift ;;
     --log) LOG="$2"; shift 2 ;;
     -h|--help)
       echo "usage: $0 [--no-build-cache] [--keep] [--log <path>]"
