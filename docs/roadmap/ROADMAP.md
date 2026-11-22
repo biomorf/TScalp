@@ -39,11 +39,11 @@
 |---|---|---|---|---|
 | WIP | T-3 | Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | `docs/roadmap/ROADMAP-wip.md` | [#t-3](ROADMAP-wip.md#t-3) |
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` | [#t-33](ROADMAP-wip.md#t-33) |
+| WIP | T-9 | PortfolioScreen: double-load + TradingStatusFlowManager | `docs/roadmap/ROADMAP-wip.md` | [#t-9](ROADMAP-wip.md#t-9) |
 | PLAN | T-4 | Rate-limiter: GetUserTariff (dynamic limits) | `docs/roadmap/ROADMAP-plan.md` | [#t-4](ROADMAP-plan.md#t-4) |
 | PLAN | T-50 | docs_add: вставка в начало раздела | `docs/roadmap/ROADMAP-plan.md` | [#t-50](ROADMAP-plan.md#t-50) |
 | PLAN | T-41 | Orders: миграция tradingStatuses на TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` | [#t-41](ROADMAP-plan.md#t-41) |
 | PLAN | T-42 | TradingStatus: stream API (subscribeTradingStatuses) | `docs/roadmap/ROADMAP-plan.md` | [#t-42](ROADMAP-plan.md#t-42) |
-| PLAN | T-9 | PortfolioScreen: double-load + TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` | [#t-9](ROADMAP-plan.md#t-9) |
 | PLAN | T-10 | TInvest*Service + *Api: unary → AppResult | `docs/roadmap/ROADMAP-plan.md` | [#t-10](ROADMAP-plan.md#t-10) |
 | PLAN | T-11 | C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing) | `docs/roadmap/ROADMAP-plan.md` | [#t-11](ROADMAP-plan.md#t-11) |
 | PLAN | T-12 | Архитектурный документ (docs/architecture.md) | `docs/roadmap/ROADMAP-plan.md` | [#t-12](ROADMAP-plan.md#t-12) |
