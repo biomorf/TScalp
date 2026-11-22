@@ -90,7 +90,7 @@ echo
 
 if [ -n "$TASK" ]; then
   echo "=== 8. ROADMAP check for $TASK (docs_lint) ==="
-  if python3 AGENTS/scripts/docs_lint.py --task "$TASK"; then
+  if python3 AGENTS/scripts/docs_lint.py --require-done "$TASK"; then
     echo "  OK: $TASK state accepted"
   else
     echo "  ERROR: mark done missing for $TASK" >&2

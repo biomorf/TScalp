@@ -6,6 +6,8 @@ Modes:
                  and the root pointers
   --changed      .md files changed vs HEAD plus untracked ones
   --file PATH    a single file
+  --task-state   where a task lives and whether its status matches the file token
+  --require-done fail unless the task is [DONE] or carries Подтверждение
 
 Exit: 0 = all checks pass, 1 = at least one FAIL.
 """
@@ -27,6 +29,7 @@ from docs_canon_lib import (
     PREFIX_RE,
     ROADMAP_TOKENS,
     STATUS_RE,
+    TOKEN_BY_FILE,
     TOKEN_STATUS,
     expected_token,
     find_block,
@@ -313,8 +316,8 @@ def check_next_id(path: str) -> list[str]:
     return []
 
 
-def check_task_state(task: str) -> list[str]:
-    """Closed task lives in the archive; deferred one carries a Подтверждение field."""
+def check_task_done(task: str) -> list[str]:
+    """Closed task lives in *-done.md; deferred one carries a Подтверждение field."""
     tid = task.lower()
     for name in ("ROADMAP-done.md", "ci-roadmap-done.md"):
         p = Path("docs/roadmap") / name
@@ -343,10 +346,53 @@ def check_task_state(task: str) -> list[str]:
     return [f"task {task}: not in *-done.md and no Подтверждение field"]
 
 
+TASK_STATUS_FILES = (
+    "ROADMAP-wip.md",
+    "ROADMAP-plan.md",
+    "ROADMAP-defer.md",
+    "ROADMAP-done.md",
+    "ci-roadmap-wip.md",
+    "ci-roadmap-plan.md",
+    "ci-roadmap-defer.md",
+    "ci-roadmap-done.md",
+)
+
+
+def check_task_state(task: str) -> tuple[list[str], str]:
+    """Locate the task and compare its heading and status line with the file token."""
+    tid = task.lower()
+    for name in TASK_STATUS_FILES:
+        p = Path("docs/roadmap") / name
+        if not p.exists():
+            continue
+        lines = p.read_text(encoding="utf-8").split("\n")
+        try:
+            b, e = find_block(lines, tid)
+        except ValueError:
+            continue
+        block = lines[b:e]
+        token = TOKEN_BY_FILE.get(name, "")
+        want = TOKEN_STATUS.get(token, "")
+        heading = next((l for l in block if l.startswith("### ")), "")
+        ms = next((m for m in (STATUS_RE.match(l) for l in block) if m), None)
+        got = ms.group(1).strip() if ms else ""
+        where = f"{name}, token {token}"
+        errs: list[str] = []
+        if not heading:
+            errs.append(f"{name}: heading not found")
+        elif not heading.startswith(f"### [{token}]"):
+            errs.append(f"{name}: heading is not [{token}]: {heading[:60]!r}")
+        if want and not got.lower().startswith(want):
+            errs.append(f"{name}: status {got[:60]!r} != token {token} ({want!r})")
+        return errs, where
+    return [f"task {task}: not found in wip, plan, defer or done"], ""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Docs gate: markdown canon checks. SSoT: docs/docs-structure.md",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
         epilog=(
             "Examples:\n"
             "  %(prog)s --all\n"
@@ -358,16 +404,28 @@ def main() -> int:
     g.add_argument("--all", action="store_true", help="canonical scope (default)")
     g.add_argument("--changed", action="store_true", help="changed and untracked .md files")
     g.add_argument("--file", help="single file")
-    g.add_argument("--task", help="verify ROADMAP state for a task id, e.g. T-45")
+    g.add_argument("--task-state",
+                   help="show where a task lives and whether its status matches the file token")
+    g.add_argument("--require-done",
+                   help="fail unless the task is [DONE] in *-done.md or carries Подтверждение")
     args = ap.parse_args()
 
-    if args.task:
-        errs = check_task_state(args.task)
+    if args.task_state:
+        errs, where = check_task_state(args.task_state)
         for e in errs:
             print(f"FAIL {e}")
         if errs:
             return 1
-        print(f"OK {args.task}: state accepted")
+        print(f"OK {args.task_state}: state accepted ({where})")
+        return 0
+
+    if args.require_done:
+        errs = check_task_done(args.require_done)
+        for e in errs:
+            print(f"FAIL {e}")
+        if errs:
+            return 1
+        print(f"OK {args.require_done}: state accepted")
         return 0
 
     if args.file:
