@@ -10,27 +10,40 @@
 Первый ответ ассистента после получения файлов **обязан**
 начаться с блока-оглашения:
 
-    **Маркеры прочитанного:**
-    - AGENTS/AGENTS-preamble.md:
-      - FILE_BEGIN: ✓ / ✗
-      - FILE_END: ✓ / ✗
-    - AGENTS/AGENTS-docs.md:
-      - FILE_BEGIN: ✓ / ✗
-      - FILE_END: ✓ / ✗
-    - AGENTS/AGENTS-report.md:
-      - FILE_BEGIN: ✓ / ✗
-      - FILE_END: ✓ / ✗
-    - AGENTS/AGENTS-LESSONS-preamble.md:
-      - FILE_BEGIN: ✓ / ✗
-      - FILE_END: ✓ / ✗
-    - AGENTS/AGENTS-LESSONS-docs.md:
-      - FILE_BEGIN: ✓ / ✗
-      - FILE_END: ✓ / ✗
-    - AGENTS/AGENTS-LESSONS-*.md (все):
-      - FILE_BEGIN: ✓ / ✗
-      - FILE_END: ✓ / ✗
-      - SECTION_END (видел): <исчерпывающий список>
-      - SECTION_BEGIN без SECTION_END: <id> (обрыв внутри)
+    **Маркеры прочитанного** (перечень — `AGENTS/AGENTS-docs.md` → `docs-gate`):
+
+    Директивные файлы:
+    - AGENTS/AGENTS-preamble.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-comm.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-forbidden.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-style-core.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-style-docs.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-style-git.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-code.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-project-docs.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-evolution.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-integrity.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-docs.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-report.md: FILE_BEGIN / FILE_END
+
+    Файлы LESSONS (перечень — `AGENTS/AGENTS-LESSONS-docs.md`):
+    - AGENTS/AGENTS-LESSONS-preamble.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-docs.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-scripts.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-kotlin.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-diagnostics.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-clean-audit.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-ui.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-ci.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-estimates.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-process.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-application.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-structure.md: FILE_BEGIN / FILE_END
+    - AGENTS/AGENTS-LESSONS-template.md: FILE_BEGIN / FILE_END
+
+    Для файлов LESSONS дополнительно:
+    - SECTION_END (видел): <исчерпывающий список>
+    - SECTION_BEGIN без SECTION_END: <id> (обрыв внутри)
 
 `✓` — маркер виден в полученном тексте; `✗` — не виден.
 `SECTION_END` — только фактически видимые. `SECTION_BEGIN

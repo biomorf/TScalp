@@ -38,6 +38,9 @@
   (start/feature, stash, reset --hard, revert).
 - **`AGENTS-LESSONS-application.md`** — уроки по применению
   (merge origin/dev, 4f, 5f-freeze, test → feature).
+- **`AGENTS-LESSONS-structure.md`** — структура файла уроков
+  (тематические разделы; куда писать новую запись).
+- **`AGENTS-LESSONS-template.md`** — шаблон записи урока.
 
 ---
 <!-- SUBSECTION_END: l-docs-obligatory-files -->

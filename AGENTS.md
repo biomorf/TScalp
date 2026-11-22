@@ -17,17 +17,9 @@
 <!-- SECTION_BEGIN: reading-gate -->
 ## Обязательное чтение (гейт запуска)
 
-До любой работы — по порядку:
-
-1. `AGENTS/AGENTS-preamble.md` — обязательства и рамка директив.
-2. `AGENTS/AGENTS-docs.md` — обязательные файлы проекта и формат отчёта.
-3. `AGENTS/AGENTS-LESSONS-preamble.md` — обязательства и рамка уроков.
-4. `AGENTS/AGENTS-LESSONS-docs.md` — обязательные файлы LESSONS и формат отчёта.
-`AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении.
-5. Выдать отчёт по формату из `AGENTS/AGENTS-docs.md` и
-   `AGENTS/AGENTS-LESSONS-docs.md`.
-
-Без шагов 1–5 работа не начинается.
+Перечень файлов и порядок чтения — `AGENTS/AGENTS-docs.md` →
+`docs-gate`. Набор уроков — `AGENTS/AGENTS-LESSONS-docs.md`. Отчёт —
+`AGENTS/AGENTS-report.md`. Без отчёта работа не начинается.
 
 Справочник подразделов — в каноническом индексе `AGENTS/AGENTS.md`; здесь не дублируется (docs-structure §5).
 

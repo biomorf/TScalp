@@ -46,6 +46,42 @@
 
 
 
+<!-- SUBSECTION_BEGIN: docs-gate -->
+<a id="docs-gate"></a>
+### [AGENTS] docs-gate Область гейта
+**Область гейта.** Гейт покрывает **все** `AGENTS/AGENTS-*.md`, кроме двух
+индексов — `AGENTS/AGENTS.md` и `AGENTS/AGENTS-LESSONS.md` (собираются
+`docs_rebuild_index.py`, читаются по необходимости). Новый директивный файл
+обязан быть добавлен в перечень ниже в том же коммите; иначе `docs_lint.py`
+падает `FAIL: gate missing <file>`.
+
+**Перечень (по порядку чтения):**
+
+1. `AGENTS-preamble.md`, `AGENTS-comm.md`, `AGENTS-forbidden.md` — рамка,
+   коммуникация, запреты.
+2. `AGENTS-style-core.md`, `AGENTS-style-docs.md`, `AGENTS-style-git.md` —
+   правила 1–5 (`2c`, `2e`, `3a`/`3b`, `4a`–`4k`, `5`, `5a`–`5g`).
+3. `AGENTS-code.md`, `AGENTS-project-docs.md`, `AGENTS-evolution.md`,
+   `AGENTS-integrity.md` — код, документы, эволюция директив, маркеры.
+4. `AGENTS-docs.md` (этот файл), `AGENTS-report.md` — что читать и как
+   отчитываться.
+5. Набор LESSONS — по `AGENTS-LESSONS-docs.md`.
+
+**Отчёт** — по формату `AGENTS/AGENTS-report.md`; шаблон обязан покрывать
+каждый файл из перечня.
+
+---
+<!-- SUBSECTION_END: docs-gate -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: docs -->
 
 

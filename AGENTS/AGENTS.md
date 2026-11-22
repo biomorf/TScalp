@@ -2,14 +2,9 @@
 <!-- SECTION_BEGIN: mandatory-reading -->
 ## Обязательное чтение (гейт запуска)
 
-До любой работы — по порядку:
-
-1. `AGENTS/AGENTS-preamble.md` — обязательства и рамка директив.
-2. `AGENTS/AGENTS-docs.md` — обязательные файлы проекта и формат отчёта.
-3. `AGENTS/AGENTS-LESSONS-preamble.md` — обязательства и рамка уроков.
-4. `AGENTS/AGENTS-LESSONS-docs.md` — обязательные файлы LESSONS и формат отчёта.
-`AGENTS/AGENTS-report.md` — единый формат отчёта о прочтении.
-5. Отчёт по формату из `AGENTS/AGENTS-docs.md` и `AGENTS/AGENTS-LESSONS-docs.md`.
+Перечень файлов и порядок чтения — `AGENTS/AGENTS-docs.md` →
+`docs-gate`. Набор уроков — `AGENTS/AGENTS-LESSONS-docs.md`. Отчёт —
+`AGENTS/AGENTS-report.md`. Без отчёта работа не начинается.
 
 ---
 
@@ -49,6 +44,7 @@
 | AGENTS | code-git-workflow-origin | Git workflow: синхронизация с origin | `AGENTS/AGENTS-code.md` | [#code-git-workflow-origin](AGENTS-code.md#code-git-workflow-origin) |
 | AGENTS | code-git-workflow-pr | Git workflow: ветки и PR | `AGENTS/AGENTS-code.md` | [#code-git-workflow-pr](AGENTS-code.md#code-git-workflow-pr) |
 | AGENTS | docs-report | Формат отчёта | `AGENTS/AGENTS-docs.md` | [#docs-report](AGENTS-docs.md#docs-report) |
+| AGENTS | docs-gate | Область гейта | `AGENTS/AGENTS-docs.md` | [#docs-gate](AGENTS-docs.md#docs-gate) |
 | AGENTS | evolution-priority | Правки директив приоритетнее любой деятельности | `AGENTS/AGENTS-evolution.md` | [#evolution-priority](AGENTS-evolution.md#evolution-priority) |
 | AGENTS | evolution-workflow | Workflow-находки фиксируются сразу | `AGENTS/AGENTS-evolution.md` | [#evolution-workflow](AGENTS-evolution.md#evolution-workflow) |
 | AGENTS | integrity-report | Формат отчёта | `AGENTS/AGENTS-integrity.md` | [#integrity-report](AGENTS-integrity.md#integrity-report) |
