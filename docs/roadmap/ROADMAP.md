@@ -39,6 +39,7 @@
 |---|---|---|---|---|
 | WIP | T-3 | Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | `docs/roadmap/ROADMAP-wip.md` | [#t-3](ROADMAP-wip.md#t-3) |
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` | [#t-33](ROADMAP-wip.md#t-33) |
+| WIP | T-47 | docs_cut: тело блока и обёртка inline.sh | `docs/roadmap/ROADMAP-wip.md` | [#t-47](ROADMAP-wip.md#t-47) |
 | PLAN | T-4 | Rate-limiter: GetUserTariff (dynamic limits) | `docs/roadmap/ROADMAP-plan.md` | [#t-4](ROADMAP-plan.md#t-4) |
 | PLAN | T-40 | PortfolioUiState: passthrough tradingStatuses StateFlow | `docs/roadmap/ROADMAP-plan.md` | [#t-40](ROADMAP-plan.md#t-40) |
 | PLAN | T-41 | Orders: миграция tradingStatuses на TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` | [#t-41](ROADMAP-plan.md#t-41) |
@@ -49,7 +50,6 @@
 | PLAN | T-12 | Архитектурный документ (docs/architecture.md) | `docs/roadmap/ROADMAP-plan.md` | [#t-12](ROADMAP-plan.md#t-12) |
 | PLAN | T-37 | docs/live-test.md: mobile-ограничения (Robolectric vs device) | `docs/roadmap/ROADMAP-plan.md` | [#t-37](ROADMAP-plan.md#t-37) |
 | PLAN | T-38 | Live-test: C2 Orders form 7 сценариев | `docs/roadmap/ROADMAP-plan.md` | [#t-38](ROADMAP-plan.md#t-38) |
-| PLAN | T-47 | docs_cut: тело блока и обёртка inline.sh | `docs/roadmap/ROADMAP-plan.md` | [#t-47](ROADMAP-plan.md#t-47) |
 | PLAN | T-45 | Миграция docs/*.md под канон | `docs/roadmap/ROADMAP-plan.md` | [#t-45](ROADMAP-plan.md#t-45) |
 | DEFER | T-21 | KMP: domain → commonMain | `docs/roadmap/ROADMAP-defer.md` | [#t-21](ROADMAP-defer.md#t-21) |
 | DEFER | T-22 | Плавный переход Hilt → Koin | `docs/roadmap/ROADMAP-defer.md` | [#t-22](ROADMAP-defer.md#t-22) |
