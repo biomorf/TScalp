@@ -1,7 +1,6 @@
 package com.gitlab.biomorf.tscalp.presentation.screens.portfolio
 
 import com.gitlab.biomorf.tscalp.domain.models.PortfolioSheet
-import com.gitlab.biomorf.tscalp.domain.models.TradingAvailability
 
 /**
  * UI-состояние экрана портфеля.
@@ -19,5 +18,4 @@ data class PortfolioUiState(
     val isLoading: Boolean = false,
     val isApiInitialized: Boolean = false,
     val sandboxMode: Boolean = false,
-    val tradingStatuses: Map<String, TradingAvailability> = emptyMap(),
 )
