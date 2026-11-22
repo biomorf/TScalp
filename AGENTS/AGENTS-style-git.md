@@ -328,10 +328,14 @@ merge-коммит уже появился в `origin/dev`. Причина: ло
    следующей задаче.
 
 **Чек-лист post-PR — скриптом** (r4j: использовать, не переписывать).
-Вызов — тоже bash-блок: **оборачивать по `4i` шаблон 1** (`bash << 'BASH_END'`,
-`tee "$HOME/deepseek-chat.txt"`, `RC`, `wc`, `exit`), не bare-строкой.
+Вызов — тоже bash-блок: **тело по `4i` шаблон 1**, запуск —
+`bash AGENTS/scripts/inline.sh << 'BASH_END'`: каркас (`tee`, `RC`,
+`wc`, `exit`) внутри скрипта, не bare-строкой.
 
+    bash AGENTS/scripts/inline.sh << 'BASH_END'
+    set -euo pipefail
     bash AGENTS/scripts/post-pr.sh <branch> --task T-N
+    BASH_END
 
 `<branch>` — имя смерженной feature-ветки; `--task T-N` — опционально
 (проверить: блок `[DONE] T-N` в `ROADMAP-done.md`, или
@@ -371,7 +375,10 @@ git status                                          # 8
 
     PR смержен. Выполняем post-PR чек-лист:
 
+    bash AGENTS/scripts/inline.sh << 'BASH_END'
+    set -euo pipefail
     bash AGENTS/scripts/post-pr.sh <branch> --task T-N
+    BASH_END
 
     Останавливаюсь. Жду вывода.
 
