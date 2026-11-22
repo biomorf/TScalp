@@ -261,6 +261,73 @@ def check_scripts_readme() -> list[str]:
     return errs
 
 
+GATE_DOCS = Path("AGENTS/AGENTS-docs.md")
+GATE_REPORT = Path("AGENTS/AGENTS-report.md")
+GATED_DIR = Path("AGENTS")
+GATE_INDEXES = ("AGENTS.md", "AGENTS-LESSONS.md")
+GATED_NAME_RE = re.compile(r"`(AGENTS-[A-Za-z0-9-]+\.md)`")
+
+
+def gated_scope() -> list[str]:
+    """Every AGENTS/AGENTS-*.md except the two indexes."""
+    return sorted(
+        f.name
+        for f in GATED_DIR.glob("AGENTS-*.md")
+        if f.is_file() and f.name not in GATE_INDEXES
+    )
+
+
+def _subsection_text(path: Path, sec_id: str) -> str | None:
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8")
+    begin = f"<!-- SUBSECTION_BEGIN: {sec_id} -->"
+    end = f"<!-- SUBSECTION_END: {sec_id} -->"
+    i = text.find(begin)
+    if i < 0:
+        return None
+    j = text.find(end, i)
+    if j < 0:
+        return None
+    return text[i:j]
+
+
+LESSONS_DOCS = Path("AGENTS/AGENTS-LESSONS-docs.md")
+LESSONS_META = ("AGENTS-LESSONS-preamble.md", "AGENTS-LESSONS-docs.md")
+
+
+def _gate_lists() -> tuple[set[str], set[str]]:
+    """(names listed in docs-gate, names listed in the LESSONS obligatory set)."""
+    gate = _subsection_text(GATE_DOCS, "docs-gate") or ""
+    lessons = _subsection_text(LESSONS_DOCS, "l-docs-obligatory-files") or ""
+    return set(GATED_NAME_RE.findall(gate)), set(GATED_NAME_RE.findall(lessons))
+
+
+def check_reading_gate() -> list[str]:
+    """Every rule file must be listed by its family SSoT and in the report template."""
+    sec_gate, sec_lessons = _gate_lists()
+    if not sec_gate:
+        return [f"{GATE_DOCS}: subsection docs-gate missing or empty"]
+    if not sec_lessons:
+        return [f"{LESSONS_DOCS}: subsection l-docs-obligatory-files missing or empty"]
+    scope = set(gated_scope())
+    covered = sec_gate | sec_lessons | set(LESSONS_META)
+    errs = []
+    for n in sorted(scope - covered):
+        where = LESSONS_DOCS if n.startswith("AGENTS-LESSONS-") else GATE_DOCS
+        errs.append(f"gate missing {n} (add to {where})")
+    for n in sorted((sec_gate | sec_lessons) - scope - set(GATE_INDEXES)):
+        errs.append(f"gate lists unknown file {n} (not on disk)")
+    if not GATE_REPORT.exists():
+        errs.append(f"{GATE_REPORT}: missing")
+        return errs
+    rep = GATE_REPORT.read_text(encoding="utf-8")
+    for n in sorted(scope):
+        if f"AGENTS/{n}" not in rep:
+            errs.append(f"{GATE_REPORT}: marker template missing AGENTS/{n}")
+    return errs
+
+
 def check_index_sync() -> list[str]:
     """Index tables must match what docs_rebuild_index would produce."""
     from docs_rebuild_index import MODES, TABLE_HEADER, build_table, collect
@@ -461,6 +528,9 @@ def main() -> int:
 
     for msg in check_scripts_readme():
         per_file.setdefault(SCRIPTS_README, []).append(msg)
+
+    for msg in check_reading_gate():
+        per_file.setdefault(GATE_DOCS, []).append(msg)
 
     for msg in check_index_sync():
         idx = Path(msg.split(":")[0])
