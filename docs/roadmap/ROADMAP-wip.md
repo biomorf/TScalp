@@ -203,7 +203,7 @@ guard не срабатывает, разбираться отдельно.
 **Мобильная работа:** полное закрытие (proot + PR; presentation + domain; гейт на CI).
 
 **Статус:** в работе.
-**Ветка:** feature/t-9-portfolio-double-load.
+**Ветка:** feature/t-9-portfolio-trading-statuses.
 
 **Контекст:** `PortfolioScreen:38-42` — `LaunchedEffect(lifecycleOwner) { repeatOnLifecycle(RESUMED) { refresh() } }` дергает полный `loadPortfolio()` при каждом входе в RESUMED (back-stack, foreground, поворот). Плюс `init { brokerManager.anyInitialized.collect { checkApiInitialization() } }` — ещё один `loadPortfolio()` при первом `anyInitialized` (`PortfolioViewModel:69-75`, `:95-105`). Итог: 2+ полных загрузки на cold start. `refresh()` = `viewModelScope.launch { loadPortfolio() }`, а `loadPortfolio()` сам делает `viewModelScope.launch` — двойной launch (`:262-264`, `:128-129`); retry/backoff отсутствует (см. «Связано»: T-3 sub-5 поглощается T-9; «infinite retry» — баг LaunchedEffect(isLoading), устраняется PR 5a). Дополнительно: `tradingStatuses` в `PortfolioUiState` — своё поле (`PortfolioUiState:22`), VM поллит `while (isActive) { delay(5 min); updateTradingStatuses() }` (`:83-91`) и сам вызывает `marketDataRepository.getTradingStatusesResult` (`:214-235`) — дублирует `UpdateTradingStatusesUseCase` + `TradingStatusRepository` (M2/M5). Orders уже работает passthrough (`OrdersViewModel:70`), Portfolio — нет: два независимых кэша одного значения.
 
@@ -229,6 +229,8 @@ guard не срабатывает, разбираться отдельно.
 - `test/.../domain/api/managers/TradingStatusFlowManagerTest.kt` (новый).
 
 **Шаги (S2 — два PR):**
+
+**Прогресс:** PR 5a merged (PR #174, `7ceacadc`); PR 5b — not started.
 
 **PR 5a (~20-30 мин):**
 1. `PortfolioScreen.kt:38-42`: `LaunchedEffect(lifecycleOwner) { lifecycleOwner.lifecycle.repeatOnLifecycle(RESUMED) { refresh() } }` → `LaunchedEffect(Unit) { viewModel.refresh() }`; импорты `Lifecycle`, `repeatOnLifecycle`, `LocalLifecycleOwner` удалить, если больше не используются.
