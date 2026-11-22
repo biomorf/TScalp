@@ -39,7 +39,6 @@
 |---|---|---|---|---|
 | WIP | T-3 | Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | `docs/roadmap/ROADMAP-wip.md` | [#t-3](ROADMAP-wip.md#t-3) |
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` | [#t-33](ROADMAP-wip.md#t-33) |
-| WIP | T-47 | docs_cut: тело блока и обёртка inline.sh | `docs/roadmap/ROADMAP-wip.md` | [#t-47](ROADMAP-wip.md#t-47) |
 | PLAN | T-4 | Rate-limiter: GetUserTariff (dynamic limits) | `docs/roadmap/ROADMAP-plan.md` | [#t-4](ROADMAP-plan.md#t-4) |
 | PLAN | T-40 | PortfolioUiState: passthrough tradingStatuses StateFlow | `docs/roadmap/ROADMAP-plan.md` | [#t-40](ROADMAP-plan.md#t-40) |
 | PLAN | T-41 | Orders: миграция tradingStatuses на TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` | [#t-41](ROADMAP-plan.md#t-41) |
@@ -73,6 +72,7 @@
 | DEFER | T-28 | P&L: sandbox client-side fallback для Position (низкий приоритет) | `docs/roadmap/ROADMAP-defer.md` | [#t-28](ROADMAP-defer.md#t-28) |
 | DONE | T-13 | Compose UI: test infra + 3 экрана — ✅ done (U0–U4) | `docs/roadmap/ROADMAP-done.md` | [#t-13](ROADMAP-done.md#t-13) |
 | DONE | T-1 | docs/: рефакторинг журналов (ROADMAP, ci-roadmap, ISSUES, clean-audit) | `docs/roadmap/ROADMAP-done.md` | [#t-1](ROADMAP-done.md#t-1) |
+| DONE | T-47 | docs_cut: тело блока и обёртка inline.sh | `docs/roadmap/ROADMAP-done.md` | [#t-47](ROADMAP-done.md#t-47) |
 
 | PLAN | T-40 | PortfolioUiState: passthrough tradingStatuses StateFlow | `docs/roadmap/ROADMAP-plan.md` |
 | PLAN | T-41 | Orders: миграция tradingStatuses на TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` |
