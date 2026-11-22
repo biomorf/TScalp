@@ -39,7 +39,6 @@
 |---|---|---|---|---|
 | WIP | T-3 | Rate-limit umbrella: cold start + search RESOURCE_EXHAUSTED | `docs/roadmap/ROADMAP-wip.md` | [#t-3](ROADMAP-wip.md#t-3) |
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` | [#t-33](ROADMAP-wip.md#t-33) |
-| WIP | T-48 | docs_normalize: контроль региона между блоками | `docs/roadmap/ROADMAP-wip.md` | [#t-48](ROADMAP-wip.md#t-48) |
 | PLAN | T-4 | Rate-limiter: GetUserTariff (dynamic limits) | `docs/roadmap/ROADMAP-plan.md` | [#t-4](ROADMAP-plan.md#t-4) |
 | PLAN | T-49 | docs_lint: состояние задачи для wip и plan | `docs/roadmap/ROADMAP-plan.md` | [#t-49](ROADMAP-plan.md#t-49) |
 | PLAN | T-40 | PortfolioUiState: passthrough tradingStatuses StateFlow | `docs/roadmap/ROADMAP-plan.md` | [#t-40](ROADMAP-plan.md#t-40) |
@@ -75,6 +74,7 @@
 | DONE | T-1 | docs/: рефакторинг журналов (ROADMAP, ci-roadmap, ISSUES, clean-audit) | `docs/roadmap/ROADMAP-done.md` | [#t-1](ROADMAP-done.md#t-1) |
 | DONE | T-47 | docs_cut: тело блока и обёртка inline.sh | `docs/roadmap/ROADMAP-done.md` | [#t-47](ROADMAP-done.md#t-47) |
 | DONE | T-45 | Миграция docs/*.md под канон | `docs/roadmap/ROADMAP-done.md` | [#t-45](ROADMAP-done.md#t-45) |
+| DONE | T-48 | docs_normalize: контроль региона между блоками | `docs/roadmap/ROADMAP-done.md` | [#t-48](ROADMAP-done.md#t-48) |
 
 | PLAN | T-40 | PortfolioUiState: passthrough tradingStatuses StateFlow | `docs/roadmap/ROADMAP-plan.md` |
 | PLAN | T-41 | Orders: миграция tradingStatuses на TradingStatusFlowManager | `docs/roadmap/ROADMAP-plan.md` |
