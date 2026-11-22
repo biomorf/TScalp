@@ -2,7 +2,8 @@
 """Docs gate: check markdown against docs/docs-structure.md. Read-only.
 
 Modes:
-  --all          canonical scope: AGENTS/**, docs/roadmap/** and the root pointers
+  --all          canonical scope: AGENTS/**, docs/** (issues and clean-audit skipped)
+                 and the root pointers
   --changed      .md files changed vs HEAD plus untracked ones
   --file PATH    a single file
 
@@ -34,7 +35,7 @@ from docs_canon_lib import (
 MAX_ERRORS = 8
 SKIP_DIRS = ("docs/issues", "docs/clean-audit")
 SKIP_FILES = ("ROADMAP-ARCHIVE.md", "CI-ROADMAP-ARCHIVE.md")
-SCOPE_DIRS = ("AGENTS", "docs/roadmap")
+SCOPE_DIRS = ("AGENTS", "docs")
 SCOPE_FILES = ("AGENTS.md", "AGENTS-LESSONS.md", "docs/ROADMAP.md", "docs/ci-roadmap.md")
 ORDER = {"FILE": 1, "SECTION": 2, "SUBSECTION": 3}
 ROW_RE = re.compile(r"^\| \[?([A-Za-z-]+)\]? \| ([A-Za-z0-9-]+) \|")
@@ -53,10 +54,14 @@ def collect_scope() -> list[Path]:
         if p.exists():
             out.append(p)
     keep = []
+    seen_paths: set[str] = set()
     for f in out:
         s = f.as_posix()
         if f.name in SKIP_FILES or any(s.startswith(d) for d in SKIP_DIRS):
             continue
+        if s in seen_paths:
+            continue
+        seen_paths.add(s)
         keep.append(f)
     return keep
 

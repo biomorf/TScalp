@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # Release process
 
 Документ описывает, как формируются versionName / versionCode
@@ -11,18 +12,35 @@ Ansible + Podman»). Раздел про GitLab-релиз сохранён ни
 помечен
 как временно отключённый.
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: release-process -->
 ## Версии
 
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: release-process-1 -->
-___
+<a id="release-process-1"></a>
 ### release-process-1 versionName
 - **Локально** (без `-PreleaseVersionName`): `1.<yy.MM.dd.HHmm>`
   в UTC. Пример: `1.26.10.07.1430`.
 - **В CI на теге** `vX.Y.Z`: ровно `X.Y.Z` (без префикса `v`).
+
+---
 <!-- SUBSECTION_END: release-process-1 -->
 
 
@@ -35,7 +53,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: release-process-2 -->
-___
+<a id="release-process-2"></a>
 ### release-process-2 versionCode
 Вычисляется из semver тега по формуле:
 
@@ -68,7 +86,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: release-process-3 -->
-___
+<a id="release-process-3"></a>
 ### release-process-3 GitHub Repository secrets (актуально)
 Задаются в `Settings → Secrets and variables → Actions → New
 repository secret`. Используются в `release.yml`.
@@ -88,6 +106,8 @@ repository secret`. Используются в `release.yml`.
 Про Environment secrets (approval, ограничение по тегам,
 per-environment значения) — см. `docs/ci-roadmap.md` →
 «Переход на GitHub Environment secrets».
+
+---
 <!-- SUBSECTION_END: release-process-3 -->
 
 
@@ -100,7 +120,7 @@ per-environment значения) — см. `docs/ci-roadmap.md` →
 
 
 <!-- SUBSECTION_BEGIN: release-process-4 -->
-___
+<a id="release-process-4"></a>
 ### release-process-4 GitLab CI/CD Variables (временно отключены)
 Сохраняются в GitLab на случай восстановления пайплайна.
 Пока не используются.
@@ -129,7 +149,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: release-process-5 -->
-___
+<a id="release-process-5"></a>
 ### release-process-5 Аннотированные, не легковесные
 Релизные теги создаются **только аннотированными**:
 
@@ -148,6 +168,8 @@ ___
   коммитов.
 - **Воспроизводимость.** Клонировав репозиторий на тег, любой
   может увидеть сообщение тега без запуска CI.
+
+---
 <!-- SUBSECTION_END: release-process-5 -->
 
 
@@ -160,7 +182,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: release-process-6 -->
-___
+<a id="release-process-6"></a>
 ### release-process-6 Защита веток и тегов
 **Детали — в отдельном справочнике:** `docs/repo-protection.md`.
 Там описаны:
@@ -191,7 +213,7 @@ force-push / удаления. Теги `v*` — иммутабельны, со�
 
 
 <!-- SUBSECTION_BEGIN: release-process-7 -->
-___
+<a id="release-process-7"></a>
 ### release-process-7 Стратегия merge
 Используется **Merge commit** (`Create a merge commit`).
 
@@ -212,6 +234,8 @@ ___
 Минус Merge commit — нелинейная история с отдельным
 merge-коммитом на каждый PR. Для одиночного проекта это
 приемлемо.
+
+---
 <!-- SUBSECTION_END: release-process-7 -->
 
 
@@ -224,7 +248,7 @@ merge-коммитом на каждый PR. Для одиночного про�
 
 
 <!-- SUBSECTION_BEGIN: release-process-8 -->
-___
+<a id="release-process-8"></a>
 ### release-process-8 Настройка GitHub
 - `Settings → General → Pull requests` → `Allow merge commits`
   включено.
@@ -239,6 +263,8 @@ ___
 
 Верхний коммит — merge-коммит с сообщением вида
 `Merge pull request #N from biomorf/dev`.
+
+---
 <!-- SUBSECTION_END: release-process-8 -->
 
 
@@ -251,7 +277,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: release-process-9 -->
-___
+<a id="release-process-9"></a>
 ### release-process-9 Чек-лист релиза
 Перед созданием тега:
 
@@ -338,4 +364,21 @@ ___
 
 
 
+
+
+
+
+
+
 <!-- SECTION_END: release-process -->
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->

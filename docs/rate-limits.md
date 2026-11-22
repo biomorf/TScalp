@@ -1,3 +1,4 @@
+<!-- FILE_BEGIN -->
 # Rate limits
 
 Официальные лимиты T-Invest API, применимые к проекту TScalp.
@@ -7,6 +8,15 @@ BCS / Finam — заполнить по мере интеграции.
 «Лимиты запросов» (developer.tbank.ru/invest).
 
 ---
+
+
+
+
+
+
+
+
+
 
 <!-- SECTION_BEGIN: rate-limits -->
 ## Общие рекомендации
@@ -21,7 +31,26 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: rate-limits -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: rate-limits -->
 ## Unary-методы T-Invest (gRPC / REST)
 
@@ -64,7 +93,26 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: rate-limits -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: rate-limits -->
 ## Stream-соединения T-Invest
 
@@ -101,7 +149,26 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: rate-limits -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: rate-limits -->
 ## WebSocket
 
@@ -112,7 +179,26 @@ BCS / Finam — заполнить по мере интеграции.
 
 ---
 
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: rate-limits -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: rate-limits -->
 ## `GetUserTariff` — динамические лимиты
 
@@ -134,8 +220,14 @@ BCS / Finam — заполнить по мере интеграции.
 
 
 
+
+
+
+
+
+
 <!-- SUBSECTION_BEGIN: rate-limits-1 -->
-___
+<a id="rate-limits-1"></a>
 ### rate-limits-1 Ограничения по доставке данных в стримах
 За один интервал времени может быть отправлено только одно сообщение по одной подписке.
 
@@ -146,6 +238,8 @@ ___
 | Candles | 100 |
 | LastPrice | без ограничений |
 | Info | без ограничений |
+
+---
 <!-- SUBSECTION_END: rate-limits-1 -->
 
 
@@ -158,7 +252,7 @@ ___
 
 
 <!-- SUBSECTION_BEGIN: rate-limits-2 -->
-___
+<a id="rate-limits-2"></a>
 ### rate-limits-2 Важно
 - Превышения не будет, если количество запросов с IP-адреса клиента **не превышает 1000 в минуту**.
 - В `GetUserTariff` лимиты для стрим-соединений могут возвращаться на 1 больше (запас на переподключение).
@@ -166,16 +260,55 @@ ___
 - Лимита на количество активных заявок нет.
 
 **Ссылка:** [Лимиты — T-Invest API](https://developer.tbank.ru/invest/intro/intro/limits)
+
+---
 <!-- SUBSECTION_END: rate-limits-2 -->
 
 
 
 
+
+
+
+
+
+
 <!-- SECTION_END: rate-limits -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_BEGIN: rate-limits -->
 ## Связанные документы
 
 - `docs/ROADMAP.md` → «Rate-limiter для unary-запросов T-Invest».
 - `docs/streams.md` — работа со стримами.
 - `docs/brokers.md` — общая справка по брокерам.
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: rate-limits -->
+
+
+
+
+
+
+
+
+
+
+<!-- FILE_END -->
