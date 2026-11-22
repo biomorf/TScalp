@@ -128,65 +128,6 @@
 
 
 
-<!-- SUBSECTION_BEGIN: t-40 -->
-<a id="t-40"></a>
-### [PLAN] T-40 PortfolioUiState: passthrough tradingStatuses StateFlow
-**Мобильная работа:** полное закрытие (proot + PR; presentation; гейт на CI).
-
-**Статус:** запланировано.
-
-**Контекст:** после T-9 (5b) `PortfolioViewModel` подписан на `tradingStatusRepository.statuses` и кладет результат в `_uiState.tradingStatuses` через `collect`. Orders работает иначе - passthrough: `val tradingStatuses: StateFlow<...> = tradingStatusRepository.statuses` (SSoT напрямую). T-40 - унифицировать Portfolio под паттерн Orders.
-
-**Соответствие Clean:** соответствует - presentation читает domain-контракт (StateFlow из repository), не копирует.
-
-**Нарушенное правило Clean:** -.
-
-**Clean-альтернатива:** -.
-
-**Выгоды (для «отклонение по 2c»):** -.
-
-**MVVM:** соответствует - `M5` предотвращен (нет двух полей на одно значение).
-
-**KMP:** - (не применимо, presentation).
-
-**Предусловия:** T-9 закрыт.
-
-**Файлы:** `presentation/screens/portfolio/PortfolioViewModel.kt`, `PortfolioUiState.kt`, `PortfolioScreen.kt`.
-
-**Шаги:**
-1. В VM: `val tradingStatuses = tradingStatusRepository.statuses` (passthrough).
-2. В `PortfolioUiState`: удалить `val tradingStatuses`.
-3. В Screen: `val tradingStatuses by viewModel.tradingStatuses.collectAsState()`; передавать в `PortfolioAccountBlock`.
-4. Гейт.
-
-**Тесты:** `PortfolioScreenBehaviourTest` - обновить mock если есть.
-
-**Референсы:** `OrdersViewModel.kt:70` (образец passthrough).
-
-**Ограничения:** не менять поведение UI; перенос только источника данных.
-
-**Критерий готовности:** UI получает `tradingStatuses` через passthrough; SSoT - `TradingStatusRepository`; гейт.
-
-**Оценка:** ~20-30 мин.
-
-**Зависимости:** T-9 (5b).
-
-**Связано:** T-9; T-41.
-
-**Открытые вопросы:** нет.
-
----
-<!-- SUBSECTION_END: t-40 -->
-
-
-
-
-
-
-
-
-
-
 <!-- SUBSECTION_BEGIN: t-41 -->
 <a id="t-41"></a>
 ### [PLAN] T-41 Orders: миграция tradingStatuses на TradingStatusFlowManager
@@ -316,79 +257,83 @@
 
 **Статус:** запланировано.
 
-**Контекст:** `PortfolioScreen:38-42` - `repeatOnLifecycle(RESUMED) { viewModel.refresh() }` дергает полный `loadPortfolio()` при каждом входе в RESUMED (back-stack, foreground, поворот). Плюс `init { brokerManager.anyInitialized.collect { checkApiInitialization() } }` в VM - еще один `loadPortfolio()` при первом `anyInitialized`. Итог: 2+ полных загрузки на cold start, N+1 на resume - burst, блокирующий live-test 6 (restore). Umbrella-диагноз «LaunchedEffect(isLoading) infinite retry» устарел: стр. 44 - `isRefreshing = uiState.isLoading` (синхронизация, не retry); `refresh()` = `loadPortfolio()` без retry/backoff. Дополнительно: `tradingStatuses` в `PortfolioUiState` - свое поле (не SSoT), VM поллит `while (isActive) { delay(5min); updateTradingStatuses() }` - дублирует `UpdateTradingStatusesUseCase` + `TradingStatusRepository` из Orders, M2-нарушение.
+**Контекст:** `PortfolioScreen:38-42` — `LaunchedEffect(lifecycleOwner) { repeatOnLifecycle(RESUMED) { refresh() } }` дергает полный `loadPortfolio()` при каждом входе в RESUMED (back-stack, foreground, поворот). Плюс `init { brokerManager.anyInitialized.collect { checkApiInitialization() } }` — ещё один `loadPortfolio()` при первом `anyInitialized` (`PortfolioViewModel:69-75`, `:95-105`). Итог: 2+ полных загрузки на cold start. `refresh()` = `viewModelScope.launch { loadPortfolio() }`, а `loadPortfolio()` сам делает `viewModelScope.launch` — двойной launch (`:262-264`, `:128-129`); retry/backoff отсутствует (`:44-46` — синхронизация `isRefreshing`, umbrella-диагноз T-3 про «infinite retry» устарел). Дополнительно: `tradingStatuses` в `PortfolioUiState` — своё поле (`PortfolioUiState:22`), VM поллит `while (isActive) { delay(5 min); updateTradingStatuses() }` (`:83-91`) и сам вызывает `marketDataRepository.getTradingStatusesResult` (`:214-235`) — дублирует `UpdateTradingStatusesUseCase` + `TradingStatusRepository` (M2/M5). Orders уже работает passthrough (`OrdersViewModel:70`), Portfolio — нет: два независимых кэша одного значения.
 
-**Соответствие Clean:** отклонение по 2c (принято) - менеджер поллинга в `domain/api/managers/` (по образцу PositionFlowManager/PriceFlowManager), не в VM/presentation.
+**Соответствие Clean:** отклонение по 2c (принято) — менеджер поллинга в `domain/api/managers/` (по образцу `PositionFlowManager`/`PriceFlowManager`), не в VM/presentation.
 
-**Нарушенное правило Clean:** dependency rule - периодический polling статусов (domain-policy) сейчас в VM (`while (isActive)`), при этом `TradingStatusRepository` (SSoT) - правильное место, но не используется.
+**Нарушенное правило Clean:** dependency rule — периодический polling статусов (domain-policy) в VM (`while (isActive)`), при этом `TradingStatusRepository` (SSoT) существует и не используется.
 
-**Clean-альтернатива:** (а) polling в `TradingStatusRepositoryImpl` - концептуально неверно (repository пассивный); (б) polling в UseCase - тоже policy, не domain-UseCase; (в) polling в VM - оставляет M2. Правильно - `TradingStatusFlowManager` в `domain/api/managers/`.
+**Clean-альтернатива:** (а) polling в `TradingStatusRepositoryImpl` — неверно (repository пассивный); (б) polling в `UseCase` — policy, не usecase; (в) polling в VM — оставляет M2. Правильно — менеджер в `domain/api/managers/`.
 
-**Выгоды (для «отклонение по 2c»):** полная аналогия с существующими менеджерами (PositionFlowManager, PriceFlowManager) - паттерн проекта, не изобретение; единый SSoT (`TradingStatusRepository`) для Portfolio+Orders; rate-limit safe при 1 мин (batch primary + singular fallback - T-8).
+**Выгоды (для «отклонение по 2c»):** полная аналогия с существующими менеджерами (`PositionFlowManager`, `PriceFlowManager`) — паттерн проекта, не изобретение; единый SSoT (`TradingStatusRepository`) для Portfolio+Orders; rate-limit safe при 60 с (batch primary + singular fallback — T-8 закрыт).
 
-**MVVM:** `M1` + `M2` - закрываются в рамках T-9: UI (`repeatOnLifecycle`) не командует загрузкой -> `LaunchedEffect(Unit)`; VM не поллит domain -> `TradingStatusFlowManager.start/updateIds/stop`; `tradingStatuses` -> `collect` из `TradingStatusRepository`.
+**MVVM:** `M1` + `M2` + `M5` — закрываются в T-9: UI не командует загрузкой на RESUMED (только `LaunchedEffect(Unit)` + guard от повторной загрузки); VM не поллит domain (`setInterest`/`clearInterest`); `tradingStatuses` в UI — passthrough из `TradingStatusRepository`, поле в `PortfolioUiState` удаляется.
 
-**KMP:** соответствует - менеджер в `domain/api/managers/`, `CoroutineDispatcher` инжектится; `MarketDataRepository`/`TradingStatusRepository` - domain-интерфейсы; platform не протекает.
+**KMP:** соответствует по времени/транспорту; **блокер (унаследованный)** — DI: `@Singleton`/`@Inject` в domain, как в `PositionFlowManager`/`PriceFlowManager`. Не новый; фиксируется тем же отклонением, снятие — T-21.
 
-**Предусловия:** нет (T-8 закрыт - batch primary + singular fallback есть).
+**Предусловия:** нет (T-8 закрыт — batch primary + singular fallback есть).
 
 **Файлы:**
-- `presentation/screens/portfolio/PortfolioScreen.kt` (убрать `repeatOnLifecycle`).
-- `presentation/screens/portfolio/PortfolioViewModel.kt` (убрать `while (isActive)`, `updateTradingStatuses`; `refresh()` -> прямой `loadPortfolio()`; `collect` из `TradingStatusRepository`).
-- `domain/api/managers/TradingStatusFlowManager.kt` (новый: interface + impl в одном файле по образцу PositionFlowManager).
-- DI-binding для менеджера (файл - см. «Открытые вопросы»).
+- `presentation/screens/portfolio/PortfolioScreen.kt` — `repeatOnLifecycle` → `LaunchedEffect(Unit)`; источник `tradingStatuses` (стр. 111).
+- `presentation/screens/portfolio/PortfolioViewModel.kt` — убрать `while (isActive)` и свой `updateTradingStatuses`; `refresh()` без двойного launch + guard; passthrough на `TradingStatusRepository.statuses`; `setInterest`/`clearInterest`.
+- `presentation/screens/portfolio/PortfolioUiState.kt` — удалить поле `tradingStatuses`.
+- `domain/api/managers/TradingStatusFlowManager.kt` (новый) + `TradingStatusConsumer.kt` (новый, enum).
+- `test/.../domain/api/managers/TradingStatusFlowManagerTest.kt` (новый).
 
-**Шаги (S2 - два PR):**
+**Шаги (S2 — два PR):**
 
-**PR 5a (~15-20 мин):**
-1. `PortfolioScreen.kt`: убрать `LaunchedEffect(lifecycleOwner) { repeatOnLifecycle(RESUMED) { refresh() } }` -> `LaunchedEffect(Unit) { viewModel.refresh() }`.
-2. `PortfolioViewModel.refresh()`: `fun refresh() { loadPortfolio() }` (убрать двойной `launch`).
-3. `while (isActive)` polling в VM - оставить (регрессии нет, удаляется в 5b).
+**PR 5a (~20-30 мин):**
+1. `PortfolioScreen.kt:38-42`: `LaunchedEffect(lifecycleOwner) { lifecycleOwner.lifecycle.repeatOnLifecycle(RESUMED) { refresh() } }` → `LaunchedEffect(Unit) { viewModel.refresh() }`; импорты `Lifecycle`, `repeatOnLifecycle`, `LocalLifecycleOwner` удалить, если больше не используются.
+2. `PortfolioViewModel.refresh()`: `fun refresh() { loadPortfolio() }` (убрать внешний `launch`); в `loadPortfolio()` первой строкой тела — `if (_uiState.value.isLoading) return` (дедуп двух триггеров cold start).
+3. `while (isActive)` polling оставить (удаляется в 5b, регрессии нет).
 4. Гейт на CI.
 
-**PR 5b (~1.5-2 ч):**
-1. Создать `TradingStatusFlowManager` (interface + impl):
-   - `start(ids)`: immediate fetch + `while (isActive) { delay(60_000L); fetchAndUpdate() }`.
-   - `updateIds(ids)`: заменить tracked set без рестарта.
-   - `stop()`: cancel scope.
-   - `fetchAndUpdate()`: `marketDataRepository.getTradingStatusesResult` -> `tradingStatusRepository.update(...)`.
-   - `INTERVAL_MS = 60_000L`.
-2. DI-binding.
+**PR 5b (~2-2.5 ч):**
+1. `TradingStatusFlowManager` — конкретный `@Singleton` с `@Inject constructor` (DI-модуль не нужен, как у `PositionFlowManager`):
+   - `setInterest(consumer: TradingStatusConsumer, ids: Set<String>)` — регистрирует/заменяет интерес потребителя; при первом непустом объединении — immediate fetch + `while (isActive) { delay(INTERVAL_MS); fetchAndUpdate() }`;
+   - `clearInterest(consumer)` — снимает интерес; при пустом объединении polling останавливается;
+   - `fetchAndUpdate()` — группирует объединение ids по `brokerName` (как `PortfolioViewModel:214-229`) и вызывает `UpdateTradingStatusesUseCase.execute(brokerName, ids)` (готовый fetch+update; дублировать нельзя);
+   - `INTERVAL_MS = 60_000L`; scope — `CoroutineDispatcher` из `DispatcherModule` + `limitedParallelism(1)` + `SupervisorJob` + `CoroutineExceptionHandler`.
+2. `TradingStatusConsumer` (enum рядом с менеджером): `PORTFOLIO`, `ORDERS` — аналог `PriceConsumer`.
 3. `PortfolioViewModel`:
-   - Убрать `while (isActive)` polling.
-   - Убрать свой `updateTradingStatuses`.
-   - Inject `TradingStatusFlowManager` + `TradingStatusRepository`.
-   - `init { tradingStatusRepository.statuses.collect { s -> _uiState.update { it.copy(tradingStatuses = s) } } }`.
-   - После `loadPortfolio` success: `tradingStatusFlowManager.start(ids)`.
-   - В `stopPositionUpdates` и `onCleared`: `tradingStatusFlowManager.stop()`.
-4. Гейт на CI.
+   - убрать `while (isActive)` и свой `updateTradingStatuses`;
+   - inject `TradingStatusFlowManager` + `TradingStatusRepository`;
+   - `val tradingStatuses: StateFlow<Map<String, TradingAvailability>> = tradingStatusRepository.statuses` (passthrough, как `OrdersViewModel:70`);
+   - после успешного `loadPortfolio` — `tradingStatusFlowManager.setInterest(TradingStatusConsumer.PORTFOLIO, ids)`;
+   - `onCleared` — `clearInterest(PORTFOLIO)` (**не** `stop()`: менеджер общий с Orders, `stop()` убьёт чужой polling);
+   - в `checkApiInitialization` ветка `NoneInitialized` — `clearInterest(PORTFOLIO)` вместо `tradingStatuses = emptyMap()`.
+4. `PortfolioUiState`: удалить `tradingStatuses`; `PortfolioScreen:111` — `val tradingStatuses by viewModel.tradingStatuses.collectAsState()`.
+5. Гейт на CI.
 
-**Тесты:** `PortfolioScreenBehaviourTest` (renders refresh button) - не сломать. Юнит-тест `TradingStatusFlowManager` (start/updateIds/stop, интервал 60с) - добавить в 5b.
+**Тесты:** `TradingStatusFlowManagerTest` — `setInterest` стартует и грузит сразу; два потребителя → union ids; `clearInterest` одного не останавливает polling; `clearInterest` последнего → polling остановлен; интервал 60 с (`advanceTimeBy`); broker-группировка (2 брокера → 2 вызова usecase). `PortfolioScreenBehaviourTest` не ломать: в тесте реальный граф Hilt, новых биндингов не требуется (`TradingStatusRepository` биндится в `RepositoryBindingModule:82`, менеджер — `@Inject`).
 
-**Референсы:** `PositionFlowManager.kt` (образец polling), `PriceFlowManager.kt` (образец scope + retry), `TradingStatusRepositoryImpl.kt` (SSoT), `UpdateTradingStatusesUseCase.kt` (логика fetch+update для cold start), `TInvestTradingService.kt:52-160` (batch primary + singular fallback), live-log C2 (2026-11-15).
+**Референсы:** `PositionFlowManager.kt:66-105` (scope, `startLock`, `limitedParallelism`), `PriceFlowManager.kt` + `PriceConsumer.kt` (interest-паттерн), `TradingStatusRepository.kt`, `UpdateTradingStatusesUseCase.kt:37-60`, `OrdersViewModel.kt:70` (passthrough), `TInvestTradingService.kt:52-160` (batch primary + singular fallback), live-log C2 (2026-11-15).
 
 **Ограничения:**
-- Не трогать `TradingStatusRepositoryImpl` (SSoT остается).
+- Не трогать `TradingStatusRepositoryImpl` (SSoT остаётся).
 - Не трогать `UpdateTradingStatusesUseCase` (используется Search и Orders).
-- Не менять UI (кроме замены `LaunchedEffect`-ключа - lifecycle, не дизайн).
+- Не менять UI (кроме источника `tradingStatuses` — данные, не дизайн).
 - Не переносить polling в repository (концептуально неверно).
-- Не удалять periodic polling совсем (биржи открываются/закрываются несколько раз в день, статусы меняются - UX-функция).
+- Не удалять periodic polling совсем (биржи открываются/закрываются несколько раз в день).
+- Не вызывать `stop()` менеджера из VM — менеджер общий (T-41).
 
 **Критерий готовности:**
-- 1 полная загрузка на cold start (не 2+).
-- 0 загрузок на back-stack (только холодный старт или явный pull/refresh).
-- `tradingStatuses` в UI обновляются из `TradingStatusRepository` (SSoT).
-- Polling 1 мин - в `TradingStatusFlowManager`, не в VM.
-- `RESOURCE_EXHAUSTED` в live-test 6 - 0.
-- Гейт зеленый.
+- 1 полная загрузка на cold start (guard от повторного `loadPortfolio`).
+- 0 загрузок на циклах RESUMED (поворот, foreground) — `repeatOnLifecycle` удалён.
+- `tradingStatuses` в UI — passthrough из `TradingStatusRepository`; поля в `PortfolioUiState` нет.
+- Polling 60 с — в `TradingStatusFlowManager`; остановка при пустом объединении интересов.
+- `RESOURCE_EXHAUSTED` в live-test 6 — 0.
+- Гейт зелёный.
 
-**Оценка:** ~2-2.5 ч (5a ~15-20 мин + 5b ~1.5-2 ч).
+**Оценка:** ~2.5-3 ч (5a ~20-30 мин + 5b ~2-2.5 ч).
 
 **Зависимости:** нет. Блокирует live-test 6.
 
-**Связано:** T-3 umbrella sub-5; T-8 (закрыт - batch+singular); T-40; T-41; T-42; `docs/rate-limits.md`.
+**Поглощает:** T-40 `PortfolioUiState: passthrough tradingStatuses StateFlow` — реализуется шагами 3-4 PR 5b; отдельный PR не нужен. Секция T-40 вырезана из `ROADMAP-plan.md` (текст — в истории git).
 
-**Открытые вопросы:** как называется DI-модуль для manager'ов (`ManagerModule.kt` есть? или binding в `RepositoryBindingModule`?) - `grep` перед PR 5b.
+**Связано:** T-3 umbrella sub-5; T-8 (закрыт — batch+singular); T-41; T-42; `docs/rate-limits.md`.
+
+**Открытые вопросы:** нет. DI-модуль для менеджера не нужен: `PositionFlowManager`/`PriceFlowManager` — конкретные `@Singleton @Inject`; `DispatcherModule:26` уже провайдит `CoroutineDispatcher`.
 
 ---
 <!-- SUBSECTION_END: t-9 -->
