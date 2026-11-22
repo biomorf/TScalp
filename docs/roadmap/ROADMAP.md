@@ -33,7 +33,7 @@
 <!-- SECTION_BEGIN: tasks -->
 ## Задачи
 
-**Next ID:** T-47
+**Next ID:** T-48
 
 | TOKEN | ID | Title | File | Anchor |
 |---|---|---|---|---|
@@ -49,6 +49,7 @@
 | PLAN | T-12 | Архитектурный документ (docs/architecture.md) | `docs/roadmap/ROADMAP-plan.md` | [#t-12](ROADMAP-plan.md#t-12) |
 | PLAN | T-37 | docs/live-test.md: mobile-ограничения (Robolectric vs device) | `docs/roadmap/ROADMAP-plan.md` | [#t-37](ROADMAP-plan.md#t-37) |
 | PLAN | T-38 | Live-test: C2 Orders form 7 сценариев | `docs/roadmap/ROADMAP-plan.md` | [#t-38](ROADMAP-plan.md#t-38) |
+| PLAN | T-47 | docs_cut: тело блока и обёртка inline.sh | `docs/roadmap/ROADMAP-plan.md` | [#t-47](ROADMAP-plan.md#t-47) |
 | PLAN | T-45 | Миграция docs/*.md под канон | `docs/roadmap/ROADMAP-plan.md` | [#t-45](ROADMAP-plan.md#t-45) |
 | DEFER | T-21 | KMP: domain → commonMain | `docs/roadmap/ROADMAP-defer.md` | [#t-21](ROADMAP-defer.md#t-21) |
 | DEFER | T-22 | Плавный переход Hilt → Koin | `docs/roadmap/ROADMAP-defer.md` | [#t-22](ROADMAP-defer.md#t-22) |
