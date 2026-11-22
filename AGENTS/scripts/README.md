@@ -21,7 +21,7 @@
 |---|---|---|---|
 | `docs_add.py` | Вставка подраздела | `--file`, `--id`, `--title`, `--body-file`, `--after` / `--at-end`, `--apply` | `python3 AGENTS/scripts/docs_add.py --file ... --id ... --title ... --body-file ... --after ... --apply` |
 | `docs_cut.py` | Удаление подраздела; два выхода: блок (`agents-cut-<id>.md`) и тело (`agents-body-<id>.md`), оба в `/tmp`, fallback `$HOME/tmp` | `--file`, `--id`, `--force`, `--apply`, `--no-rebuild` | `python3 AGENTS/scripts/docs_cut.py --file ... --id ... --apply` |
-| `docs_normalize.py` | Нормализация (10 пустых, `rstrip`, fence parity, `FILE`/`SECTION`/`SUBSECTION`, `---` перед `SUBSECTION_END`) | `--file`, `--all` (явные имена), `--apply`, `--dry-run` | `python3 AGENTS/scripts/docs_normalize.py --dry-run --file ...` |
+| `docs_normalize.py` | Нормализация (10 пустых, `rstrip`, fence parity, `FILE`/`SECTION`/`SUBSECTION`, `---` перед `SUBSECTION_END`); между блоками допустимы только пустые строки, `---`, `___` — иначе падение без записи | `--file`, `--all` (явные имена), `--apply`, `--dry-run` | `python3 AGENTS/scripts/docs_normalize.py --dry-run --file ...` |
 | `docs_rebuild_index.py` | Пересборка индексов (5 колонок, `Anchor`, `Next ID`) | `--mode` (`all` / `agents` / `agents-lessons` / `roadmap` / `ci-roadmap`), `--index-path-override`, `--dry-run`, `--apply` | `python3 AGENTS/scripts/docs_rebuild_index.py --apply --mode all` |
 | `live-test-build.sh` | installDebug + force-stop | — | `bash AGENTS/scripts/live-test-build.sh` |
 | `live-test-capture.sh` | Режим A (файл) | `CAPTURE_SECONDS` | `bash AGENTS/scripts/live-test-capture.sh` |
