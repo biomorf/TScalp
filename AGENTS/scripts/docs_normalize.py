@@ -100,6 +100,25 @@ def normalize_text(text: str, file_path: str = "") -> tuple[str, list[str]]:
     if cur_begin is not None:
         raise AssertionError(f"unclosed BEGIN: {cur_id}")
 
+    # Region between SUBSECTION_END and the next SUBSECTION_BEGIN is not copied to
+    # the output: only blanks, --- and ___ are allowed there. Anything else aborts
+    # before the write, so a body never vanishes silently.
+    gap_violations: list[tuple[int, str]] = []
+    for bi in range(len(blocks) - 1):
+        for k in range(blocks[bi][1] + 1, blocks[bi + 1][0]):
+            text_line = strip_nl(lines[k])
+            if text_line.strip() not in ("", "---", "___"):
+                gap_violations.append((k + 1, text_line))
+    if gap_violations:
+        total = len(gap_violations)
+        deviations.append(f"non-blank content between blocks: {total} line(s)")
+        sample = "; ".join(f"L{n}: {t.strip()[:70]!r}" for n, t in gap_violations[:3])
+        more = "" if total <= 3 else f" (+{total - 3} more)"
+        raise AssertionError(
+            f"{total} non-blank line(s) between SUBSECTION blocks would be dropped"
+            f"{more}: {sample}"
+        )
+
     fence_count = 0
     for raw in lines:
         s = strip_nl(raw).strip()
@@ -225,7 +244,7 @@ def main():
             "  %(prog)s --all AGENTS/AGENTS-code.md AGENTS/AGENTS-style-core.md --apply\n"
             "  %(prog)s --all AGENTS/AGENTS-code.md --dry-run\n"
             "\n"
-            "Rules: FILE_BEGIN first / FILE_END last; 10 blanks between SUBSECTION blocks and before SECTION_END; anchor after BEGIN; --- before END; rstrip; fence parity. Exit: 0 ok, 1 deviations, 2 abort (structure broken)."
+            "Rules: FILE_BEGIN first / FILE_END last; 10 blanks between SUBSECTION blocks and before SECTION_END; anchor after BEGIN; --- before END; rstrip; fence parity; non-blank content between blocks aborts the run (nothing is written). Exit: 0 ok, 1 deviations, 2 abort (structure broken)."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
