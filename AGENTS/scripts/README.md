@@ -29,7 +29,7 @@
 | `post-pr.sh` | 5f чек-лист (+ ROADMAP verify) | `<branch> [--task T-N]` | `bash AGENTS/scripts/post-pr.sh feature/... --task T-44` |
 | `run-local-gate.sh` | Локальный гейт desktop: ktlint, lint, detekt, unit-тесты, Roborazzi verify | `--no-build-cache`, `--keep`, `--log` | `bash AGENTS/scripts/run-local-gate.sh` |
 | `gate-commit.sh` | Гейт + коммит: вызывает `run-local-gate.sh`, при зелёном — `git add` явными путями, сверка индекса, `git commit -F`; push только по `--push` | `--msg-file`, `--files`, `--no-build-cache`, `--keep`, `--log`, `--branch`, `--push` | `bash AGENTS/scripts/gate-commit.sh --msg-file ~/.msg.txt --files a.md b.md --push` |
-| `docs_lint.py` | Гейт канона: 17 проверок §6 + ссылки, trailing ws, fence parity | `--all` (область), `--changed`, `--file <path>` | `python3 AGENTS/scripts/docs_lint.py --all` |
+| `docs_lint.py` | Гейт канона: 17 проверок §6 + ссылки, trailing ws, fence parity | `--all` (область), `--changed`, `--file <path>`, `--task-state`, `--require-done` | `python3 AGENTS/scripts/docs_lint.py --all` |
 | `docs_canon_lib.py` | Общая библиотека правил — не запускается, только импорт | — | `from docs_canon_lib import expected_token` |
 | `inline.sh` | Каркас inline-блоков (`r4i`): тело со stdin исполняется отдельным `bash`, вывод в лог, `RC`, `wc -l` | `--log`, `--keep` | `bash AGENTS/scripts/inline.sh <<'BASH_END' … BASH_END` |
 

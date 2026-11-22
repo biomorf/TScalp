@@ -90,7 +90,8 @@
 | перенести (start / defer) | `docs_cut.py --file <источник> --id t-N --apply --no-rebuild`, затем `docs_add.py --file <цель> …` |
 | закрыть (mark done) | тот же перенос в `ROADMAP-done.md`; `[DONE]` и `**Статус:** выполнено` ставит `docs_normalize.py --apply` |
 | после любой операции | `docs_rebuild_index.py --apply`, затем `docs_lint.py --all` |
-| проверить состояние | `docs_lint.py --task T-N` |
+| проверить состояние | `docs_lint.py --task-state T-N` |
+| проверить закрытие | `docs_lint.py --require-done T-N` |
 
 Синхронность индекса с файлами проверяет гейт: если блок перенесли, а
 `docs_rebuild_index.py` не запустили, `docs_lint.py` падает.
