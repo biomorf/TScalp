@@ -33,7 +33,7 @@ fun PortfolioScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        viewModel.refresh()
+        viewModel.loadIfNeeded()
     }
 
     LaunchedEffect(uiState.isLoading) {
