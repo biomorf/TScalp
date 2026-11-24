@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.managers.PriceConsumer
+import com.gitlab.biomorf.tscalp.domain.api.managers.TradingStatusConsumer
+import com.gitlab.biomorf.tscalp.domain.api.managers.TradingStatusFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
@@ -23,20 +25,19 @@ import com.gitlab.biomorf.tscalp.domain.models.map
 import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.RefreshSelectedInstrumentsUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
 import com.gitlab.biomorf.tscalp.presentation.util.StatusEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -54,7 +55,7 @@ class OrdersViewModel
         private val refreshSelectedInstrumentsUseCase: RefreshSelectedInstrumentsUseCase,
         private val positionFlowManager: PositionFlowManager,
         private val checkBrokerInitializationUseCase: CheckBrokerInitializationUseCase,
-        private val updateTradingStatusesUseCase: UpdateTradingStatusesUseCase,
+        private val tradingStatusFlowManager: TradingStatusFlowManager,
         private val tradingStatusRepository: TradingStatusRepository,
         private val logger: Logger,
     ) : ViewModel() {
@@ -88,20 +89,24 @@ class OrdersViewModel
                     checkApiInitialization()
                 }
             }
-            // Фоновое обновление статусов каждые 5 минут.
-            // 13d-F-A: restoreState() переехал в OrderFormViewModel
-            // (RestoreOrderFormUseCase); tradingStatuses — passthrough
-            // из TradingStatusRepository (P1).
+            // Периодическое обновление статусов карточек через
+            // TradingStatusFlowManager (T-41): интерес = lastSelectedInstruments,
+            // группировка по brokerName, immediate fetch + polling 60 с.
             viewModelScope.launch {
-                while (isActive) {
-                    delay(5 * 60 * 1000L)
-                    val idsToUpdate =
-                        tradingStatuses.value.keys
-                            .toList()
-                    if (idsToUpdate.isNotEmpty()) {
-                        updateTradingStatuses(idsToUpdate)
+                coordState
+                    .map { state ->
+                        state.lastSelectedInstruments
+                            .groupBy({ it.brokerName }, { it.instrument.tscalpInstrumentId })
+                            .mapValues { (_, ids) -> ids.filter { it.isNotBlank() }.toSet() }
+                            .filterValues { it.isNotEmpty() }
+                    }.distinctUntilChanged()
+                    .collect { byBroker ->
+                        if (byBroker.isEmpty()) {
+                            tradingStatusFlowManager.clearInterest(TradingStatusConsumer.ORDERS)
+                        } else {
+                            tradingStatusFlowManager.setInterest(TradingStatusConsumer.ORDERS, byBroker)
+                        }
                     }
-                }
             }
             // Восстановление lastSelectedInstruments из CardsRepository:
             // identity (uid + broker + account) сохраняются между
@@ -274,22 +279,6 @@ class OrdersViewModel
             _coordState.update { it.copy(lastSelectedInstruments = updatedList) }
         }
 
-        private suspend fun updateTradingStatuses(ids: List<String>) {
-            if (ids.isEmpty()) return
-            // 13d-F-A: usecase пишет в TradingStatusRepository (SSoT),
-            // Coord не дублирует статусы в state (passthrough выше).
-            when (val result = updateTradingStatusesUseCase.execute(BrokerName.TINVEST, ids)) {
-                is AppResult.Success -> Unit
-                is AppResult.Failure -> {
-                    logger.e(
-                        TAG,
-                        "Ошибка обновления статусов: ${result.error.message}",
-                        result.error.cause,
-                    )
-                }
-            }
-        }
-
         suspend fun startPositionUpdates() {
             stopPositionUpdates()
             val globalAccountId = _coordState.value.selectedAccountId
@@ -349,8 +338,8 @@ class OrdersViewModel
 
         override fun onCleared() {
             logger.d(TAG, "onCleared")
-            // 13d-F-A: clearInterest(ORDERS) переехал в OrderFormViewModel
-            // (Form-lifecycle цен). Coord — lifecycle позиций.
+            // T-41: интерес ORDERS в TradingStatusFlowManager снимается здесь.
+            tradingStatusFlowManager.clearInterest(TradingStatusConsumer.ORDERS)
             stopPositionUpdates()
         }
 
