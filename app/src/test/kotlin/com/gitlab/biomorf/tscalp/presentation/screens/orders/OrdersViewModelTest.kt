@@ -3,6 +3,7 @@ package com.gitlab.biomorf.tscalp.presentation.screens.orders
 import androidx.lifecycle.viewModelScope
 import com.gitlab.biomorf.tscalp.domain.api.BrokerRegistry
 import com.gitlab.biomorf.tscalp.domain.api.managers.PositionFlowManager
+import com.gitlab.biomorf.tscalp.domain.api.managers.TradingStatusFlowManager
 import com.gitlab.biomorf.tscalp.domain.api.repository.AccountSelectionRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.CardsRepository
 import com.gitlab.biomorf.tscalp.domain.api.repository.InstrumentRepository
@@ -21,7 +22,6 @@ import com.gitlab.biomorf.tscalp.domain.usecases.CheckBrokerInitializationUseCas
 import com.gitlab.biomorf.tscalp.domain.usecases.LoadOrdersAccountsUseCase
 import com.gitlab.biomorf.tscalp.domain.usecases.OrdersAccountsResult
 import com.gitlab.biomorf.tscalp.domain.usecases.RefreshSelectedInstrumentsUseCase
-import com.gitlab.biomorf.tscalp.domain.usecases.UpdateTradingStatusesUseCase
 import com.gitlab.biomorf.tscalp.testutil.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.every
@@ -53,7 +53,7 @@ class OrdersViewModelTest {
     private val refreshSelectedInstrumentsUseCase = mockk<RefreshSelectedInstrumentsUseCase>(relaxed = true)
     private val positionFlowManager = mockk<PositionFlowManager>(relaxed = true)
     private val checkBrokerInitializationUseCase = mockk<CheckBrokerInitializationUseCase>(relaxed = true)
-    private val updateTradingStatusesUseCase = mockk<UpdateTradingStatusesUseCase>(relaxed = true)
+    private val tradingStatusFlowManager = mockk<TradingStatusFlowManager>(relaxed = true)
     private val tradingStatusRepository = mockk<TradingStatusRepository>(relaxed = true)
     private val logger = mockk<Logger>(relaxed = true)
 
@@ -81,7 +81,7 @@ class OrdersViewModelTest {
             refreshSelectedInstrumentsUseCase,
             positionFlowManager,
             checkBrokerInitializationUseCase,
-            updateTradingStatusesUseCase,
+            tradingStatusFlowManager,
             tradingStatusRepository,
             logger,
         )
