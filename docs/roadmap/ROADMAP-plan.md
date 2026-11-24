@@ -130,55 +130,141 @@
 
 <!-- SUBSECTION_BEGIN: t-42 -->
 <a id="t-42"></a>
-### [PLAN] T-42 TradingStatus: stream API (subscribeTradingStatuses)
-**Мобильная работа:** полное закрытие (proot + PR; data + domain; гейт на CI).
+### [PLAN] T-42 TradingStatus: stream API (subscribeInfoRequest)
+**Мобильная работа:** частичное (live-проверка спайка; правки — proot + PR, гейт на CI).
 
 **Статус:** запланировано.
 
-**Контекст:** T-9 реализует `TradingStatusFlowManager` polling-only (1 мин), потому что в `TInvest*Service` нет обертки над `MarketDataStreamService.subscribeTradingStatuses`. По `docs/rate-limits.md`: «На торговые статусы лимита подписок нет» - stream возможен. Полная аналогия с `PriceFlowManager` (stream primary + polling fallback) устранит polling в steady-state.
+**Контекст:** `TradingStatusFlowManager` (T-9) обновляет статусы polling'ом раз в 60 с, и в SSoT хранится только `TradingAvailability`, выведенная из `api_trade_available_flag` (`TInvestTradingService.kt:113-124`, `:135-141`). Отдельного RPC подписки на статусы в SDK 1.51.0 нет: подписка делается payload'ом `SubscribeInfoRequest` (`{subscription_action, instruments: [InfoInstrument{instrument_id = uid}]}`, figi deprecated) в `marketDataServerSideStream`; ответы — `SUBSCRIBE_INFO_RESPONSE` (ack: `tracking_id`, ошибки подписки) и `TRADING_STATUS` (`TradingStatus`: `trading_status`, `limit_order_available_flag`, `market_order_available_flag`, `instrument_uid`, `ticker`, `class_code`, `hasTime()`). `api_trade_available_flag` в стрим-payload отсутствует — только unary. Семантика полей разная: `api_trade_available_flag` — разрешение операций через API (для поиска и карточек — единственный критерий), `trading_status` — lifecycle торгов (нужен `SECURITY_TRADING_STATUS_NORMAL_TRADING`, требуется перед размещением заявки). Стрим даёт мгновенную реакцию на границы сессий и снимает большую часть polling'а.
 
-**Соответствие Clean:** соответствует - stream-обертка в `data/api/tinvest/`, manager в `domain/api/managers/`.
+**Соответствие Clean:** соответствует — стрим-обёртка в `data/api/tinvest/`, policy в `domain/api/managers/`, SSoT в `domain/api/repository/`.
 
-**Нарушенное правило Clean:** -.
+**Нарушенное правило Clean:** —.
 
-**Clean-альтернатива:** -.
+**Clean-альтернатива:** —.
 
-**Выгоды (для «отклонение по 2c»):** -.
+**Выгоды (для «отклонение по 2c»):** —.
 
-**MVVM:** - (не применимо, data+domain).
+**MVVM:** — (не применимо, data + domain; VM читает производный flow).
 
-**KMP:** соответствует - manager в domain, stream в data.
+**KMP:** соответствует — стрим в data, менеджер и модель в domain; блокер DI (`@Singleton`/`@Inject` в domain) унаследован от существующих менеджеров, не новый.
 
-**Предусловия:** T-9 закрыт.
+**Предусловия:** T-9 закрыт (менеджер и interest-API в проде).
 
-**Файлы:** `data/api/tinvest/TInvestTradingService.kt`, `TInvestBrokerApi.kt`, `domain/api/roles/TradingStatusStreamApi.kt` (новый), `domain/api/managers/TradingStatusFlowManager.kt`, `data/orchestrator/TInvestOrchestrator.kt` (если нужен stream-комбинатор).
+**Файлы:**
+- `data/api/tinvest/TInvestTradingService.kt` — `subscribeTradingStatuses(ids)`, расширенный unary-маппинг.
+- `data/api/tinvest/TInvestBrokerApi.kt` — делегирование в роль.
+- `domain/api/roles/StreamsApi.kt` — `subscribeTradingStatuses(tscalpInstrumentIds)`.
+- `domain/models/TradingStatus.kt` — `TradingStatusInfo`; удалить неиспользуемый `TradingStatusDetails`.
+- `domain/api/repository/TradingStatusRepository.kt`, `data/repository/TradingStatusRepositoryImpl.kt` — `Map<String, TradingStatusInfo>`.
+- `domain/usecases/UpdateTradingStatusesUseCase.kt` — возвращает расширенный тип.
+- `domain/api/managers/TradingStatusFlowManager.kt` — стрим primary + polling fallback.
+- `presentation/screens/portfolio/PortfolioViewModel.kt`, `presentation/screens/orders/OrdersViewModel.kt` — производный `StateFlow<Map<String, TradingAvailability>>`.
 
 **Шаги:**
-1. Проверить T-Invest API `MarketDataStreamService.subscribeTradingStatuses` - сигнатура, формат.
-2. Обертка в `TInvestTradingService`: `Flow<TradingStatusStreamItem>`, reconnect через `StreamCombinators.retryWithBackoff`.
-3. Role `TradingStatusStreamApi` в domain.
-4. `TradingStatusFlowManager`: stream primary + polling fallback.
-5. `StreamStateTracker` - LIVE/POLLING/STALE.
-6. Гейт.
+0. **Спайк (0.5 ч, девайс):** после `SUBSCRIBE` приходит ли снапшот, частота `TRADING_STATUS`, совпадение `instrument_uid` с `tscalpInstrumentId`. Если снапшота нет — unary при подписке обязателен.
+1. `TradingStatusInfo(apiTradeAvailable: Boolean?, tradingStatus: SecurityTradingStatusDomain?, limitOrderAvailable: Boolean?, marketOrderAvailable: Boolean?)`; `TradingStatusDetails` удалить (мёртвая модель, не используется нигде).
+2. `TradingStatusRepository` → `Map<String, TradingStatusInfo>`; Impl — merge по полям: стрим-обновление не затирает `apiTradeAvailable`.
+3. Unary-маппинг (`fetchBatchChunk`, `getTradingStatusesSingular`) заполняет все четыре поля; `UpdateTradingStatusesUseCase` возвращает расширенный тип.
+4. Транспорт `subscribeTradingStatuses(ids): Flow<TradingStatusEvent>` — свой `marketDataServerSideStream`, `SUBSCRIPTION_ACTION_SUBSCRIBE`/`UNSUBSCRIBE` для инкремента, reconnect через `retryWithBackoff`; ack `SUBSCRIBE_INFO_RESPONSE` логировать (ошибки подписки — не молчать).
+5. `StreamsApi` + делегат в `TInvestBrokerApi`.
+6. Менеджер: подписка по union интересов; на `TRADING_STATUS` — обновление SSoT, при `apiTradeAvailable == null` — unary-догрузка этого uid; polling fallback: **10 мин при LIVE**, 60 с при `POLLING`/`STALE`; `StreamStateTracker` LIVE/POLLING/STALE.
+7. VM: `tradingStatuses` = производный flow от `repository.statuses` (`apiTradeAvailable → AVAILABLE/UNAVAILABLE/UNKNOWN`); UI не меняется.
+8. Гейт.
 
-**Тесты:** unit на `subscribeTradingStatuses` (mock stream); manager - stream primary vs polling fallback.
+**Тесты:** транспорт (mock-стрим: событие → эмит; unsubscribe на снятие интереса); менеджер (union → набор подписок, событие → обновление, `apiTradeAvailable == null` → unary, reconnect → fallback); деривация availability (true/false/null); существующие VM-тесты под новые моки.
 
-**Референсы:** `PriceFlowManager.kt`, `TInvestPricesService.kt:54`, `docs/rate-limits.md:85`, `docs/streams.md`.
+**Референсы:** `docs/rate-limits.md:112-140` (32 соединения MarketData; 300 подписок на соединение не считают статусы), `TInvestPricesService.kt:54-108` (образец `marketDataServerSideStream`), `PriceFlowManager.kt` (stream + polling + tracker), `docs/streams.md`, T-9 (менеджер и interest-API).
 
-**Ограничения:** polling fallback при потере stream; stream-лимит не считать.
+**Ограничения:**
+- Не менять семантику `TradingAvailability` для UI — производная от `apiTradeAvailable`.
+- Не менять UI (`r1`); поиск продолжает использовать только `api_trade_available_flag`.
+- Не тянуть в задачу проверку перед размещением заявки — это T-51.
+- Одно дополнительное соединение MarketData. Объединение info-подписки с ценовым `marketDataServerSideStream` в один запрос — оптимизация, к рассмотрению позже отдельной задачей.
 
-**Критерий готовности:** manager stream primary; polling только fallback; `StreamStateTracker` LIVE/POLLING; гейт.
+**Критерий готовности:**
+- `TradingStatusInfo` в SSoT; `apiTradeAvailable`/`tradingStatus`/`limitOrderAvailable`/`marketOrderAvailable` заполняются из своих источников.
+- Статусы обновляются стримом; polling — 10 мин при LIVE, 60 с при деградации.
+- `StreamStateTracker` LIVE/POLLING/STALE.
+- UI-бейджи не изменились.
+- Спайк выполнен, результат зафиксирован в PR; гейт зелёный.
 
-**Оценка:** ~3-4 ч.
+**Оценка:** ~3.5-4.5 ч (спайк 0.5 ч + модель/репозиторий/маппер 1-1.5 ч + транспорт 1 ч + менеджер 0.5-1 ч + тесты).
 
-**Зависимости:** T-9.
+**Зависимости:** T-9 (закрыт). Блокирует T-51.
 
-**Связано:** T-9; umbrella T-3 sub-1b (stream connection limiter).
+**Связано:** T-3 umbrella sub-1b (stream connection limiter); T-51.
 
-**Открытые вопросы:** есть ли у T-Invest SDK `MarketDataStreamService.subscribeTradingStatuses` в текущей версии - `grep 'ru.tinkoff.piapi.*TradingStatus'` при старте.
+**Открытые вопросы:** нет — спайк закрывает снапшот при подписке, частоту событий и формат uid.
 
 ---
 <!-- SUBSECTION_END: t-42 -->
+
+
+
+
+
+
+
+
+
+
+<!-- SUBSECTION_BEGIN: t-51 -->
+<a id="t-51"></a>
+### [PLAN] T-51 TradingStatus: проверка перед размещением заявки
+**Мобильная работа:** полное закрытие (proot + PR; domain + data; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `TInvestTradingService.checkTradeAvailability` (`:228-247`) проверяет только баланс × цену — торговый статус и доступность через API в проверке не участвуют. После T-42 SSoT (`TradingStatusRepository`) хранит `TradingStatusInfo` (`apiTradeAvailable`, `tradingStatus`, `limitOrderAvailable`, `marketOrderAvailable`). Перед размещением заявки нужно проверять оба условия: `apiTradeAvailable == true` (брокер разрешает операции через API) **и** `tradingStatus == SECURITY_TRADING_STATUS_NORMAL_TRADING` (торги идут), плюс тип-специфичный флаг (`limit`/`market`) под тип заявки. Поиск этим не затрагивается: там критерий — только `api_trade_available_flag`.
+
+**Соответствие Clean:** соответствует — проверка в domain (usecase), данные из domain-контракта.
+
+**Нарушенное правило Clean:** —.
+
+**Clean-альтернатива:** —.
+
+**Выгоды (для «отклонение по 2c»):** —.
+
+**MVVM:** соответствует — VM не выполняет проверку.
+
+**KMP:** — (domain без платформы; блокер DI унаследован).
+
+**Предусловия:** T-42 закрыт (в SSoT есть `apiTradeAvailable` и `tradingStatus`).
+
+**Файлы:**
+- `domain/models/TradingStatus.kt` — расширение `TradeCheckResult` (`TradingUnavailable`, `ApiTradeDisabled`, `OrderTypeUnavailable`).
+- `data/api/tinvest/TInvestTradingService.kt` — источник данных для проверки (`checkTradeAvailability:228-247`).
+- usecase, вызывающий `checkTradeAvailability` — **уточнить при старте** (`grep -rn checkTradeAvailability app/src`).
+- тесты usecase.
+
+**Шаги:**
+1. `grep` фактический callsite `checkTradeAvailability`, зафиксировать в задаче.
+2. Расширить `TradeCheckResult` вариантами отказа с расшифровкой.
+3. Проверка в domain-слое до вызова брокера: `apiTradeAvailable`, `tradingStatus`, тип-специфичный флаг.
+4. Тексты ошибок для UI — только по санкции `r1` (в этой задаче — без UI-изменений, ошибка уходит в существующий канал статусов).
+5. Гейт.
+
+**Тесты:** `apiTradeAvailable == false` → `ApiTradeDisabled`; `tradingStatus != NORMAL_TRADING` → `TradingUnavailable`; `limitOrderAvailable == false` для лимитной → `OrderTypeUnavailable`; оба доступны → `Success`; `null`-поля → консервативный отказ с расшифровкой.
+
+**Референсы:** T-42 (модель и SSoT), `TradingStatusDetails` (удаляется в T-42), `docs/rate-limits.md` (unary-бюджет для догрузки статуса).
+
+**Ограничения:**
+- Не менять UI без санкции (`r1`).
+- Не добавлять новые unary-запросы в горячем пути размещения: данные берутся из SSoT, догрузка — только если поле `null`.
+
+**Критерий готовности:** заявка не уходит при `apiTradeAvailable == false` или `tradingStatus != NORMAL_TRADING`; отказ расшифрован; гейт зелёный.
+
+**Оценка:** ~1.5-2 ч.
+
+**Зависимости:** T-42.
+
+**Связано:** T-42; T-17 (`Margin/risk → TradeCheckResult`, defer).
+
+**Открытые вопросы:** фактический callsite `checkTradeAvailability` (шаг 1); нужен ли отдельный текст ошибки для UI (санкция `r1`).
+
+---
+<!-- SUBSECTION_END: t-51 -->
 
 
 

@@ -33,7 +33,7 @@
 <!-- SECTION_BEGIN: tasks -->
 ## Задачи
 
-**Next ID:** T-51
+**Next ID:** T-52
 
 | TOKEN | ID | Title | File | Anchor |
 |---|---|---|---|---|
@@ -41,7 +41,8 @@
 | WIP | T-33 | Установка GrpcExceptionGuard | `docs/roadmap/ROADMAP-wip.md` | [#t-33](ROADMAP-wip.md#t-33) |
 | PLAN | T-4 | Rate-limiter: GetUserTariff (dynamic limits) | `docs/roadmap/ROADMAP-plan.md` | [#t-4](ROADMAP-plan.md#t-4) |
 | PLAN | T-50 | docs_add: вставка в начало раздела | `docs/roadmap/ROADMAP-plan.md` | [#t-50](ROADMAP-plan.md#t-50) |
-| PLAN | T-42 | TradingStatus: stream API (subscribeTradingStatuses) | `docs/roadmap/ROADMAP-plan.md` | [#t-42](ROADMAP-plan.md#t-42) |
+| PLAN | T-42 | TradingStatus: stream API (subscribeInfoRequest) | `docs/roadmap/ROADMAP-plan.md` | [#t-42](ROADMAP-plan.md#t-42) |
+| PLAN | T-51 | TradingStatus: проверка перед размещением заявки | `docs/roadmap/ROADMAP-plan.md` | [#t-51](ROADMAP-plan.md#t-51) |
 | PLAN | T-10 | TInvest*Service + *Api: unary → AppResult | `docs/roadmap/ROADMAP-plan.md` | [#t-10](ROADMAP-plan.md#t-10) |
 | PLAN | T-11 | C2: SaveFormStateUseCase primitives (M4/M7 fix, pre-existing) | `docs/roadmap/ROADMAP-plan.md` | [#t-11](ROADMAP-plan.md#t-11) |
 | PLAN | T-12 | Архитектурный документ (docs/architecture.md) | `docs/roadmap/ROADMAP-plan.md` | [#t-12](ROADMAP-plan.md#t-12) |
