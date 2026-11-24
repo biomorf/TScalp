@@ -64,6 +64,7 @@ class PortfolioViewModel
         val tradingStatuses: StateFlow<Map<String, TradingAvailability>> = tradingStatusRepository.statuses
 
         private var positionStreamJob: Job? = null
+        private var loadJob: Job? = null
 
         companion object {
             private const val TAG = "PortfolioViewModel"
@@ -118,46 +119,46 @@ class PortfolioViewModel
         }
 
         fun loadPortfolio() {
-            if (_uiState.value.isLoading) return
-            viewModelScope.launch {
-                _uiState.update { it.copy(isLoading = true) }
-                val sandbox = sandboxPreferencesRepository.isSandboxMode()
+            if (loadJob?.isActive == true) return
+            loadJob =
+                viewModelScope.launch {
+                    _uiState.update { it.copy(isLoading = true) }
+                    val sandbox = sandboxPreferencesRepository.isSandboxMode()
 
-                when (val result = loadPortfolioUseCase.execute(BrokerName.TINVEST, sandbox)) {
-                    is AppResult.Success -> {
-                        val data = result.data
-                        logger.d(TAG, "loadPortfolio: ${data.accounts.size} accounts, sandbox=$sandbox")
-                        _uiState.update {
-                            it.copy(sheet = data.sheet, isLoading = false)
+                    when (val result = loadPortfolioUseCase.execute(BrokerName.TINVEST, sandbox)) {
+                        is AppResult.Success -> {
+                            val data = result.data
+                            logger.d(TAG, "loadPortfolio: ${data.accounts.size} accounts, sandbox=$sandbox")
+                            _uiState.update {
+                                it.copy(sheet = data.sheet, isLoading = false)
+                            }
+                            val byBroker =
+                                data.sheet.accounts.values
+                                    .flatMap { it.positions }
+                                    .groupBy(
+                                        keySelector = { it.brokerName },
+                                        valueTransform = { it.instrument.tscalpInstrumentId },
+                                    ).mapValues { (_, brokerIds) -> brokerIds.filter { it.isNotBlank() }.toSet() }
+                                    .filterValues { it.isNotEmpty() }
+                            tradingStatusFlowManager.setInterest(TradingStatusConsumer.PORTFOLIO, byBroker)
+                            if (data.accounts.isEmpty()) return@launch
+                            val keys = data.accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
+                            startPositionUpdates(keys, sandbox, seed = data.sheet)
+                            syncPriceInterest()
                         }
-                        val ids =
-                            data.sheet.accounts.values
-                                .flatMap { it.positions }
-                                .map { it.instrument.tscalpInstrumentId }
-                                .filter { it.isNotBlank() }
-                                .toSet()
-                        val byBroker =
-                            data.sheet.accounts.keys
-                                .map { it.brokerName }
-                                .distinct()
-                                .associateWith { ids }
-                        tradingStatusFlowManager.setInterest(TradingStatusConsumer.PORTFOLIO, byBroker)
-                        if (data.accounts.isEmpty()) return@launch
-                        val keys = data.accounts.map { AccountKey(BrokerName.TINVEST, it.id) }.toSet()
-                        startPositionUpdates(keys, sandbox, seed = data.sheet)
-                        syncPriceInterest()
-                    }
-                    is AppResult.Failure -> {
-                        logger.e(TAG, "loadPortfolio failed: ${result.error.message}", result.error.cause)
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                            )
+                        is AppResult.Failure -> {
+                            // Failure does not clearInterest: statuses for the previous
+                            // ids stay valid until the next successful load; polling continues.
+                            logger.e(TAG, "loadPortfolio failed: ${result.error.message}", result.error.cause)
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                )
+                            }
+                            _status.trySend(StatusEvent("Ошибка загрузки: ${result.error.message}", isError = true))
                         }
-                        _status.trySend(StatusEvent("Ошибка загрузки: ${result.error.message}", isError = true))
                     }
                 }
-            }
         }
 
         private fun startPositionUpdates(
@@ -219,6 +220,7 @@ class PortfolioViewModel
 
         fun payInSandbox(accountId: String) {
             viewModelScope.launch {
+                _uiState.update { it.copy(isLoading = true) }
                 logger.d(TAG, "Пополнение счёта $accountId через ${BrokerName.TINVEST.displayName}")
 
                 when (
@@ -239,6 +241,16 @@ class PortfolioViewModel
                     }
                 }
             }
+        }
+
+        fun loadIfNeeded() {
+            if (loadJob?.isActive == true) return
+            if (_uiState.value.sheet.accounts
+                    .isNotEmpty()
+            ) {
+                return
+            }
+            loadPortfolio()
         }
 
         fun refresh() {
