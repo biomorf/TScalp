@@ -203,9 +203,9 @@ guard не срабатывает, разбираться отдельно.
 **Мобильная работа:** полное закрытие (proot + PR; presentation + domain; гейт на CI).
 
 **Статус:** в работе.
-**Ветка:** feature/t-9-portfolio-trading-statuses.
+**Ветка:** feature/t-9-portfolio-back-stack.
 
-**Контекст:** `PortfolioScreen:38-42` — `LaunchedEffect(lifecycleOwner) { repeatOnLifecycle(RESUMED) { refresh() } }` дергает полный `loadPortfolio()` при каждом входе в RESUMED (back-stack, foreground, поворот). Плюс `init { brokerManager.anyInitialized.collect { checkApiInitialization() } }` — ещё один `loadPortfolio()` при первом `anyInitialized` (`PortfolioViewModel:69-75`, `:95-105`). Итог: 2+ полных загрузки на cold start. `refresh()` = `viewModelScope.launch { loadPortfolio() }`, а `loadPortfolio()` сам делает `viewModelScope.launch` — двойной launch (`:262-264`, `:128-129`); retry/backoff отсутствует (см. «Связано»: T-3 sub-5 поглощается T-9; «infinite retry» — баг LaunchedEffect(isLoading), устраняется PR 5a). Дополнительно: `tradingStatuses` в `PortfolioUiState` — своё поле (`PortfolioUiState:22`), VM поллит `while (isActive) { delay(5 min); updateTradingStatuses() }` (`:83-91`) и сам вызывает `marketDataRepository.getTradingStatusesResult` (`:214-235`) — дублирует `UpdateTradingStatusesUseCase` + `TradingStatusRepository` (M2/M5). Orders уже работает passthrough (`OrdersViewModel:70`), Portfolio — нет: два независимых кэша одного значения.
+**Контекст:** `PortfolioScreen:38-42` — `LaunchedEffect(lifecycleOwner) { repeatOnLifecycle(RESUMED) { refresh() } }` дергает полный `loadPortfolio()` при каждом входе в RESUMED (back-stack, foreground, поворот). Плюс `init { brokerManager.anyInitialized.collect { checkApiInitialization() } }` — ещё один `loadPortfolio()` при первом `anyInitialized` (`PortfolioViewModel:69-75`, `:95-105`). Итог: 2+ полных загрузки на cold start. `refresh()` = `viewModelScope.launch { loadPortfolio() }`, а `loadPortfolio()` сам делает `viewModelScope.launch` — двойной launch (`:262-264`, `:128-129`); retry/backoff отсутствует (см. «Связано»: T-3 sub-5 поглощается T-9; «infinite retry» — в T-3 не подтверждён; retry/backoff отсутствует, T-3 sub-5 = double-load + guard (поглощена T-9). Дополнительно: `tradingStatuses` в `PortfolioUiState` — своё поле (`PortfolioUiState:22`), VM поллит `while (isActive) { delay(5 min); updateTradingStatuses() }` (`:83-91`) и сам вызывает `marketDataRepository.getTradingStatusesResult` (`:214-235`) — дублирует `UpdateTradingStatusesUseCase` + `TradingStatusRepository` (M2/M5). Orders уже работает passthrough (`OrdersViewModel:70`), Portfolio — нет: два независимых кэша одного значения.
 
 **Соответствие Clean:** отклонение по 2c (принято) — менеджер поллинга в `domain/api/managers/` (по образцу `PositionFlowManager`/`PriceFlowManager`), не в VM/presentation.
 
@@ -230,7 +230,7 @@ guard не срабатывает, разбираться отдельно.
 
 **Шаги (S2 — два PR):**
 
-**Прогресс:** PR 5a merged (PR #174, `7ceacadc`); PR 5b реализован в feature-ветке (`4b2cbebe`, `111b6089`, `0958b736`), локальный гейт зелёный; PR не открыт.
+**Прогресс:** PR 5a merged (PR #174, `7ceacadc`); PR 5b merged (PR #175, `ebf5e8cd`); PR 5c — in progress (back-stack guard, loadJob, byBroker group, payInSandbox isLoading).
 
 **PR 5a (~20-30 мин):**
 1. `PortfolioScreen.kt:38-42`: `LaunchedEffect(lifecycleOwner) { lifecycleOwner.lifecycle.repeatOnLifecycle(RESUMED) { refresh() } }` → `LaunchedEffect(Unit) { viewModel.refresh() }`; импорты `Lifecycle`, `repeatOnLifecycle`, `LocalLifecycleOwner` удалить, если больше не используются.
@@ -270,6 +270,7 @@ guard не срабатывает, разбираться отдельно.
 **Критерий готовности:**
 - 1 полная загрузка на cold start (guard от повторного `loadPortfolio`).
 - 0 загрузок на циклах RESUMED (поворот, foreground) — `repeatOnLifecycle` удалён.
+- 0 загрузок на повторный вход в экран (back-stack, смена вкладки) — `loadIfNeeded()`.
 - `tradingStatuses` в UI — passthrough из `TradingStatusRepository`; поля в `PortfolioUiState` нет.
 - Polling 60 с — в `TradingStatusFlowManager`; остановка при пустом объединении интересов.
 - `RESOURCE_EXHAUSTED` в live-test 6 — 0.
