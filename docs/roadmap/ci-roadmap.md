@@ -2,7 +2,7 @@
 <!-- SECTION_BEGIN: tasks -->
 ## Задачи
 
-**Next ID:** C-13
+**Next ID:** C-14
 
 | TOKEN | ID | Title | File | Anchor |
 |---|---|---|---|---|
@@ -12,6 +12,7 @@
 | PLAN | C-3 | Codecov: diff coverage в PR и бейдж покрытия | `docs/roadmap/ci-roadmap-plan.md` | [#c-3](ci-roadmap-plan.md#c-3) |
 | PLAN | C-6 | Hot-swap CI на GitLab | `docs/roadmap/ci-roadmap-plan.md` | [#c-6](ci-roadmap-plan.md#c-6) |
 | PLAN | C-9 | Desktop: pre-push hook (ktlintFormat + ktlintCheck) | `docs/roadmap/ci-roadmap-plan.md` | [#c-9](ci-roadmap-plan.md#c-9) |
+| PLAN | C-13 | docs_rebuild_index: dedup stale index tail; docs_lint: detect duplicate IDs | `docs/roadmap/ci-roadmap-plan.md` | [#c-13](ci-roadmap-plan.md#c-13) |
 | DEFER | C-11 | Build: suppress JVM warnings (Unsafe / CDS) + cron-check ktlint-gradle #944 | `docs/roadmap/ci-roadmap-defer.md` | [#c-11](ci-roadmap-defer.md#c-11) |
 | DEFER | C-10 | CI: actions/cache v4 -> v6 (Node 20 deprecation) | `docs/roadmap/ci-roadmap-defer.md` | [#c-10](ci-roadmap-defer.md#c-10) |
 | DEFER | C-12 | CI: JDK 17 → 25 | `docs/roadmap/ci-roadmap-defer.md` | [#c-12](ci-roadmap-defer.md#c-12) |

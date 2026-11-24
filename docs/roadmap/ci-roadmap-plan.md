@@ -609,6 +609,60 @@ Actions, которая сама будет перестроена на этап
 
 
 
+<!-- SUBSECTION_BEGIN: c-13 -->
+<a id="c-13"></a>
+### [PLAN] C-13 docs_rebuild_index: dedup stale index tail; docs_lint: detect duplicate IDs
+**Мобильная работа:** полное закрытие (proot + PR; docs/scripts; гейт на CI).
+
+**Статус:** запланировано.
+
+**Контекст:** `docs/roadmap/ROADMAP.md` содержит дублированные строки индекса (например, `T-41` — строки 77 `DONE` и 80 `PLAN`). Строка 80 — хвост старого формата индекса (3 колонки, без `File`/`Anchor`), `docs_rebuild_index.py --apply --mode roadmap` его **не удаляет** (`APPLIED docs/roadmap/ROADMAP.md rows=38`, но дубль остаётся). `docs_lint.py --all` / `--file docs/roadmap/ROADMAP.md` — `ALL CHECKS PASSED`, то есть **дубль не ловится**. Это pre-existing дефект инструментов индексации, не связан с T-9/T-41.
+
+**Соответствие Clean:** — (не применимо, tooling).
+
+**MVVM:** — (не применимо).
+
+**KMP:** — (не применимо).
+
+**Предусловия:** нет.
+
+**Файлы:** `AGENTS/scripts/docs_rebuild_index.py` (парсер хвоста / удаление старых строк); `AGENTS/scripts/docs_lint.py` (проверка дублей ID в индексе).
+
+**Шаги:**
+1. Воспроизвести: `grep -c "| T-41 |" docs/roadmap/ROADMAP.md` -> 2; `docs_rebuild_index.py --apply --mode roadmap` -> дубль остаётся; `docs_lint --file docs/roadmap/ROADMAP.md` -> PASS.
+2. `docs_rebuild_index.py`: найти, почему хвост (строка 80, 3 колонки) не удаляется; фикс: либо удалять всё между `SECTION_BEGIN: tasks` и `SECTION_END: tasks` перед записью, либо парсить обе таблицы.
+3. `docs_lint.py`: добавить проверку «каждый ID встречается в индексе не более одного раза» (line-anchored, `^\| (WIP|PLAN|DEFER|DONE) \| <ID> \|`); на дубле — `FAIL`.
+4. Проверка: `docs_rebuild_index.py --apply --mode roadmap` -> `grep -c "| T-41 |"` = 1 (строка 77 `DONE`); `docs_lint --all` -> PASS.
+5. `docs_lint` на **намеренно** испорченном индексе (дубль) -> `FAIL` (red test).
+
+**Тесты:** скрипты без unit-тестов; проверка — `grep -c` + `docs_lint` red test.
+
+**Референсы:** `AGENTS/scripts/README.md` (docs_rebuild_index, docs_lint); T-48, T-49 (docs_lint).
+
+**Ограничения:** не менять формат индекса (5 колонок); не трогать `docs_lint`-проверки, не связанные с дублями.
+
+**Критерий готовности:** после `docs_rebuild_index.py --apply --mode roadmap` в `docs/roadmap/ROADMAP.md` нет дублей ID; `docs_lint.py` ловит дубль (red test); `grep -c "| T-41 |" docs/roadmap/ROADMAP.md` = 1.
+
+**Оценка:** ~40-60 мин.
+
+**Зависимости:** нет.
+
+**Связано:** T-48, T-49 (docs_lint); T-41 (дубль обнаружен при mark done, но не относится к T-41).
+
+**Открытые вопросы:** нет.
+
+---
+<!-- SUBSECTION_END: c-13 -->
+
+
+
+
+
+
+
+
+
+
 <!-- SECTION_END: ci-roadmap-plan -->
 
 
