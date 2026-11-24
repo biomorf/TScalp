@@ -135,7 +135,7 @@
 
 **Статус:** запланировано.
 
-**Контекст:** после T-9 (5b) `TradingStatusFlowManager` есть в domain. `OrdersViewModel` сейчас обновляет статусы on-demand: при смене списка инструментов - `updateTradingStatuses(idsToUpdate)` -> `UpdateTradingStatusesUseCase`. Работает, но: (а) между изменениями списка статусы устаревают (нет polling); (б) ids Portfolio и Orders могут пересекаться - два независимых fetch. Миграция на `TradingStatusFlowManager` даст единый polling + union ids.
+**Контекст:** после T-9 (5b) `TradingStatusFlowManager` есть в domain. `OrdersViewModel` уже passthrough из `TradingStatusRepository` (`tradingStatuses`), но интерес `ORDERS` в менеджере **не зарегистрирован**. Текущий `while (isActive)` polling в VM: (а) ids берутся из `tradingStatuses.value.keys` (кеш репозитория) — на cold start кеш пуст, цикл ничего не делает, статусы карточек не загружаются, пока не сработает поиск; (б) первое обновление — через 5 мин после старта (нет immediate fetch); (в) между изменениями списка статусы устаревают. Миграция на `TradingStatusFlowManager` даёт: интерес из `lastSelectedInstruments` (карточки, `groupBy(brokerName)`), immediate fetch при первом непустом union, polling 60 с, union с Portfolio.
 
 **Соответствие Clean:** соответствует - policy в domain-менеджере.
 
@@ -145,37 +145,37 @@
 
 **Выгоды (для «отклонение по 2c»):** -.
 
-**MVVM:** соответствует - VM триггерит `start/updateIds`, не оркестрирует polling.
+**MVVM:** соответствует - VM триггерит `setInterest`/`clearInterest`, не оркестрирует polling.
 
 **KMP:** соответствует - manager в domain.
 
 **Предусловия:** T-9 закрыт (manager в проде, обкатан на Portfolio).
 
-**Файлы:** `presentation/screens/orders/OrdersViewModel.kt`, `OrdersCoordViewModel.kt` (если триггерит), `domain/api/managers/TradingStatusFlowManager.kt` (union-id логика).
+**Файлы:** `presentation/screens/orders/OrdersViewModel.kt`; `test/.../presentation/screens/orders/OrdersViewModelTest.kt`.
 
 **Шаги:**
-1. Проверить текущие callsites `updateTradingStatuses` в Orders.
-2. Inject `TradingStatusFlowManager` в `OrdersViewModel`.
-3. `updateTradingStatuses(ids)` -> `manager.updateIds(ids)`.
-4. `onCleared` -> `manager.stop()`.
-5. Проверить union с Portfolio.
+1. Inject `TradingStatusFlowManager` в `OrdersViewModel` (заменить `UpdateTradingStatusesUseCase` — он больше не используется).
+2. Подписчик в `init`: `coordState.map { state -> state.lastSelectedInstruments.groupBy({ it.brokerName }, { it.instrument.tscalpInstrumentId }).mapValues { (_, ids) -> ids.filter { it.isNotBlank() }.toSet() }.filterValues { it.isNotEmpty() } }.distinctUntilChanged().collect { byBroker -> if (byBroker.isEmpty()) clearInterest(ORDERS) else setInterest(ORDERS, byBroker) }`.
+3. Удалить `while (isActive)` polling (5 мин) и `updateTradingStatuses`.
+4. `onCleared` -> `tradingStatusFlowManager.clearInterest(TradingStatusConsumer.ORDERS)` (не `stop()`: менеджер общий с Portfolio).
+5. Удалить `updateTradingStatusesUseCase` из конструктора и импорта.
 6. Гейт.
 
-**Тесты:** `OrdersViewModelTest` - обновить mock (manager вместо UseCase).
+**Тесты:** `OrdersViewModelTest` — `mockk<UpdateTradingStatusesUseCase>` заменить на `mockk<TradingStatusFlowManager>(relaxed = true)` + `verify { manager.setInterest(TradingStatusConsumer.ORDERS, …) }` после эмита `lastSelectedInstruments`.
 
-**Референсы:** T-9; `OrdersViewModel.kt:102`.
+**Референсы:** T-9; `OrdersViewModel.kt` (`init`: `while (isActive)` + `updateTradingStatuses`); `TradingStatusFlowManager.kt` (`setInterest`/`clearInterest`).
 
 **Ограничения:** не менять UI; миграция 1:1 по поведению.
 
-**Критерий готовности:** статусы в Orders обновляются через manager; union с Portfolio; гейт.
+**Критерий готовности:** интерес `ORDERS` зарегистрирован в `TradingStatusFlowManager` из `lastSelectedInstruments` (группировка по `brokerName`); immediate fetch при первом непустом union; polling 60 с; union с Portfolio; cold start загружает статусы карточек; `while (isActive)` и `updateTradingStatuses` удалены; `clearInterest(ORDERS)` в `onCleared`; гейт зелёный.
 
-**Оценка:** ~1-1.5 ч.
+**Оценка:** ~40-60 мин.
 
 **Зависимости:** T-9.
 
 **Связано:** T-9; T-40.
 
-**Открытые вопросы:** как `OrdersViewModel` триггерит `updateTradingStatuses` - на каждом изменении списка или на init? Уточнить при старте.
+**Открытые вопросы:** нет. Поведение: ids из `tradingStatuses.value.keys` (кеш репозитория), таймер 5 мин; на cold start кеш пуст (функциональный баг); первое обновление через 5 мин (нет immediate fetch). T-41 закрывает оба.
 
 ---
 <!-- SUBSECTION_END: t-41 -->
